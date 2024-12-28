@@ -404,10 +404,9 @@ fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
     ast_str
 }
 
-fn literal(current: &mut usize) -> Expr {
+fn literal(current: usize) -> Expr {
     let params : Vec<Expr> = Vec::new();
-    *current = *current + 1;
-    Expr { token_index: *current - 1, params: params}
+    Expr { token_index: current, params: params}
 }
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
@@ -422,32 +421,33 @@ fn primary(tokens: &Vec<Token>, current: &mut usize) -> Expr {
     // println!("primary debug: {}", current);
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
-        TokenType::String => literal(current),
-        TokenType::Identifier => literal(current),
-        TokenType::Number => literal(current),
-        TokenType::True => literal(current),
-        TokenType::False => literal(current),
+        TokenType::String => literal(*current),
+        TokenType::Identifier => literal(*current),
+        TokenType::Number => literal(*current),
+        TokenType::True => literal(*current),
+        TokenType::False => literal(*current),
         TokenType::LeftParen => {
             let mut rightparent_found = false;
             let mut params : Vec<Expr> = Vec::new();
-            let mut end_list = current.clone() + 1;
-            let mut list_t = tokens.get(end_list).unwrap();
-            // println!("primary debug LeftParen: {} {}", current, end_list);
-            while !(rightparent_found || is_eof(&tokens, end_list)) {
-                // println!("primary debug LeftParen while: {} {}", current, end_list);
+            let initial_current = *current;
+            *current = *current + 1;
+            let mut list_t = tokens.get(*current).unwrap();
+            println!("primary debug LeftParen: {} {}", initial_current, *current);
+            while !(rightparent_found || is_eof(&tokens, *current)) {
+                println!("primary debug LeftParen while: {} {}", current, *current);
                 match list_t.token_type {
                     TokenType::RightParen => {
                         rightparent_found = true;
-                        end_list = end_list + 1;
                     },
                     _ => {
-                        params.push(primary(&tokens, &mut end_list));
-                        list_t = tokens.get(end_list).unwrap();
+                        params.push(primary(&tokens, current));
+                        *current = *current + 1;
+                        list_t = tokens.get(*current).unwrap();
                     },
                 }
             }
             match list_t.token_type {
-                TokenType::RightParen => Expr { token_index: *current, params: params},
+                TokenType::RightParen => Expr { token_index: initial_current, params: params},
                 _ => panic!("compiler error (line {}): Expected closing parentheses.", t.line),
             }
         }
