@@ -404,9 +404,10 @@ fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
     ast_str
 }
 
-fn literal(current: usize) -> Expr {
+fn literal(current: &mut usize) -> Expr {
     let params : Vec<Expr> = Vec::new();
-    Expr { token_index: current, params: params}
+    *current = *current + 1;
+    Expr { token_index: *current - 1, params: params}
 }
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
@@ -416,10 +417,10 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     }
 }
 
-fn primary(tokens: &Vec<Token>, current: usize) -> Expr {
+fn primary(tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     // println!("primary debug: {}", current);
-    let t = tokens.get(current).unwrap();
+    let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::String => literal(current),
         TokenType::Identifier => literal(current),
@@ -429,7 +430,7 @@ fn primary(tokens: &Vec<Token>, current: usize) -> Expr {
         TokenType::LeftParen => {
             let mut rightparent_found = false;
             let mut params : Vec<Expr> = Vec::new();
-            let mut end_list = current + 1;
+            let mut end_list = current.clone() + 1;
             let mut list_t = tokens.get(end_list).unwrap();
             // println!("primary debug LeftParen: {} {}", current, end_list);
             while !(rightparent_found || is_eof(&tokens, end_list)) {
@@ -437,16 +438,16 @@ fn primary(tokens: &Vec<Token>, current: usize) -> Expr {
                 match list_t.token_type {
                     TokenType::RightParen => {
                         rightparent_found = true;
+                        end_list = end_list + 1;
                     },
                     _ => {
-                        params.push(primary(&tokens, end_list));
-                        end_list = end_list + 1;
+                        params.push(primary(&tokens, &mut end_list));
                         list_t = tokens.get(end_list).unwrap();
                     },
                 }
             }
             match list_t.token_type {
-                TokenType::RightParen => Expr { token_index: current, params: params},
+                TokenType::RightParen => Expr { token_index: *current, params: params},
                 _ => panic!("compiler error (line {}): Expected closing parentheses.", t.line),
             }
         }
@@ -455,9 +456,9 @@ fn primary(tokens: &Vec<Token>, current: usize) -> Expr {
 }
 
 fn parse_tokens(tokens: &Vec<Token>) -> String {
-    let current: usize = 0;
+    let mut current: usize = 0;
 
-    let e: Expr = primary(tokens, current);
+    let e: Expr = primary(tokens, &mut current);
     println!("Total tokens parsed: {}", current);
 
     to_ast_str(&tokens, &e)
