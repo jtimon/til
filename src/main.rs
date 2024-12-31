@@ -3,8 +3,9 @@ use std::io;
 use std::io::Write; // <--- bring flush() into scope
 use std::fs;
 use std::io::ErrorKind;
+// use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     // basic
     Eof,
@@ -24,7 +25,7 @@ enum TokenType {
     Identifier, String, Number,
 
     // Reserved words.
-    True, False, And, Or,
+    True, False,
     Const, Var,
     Struct, Enum,
     Fn, Proc,
@@ -43,6 +44,83 @@ struct Token {
     start: usize,
     end: usize,
     line: usize,
+}
+
+fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
+    &source[t.start..t.end]
+}
+
+fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
+    let max_symbol_len = 20;
+    let mut end_symbol = t.end;
+    if end_symbol - t.start > max_symbol_len {
+        end_symbol = max_symbol_len;
+    }
+    println!("Lexical error {} line {}: {}. Offending symbol: {}", num_error, t.line, msg, &source[t.start..end_symbol]);
+}
+
+#[derive(Clone)]
+struct Expr {
+    token_index: usize,
+    params: Vec<Expr>,
+}
+
+// enum Value {
+//     b: u8,
+//     l: Vec<Value>,
+//     n: i64,
+//     s: String,
+// }
+
+// struct Constant {
+//     str_id: String,
+//     value: Value,
+// }
+
+// struct Mutable {
+//     str_id: String,
+//     value: Value,
+// }
+
+// Type inference lets us omit an explicit type signature (which
+// would be `HashMap<String, String>` in this example).
+// let mut book_reviews = HashMap::new();
+
+// // Review some books.
+// book_reviews.insert(
+//     "Adventures of Huckleberry Finn".to_string(),
+//     "My favorite book.".to_string(),
+// );
+
+
+// #[derive(Debug)]
+// struct Interpreter {
+//     declared_values: Vec<Constant>.
+// }
+
+// fn declare_constant(i: & mut Interpreter, str_id: String, value: Value,) {
+//     i.declared_values.push();
+// }
+
+fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+
+    let t = tokens.get(e.token_index).unwrap();
+
+    if e.params.len() > 0 {
+        ast_str.push_str("(");
+    }
+
+    ast_str.push_str(&format!("{}", token_type_to_string(&t.token_type)));
+
+    if e.params.len() > 0 {
+        for se in e.params.iter() {
+            ast_str.push_str(&format!(" {}", to_ast_str(&tokens, &se)));
+        }
+
+        ast_str.push_str(")");
+    }
+    ast_str
 }
 
 fn token_type_to_string(token_type: &TokenType) -> String {
@@ -73,8 +151,6 @@ fn token_type_to_string(token_type: &TokenType) -> String {
         TokenType::Number => "Number".to_string(),
         TokenType::True => "True".to_string(),
         TokenType::False => "False".to_string(),
-        TokenType::And => "And".to_string(),
-        TokenType::Or => "Or".to_string(),
         TokenType::Const => "Const".to_string(),
         TokenType::Var => "Var".to_string(),
         TokenType::Fn => "Fn".to_string(),
@@ -131,8 +207,6 @@ fn get_identifier_type(identifier: &str) -> TokenType {
     match identifier {
         "true" => TokenType::True,
         "false" => TokenType::False,
-        "and" => TokenType::And,
-        "or" => TokenType::Or,
         "const" => TokenType::Const,
         "var" => TokenType::Var,
         "struct" => TokenType::Struct,
@@ -377,38 +451,6 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 // }
 
 
-#[derive(Clone)]
-struct Expr {
-    token_index: usize,
-    params: Vec<Expr>,
-}
-
-fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
-    let mut ast_str = "".to_string();
-
-    let t = tokens.get(e.token_index).unwrap();
-
-    if e.params.len() > 0 {
-        ast_str.push_str("(");
-    }
-
-    ast_str.push_str(&format!("{}", token_type_to_string(&t.token_type)));
-
-    if e.params.len() > 0 {
-        for se in e.params.iter() {
-            ast_str.push_str(&format!(" {}", to_ast_str(&tokens, &se)));
-        }
-
-        ast_str.push_str(")");
-    }
-    ast_str
-}
-
-fn literal(current: usize) -> Expr {
-    let params : Vec<Expr> = Vec::new();
-    Expr { token_index: current, params: params}
-}
-
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     current > tokens.len() || match tokens.get(current).unwrap().token_type {
         TokenType::Eof => true,
@@ -416,50 +458,115 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     }
 }
 
-fn primary(tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn literal(current: &mut usize) -> Expr {
+    let params : Vec<Expr> = Vec::new();
+    let e = Expr { token_index: *current, params: params};
+    *current = *current + 1;
+    e
+}
+
+fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let mut rightparent_found = false;
+    let mut params : Vec<Expr> = Vec::new();
+    let initial_current = *current;
+    *current = *current + 1;
+    let mut list_t = tokens.get(*current).unwrap();
+    // println!("primary debug LeftParen: {} {}", initial_current, *current);
+    while !(is_eof(&tokens, *current) || rightparent_found) {
+        // println!("primary debug LeftParen while: {} {}", current, *current);
+        match list_t.token_type {
+            TokenType::RightParen => {
+                rightparent_found = true;
+                *current = *current + 1;
+            },
+            _ => {
+                params.push(primary(&source, &tokens, current));
+                *current = *current + 1;
+                list_t = tokens.get(*current).unwrap();
+            },
+        }
+    }
+    match list_t.token_type {
+        TokenType::RightParen => Expr { token_index: initial_current, params: params},
+        _ => panic!("compiler error (line {}): Expected closing parentheses.", list_t.line),
+    }
+}
+
+fn proc_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let t = tokens.get(*current).unwrap();
+    if is_core_func_proc(get_token_str(source, t)) {
+        let initial_current = *current;
+        *current = *current + 1;
+        let mut params : Vec<Expr> = Vec::new();
+        params.push(list(&source, &tokens, current));
+        Expr { token_index: initial_current, params: params}
+        // panic!("Cil error (line {}): Core function/procedure '{}' is not implemented by cil yet, but planned.", t.line, get_token_str(source, t));
+    } else {
+        panic!("compiler error (line {}): Undefinded function/procedure '{}'.", t.line, get_token_str(source, t));
+    }
+}
+
+fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     // println!("primary debug: {}", current);
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
-        TokenType::String => literal(*current),
-        TokenType::Identifier => literal(*current),
-        TokenType::Number => literal(*current),
-        TokenType::True => literal(*current),
-        TokenType::False => literal(*current),
-        TokenType::LeftParen => {
-            let mut rightparent_found = false;
-            let mut params : Vec<Expr> = Vec::new();
-            let initial_current = *current;
-            *current = *current + 1;
-            let mut list_t = tokens.get(*current).unwrap();
-            println!("primary debug LeftParen: {} {}", initial_current, *current);
-            while !(rightparent_found || is_eof(&tokens, *current)) {
-                println!("primary debug LeftParen while: {} {}", current, *current);
-                match list_t.token_type {
-                    TokenType::RightParen => {
-                        rightparent_found = true;
-                    },
-                    _ => {
-                        params.push(primary(&tokens, current));
-                        *current = *current + 1;
-                        list_t = tokens.get(*current).unwrap();
-                    },
-                }
+        TokenType::String => literal(current),
+        TokenType::Number => literal(current),
+        TokenType::True => literal(current),
+        TokenType::False => literal(current),
+        TokenType::LeftParen => list(&source, &tokens, current),
+        TokenType::Identifier => {
+            if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
+                proc_call(&source, &tokens, current)
+            } else {
+                literal(current)
             }
-            match list_t.token_type {
-                TokenType::RightParen => Expr { token_index: initial_current, params: params},
-                _ => panic!("compiler error (line {}): Expected closing parentheses.", t.line),
-            }
-        }
+        },
         _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
     }
 }
 
-fn parse_tokens(tokens: &Vec<Token>) -> String {
+fn is_core_func(proc_name: &str) -> bool {
+    match proc_name {
+        "and" => true,
+        "or" => true,
+        "add" => true,
+        "eq" => true,
+        "lteq" => true,
+        "gteq" => true,
+        _ => false,
+    }
+}
+
+fn is_core_proc(proc_name: &str) -> bool {
+    match proc_name {
+        "print" => true,
+        "println" => true,
+        _ => false,
+    }
+}
+
+fn is_core_func_proc(proc_name: &str) -> bool {
+    is_core_func(proc_name) || is_core_proc(proc_name)
+}
+
+fn parse_tokens(source: &String, tokens: &Vec<Token>) -> String {
     let mut current: usize = 0;
 
-    let e: Expr = primary(tokens, &mut current);
-    println!("Total tokens parsed: {}", current);
+    let e: Expr = primary(&source, tokens, &mut current);
+    current = current + 1; // Add olne for the EOF
+
+    println!("Total tokens parsed: {}/{}", current, tokens.len());
+    let mut i = current;
+    if i < tokens.len() {
+        println!("Unparsed tokens ({}):", tokens.len() - i);
+    }
+    while i < tokens.len() {
+        let t = tokens.get(i).unwrap();
+        println!("Token: {:?}", t);
+        i = i + 1;
+    }
 
     to_ast_str(&tokens, &e)
 }
@@ -471,15 +578,6 @@ fn parse_tokens(tokens: &Vec<Token>) -> String {
 
 // fn print_parse_error(error: ParseError) {
 // }
-
-fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
-    let max_symbol_len = 20;
-    let mut end_symbol = t.end;
-    if end_symbol - t.start > max_symbol_len {
-        end_symbol = max_symbol_len;
-    }
-    println!("Lexical error {} line {}: {}. Offending symbol: {}", num_error, t.line, msg, &source[t.start..end_symbol]);
-}
 
 fn run(source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
@@ -507,29 +605,8 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    parse_tokens(&tokens)
+    parse_tokens(&source, &tokens)
 }
-
-// struct TestData {
-//     expected: String,
-//     found: String,
-// }
-
-// fn t(a: &str, b: &str) -> TestData {
-//     TestData {expected: a.to_string(), found: b.to_string()}
-// }
-
-// fn test() {
-//     let to_test = [
-//         t("aaa", "aaa"),
-//         t(run(&"aaa".to_string()).as_str(), "bbb"),
-//     ];
-//     for e in to_test {
-//         if e.expected != e.found {
-//             println!("test ERROR expected {} found {}", e.expected, e.found);
-//         }
-//     }
-// }
 
 fn run_file(path: &String) {
     let source: String = match fs::read_to_string(path) {
