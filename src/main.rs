@@ -491,9 +491,9 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn proc_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
-    if is_core_func_proc(get_token_str(source, t)) {
+    if is_core_func(get_token_str(source, t)) {
         let initial_current = *current;
         *current = *current + 1;
         let mut params : Vec<Expr> = Vec::new();
@@ -501,7 +501,11 @@ fn proc_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
         Expr { token_index: initial_current, params: params}
         // panic!("Cil error (line {}): Core function/procedure '{}' is not implemented by cil yet, but planned.", t.line, get_token_str(source, t));
     } else {
-        panic!("compiler error (line {}): Undefinded function/procedure '{}'.", t.line, get_token_str(source, t));
+        if is_core_proc(get_token_str(source, t)) {
+            panic!("compiler error (line {}): Procedure '{}' can't be used as primary expression.", t.line, get_token_str(source, t));
+        } else {
+            panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));
+        }
     }
 }
 
@@ -517,7 +521,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
         TokenType::LeftParen => list(&source, &tokens, current),
         TokenType::Identifier => {
             if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
-                proc_call(&source, &tokens, current)
+                func_call(&source, &tokens, current)
             } else {
                 literal(current)
             }
