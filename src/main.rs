@@ -481,7 +481,6 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             _ => {
                 params.push(primary(&source, &tokens, current));
-                *current = *current + 1;
                 list_t = tokens.get(*current).unwrap();
             },
         }
@@ -533,7 +532,9 @@ fn is_core_func(proc_name: &str) -> bool {
         "or" => true,
         "add" => true,
         "eq" => true,
+        "lt" => true,
         "lteq" => true,
+        "gt" => true,
         "gteq" => true,
         _ => false,
     }
@@ -543,6 +544,7 @@ fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
         "print" => true,
         "println" => true,
+        "assert" => true,
         _ => false,
     }
 }
