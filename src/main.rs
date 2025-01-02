@@ -178,28 +178,20 @@ fn token_type_to_string(token_type: &TokenType) -> String {
 }
 
 fn is_digit(source: &String, pos: usize) -> bool {
-    match &source[pos..pos+1] {
-        "0" => true,
-        "1" => true,
-        "2" => true,
-        "3" => true,
-        "4" => true,
-        "5" => true,
-        "6" => true,
-        "7" => true,
-        "8" => true,
-        "9" => true,
+    match &source[pos..pos+1].chars().next().unwrap() {
+        '0'..='9' => true,
         _ => false,
     }
 }
 
 fn is_alphanumeric(source: &String, pos: usize) -> bool {
-    // let ch = &source[pos..pos+1].chars().next().unwrap();
-    // ch.is_ascii_alphanumeric()
-
-
-    source[pos..pos+1].bytes().all(|b| matches!(b, b'a'..=b'z'))
-        || source[pos..pos+1].bytes().all(|b| matches!(b, b'A'..=b'Z'))
+    match &source[pos..pos+1].chars().next().unwrap() {
+        'a'..='z' | 'A'..='Z' => true,
+        '_' => true,
+        _ => false,
+    }
+    // source[pos..pos+1].bytes().all(|b| matches!(b, b'a'..=b'z'))
+    //     || source[pos..pos+1].bytes().all(|b| matches!(b, b'A'..=b'Z'))
 }
 
 fn get_identifier_type(identifier: &str) -> TokenType {
@@ -450,6 +442,13 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 //     }
 // }
 
+enum CompilerError {
+    CompExpectedRightParen{
+        line: usize,
+        pos: usize,
+    },
+    CompUndefFuncProc,
+}
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     current > tokens.len() || match tokens.get(current).unwrap().token_type {
@@ -466,6 +465,7 @@ fn literal(current: &mut usize) -> Expr {
 }
 
 fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+// fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = *current;
@@ -491,45 +491,6 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-    let t = tokens.get(*current).unwrap();
-    if is_core_func(get_token_str(source, t)) {
-        let initial_current = *current;
-        *current = *current + 1;
-        let mut params : Vec<Expr> = Vec::new();
-        params.push(list(&source, &tokens, current));
-        Expr { token_index: initial_current, params: params}
-        // panic!("Cil error (line {}): Core function/procedure '{}' is not implemented by cil yet, but planned.", t.line, get_token_str(source, t));
-    } else {
-        if is_core_proc(get_token_str(source, t)) {
-            panic!("compiler error (line {}): Procedure '{}' can't be used as primary expression.", t.line, get_token_str(source, t));
-        } else {
-            panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));
-        }
-    }
-}
-
-fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-
-    // println!("primary debug: {}", current);
-    let t = tokens.get(*current).unwrap();
-    match &t.token_type {
-        TokenType::String => literal(current),
-        TokenType::Number => literal(current),
-        TokenType::True => literal(current),
-        TokenType::False => literal(current),
-        TokenType::LeftParen => list(&source, &tokens, current),
-        TokenType::Identifier => {
-            if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
-                func_call(&source, &tokens, current)
-            } else {
-                literal(current)
-            }
-        },
-        _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
-    }
-}
-
 fn is_core_func(proc_name: &str) -> bool {
     match proc_name {
         "and" => true,
@@ -546,6 +507,7 @@ fn is_core_func(proc_name: &str) -> bool {
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
+        "test" => true,
         "print" => true,
         "println" => true,
         "assert" => true,
@@ -557,7 +519,83 @@ fn is_core_func_proc(proc_name: &str) -> bool {
     is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>) -> String {
+fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
+    let t = tokens.get(*current).unwrap();
+    if is_core_func_proc(get_token_str(source, t)) {
+        let initial_current = *current;
+        *current = *current + 1;
+        let mut params : Vec<Expr> = Vec::new();
+        params.push(list(&source, &tokens, current));
+        Ok(Expr { token_index: initial_current, params: params})
+    } else {
+        Err(CompilerError::CompUndefFuncProc)
+    }
+}
+
+fn is_literal(t: &Token) -> bool {
+    match t.token_type {
+        TokenType::String => true,
+        TokenType::Number => true,
+        TokenType::True => true,
+        TokenType::False => true,
+        _ => false,
+    }
+}
+
+// fn compiler_error_to_string()(ce: CompilerError) -> String {
+//     let mut e_str = "".to_string();
+//     match ce {
+
+//     }
+
+// }
+
+fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+
+    // println!("primary debug: {}", current);
+    let t = tokens.get(*current).unwrap();
+    if is_literal(t) {
+        literal(current)
+    } else {
+        match &t.token_type {
+            TokenType::LeftParen => list(&source, &tokens, current),
+            TokenType::Identifier => {
+                if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
+                    match func_call(&source, &tokens, current) {
+                        Ok(e) => e,
+                        Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
+                    }
+                } else {
+                    literal(current)
+                }
+            },
+            _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
+        }
+    }
+}
+
+fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let mut result_str = "".to_string();
+
+    let t = tokens.get(e.token_index).unwrap();
+
+    let token_str = get_token_str(source, t);
+    if is_literal(t) {
+        result_str.push_str(token_str);
+    } else if is_core_func(token_str) {
+        match token_str {
+            "and" => { panic!("cil error (line {}): Core function '{}' implemented.", t.line, token_str); }
+            _ => { panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str); }
+        }
+
+    } else {
+        panic!("cil error (line {}): Not implemented, found {:?}.", t.line, t.token_type);
+    }
+
+    result_str
+}
+
+fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
     let e: Expr = primary(&source, tokens, &mut current);
@@ -573,8 +611,7 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> String {
         println!("Token: {:?}", t);
         i = i + 1;
     }
-
-    to_ast_str(&tokens, &e)
+    e
 }
 
 // struct ParseError {
@@ -611,7 +648,10 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    parse_tokens(&source, &tokens)
+    let e: Expr = parse_tokens(&source, &tokens);
+    println!("AST: {}", to_ast_str(&tokens, &e));
+
+    eval_expr(&source, &tokens, &e)
 }
 
 fn run_file(path: &String) {
@@ -626,7 +666,7 @@ fn run_file(path: &String) {
             },
         },
     };
-    println!("AST: {}", run(&source));
+    println!("eval: {}", run(&source));
 }
 
 fn run_prompt() {
