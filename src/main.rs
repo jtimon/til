@@ -579,6 +579,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
+fn body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let e: Expr = primary(&source, &tokens, current);
+    e
+}
 
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     if e.params.len() != 1 {
@@ -657,7 +661,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
 fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = primary(&source, tokens, &mut current);
+    let e: Expr = body(&source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
