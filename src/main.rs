@@ -77,10 +77,10 @@ struct Expr {
     params: Vec<Expr>,
 }
 
-fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
-    let t = tokens.get(e.token_index).unwrap();
-    &t.token_type
-}
+// fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
+//     let t = tokens.get(e.token_index).unwrap();
+//     &t.token_type
+// }
 
 // enum Value {
 //     b: u8,
@@ -553,8 +553,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
     if is_core_func_proc(get_token_str(source, t)) {
         let initial_current = *current;
         *current = *current + 1;
-        let mut params : Vec<Expr> = Vec::new();
-        params.push(list(&source, &tokens, current));
+        let params : Vec<Expr> = list(&source, &tokens, current).params;
         Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
     } else {
         Err(CompilerError::CompUndefFuncProc)
@@ -613,26 +612,17 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 }
 
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
-    if e.params.len() != 1 {
-        panic!("cil error: function calls should only allow a list of primary expression between parentheses after them, this should never happen.");
-    }
-
-    let only_child = &e.params[0];
-
-    if *get_token_type(tokens, only_child) != TokenType::LeftParen {
-        panic!("cil error: function calls need a left parentheses, this should never happen.");
-    }
-
     let t = tokens.get(e.token_index).unwrap();
     let token_str = get_token_str(source, t);
     match token_str {
-        "and" => eval_and_func(&source, &tokens, only_child),
-        "or" => eval_or_func(&source, &tokens, only_child),
+        "and" => eval_and_func(&source, &tokens, e),
+        "or" => eval_or_func(&source, &tokens, e),
         _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , token_str)
     }
 }
 
 fn eval_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+
     let t = tokens.get(e.token_index).unwrap();
     match t.token_type {
         TokenType::True => true,
