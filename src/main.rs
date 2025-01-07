@@ -59,8 +59,20 @@ fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
     println!("Lexical error {} line {}: {}. Offending symbol: {}", num_error, t.line, msg, &source[t.start..end_symbol]);
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum NodeType {
+    RootNode,
+    LList,
+    LString,
+    LUnsigned,
+    LBool(bool),
+    // LDecimal(String),
+    FCall,
+}
+
 #[derive(Clone)]
 struct Expr {
+    node_type: NodeType,
     token_index: usize,
     params: Vec<Expr>,
 }
@@ -470,9 +482,16 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     }
 }
 
-fn literal(current: &mut usize) -> Expr {
+fn literal(t: &Token, current: &mut usize) -> Expr {
     let params : Vec<Expr> = Vec::new();
-    let e = Expr { token_index: *current, params: params};
+    let node_type = match t.token_type {
+        TokenType::String => NodeType::LString,
+        TokenType::Number => NodeType::LUnsigned,
+        TokenType::True => NodeType::LBool(true),
+        TokenType::False => NodeType::LBool(false),
+        _ => panic!("cil error (line {}): Trying to parse a token that's not a literal as a literal.", t.line),
+    };
+    let e = Expr { node_type: node_type, token_index: *current, params: params};
     *current = *current + 1;
     e
 }
@@ -499,7 +518,7 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
         }
     }
     match list_t.token_type {
-        TokenType::RightParen => Expr { token_index: initial_current, params: params},
+        TokenType::RightParen => Expr { node_type: NodeType::LList, token_index: initial_current, params: params},
         _ => panic!("compiler error (line {}): Expected closing parentheses.", list_t.line),
     }
 }
@@ -539,7 +558,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
         *current = *current + 1;
         let mut params : Vec<Expr> = Vec::new();
         params.push(list(&source, &tokens, current));
-        Ok(Expr { token_index: initial_current, params: params})
+        Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
     } else {
         Err(CompilerError::CompUndefFuncProc)
     }
@@ -568,7 +587,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     // println!("primary debug: {}", current);
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
-        literal(current)
+        literal(t, current)
     } else {
         match &t.token_type {
             TokenType::LeftParen => list(&source, &tokens, current),
@@ -579,7 +598,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                         Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
                     }
                 } else {
-                    literal(current)
+                    literal(t, current)
                 }
             },
             _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
@@ -593,7 +612,7 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
         params.push(primary(&source, &tokens, current));
     }
 
-    Expr { token_index: *current, params: params}
+    Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
 }
 
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
