@@ -50,11 +50,6 @@ fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
     &source[t.start..t.end]
 }
 
-fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
-    let t = tokens.get(e.token_index).unwrap();
-    &t.token_type
-}
-
 fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
     let max_symbol_len = 20;
     let mut end_symbol = t.end;
@@ -68,6 +63,11 @@ fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
 struct Expr {
     token_index: usize,
     params: Vec<Expr>,
+}
+
+fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
+    let t = tokens.get(e.token_index).unwrap();
+    &t.token_type
 }
 
 // enum Value {
