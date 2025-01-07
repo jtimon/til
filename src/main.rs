@@ -119,17 +119,14 @@ fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
 //     i.declared_values.push();
 // }
 
-fn root_body_to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
-    let mut ast_str = "".to_string();
-    for se in e.params.iter() {
-        ast_str.push_str(&format!("{}\n", to_ast_str(&tokens, &se)));
-    }
-    ast_str
-}
-
 fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
-
+    if e.node_type == NodeType::RootNode {
+        for se in e.params.iter() {
+            ast_str.push_str(&format!("{}\n", to_ast_str(&tokens, &se)));
+        }
+        return ast_str
+    }
     let t = tokens.get(e.token_index).unwrap();
 
     if e.params.len() > 0 {
@@ -672,15 +669,14 @@ fn bool_to_string(b: bool) -> String {
     }
 }
 
-fn eval_root_body(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let mut result_str = "".to_string();
-    for se in e.params.iter() {
-        result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
-    }
-    result_str
-}
-
 fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    if e.node_type == NodeType::RootNode {
+        let mut result_str = "".to_string();
+        for se in e.params.iter() {
+            result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
+        }
+        return result_str
+    }
     let t = tokens.get(e.token_index).unwrap();
 
     let token_str = get_token_str(source, t);
@@ -751,9 +747,9 @@ fn run(source: &String) -> String {
     }
 
     let e: Expr = parse_tokens(&source, &tokens);
-    println!("AST: {}", root_body_to_ast_str(&tokens, &e));
+    println!("AST: {}", to_ast_str(&tokens, &e));
 
-    eval_root_body(&source, &tokens, &e)
+    eval_expr(&source, &tokens, &e)
 }
 
 fn run_file(path: &String) {
