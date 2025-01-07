@@ -107,6 +107,14 @@ fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
 //     i.declared_values.push();
 // }
 
+fn root_body_to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    for se in e.params.iter() {
+        ast_str.push_str(&format!("{}\n", to_ast_str(&tokens, &se)));
+    }
+    ast_str
+}
+
 fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
 
@@ -579,9 +587,13 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-    let e: Expr = primary(&source, &tokens, current);
-    e
+fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let mut params : Vec<Expr> = Vec::new();
+    while !is_eof(&tokens, *current) {
+        params.push(primary(&source, &tokens, current));
+    }
+
+    Expr { token_index: *current, params: params}
 }
 
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
@@ -641,6 +653,14 @@ fn bool_to_string(b: bool) -> String {
     }
 }
 
+fn eval_root_body(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let mut result_str = "".to_string();
+    for se in e.params.iter() {
+        result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
+    }
+    result_str
+}
+
 fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
 
@@ -661,7 +681,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
 fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = body(&source, tokens, &mut current);
+    let e: Expr = root_body(&source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
@@ -712,9 +732,9 @@ fn run(source: &String) -> String {
     }
 
     let e: Expr = parse_tokens(&source, &tokens);
-    println!("AST: {}", to_ast_str(&tokens, &e));
+    println!("AST: {}", root_body_to_ast_str(&tokens, &e));
 
-    eval_expr(&source, &tokens, &e)
+    eval_root_body(&source, &tokens, &e)
 }
 
 fn run_file(path: &String) {
