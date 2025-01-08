@@ -1,0 +1,42 @@
+// basic bools plus multiple lines
+
+// FIX literals have to work in the repl
+// "aaa"
+// 1111
+// true
+// false
+
+or(false false false)
+and(false false false)
+and(true or(true) true)
+or(true or(true) true)
+and(true or(true) true)
+and(true or(true) true)
+
+
+
+
+// TODO should error on comptime
+// and("aaa" or(true) true)
+
+
+// (true (true 1111 "1a" aaa) (false 2222 "2b" bbb))
+
+// TODO runtime: 'and' only takes bool
+// and(1 2 3))
+
+// TODO runtime and only takes bool
+// add(1 2 3)
+
+// TODO decide: use commas?
+// add(1 add(2 3 4) 5 6)
+
+// def(aaa true)
+
+// println(true or(false true) true)
+
+// test(true true "true should be true")
+
+// test_assert(true true "true should be true");
+// test_assert(true not(false) "true should not be false");
+// test_err(print(true) "Procedure 'print' can't be used as primary expression.");
