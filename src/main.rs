@@ -469,7 +469,7 @@ enum CompilerError {
     //     line: usize,
     //     pos: usize,
     // },
-    CompUndefFuncProc,
+    CompUndefFuncProc(String),
 }
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
@@ -550,13 +550,14 @@ fn is_core_func_proc(proc_name: &str) -> bool {
 
 fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let t = tokens.get(*current).unwrap();
-    if is_core_func_proc(get_token_str(source, t)) {
+    let token_str = get_token_str(source, t);
+    if is_core_func_proc(token_str) {
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&source, &tokens, current).params;
         Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
     } else {
-        Err(CompilerError::CompUndefFuncProc)
+        Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
     }
 }
 
