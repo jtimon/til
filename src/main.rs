@@ -633,14 +633,14 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 
 // ---------- eval repl interpreter stuff
 
-fn eval_to_bool(tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_to_bool(e: &Expr) -> bool {
 
     match e.node_type {
         NodeType::LBool(b_value) => b_value,
         NodeType::FCall(f_name) => {
             match f_name {
-                "and".to_string() => eval_and_func(&tokens, e),
-                "or".to_string() => eval_or_func(&tokens, e),
+                "and" => eval_and_func(e),
+                "or" => eval_or_func(e),
                 _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
             }
         },
@@ -651,7 +651,7 @@ fn eval_to_bool(tokens: &Vec<Token>, e: &Expr) -> bool {
 fn eval_and_func(tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&tokens, &i);
+        truthfulness = truthfulness && eval_to_bool(&i);
     }
     truthfulness
 }
@@ -659,7 +659,7 @@ fn eval_and_func(tokens: &Vec<Token>, e: &Expr) -> bool {
 fn eval_or_func(tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&tokens, &i);
+        truthfulness = truthfulness || eval_to_bool(&i);
     }
     truthfulness
 }
@@ -691,7 +691,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         token_str.to_string()
     } else if is_core_func(token_str) {
         match token_str {
-            "and" | "or" => bool_to_string(eval_to_bool(&tokens, &e)),
+            "and" | "or" => bool_to_string(eval_to_bool(&e)),
             "let" => let_to_string(&e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str),
         }
