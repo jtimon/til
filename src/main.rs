@@ -556,7 +556,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&source, &tokens, current).params;
-        Ok(Expr { node_type: NodeType::FCall(token_str), token_index: initial_current, params: params})
+        Ok(Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params})
     } else {
         Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
     }
@@ -639,8 +639,8 @@ fn eval_to_bool(tokens: &Vec<Token>, e: &Expr) -> bool {
         NodeType::LBool(b_value) => b_value,
         NodeType::FCall(f_name) => {
             match f_name {
-                to_string("and") => eval_and_func(&tokens, e),
-                to_string("or") => eval_or_func(&tokens, e),
+                "and".to_string() => eval_and_func(&tokens, e),
+                "or".to_string() => eval_or_func(&tokens, e),
                 _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
             }
         },
