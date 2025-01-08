@@ -631,6 +631,8 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
 }
 
+// ---------- eval repl interpreter stuff
+
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let t = tokens.get(e.token_index).unwrap();
     let token_str = get_token_str(source, t);
@@ -769,6 +771,8 @@ fn run(source: &String) -> String {
 
     eval_expr(&source, &tokens, &e)
 }
+
+// ---------- main stuff, usage, args, etc
 
 fn run_file(path: &String) {
     let source: String = match fs::read_to_string(path) {
