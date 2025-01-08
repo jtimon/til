@@ -682,7 +682,7 @@ fn bool_to_string(b: bool) -> String {
     }
 }
 
-fn let_to_string() -> String {
+fn let_to_string(e: &Expr) -> String {
     "funny string".to_string()
 }
 
@@ -702,7 +702,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     } else if is_core_func(token_str) {
         match token_str {
             "and" | "or" => bool_to_string(eval_func_to_bool(&source, &tokens, &e)),
-            "let" => let_to_string(),
+            "let" => let_to_string(&e),
             _ => { panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str); },
         }
 
