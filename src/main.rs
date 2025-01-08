@@ -67,7 +67,7 @@ enum NodeType {
     LUnsigned,
     LBool(bool),
     // LDecimal(String),
-    FCall,
+    FCall(String),
 }
 
 #[derive(Clone)]
@@ -556,7 +556,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&source, &tokens, current).params;
-        Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
+        Ok(Expr { node_type: NodeType::FCall(token_str.to_string(), token_index: initial_current, params: params)})
     } else {
         Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
     }
@@ -633,30 +633,18 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 
 // ---------- eval repl interpreter stuff
 
-fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
-    let t = tokens.get(e.token_index).unwrap();
-    let token_str = get_token_str(source, t);
-    if e.node_type == NodeType::FCall {
-        match token_str {
-            "and" => eval_and_func(&source, &tokens, e),
-            "or" => eval_or_func(&source, &tokens, e),
-            _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , token_str)
-        }
-    } else {
-        panic!("cil error: Only NodeType::FCall should be eval to bool as func. Found '{}'" , token_str)
-    }
-}
-
 fn eval_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
-    let t = tokens.get(e.token_index).unwrap();
     match e.node_type {
         NodeType::LBool(b_value) => b_value,
-        NodeType::FCall => eval_func_to_bool(&source, &tokens, &e),
-        _ => {
-            let token_str = get_token_str(source, t);
-            panic!("cil error: 'and' and 'or' should fail at compile time if non boolean args are provided. Found '{}'" , token_str)
+        NodeType::FCall(f_name) => {
+            match f_name {
+                to_string("and") => eval_and_func(&source, &tokens, e),
+                to_string("or") => eval_or_func(&source, &tokens, e),
+                _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
+            }
         },
+        _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool' and 'FCall'. Found 'MUTE'"),
     }
 }
 
@@ -703,9 +691,9 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         token_str.to_string()
     } else if is_core_func(token_str) {
         match token_str {
-            "and" | "or" => bool_to_string(eval_func_to_bool(&source, &tokens, &e)),
+            "and" | "or" => bool_to_string(eval_to_bool(&source, &tokens, &e)),
             "let" => let_to_string(&e),
-            _ => { panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str); },
+            _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str),
         }
 
     } else {

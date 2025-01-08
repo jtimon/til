@@ -5,8 +5,10 @@ and(false false false)
 
 // constant declaration
 
-let(aaa true)
-let(bbb false)
+// let(aaa true)
+// let(bbb false)
+
+or(false eq(false false) false)
 
 // FIX literals have to work in the repl
 // "aaa"
