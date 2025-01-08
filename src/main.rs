@@ -635,8 +635,8 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 
 fn eval_to_bool(e: &Expr) -> bool {
 
-    match e.node_type {
-        NodeType::LBool(b_value) => b_value,
+    match &e.node_type {
+        NodeType::LBool(b_value) => *b_value,
         NodeType::FCall(f_name) => {
             match f_name.as_str() {
                 "and" => eval_and_func(e),

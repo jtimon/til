@@ -8,7 +8,7 @@ and(false false false)
 // let(aaa true)
 // let(bbb false)
 
-or(false eq(false false) false)
+or(false and(false false) false)
 
 // FIX literals have to work in the repl
 // "aaa"
