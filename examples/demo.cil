@@ -5,7 +5,8 @@ and(false false false)
 
 // constant declaration
 
-let(false false)
+let(aaa true)
+let(bbb false)
 
 // FIX literals have to work in the repl
 // "aaa"
