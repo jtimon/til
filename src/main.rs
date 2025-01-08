@@ -638,7 +638,7 @@ fn eval_to_bool(e: &Expr) -> bool {
     match e.node_type {
         NodeType::LBool(b_value) => b_value,
         NodeType::FCall(f_name) => {
-            match f_name {
+            match f_name.as_str() {
                 "and" => eval_and_func(e),
                 "or" => eval_or_func(e),
                 _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
