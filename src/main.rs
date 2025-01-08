@@ -603,10 +603,28 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
+fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let t = tokens.get(*current).unwrap();
+    match &t.token_type {
+        TokenType::Identifier => {
+            if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
+                match func_call(&source, &tokens, current) {
+                    Ok(e) => e,
+                    Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
+                }
+            } else {
+                literal(t, current)
+            }
+        },
+        _ => panic!("compiler error (line {}): Expected statement, found {:?}.", t.line, t.token_type),
+    }
+
+}
+
 fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let mut params : Vec<Expr> = Vec::new();
     while !is_eof(&tokens, *current) {
-        params.push(primary(&source, &tokens, current));
+        params.push(statement(&source, &tokens, current));
     }
 
     Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
