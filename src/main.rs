@@ -648,7 +648,7 @@ fn eval_to_bool(e: &Expr) -> bool {
     }
 }
 
-fn eval_and_func(tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_and_func(e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
         truthfulness = truthfulness && eval_to_bool(&i);
@@ -656,7 +656,7 @@ fn eval_and_func(tokens: &Vec<Token>, e: &Expr) -> bool {
     truthfulness
 }
 
-fn eval_or_func(tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_or_func(e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
         truthfulness = truthfulness || eval_to_bool(&i);
