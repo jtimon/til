@@ -614,10 +614,14 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let t = tokens.get(e.token_index).unwrap();
     let token_str = get_token_str(source, t);
-    match token_str {
-        "and" => eval_and_func(&source, &tokens, e),
-        "or" => eval_or_func(&source, &tokens, e),
-        _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , token_str)
+    if e.node_type == NodeType::FCall {
+        match token_str {
+            "and" => eval_and_func(&source, &tokens, e),
+            "or" => eval_or_func(&source, &tokens, e),
+            _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , token_str)
+        }
+    } else {
+        panic!("cil error: Only NodeType::FCall should be eval to bool as func. Found '{}'" , token_str)
     }
 }
 
