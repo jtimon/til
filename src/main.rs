@@ -628,10 +628,9 @@ fn eval_func_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 fn eval_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
     let t = tokens.get(e.token_index).unwrap();
-    match t.token_type {
-        TokenType::True => true,
-        TokenType::False => false,
-        TokenType::Identifier => eval_func_to_bool(&source, &tokens, &e),
+    match e.node_type {
+        NodeType::LBool(b_value) => b_value,
+        NodeType::FCall => eval_func_to_bool(&source, &tokens, &e),
         _ => {
             let token_str = get_token_str(source, t);
             panic!("cil error: 'and' and 'or' should fail at compile time if non boolean args are provided. Found '{}'" , token_str)
