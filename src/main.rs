@@ -556,9 +556,9 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&source, &tokens, current).params;
-        Ok(Expr { node_type: NodeType::FCall(token_str.to_string(), token_index: initial_current, params: params)})
+        Ok(Expr { node_type: NodeType::FCall(token_str, token_index: initial_current, params: params)})
     } else {
-        Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
+        Err(CompilerError::CompUndefFuncProc(token_str))
     }
 }
 
@@ -633,14 +633,14 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 
 // ---------- eval repl interpreter stuff
 
-fn eval_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_to_bool(tokens: &Vec<Token>, e: &Expr) -> bool {
 
     match e.node_type {
         NodeType::LBool(b_value) => b_value,
         NodeType::FCall(f_name) => {
             match f_name {
-                to_string("and") => eval_and_func(&source, &tokens, e),
-                to_string("or") => eval_or_func(&source, &tokens, e),
+                to_string("and") => eval_and_func(&tokens, e),
+                to_string("or") => eval_or_func(&tokens, e),
                 _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
             }
         },
@@ -648,18 +648,18 @@ fn eval_to_bool(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     }
 }
 
-fn eval_and_func(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_and_func(tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&source, &tokens, &i);
+        truthfulness = truthfulness && eval_to_bool(&tokens, &i);
     }
     truthfulness
 }
 
-fn eval_or_func(source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_or_func(tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&source, &tokens, &i);
+        truthfulness = truthfulness || eval_to_bool(&tokens, &i);
     }
     truthfulness
 }
@@ -691,7 +691,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         token_str.to_string()
     } else if is_core_func(token_str) {
         match token_str {
-            "and" | "or" => bool_to_string(eval_to_bool(&source, &tokens, &e)),
+            "and" | "or" => bool_to_string(eval_to_bool(&tokens, &e)),
             "let" => let_to_string(&e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str),
         }
