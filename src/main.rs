@@ -556,7 +556,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&source, &tokens, current).params;
-        Ok(Expr { node_type: NodeType::FCall(token_str, token_index: initial_current, params: params)})
+        Ok(Expr { node_type: NodeType::FCall(token_str), token_index: initial_current, params: params})
     } else {
         Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
     }
