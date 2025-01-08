@@ -1,19 +1,17 @@
 // basic bools plus multiple lines
 
+or(false false false)
+and(false false false)
+
+// constant declaration
+
+let(false false)
+
 // FIX literals have to work in the repl
 // "aaa"
 // 1111
 // true
 // false
-
-or(false false false)
-and(false false false)
-and(true or(true) true)
-or(true or(true) true)
-and(true or(true) true)
-and(true or(true) true)
-
-
 
 
 // TODO should error on comptime

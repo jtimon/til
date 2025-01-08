@@ -524,6 +524,7 @@ fn is_core_func(proc_name: &str) -> bool {
     match proc_name {
         "and" => true,
         "or" => true,
+        "let" => true,
         "add" => true,
         "eq" => true,
         "lt" => true,
@@ -681,6 +682,10 @@ fn bool_to_string(b: bool) -> String {
     }
 }
 
+fn let_to_string() -> String {
+    "funny string".to_string()
+}
+
 fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     if e.node_type == NodeType::RootNode {
         let mut result_str = "".to_string();
@@ -697,6 +702,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     } else if is_core_func(token_str) {
         match token_str {
             "and" | "or" => bool_to_string(eval_func_to_bool(&source, &tokens, &e)),
+            "let" => let_to_string(),
             _ => { panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str); },
         }
 
