@@ -68,6 +68,7 @@ enum NodeType {
     LBool(bool),
     // LDecimal(String),
     FCall(String),
+    Identifier(String),
 }
 
 #[derive(Clone)]
@@ -596,7 +597,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                         Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
                     }
                 } else {
-                    literal(t, current)
+                    let params : Vec<Expr> = Vec::new();
+                    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: params};
+                    *current = *current + 1;
+                    e
                 }
             },
             _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
@@ -719,14 +723,6 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     }
     e
 }
-
-// struct ParseError {
-//     error_msg = String,
-//     line: usize,
-// }
-
-// fn print_parse_error(error: ParseError) {
-// }
 
 fn run(source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
