@@ -635,6 +635,43 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
 }
 
+// ---------- Type checking stuff
+
+fn is_defined_func(name:  &str) -> bool {
+    is_core_func_proc(name)
+}
+
+fn is_defined_symbol(name:  &str) -> bool {
+    is_core_func_proc(name)
+}
+
+fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+
+    match &e.node_type {
+        NodeType::RootNode => {
+            for p in e.params.iter() {
+                errors.append(&mut check_types(&source, &tokens, &p));
+            }
+        },
+        NodeType::FCall(name) => {
+            if !is_defined_func(&name) {
+                errors.push(format!("Undefined function {}\n", name));
+            }
+            for p in e.params.iter() {
+                errors.append(&mut check_types(&source, &tokens, &p));
+            }
+        },
+        NodeType::Identifier(name) => {
+            if !is_defined_symbol(&name) {
+                errors.push(format!("Undefined symbol {}\n", name));
+            }
+        }
+        _ => {},
+    }
+    errors
+}
+
 // ---------- eval repl interpreter stuff
 
 fn eval_to_bool(e: &Expr) -> bool {
@@ -676,7 +713,7 @@ fn bool_to_string(b: bool) -> String {
     }
 }
 
-fn let_to_string(e: &Expr) -> String {
+fn let_to_string(_e: &Expr) -> String {
     "funny string".to_string()
 }
 
@@ -751,8 +788,16 @@ fn run(source: &String) -> String {
     }
 
     let e: Expr = parse_tokens(&source, &tokens);
-    println!("AST: {}", to_ast_str(&tokens, &e));
 
+    let errors = check_types(&source, &tokens, &e);
+    if errors.len() > 0 {
+        for err in &errors {
+            println!("Type error: {}", err);
+        }
+        panic!("Compiler errors: {} type errors found", errors.len());
+    }
+
+    println!("AST: {}", to_ast_str(&tokens, &e));
     eval_expr(&source, &tokens, &e)
 }
 

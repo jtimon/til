@@ -8,8 +8,8 @@ and(true or(false true false) true)
 
 // constant declaration
 
-let(aaa true)
-and(true or(false aaa false) true)
+// let(aaa true)
+// and(true or(false aaa false) true)
 
 
 
