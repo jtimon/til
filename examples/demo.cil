@@ -4,7 +4,10 @@
 // and(false false false)
 // and(false or(false false false) false)
 // and(true or(false false false) false)
+// and(true or(false true false) 1111 "ardfhgsfdgh")
+
 and(true or(false true false) true)
+
 
 // constant declaration
 

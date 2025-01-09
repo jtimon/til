@@ -637,12 +637,57 @@ fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
 
 // ---------- Type checking stuff
 
-fn is_defined_func(name:  &str) -> bool {
+fn is_defined_func(name: &str) -> bool {
     is_core_func_proc(name)
 }
 
-fn is_defined_symbol(name:  &str) -> bool {
+fn is_defined_symbol(name: &str) -> bool {
     is_core_func_proc(name)
+}
+
+fn does_func_return_bool(name: &str) -> bool {
+    match name {
+        "and" | "or" => true,
+        _ => false,
+    }
+}
+
+// fn check_call(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+// }
+
+fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+
+    for p in e.params.iter() {
+        match &p.node_type {
+            NodeType::LBool(_) => {
+                continue;
+            },
+            NodeType::LList => {
+                errors.push(format!("Function '{}' expects only bool arguments, found 'list'", name));
+            },
+            NodeType::LString => {
+                errors.push(format!("Function '{}' expects only bool arguments, found 'string'", name));
+            },
+            NodeType::LUnsigned => {
+                errors.push(format!("Function '{}' expects only bool arguments, found 'number'", name));
+            },
+            NodeType::Identifier(id_name) => {
+                errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
+            }
+            NodeType::FCall(func_name) => {
+                if !does_func_return_bool(func_name) {
+                    errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
+                }
+                errors.append(&mut check_types(&source, &tokens, &p));
+            }
+            NodeType::RootNode => {
+                errors.push(format!("Cil error: Function '{}' cannot take a RootNode as an arg. This should never happen", name));
+            }
+        }
+    }
+
+    errors
 }
 
 fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
@@ -656,15 +701,20 @@ fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
         },
         NodeType::FCall(name) => {
             if !is_defined_func(&name) {
-                errors.push(format!("Undefined function {}\n", name));
+                errors.push(format!("Undefined function {}", name));
             }
+            match name.as_str() {
+                "and" | "or" => { errors.append(&mut check_all_params_bool(&name, &source, &tokens, &e)); },
+                _ => todo!(),
+            }
+
             for p in e.params.iter() {
                 errors.append(&mut check_types(&source, &tokens, &p));
             }
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&name) {
-                errors.push(format!("Undefined symbol {}\n", name));
+                errors.push(format!("Undefined symbol {}", name));
             }
         }
         _ => {},
