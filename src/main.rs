@@ -708,9 +708,6 @@ fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
                 _ => todo!(),
             }
 
-            for p in e.params.iter() {
-                errors.append(&mut check_types(&source, &tokens, &p));
-            }
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&name) {
