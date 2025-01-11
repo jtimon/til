@@ -619,7 +619,7 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     match &t.token_type {
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
-                panic!("compiler error (line {}): Expected statement, found 'EOF'.", t.line);
+                panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found 'EOF'.", t.line);
             } else {
                 let next_token_type = &tokens.get(*current + 1).unwrap().token_type;
                 match next_token_type {
@@ -630,9 +630,23 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
                         }
                     },
                     TokenType::Colon => {
-                        match declaration(&source, &tokens, current) {
-                            Ok(e) => e,
-                            Err(_e) => {panic!("compiler error (line {}): error in declaration '{}'.", t.line, get_token_str(source, t));}
+                        if is_eof(&tokens, *current + 1) {
+                            panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found 'EOF'.", t.line);
+                        } else {
+                            let next_next_token_type = &tokens.get(*current + 2).unwrap().token_type;
+                            match next_next_token_type {
+                                TokenType::Equal => {
+                                    todo!()
+                                },
+                                TokenType::Identifier => {
+                                    panic!("compiler error (line {}): Explicit types in declarations not implemented yet, found {:?}.", t.line, t.token_type);
+                                }
+                                _ => panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.token_type),
+                            }
+                            // match declaration(&source, &tokens, current) {
+                            //     Ok(e) => e,
+                            //     Err(_e) => {panic!("compiler error (line {}): error in declaration '{}'.", t.line, get_token_str(source, t));}
+                            // }
                         }
                     },
                     _ => panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found {:?}.", t.line, t.token_type),
