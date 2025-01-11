@@ -612,13 +612,22 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Identifier => {
-            if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
-                match func_call(&source, &tokens, current) {
-                    Ok(e) => e,
-                    Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
-                }
+            if is_eof(&tokens, *current) {
+                panic!("compiler error (line {}): Expected statement, found 'EOF'.", t.line);
             } else {
-                literal(t, current)
+                let next_token_type = &tokens.get(*current + 1).unwrap().token_type;
+                match next_token_type {
+                    TokenType::LeftParen => {
+                        match func_call(&source, &tokens, current) {
+                            Ok(e) => e,
+                            Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
+                        }
+                    },
+                    TokenType::Colon => {
+                        panic!("compiler error (line {}): Declarations not implemented yet.", t.line);
+                    },
+                    _ => panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found {:?}.", t.line, t.token_type),
+                }
             }
         },
         _ => panic!("compiler error (line {}): Expected statement, found {:?}.", t.line, t.token_type),

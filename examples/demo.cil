@@ -6,6 +6,8 @@
 // and(true or(false false false) false)
 // and(true or(false true false) 1111 "ardfhgsfdgh")
 
+aaa := true
+
 and(true or(false true false) true)
 
 
