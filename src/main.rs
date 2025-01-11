@@ -563,6 +563,12 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
     }
 }
 
+fn declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
+    let t = tokens.get(*current).unwrap();
+    let token_str = get_token_str(source, t);
+    Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
+}
+
 fn is_literal(t: &Token) -> bool {
     match t.token_type {
         TokenType::String => true,
@@ -624,7 +630,10 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
                         }
                     },
                     TokenType::Colon => {
-                        panic!("compiler error (line {}): Declarations not implemented yet.", t.line);
+                        match declaration(&source, &tokens, current) {
+                            Ok(e) => e,
+                            Err(_e) => {panic!("compiler error (line {}): error in declaration '{}'.", t.line, get_token_str(source, t));}
+                        }
                     },
                     _ => panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found {:?}.", t.line, t.token_type),
                 }
