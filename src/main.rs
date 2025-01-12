@@ -864,6 +864,10 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
                 panic!("cil error (line {}): Cannot call '{}'. Only core functions are allowed at this point.", t.line, name);
             }
         },
+        NodeType::Declaration(declaration) => {
+            let t = tokens.get(e.token_index).unwrap();
+            panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, declaration.name, declaration.value_type)
+        },
 
         _ => {
             let t = tokens.get(e.token_index).unwrap();
