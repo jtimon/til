@@ -3,7 +3,7 @@ use std::io;
 use std::io::Write; // <--- bring flush() into scope
 use std::fs;
 use std::io::ErrorKind;
-// use std::collections::HashMap;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
@@ -825,6 +825,16 @@ fn eval_or_func(e: &Expr) -> bool {
     truthfulness
 }
 
+
+fn lbool_in_string_to_bool(b: &String) -> bool {
+    if *b {
+        "true".to_string()
+    } else {
+        // todo!
+        "false".to_string()
+    }
+}
+
 fn bool_to_string(b: &bool) -> String {
     if *b {
         "true".to_string()
@@ -837,7 +847,11 @@ fn let_to_string(_e: &Expr) -> String {
     "funny string".to_string()
 }
 
-fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+struct CilContext {
+    bools: HashMap<String, bool>,
+}
+
+fn eval_expr(mut cil_context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::RootNode => {
             let mut result_str = "".to_string();
@@ -846,7 +860,7 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
             }
             result_str
         },
-        NodeType::LBool(bool_value) => bool_to_string(bool_value),
+        NodeType::LBool(bool_value) => bool_to_string(&bool_value),
         NodeType::LString | NodeType::LNumber | NodeType::LList => {
             let t = tokens.get(e.token_index).unwrap();
             let token_str = get_token_str(source, t);
@@ -866,7 +880,14 @@ fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         },
         NodeType::Declaration(declaration) => {
             let t = tokens.get(e.token_index).unwrap();
-            panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, declaration.name, declaration.value_type)
+            match declaration.value_type {
+                ValueType::TBool => {
+                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(declaration.value));
+                    cil_context.bools[&declaration.name] = bool_expr_result;
+                    bool_expr_result.to_string()
+                },
+                 => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, declaration.name, declaration.value_type)
+            }
         },
 
         _ => {
@@ -932,7 +953,8 @@ fn run(source: &String) -> String {
     }
 
     println!("AST: {}", to_ast_str(&tokens, &e));
-    eval_expr(&source, &tokens, &e)
+    let mut cil_context: CilContext;
+    eval_expr(&cil_context, &source, &tokens, &e)
 }
 
 // ---------- main stuff, usage, args, etc
