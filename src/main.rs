@@ -60,6 +60,20 @@ fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+enum ValueType {
+    TBool,
+    TString,
+    // TI64,
+    TList,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Declaration {
+    name: String,
+    value_type: ValueType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     RootNode,
     LList,
@@ -69,6 +83,7 @@ enum NodeType {
     // LDecimal(String),
     FCall(String),
     Identifier(String),
+    Declaration(Declaration)
 }
 
 #[derive(Clone)]
@@ -76,6 +91,15 @@ struct Expr {
     node_type: NodeType,
     token_index: usize,
     params: Vec<Expr>,
+}
+
+fn value_type(e: &Expr) -> ValueType {
+    match e.node_type {
+        NodeType::LBool(_) => ValueType::TBool,
+        NodeType::LString => ValueType::TString,
+        NodeType::LList => ValueType::TList,
+        _ => todo!()
+    }
 }
 
 // fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
@@ -563,11 +587,11 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
     }
 }
 
-fn declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
-    let t = tokens.get(*current).unwrap();
-    let token_str = get_token_str(source, t);
-    Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
-}
+// fn declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
+//     let t = tokens.get(*current).unwrap();
+//     let token_str = get_token_str(source, t);
+//     Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
+// }
 
 fn is_literal(t: &Token) -> bool {
     match t.token_type {
@@ -636,10 +660,15 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
                             let next_next_token_type = &tokens.get(*current + 2).unwrap().token_type;
                             match next_next_token_type {
                                 TokenType::Equal => {
-                                    todo!()
+                                    let initial_current = *current;
+                                    *current = *current + 3;
+                                    let mut params : Vec<Expr> = Vec::new();
+                                    params.push(primary(&source, &tokens, current));
+                                    let decl = Declaration{name: get_token_str(source, t).to_string(), value_type: value_type(&params.get(0).unwrap())};
+                                    Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
                                 },
                                 TokenType::Identifier => {
-                                    panic!("compiler error (line {}): Explicit types in declarations not implemented yet, found {:?}.", t.line, t.token_type);
+                                    panic!("compiler error (line {}): Explicit types in declarations not implemented yet.", t.line);
                                 }
                                 _ => panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.token_type),
                             }
@@ -655,7 +684,6 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
         },
         _ => panic!("compiler error (line {}): Expected statement, found {:?}.", t.line, t.token_type),
     }
-
 }
 
 fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -712,6 +740,9 @@ fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &E
                     errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
                 }
                 errors.append(&mut check_types(&source, &tokens, &p));
+            }
+            NodeType::Declaration(_) => {
+                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
             }
             NodeType::RootNode => {
                 errors.push(format!("Cil error: Function '{}' cannot take a RootNode as an arg. This should never happen", name));
@@ -797,15 +828,18 @@ fn let_to_string(_e: &Expr) -> String {
 }
 
 fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    if e.node_type == NodeType::RootNode {
-        let mut result_str = "".to_string();
-        for se in e.params.iter() {
-            result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
-        }
-        return result_str
+    match e.node_type {
+        NodeType::RootNode => {
+            let mut result_str = "".to_string();
+            for se in e.params.iter() {
+                result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
+            }
+            return result_str;
+        },
+        _ => {},
     }
-    let t = tokens.get(e.token_index).unwrap();
 
+    let t = tokens.get(e.token_index).unwrap();
     let token_str = get_token_str(source, t);
     if is_literal(t) {
         token_str.to_string()
