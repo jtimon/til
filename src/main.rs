@@ -78,7 +78,7 @@ enum NodeType {
     RootNode,
     LList,
     LString,
-    LUnsigned,
+    LNumber,
     LBool(bool),
     // LDecimal(String),
     FCall(String),
@@ -99,6 +99,26 @@ fn value_type(e: &Expr) -> ValueType {
         NodeType::LString => ValueType::TString,
         NodeType::LList => ValueType::TList,
         _ => todo!()
+    }
+}
+
+fn is_literal(t: &Token) -> bool {
+    match t.token_type {
+        TokenType::String => true,
+        TokenType::Number => true,
+        TokenType::True => true,
+        TokenType::False => true,
+        _ => false,
+    }
+}
+
+fn is_literal_node(node_type: &NodeType) -> bool {
+    match node_type {
+        NodeType::LString => true,
+        NodeType::LNumber => true,
+        NodeType::LBool(_) => true,
+        NodeType::LList => true,
+        _ => false,
     }
 }
 
@@ -508,7 +528,7 @@ fn literal(t: &Token, current: &mut usize) -> Expr {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
         TokenType::String => NodeType::LString,
-        TokenType::Number => NodeType::LUnsigned,
+        TokenType::Number => NodeType::LNumber,
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => panic!("cil error (line {}): Trying to parse a token that's not a literal as a literal.", t.line),
@@ -592,16 +612,6 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
 //     let token_str = get_token_str(source, t);
 //     Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
 // }
-
-fn is_literal(t: &Token) -> bool {
-    match t.token_type {
-        TokenType::String => true,
-        TokenType::Number => true,
-        TokenType::True => true,
-        TokenType::False => true,
-        _ => false,
-    }
-}
 
 // fn compiler_error_to_string()(ce: CompilerError) -> String {
 //     let mut e_str = "".to_string();
@@ -729,7 +739,7 @@ fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &E
             NodeType::LString => {
                 errors.push(format!("Function '{}' expects only bool arguments, found 'string'", name));
             },
-            NodeType::LUnsigned => {
+            NodeType::LNumber => {
                 errors.push(format!("Function '{}' expects only bool arguments, found 'number'", name));
             },
             NodeType::Identifier(id_name) => {
@@ -815,8 +825,8 @@ fn eval_or_func(e: &Expr) -> bool {
     truthfulness
 }
 
-fn bool_to_string(b: bool) -> String {
-    if b {
+fn bool_to_string(b: &bool) -> String {
+    if *b {
         "true".to_string()
     } else {
         "false".to_string()
@@ -828,30 +838,37 @@ fn let_to_string(_e: &Expr) -> String {
 }
 
 fn eval_expr(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    match e.node_type {
+    match &e.node_type {
         NodeType::RootNode => {
             let mut result_str = "".to_string();
             for se in e.params.iter() {
                 result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
             }
-            return result_str;
+            result_str
         },
-        _ => {},
-    }
+        NodeType::LBool(bool_value) => bool_to_string(bool_value),
+        NodeType::LString | NodeType::LNumber | NodeType::LList => {
+            let t = tokens.get(e.token_index).unwrap();
+            let token_str = get_token_str(source, t);
+            token_str.to_string()
+        },
+        NodeType::FCall(name) => {
+            let t = tokens.get(e.token_index).unwrap();
+            if is_core_func(&name) {
+                match name.as_str() {
+                    "and" | "or" => bool_to_string(&eval_to_bool(&e)),
+                    "let" => let_to_string(&e),
+                    _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
+                }
+            } else {
+                panic!("cil error (line {}): Cannot call '{}'. Only core functions are allowed at this point.", t.line, name);
+            }
+        },
 
-    let t = tokens.get(e.token_index).unwrap();
-    let token_str = get_token_str(source, t);
-    if is_literal(t) {
-        token_str.to_string()
-    } else if is_core_func(token_str) {
-        match token_str {
-            "and" | "or" => bool_to_string(eval_to_bool(&e)),
-            "let" => let_to_string(&e),
-            _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, token_str),
-        }
-
-    } else {
-        panic!("cil error (line {}): Not implemented, found {:?}.", t.line, t.token_type);
+        _ => {
+            let t = tokens.get(e.token_index).unwrap();
+            panic!("cil error (line {}): Not implemented, found {}.", t.line, get_token_str(source, t))
+        },
     }
 }
 
