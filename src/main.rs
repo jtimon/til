@@ -118,15 +118,15 @@ fn is_literal(t: &Token) -> bool {
     }
 }
 
-fn is_literal_node(node_type: &NodeType) -> bool {
-    match node_type {
-        NodeType::LString => true,
-        NodeType::LNumber => true,
-        NodeType::LBool(_) => true,
-        NodeType::LList => true,
-        _ => false,
-    }
-}
+// fn is_literal_node(node_type: &NodeType) -> bool {
+//     match node_type {
+//         NodeType::LString => true,
+//         NodeType::LNumber => true,
+//         NodeType::LBool(_) => true,
+//         NodeType::LList => true,
+//         _ => false,
+//     }
+// }
 
 // fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
 //     let t = tokens.get(e.token_index).unwrap();
