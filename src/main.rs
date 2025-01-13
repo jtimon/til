@@ -647,7 +647,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Identifier => {
@@ -675,7 +675,7 @@ fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
                                     params.push(primary(&source, &tokens, current));
                                     let decl_name = get_token_str(source, t);
                                     let value_type = value_type(&params.get(0).unwrap());
-                                    if context.symbols.contains_key(decl_name) {
+                                    if is_defined_symbol(&context, decl_name) {
                                         panic!("compiler error (line {}): '{}' already declared.", t.line, decl_name);
                                     } else {
                                         context.symbols.insert(decl_name.to_string(), value_type.clone());
@@ -717,8 +717,8 @@ fn is_defined_func(name: &str) -> bool {
     is_core_func_proc(name)
 }
 
-fn is_defined_symbol(name: &str) -> bool {
-    is_core_func_proc(name)
+fn is_defined_symbol(context: &ComptimeContext, name: &str) -> bool {
+    is_core_func_proc(name) || context.symbols.contains_key(name)
 }
 
 fn does_func_return_bool(name: &str) -> bool {
@@ -731,7 +731,7 @@ fn does_func_return_bool(name: &str) -> bool {
 // fn check_call(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
 // }
 
-fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     for p in e.params.iter() {
@@ -749,13 +749,21 @@ fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &E
                 errors.push(format!("Function '{}' expects only bool arguments, found 'number'", name));
             },
             NodeType::Identifier(id_name) => {
-                errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
+                if context.symbols.contains_key(id_name) {
+                    let value_type = context.symbols.get(id_name).unwrap();
+                    match value_type {
+                        ValueType::TBool => { continue; }
+                        _ => { errors.push(format!("In call to '{}', expected bool, but '{}' is {:?}", name, id_name, value_type)); }
+                    }
+                } else {
+                    errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
+                }
             }
             NodeType::FCall(func_name) => {
                 if !does_func_return_bool(func_name) {
                     errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
                 }
-                errors.append(&mut check_types(&source, &tokens, &p));
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
             NodeType::Declaration(_) => {
                 errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
@@ -769,13 +777,13 @@ fn check_all_params_bool(name: &str, source: &String, tokens: &Vec<Token>, e: &E
     errors
 }
 
-fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_types(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     match &e.node_type {
         NodeType::RootNode => {
             for p in e.params.iter() {
-                errors.append(&mut check_types(&source, &tokens, &p));
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
         },
         NodeType::FCall(name) => {
@@ -783,13 +791,13 @@ fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
                 errors.push(format!("Undefined function {}", name));
             }
             match name.as_str() {
-                "and" | "or" => { errors.append(&mut check_all_params_bool(&name, &source, &tokens, &e)); },
+                "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
                 _ => todo!(),
             }
 
         },
         NodeType::Identifier(name) => {
-            if !is_defined_symbol(&name) {
+            if !is_defined_symbol(&context, &name) {
                 errors.push(format!("Undefined symbol {}", name));
             }
         }
@@ -800,33 +808,47 @@ fn check_types(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
 
 // ---------- eval repl interpreter stuff
 
-fn eval_to_bool(e: &Expr) -> bool {
+fn eval_to_bool(context: &CilContext, e: &Expr) -> bool {
 
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
         NodeType::FCall(f_name) => {
             match f_name.as_str() {
-                "and" => eval_and_func(e),
-                "or" => eval_or_func(e),
+                "and" => eval_and_func(&context, e),
+                "or" => eval_or_func(&context, e),
                 _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
             }
         },
-        _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool' and 'FCall'. Found 'MUTE'"),
+        NodeType::Identifier(name) => {
+            // let bool_value = context.bools.get(name);
+            // if bool_value.is_some() {
+
+            // } else {
+            //     panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+            // }
+            match context.bools.get(name) {
+                Some(bool_value) => bool_value.clone(),
+                None => {
+                    panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+                }
+            }
+        },
+        _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found 'SOMETHING_ELSE'"),
     }
 }
 
-fn eval_and_func(e: &Expr) -> bool {
+fn eval_and_func(context: &CilContext, e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&i);
+        truthfulness = truthfulness && eval_to_bool(&context, &i);
     }
     truthfulness
 }
 
-fn eval_or_func(e: &Expr) -> bool {
+fn eval_or_func(context: &CilContext, e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&i);
+        truthfulness = truthfulness || eval_to_bool(&context, &i);
     }
     truthfulness
 }
@@ -875,7 +897,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             let t = tokens.get(e.token_index).unwrap();
             if is_core_func(&name) {
                 match name.as_str() {
-                    "and" | "or" => bool_to_string(&eval_to_bool(&e)),
+                    "and" | "or" => bool_to_string(&eval_to_bool(&cil_context, &e)),
                     "let" => let_to_string(&e),
                     _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
                 }
@@ -903,10 +925,9 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
     }
 }
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
+fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new() };
     let e: Expr = root_body(&mut context, &source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
@@ -949,9 +970,10 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let e: Expr = parse_tokens(&source, &tokens);
+    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new() };
+    let e: Expr = parse_tokens(&mut context, &source, &tokens);
 
-    let errors = check_types(&source, &tokens, &e);
+    let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
             println!("Type error: {}", err);

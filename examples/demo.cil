@@ -8,7 +8,9 @@
 
 aaa := or(false true false)
 bbb := or(false true false)
-and(true or(false true false) true)
+// and := true // must fail, double declaration
+// aaa := true // must fail, double declaration
+and(aaa or(false true false) bbb)
 
 
 // constant declaration
