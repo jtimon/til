@@ -94,11 +94,17 @@ struct Expr {
 }
 
 fn value_type(e: &Expr) -> ValueType {
-    match e.node_type {
+    match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LString => ValueType::TString,
         NodeType::LList => ValueType::TList,
-        _ => todo!()
+        NodeType::FCall(name) => {
+            match name.as_str() {
+                "and" | "or" => ValueType::TBool,
+                _ => panic!("cil error: The only functions that can be used are currently 'and' and 'or'. Found '{}'" , name),
+            }
+        },
+        _ => todo!(),
     }
 }
 
