@@ -144,17 +144,6 @@ fn is_literal_node(node_type: &NodeType) -> bool {
 //     value: Value,
 // }
 
-// Type inference lets us omit an explicit type signature (which
-// would be `HashMap<String, String>` in this example).
-// let mut book_reviews = HashMap::new();
-
-// // Review some books.
-// book_reviews.insert(
-//     "Adventures of Huckleberry Finn".to_string(),
-//     "My favorite book.".to_string(),
-// );
-
-
 // #[derive(Debug)]
 // struct Interpreter {
 //     declared_values: Vec<Constant>.
@@ -826,12 +815,11 @@ fn eval_or_func(e: &Expr) -> bool {
 }
 
 
-fn lbool_in_string_to_bool(b: &String) -> bool {
-    if *b {
-        "true".to_string()
-    } else {
-        // todo!
-        "false".to_string()
+fn lbool_in_string_to_bool(b: &str) -> bool {
+    match b {
+        "true" => true,
+        "false" => false,
+        _ => panic!("Cil Error: expected string 'true' or 'false', this should never happen.")
     }
 }
 
@@ -851,12 +839,12 @@ struct CilContext {
     bools: HashMap<String, bool>,
 }
 
-fn eval_expr(mut cil_context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::RootNode => {
             let mut result_str = "".to_string();
             for se in e.params.iter() {
-                result_str.push_str(&format!("{}\n", eval_expr(&source, &tokens, &se)));
+                result_str.push_str(&format!("{}\n", eval_expr(&mut cil_context, &source, &tokens, &se)));
             }
             result_str
         },
@@ -882,11 +870,12 @@ fn eval_expr(mut cil_context: &CilContext, source: &String, tokens: &Vec<Token>,
             let t = tokens.get(e.token_index).unwrap();
             match declaration.value_type {
                 ValueType::TBool => {
-                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(declaration.value));
-                    cil_context.bools[&declaration.name] = bool_expr_result;
+                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut cil_context, &source, &tokens, e.params.get(0).unwrap()));
+                    cil_context.bools.insert(declaration.name.clone(), bool_expr_result);
                     bool_expr_result.to_string()
                 },
-                 => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, declaration.name, declaration.value_type)
+                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
             }
         },
 
@@ -953,8 +942,8 @@ fn run(source: &String) -> String {
     }
 
     println!("AST: {}", to_ast_str(&tokens, &e));
-    let mut cil_context: CilContext;
-    eval_expr(&cil_context, &source, &tokens, &e)
+    let mut cil_context = CilContext{bools: HashMap::new()};
+    eval_expr(&mut cil_context, &source, &tokens, &e)
 }
 
 // ---------- main stuff, usage, args, etc
