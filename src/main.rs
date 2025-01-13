@@ -93,6 +93,10 @@ struct Expr {
     params: Vec<Expr>,
 }
 
+struct ComptimeContext {
+    symbols: HashMap<String, ValueType>,
+}
+
 fn value_type(e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
@@ -643,7 +647,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Identifier => {
@@ -669,7 +673,14 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
                                     *current = *current + 3;
                                     let mut params : Vec<Expr> = Vec::new();
                                     params.push(primary(&source, &tokens, current));
-                                    let decl = Declaration{name: get_token_str(source, t).to_string(), value_type: value_type(&params.get(0).unwrap())};
+                                    let decl_name = get_token_str(source, t);
+                                    let value_type = value_type(&params.get(0).unwrap());
+                                    if context.symbols.contains_key(decl_name) {
+                                        panic!("compiler error (line {}): '{}' already declared.", t.line, decl_name);
+                                    } else {
+                                        context.symbols.insert(decl_name.to_string(), value_type.clone());
+                                    }
+                                    let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
                                     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
                                 },
                                 TokenType::Identifier => {
@@ -691,10 +702,10 @@ fn statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     }
 }
 
-fn root_body(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn root_body(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let mut params : Vec<Expr> = Vec::new();
     while !is_eof(&tokens, *current) {
-        params.push(statement(&source, &tokens, current));
+        params.push(statement(&mut context, &source, &tokens, current));
     }
 
     Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
@@ -895,7 +906,8 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
 fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = root_body(&source, tokens, &mut current);
+    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new() };
+    let e: Expr = root_body(&mut context, &source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
