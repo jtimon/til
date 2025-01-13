@@ -820,12 +820,6 @@ fn eval_to_bool(context: &CilContext, e: &Expr) -> bool {
             }
         },
         NodeType::Identifier(name) => {
-            // let bool_value = context.bools.get(name);
-            // if bool_value.is_some() {
-
-            // } else {
-            //     panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
-            // }
             match context.bools.get(name) {
                 Some(bool_value) => bool_value.clone(),
                 None => {
