@@ -8,6 +8,14 @@ main := and(bbb or(false false aaa) true)
 
 // TODO next:
 
+myfunc := func(a, b) returns bool {
+    return and(a, b)
+}
+
+// myproc := proc(a, b) returns bool {
+//     return print(myfunc(a, b))
+// }
+
 // my_num := 1111
 // and(true my_num) // fails, and cannot take number literals
 

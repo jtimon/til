@@ -59,12 +59,23 @@ fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
     println!("Lexical error {} line {}: {}. Offending symbol: {}", num_error, t.line, msg, &source[t.start..end_symbol]);
 }
 
+fn is_literal(t: &Token) -> bool {
+    match t.token_type {
+        TokenType::String => true,
+        TokenType::Number => true,
+        TokenType::True => true,
+        TokenType::False => true,
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum ValueType {
     TBool,
     TString,
     // TI64,
     TList,
+    TFunc,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -102,6 +113,7 @@ fn start_compile_context() -> ComptimeContext {
     let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new() };
     context.funcs.insert("and".to_string(), ValueType::TBool);
     context.funcs.insert("or" .to_string(), ValueType::TBool);
+    context.funcs.insert("func" .to_string(), ValueType::TFunc);
     context
 }
 
@@ -130,16 +142,6 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
             }
         },
         _ => panic!("cil error: value_type() not implement for this ValueType yet."),
-    }
-}
-
-fn is_literal(t: &Token) -> bool {
-    match t.token_type {
-        TokenType::String => true,
-        TokenType::Number => true,
-        TokenType::True => true,
-        TokenType::False => true,
-        _ => false,
     }
 }
 
