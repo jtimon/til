@@ -95,6 +95,14 @@ struct Expr {
 
 struct ComptimeContext {
     symbols: HashMap<String, ValueType>,
+    funcs: HashMap<String, ValueType>,
+}
+
+fn start_compile_context() -> ComptimeContext {
+    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new() };
+    context.funcs.insert("and".to_string(), ValueType::TBool);
+    context.funcs.insert("or" .to_string(), ValueType::TBool);
+    context
 }
 
 fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
@@ -103,9 +111,14 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
         NodeType::LString => ValueType::TString,
         NodeType::LList => ValueType::TList,
         NodeType::FCall(name) => {
-            match name.as_str() {
-                "and" | "or" => ValueType::TBool,
-                _ => panic!("cil error: The only functions that can be called are currently 'and' and 'or'. Found '{}'" , name),
+            match context.funcs.get(name) {
+                Some(value_type) => {
+                    match value_type {
+                        ValueType::TBool => ValueType::TBool,
+                        _ => panic!("cil error: func '{}' does not return bool" , name),
+                    }
+                },
+                None => panic!("compile error: value_type: Undefined funtion/procedure '{}'" , name),
             }
         },
         NodeType::Identifier(name) => {
@@ -545,7 +558,7 @@ fn literal(t: &Token, current: &mut usize) -> Expr {
     e
 }
 
-fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 // fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
@@ -561,7 +574,7 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                 *current = *current + 1;
             },
             _ => {
-                params.push(primary(&source, &tokens, current));
+                params.push(primary(&context, &source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
             },
         }
@@ -601,13 +614,14 @@ fn is_core_func_proc(proc_name: &str) -> bool {
     is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
-fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
+fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
+
     if is_core_func_proc(token_str) {
         let initial_current = *current;
         *current = *current + 1;
-        let params : Vec<Expr> = list(&source, &tokens, current).params;
+        let params : Vec<Expr> = list(&context, &source, &tokens, current).params;
         Ok(Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params})
     } else {
         Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
@@ -628,7 +642,7 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resul
 
 // }
 
-fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     // println!("primary debug: {}", current);
     let t = tokens.get(*current).unwrap();
@@ -636,10 +650,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
         literal(t, current)
     } else {
         match &t.token_type {
-            TokenType::LeftParen => list(&source, &tokens, current),
+            TokenType::LeftParen => list(&context, &source, &tokens, current),
             TokenType::Identifier => {
                 if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
-                    match func_call(&source, &tokens, current) {
+                    match func_call(&context, &source, &tokens, current) {
                         Ok(e) => e,
                         Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
                     }
@@ -665,7 +679,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                 let next_token_type = &tokens.get(*current + 1).unwrap().token_type;
                 match next_token_type {
                     TokenType::LeftParen => {
-                        match func_call(&source, &tokens, current) {
+                        match func_call(&context, &source, &tokens, current) {
                             Ok(e) => e,
                             Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
                         }
@@ -680,7 +694,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                                     let initial_current = *current;
                                     *current = *current + 3;
                                     let mut params : Vec<Expr> = Vec::new();
-                                    params.push(primary(&source, &tokens, current));
+                                    params.push(primary(&context, &source, &tokens, current));
                                     let decl_name = get_token_str(source, t);
                                     let value_type = value_type(&context, &params.get(0).unwrap());
                                     if is_defined_symbol(&context, decl_name) {
@@ -972,7 +986,7 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new() };
+    let mut context = start_compile_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
 
     let errors = check_types(&context, &source, &tokens, &e);
