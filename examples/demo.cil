@@ -1,24 +1,18 @@
-// basic bools plus multiple lines
-
-// or(false false false)
-// and(false false false)
-// and(false or(false false false) false)
-// and(true or(false false false) false)
-// and(true or(false true false) 1111 "ardfhgsfdgh")
+// basic bools and multiple lines
 
 aaa := or(false true false)
-bbb := or(false true false)
-// and := true // must fail, double declaration
-// aaa := true // must fail, double declaration
-and(aaa or(false true false) bbb)
+bbb := and(false true false)
+// and := true // fails, double declaration
+// aaa := true // fails, double declaration
+main := and(aaa or(false true bbb) true)
 
+// TODO next:
 
-// constant declaration
+// my_num := 1111
+// and(true my_num) // fails, and cannot take number literals
 
-// let(aaa true)
-// and(true or(false aaa false) true)
-
-
+// my_str := "asdfgdfafgd"
+// and(true my_str) // fails, and cannot take string literals
 
 // FIX literals have to work in the repl
 // "aaa"

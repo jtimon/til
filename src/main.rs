@@ -97,7 +97,7 @@ struct ComptimeContext {
     symbols: HashMap<String, ValueType>,
 }
 
-fn value_type(e: &Expr) -> ValueType {
+fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LString => ValueType::TString,
@@ -105,10 +105,18 @@ fn value_type(e: &Expr) -> ValueType {
         NodeType::FCall(name) => {
             match name.as_str() {
                 "and" | "or" => ValueType::TBool,
-                _ => panic!("cil error: The only functions that can be used are currently 'and' and 'or'. Found '{}'" , name),
+                _ => panic!("cil error: The only functions that can be called are currently 'and' and 'or'. Found '{}'" , name),
             }
         },
-        _ => todo!(),
+        NodeType::Identifier(name) => {
+            match context.symbols.get(name) {
+                Some(value_type) => value_type.clone(),
+                None => {
+                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'value_type()'.", name)
+                }
+            }
+        },
+        _ => panic!("cil error: value_type() not implement for this ValueType yet."),
     }
 }
 
@@ -674,7 +682,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                                     let mut params : Vec<Expr> = Vec::new();
                                     params.push(primary(&source, &tokens, current));
                                     let decl_name = get_token_str(source, t);
-                                    let value_type = value_type(&params.get(0).unwrap());
+                                    let value_type = value_type(&context, &params.get(0).unwrap());
                                     if is_defined_symbol(&context, decl_name) {
                                         panic!("compiler error (line {}): '{}' already declared.", t.line, decl_name);
                                     } else {
