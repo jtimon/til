@@ -1,10 +1,10 @@
 // basic bools and multiple lines
 
-aaa := or(false true false)
-bbb := and(false true false)
+aaa := and(false true false)
+bbb := or(false true false)
 // and := true // fails, double declaration
 // aaa := true // fails, double declaration
-main := and(aaa or(false true bbb) true)
+main := and(bbb or(false false aaa) true)
 
 // TODO next:
 
