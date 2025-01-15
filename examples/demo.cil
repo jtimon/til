@@ -8,7 +8,7 @@ main := and(bbb or(false false aaa) true)
 
 // TODO next:
 
-myfunc := func(a, b) returns bool {
+my_func := func(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 

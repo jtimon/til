@@ -26,9 +26,9 @@ enum TokenType {
 
     // Reserved words.
     True, False,
-    Const, Var,
+    Var,
     Struct, Enum,
-    Fn, Proc,
+    Func, Proc,
     Match, If, Else, While, For, In,
     Return, Returns, Throw, Rethrow, Throws, Catch,
     Debug,
@@ -85,6 +85,19 @@ struct Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct Arg {
+    name: String,
+    value_type: ValueType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct FuncDef {
+    args: Vec<Arg>,
+    returns: Vec<ValueType>,
+    // throws: Vec<ValueType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     RootNode,
     LList,
@@ -94,7 +107,8 @@ enum NodeType {
     // LDecimal(String),
     FCall(String),
     Identifier(String),
-    Declaration(Declaration)
+    Declaration(Declaration),
+    FuncDef(FuncDef),
 }
 
 #[derive(Clone)]
@@ -113,7 +127,6 @@ fn start_compile_context() -> ComptimeContext {
     let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new() };
     context.funcs.insert("and".to_string(), ValueType::TBool);
     context.funcs.insert("or" .to_string(), ValueType::TBool);
-    context.funcs.insert("func" .to_string(), ValueType::TFunc);
     context
 }
 
@@ -122,6 +135,7 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LString => ValueType::TString,
         NodeType::LList => ValueType::TList,
+        NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::FCall(name) => {
             match context.funcs.get(name) {
                 Some(value_type) => {
@@ -240,9 +254,8 @@ fn token_type_to_string(token_type: &TokenType) -> String {
         TokenType::Number => "Number".to_string(),
         TokenType::True => "True".to_string(),
         TokenType::False => "False".to_string(),
-        TokenType::Const => "Const".to_string(),
         TokenType::Var => "Var".to_string(),
-        TokenType::Fn => "Fn".to_string(),
+        TokenType::Func => "Func".to_string(),
         TokenType::Proc => "Proc".to_string(),
         TokenType::Struct => "Struct".to_string(),
         TokenType::Enum => "Enum".to_string(),
@@ -284,15 +297,13 @@ fn is_alphanumeric(source: &String, pos: usize) -> bool {
 }
 
 fn get_identifier_type(identifier: &str) -> TokenType {
-    // println!("Identifier literal {}", identifier);
     match identifier {
         "true" => TokenType::True,
         "false" => TokenType::False,
-        "const" => TokenType::Const,
         "var" => TokenType::Var,
         "struct" => TokenType::Struct,
         "enum" => TokenType::Enum,
-        "fn" => TokenType::Fn,
+        "func" => TokenType::Func,
         "proc" => TokenType::Proc,
         "match" => TokenType::Match,
         "if" => TokenType::If,
@@ -644,9 +655,52 @@ fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, cu
 
 // }
 
+fn func_proc_args(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
+    let t = tokens.get(*current).unwrap();
+    panic!("cil error (line {}): arg parsing for func/proc definition not implemented yet.", t.line);
+}
+
+fn func_proc_returns(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+    let t = tokens.get(*current).unwrap();
+    panic!("cil error (line {}): returns parsing for func/proc definition not implemented yet.", t.line);
+}
+
+// fn func_proc_throws(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+//     let t = tokens.get(*current).unwrap();
+//     panic!("cil error (line {}): throws parsing for func/proc definition not implemented yet.", t.line);
+// }
+
+// fn func_proc_body(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+//     let t = tokens.get(*current).unwrap();
+//     panic!("cil error (line {}): body parsing for func/proc definition not implemented yet.", t.line);
+// }
+
+fn func_proc_definition(is_func: bool, context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    if !is_func {
+        let t = tokens.get(*current).unwrap();
+        panic!("cil error (line {}): proc definition not implemented yet.", t.line);
+    }
+    if is_eof(&tokens, *current + 1) {
+        let t = tokens.get(*current).unwrap();
+        panic!("compiler error (line {}): expected '(' after 'func', found EOF.", t.line);
+    } else {
+        let t = tokens.get(*current + 1).unwrap();
+        if t.token_type == TokenType::LeftParen {
+            let args = func_proc_args(&context, &source, &tokens, current);
+            let returns = func_proc_returns(&context, &source, &tokens, current);
+            let func_def = FuncDef{args: args, returns: returns};
+            let params : Vec<Expr> = Vec::new();
+            let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
+            *current = *current + 1;
+            e
+        } else {
+            panic!("compiler error (line {}): expected '(' after 'func', found {:?}.", t.line, t.token_type);
+        }
+    }
+}
+
 fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
-    // println!("primary debug: {}", current);
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
         literal(t, current)
@@ -665,6 +719,12 @@ fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, curr
                     *current = *current + 1;
                     e
                 }
+            },
+            TokenType::Func => {
+                func_proc_definition(true, &context, &source, &tokens, current)
+            },
+            TokenType::Proc => {
+                func_proc_definition(false, &context, &source, &tokens, current)
             },
             _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
         }
@@ -772,6 +832,9 @@ fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String,
             NodeType::LNumber => {
                 errors.push(format!("Function '{}' expects only bool arguments, found 'number'", name));
             },
+            NodeType::FuncDef(_) => {
+                errors.push(format!("Function '{}' expects only bool arguments, found 'func'", name));
+            }
             NodeType::Identifier(id_name) => {
                 if context.symbols.contains_key(id_name) {
                     let value_type = context.symbols.get(id_name).unwrap();
