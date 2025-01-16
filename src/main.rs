@@ -99,7 +99,7 @@ struct FuncDef {
 
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
-    RootNode,
+    Body,
     LList,
     LString,
     LNumber,
@@ -202,7 +202,7 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
 
 fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
-    if e.node_type == NodeType::RootNode {
+    if e.node_type == NodeType::Body {
         for se in e.params.iter() {
             ast_str.push_str(&format!("{}\n", to_ast_str(&tokens, &se)));
         }
@@ -649,8 +649,8 @@ fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, cu
 // }
 
 fn func_proc_args(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
-    let t = tokens.get(*current).unwrap();
-    panic!("cil error (line {}): arg parsing for func/proc definition not implemented yet.", t.line);
+    let args : Vec<Arg> = Vec::new();
+    args
 }
 
 fn func_proc_returns(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
@@ -775,13 +775,14 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-fn root_body(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement_list(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     while !is_eof(&tokens, *current) {
         params.push(statement(&mut context, &source, &tokens, current));
     }
 
-    Expr { node_type: NodeType::RootNode, token_index: *current, params: params}
+    Expr { node_type: NodeType::Body, token_index: initial_current, params: params}
 }
 
 // ---------- Type checking stuff
@@ -844,8 +845,8 @@ fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String,
             NodeType::Declaration(_) => {
                 errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
             }
-            NodeType::RootNode => {
-                errors.push(format!("Cil error: Function '{}' cannot take a RootNode as an arg. This should never happen", name));
+            NodeType::Body => {
+                errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
             }
         }
     }
@@ -857,7 +858,7 @@ fn check_types(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, 
     let mut errors : Vec<String> = Vec::new();
 
     match &e.node_type {
-        NodeType::RootNode => {
+        NodeType::Body => {
             for p in e.params.iter() {
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
@@ -950,7 +951,7 @@ struct CilContext {
 
 fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
-        NodeType::RootNode => {
+        NodeType::Body => {
             let mut result_str = "".to_string();
             for se in e.params.iter() {
                 result_str.push_str(&format!("{}\n", eval_expr(&mut cil_context, &source, &tokens, &se)));
@@ -998,7 +999,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
 fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = root_body(&mut context, &source, tokens, &mut current);
+    let e: Expr = statement_list(&mut context, &source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
