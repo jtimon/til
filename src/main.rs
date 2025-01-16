@@ -793,7 +793,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut ComptimeContext, source
         if t.token_type == TokenType::LeftParen {
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
-            let body = body(&mut context, &source, tokens, current).params;
+            let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
             let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
@@ -899,14 +899,22 @@ fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
     }
 }
 
-fn body(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn body(end_token : TokenType, mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
-    while !is_eof(&tokens, *current) {
-        params.push(statement(&mut context, &source, &tokens, current));
+    let mut end_found = false;
+    while *current < tokens.len() && !end_found {
+        if tokens.get(*current).unwrap().token_type == end_token {
+            end_found = true;
+        } else {
+            params.push(statement(&mut context, &source, &tokens, current));
+        }
     }
-
-    Expr { node_type: NodeType::Body, token_index: initial_current, params: params}
+    if end_found {
+        Expr { node_type: NodeType::Body, token_index: initial_current, params: params}
+    } else {
+        panic!("compiler error: Expected {:?} to end body.", end_token);
+    }
 }
 
 // ---------- Type checking stuff
@@ -1126,7 +1134,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
 fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = body(&mut context, &source, tokens, &mut current);
+    let e: Expr = body(TokenType::Eof, &mut context, &source, tokens, &mut current);
     current = current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
