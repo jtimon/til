@@ -160,7 +160,7 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
                         _ => panic!("cil error: func '{}' does not return bool" , name),
                     }
                 },
-                None => panic!("compile error: value_type: Undefined funtion/procedure '{}'" , name),
+                None => panic!("compile error: value_type: Undefined function/procedure '{}'" , name),
             }
         },
         NodeType::Identifier(name) => {
