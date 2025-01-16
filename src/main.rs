@@ -124,6 +124,7 @@ enum NodeType {
     Identifier(String),
     Declaration(Declaration),
     FuncDef(FuncDef),
+    Return,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -835,9 +836,20 @@ fn primary(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Toke
     }
 }
 
+fn return_statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let initial_current = *current;
+    *current = *current + 1;
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(primary(&mut context, &source, &tokens, current));
+    Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
+}
+
 fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
+        TokenType::Return => {
+            return_statement(&mut context, &source, &tokens, current)
+        },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
                 panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found 'EOF'.", t.line);
@@ -959,6 +971,9 @@ fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String,
             }
             NodeType::Body => {
                 errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
+            }
+            NodeType::Return => {
+                errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
             }
         }
     }
