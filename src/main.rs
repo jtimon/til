@@ -1082,6 +1082,8 @@ fn let_to_string(_e: &Expr) -> String {
 
 struct CilContext {
     bools: HashMap<String, bool>,
+    funcs: HashMap<String, Expr>,
+    procs: HashMap<String, Expr>,
 }
 
 fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1119,6 +1121,16 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
                     let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut cil_context, &source, &tokens, e.params.get(0).unwrap()));
                     cil_context.bools.insert(declaration.name.clone(), bool_expr_result);
                     bool_expr_result.to_string()
+                },
+                ValueType::TFunc => {
+                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+                    cil_context.funcs.insert(declaration.name.clone(), e.params.get(0).unwrap().clone());
+                    "func declared".to_string()
+                },
+                ValueType::TProc => {
+                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+                    cil_context.procs.insert(declaration.name.clone(), e.params.get(0).unwrap().clone());
+                    "proc declared".to_string()
                 },
                 _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
             }
@@ -1188,7 +1200,7 @@ fn run(source: &String) -> String {
     }
 
     println!("AST: {}", to_ast_str(&tokens, &e));
-    let mut cil_context = CilContext{bools: HashMap::new()};
+    let mut cil_context = CilContext{bools: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new()};
     eval_expr(&mut cil_context, &source, &tokens, &e)
 }
 
