@@ -570,6 +570,7 @@ fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current
                 if expect_comma {
                     expect_comma = false;
                     *current = *current + 1;
+                    list_t = tokens.get(*current).unwrap();
                 } else {
                     panic!("compile error (line {}): Unexpected ','.", list_t.line);
                 }

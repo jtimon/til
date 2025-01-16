@@ -1,12 +1,12 @@
 zero := and(false)
 one := or(zero, true)
-// two := or(one, true)
+two := or(one, true)
 
-// aaa := and(false, false, false, true, false)
-// bbb := or(false, true, false)
-// // and := true // fails, double declaration
-// // aaa := true // fails, double declaration
-// main := and(bbb, or(false, false, aaa), true)
+aaa := and(false, false, false, true, false)
+bbb := or(false, true, false)
+// and := true // fails, double declaration
+// aaa := true // fails, double declaration
+main := and(bbb, or(false, false, aaa), true)
 
 // TODO next:
 
