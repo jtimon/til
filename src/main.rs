@@ -136,13 +136,20 @@ struct Expr {
 
 struct ComptimeContext {
     symbols: HashMap<String, ValueType>,
-    funcs: HashMap<String, ValueType>,
+    funcs: HashMap<String, FuncDef>,
+    procs: HashMap<String, FuncDef>,
 }
 
 fn start_compile_context() -> ComptimeContext {
-    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new() };
-    context.funcs.insert("and".to_string(), ValueType::TBool);
-    context.funcs.insert("or" .to_string(), ValueType::TBool);
+    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new() };
+
+    let args : Vec<Arg> = Vec::new();
+    let mut return_types : Vec<ValueType> = Vec::new();
+    return_types.push(ValueType::TBool);
+    let body : Vec<Expr> = Vec::new();
+    let func_def = FuncDef{args: args, returns: return_types, body: body};
+    context.funcs.insert("and".to_string(), func_def.clone());
+    context.funcs.insert("or" .to_string(), func_def);
     context
 }
 
@@ -154,10 +161,21 @@ fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::FCall(name) => {
             match context.funcs.get(name) {
-                Some(value_type) => {
-                    match value_type {
-                        ValueType::TBool => ValueType::TBool,
-                        _ => panic!("cil error: func '{}' does not return bool" , name),
+                Some(func_def) => {
+
+                    match func_def.returns.len() {
+                        0 => {
+                            panic!("cil error: func '{}' does not return anything" , name)
+                        },
+                        1 => {
+                            match func_def.returns.get(0).unwrap() {
+                                ValueType::TBool => ValueType::TBool,
+                                _ => panic!("cil error: func '{}' does not return bool" , name),
+                            }
+                        },
+                        _ => {
+                            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
+                        },
                     }
                 },
                 None => panic!("compile error: value_type: Undefined function/procedure '{}'" , name),
@@ -611,7 +629,6 @@ fn is_core_func(proc_name: &str) -> bool {
     match proc_name {
         "and" => true,
         "or" => true,
-        "let" => true,
         "add" => true,
         "eq" => true,
         "lt" => true,
@@ -640,7 +657,7 @@ fn func_call(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
 
-    if is_core_func_proc(token_str) {
+    if is_defined_func_proc(&context, token_str) {
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
@@ -871,17 +888,36 @@ fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
                                     let mut params : Vec<Expr> = Vec::new();
                                     params.push(primary(&mut context, &source, &tokens, current));
                                     let decl_name = get_token_str(source, t);
-                                    let value_type = value_type(&context, &params.get(0).unwrap());
+                                    let e = params.get(0).unwrap();
+                                    let value_type = value_type(&context, &e);
                                     if is_defined_symbol(&context, decl_name) {
                                         panic!("compiler error (line {}): '{}' already declared.", t.line, decl_name);
                                     } else {
-                                        context.symbols.insert(decl_name.to_string(), value_type.clone());
+                                        match value_type {
+                                            ValueType::TFunc => {
+                                                match &e.node_type {
+                                                    NodeType::FuncDef(func_def) => {
+                                                        context.funcs.insert(decl_name.to_string(), func_def.clone());
+                                                    },
+                                                    _ => {
+                                                        panic!("cil error (line {}): funcs should have definitions. This should never happen", t.line);
+                                                    }
+
+                                                }
+                                            },
+                                            ValueType::TProc => {
+                                                panic!("cil error (line {}): proc declarations not implemented yet.", t.line);
+                                            },
+                                            _ => {
+                                                context.symbols.insert(decl_name.to_string(), value_type.clone());
+                                            },
+                                        }
                                     }
                                     let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
                                     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
                                 },
                                 TokenType::Identifier => {
-                                    panic!("compiler error (line {}): Explicit types in declarations not implemented yet.", t.line);
+                                    panic!("cil error (line {}): Explicit types in declarations not implemented yet.", t.line);
                                 }
                                 _ => panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.token_type),
                             }
@@ -919,12 +955,12 @@ fn body(end_token : TokenType, mut context: &mut ComptimeContext, source: &Strin
 
 // ---------- Type checking stuff
 
-fn is_defined_func(name: &str) -> bool {
-    is_core_func_proc(name)
+fn is_defined_func_proc(context: &ComptimeContext, name: &str) -> bool {
+    is_core_func_proc(name) || context.funcs.contains_key(name) || context.procs.contains_key(name)
 }
 
 fn is_defined_symbol(context: &ComptimeContext, name: &str) -> bool {
-    is_core_func_proc(name) || context.symbols.contains_key(name)
+    is_defined_func_proc(&context, name) || context.symbols.contains_key(name)
 }
 
 fn does_func_return_bool(name: &str) -> bool {
@@ -999,14 +1035,27 @@ fn check_types(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, 
             }
         },
         NodeType::FCall(name) => {
-            if !is_defined_func(&name) {
+            if !is_defined_func_proc(&context, &name) {
                 errors.push(format!("Undefined function {}", name));
             }
             match name.as_str() {
                 "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
-                _ => todo!(),
+                _ => {
+                    let func_def = context.funcs.get(name).unwrap();
+                    if func_def.args.len() != e.params.len() {
+                        errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
+                    }
+                    for i in 0..func_def.args.len() {
+                        let arg = func_def.args.get(i).unwrap();
+                        let expected_type = &arg.value_type;
+                        let found_type = value_type(&context, e.params.get(i).unwrap());
+                        if expected_type != &found_type {
+                            errors.push(format!("calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                                name, expected_type, arg.name, found_type));
+                        }
+                    }
+                },
             }
-
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
@@ -1076,10 +1125,6 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
-fn let_to_string(_e: &Expr) -> String {
-    "funny string".to_string()
-}
-
 struct CilContext {
     bools: HashMap<String, bool>,
     funcs: HashMap<String, Expr>,
@@ -1106,11 +1151,16 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             if is_core_func(&name) {
                 match name.as_str() {
                     "and" | "or" => bool_to_string(&eval_to_bool(&cil_context, &e)),
-                    "let" => let_to_string(&e),
                     _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
                 }
+            } else if is_core_proc(&name) {
+                panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
+            } else if cil_context.funcs.contains_key(name) {
+                panic!("cil error (line {}): Cannot call '{}'. Custom functions not implemented yet.", t.line, name);
+            } else if cil_context.procs.contains_key(name) {
+                panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
             } else {
-                panic!("cil error (line {}): Cannot call '{}'. Only core functions are allowed at this point.", t.line, name);
+                panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
             }
         },
         NodeType::Declaration(declaration) => {
