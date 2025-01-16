@@ -522,33 +522,12 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 //     expr
 // }
 
-// fn is_literal_boolean(tokens: &Vec<Token>, current: usize) -> bool {
-//     let t = tokens.get(current).unwrap();
-//     match t.token_type {
-//         TokenType::True => true,
-//         TokenType::False => true,
-//         _  => false,
-//     }
+// enum CompilerError {
+//     line: usize,
+//     pos: usize,
+//     col: usize,
+//     msg: str,
 // }
-
-// fn boolean(tokens: &Vec<Token>, current: usize) -> Expr {
-//     let t: Token = tokens.get(current).unwrap().clone();
-//     let mut params : Vec<Expr> = Vec::new();
-
-//     match t.token_type {
-//         TokenType::True => Expr { operator: t, params: params},
-//         TokenType::False => Expr { operator: t, params: params},
-//         _  => false,
-//     }
-// }
-
-enum CompilerError {
-    // CompExpectedRightParen{
-    //     line: usize,
-    //     pos: usize,
-    // },
-    CompUndefFuncProc(String),
-}
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     current > tokens.len() || match tokens.get(current).unwrap().token_type {
@@ -579,6 +558,7 @@ fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current
     *current = *current + 1;
     let mut list_t = tokens.get(*current).unwrap();
     // println!("primary debug LeftParen: {} {}", initial_current, *current);
+    let mut expect_comma = false;
     while !(is_eof(&tokens, *current) || rightparent_found) {
         // println!("primary debug LeftParen while: {} {}", current, *current);
         match list_t.token_type {
@@ -586,9 +566,21 @@ fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current
                 rightparent_found = true;
                 *current = *current + 1;
             },
+            TokenType::Comma => {
+                if expect_comma {
+                    expect_comma = false;
+                    *current = *current + 1;
+                } else {
+                    panic!("compile error (line {}): Unexpected ','.", list_t.line);
+                }
+            },
             _ => {
+                if expect_comma {
+                    panic!("compile error (line {}): Expected ',', found {:?}.", list_t.line, list_t.token_type);
+                }
                 params.push(primary(&context, &source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
+                expect_comma = true;
             },
         }
     }
@@ -627,7 +619,7 @@ fn is_core_func_proc(proc_name: &str) -> bool {
     is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
-fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
+fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
 
@@ -635,9 +627,9 @@ fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, cu
         let initial_current = *current;
         *current = *current + 1;
         let params : Vec<Expr> = list(&context, &source, &tokens, current).params;
-        Ok(Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params})
+        Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
     } else {
-        Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
+        panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));
     }
 }
 
@@ -708,22 +700,21 @@ fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, curr
         match &t.token_type {
             TokenType::LeftParen => list(&context, &source, &tokens, current),
             TokenType::Identifier => {
-                if is_eof(&tokens, *current) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen {
-                    match func_call(&context, &source, &tokens, current) {
-                        Ok(e) => e,
-                        Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
-                    }
-                } else {
+                if !(is_eof(&tokens, *current + 1) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen) {
                     let params : Vec<Expr> = Vec::new();
                     let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: params};
                     *current = *current + 1;
                     e
+                } else {
+                    func_call(&context, &source, &tokens, current)
                 }
             },
             TokenType::Func => {
+                *current = *current + 1;
                 func_proc_definition(true, &context, &source, &tokens, current)
             },
             TokenType::Proc => {
+                *current = *current + 1;
                 func_proc_definition(false, &context, &source, &tokens, current)
             },
             _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
@@ -741,10 +732,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                 let next_token_type = &tokens.get(*current + 1).unwrap().token_type;
                 match next_token_type {
                     TokenType::LeftParen => {
-                        match func_call(&context, &source, &tokens, current) {
-                            Ok(e) => e,
-                            Err(_e) => {panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));}
-                        }
+                        func_call(&context, &source, &tokens, current)
                     },
                     TokenType::Colon => {
                         if is_eof(&tokens, *current + 1) {

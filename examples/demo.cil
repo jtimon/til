@@ -1,26 +1,30 @@
-// basic bools and multiple lines
+// const declarations, basic bools and multiple lines
 
-aaa := and(false true false)
-bbb := or(false true false)
-// and := true // fails, double declaration
-// aaa := true // fails, double declaration
-main := and(bbb or(false false aaa) true)
+zero := and(false)
+// one := or(zero, true)
+// two := or(one, true)
+
+// aaa := and(false, false, false, true, false)
+// bbb := or(false, true, false)
+// // and := true // fails, double declaration
+// // aaa := true // fails, double declaration
+// main := and(bbb, or(false, false, aaa), true)
 
 // TODO next:
 
-my_func := func(a: bool, b: bool) returns bool {
-    return and(a, b)
-}
+// my_func := func(a: bool, b: bool) returns bool {
+//     return and(a, b)
+// }
 
 // myproc := proc(a, b) returns bool {
 //     return print(myfunc(a, b))
 // }
 
 // my_num := 1111
-// and(true my_num) // fails, and cannot take number literals
+// and(true, my_num) // fails, and cannot take number literals
 
 // my_str := "asdfgdfafgd"
-// and(true my_str) // fails, and cannot take string literals
+// and(true, my_str) // fails, and cannot take string literals
 
 // FIX literals have to work in the repl
 // "aaa"
@@ -36,20 +40,15 @@ my_func := func(a: bool, b: bool) returns bool {
 // (true (true 1111 "1a" aaa) (false 2222 "2b" bbb))
 
 // TODO runtime: 'and' only takes bool
-// and(1 2 3))
+// add(1, true, true)
 
 // TODO runtime and only takes bool
-// add(1 2 3)
+// add("1", true, true)
 
-// TODO decide: use commas?
-// add(1 add(2 3 4) 5 6)
+// println(true, or(false, true), true)
 
-// def(aaa true)
+// test(true, true, "true should be true")
 
-// println(true or(false true) true)
-
-// test(true true "true should be true")
-
-// test_assert(true true "true should be true");
-// test_assert(true not(false) "true should not be false");
-// test_err(print(true) "Procedure 'print' can't be used as primary expression.");
+// test_assert(true, true, "true should be true");
+// test_assert(true, not(false), "true should not be false");
+// test_err(print(true), "Procedure 'print' can't be used as primary expression.");
