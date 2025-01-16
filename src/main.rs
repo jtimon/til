@@ -677,7 +677,7 @@ fn func_proc_definition(is_func: bool, context: &ComptimeContext, source: &Strin
         let t = tokens.get(*current).unwrap();
         panic!("compiler error (line {}): expected '(' after 'func', found EOF.", t.line);
     } else {
-        let t = tokens.get(*current + 1).unwrap();
+        let t = tokens.get(*current).unwrap();
         if t.token_type == TokenType::LeftParen {
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
