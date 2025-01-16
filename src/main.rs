@@ -775,7 +775,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-fn statement_list(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn body(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     while !is_eof(&tokens, *current) {
@@ -999,7 +999,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
 fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = statement_list(&mut context, &source, tokens, &mut current);
+    let e: Expr = body(&mut context, &source, tokens, &mut current);
     current = current + 1; // Add olne for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
