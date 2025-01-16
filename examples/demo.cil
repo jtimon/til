@@ -1,7 +1,5 @@
-// const declarations, basic bools and multiple lines
-
 zero := and(false)
-// one := or(zero, true)
+one := or(zero, true)
 // two := or(one, true)
 
 // aaa := and(false, false, false, true, false)

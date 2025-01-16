@@ -578,9 +578,9 @@ fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current
                 if expect_comma {
                     panic!("compile error (line {}): Expected ',', found {:?}.", list_t.line, list_t.token_type);
                 }
+                expect_comma = true;
                 params.push(primary(&context, &source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
-                expect_comma = true;
             },
         }
     }
