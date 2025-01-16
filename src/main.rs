@@ -76,7 +76,21 @@ enum ValueType {
     // TI64,
     TList,
     TFunc,
+    TProc,
+    TCustom(String),
 }
+
+fn str_to_value_type(arg_type: &str) -> ValueType {
+    match arg_type {
+        "bool" => ValueType::TBool,
+        "String" => ValueType::TString,
+        "list" => ValueType::TList,
+        "func" => ValueType::TFunc,
+        "proc" => ValueType::TProc,
+        type_name => ValueType::TCustom(type_name.to_string()),
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 struct Declaration {
@@ -95,6 +109,7 @@ struct FuncDef {
     args: Vec<Arg>,
     returns: Vec<ValueType>,
     // throws: Vec<ValueType>,
+    body: Vec<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -111,7 +126,7 @@ enum NodeType {
     FuncDef(FuncDef),
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Expr {
     node_type: NodeType,
     token_index: usize,
@@ -550,7 +565,7 @@ fn literal(t: &Token, current: &mut usize) -> Expr {
     e
 }
 
-fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn list(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 // fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
@@ -580,7 +595,7 @@ fn list(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current
                     panic!("compile error (line {}): Expected ',', found {:?}.", list_t.line, list_t.token_type);
                 }
                 expect_comma = true;
-                params.push(primary(&context, &source, &tokens, current));
+                params.push(primary(&mut context, &source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
             },
         }
@@ -620,14 +635,14 @@ fn is_core_func_proc(proc_name: &str) -> bool {
     is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
-fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_call(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
 
     if is_core_func_proc(token_str) {
         let initial_current = *current;
         *current = *current + 1;
-        let params : Vec<Expr> = list(&context, &source, &tokens, current).params;
+        let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
         Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
     } else {
         panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));
@@ -648,14 +663,110 @@ fn func_call(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, cu
 
 // }
 
-fn func_proc_args(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
-    let args : Vec<Arg> = Vec::new();
-    args
+fn func_proc_args(_context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
+
+    let mut rightparent_found = false;
+    let mut args : Vec<Arg> = Vec::new();
+    *current = *current + 1;
+    let mut t = tokens.get(*current).unwrap();
+    let mut expect_comma = false;
+    let mut expect_colon = false;
+    let mut expect_name = true;
+    let mut arg_name = "unnamed";
+    while !(is_eof(&tokens, *current) || rightparent_found) {
+        match t.token_type {
+            TokenType::RightParen => {
+                rightparent_found = true;
+                *current = *current + 1;
+            },
+            TokenType::Comma => {
+                if expect_comma {
+                    expect_comma = false;
+                    expect_name = true;
+                    *current = *current + 1;
+                    t = tokens.get(*current).unwrap();
+                } else {
+                    panic!("compile error (line {}): Unexpected ','.", t.line);
+                }
+            },
+            TokenType::Colon => {
+                if expect_colon {
+                    expect_colon = false;
+                    *current = *current + 1;
+                    t = tokens.get(*current).unwrap();
+                } else {
+                    panic!("compile error (line {}): Unexpected ':'.", t.line);
+                }
+            },
+            TokenType::Identifier => {
+                if expect_comma {
+                    panic!("compile error (line {}): Expected ',', found {:?}.", t.line, t.token_type);
+                }
+                if expect_colon {
+                    panic!("compile error (line {}): Expected ':', found {:?}.", t.line, t.token_type);
+                }
+                if expect_name {
+                    arg_name = get_token_str(source, t);
+                    expect_colon = true;
+                    expect_name = false;
+                } else {
+                    args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(get_token_str(source, t))});
+                    expect_comma = true;
+                }
+                *current = *current + 1;
+                t = tokens.get(*current).unwrap();
+            },
+            _ => {
+                panic!("compile error (line {}): Unexpected {:?} in func/proc args.", t.line, t.token_type);
+            },
+        }
+    }
+    match t.token_type {
+        TokenType::RightParen => args,
+        _ => panic!("compiler error (line {}): Expected closing parentheses.", t.line),
+    }
 }
 
-fn func_proc_returns(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
-    let t = tokens.get(*current).unwrap();
-    panic!("cil error (line {}): returns parsing for func/proc definition not implemented yet.", t.line);
+fn func_proc_returns(_context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+    let mut end_found = false;
+    let mut return_types : Vec<ValueType> = Vec::new();
+    *current = *current + 1;
+    let mut t = tokens.get(*current).unwrap();
+    let mut expect_comma = false;
+    while !(is_eof(&tokens, *current) || end_found) {
+        match t.token_type {
+            TokenType::Throws | TokenType::LeftBrace => {
+                end_found = true;
+                *current = *current + 1;
+            },
+            TokenType::Comma => {
+                if expect_comma {
+                    expect_comma = false;
+                    *current = *current + 1;
+                    t = tokens.get(*current).unwrap();
+                } else {
+                    panic!("compile error (line {}): Unexpected ','.", t.line);
+                }
+            },
+            TokenType::Identifier => {
+                if expect_comma {
+                    panic!("compile error (line {}): Expected ',', found {:?}.", t.line, t.token_type);
+                }
+                return_types.push(str_to_value_type(get_token_str(source, t)));
+                expect_comma = true;
+                *current = *current + 1;
+                t = tokens.get(*current).unwrap();
+            },
+            _ => {
+                panic!("compile error (line {}): Unexpected {:?} in func/proc args.", t.line, t.token_type);
+            },
+        }
+    }
+    if end_found {
+        return_types
+    } else {
+        panic!("compiler error (line {}): Expected '{{' or 'throws' after return values.", t.line);
+    }
 }
 
 // fn func_proc_throws(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
@@ -668,7 +779,7 @@ fn func_proc_returns(_context: &ComptimeContext, _source: &String, tokens: &Vec<
 //     panic!("cil error (line {}): body parsing for func/proc definition not implemented yet.", t.line);
 // }
 
-fn func_proc_definition(is_func: bool, context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_proc_definition(is_func: bool, mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if !is_func {
         let t = tokens.get(*current).unwrap();
         panic!("cil error (line {}): proc definition not implemented yet.", t.line);
@@ -681,7 +792,8 @@ fn func_proc_definition(is_func: bool, context: &ComptimeContext, source: &Strin
         if t.token_type == TokenType::LeftParen {
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
-            let func_def = FuncDef{args: args, returns: returns};
+            let body = body(&mut context, &source, tokens, current).params;
+            let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
             *current = *current + 1;
@@ -692,14 +804,14 @@ fn func_proc_definition(is_func: bool, context: &ComptimeContext, source: &Strin
     }
 }
 
-fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn primary(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
         literal(t, current)
     } else {
         match &t.token_type {
-            TokenType::LeftParen => list(&context, &source, &tokens, current),
+            TokenType::LeftParen => list(&mut context, &source, &tokens, current),
             TokenType::Identifier => {
                 if !(is_eof(&tokens, *current + 1) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen) {
                     let params : Vec<Expr> = Vec::new();
@@ -707,23 +819,23 @@ fn primary(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, curr
                     *current = *current + 1;
                     e
                 } else {
-                    func_call(&context, &source, &tokens, current)
+                    func_call(&mut context, &source, &tokens, current)
                 }
             },
             TokenType::Func => {
                 *current = *current + 1;
-                func_proc_definition(true, &context, &source, &tokens, current)
+                func_proc_definition(true, &mut context, &source, &tokens, current)
             },
             TokenType::Proc => {
                 *current = *current + 1;
-                func_proc_definition(false, &context, &source, &tokens, current)
+                func_proc_definition(false, &mut context, &source, &tokens, current)
             },
             _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
         }
     }
 }
 
-fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Identifier => {
@@ -733,7 +845,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                 let next_token_type = &tokens.get(*current + 1).unwrap().token_type;
                 match next_token_type {
                     TokenType::LeftParen => {
-                        func_call(&context, &source, &tokens, current)
+                        func_call(&mut context, &source, &tokens, current)
                     },
                     TokenType::Colon => {
                         if is_eof(&tokens, *current + 1) {
@@ -745,7 +857,7 @@ fn statement(context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>
                                     let initial_current = *current;
                                     *current = *current + 3;
                                     let mut params : Vec<Expr> = Vec::new();
-                                    params.push(primary(&context, &source, &tokens, current));
+                                    params.push(primary(&mut context, &source, &tokens, current));
                                     let decl_name = get_token_str(source, t);
                                     let value_type = value_type(&context, &params.get(0).unwrap());
                                     if is_defined_symbol(&context, decl_name) {
@@ -1000,7 +1112,7 @@ fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec
     let mut current: usize = 0;
 
     let e: Expr = body(&mut context, &source, tokens, &mut current);
-    current = current + 1; // Add olne for the EOF
+    current = current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
     let mut i = current;

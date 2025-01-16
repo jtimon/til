@@ -10,9 +10,11 @@ main := and(bbb, or(false, false, aaa), true)
 
 // TODO next:
 
-// my_func := func(a: bool, b: bool) returns bool {
-//     return and(a, b)
-// }
+my_func := func(a: bool, b: bool) returns bool {
+    return and(a, b)
+}
+
+// my_list := (true, 1111, "hello")
 
 // myproc := proc(a, b) returns bool {
 //     return print(myfunc(a, b))
