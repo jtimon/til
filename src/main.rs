@@ -1127,8 +1127,8 @@ fn bool_to_string(b: &bool) -> String {
 
 struct CilContext {
     bools: HashMap<String, bool>,
-    funcs: HashMap<String, Expr>,
-    procs: HashMap<String, Expr>,
+    funcs: HashMap<String, FuncDef>,
+    procs: HashMap<String, FuncDef>,
 }
 
 fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1174,13 +1174,23 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
                 },
                 ValueType::TFunc => {
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    cil_context.funcs.insert(declaration.name.clone(), e.params.get(0).unwrap().clone());
-                    "func declared".to_string()
+                    match &e.params.get(0).unwrap().node_type {
+                        NodeType::FuncDef(func_def) => {
+                            cil_context.funcs.insert(declaration.name.clone(), func_def.clone());
+                            "func declared".to_string()
+                        },
+                        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
+                    }
                 },
                 ValueType::TProc => {
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    cil_context.procs.insert(declaration.name.clone(), e.params.get(0).unwrap().clone());
-                    "proc declared".to_string()
+                    match &e.params.get(0).unwrap().node_type {
+                        NodeType::FuncDef(func_def) => {
+                            cil_context.funcs.insert(declaration.name.clone(), func_def.clone());
+                            "proc declared".to_string()
+                        },
+                        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
+                    }
                 },
                 _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
             }
