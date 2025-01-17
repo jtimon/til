@@ -1160,6 +1160,20 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
                 let func_def = cil_context.funcs.get(name).unwrap();
 
                 let mut function_context = cil_context.clone();
+                assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
+                        name, func_def.args.len(), e.params.len());
+
+                let mut param_index = 0;
+                for arg in &func_def.args {
+                    if arg.value_type == ValueType::TBool {
+                        let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
+                        function_context.bools.insert(arg.name.clone(), bool_expr_result);
+                        param_index += 1;
+                    } else {
+                        panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
+                    }
+
+                }
                 // for se in e.params.iter() {
                 //     // TODO add function args
                 // }

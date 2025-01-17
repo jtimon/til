@@ -8,13 +8,15 @@ bbb := or(false, true, false)
 // aaa := true // fails, double declaration
 main := and(bbb, or(false, false, aaa), true)
 
-// TODO next:
-
 my_func := func(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 
-my_func(true, true)
+res := my_func(true, true)
+
+// TODO next:
+
+and(res, my_func(true, my_func(true, true)))
 
 // my_list := (true, 1111, "hello")
 
