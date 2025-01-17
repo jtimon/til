@@ -789,16 +789,6 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-// fn func_proc_throws(_context: &CilContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
-//     let t = tokens.get(*current).unwrap();
-//     panic!("cil error (line {}): throws parsing for func/proc definition not implemented yet.", t.line);
-// }
-
-// fn func_proc_body(_context: &CilContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-//     let t = tokens.get(*current).unwrap();
-//     panic!("cil error (line {}): body parsing for func/proc definition not implemented yet.", t.line);
-// }
-
 fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if !is_func {
         let t = tokens.get(*current).unwrap();
