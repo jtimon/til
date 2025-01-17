@@ -17,7 +17,7 @@ my_func(res, my_func(true, my_func(true, true)))
 
 // TODO next:
 
-print("printed with print core proc", "aaaaa", 42, true, "\n")
+println("printed with print core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
 
 // my_list := (true, 1111, "hello")
 

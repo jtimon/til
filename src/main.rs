@@ -149,7 +149,8 @@ fn start_context() -> CilContext {
     let mut return_types : Vec<ValueType> = Vec::new();
     let body : Vec<Expr> = Vec::new();
     let func_def_print = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
-    context.procs.insert("print".to_string(), func_def_print);
+    context.procs.insert("print".to_string(), func_def_print.clone());
+    context.procs.insert("println".to_string(), func_def_print);
     return_types.push(ValueType::TBool);
     let func_def_and_or = FuncDef{args: args, returns: return_types, body: body};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
@@ -645,9 +646,9 @@ fn is_core_func(proc_name: &str) -> bool {
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
-        "test" => true,
         "print" => true,
         "println" => true,
+        "test" => true,
         "assert" => true,
         _ => false,
     }
@@ -1024,6 +1025,58 @@ fn check_all_params_bool(context: &CilContext, name: &str, source: &String, toke
     errors
 }
 
+fn check_all_params_printable(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+
+    for p in e.params.iter() {
+        match &p.node_type {
+            NodeType::LBool(_) => {
+                continue;
+            },
+            NodeType::LList => {
+                errors.push(format!("Function '{}' cannot accept 'list' arguments", name));
+            },
+            NodeType::LString => {
+                continue;
+            },
+            NodeType::LNumber => {
+                continue;
+            },
+            NodeType::FuncDef(_) => {
+                errors.push(format!("Function '{}' cannot accept 'func' or 'proc' arguments", name));
+            }
+            NodeType::Identifier(id_name) => {
+                if context.symbols.contains_key(id_name) {
+                    let value_type = context.symbols.get(id_name).unwrap();
+                    match value_type {
+                        ValueType::TBool => { continue; }
+                        _ => { errors.push(format!("In call to '{}', expected bool, but '{}' is {:?}", name, id_name, value_type)); }
+                    }
+                } else {
+                    errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
+                }
+            }
+            NodeType::FCall(func_name) => {
+                if !does_func_return_bool(&context, func_name) {
+                    errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
+                }
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
+            }
+            NodeType::Declaration(_) => {
+                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
+            }
+            NodeType::Body => {
+                errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
+            }
+            NodeType::Return => {
+                errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
+            }
+        }
+    }
+
+    errors
+}
+
 fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
@@ -1039,9 +1092,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             }
             match name.as_str() {
                 "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
-                "print" => {
-                    // TODO check print args are printable
-                },
+                "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
                     let func_def = context.funcs.get(name).unwrap();
                     if func_def.args.len() != e.params.len() {
@@ -1133,9 +1184,12 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
-fn eval_core_proc_print(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     for it in &e.params {
         print!("{}", eval_expr(&mut context, &source, &tokens, &it));
+    }
+    if end_line {
+        print!("\n");
     }
     io::stdout().flush().unwrap();
     "".to_string()
@@ -1150,7 +1204,8 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
         }
     } else if is_core_proc(&name) {
         match name {
-            "print" => eval_core_proc_print(&mut context, &source, &tokens, &e),
+            "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
+            "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name),
         }
     } else if context.funcs.contains_key(name) {
