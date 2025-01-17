@@ -963,10 +963,15 @@ fn is_defined_symbol(context: &ComptimeContext, name: &str) -> bool {
     is_defined_func_proc(&context, name) || context.symbols.contains_key(name)
 }
 
-fn does_func_return_bool(name: &str) -> bool {
-    match name {
-        "and" | "or" => true,
-        _ => false,
+fn does_func_return_bool(context: &ComptimeContext, name: &str) -> bool {
+    if context.funcs.contains_key(name) {
+        let func_def = &context.funcs.get(name).unwrap();
+        func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
+    } else if context.procs.contains_key(name) {
+        let func_def = &context.procs.get(name).unwrap();
+        func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
+    } else {
+        false
     }
 }
 
@@ -1005,7 +1010,7 @@ fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String,
                 }
             }
             NodeType::FCall(func_name) => {
-                if !does_func_return_bool(func_name) {
+                if !does_func_return_bool(&context, func_name) {
                     errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
                 }
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
