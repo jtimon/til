@@ -1125,6 +1125,7 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
+#[derive(Clone)]
 struct CilContext {
     bools: HashMap<String, bool>,
     funcs: HashMap<String, FuncDef>,
@@ -1156,7 +1157,29 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             } else if is_core_proc(&name) {
                 panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
             } else if cil_context.funcs.contains_key(name) {
-                panic!("cil error (line {}): Cannot call '{}'. Custom functions not implemented yet.", t.line, name);
+                let func_def = cil_context.funcs.get(name).unwrap();
+
+                let mut function_context = cil_context.clone();
+                // for se in e.params.iter() {
+                //     // TODO add function args
+                // }
+
+                let mut result_str = "".to_string();
+                for se in &func_def.body {
+                    match se.node_type {
+                        NodeType::Return => {
+                            assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
+                            result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
+                            break;
+                        },
+                        _ => {
+                            println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
+                        }
+                    }
+                }
+                result_str
+
+                // panic!("cil error (line {}): Cannot call '{}'. Custom functions not implemented yet.", t.line, name);
             } else if cil_context.procs.contains_key(name) {
                 panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
             } else {
