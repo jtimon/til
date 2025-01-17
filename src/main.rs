@@ -147,11 +147,13 @@ fn start_context() -> CilContext {
 
     let args : Vec<Arg> = Vec::new();
     let mut return_types : Vec<ValueType> = Vec::new();
-    return_types.push(ValueType::TBool);
     let body : Vec<Expr> = Vec::new();
-    let func_def = FuncDef{args: args, returns: return_types, body: body};
-    context.funcs.insert("and".to_string(), func_def.clone());
-    context.funcs.insert("or" .to_string(), func_def);
+    let func_def_print = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
+    context.procs.insert("print".to_string(), func_def_print);
+    return_types.push(ValueType::TBool);
+    let func_def_and_or = FuncDef{args: args, returns: return_types, body: body};
+    context.funcs.insert("and".to_string(), func_def_and_or.clone());
+    context.funcs.insert("or" .to_string(), func_def_and_or);
     context
 }
 
@@ -1037,6 +1039,9 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             }
             match name.as_str() {
                 "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
+                "print" => {
+                    // TODO check print args are printable
+                },
                 _ => {
                     let func_def = context.funcs.get(name).unwrap();
                     if func_def.args.len() != e.params.len() {
@@ -1066,17 +1071,17 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
 
 // ---------- eval repl interpreter stuff
 
-fn eval_to_bool(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
         NodeType::FCall(f_name) => {
             match f_name.as_str() {
-                "and" => eval_and_func(&context, &source, &tokens, e),
-                "or" => eval_or_func(&context, &source, &tokens, e),
+                "and" => eval_and_func(&mut context, &source, &tokens, e),
+                "or" => eval_or_func(&mut context, &source, &tokens, e),
                 _ => {
                     if does_func_return_bool(&context, f_name) {
-                        lbool_in_string_to_bool(eval_func_proc_call(f_name, &context, &source, &tokens, &e).as_str())
+                        lbool_in_string_to_bool(eval_func_proc_call(f_name, &mut context, &source, &tokens, &e).as_str())
                     } else {
                         panic!("Compiler error: Function '{}' does not return bool\n", f_name);
                     }
@@ -1095,18 +1100,18 @@ fn eval_to_bool(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &
     }
 }
 
-fn eval_and_func(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_and_func(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&context, &source, &tokens, &i);
+        truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &i);
     }
     truthfulness
 }
 
-fn eval_or_func(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_or_func(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&context, &source, &tokens, &i);
+        truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
     }
     truthfulness
 }
@@ -1128,15 +1133,26 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
-fn eval_func_proc_call(name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_print(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    for it in &e.params {
+        print!("{}", eval_expr(&mut context, &source, &tokens, &it));
+    }
+    io::stdout().flush().unwrap();
+    "".to_string()
+}
+
+fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     if is_core_func(&name) {
         match name {
-            "and" | "or" => bool_to_string(&eval_to_bool(&context, &source, &tokens, &e)),
+            "and" | "or" => bool_to_string(&eval_to_bool(&mut context, &source, &tokens, &e)),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
-        panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
+        match name {
+            "print" => eval_core_proc_print(&mut context, &source, &tokens, &e),
+            _ => panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name),
+        }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
 

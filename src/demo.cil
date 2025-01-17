@@ -1,7 +1,5 @@
-zero := and(false)
+zero := false
 one := or(zero, true)
-two := or(one, true)
-
 aaa := and(false, false, false, true, false)
 bbb := or(false, true, false)
 // and := true // fails, double declaration
@@ -19,7 +17,7 @@ my_func(res, my_func(true, my_func(true, true)))
 
 // TODO next:
 
-
+print("printed with print core proc", "aaaaa", 42, true, "\n")
 
 // my_list := (true, 1111, "hello")
 
