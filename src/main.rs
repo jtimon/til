@@ -134,14 +134,16 @@ struct Expr {
     params: Vec<Expr>,
 }
 
-struct ComptimeContext {
+#[derive(Clone)]
+struct CilContext {
     symbols: HashMap<String, ValueType>,
+    bools: HashMap<String, bool>,
     funcs: HashMap<String, FuncDef>,
     procs: HashMap<String, FuncDef>,
 }
 
-fn start_compile_context() -> ComptimeContext {
-    let mut context: ComptimeContext = ComptimeContext { symbols: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new() };
+fn start_context() -> CilContext {
+    let mut context: CilContext = CilContext { symbols: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new(), bools: HashMap::new() };
 
     let args : Vec<Arg> = Vec::new();
     let mut return_types : Vec<ValueType> = Vec::new();
@@ -153,7 +155,7 @@ fn start_compile_context() -> ComptimeContext {
     context
 }
 
-fn value_type(context: &ComptimeContext, e: &Expr) -> ValueType {
+fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LString => ValueType::TString,
@@ -584,7 +586,7 @@ fn literal(t: &Token, current: &mut usize) -> Expr {
     e
 }
 
-fn list(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 // fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
@@ -653,7 +655,7 @@ fn is_core_func_proc(proc_name: &str) -> bool {
     is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
-fn func_call(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
 
@@ -681,7 +683,7 @@ fn func_call(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
 
 // }
 
-fn func_proc_args(_context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
+fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
 
     let mut rightparent_found = false;
     let mut args : Vec<Arg> = Vec::new();
@@ -745,7 +747,7 @@ fn func_proc_args(_context: &ComptimeContext, source: &String, tokens: &Vec<Toke
     }
 }
 
-fn func_proc_returns(_context: &ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     *current = *current + 1;
@@ -787,17 +789,17 @@ fn func_proc_returns(_context: &ComptimeContext, source: &String, tokens: &Vec<T
     }
 }
 
-// fn func_proc_throws(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+// fn func_proc_throws(_context: &CilContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
 //     let t = tokens.get(*current).unwrap();
 //     panic!("cil error (line {}): throws parsing for func/proc definition not implemented yet.", t.line);
 // }
 
-// fn func_proc_body(_context: &ComptimeContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+// fn func_proc_body(_context: &CilContext, _source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 //     let t = tokens.get(*current).unwrap();
 //     panic!("cil error (line {}): body parsing for func/proc definition not implemented yet.", t.line);
 // }
 
-fn func_proc_definition(is_func: bool, mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if !is_func {
         let t = tokens.get(*current).unwrap();
         panic!("cil error (line {}): proc definition not implemented yet.", t.line);
@@ -822,7 +824,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut ComptimeContext, source
     }
 }
 
-fn primary(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
@@ -853,7 +855,7 @@ fn primary(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Toke
     }
 }
 
-fn return_statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn return_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
@@ -861,7 +863,7 @@ fn return_statement(mut context: &mut ComptimeContext, source: &String, tokens: 
     Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
 }
 
-fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Return => {
@@ -935,7 +937,7 @@ fn statement(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<To
     }
 }
 
-fn body(end_token : TokenType, mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
@@ -955,15 +957,15 @@ fn body(end_token : TokenType, mut context: &mut ComptimeContext, source: &Strin
 
 // ---------- Type checking stuff
 
-fn is_defined_func_proc(context: &ComptimeContext, name: &str) -> bool {
+fn is_defined_func_proc(context: &CilContext, name: &str) -> bool {
     is_core_func_proc(name) || context.funcs.contains_key(name) || context.procs.contains_key(name)
 }
 
-fn is_defined_symbol(context: &ComptimeContext, name: &str) -> bool {
+fn is_defined_symbol(context: &CilContext, name: &str) -> bool {
     is_defined_func_proc(&context, name) || context.symbols.contains_key(name)
 }
 
-fn does_func_return_bool(context: &ComptimeContext, name: &str) -> bool {
+fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
     if context.funcs.contains_key(name) {
         let func_def = &context.funcs.get(name).unwrap();
         func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
@@ -978,7 +980,7 @@ fn does_func_return_bool(context: &ComptimeContext, name: &str) -> bool {
 // fn check_call(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
 // }
 
-fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_all_params_bool(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     for p in e.params.iter() {
@@ -1030,7 +1032,7 @@ fn check_all_params_bool(context: &ComptimeContext, name: &str, source: &String,
     errors
 }
 
-fn check_types(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     match &e.node_type {
@@ -1074,15 +1076,21 @@ fn check_types(context: &ComptimeContext, source: &String, tokens: &Vec<Token>, 
 
 // ---------- eval repl interpreter stuff
 
-fn eval_to_bool(context: &CilContext, e: &Expr) -> bool {
+fn eval_to_bool(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
         NodeType::FCall(f_name) => {
             match f_name.as_str() {
-                "and" => eval_and_func(&context, e),
-                "or" => eval_or_func(&context, e),
-                _ => panic!("cil error: The only functions that can be evaluated to bool are currently 'and' and 'or'. Found '{}'" , f_name),
+                "and" => eval_and_func(&context, &source, &tokens, e),
+                "or" => eval_or_func(&context, &source, &tokens, e),
+                _ => {
+                    if does_func_return_bool(&context, f_name) {
+                        lbool_in_string_to_bool(eval_func_proc_call(f_name, &context, &source, &tokens, &e).as_str())
+                    } else {
+                        panic!("Compiler error: Function '{}' does not return bool\n", f_name);
+                    }
+                }
             }
         },
         NodeType::Identifier(name) => {
@@ -1097,18 +1105,18 @@ fn eval_to_bool(context: &CilContext, e: &Expr) -> bool {
     }
 }
 
-fn eval_and_func(context: &CilContext, e: &Expr) -> bool {
+fn eval_and_func(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = true;
     for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&context, &i);
+        truthfulness = truthfulness && eval_to_bool(&context, &source, &tokens, &i);
     }
     truthfulness
 }
 
-fn eval_or_func(context: &CilContext, e: &Expr) -> bool {
+fn eval_or_func(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
     let mut truthfulness = false;
     for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&context, &i);
+        truthfulness = truthfulness || eval_to_bool(&context, &source, &tokens, &i);
     }
     truthfulness
 }
@@ -1130,11 +1138,53 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
-#[derive(Clone)]
-struct CilContext {
-    bools: HashMap<String, bool>,
-    funcs: HashMap<String, FuncDef>,
-    procs: HashMap<String, FuncDef>,
+fn eval_func_proc_call(name: &str, cil_context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let t = tokens.get(e.token_index).unwrap();
+    if is_core_func(&name) {
+        match name {
+            "and" | "or" => bool_to_string(&eval_to_bool(&cil_context, &source, &tokens, &e)),
+            _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
+        }
+    } else if is_core_proc(&name) {
+        panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
+    } else if cil_context.funcs.contains_key(name) {
+        let func_def = cil_context.funcs.get(name).unwrap();
+
+        let mut function_context = cil_context.clone();
+        assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
+                name, func_def.args.len(), e.params.len());
+
+        let mut param_index = 0;
+        for arg in &func_def.args {
+            if arg.value_type == ValueType::TBool {
+                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
+                function_context.bools.insert(arg.name.clone(), bool_expr_result);
+                param_index += 1;
+            } else {
+                panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
+            }
+
+        }
+
+        let mut result_str = "".to_string();
+        for se in &func_def.body {
+            match se.node_type {
+                NodeType::Return => {
+                    assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
+                    result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
+                    break;
+                },
+                _ => {
+                    println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
+                }
+            }
+        }
+        result_str
+    } else if cil_context.procs.contains_key(name) {
+        panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
+    } else {
+        panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
+    }
 }
 
 fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1153,57 +1203,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             token_str.to_string()
         },
         NodeType::FCall(name) => {
-            let t = tokens.get(e.token_index).unwrap();
-            if is_core_func(&name) {
-                match name.as_str() {
-                    "and" | "or" => bool_to_string(&eval_to_bool(&cil_context, &e)),
-                    _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
-                }
-            } else if is_core_proc(&name) {
-                panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
-            } else if cil_context.funcs.contains_key(name) {
-                let func_def = cil_context.funcs.get(name).unwrap();
-
-                let mut function_context = cil_context.clone();
-                assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
-                        name, func_def.args.len(), e.params.len());
-
-                let mut param_index = 0;
-                for arg in &func_def.args {
-                    if arg.value_type == ValueType::TBool {
-                        let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
-                        function_context.bools.insert(arg.name.clone(), bool_expr_result);
-                        param_index += 1;
-                    } else {
-                        panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
-                    }
-
-                }
-                // for se in e.params.iter() {
-                //     // TODO add function args
-                // }
-
-                let mut result_str = "".to_string();
-                for se in &func_def.body {
-                    match se.node_type {
-                        NodeType::Return => {
-                            assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
-                            result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
-                            break;
-                        },
-                        _ => {
-                            println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
-                        }
-                    }
-                }
-                result_str
-
-                // panic!("cil error (line {}): Cannot call '{}'. Custom functions not implemented yet.", t.line, name);
-            } else if cil_context.procs.contains_key(name) {
-                panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
-            } else {
-                panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
-            }
+            eval_func_proc_call(&name, &mut cil_context, &source, &tokens, &e)
         },
         NodeType::Declaration(declaration) => {
             let t = tokens.get(e.token_index).unwrap();
@@ -1245,7 +1245,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
     }
 }
 
-fn parse_tokens(mut context: &mut ComptimeContext, source: &String, tokens: &Vec<Token>) -> Expr {
+fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
     let e: Expr = body(TokenType::Eof, &mut context, &source, tokens, &mut current);
@@ -1290,7 +1290,7 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let mut context = start_compile_context();
+    let mut context = start_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
 
     let errors = check_types(&context, &source, &tokens, &e);
@@ -1302,8 +1302,7 @@ fn run(source: &String) -> String {
     }
 
     println!("AST: {}", to_ast_str(&tokens, &e));
-    let mut cil_context = CilContext{bools: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new()};
-    eval_expr(&mut cil_context, &source, &tokens, &e)
+    eval_expr(&mut context, &source, &tokens, &e)
 }
 
 // ---------- main stuff, usage, args, etc
