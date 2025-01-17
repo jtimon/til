@@ -1127,16 +1127,10 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
         NodeType::FCall(f_name) => {
-            match f_name.as_str() {
-                "and" => eval_and_func(&mut context, &source, &tokens, e),
-                "or" => eval_or_func(&mut context, &source, &tokens, e),
-                _ => {
-                    if does_func_return_bool(&context, f_name) {
-                        lbool_in_string_to_bool(eval_func_proc_call(f_name, &mut context, &source, &tokens, &e).as_str())
-                    } else {
-                        panic!("Compiler error: Function '{}' does not return bool\n", f_name);
-                    }
-                }
+            if does_func_return_bool(&context, f_name) {
+                lbool_in_string_to_bool(eval_func_proc_call(f_name, &mut context, &source, &tokens, &e).as_str())
+            } else {
+                panic!("cil error: Function '{}' does not return bool. This should have been caught in the compile phase.\n", f_name);
             }
         },
         NodeType::Identifier(name) => {
@@ -1151,21 +1145,20 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     }
 }
 
-fn eval_and_func(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_core_func_and(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = true;
     for i in &e.params {
         truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &i);
     }
-    truthfulness
+    bool_to_string(&truthfulness)
 }
 
-fn eval_or_func(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = false;
     for i in &e.params {
         truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
     }
-    truthfulness
-}
+    bool_to_string(&truthfulness)
 
 
 fn lbool_in_string_to_bool(b: &str) -> bool {
@@ -1234,7 +1227,8 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
     let t = tokens.get(e.token_index).unwrap();
     if is_core_func(&name) {
         match name {
-            "and" | "or" => bool_to_string(&eval_to_bool(&mut context, &source, &tokens, &e)),
+            "and" => eval_core_func_and(&mut context, &source, &tokens, &e),
+            "or" => eval_core_func_or(&mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
