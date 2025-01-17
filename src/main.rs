@@ -1159,7 +1159,7 @@ fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec
         truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
     }
     bool_to_string(&truthfulness)
-
+}
 
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
