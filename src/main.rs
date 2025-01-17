@@ -1195,6 +1195,41 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &S
     "".to_string()
 }
 
+fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let t = tokens.get(e.token_index).unwrap();
+
+    let mut function_context = context.clone();
+    assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
+            name, func_def.args.len(), e.params.len());
+
+    let mut param_index = 0;
+    for arg in &func_def.args {
+        if arg.value_type == ValueType::TBool {
+            let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
+            function_context.bools.insert(arg.name.clone(), bool_expr_result);
+            param_index += 1;
+        } else {
+            panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
+        }
+
+    }
+
+    let mut result_str = "".to_string();
+    for se in &func_def.body {
+        match se.node_type {
+            NodeType::Return => {
+                assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
+                result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
+                break;
+            },
+            _ => {
+                println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
+            }
+        }
+    }
+    result_str
+}
+
 fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     if is_core_func(&name) {
@@ -1210,39 +1245,10 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
         }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
-
-        let mut function_context = context.clone();
-        assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
-                name, func_def.args.len(), e.params.len());
-
-        let mut param_index = 0;
-        for arg in &func_def.args {
-            if arg.value_type == ValueType::TBool {
-                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
-                function_context.bools.insert(arg.name.clone(), bool_expr_result);
-                param_index += 1;
-            } else {
-                panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
-            }
-
-        }
-
-        let mut result_str = "".to_string();
-        for se in &func_def.body {
-            match se.node_type {
-                NodeType::Return => {
-                    assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
-                    result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
-                    break;
-                },
-                _ => {
-                    println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
-                }
-            }
-        }
-        result_str
+        eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else if context.procs.contains_key(name) {
-        panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
+        let func_def = context.procs.get(name).unwrap();
+        eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else {
         panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
     }
