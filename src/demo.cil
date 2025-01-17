@@ -15,10 +15,11 @@ my_func := func(a: bool, b: bool) returns bool {
 res := my_func(true, true)
 my_func(true, my_func(true, my_func(true, true)))
 and(res, my_func(true, my_func(true, true)))
+my_func(res, my_func(true, my_func(true, true)))
 
 // TODO next:
 
-my_func(res, my_func(true, my_func(true, true)))
+
 
 // my_list := (true, 1111, "hello")
 

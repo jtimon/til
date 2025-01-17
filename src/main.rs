@@ -1238,6 +1238,14 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             }
         },
 
+        NodeType::Identifier(name) => {
+            match cil_context.bools.get(name) {
+                Some(bool_value) => bool_to_string(bool_value),
+                None => {
+                    panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+                }
+            }
+        },
         _ => {
             let t = tokens.get(e.token_index).unwrap();
             panic!("cil error (line {}): Not implemented, found {}.", t.line, get_token_str(source, t))
