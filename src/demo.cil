@@ -15,9 +15,15 @@ my_func(true, my_func(true, my_func(true, true)))
 and(res, my_func(true, my_func(true, true)))
 my_func(res, my_func(true, my_func(true, true)))
 
+println("printed with print core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
+
 // TODO next:
 
-println("printed with print core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
+my_proc := proc(a: bool, b: bool) {
+    println(a, b)
+}
+
+my_proc(true, false)
 
 // my_list := (true, 1111, "hello")
 
