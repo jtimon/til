@@ -1138,19 +1138,19 @@ fn bool_to_string(b: &bool) -> String {
     }
 }
 
-fn eval_func_proc_call(name: &str, cil_context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_func_proc_call(name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     if is_core_func(&name) {
         match name {
-            "and" | "or" => bool_to_string(&eval_to_bool(&cil_context, &source, &tokens, &e)),
+            "and" | "or" => bool_to_string(&eval_to_bool(&context, &source, &tokens, &e)),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
         panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name);
-    } else if cil_context.funcs.contains_key(name) {
-        let func_def = cil_context.funcs.get(name).unwrap();
+    } else if context.funcs.contains_key(name) {
+        let func_def = context.funcs.get(name).unwrap();
 
-        let mut function_context = cil_context.clone();
+        let mut function_context = context.clone();
         assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
                 name, func_def.args.len(), e.params.len());
 
@@ -1180,19 +1180,19 @@ fn eval_func_proc_call(name: &str, cil_context: &CilContext, source: &String, to
             }
         }
         result_str
-    } else if cil_context.procs.contains_key(name) {
+    } else if context.procs.contains_key(name) {
         panic!("cil error (line {}): Cannot call '{}'. Custom procedures not implemented yet.", t.line, name);
     } else {
         panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
     }
 }
 
-fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::Body => {
             let mut result_str = "".to_string();
             for se in e.params.iter() {
-                result_str.push_str(&format!("{}\n", eval_expr(&mut cil_context, &source, &tokens, &se)));
+                result_str.push_str(&format!("{}\n", eval_expr(&mut context, &source, &tokens, &se)));
             }
             result_str
         },
@@ -1203,22 +1203,22 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
             token_str.to_string()
         },
         NodeType::FCall(name) => {
-            eval_func_proc_call(&name, &mut cil_context, &source, &tokens, &e)
+            eval_func_proc_call(&name, &mut context, &source, &tokens, &e)
         },
         NodeType::Declaration(declaration) => {
             let t = tokens.get(e.token_index).unwrap();
             match declaration.value_type {
                 ValueType::TBool => {
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut cil_context, &source, &tokens, e.params.get(0).unwrap()));
-                    cil_context.bools.insert(declaration.name.clone(), bool_expr_result);
+                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
+                    context.bools.insert(declaration.name.clone(), bool_expr_result);
                     bool_expr_result.to_string()
                 },
                 ValueType::TFunc => {
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
                     match &e.params.get(0).unwrap().node_type {
                         NodeType::FuncDef(func_def) => {
-                            cil_context.funcs.insert(declaration.name.clone(), func_def.clone());
+                            context.funcs.insert(declaration.name.clone(), func_def.clone());
                             "func declared".to_string()
                         },
                         _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
@@ -1228,7 +1228,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
                     match &e.params.get(0).unwrap().node_type {
                         NodeType::FuncDef(func_def) => {
-                            cil_context.funcs.insert(declaration.name.clone(), func_def.clone());
+                            context.funcs.insert(declaration.name.clone(), func_def.clone());
                             "proc declared".to_string()
                         },
                         _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
@@ -1239,7 +1239,7 @@ fn eval_expr(mut cil_context: &mut CilContext, source: &String, tokens: &Vec<Tok
         },
 
         NodeType::Identifier(name) => {
-            match cil_context.bools.get(name) {
+            match context.bools.get(name) {
                 Some(bool_value) => bool_to_string(bool_value),
                 None => {
                     panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
