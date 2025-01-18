@@ -124,6 +124,7 @@ enum NodeType {
     Identifier(String),
     Declaration(Declaration),
     FuncDef(FuncDef),
+    ProcDef(FuncDef),
     Return,
 }
 
@@ -164,6 +165,7 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
         NodeType::LString => ValueType::TString,
         NodeType::LList => ValueType::TList,
         NodeType::FuncDef(_) => ValueType::TFunc,
+        NodeType::ProcDef(_) => ValueType::TProc,
         NodeType::FCall(name) => {
             match context.funcs.get(name) {
                 Some(func_def) => {
@@ -194,7 +196,8 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
                 }
             }
         },
-        _ => panic!("cil error: value_type() not implement for this ValueType yet."),
+        _ => panic!("cil error: value_type() not implement for this yet."),
+        // _(node_type) => panic!("cil error: value_type() not implement for this {:?} yet.", node_type),
     }
 }
 
@@ -818,6 +821,14 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &current, &e.params.get(0).unwrap())
         },
+        NodeType::ProcDef(func_def) => {
+            for it_e in &func_def.body {
+                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
         NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
                 if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
@@ -839,25 +850,25 @@ fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String
 }
 
 fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-    if !is_func {
-        let t = tokens.get(*current).unwrap();
-        panic!("cil error (line {}): proc definition not implemented yet.", t.line);
-    }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("compiler error (line {}): expected '(' after 'func', found EOF.", t.line);
+        panic!("compiler error (line {}): expected '(' after 'func' or 'proc', found EOF.", t.line);
     } else {
         let t = tokens.get(*current).unwrap();
         if t.token_type == TokenType::LeftParen {
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
-            if is_body_calling_procs(&body, &context, &source, &tokens, &current) {
+            if is_func && is_body_calling_procs(&body, &context, &source, &tokens, &current) {
                 panic!("compiler error (line {}): funcs cannot call procs.", t.line);
             }
             let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
-            let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
+            let e;
+            match is_func {
+                true => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
+                false => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
+            }
             *current = *current + 1;
             e
         } else {
@@ -944,13 +955,19 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                                                         context.funcs.insert(decl_name.to_string(), func_def.clone());
                                                     },
                                                     _ => {
-                                                        panic!("cil error (line {}): funcs should have definitions. This should never happen", t.line);
-                                                    }
-
+                                                        panic!("cil error (line {}): funcs/procs should have definitions. This should never happen", t.line);
+                                                    },
                                                 }
                                             },
                                             ValueType::TProc => {
-                                                panic!("cil error (line {}): proc declarations not implemented yet.", t.line);
+                                                match &e.node_type {
+                                                    NodeType::ProcDef(func_def) => {
+                                                        context.procs.insert(decl_name.to_string(), func_def.clone());
+                                                    },
+                                                    _ => {
+                                                        panic!("cil error (line {}): funcs/procs should have definitions. This should never happen", t.line);
+                                                    },
+                                                }
                                             },
                                             _ => {
                                                 context.symbols.insert(decl_name.to_string(), value_type.clone());
@@ -965,10 +982,6 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                                 }
                                 _ => panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.token_type),
                             }
-                            // match declaration(&source, &tokens, current) {
-                            //     Ok(e) => e,
-                            //     Err(_e) => {panic!("compiler error (line {}): error in declaration '{}'.", t.line, get_token_str(source, t));}
-                            // }
                         }
                     },
                     _ => panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found {:?}.", t.line, t.token_type),
@@ -1042,6 +1055,9 @@ fn check_all_params_bool(context: &CilContext, name: &str, source: &String, toke
             NodeType::FuncDef(_) => {
                 errors.push(format!("Function '{}' expects only bool arguments, found 'func'", name));
             }
+            NodeType::ProcDef(_) => {
+                errors.push(format!("Function '{}' expects only bool arguments, found 'proc'", name));
+            }
             NodeType::Identifier(id_name) => {
                 if context.symbols.contains_key(id_name) {
                     let value_type = context.symbols.get(id_name).unwrap();
@@ -1092,7 +1108,10 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
                 continue;
             },
             NodeType::FuncDef(_) => {
-                errors.push(format!("Function '{}' cannot accept 'func' or 'proc' arguments", name));
+                errors.push(format!("Function '{}' cannot accept 'func' arguments", name));
+            }
+            NodeType::ProcDef(_) => {
+                errors.push(format!("Function '{}' cannot accept 'proc' arguments", name));
             }
             NodeType::Identifier(id_name) => {
                 if context.symbols.contains_key(id_name) {
@@ -1143,7 +1162,15 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
                 "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
-                    let func_def = context.funcs.get(name).unwrap();
+                    let func_def;
+                    if context.funcs.contains_key(name) {
+                        func_def = context.funcs.get(name).unwrap();
+                    } else if context.procs.contains_key(name) {
+                        func_def = context.procs.get(name).unwrap();
+                    } else {
+                        panic!("cil error: Function '{}' isn't func nor proc. This should have been caught in the compile phase.\n", name);
+                    //     errors.push(format!("Undefined Function/procedure '{}'..", name));
+                    }
                     if func_def.args.len() != e.params.len() {
                         errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
                     }
@@ -1337,8 +1364,8 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                 ValueType::TProc => {
                     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
                     match &e.params.get(0).unwrap().node_type {
-                        NodeType::FuncDef(func_def) => {
-                            context.funcs.insert(declaration.name.clone(), func_def.clone());
+                        NodeType::ProcDef(func_def) => {
+                            context.procs.insert(declaration.name.clone(), func_def.clone());
                             "proc declared".to_string()
                         },
                         _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
