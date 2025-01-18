@@ -1324,6 +1324,41 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
     }
 }
 
+fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let t = tokens.get(e.token_index).unwrap();
+    match declaration.value_type {
+        ValueType::TBool => {
+            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
+            context.bools.insert(declaration.name.clone(), bool_expr_result);
+            bool_expr_result.to_string()
+        },
+        ValueType::TFunc => {
+            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+            match &e.params.get(0).unwrap().node_type {
+                NodeType::FuncDef(func_def) => {
+                    context.funcs.insert(declaration.name.clone(), func_def.clone());
+                    "func declared".to_string()
+                },
+                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen",
+                            t.line, &declaration.name, &declaration.value_type)
+            }
+        },
+        ValueType::TProc => {
+            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+            match &e.params.get(0).unwrap().node_type {
+                NodeType::ProcDef(func_def) => {
+                    context.procs.insert(declaration.name.clone(), func_def.clone());
+                    "proc declared".to_string()
+                },
+                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen",
+                            t.line, &declaration.name, &declaration.value_type)
+            }
+        },
+        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
+    }
+}
+
 fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::Body => {
@@ -1343,38 +1378,8 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             eval_func_proc_call(&name, &mut context, &source, &tokens, &e)
         },
         NodeType::Declaration(declaration) => {
-            let t = tokens.get(e.token_index).unwrap();
-            match declaration.value_type {
-                ValueType::TBool => {
-                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
-                    context.bools.insert(declaration.name.clone(), bool_expr_result);
-                    bool_expr_result.to_string()
-                },
-                ValueType::TFunc => {
-                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    match &e.params.get(0).unwrap().node_type {
-                        NodeType::FuncDef(func_def) => {
-                            context.funcs.insert(declaration.name.clone(), func_def.clone());
-                            "func declared".to_string()
-                        },
-                        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
-                    }
-                },
-                ValueType::TProc => {
-                    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-                    match &e.params.get(0).unwrap().node_type {
-                        NodeType::ProcDef(func_def) => {
-                            context.procs.insert(declaration.name.clone(), func_def.clone());
-                            "proc declared".to_string()
-                        },
-                        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen", t.line, &declaration.name, &declaration.value_type)
-                    }
-                },
-                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
-            }
+            eval_declaration(&declaration, &mut context, &source, &tokens, &e)
         },
-
         NodeType::Identifier(name) => {
             match context.bools.get(name) {
                 Some(bool_value) => bool_to_string(bool_value),
