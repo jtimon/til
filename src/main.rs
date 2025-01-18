@@ -793,6 +793,51 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     }
 }
 
+fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, current: &usize, e: &Expr) -> bool {
+    match &e.node_type {
+        NodeType::Body => {
+            return true // TODO decide if panic here instead
+        },
+        NodeType::LBool(_) => false,
+        NodeType::LNumber => false,
+        NodeType::LString => false,
+        NodeType::LList => false,
+        NodeType::Identifier(_) => false,
+        NodeType::FCall(call_name) => {
+            context.procs.contains_key(call_name)
+        },
+        NodeType::Return => {
+            for it_e in &e.params {
+                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+        NodeType::Declaration(decl) => {
+            assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
+            is_expr_calling_procs(&context, &source, &tokens, &current, &e.params.get(0).unwrap())
+        },
+        NodeType::FuncDef(func_def) => {
+            for it_e in &func_def.body {
+                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+    }
+}
+
+fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String, tokens: &Vec<Token>, current: &usize) -> bool {
+    for e in body {
+        if is_expr_calling_procs(&context, &source, &tokens, &current, &e) {
+            return true;
+        }
+    }
+    false
+}
+
 fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if !is_func {
         let t = tokens.get(*current).unwrap();
@@ -807,6 +852,9 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+            if is_body_calling_procs(&body, &context, &source, &tokens, &current) {
+                panic!("compiler error (line {}): funcs cannot call procs.", t.line);
+            }
             let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
