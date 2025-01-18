@@ -1229,7 +1229,7 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
                     }
                 }
             } else {
-                _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'"),
+                panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'");
             }
         },
         _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found 'SOMETHING_ELSE'"),
