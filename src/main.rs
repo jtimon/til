@@ -73,7 +73,7 @@ fn is_literal(t: &Token) -> bool {
 enum ValueType {
     TBool,
     TString,
-    // TI64,
+    TI64,
     TList,
     TFunc,
     TProc,
@@ -87,6 +87,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
+        "I64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
     }
 }
@@ -138,13 +139,20 @@ struct Expr {
 #[derive(Clone)]
 struct CilContext {
     symbols: HashMap<String, ValueType>,
-    bools: HashMap<String, bool>,
     funcs: HashMap<String, FuncDef>,
     procs: HashMap<String, FuncDef>,
+    bools: HashMap<String, bool>,
+    i64s: HashMap<String, i64>,
 }
 
 fn start_context() -> CilContext {
-    let mut context: CilContext = CilContext { symbols: HashMap::new(), funcs: HashMap::new(), procs: HashMap::new(), bools: HashMap::new() };
+    let mut context: CilContext = CilContext {
+        symbols: HashMap::new(),
+        funcs: HashMap::new(),
+        procs: HashMap::new(),
+        bools: HashMap::new(),
+        i64s: HashMap::new(),
+    };
 
     let args : Vec<Arg> = Vec::new();
     let mut return_types : Vec<ValueType> = Vec::new();
@@ -163,6 +171,7 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LString => ValueType::TString,
+        NodeType::LNumber => ValueType::TI64,
         NodeType::LList => ValueType::TList,
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::ProcDef(_) => ValueType::TProc,
@@ -1332,6 +1341,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
             context.bools.insert(declaration.name.clone(), bool_expr_result);
             bool_expr_result.to_string()
+        },
+        ValueType::TI64 => {
+            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+            let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+            // context.i64s.insert(declaration.name.clone(), (i64)(i64_expr_result_str));
+            i64_expr_result_str.to_string()
         },
         ValueType::TFunc => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
