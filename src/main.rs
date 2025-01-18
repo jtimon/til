@@ -5,6 +5,8 @@ use std::fs;
 use std::io::ErrorKind;
 use std::collections::HashMap;
 
+// ---------- lex stuff
+
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     // basic
@@ -1219,11 +1221,15 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
             }
         },
         NodeType::Identifier(name) => {
-            match context.bools.get(name) {
-                Some(bool_value) => bool_value.clone(),
-                None => {
-                    panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+            if context.bools.contains_key(name) {
+                match context.bools.get(name) {
+                    Some(bool_value) => bool_value.clone(),
+                    None => {
+                        panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+                    }
                 }
+            } else {
+                _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'"),
             }
         },
         _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found 'SOMETHING_ELSE'"),
