@@ -758,6 +758,7 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     let mut expect_comma = false;
     while !(is_eof(&tokens, *current) || end_found) {
         match t.token_type {
+            // TokenType::Throws | TokenType::LeftBrace | TokenType::LeftParen => { // TODO paren why?
             TokenType::Throws | TokenType::LeftBrace => {
                 end_found = true;
                 *current = *current + 1;
