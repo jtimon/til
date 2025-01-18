@@ -1362,11 +1362,10 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
 fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::Body => {
-            let mut result_str = "".to_string();
             for se in e.params.iter() {
-                result_str.push_str(&format!("{}\n", eval_expr(&mut context, &source, &tokens, &se)));
+                eval_expr(&mut context, &source, &tokens, &se);
             }
-            result_str
+            "".to_string()
         },
         NodeType::LBool(bool_value) => bool_to_string(&bool_value),
         NodeType::LString | NodeType::LNumber | NodeType::LList => {
