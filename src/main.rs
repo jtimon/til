@@ -396,7 +396,7 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                     pos = pos + 1;
                 }
             }
-            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos + 1, line: line });
+            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line });
         } else {
 
             let token_type = match &source[pos..pos+1] {
@@ -1351,7 +1351,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
         ValueType::TI64 => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-            // context.i64s.insert(declaration.name.clone(), (i64)(i64_expr_result_str));
+            context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
             i64_expr_result_str.to_string()
         },
         ValueType::TFunc => {
