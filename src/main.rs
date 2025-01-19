@@ -490,9 +490,11 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                     }
                 },
             }; // let match
-            // println!("Current token line {}, start: {}, end {}, identifier type: {} identifier string: __{}__",
-                     // line, start, pos+1, token_type_to_string(&token_type), &source[start..pos+1]);
-            tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line });
+            if token_type == TokenType::String {
+                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line });
+            } else {
+                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line });
+            }
             pos = pos + 1;
         } // else
     } // while
