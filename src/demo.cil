@@ -27,10 +27,16 @@ my_proc(true, false)
 my_num0 := 1
 my_string := "aaaaa"
 
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
+
+xor(true, false)
+
 // TODO next:
 
-mut my_num := 1
-my_num = 2
+// mut my_num := 1
+// my_num = 2
 
 // my_list := (true, 1111, "hello")
 

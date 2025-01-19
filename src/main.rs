@@ -158,16 +158,19 @@ fn start_context() -> CilContext {
         strings: HashMap::new(),
     };
 
-    let args : Vec<Arg> = Vec::new();
+    let mut args : Vec<Arg> = Vec::new();
     let mut return_types : Vec<ValueType> = Vec::new();
     let body : Vec<Expr> = Vec::new();
     let func_def_print = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
     return_types.push(ValueType::TBool);
-    let func_def_and_or = FuncDef{args: args, returns: return_types, body: body};
+    let func_def_and_or = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
-    context.funcs.insert("or" .to_string(), func_def_and_or);
+    context.funcs.insert("or".to_string(), func_def_and_or);
+    args.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
+    let func_def_not = FuncDef{args: args, returns: return_types, body: body};
+    context.funcs.insert("not".to_string(), func_def_not);
     context
 }
 
@@ -650,6 +653,7 @@ fn is_core_func(proc_name: &str) -> bool {
     match proc_name {
         "and" => true,
         "or" => true,
+        "not" => true,
         "add" => true,
         "eq" => true,
         "lt" => true,
@@ -1282,6 +1286,11 @@ fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec
     bool_to_string(&truthfulness)
 }
 
+fn eval_core_func_not(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "Cil Error: Core func 'not' only takes 1 argument. This should never happen.");
+    bool_to_string(&!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()))
+}
+
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
@@ -1350,6 +1359,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
         match name {
             "and" => eval_core_func_and(&mut context, &source, &tokens, &e),
             "or" => eval_core_func_or(&mut context, &source, &tokens, &e),
+            "not" => eval_core_func_not(&mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
