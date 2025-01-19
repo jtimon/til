@@ -28,7 +28,7 @@ enum TokenType {
 
     // Reserved words.
     True, False,
-    Var,
+    Mut,
     Struct, Enum,
     Func, Proc,
     Match, If, Else, While, For, In,
@@ -309,7 +309,7 @@ fn token_type_to_string(token_type: &TokenType) -> String {
         TokenType::Number => "Number".to_string(),
         TokenType::True => "True".to_string(),
         TokenType::False => "False".to_string(),
-        TokenType::Var => "Var".to_string(),
+        TokenType::Mut => "Mut".to_string(),
         TokenType::Func => "Func".to_string(),
         TokenType::Proc => "Proc".to_string(),
         TokenType::Struct => "Struct".to_string(),
@@ -355,7 +355,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
     match identifier {
         "true" => TokenType::True,
         "false" => TokenType::False,
-        "var" => TokenType::Var,
+        "mut" => TokenType::Mut,
         "struct" => TokenType::Struct,
         "enum" => TokenType::Enum,
         "func" => TokenType::Func,
@@ -956,6 +956,9 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
     match &t.token_type {
         TokenType::Return => {
             return_statement(&mut context, &source, &tokens, current)
+        },
+        TokenType::Mut => {
+            panic!("cil error (line {}): Mutable values not implemented yet.", t.line);
         },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {

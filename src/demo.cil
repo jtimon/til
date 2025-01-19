@@ -24,11 +24,12 @@ my_proc := proc(a: bool, b: bool) {
 
 my_proc(true, false)
 
-my_num := 1
+my_num0 := 1
 my_string := "aaaaa"
 
 // TODO next:
 
+mut my_num := 1
 my_num = 2
 
 // my_list := (true, 1111, "hello")
