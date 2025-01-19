@@ -1639,6 +1639,7 @@ fn run(source: &String) -> String {
 
     let mut context = start_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
+    println!("AST: {}", to_ast_str(&source, &tokens, &e));
 
     let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
@@ -1648,7 +1649,6 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} type errors found", errors.len());
     }
 
-    println!("AST: {}", to_ast_str(&source, &tokens, &e));
     eval_expr(&mut context, &source, &tokens, &e)
 }
 
