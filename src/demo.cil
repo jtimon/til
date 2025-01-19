@@ -33,6 +33,8 @@ xor := func(a: bool, b: bool) returns bool {
 
 xor(true, false)
 
+println(and(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2)))
+
 // TODO next:
 
 // mut my_num := 1

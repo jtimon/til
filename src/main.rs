@@ -169,8 +169,20 @@ fn start_context() -> CilContext {
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
     args.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
-    let func_def_not = FuncDef{args: args, returns: return_types, body: body};
+    let func_def_not = FuncDef{args: args, returns: return_types.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
+
+    let mut args_bin_i64 : Vec<Arg> = Vec::new();
+    args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
+    args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
+
+    let func_def_bini64_to_bool = FuncDef{args: args_bin_i64, returns: return_types.clone(), body: body.clone()};
+    context.funcs.insert("eq".to_string(), func_def_bini64_to_bool.clone());
+    context.funcs.insert("lt".to_string(), func_def_bini64_to_bool.clone());
+    context.funcs.insert("lteq".to_string(), func_def_bini64_to_bool.clone());
+    context.funcs.insert("gt".to_string(), func_def_bini64_to_bool.clone());
+    context.funcs.insert("gteq".to_string(), func_def_bini64_to_bool.clone());
+
     context
 }
 
@@ -1296,6 +1308,41 @@ fn eval_core_func_not(mut context: &mut CilContext, source: &String, tokens: &Ve
     bool_to_string(&!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()))
 }
 
+fn eval_core_func_eq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    bool_to_string(&(a == b))
+}
+
+fn eval_core_func_lt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    bool_to_string(&(a < b))
+}
+
+fn eval_core_func_lteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    bool_to_string(&(a <= b))
+}
+
+fn eval_core_func_gt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    bool_to_string(&(a > b))
+}
+
+fn eval_core_func_gteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    bool_to_string(&(a >= b))
+}
+
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
@@ -1365,6 +1412,11 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
             "and" => eval_core_func_and(&mut context, &source, &tokens, &e),
             "or" => eval_core_func_or(&mut context, &source, &tokens, &e),
             "not" => eval_core_func_not(&mut context, &source, &tokens, &e),
+            "eq" => eval_core_func_eq(&mut context, &source, &tokens, &e),
+            "lt" => eval_core_func_lt(&mut context, &source, &tokens, &e),
+            "lteq" => eval_core_func_lteq(&mut context, &source, &tokens, &e),
+            "gt" => eval_core_func_gt(&mut context, &source, &tokens, &e),
+            "gteq" => eval_core_func_gteq(&mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
