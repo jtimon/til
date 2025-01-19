@@ -258,11 +258,12 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
 //     i.declared_values.push();
 // }
 
-fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
+// TODO use Use node types rather than token types
+fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     if e.node_type == NodeType::Body {
         for se in e.params.iter() {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&tokens, &se)));
+            ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
         }
         return ast_str
     }
@@ -272,11 +273,15 @@ fn to_ast_str(tokens: &Vec<Token>, e: &Expr) -> String {
         ast_str.push_str("(");
     }
 
-    ast_str.push_str(&format!("{}", token_type_to_string(&t.token_type)));
+    if t.token_type == TokenType::Identifier {
+        ast_str.push_str(&format!("{}", get_token_str(source, t)));
+    } else {
+        ast_str.push_str(&format!("{}", token_type_to_string(&t.token_type)));
+    }
 
     if e.params.len() > 0 {
         for se in e.params.iter() {
-            ast_str.push_str(&format!(" {}", to_ast_str(&tokens, &se)));
+            ast_str.push_str(&format!(" {}", to_ast_str(&source, &tokens, &se)));
         }
 
         ast_str.push_str(")");
@@ -1517,7 +1522,7 @@ fn run(source: &String) -> String {
         panic!("Compiler errors: {} type errors found", errors.len());
     }
 
-    println!("AST: {}", to_ast_str(&tokens, &e));
+    println!("AST: {}", to_ast_str(&source, &tokens, &e));
     eval_expr(&mut context, &source, &tokens, &e)
 }
 
