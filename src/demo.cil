@@ -18,9 +18,8 @@ my_func(res, my_func(true, my_func(true, true)))
 
 println("printed with print core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
 
-my_proc := proc(a: bool, b: bool) returns bool {
+my_proc := proc(a: bool, b: bool) {
     println(a, b)
-    return and(a, b)
 }
 
 my_proc(true, false)

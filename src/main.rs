@@ -769,8 +769,12 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
 fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
-    *current = *current + 1;
     let mut t = tokens.get(*current).unwrap();
+    *current = *current + 1;
+    if t.token_type != TokenType::Returns {
+        return return_types;
+    }
+    t = tokens.get(*current).unwrap();
     let mut expect_comma = false;
     while !(is_eof(&tokens, *current) || end_found) {
         match t.token_type {
@@ -798,7 +802,7 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("compile error (line {}): Unexpected {:?} in func/proc args.", t.line, t.token_type);
+                panic!("compile error (line {}): Unexpected {:?} in func/proc returns.", t.line, t.token_type);
             },
         }
     }
