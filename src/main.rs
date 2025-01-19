@@ -684,7 +684,25 @@ fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
         Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
     } else {
-        panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, get_token_str(source, t));
+        panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, token_str);
+    }
+}
+
+fn parse_assignment(context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let t = tokens.get(*current).unwrap();
+    let name = get_token_str(source, t);
+    if is_core_func(name) {
+        panic!("compiler error (line {}): Core function '{}' cannot be assigned to.", t.line, name);
+    } else if is_core_proc(name) {
+        panic!("compiler error (line {}): Core procedure '{}' cannot be assigned to.", t.line, name);
+    } else if context.funcs.contains_key(name)  {
+        panic!("compiler error (line {}): User defined function '{}' cannot be assigned to.", t.line, name);
+    } else if context.procs.contains_key(name)  {
+        panic!("compiler error (line {}): User defined procedure '{}' cannot be assigned to.", t.line, name);
+    } else if context.symbols.contains_key(name)  {
+        panic!("compiler error (line {}): Cannot assign to constant '{}', declare it as 'mut'.", t.line, name);
+    } else {
+        panic!("compiler error (line {}): Cannot assign to undefined symbol '{}'.", t.line, name);
     }
 }
 
@@ -947,6 +965,9 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                 match next_token_type {
                     TokenType::LeftParen => {
                         func_call(&mut context, &source, &tokens, current)
+                    },
+                    TokenType::Equal => {
+                        parse_assignment(&mut context, &source, &tokens, current)
                     },
                     TokenType::Colon => {
                         if is_eof(&tokens, *current + 1) {
