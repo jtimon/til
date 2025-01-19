@@ -31,9 +31,11 @@ xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
 }
 
-xor(true, false)
+println("xor true false: ", xor(true, false))
 
 println(and(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2)))
+
+println(add(40, 2), " ", sub(44, 2), " ", mul(6, 7), " ", div(420, 10))
 
 // TODO next:
 

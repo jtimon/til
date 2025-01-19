@@ -176,12 +176,20 @@ fn start_context() -> CilContext {
     args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
     args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
 
-    let func_def_bini64_to_bool = FuncDef{args: args_bin_i64, returns: return_types.clone(), body: body.clone()};
-    context.funcs.insert("eq".to_string(), func_def_bini64_to_bool.clone());
-    context.funcs.insert("lt".to_string(), func_def_bini64_to_bool.clone());
-    context.funcs.insert("lteq".to_string(), func_def_bini64_to_bool.clone());
-    context.funcs.insert("gt".to_string(), func_def_bini64_to_bool.clone());
-    context.funcs.insert("gteq".to_string(), func_def_bini64_to_bool.clone());
+    let func_def_bin_i64_to_bool = FuncDef{args: args_bin_i64.clone(), returns: return_types.clone(), body: body.clone()};
+    context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("gt".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("gteq".to_string(), func_def_bin_i64_to_bool.clone());
+
+    let mut return_type_i64 : Vec<ValueType> = Vec::new();
+    return_type_i64.push(ValueType::TI64);
+    let func_def_bin_i64_to_i64 = FuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
+    context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
 
     context
 }
@@ -205,6 +213,7 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
                         1 => {
                             match func_def.returns.get(0).unwrap() {
                                 ValueType::TBool => ValueType::TBool,
+                                ValueType::TI64 => ValueType::TI64,
                                 _ => panic!("cil error: func '{}' does not return bool" , name),
                             }
                         },
@@ -671,22 +680,25 @@ fn is_core_func(proc_name: &str) -> bool {
         "and" => true,
         "or" => true,
         "not" => true,
-        "add" => true,
         "eq" => true,
         "lt" => true,
         "lteq" => true,
         "gt" => true,
         "gteq" => true,
+        "add" => true,
+        "sub" => true,
+        "mul" => true,
+        "div" => true,
         _ => false,
     }
 }
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
-        "print" => true,
+        "print" => true, // TODO fix, it is very broken
         "println" => true,
-        "test" => true,
-        "assert" => true,
+        "test" => true, // can be func after implementing throws
+        "assert" => true, // can be func after implementing throws
         _ => false,
     }
 }
@@ -1180,15 +1192,53 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
                     let value_type = context.symbols.get(id_name).unwrap();
                     match value_type {
                         ValueType::TBool => { continue; }
-                        _ => { errors.push(format!("In call to '{}', expected bool, but '{}' is {:?}", name, id_name, value_type)); }
+                        ValueType::TI64 => { continue; }
+                        ValueType::TString => { continue; }
+                        _ => { errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type)); }
                     }
                 } else {
                     errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
                 }
             }
             NodeType::FCall(func_name) => {
-                if !does_func_return_bool(&context, func_name) {
-                    errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
+                if context.funcs.contains_key(name) {
+                    let func_def = &context.funcs.get(name).unwrap();
+                    if func_def.returns.len() != 1 {
+                        errors.push(format!("Function '{}' expects only calls that return single values as arguments, func '{}' returns {} values.",
+                                            name, func_name, func_def.returns.len()));
+                    } else {
+                        match *func_def.returns.get(0).unwrap() {
+                            ValueType::TBool => { continue; },
+                            ValueType::TI64 => { continue; },
+                            ValueType::TString => { continue; },
+                            _ => {
+                                errors.push(format!(
+                                    "Function '{}' expects only printable arguments, function '{}' does not return something printable, it returns {:?}.",
+                                    name, func_name, *func_def.returns.get(0).unwrap()));
+                            },
+                        }
+                    }
+
+                } else if context.procs.contains_key(name) {
+                    // TODO fix
+                    // let func_def = &context.procs.get(name).unwrap();
+                    // if func_def.returns.len() != 1 {
+                    //     errors.push(format!("Function '{}' expects only calls that return single values as arguments, proc '{}' returns {} values.",
+                    //                         name, func_name, func_def.returns.len()));
+                    // } else {
+                    //     match *func_def.returns.get(0).unwrap() {
+                    //         ValueType::TBool => { continue; },
+                    //         ValueType::TI64 => { continue; },
+                    //         ValueType::TString => { continue; },
+                    //         _ => {
+                    //             errors.push(format!(
+                    //                 "Function '{}' expects only printable arguments, procedure '{}' does not return something printable, it returns {:?}.",
+                    //                 name, func_name, *func_def.returns.get(0).unwrap()));
+                    //         },
+                    //     }
+                    // }
+                } else {
+                    errors.push(format!("Cil error: Calling '{}', undefined func/proc '{}' This should never happen", name, func_name));
                 }
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
@@ -1343,6 +1393,34 @@ fn eval_core_func_gteq(mut context: &mut CilContext, source: &String, tokens: &V
     bool_to_string(&(a >= b))
 }
 
+fn eval_core_func_add(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    (a + b).to_string()
+}
+
+fn eval_core_func_sub(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    (a - b).to_string()
+}
+
+fn eval_core_func_mul(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    (a * b).to_string()
+}
+
+fn eval_core_func_div(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    (a / b).to_string()
+}
+
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
@@ -1417,6 +1495,10 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
             "lteq" => eval_core_func_lteq(&mut context, &source, &tokens, &e),
             "gt" => eval_core_func_gt(&mut context, &source, &tokens, &e),
             "gteq" => eval_core_func_gteq(&mut context, &source, &tokens, &e),
+            "add" => eval_core_func_add(&mut context, &source, &tokens, &e),
+            "sub" => eval_core_func_sub(&mut context, &source, &tokens, &e),
+            "mul" => eval_core_func_mul(&mut context, &source, &tokens, &e),
+            "div" => eval_core_func_div(&mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
