@@ -1478,7 +1478,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext
                 break;
             },
             _ => {
-                println!("In func {}: {}", name, eval_expr(&mut function_context, &source, &tokens, &se));
+                eval_expr(&mut function_context, &source, &tokens, &se);
             }
         }
     }
