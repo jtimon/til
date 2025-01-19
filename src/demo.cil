@@ -28,6 +28,8 @@ my_proc(true, false)
 // TODO next:
 
 my_num := 1
+my_string := "aaaaa"
+
 
 // my_list := (true, 1111, "hello")
 

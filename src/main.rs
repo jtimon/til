@@ -145,6 +145,7 @@ struct CilContext {
     procs: HashMap<String, FuncDef>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
+    strings: HashMap<String, String>,
 }
 
 fn start_context() -> CilContext {
@@ -154,6 +155,7 @@ fn start_context() -> CilContext {
         procs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
+        strings: HashMap::new(),
     };
 
     let args : Vec<Arg> = Vec::new();
@@ -1353,6 +1355,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
             i64_expr_result_str.to_string()
+        },
+        ValueType::TString => {
+            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+            let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+            context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
+            string_expr_result.to_string()
         },
         ValueType::TFunc => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
