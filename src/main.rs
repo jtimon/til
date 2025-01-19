@@ -1160,6 +1160,15 @@ fn check_all_params_bool(context: &CilContext, name: &str, source: &String, toke
     errors
 }
 
+fn is_value_type_printable(value_type: &ValueType) -> bool {
+    match value_type {
+        ValueType::TBool => true,
+        ValueType::TI64 => true,
+        ValueType::TString => true,
+        _ => false,
+    }
+}
+
 fn check_all_params_printable(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
@@ -1180,11 +1189,8 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
             NodeType::Identifier(id_name) => {
                 if context.symbols.contains_key(id_name) {
                     let value_type = context.symbols.get(id_name).unwrap();
-                    match value_type {
-                        ValueType::TBool => {},
-                        ValueType::TI64 => {},
-                        ValueType::TString => {},
-                        _ => { errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type)); },
+                    if !is_value_type_printable(value_type) {
+                        errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type));
                     }
                 } else {
                     errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
@@ -1194,18 +1200,14 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
                 if context.funcs.contains_key(name) {
                     let func_def = &context.funcs.get(name).unwrap();
                     if func_def.returns.len() != 1 {
-                        errors.push(format!("Function '{}' expects only calls that return single values as arguments, func '{}' returns {} values.",
+                        errors.push(format!("func '{}' expects only calls that return single values as arguments, func '{}' returns {} values.",
                                             name, func_name, func_def.returns.len()));
                     } else {
-                        match *func_def.returns.get(0).unwrap() {
-                            ValueType::TBool => {},
-                            ValueType::TI64 => {},
-                            ValueType::TString => {},
-                            _ => {
-                                errors.push(format!(
-                                    "Function '{}' expects only printable arguments, function '{}' does not return something printable, it returns {:?}.",
-                                    name, func_name, *func_def.returns.get(0).unwrap()));
-                            },
+                        let value_type = func_def.returns.get(0).unwrap();
+                        if !is_value_type_printable(&value_type) {
+                            errors.push(format!(
+                                "func '{}' expects only printable arguments, func '{}' does not return something printable, it returns {:?}.",
+                                name, func_name, value_type));
                         }
                     }
 
