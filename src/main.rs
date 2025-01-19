@@ -831,7 +831,6 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     let mut expect_comma = false;
     while !(is_eof(&tokens, *current) || end_found) {
         match t.token_type {
-            // TokenType::Throws | TokenType::LeftBrace | TokenType::LeftParen => { // TODO paren why?
             TokenType::Throws | TokenType::LeftBrace => {
                 end_found = true;
                 *current = *current + 1;
@@ -1108,17 +1107,12 @@ fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
     }
 }
 
-// fn check_call(source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
-// }
-
 fn check_all_params_bool(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     for p in e.params.iter() {
         match &p.node_type {
-            NodeType::LBool(_) => {
-                continue;
-            },
+            NodeType::LBool(_) => {},
             NodeType::LList => {
                 errors.push(format!("Function '{}' expects only bool arguments, found 'list'", name));
             },
@@ -1171,32 +1165,26 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
 
     for p in e.params.iter() {
         match &p.node_type {
-            NodeType::LBool(_) => {
-                continue;
-            },
+            NodeType::LBool(_) => {},
             NodeType::LList => {
                 errors.push(format!("Function '{}' cannot accept 'list' arguments", name));
             },
-            NodeType::LString => {
-                continue;
-            },
-            NodeType::LNumber => {
-                continue;
-            },
+            NodeType::LString => {},
+            NodeType::LNumber => {},
             NodeType::FuncDef(_) => {
                 errors.push(format!("Function '{}' cannot accept 'func' arguments", name));
-            }
+            },
             NodeType::ProcDef(_) => {
                 errors.push(format!("Function '{}' cannot accept 'proc' arguments", name));
-            }
+            },
             NodeType::Identifier(id_name) => {
                 if context.symbols.contains_key(id_name) {
                     let value_type = context.symbols.get(id_name).unwrap();
                     match value_type {
-                        ValueType::TBool => { continue; }
-                        ValueType::TI64 => { continue; }
-                        ValueType::TString => { continue; }
-                        _ => { errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type)); }
+                        ValueType::TBool => {},
+                        ValueType::TI64 => {},
+                        ValueType::TString => {},
+                        _ => { errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type)); },
                     }
                 } else {
                     errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
@@ -1210,9 +1198,9 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
                                             name, func_name, func_def.returns.len()));
                     } else {
                         match *func_def.returns.get(0).unwrap() {
-                            ValueType::TBool => { continue; },
-                            ValueType::TI64 => { continue; },
-                            ValueType::TString => { continue; },
+                            ValueType::TBool => {},
+                            ValueType::TI64 => {},
+                            ValueType::TString => {},
                             _ => {
                                 errors.push(format!(
                                     "Function '{}' expects only printable arguments, function '{}' does not return something printable, it returns {:?}.",
