@@ -1653,7 +1653,7 @@ fn run(source: &String) -> String {
 
     let mut context = start_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
-    println!("AST: {}", to_ast_str(&source, &tokens, &e));
+    println!("AST:\n{}", to_ast_str(&source, &tokens, &e));
 
     let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
