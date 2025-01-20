@@ -293,7 +293,14 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
             ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
             return ast_str;
         },
-        _ => {},
+        // NodeType::FuncDef(_func_def) => {
+        //     ast_str.push_str(&format!("(funcdef {})", to_ast_str(&source, &tokens, &e)));
+        //     assert(false, "stack overflow here");
+        //     return ast_str;
+        // },
+        _ => {
+            // return ast_str;
+        },
     }
 
     let t = tokens.get(e.token_index).unwrap();
