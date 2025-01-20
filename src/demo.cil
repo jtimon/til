@@ -4,7 +4,6 @@ aaa := and(false, false, false, true, false)
 bbb := or(false, true, false)
 // and := true // fails, double declaration
 // aaa := true // fails, double declaration
-main := and(bbb, or(false, false, aaa), true)
 
 my_func := func(a: bool, b: bool) returns bool {
 //     println(a, b) // fails, funcs cannot call procs
@@ -16,13 +15,9 @@ my_func(true, my_func(true, my_func(true, true)))
 and(res, my_func(true, my_func(true, true)))
 my_func(res, my_func(true, my_func(true, true)))
 
-println("printed with print core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
-
 my_proc := proc(a: bool, b: bool) {
-    println(a, b)
+    println("inside my_proc, two bools: ", a, ", ", b)
 }
-
-my_proc(true, false)
 
 my_num0 := 1
 my_string := "aaaaa"
@@ -31,11 +26,16 @@ xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
 }
 
-println("xor(true false) == ", xor(true, false))
+main := proc() {
+     println("printed with println core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
+     println("xor(true, false) == ", xor(true, false))
+     println(and(true, true), or(true, false), not(false), xor(false, true))
+     println(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2))
+     println(add(40, 2), " ", sub(44, 2), " ", mul(6, 7), " ", div(420, 10))
 
-println(and(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2)))
-
-println(add(40, 2), " ", sub(44, 2), " ", mul(6, 7), " ", div(420, 10))
+     my_proc(false, true)
+}
+main()
 
 // TODO next:
 
