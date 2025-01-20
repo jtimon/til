@@ -1,33 +1,36 @@
-zero := false
-one := or(zero, true)
-aaa := and(false, false, false, true, false)
-bbb := or(false, true, false)
-// and := true // fails, double declaration
-// aaa := true // fails, double declaration
+// mode pura
+
+ZERO := false
+ONE := or(ZERO, true)
+AAA := and(false, false, false, true, false)
+BBB := or(false, true, false)
+// and := true // fails, double declaration in mode pure
+// AAA := true // fails, double declaration
+
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
 
 my_func := func(a: bool, b: bool) returns bool {
 //     println(a, b) // fails, funcs cannot call procs
     return and(a, b)
 }
 
-res := my_func(true, true)
-my_func(true, my_func(true, my_func(true, true)))
-and(res, my_func(true, my_func(true, true)))
-my_func(res, my_func(true, my_func(true, true)))
-
 my_proc := proc(a: bool, b: bool) {
     println("inside my_proc, two bools: ", a, ", ", b)
 }
 
-my_num1 := 1
-my_string := "aaaaa"
-
-xor := func(a: bool, b: bool) returns bool {
-    return or(and(not(a), b), and(a, not(b)))
-}
-
 main := proc() {
-     println("printed with println core proc: ", "aaaaa ", 42, " ",  true, " aaaaa")
+     my_bool := true
+     my_num1 := 1
+     my_string := "aaaa"
+
+     res := my_func(true, true)
+     my_func(true, my_func(true, my_func(true, true)))
+     and(res, my_func(true, my_func(true, true)))
+     my_func(res, my_func(true, my_func(true, true)))
+
+     println("printed with println core proc: ", "aaaaa ", 42, " ", true, " bbbbb")
      println("xor(true, false) == ", xor(true, false))
      println(and(true, true), or(true, false), not(false), xor(false, true))
      println(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2))
@@ -42,11 +45,10 @@ main()
 // mut my_num := 1
 // my_num = 2
 
+// my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
 
-// myproc := proc(a, b) returns bool {
-//     return print(myfunc(a, b))
-// }
+//// TODO mode test
 
 // my_num := 1111
 // and(true, my_num) // fails, and cannot take number literals
@@ -58,22 +60,7 @@ main()
 // "aaa"
 // 1111
 // true
-// false
-
-
-// TODO should error on comptime
-// and("aaa" or(true) true)
-
-
 // (true (true 1111 "1a" aaa) (false 2222 "2b" bbb))
-
-// TODO runtime: 'and' only takes bool
-// add(1, true, true)
-
-// TODO runtime and only takes bool
-// add("1", true, true)
-
-// println(true, or(false, true), true)
 
 // test(true, true, "true should be true")
 

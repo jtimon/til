@@ -282,14 +282,20 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
 // TODO use Use node types rather than token types
 fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
-    if e.node_type == NodeType::Body {
-        for se in e.params.iter() {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
-        }
-        return ast_str
+    match &e.node_type {
+        NodeType::Body => {
+            for se in e.params.iter() {
+                ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
+            }
+            return ast_str;
+        },
+        NodeType::Declaration(decl) => {
+            ast_str.push_str(&format!("(def {} {})\n", decl.name, to_ast_str(&source, &tokens, &e)));
+        },
+        _ => {},
     }
-    let t = tokens.get(e.token_index).unwrap();
 
+    let t = tokens.get(e.token_index).unwrap();
     if e.params.len() > 0 {
         ast_str.push_str("(");
     }
