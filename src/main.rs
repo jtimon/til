@@ -290,7 +290,8 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
             return ast_str;
         },
         NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})\n", decl.name, to_ast_str(&source, &tokens, &e)));
+            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
+            return ast_str;
         },
         _ => {},
     }
