@@ -1,11 +1,9 @@
 // mode pura
 
-ZERO := false
-ONE := or(ZERO, true)
 AAA := and(false, false, false, true, false)
 BBB := or(false, true, false)
-// and := true // fails, double declaration in mode pure
-// AAA := true // fails, double declaration
+// and := true // fails, double declaration of core func 'and'
+// AAA := true // fails, double declaration of user constant 'AAA'
 
 xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
