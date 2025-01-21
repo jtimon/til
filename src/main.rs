@@ -52,13 +52,13 @@ fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
     &source[t.start..t.end]
 }
 
-fn print_lex_error(source: &String, t: &Token, num_error: usize, msg: &str) {
+fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, msg: &str) {
     let max_symbol_len = 20;
     let mut end_symbol = t.end;
     if end_symbol - t.start > max_symbol_len {
         end_symbol = max_symbol_len;
     }
-    println!("Lexical error {} line {}: {}. Offending symbol: {}", num_error, t.line, msg, &source[t.start..end_symbol]);
+    println!("{}:{}:0 Lexical error {}: {}. Offending symbol: {}", path, t.line, num_error, msg, &source[t.start..end_symbol]);
 }
 
 fn is_literal(t: &Token) -> bool {
@@ -459,7 +459,7 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 
     let eof_pos : usize = source.len();
     let mut pos = 0;
-    let mut line = 0;
+    let mut line = 1;
 
     while pos < eof_pos {
         let start = pos;
@@ -1605,23 +1605,23 @@ fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     e
 }
 
-fn run(source: &String) -> String {
+fn run(path: &String, source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
     if tokens.len() < 1 {
-        panic!("compiler error (line {}): End of file not found.", 0);
+        panic!("{}:{}:0 compiler error: End of file not found.", path, 1);
     } else if is_eof(&tokens, 0) {
-        panic!("compiler error (line {}): Nothing to be done", tokens.get(0).unwrap().line);
+        panic!("{}:{}:0 compiler error: Nothing to be done", path, tokens.get(0).unwrap().line);
     }
 
     let mut errors_found : usize = 0;
     for t in &tokens {
         match t.token_type {
             TokenType::Invalid => {
-                print_lex_error(&source, &t, errors_found, "Invalid character");
+                print_lex_error(&path, &source, &t, errors_found, "Invalid character");
                 errors_found = errors_found + 1;
             },
             TokenType::UnterminatedString => {
-                print_lex_error(&source, &t, errors_found, "Unterminated String");
+                print_lex_error(&path, &source, &t, errors_found, "Unterminated String");
                 errors_found = errors_found + 1;
             },
             _ => {},
@@ -1660,7 +1660,7 @@ fn run_file(path: &String) {
             },
         },
     };
-    println!("eval: {}", run(&source));
+    println!("eval: {}", run(&path, &source));
 }
 
 fn run_prompt() {
@@ -1675,7 +1675,8 @@ fn run_prompt() {
 
         if line.len() == 1 { break; }
 
-        println!("{}", run(&line));
+        let path = "repl".to_string();
+        println!("{}", run(&path, &line));
     }
 }
 
