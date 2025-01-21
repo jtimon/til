@@ -1169,11 +1169,30 @@ fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
     false
 }
 
+fn check_func_proc_types(func_def: &FuncDef, context: &CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+    let mut function_context = context.clone();
+    for arg in &func_def.args {
+        function_context.symbols.insert(arg.name.clone(), arg.value_type.clone());
+    }
+    for p in func_def.body.iter() {
+        errors.append(&mut check_types(&function_context, &source, &tokens, &p));
+    }
+    errors
+}
+
 fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
     match &e.node_type {
         NodeType::Body => {
+            for p in e.params.iter() {
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
+            }
+        },
+        NodeType::If => {
+            assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+            // TODO check that the first param is of value_type bool
             for p in e.params.iter() {
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
@@ -1193,7 +1212,6 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     } else {
                         panic!("cil error: Function '{}' isn't func nor proc. This should have been caught in the compile phase.\n", name);
                     }
-
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
                         errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
@@ -1223,8 +1241,22 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             if !is_defined_symbol(&context, &name) {
                 errors.push(format!("Undefined symbol {}", name));
             }
-        }
-        _ => {},
+        },
+        NodeType::FuncDef(func_def) => {
+            errors.append(&mut check_func_proc_types(&func_def, &context, &source, &tokens));
+        },
+        NodeType::ProcDef(func_def) => {
+            errors.append(&mut check_func_proc_types(&func_def, &context, &source, &tokens));
+        },
+        NodeType::Declaration(decl) => {
+            assert!(e.params.len() == 1, "Cil error: in declaration of {} declaration nodes must exactly 1 parameter.", decl.name);
+            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+        },
+        NodeType::Return => {
+            assert!(e.params.len() == 1, "Cil error: return nodes must exactly 1 parameter.");
+            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+        },
+        NodeType::LNumber | NodeType::LString | NodeType::LBool(_) | NodeType::LList => {},
     }
     errors
 }
@@ -1257,6 +1289,8 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
         node_type => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", node_type),
     }
 }
+
+// ---------- core funcs implementations for eval
 
 fn eval_core_func_and(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = true;
@@ -1356,6 +1390,8 @@ fn eval_core_func_itoa(mut context: &mut CilContext, source: &String, tokens: &V
     eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap())
 }
 
+// ---------- core procs implementations for eval
+
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
@@ -1382,6 +1418,8 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &S
     io::stdout().flush().unwrap();
     "".to_string()
 }
+
+// ---------- generic eval things
 
 fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
