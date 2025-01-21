@@ -161,28 +161,30 @@ fn start_context() -> CilContext {
     };
 
     let args_print : Vec<Arg> = Vec::new();
-    let mut return_types : Vec<ValueType> = Vec::new();
+    let return_types_none : Vec<ValueType> = Vec::new();
     let body : Vec<Expr> = Vec::new();
-    let func_def_print = FuncDef{args: args_print, returns: return_types.clone(), body: body.clone()};
+    let func_def_print = FuncDef{args: args_print, returns: return_types_none, body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
 
     let mut args_and_or : Vec<Arg> = Vec::new();
     args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
-    return_types.push(ValueType::TBool);
-    let func_def_and_or = FuncDef{args: args_and_or, returns: return_types.clone(), body: body.clone()};
+    let mut return_type_bool : Vec<ValueType> = Vec::new();
+    return_type_bool.push(ValueType::TBool);
+    let func_def_and_or = FuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
-    let mut args_not : Vec<Arg> = Vec::new();
-    args_not.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
-    let func_def_not = FuncDef{args: args_not, returns: return_types.clone(), body: body.clone()};
+
+    let mut args_single_bool : Vec<Arg> = Vec::new();
+    args_single_bool.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
+    let func_def_not = FuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
 
     let mut args_bin_i64 : Vec<Arg> = Vec::new();
     args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
     args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
 
-    let func_def_bin_i64_to_bool = FuncDef{args: args_bin_i64.clone(), returns: return_types.clone(), body: body.clone()};
+    let func_def_bin_i64_to_bool = FuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
@@ -196,6 +198,15 @@ fn start_context() -> CilContext {
     context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
+
+    let return_type_single_str : Vec<ValueType> = Vec::new();
+    let func_def_btoa = FuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
+    context.funcs.insert("btoa".to_string(), func_def_btoa);
+
+    let mut args_single_i64 : Vec<Arg> = Vec::new();
+    args_single_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
+    let func_def_itoa = FuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
+    context.funcs.insert("itoa".to_string(), func_def_itoa);
 
     context
 }
@@ -615,22 +626,20 @@ fn is_core_func(proc_name: &str) -> bool {
         "sub" => true,
         "mul" => true,
         "div" => true,
+        "btoa" => true,
+        "itoa" => true,
         _ => false,
     }
 }
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
-        "print" => true, // TODO fix, it is very broken
+        "print" => true,
         "println" => true,
         "test" => true, // can be func after implementing throws
         "assert" => true, // can be func after implementing throws
         _ => false,
     }
-}
-
-fn is_core_func_proc(proc_name: &str) -> bool {
-    is_core_func(proc_name) || is_core_proc(proc_name)
 }
 
 fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -1037,7 +1046,7 @@ fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, to
 // ---------- Type checking stuff
 
 fn is_defined_func_proc(context: &CilContext, name: &str) -> bool {
-    is_core_func_proc(name) || context.funcs.contains_key(name) || context.procs.contains_key(name)
+    context.funcs.contains_key(name) || context.procs.contains_key(name)
 }
 
 fn is_defined_symbol(context: &CilContext, name: &str) -> bool {
@@ -1174,7 +1183,6 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 errors.push(format!("Undefined function {}", name));
             }
             match name.as_str() {
-                // "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
                 "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
                     let func_def;
@@ -1187,7 +1195,6 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     }
 
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
-
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
                         errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
                     }
@@ -1335,6 +1342,20 @@ fn eval_core_func_div(mut context: &mut CilContext, source: &String, tokens: &Ve
     (a / b).to_string()
 }
 
+fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "Cil Error: Core func 'btoa' takes exactly 1 argument. This should never happen.");
+    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+        "true".to_string()
+    } else {
+        "true".to_string()
+    }
+}
+
+fn eval_core_func_itoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "Cil Error: Core func 'btoa' takes exactly 1 argument. This should never happen.");
+    eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap())
+}
+
 fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
@@ -1413,6 +1434,8 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
             "sub" => eval_core_func_sub(&mut context, &source, &tokens, &e),
             "mul" => eval_core_func_mul(&mut context, &source, &tokens, &e),
             "div" => eval_core_func_div(&mut context, &source, &tokens, &e),
+            "btoa" => eval_core_func_btoa(&mut context, &source, &tokens, &e),
+            "itoa" => eval_core_func_itoa(&mut context, &source, &tokens, &e),
             _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
         }
     } else if is_core_proc(&name) {
