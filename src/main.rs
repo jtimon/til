@@ -79,6 +79,7 @@ enum ValueType {
     TList,
     TFunc,
     TProc,
+    TMulti(Box<ValueType>),
     TCustom(String),
 }
 
@@ -159,18 +160,22 @@ fn start_context() -> CilContext {
         strings: HashMap::new(),
     };
 
-    let mut args : Vec<Arg> = Vec::new();
+    let args_print : Vec<Arg> = Vec::new();
     let mut return_types : Vec<ValueType> = Vec::new();
     let body : Vec<Expr> = Vec::new();
-    let func_def_print = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
+    let func_def_print = FuncDef{args: args_print, returns: return_types.clone(), body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
+
+    let mut args_and_or : Vec<Arg> = Vec::new();
+    args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
     return_types.push(ValueType::TBool);
-    let func_def_and_or = FuncDef{args: args.clone(), returns: return_types.clone(), body: body.clone()};
+    let func_def_and_or = FuncDef{args: args_and_or, returns: return_types.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
-    args.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
-    let func_def_not = FuncDef{args: args, returns: return_types.clone(), body: body.clone()};
+    let mut args_not : Vec<Arg> = Vec::new();
+    args_not.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
+    let func_def_not = FuncDef{args: args_not, returns: return_types.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
 
     let mut args_bin_i64 : Vec<Arg> = Vec::new();
@@ -1051,62 +1056,6 @@ fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
     }
 }
 
-fn check_all_params_bool(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
-    let mut errors : Vec<String> = Vec::new();
-
-    for p in e.params.iter() {
-        match &p.node_type {
-            NodeType::LBool(_) => {},
-            NodeType::LList => {
-                errors.push(format!("Function '{}' expects only bool arguments, found 'list'", name));
-            },
-            NodeType::LString => {
-                errors.push(format!("Function '{}' expects only bool arguments, found 'string'", name));
-            },
-            NodeType::LNumber => {
-                errors.push(format!("Function '{}' expects only bool arguments, found 'number'", name));
-            },
-            NodeType::FuncDef(_) => {
-                errors.push(format!("Function '{}' expects only bool arguments, found 'func'", name));
-            }
-            NodeType::ProcDef(_) => {
-                errors.push(format!("Function '{}' expects only bool arguments, found 'proc'", name));
-            }
-            NodeType::Identifier(id_name) => {
-                if context.symbols.contains_key(id_name) {
-                    let value_type = context.symbols.get(id_name).unwrap();
-                    match value_type {
-                        ValueType::TBool => { continue; }
-                        _ => { errors.push(format!("In call to '{}', expected bool, but '{}' is {:?}", name, id_name, value_type)); }
-                    }
-                } else {
-                    errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
-                }
-            }
-            NodeType::FCall(func_name) => {
-                if !does_func_return_bool(&context, func_name) {
-                    errors.push(format!("Function '{}' expects only bool arguments, '{}' does not return bool\n", name, func_name));
-                }
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
-            }
-            NodeType::Declaration(_) => {
-                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
-            }
-            NodeType::Body => {
-                errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
-            }
-            NodeType::Return => {
-                errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
-            }
-            NodeType::If => {
-                errors.push(format!("Cil error: Function '{}' cannot take an if statement as an arg. This should never happen", name));
-            }
-        }
-    }
-
-    errors
-}
-
 fn is_value_type_printable(value_type: &ValueType) -> bool {
     match value_type {
         ValueType::TBool => true,
@@ -1199,6 +1148,18 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
     errors
 }
 
+fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
+    for a in &func_def.args {
+        match a.value_type {
+            ValueType::TMulti(_) => {
+                return true;
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
@@ -1213,7 +1174,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 errors.push(format!("Undefined function {}", name));
             }
             match name.as_str() {
-                "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
+                // "and" | "or" => { errors.append(&mut check_all_params_bool(&context, &name, &source, &tokens, &e)); },
                 "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
                     let func_def;
@@ -1223,14 +1184,25 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                         func_def = context.procs.get(name).unwrap();
                     } else {
                         panic!("cil error: Function '{}' isn't func nor proc. This should have been caught in the compile phase.\n", name);
-                    //     errors.push(format!("Undefined Function/procedure '{}'..", name));
                     }
-                    if func_def.args.len() != e.params.len() {
+
+                    let has_multi_arg = func_proc_has_multi_arg(func_def);
+
+                    if !has_multi_arg && func_def.args.len() != e.params.len() {
                         errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
                     }
-                    for i in 0..func_def.args.len() {
-                        let arg = func_def.args.get(i).unwrap();
-                        let expected_type = &arg.value_type;
+                    if has_multi_arg && func_def.args.len() > e.params.len() {
+                        errors.push(format!("Function/procedure '{}' expects at least {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
+                    }
+
+                    let max_arg_def = func_def.args.len();
+                    for i in 0..e.params.len() {
+                        let arg = func_def.args.get(std::cmp::min(i, max_arg_def-1)).unwrap();
+                        let expected_type = match &arg.value_type {
+                            ValueType::TMulti(inner_type) => inner_type,
+                            _ => &arg.value_type,
+
+                        };
                         let found_type = value_type(&context, e.params.get(i).unwrap());
                         if expected_type != &found_type {
                             errors.push(format!("calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",

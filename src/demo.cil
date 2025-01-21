@@ -44,6 +44,8 @@ if lt(6, 5) {
     println("bbbbbbbb")
 }
 
+// and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
+
 // TODO next:
 
 // mut my_num := 1
