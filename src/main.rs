@@ -46,6 +46,7 @@ struct Token {
     start: usize,
     end: usize,
     line: usize,
+    // TODO col: usize,
 }
 
 fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
@@ -1183,6 +1184,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &CilContext, source: &Stri
 
 fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
+    let t = tokens.get(e.token_index).unwrap();
 
     match &e.node_type {
         NodeType::Body => {
@@ -1199,7 +1201,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
-                errors.push(format!("Undefined function {}", name));
+                errors.push(format!("{}:0 Undefined function or procedure {}", t.line, name));
             }
             match name.as_str() {
                 // TODO get rid of this special case and its special function
@@ -1215,10 +1217,10 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
-                        errors.push(format!("Function/procedure '{}' expects {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:0 Function/procedure '{}' expects {} args, but {} were provided.", t.line, name, func_def.args.len(), e.params.len()));
                     }
                     if has_multi_arg && func_def.args.len() > e.params.len() {
-                        errors.push(format!("Function/procedure '{}' expects at least {} args, but {} were provided.", name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:0 Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, name, func_def.args.len(), e.params.len()));
                     }
 
                     let max_arg_def = func_def.args.len();
@@ -1231,8 +1233,8 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                         };
                         let found_type = value_type(&context, e.params.get(i).unwrap());
                         if expected_type != &found_type {
-                            errors.push(format!("calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
-                                                name, expected_type, arg.name, found_type));
+                            errors.push(format!("{}:0 calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                                t.line, name, expected_type, arg.name, found_type));
                         }
                     }
                 },
@@ -1240,7 +1242,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
-                errors.push(format!("Undefined symbol {}", name));
+                errors.push(format!("{}:0 Undefined symbol {}", t.line, name));
             }
         },
         NodeType::FuncDef(func_def) => {
@@ -1638,7 +1640,7 @@ fn run(path: &String, source: &String) -> String {
     let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
-            println!("Type error: {}", err);
+            println!("{}:{}", path, err);
         }
         panic!("Compiler errors: {} type errors found", errors.len());
     }
