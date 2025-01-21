@@ -1202,6 +1202,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 errors.push(format!("Undefined function {}", name));
             }
             match name.as_str() {
+                // TODO get rid of this special case and its special function
                 "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
                     let func_def;
