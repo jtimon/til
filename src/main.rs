@@ -655,20 +655,6 @@ fn parse_assignment(context: &mut CilContext, source: &String, tokens: &Vec<Toke
     }
 }
 
-// fn declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
-//     let t = tokens.get(*current).unwrap();
-//     let token_str = get_token_str(source, t);
-//     Err(CompilerError::CompUndefFuncProc(token_str.to_string()))
-// }
-
-// fn compiler_error_to_string()(ce: CompilerError) -> String {
-//     let mut e_str = "".to_string();
-//     match ce {
-
-//     }
-
-// }
-
 fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
 
     let mut rightparent_found = false;
