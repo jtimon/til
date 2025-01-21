@@ -19,22 +19,22 @@ my_proc := proc(a: bool, b: bool) {
 }
 
 main := proc() {
-     my_bool := true
-     my_num1 := 1
-     my_string := "aaaa"
+    my_bool := true
+    my_num1 := 1
+    my_string := "aaaa"
 
-     res := my_func(true, true)
-     my_func(true, my_func(true, my_func(true, true)))
-     and(res, my_func(true, my_func(true, true)))
-     my_func(res, my_func(true, my_func(true, true)))
+    res := my_func(true, true)
+    my_func(true, my_func(true, my_func(true, true)))
+    and(res, my_func(true, my_func(true, true)))
+    my_func(res, my_func(true, my_func(true, true)))
 
-     println("printed with println core proc: ", "aaaaa ", 42, " ", true, " bbbbb")
-     println("xor(true, false) == ", xor(true, false))
-     println(and(true, true), or(true, false), not(false), xor(false, true))
-     println(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2))
-     println(add(40, 2), " ", sub(44, 2), " ", mul(6, 7), " ", div(420, 10))
+    println("printed with println core proc: ", "aaaaa ", 42, " ", true, " bbbbb")
+    println("xor(true, false) == ", xor(true, false))
+    println(and(true, true), or(true, false), not(false), xor(false, true))
+    println(eq(2, 2), lt(1, 2), lteq(2, 2), gt(3, 2), gteq(2, 2))
+    println(add(40, 2), " ", sub(44, 2), " ", mul(6, 7), " ", div(420, 10))
 
-     my_proc(false, true)
+    my_proc(false, true)
 }
 main()
 
