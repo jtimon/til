@@ -279,103 +279,116 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
 //     i.declared_values.push();
 // }
 
-// TODO use Use node types rather than token types
+fn params_to_ast_str(end_line: bool, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    for se in e.params.iter() {
+        if end_line {
+            ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
+        } else {
+            ast_str.push_str(&format!("{} ", to_ast_str(&source, &tokens, &se)));
+        }
+    }
+    return ast_str;
+}
+
 fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
         NodeType::Body => {
-            for se in e.params.iter() {
-                ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
-            }
-            return ast_str;
+            return params_to_ast_str(true, &source, &tokens, &e)
         },
         NodeType::Declaration(decl) => {
             ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
             return ast_str;
         },
-        // NodeType::FuncDef(_func_def) => {
-        //     ast_str.push_str(&format!("(funcdef {})", to_ast_str(&source, &tokens, &e)));
-        //     assert(false, "stack overflow here");
-        //     return ast_str;
-        // },
-        _ => {
-            // return ast_str;
+        NodeType::FuncDef(_func_def) => {
+            return "func".to_string();
+        },
+        NodeType::ProcDef(_func_def) => {
+            return "proc".to_string();
+        },
+        NodeType::LString => {
+            let t = tokens.get(e.token_index).unwrap();
+            ast_str.push_str(&format!("\"{}\"", get_token_str(source, t)));
+            return ast_str;
+        },
+        NodeType::LNumber => {
+            let t = tokens.get(e.token_index).unwrap();
+            return get_token_str(source, t).to_string();
+        },
+        NodeType::LBool(_lbool) => {
+            let t = tokens.get(e.token_index).unwrap();
+            return get_token_str(source, t).to_string();
+        },
+        NodeType::Identifier(id_name) => {
+            return id_name.clone();
+        },
+        NodeType::FCall(name) => {
+            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &source, &tokens, &e)));
+            return ast_str;
+        },
+        NodeType::LList => {
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &source, &tokens, &e)));
+            return ast_str;
+        },
+        NodeType::Return => {
+            panic!("Cil error: Node_type::Return shouldn't be analized in to_ast_str().");
         },
     }
-
-    let t = tokens.get(e.token_index).unwrap();
-    if e.params.len() > 0 {
-        ast_str.push_str("(");
-    }
-
-    if t.token_type == TokenType::Identifier {
-        ast_str.push_str(&format!("{}", get_token_str(source, t)));
-    } else {
-        ast_str.push_str(&format!("{}", token_type_to_string(&t.token_type)));
-    }
-
-    if e.params.len() > 0 {
-        for se in e.params.iter() {
-            ast_str.push_str(&format!(" {}", to_ast_str(&source, &tokens, &se)));
-        }
-
-        ast_str.push_str(")");
-    }
-    ast_str
 }
 
-fn token_type_to_string(token_type: &TokenType) -> String {
-    match token_type {
-        TokenType::Eof => "Eof".to_string(),
-        TokenType::Minus => "Minus".to_string(),
-        TokenType::Plus => "Plus".to_string(),
-        TokenType::Slash => "Slash".to_string(),
-        TokenType::Star => "Star".to_string(),
-        TokenType::LeftParen => "LeftParen".to_string(),
-        TokenType::RightParen => "RightParen".to_string(),
-        TokenType::LeftBrace => "LeftBrace".to_string(),
-        TokenType::RightBrace => "RightBrace".to_string(),
-        TokenType::Comma => "Comma".to_string(),
-        TokenType::Dot => "Dot".to_string(),
-        TokenType::Colon => "Colon".to_string(),
-        TokenType::Semicolon => "Semicolon".to_string(),
-        TokenType::Not => "Not".to_string(),
-        TokenType::NotEqual => "NotEqual".to_string(),
-        TokenType::Equal => "Equal".to_string(),
-        TokenType::EqualEqual => "EqualEqual".to_string(),
-        TokenType::Greater => "Greater".to_string(),
-        TokenType::GreaterEqual => "GreaterEqual".to_string(),
-        TokenType::Lesser => "Lesser".to_string(),
-        TokenType::LesserEqual => "LesserEqual".to_string(),
-        TokenType::Identifier => "Identifier".to_string(),
-        TokenType::String => "String".to_string(),
-        TokenType::Number => "Number".to_string(),
-        TokenType::True => "True".to_string(),
-        TokenType::False => "False".to_string(),
-        TokenType::Mut => "Mut".to_string(),
-        TokenType::Func => "Func".to_string(),
-        TokenType::Proc => "Proc".to_string(),
-        TokenType::Struct => "Struct".to_string(),
-        TokenType::Enum => "Enum".to_string(),
-        TokenType::Match => "Match".to_string(),
-        TokenType::If => "If".to_string(),
-        TokenType::Else => "Else".to_string(),
-        TokenType::While => "While".to_string(),
-        TokenType::For => "For".to_string(),
-        TokenType::In => "In".to_string(),
-        TokenType::Return => "Return".to_string(),
-        TokenType::Returns => "Returns".to_string(),
-        TokenType::Throw => "Throw".to_string(),
-        TokenType::Rethrow => "Rethrow".to_string(),
-        TokenType::Throws => "Throws".to_string(),
-        TokenType::Catch => "Catch".to_string(),
-        TokenType::Debug => "Debug".to_string(),
-        TokenType::Invalid => "Invalid".to_string(),
-        TokenType::UnterminatedString => "UnterminatedString".to_string(),
-        // TokenType:: => "".to_string(),
-        // _ => "Unknown".to_string(),
-    }
-}
+// fn token_type_to_string(token_type: &TokenType) -> String {
+//     match token_type {
+//         TokenType::Eof => "Eof".to_string(),
+//         TokenType::Minus => "Minus".to_string(),
+//         TokenType::Plus => "Plus".to_string(),
+//         TokenType::Slash => "Slash".to_string(),
+//         TokenType::Star => "Star".to_string(),
+//         TokenType::LeftParen => "LeftParen".to_string(),
+//         TokenType::RightParen => "RightParen".to_string(),
+//         TokenType::LeftBrace => "LeftBrace".to_string(),
+//         TokenType::RightBrace => "func/proc".to_string(),
+//         TokenType::Comma => "Comma".to_string(),
+//         TokenType::Dot => "Dot".to_string(),
+//         TokenType::Colon => "Colon".to_string(),
+//         TokenType::Semicolon => "Semicolon".to_string(),
+//         TokenType::Not => "Not".to_string(),
+//         TokenType::NotEqual => "NotEqual".to_string(),
+//         TokenType::Equal => "Equal".to_string(),
+//         TokenType::EqualEqual => "EqualEqual".to_string(),
+//         TokenType::Greater => "Greater".to_string(),
+//         TokenType::GreaterEqual => "GreaterEqual".to_string(),
+//         TokenType::Lesser => "Lesser".to_string(),
+//         TokenType::LesserEqual => "LesserEqual".to_string(),
+//         TokenType::Identifier => "Identifier".to_string(),
+//         TokenType::String => "String".to_string(),
+//         TokenType::Number => "Number".to_string(),
+//         TokenType::True => "True".to_string(),
+//         TokenType::False => "False".to_string(),
+//         TokenType::Mut => "Mut".to_string(),
+//         TokenType::Func => "Func".to_string(),
+//         TokenType::Proc => "Proc".to_string(),
+//         TokenType::Struct => "Struct".to_string(),
+//         TokenType::Enum => "Enum".to_string(),
+//         TokenType::Match => "Match".to_string(),
+//         TokenType::If => "If".to_string(),
+//         TokenType::Else => "Else".to_string(),
+//         TokenType::While => "While".to_string(),
+//         TokenType::For => "For".to_string(),
+//         TokenType::In => "In".to_string(),
+//         TokenType::Return => "Return".to_string(),
+//         TokenType::Returns => "Returns".to_string(),
+//         TokenType::Throw => "Throw".to_string(),
+//         TokenType::Rethrow => "Rethrow".to_string(),
+//         TokenType::Throws => "Throws".to_string(),
+//         TokenType::Catch => "Catch".to_string(),
+//         TokenType::Debug => "Debug".to_string(),
+//         TokenType::Invalid => "Invalid".to_string(),
+//         TokenType::UnterminatedString => "UnterminatedString".to_string(),
+//         // TokenType:: => "".to_string(),
+//         // _ => "Unknown".to_string(),
+//     }
+// }
 
 fn is_digit(source: &String, pos: usize) -> bool {
     match &source[pos..pos+1].chars().next().unwrap() {
