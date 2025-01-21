@@ -44,6 +44,9 @@ if lt(4, 5) {
     println("bbbbbbbb")
 }
 
+// TODO FIX handle col properly, @ should fail
+// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj
+
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
 
 // TODO next:

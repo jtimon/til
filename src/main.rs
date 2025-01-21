@@ -46,7 +46,7 @@ struct Token {
     start: usize,
     end: usize,
     line: usize,
-    // TODO col: usize,
+    col: usize,
 }
 
 fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
@@ -59,7 +59,7 @@ fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, 
     if end_symbol - t.start > max_symbol_len {
         end_symbol = max_symbol_len;
     }
-    println!("{}:{}:0 Lexical error {}: {}. Offending symbol: {}", path, t.line, num_error, msg, &source[t.start..end_symbol]);
+    println!("{}:{}:{} Lexical error {}: {}. Offending symbol: {}", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
 }
 
 fn is_literal(t: &Token) -> bool {
@@ -455,35 +455,47 @@ fn get_identifier_type(identifier: &str) -> TokenType {
     }
 }
 
+fn increment_scan(pos: &mut usize, col: &mut usize) {
+    *pos += 1;
+    *col += 1;
+}
+
+// TODO FIX handle col properly
 fn scan_tokens(source: &String) -> Vec<Token> {
     let mut tokens : Vec<Token> = Vec::new();
 
     let eof_pos : usize = source.len();
     let mut pos = 0;
     let mut line = 1;
+    let mut col = 0;
 
     while pos < eof_pos {
         let start = pos;
 
         if is_digit(source, pos) {
             while pos < eof_pos && is_digit(source, pos) {
-                pos = pos + 1;
+                increment_scan(&mut pos, &mut col);
             }
             // Look for a fractional part.
             if &source[pos..pos+1] == "." && is_digit(source, pos+1) {
-                pos = pos + 1;
+                increment_scan(&mut pos, &mut col);
                 while pos < eof_pos && is_digit(source, pos) {
-                    pos = pos + 1;
+                    increment_scan(&mut pos, &mut col);
                 }
             }
-            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line });
+            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: 0 });
         } else {
 
             let token_type = match &source[pos..pos+1] {
-                " " => { pos = pos + 1; continue; },
-                "\r" => { pos = pos + 1; continue; },
-                "\t" => { pos = pos + 1; continue; },
-                "\n" => { pos = pos + 1; line = line + 1; continue; },
+                " " => { increment_scan(&mut pos, &mut col); continue; },
+                "\r" => { increment_scan(&mut pos, &mut col); continue; },
+                "\t" => { increment_scan(&mut pos, &mut col); continue; },
+                "\n" => {
+                    increment_scan(&mut pos, &mut col);
+                    line = line + 1;
+                    col = 0;
+                    continue;
+                },
                 "(" => TokenType::LeftParen,
                 ")" => TokenType::RightParen,
                 "{" => TokenType::LeftBrace,
@@ -495,16 +507,16 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 "." => TokenType::Dot,
                 ":" => TokenType::Colon,
                 ";" => TokenType::Semicolon,
-                "=" => if &source[pos+1..pos+2] == "=" { pos = pos + 1; TokenType::EqualEqual } else { TokenType::Equal },
-                "<" => if &source[pos+1..pos+2] == "=" { pos = pos + 1; TokenType::LesserEqual } else { TokenType::Lesser },
-                ">" => if &source[pos+1..pos+2] == "=" { pos = pos + 1; TokenType::GreaterEqual } else { TokenType::Greater },
-                "!" => if &source[pos+1..pos+2] == "=" { pos = pos + 1; TokenType::NotEqual } else { TokenType::Not },
+                "=" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::EqualEqual } else { TokenType::Equal },
+                "<" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::LesserEqual } else { TokenType::Lesser },
+                ">" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::GreaterEqual } else { TokenType::Greater },
+                "!" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::NotEqual } else { TokenType::Not },
 
                 "/" => match &source[pos+1..pos+2] {
                     "/" => {
-                        pos = pos + 1;
+                        increment_scan(&mut pos, &mut col);
                         while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
-                            pos = pos + 1;
+                            increment_scan(&mut pos, &mut col);
                         }
                         continue;
                         // TODO allow the other type of commments, allowing nesting
@@ -513,9 +525,9 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
 
                 "\"" => {
-                    pos = pos + 1;
+                    increment_scan(&mut pos, &mut col);
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
-                        pos = pos + 1;
+                        increment_scan(&mut pos, &mut col);
                     }
                     // pos = pos - 1;
                     match &source[pos..pos+1] {
@@ -526,10 +538,10 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 
                 _ => {
                     if is_alphanumeric(source, pos){
-                        pos = pos + 1;
+                        increment_scan(&mut pos, &mut col);
                         // FIX invalid characters
                         while pos < eof_pos && (is_alphanumeric(source, pos) || is_digit(source, pos)) {
-                            pos = pos + 1;
+                            increment_scan(&mut pos, &mut col);
                         }
                         pos = pos - 1;
                         get_identifier_type(&source[start..pos+1])
@@ -540,14 +552,14 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
             }; // let match
             if token_type == TokenType::String {
-                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line });
+                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: 0 });
             } else {
-                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line });
+                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: 0 });
             }
-            pos = pos + 1;
+            increment_scan(&mut pos, &mut col)
         } // else
     } // while
-    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line });
+    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0 });
     tokens
 }
 
@@ -1201,7 +1213,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
-                errors.push(format!("{}:0 Undefined function or procedure {}", t.line, name));
+                errors.push(format!("{}:{} Undefined function or procedure {}", t.line, t.col, name));
             }
             match name.as_str() {
                 // TODO get rid of this special case and its special function
@@ -1217,10 +1229,10 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
-                        errors.push(format!("{}:0 Function/procedure '{}' expects {} args, but {} were provided.", t.line, name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:{} Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
                     }
                     if has_multi_arg && func_def.args.len() > e.params.len() {
-                        errors.push(format!("{}:0 Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:{} Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
                     }
 
                     let max_arg_def = func_def.args.len();
@@ -1233,8 +1245,8 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                         };
                         let found_type = value_type(&context, e.params.get(i).unwrap());
                         if expected_type != &found_type {
-                            errors.push(format!("{}:0 calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
-                                                t.line, name, expected_type, arg.name, found_type));
+                            errors.push(format!("{}:{} calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                                t.line, t.col, name, expected_type, arg.name, found_type));
                         }
                     }
                 },
@@ -1242,7 +1254,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
-                errors.push(format!("{}:0 Undefined symbol {}", t.line, name));
+                errors.push(format!("{}:{}:{} Undefined symbol {}", t.line, t.col, t.col, name));
             }
         },
         NodeType::FuncDef(func_def) => {
@@ -1610,9 +1622,9 @@ fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
 fn run(path: &String, source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
     if tokens.len() < 1 {
-        panic!("{}:{}:0 compiler error: End of file not found.", path, 1);
+        panic!("{}:{}:{} compiler error: End of file not found.", path, 1, 0);
     } else if is_eof(&tokens, 0) {
-        panic!("{}:{}:0 compiler error: Nothing to be done", path, tokens.get(0).unwrap().line);
+        panic!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0);
     }
 
     let mut errors_found : usize = 0;
