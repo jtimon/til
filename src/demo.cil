@@ -38,6 +38,12 @@ main := proc() {
 }
 main()
 
+if lt(6, 5) {
+    println("aaaaaaaa")
+} else {
+    println("bbbbbbbb")
+}
+
 // TODO next:
 
 // mut my_num := 1

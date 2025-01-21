@@ -129,6 +129,7 @@ enum NodeType {
     FuncDef(FuncDef),
     ProcDef(FuncDef),
     Return,
+    If,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -329,6 +330,10 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         },
         NodeType::LList => {
             ast_str.push_str(&format!("({})", params_to_ast_str(false, &source, &tokens, &e)));
+            return ast_str;
+        },
+        NodeType::If => {
+            ast_str.push_str(&format!("(if {})", to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Return => {
@@ -806,6 +811,14 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             }
             false
         },
+        NodeType::If => {
+            for it_e in &e.params {
+                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
     }
 }
 
@@ -885,11 +898,41 @@ fn return_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<
     Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
 }
 
+fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    // TODO check EOF in this function, this is unsafe
+    let initial_current = *current;
+    *current = *current + 1;
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(primary(&mut context, &source, &tokens, current));
+    let mut t = tokens.get(*current).unwrap();
+    if t.token_type != TokenType::LeftBrace {
+        panic!("compilation error (line {}): Expected '{{' after condition in 'if' statement.", t.line);
+    }
+    *current = *current + 1;
+    params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    *current = *current + 1;
+    t = tokens.get(*current).unwrap();
+    if t.token_type == TokenType::Else {
+        *current = *current + 1;
+        t = tokens.get(*current).unwrap();
+        if t.token_type != TokenType::LeftBrace {
+            panic!("compilation error (line {}): Expected '{{' after 'else'.", t.line);
+        }
+        *current = *current + 1;
+        params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+        *current = *current + 1;
+    }
+    Expr { node_type: NodeType::If, token_index: initial_current, params: params}
+}
+
 fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Return => {
             return_statement(&mut context, &source, &tokens, current)
+        },
+        TokenType::If => {
+            if_statement(&mut context, &source, &tokens, current)
         },
         TokenType::Mut => {
             panic!("cil error (line {}): Mutable values not implemented yet.", t.line);
@@ -972,6 +1015,7 @@ fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, to
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
     while *current < tokens.len() && !end_found {
+        // println!("next token: {:?}, {:?}", tokens.get(*current).unwrap().token_type, end_token);
         if tokens.get(*current).unwrap().token_type == end_token {
             end_found = true;
         } else {
@@ -1053,6 +1097,9 @@ fn check_all_params_bool(context: &CilContext, name: &str, source: &String, toke
             }
             NodeType::Return => {
                 errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
+            }
+            NodeType::If => {
+                errors.push(format!("Cil error: Function '{}' cannot take an if statement as an arg. This should never happen", name));
             }
         }
     }
@@ -1143,6 +1190,9 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
             NodeType::Return => {
                 errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
             }
+            NodeType::If => {
+                errors.push(format!("Cil error: Function '{}' cannot take an if statement as an arg. This should never happen", name));
+            }
         }
     }
 
@@ -1225,7 +1275,7 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
                 panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'");
             }
         },
-        _ => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found 'SOMETHING_ELSE'"),
+        node_type => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", node_type),
     }
 }
 
@@ -1483,6 +1533,16 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                 None => {
                     panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
                 }
+            }
+        },
+        NodeType::If => {
+            assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+            if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+                eval_expr(&mut context, &source, &tokens, &e.params.get(1).unwrap())
+            } else if e.params.len() == 3 {
+                eval_expr(&mut context, &source, &tokens, &e.params.get(2).unwrap())
+            } else {
+                "".to_string()
             }
         },
         _ => {
