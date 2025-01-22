@@ -1681,7 +1681,6 @@ fn run_prompt() {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    // test();
     if args.len() > 2 {
         println!("Usage: cargo run [pathToScript]");
     } else if args.len() > 1 {
