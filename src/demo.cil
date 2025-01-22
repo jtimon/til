@@ -44,12 +44,26 @@ if lt(4, 5) {
     println("bbbbbbbb")
 }
 
+// TODO next:
+// test recursion
+
+// fibonacci := func(number: i64, max: i64) returns i64 {
+//     if or(lt(number, 2), gt(number, max)) {
+//         return number
+//     } else {
+//         return fibonacci(sub(number, 1)) + fibonacci(sub(number, 2))
+//     }
+// }
+
+// fibonacci_proc := proc(number: i64, max: i64) {
+//     println("fibonacci: ", itoa(fibonacci(number, max)))
+// }
+// fibonacci_proc(3, 7)
+
 // TODO FIX handle col properly, @ should fail
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj
 
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
-
-// TODO next:
 
 // mut my_num := 1
 // my_num = 2
