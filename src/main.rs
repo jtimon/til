@@ -669,7 +669,7 @@ fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
         Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
     } else {
-        panic!("compiler error (line {}): Undefined function/procedure '{}'.", t.line, token_str);
+        panic!("{}:{} compiler error: Undefined function/procedure '{}'.", t.line, t.col, token_str);
     }
 }
 
@@ -677,15 +677,15 @@ fn parse_assignment(context: &mut CilContext, source: &String, tokens: &Vec<Toke
     let t = tokens.get(*current).unwrap();
     let name = get_token_str(source, t);
     if is_core_func(name) {
-        panic!("compiler error (line {}): Core function '{}' cannot be assigned to.", t.line, name);
+        panic!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, name);
     } else if is_core_proc(name) {
-        panic!("compiler error (line {}): Core procedure '{}' cannot be assigned to.", t.line, name);
+        panic!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, name);
     } else if context.funcs.contains_key(name)  {
-        panic!("compiler error (line {}): User defined function '{}' cannot be assigned to.", t.line, name);
+        panic!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, name);
     } else if context.procs.contains_key(name)  {
-        panic!("compiler error (line {}): User defined procedure '{}' cannot be assigned to.", t.line, name);
+        panic!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, name);
     } else if context.symbols.contains_key(name)  {
-        panic!("compiler error (line {}): Cannot assign to constant '{}', declare it as 'mut'.", t.line, name);
+        panic!("{}:{} compiler error: Cannot assign to constant '{}', declare it as 'mut'.", t.line, t.col, name);
     } else {
         panic!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                t.line, t.col, name, name, name);
@@ -715,7 +715,7 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("compile error (line {}): Unexpected ','.", t.line);
+                    panic!("{}:{} compiler error: Unexpected ','.", t.line, t.col);
                 }
             },
             TokenType::Colon => {
@@ -724,15 +724,15 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("compile error (line {}): Unexpected ':'.", t.line);
+                    panic!("{}:{} compiler error: Unexpected ':'.", t.line, t.col);
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    panic!("compile error (line {}): Expected ',', found {:?}.", t.line, t.token_type);
+                    panic!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
                 }
                 if expect_colon {
-                    panic!("compile error (line {}): Expected ':', found {:?}.", t.line, t.token_type);
+                    panic!("{}:{} compiler error: Expected ':', found {:?}.", t.line, t.col, t.token_type);
                 }
                 if expect_name {
                     arg_name = get_token_str(source, t);
@@ -746,13 +746,13 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("compile error (line {}): Unexpected {:?} in func/proc args.", t.line, t.token_type);
+                panic!("{}:{} compiler error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type);
             },
         }
     }
     match t.token_type {
         TokenType::RightParen => args,
-        _ => panic!("compiler error (line {}): Expected closing parentheses.", t.line),
+        _ => panic!("{}:{} compiler error: Expected closing parentheses.", t.line, t.col),
     }
 }
 
@@ -778,12 +778,12 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("compile error (line {}): Unexpected ','.", t.line);
+                    panic!("{}:{} compiler error: Unexpected ','.", t.line, t.col);
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    panic!("compile error (line {}): Expected ',', found {:?}.", t.line, t.token_type);
+                    panic!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
                 }
                 return_types.push(str_to_value_type(get_token_str(source, t)));
                 expect_comma = true;
@@ -791,14 +791,14 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("compile error (line {}): Unexpected {:?} in func/proc returns.", t.line, t.token_type);
+                panic!("{}:{} compiler error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type);
             },
         }
     }
     if end_found {
         return_types
     } else {
-        panic!("compiler error (line {}): Expected '{{' or 'throws' after return values.", t.line);
+        panic!("{}:{} compiler error: Expected '{{' or 'throws' after return values.", t.line, t.col);
     }
 }
 
@@ -866,7 +866,7 @@ fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String
 fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("compiler error (line {}): expected '(' after 'func' or 'proc', found EOF.", t.line);
+        panic!("{}:{} compiler error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col);
     } else {
         let t = tokens.get(*current).unwrap();
         if t.token_type == TokenType::LeftParen {
@@ -874,7 +874,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
             if is_func && is_body_calling_procs(&body, &context, &source, &tokens, &current) {
-                panic!("compiler error (line {}): funcs cannot call procs.", t.line);
+                panic!("{}:{} compiler error: funcs cannot call procs.", t.line, t.col);
             }
             let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
@@ -886,7 +886,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             *current = *current + 1;
             e
         } else {
-            panic!("compiler error (line {}): expected '(' after 'func', found {:?}.", t.line, t.token_type);
+            panic!("{}:{} compiler error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type);
         }
     }
 }
@@ -917,7 +917,7 @@ fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, c
                 *current = *current + 1;
                 func_proc_definition(false, &mut context, &source, &tokens, current)
             },
-            _ => panic!("compiler error (line {}): Expected primary expression, found {:?}.", t.line, t.token_type),
+            _ => panic!("{}:{} compiler error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
     }
 }
@@ -1028,7 +1028,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
-                panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found 'EOF'.", t.line);
+                panic!("{}:{} compiler error: Expected '(' or ':' after identifier in statement, found 'EOF'.", t.line, t.col);
             } else {
                 let next_t = tokens.get(*current + 1).unwrap();
                 let next_token_type = &next_t.token_type;
@@ -1046,7 +1046,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                 }
             }
         },
-        _ => panic!("compiler error (line {}): Expected statement, found {:?}.", t.line, t.token_type),
+        _ => panic!("{}:{} compiler error: Expected statement, found {:?}.", t.line, t.col, t.token_type),
     }
 }
 
