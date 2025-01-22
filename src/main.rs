@@ -267,47 +267,6 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     }
 }
 
-// fn is_literal_node(node_type: &NodeType) -> bool {
-//     match node_type {
-//         NodeType::LString => true,
-//         NodeType::LNumber => true,
-//         NodeType::LBool(_) => true,
-//         NodeType::LList => true,
-//         _ => false,
-//     }
-// }
-
-// fn get_token_type<'a>(tokens: &'a Vec<Token>, e: &'a Expr) -> &'a TokenType {
-//     let t = tokens.get(e.token_index).unwrap();
-//     &t.token_type
-// }
-
-// enum Value {
-//     b: u8,
-//     l: Vec<Value>,
-//     n: i64,
-//     s: String,
-// }
-
-// struct Constant {
-//     str_id: String,
-//     value: Value,
-// }
-
-// struct Mutable {
-//     str_id: String,
-//     value: Value,
-// }
-
-// #[derive(Debug)]
-// struct Interpreter {
-//     declared_values: Vec<Constant>.
-// }
-
-// fn declare_constant(i: & mut Interpreter, str_id: String, value: Value,) {
-//     i.declared_values.push();
-// }
-
 fn params_to_ast_str(end_line: bool, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     for se in e.params.iter() {
