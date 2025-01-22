@@ -1005,7 +1005,7 @@ fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: 
                 let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
                 Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
             },
-            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, t.token_type),
+            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, next_next_token_type),
         }
     }
 }
