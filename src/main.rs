@@ -1679,7 +1679,10 @@ fn run_prompt() {
 }
 
 fn usage() {
-    println!("Usage: cargo run [pathToScript]");
+    println!("Usage: Zero arguments for the repl mode");
+    println!("example> cil");
+    println!("Usage: for the interpreted mode. running scripts interpreted: a single arg that's a path");
+    println!("example> cil src/demo.cil");
 }
 
 fn main() {
