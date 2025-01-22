@@ -26,18 +26,29 @@ enum TokenType {
     // Literals.
     Identifier, String, Number,
 
-    // Reserved words.
+    // Reserved words:
+
+    // bool
     True, False,
-    Mut,
+    // types
+    // bool, i64, string, // TODO decide if parse basic types as reserved words (probably not)
     Struct, Enum,
+    // function definition
     Func, Proc,
-    Match, If, Else, While, For, In,
-    Return, Returns, Throw, Rethrow, Throws, Catch,
-    Debug,
+    Return, Returns,
+    Throw, Throws, Try, Catch,
+    // flow control
+    If, Else,
+    Match, While, For, In,
+
+    // TODO implement or remove
+    Mut,
+    Debug , Log,
 
     // Errors
     Invalid,
     UnterminatedString,
+    // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
 }
 
 #[derive(Debug, Clone)]
@@ -434,23 +445,24 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "true" => TokenType::True,
         "false" => TokenType::False,
         "mut" => TokenType::Mut,
-        "struct" => TokenType::Struct,
-        "enum" => TokenType::Enum,
-        "func" => TokenType::Func,
-        "proc" => TokenType::Proc,
-        "match" => TokenType::Match,
         "if" => TokenType::If,
         "else" => TokenType::Else,
         "while" => TokenType::While,
         "for" => TokenType::For,
         "in" => TokenType::In,
+        "match" => TokenType::Match,
+        "enum" => TokenType::Enum,
+        "struct" => TokenType::Struct,
+        "func" => TokenType::Func,
+        "proc" => TokenType::Proc,
         "return" => TokenType::Return,
         "returns" => TokenType::Returns,
         "throw" => TokenType::Throw,
-        "rethrow" => TokenType::Rethrow,
         "throws" => TokenType::Throws,
+        "try" => TokenType::Try,
         "catch" => TokenType::Catch,
         "debug" => TokenType::Debug,
+        "log" => TokenType::Log,
         _ => TokenType::Identifier,
     }
 }
