@@ -577,7 +577,7 @@ fn literal(t: &Token, current: &mut usize) -> Expr {
         TokenType::Number => NodeType::LNumber,
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
-        _ => panic!("cil error (line {}): Trying to parse a token that's not a literal as a literal.", t.line),
+        _ => panic!("{}:{} cil error: Trying to parse a token that's not a literal as a literal.", t.line, t.col),
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
     *current = *current + 1;
@@ -934,7 +934,7 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     params.push(primary(&mut context, &source, &tokens, current));
     let mut t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("compilation error (line {}): Expected '{{' after condition in 'if' statement.", t.line);
+        panic!("{}:{} compiler error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
     }
     *current = *current + 1;
     params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
@@ -944,13 +944,70 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
         *current = *current + 1;
         t = tokens.get(*current).unwrap();
         if t.token_type != TokenType::LeftBrace {
-            panic!("compilation error (line {}): Expected '{{' after 'else'.", t.line);
+            panic!("{}:{} compiler error: Expected '{{' after 'else'.", t.line, t.col);
         }
         *current = *current + 1;
         params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
         *current = *current + 1;
     }
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
+}
+
+fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let t = tokens.get(*current).unwrap();
+    if is_eof(&tokens, *current + 1) {
+        panic!("{}:{} compiler error: Expected Type or '=' after 'identifier :' in statement, found 'EOF'.", t.line, t.col);
+    } else {
+        let next_next_t = tokens.get(*current + 2).unwrap();
+        let next_next_token_type = &next_next_t.token_type;
+        match next_next_token_type {
+            TokenType::Identifier => {
+                let identifier = get_token_str(source, t);
+                let type_name = get_token_str(source, next_next_t);
+                panic!("{}:{} cil error: Suggestion: try changing '{} : {}' for just '{}:'\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
+            }
+            TokenType::Equal => {
+                let decl_name = get_token_str(source, t);
+                if is_defined_symbol(&context, decl_name) {
+                    panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
+                }
+                let initial_current = *current;
+                *current = *current + 3;
+                let mut params : Vec<Expr> = Vec::new();
+                params.push(primary(&mut context, &source, &tokens, current));
+                let e = params.get(0).unwrap();
+                let value_type = value_type(&context, &e);
+                match value_type {
+                    ValueType::TFunc => {
+                        match &e.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                context.funcs.insert(decl_name.to_string(), func_def.clone());
+                            },
+                            _ => {
+                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                            },
+                        }
+                    },
+                    ValueType::TProc => {
+                        match &e.node_type {
+                            NodeType::ProcDef(func_def) => {
+                                context.procs.insert(decl_name.to_string(), func_def.clone());
+                            },
+                            _ => {
+                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                            },
+                        }
+                    },
+                    _ => {
+                        context.symbols.insert(decl_name.to_string(), value_type.clone());
+                    },
+                }
+                let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
+                Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
+            },
+            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, t.token_type),
+        }
+    }
 }
 
 fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -963,7 +1020,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             if_statement(&mut context, &source, &tokens, current)
         },
         TokenType::Mut => {
-            panic!("cil error (line {}): Mutable values not implemented yet.", t.line);
+            panic!("{}:{} cil error: Mutable values not implemented yet.", t.line, t.col);
         },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
@@ -979,61 +1036,9 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                         parse_assignment(&mut context, &source, &tokens, current)
                     },
                     TokenType::Colon => {
-                        if is_eof(&tokens, *current + 1) {
-                            panic!("{}:{} compiler error: Expected Type or '=' after 'identifier :' in statement, found 'EOF'.", t.line, t.col);
-                        } else {
-                            let next_next_t = tokens.get(*current + 2).unwrap();
-                            let next_next_token_type = &next_next_t.token_type;
-                            match next_next_token_type {
-                                TokenType::Identifier => {
-                                    let identifier = get_token_str(source, t);
-                                    let type_name = get_token_str(source, next_next_t);
-                                    panic!("{}:{} cil error: Suggestion: try changing '{} : {}' for just '{}:'\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
-                                }
-                                TokenType::Equal => {
-                                    let decl_name = get_token_str(source, t);
-                                    if is_defined_symbol(&context, decl_name) {
-                                        panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
-                                    }
-                                    let initial_current = *current;
-                                    *current = *current + 3;
-                                    let mut params : Vec<Expr> = Vec::new();
-                                    params.push(primary(&mut context, &source, &tokens, current));
-                                    let e = params.get(0).unwrap();
-                                    let value_type = value_type(&context, &e);
-                                    match value_type {
-                                        ValueType::TFunc => {
-                                            match &e.node_type {
-                                                NodeType::FuncDef(func_def) => {
-                                                    context.funcs.insert(decl_name.to_string(), func_def.clone());
-                                                },
-                                                _ => {
-                                                    panic!("cil error (line {}): funcs/procs should have definitions. This should never happen", t.line);
-                                                },
-                                            }
-                                        },
-                                        ValueType::TProc => {
-                                            match &e.node_type {
-                                                NodeType::ProcDef(func_def) => {
-                                                    context.procs.insert(decl_name.to_string(), func_def.clone());
-                                                },
-                                                _ => {
-                                                    panic!("cil error (line {}): funcs/procs should have definitions. This should never happen", t.line);
-                                                },
-                                            }
-                                        },
-                                        _ => {
-                                            context.symbols.insert(decl_name.to_string(), value_type.clone());
-                                        },
-                                    }
-                                    let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
-                                    Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
-                                },
-                                _ => panic!("compiler error (line {}): Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.token_type),
-                            }
-                        }
+                        statement_declaration(&mut context, &source, &tokens, current)
                     },
-                    _ => panic!("compiler error (line {}): Expected '(' or ':' after identifier in statement, found {:?}.", t.line, t.token_type),
+                    _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, t.token_type),
                 }
             }
         },
@@ -1454,7 +1459,7 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext
             function_context.bools.insert(arg.name.clone(), bool_expr_result);
             param_index += 1;
         } else {
-            panic!("cil error (line {}): calling func '{}'. Only bool arguments allowed for now.", t.line, name);
+            panic!("{}:{} cil error: calling func '{}'. Only bool arguments allowed for now.", t.line, t.col, name);
         }
 
     }
@@ -1493,13 +1498,13 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
             "div" => eval_core_func_div(&mut context, &source, &tokens, &e),
             "btoa" => eval_core_func_btoa(&mut context, &source, &tokens, &e),
             "itoa" => eval_core_func_itoa(&mut context, &source, &tokens, &e),
-            _ => panic!("cil error (line {}): Core function '{}' not implemented.", t.line, name),
+            _ => panic!("{}:{} cil error: Core function '{}' not implemented.", t.line, t.col, name),
         }
     } else if is_core_proc(&name) {
         match name {
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
-            _ => panic!("cil error (line {}): Core procedure '{}' not implemented.", t.line, name),
+            _ => panic!("{}:{} cil error: Core procedure '{}' not implemented.", t.line, t.col, name),
         }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
@@ -1508,7 +1513,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
         let func_def = context.procs.get(name).unwrap();
         eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else {
-        panic!("cil error (line {}): Cannot call '{}'. Undefined function. This should never happen.", t.line, name);
+        panic!("{}:{} cil error: Cannot call '{}'. Undefined function. This should never happen.", t.line, t.col, name);
     }
 }
 
@@ -1540,8 +1545,8 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
                     context.funcs.insert(declaration.name.clone(), func_def.clone());
                     "func declared".to_string()
                 },
-                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen",
-                            t.line, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
+                            t.line, t.col, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TProc => {
@@ -1551,11 +1556,11 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
                     context.procs.insert(declaration.name.clone(), func_def.clone());
                     "proc declared".to_string()
                 },
-                _ => panic!("cil error (line {}): Cannot declare {} of type {:?}. This should never happen",
-                            t.line, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
+                            t.line, t.col, &declaration.name, &declaration.value_type)
             }
         },
-        _ => panic!("cil error (line {}): Cannot declare {} of type {:?}.", t.line, &declaration.name, &declaration.value_type)
+        _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}.", t.line, t.col, &declaration.name, &declaration.value_type)
     }
 }
 
@@ -1599,7 +1604,7 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         },
         _ => {
             let t = tokens.get(e.token_index).unwrap();
-            panic!("cil error (line {}): Not implemented, found {}.", t.line, get_token_str(source, t))
+            panic!("{}:{} cil error: Not implemented, found {}.", t.line, t.col, get_token_str(source, t))
         },
     }
 }
