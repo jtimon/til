@@ -1038,7 +1038,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                     TokenType::Colon => {
                         statement_declaration(&mut context, &source, &tokens, current)
                     },
-                    _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, t.token_type),
+                    _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
                 }
             }
         },
