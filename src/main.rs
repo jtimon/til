@@ -606,13 +606,17 @@ fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, curr
                     *current = *current + 1;
                     list_t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("compile error (line {}): Unexpected ','.", list_t.line);
+                    panic!("{}:{} compiler error: Unexpected ','.", list_t.line, list_t.col);
                 }
             },
             _ => {
                 if expect_comma {
-                    panic!("compile error (line {}): Expected ',', found {:?}.", list_t.line, list_t.token_type);
+                    panic!("{}:{} compiler error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type);
                 }
+                // TODO fix the error msg when...
+                // if list_t.token_type == TokenType::Identifier {
+                //     panic!("{}:{} compiler error: Expected ')' or ',', found {}.", list_t.line, list_t.col, get_token_str(source, list_t));
+                // }
                 expect_comma = true;
                 params.push(primary(&mut context, &source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
@@ -621,7 +625,7 @@ fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, curr
     }
     match list_t.token_type {
         TokenType::RightParen => Expr { node_type: NodeType::LList, token_index: initial_current, params: params},
-        _ => panic!("compiler error (line {}): Expected closing parentheses.", list_t.line),
+        _ => panic!("{}:{} compiler error: Expected closing parentheses.", list_t.line, list_t.col),
     }
 }
 
