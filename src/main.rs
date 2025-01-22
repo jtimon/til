@@ -1669,7 +1669,7 @@ fn run_prompt() {
         let mut line = String::new();
         io::stdin()
             .read_line(&mut line)
-            .expect("Failed to read line");
+            .expect("repl error: Failed to read line");
 
         if line.len() == 1 { break; }
 
