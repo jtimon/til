@@ -1679,17 +1679,23 @@ fn run_prompt() {
 }
 
 fn usage() {
-    println!("Usage: Zero arguments for the repl mode");
+    println!("Usage: Zero arguments for the repl mode:");
     println!("example> cil");
-    println!("Usage: for the interpreted mode. running scripts interpreted: a single arg that's a path");
+    println!("Usage: for the interpreted mode. running scripts: a single arg that's a path:");
     println!("example> cil src/demo.cil");
+    println!("Usage: for the nasm mode. This is compiled:");
+    println!("example> cil build src/demo.cil");
+    println!("Usage: if you want to run what you just compiled:");
+    println!("example> cil run src/demo.cil");
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    if args.len() > 2 {
+    if args.len() > 3 {
         usage();
+    } else if args.len() > 2 {
+        println!("subcommand {} not implemented yet.", &args[1]);
     } else if args.len() > 1 {
         run_file(&args[1]);
     } else {
