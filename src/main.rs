@@ -1427,10 +1427,21 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext
     for arg in &func_def.args {
         if arg.value_type == ValueType::TBool {
             let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
+            function_context.symbols.insert(arg.name.clone(), ValueType::TBool);
             function_context.bools.insert(arg.name.clone(), bool_expr_result);
             param_index += 1;
+        } else if arg.value_type == ValueType::TI64 {
+            let result = &eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
+            function_context.symbols.insert(arg.name.clone(), ValueType::TI64);
+            function_context.i64s.insert(arg.name.clone(), result.parse::<i64>().unwrap());
+            param_index += 1;
+        } else if arg.value_type == ValueType::TString {
+            let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
+            function_context.symbols.insert(arg.name.clone(), ValueType::TString);
+            function_context.strings.insert(arg.name.clone(), result);
+            param_index += 1;
         } else {
-            panic!("{}:{} cil error: calling func '{}'. Only bool arguments allowed for now.", t.line, t.col, name);
+            panic!("{}:{} cil error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, name, arg.value_type);
         }
 
     }
@@ -1556,11 +1567,25 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             eval_declaration(&declaration, &mut context, &source, &tokens, &e)
         },
         NodeType::Identifier(name) => {
-            match context.bools.get(name) {
-                Some(bool_value) => bool_to_string(bool_value),
-                None => {
-                    panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+
+            match context.symbols.get(name) {
+                Some(value_type) => match value_type {
+                    ValueType::TBool => {
+                        bool_to_string(context.bools.get(name).unwrap())
+                    },
+                    ValueType::TI64 => {
+                        context.i64s.get(name).unwrap().to_string()
+                    },
+                    ValueType::TString => {
+                        context.strings.get(name).unwrap().to_string()
+                    },
+                    _ => {
+                        panic!("cil error: Can't use identifier '{}'. Type {:?} not supported yet.", name, value_type)
+                    },
                 }
+                None => {
+                    panic!("cil error: Undefined symbol '{}'. This should have been caught in the compile phase.", name)
+                },
             }
         },
         NodeType::If => {
