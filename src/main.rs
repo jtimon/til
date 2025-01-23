@@ -1556,7 +1556,14 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
-                eval_expr(&mut context, &source, &tokens, &se);
+                match &se.node_type {
+                    NodeType::Return => {
+                        return eval_expr(&mut context, &source, &tokens, &se);
+                    }
+                    _ => {
+                        eval_expr(&mut context, &source, &tokens, &se);
+                    }
+                }
             }
             "".to_string()
         },
@@ -1604,6 +1611,10 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                 "".to_string()
             }
         },
+        NodeType::Return => {
+            assert!(e.params.len() == 1, "Cil error: return nodes must have exactly 1 parameter.");
+            eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
+        }
         _ => {
             let t = tokens.get(e.token_index).unwrap();
             panic!("{}:{} cil error: Not implemented, found {}.", t.line, t.col, get_token_str(source, t))
