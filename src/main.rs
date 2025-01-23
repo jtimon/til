@@ -102,7 +102,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
-        "I64" => ValueType::TI64,
+        "i64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
     }
 }
@@ -243,7 +243,8 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
                             match func_def.returns.get(0).unwrap() {
                                 ValueType::TBool => ValueType::TBool,
                                 ValueType::TI64 => ValueType::TI64,
-                                _ => panic!("cil error: func '{}' does not return bool" , name),
+                                ValueType::TString => ValueType::TString,
+                                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
                             }
                         },
                         _ => {
