@@ -1723,6 +1723,7 @@ fn run_prompt() {
 }
 
 fn usage() {
+    // TODO document this properly
     println!("Usage: Zero arguments for the repl mode:");
     println!("example> cil");
     println!("Usage: for the interpreted mode. running scripts: a single arg that's a path:");
