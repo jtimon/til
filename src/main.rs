@@ -773,7 +773,7 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, current: &usize, e: &Expr) -> bool {
+fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
             return true // TODO decide if panic here instead
@@ -788,7 +788,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         },
         NodeType::Return => {
             for it_e in &e.params {
-                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
                 }
             }
@@ -796,11 +796,11 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
-            is_expr_calling_procs(&context, &source, &tokens, &current, &e.params.get(0).unwrap())
+            is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         },
         NodeType::ProcDef(func_def) => {
             for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
                 }
             }
@@ -808,7 +808,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         },
         NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
                 }
             }
@@ -816,7 +816,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         },
         NodeType::If => {
             for it_e in &e.params {
-                if is_expr_calling_procs(&context, &source, &tokens, &current, &it_e) {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
                 }
             }
@@ -825,9 +825,9 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
     }
 }
 
-fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String, tokens: &Vec<Token>, current: &usize) -> bool {
+fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String, tokens: &Vec<Token>) -> bool {
     for e in body {
-        if is_expr_calling_procs(&context, &source, &tokens, &current, &e) {
+        if is_expr_calling_procs(&context, &source, &tokens, &e) {
             return true;
         }
     }
@@ -844,7 +844,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
-            if is_func && is_body_calling_procs(&body, &context, &source, &tokens, &current) {
+            if is_func && is_body_calling_procs(&body, &context, &source, &tokens) {
                 panic!("{}:{} compiler error: funcs cannot call procs.", t.line, t.col);
             }
             let func_def = FuncDef{args: args, returns: returns, body: body};
