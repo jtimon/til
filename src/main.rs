@@ -1089,7 +1089,12 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
 fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
-            return true // TODO decide if panic here instead
+            for se in &e.params {
+                if is_expr_calling_procs(&context, &source, &tokens, &se) {
+                    return true;
+                }
+            }
+            false
         },
         NodeType::LBool(_) => false,
         NodeType::LNumber => false,
