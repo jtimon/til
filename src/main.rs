@@ -633,15 +633,10 @@ fn is_core_proc(proc_name: &str) -> bool {
 fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
-
-    if is_defined_func_proc(&context, token_str) {
-        let initial_current = *current;
-        *current = *current + 1;
-        let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
-        Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
-    } else {
-        panic!("{}:{} compiler error: Undefined function/procedure '{}'.", t.line, t.col, token_str);
-    }
+    let initial_current = *current;
+    *current = *current + 1;
+    let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
+    Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
 }
 
 fn parse_assignment(context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -773,67 +768,6 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
-    match &e.node_type {
-        NodeType::Body => {
-            return true // TODO decide if panic here instead
-        },
-        NodeType::LBool(_) => false,
-        NodeType::LNumber => false,
-        NodeType::LString => false,
-        NodeType::LList => false,
-        NodeType::Identifier(_) => false,
-        NodeType::FCall(call_name) => {
-            context.procs.contains_key(call_name)
-        },
-        NodeType::Return => {
-            for it_e in &e.params {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
-        NodeType::Declaration(decl) => {
-            assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
-            is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
-        },
-        NodeType::ProcDef(func_def) => {
-            for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
-        NodeType::FuncDef(func_def) => {
-            for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
-        NodeType::If => {
-            for it_e in &e.params {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
-    }
-}
-
-fn is_body_calling_procs(body: &Vec<Expr>, context: &CilContext, source: &String, tokens: &Vec<Token>) -> bool {
-    for e in body {
-        if is_expr_calling_procs(&context, &source, &tokens, &e) {
-            return true;
-        }
-    }
-    false
-}
-
 fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
@@ -844,9 +778,6 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
-            if is_func && is_body_calling_procs(&body, &context, &source, &tokens) {
-                panic!("{}:{} compiler error: funcs cannot call procs.", t.line, t.col);
-            }
             let func_def = FuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e;
@@ -1154,6 +1085,58 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
     errors
 }
 
+fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
+    match &e.node_type {
+        NodeType::Body => {
+            return true // TODO decide if panic here instead
+        },
+        NodeType::LBool(_) => false,
+        NodeType::LNumber => false,
+        NodeType::LString => false,
+        NodeType::LList => false,
+        NodeType::Identifier(_) => false,
+        NodeType::FCall(call_name) => {
+            context.procs.contains_key(call_name)
+        },
+        NodeType::Return => {
+            for it_e in &e.params {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+        NodeType::Declaration(decl) => {
+            assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
+            is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
+        },
+        NodeType::ProcDef(func_def) => {
+            for it_e in &func_def.body {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+        NodeType::FuncDef(func_def) => {
+            for it_e in &func_def.body {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+        NodeType::If => {
+            for it_e in &e.params {
+                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
+                    return true;
+                }
+            }
+            false
+        },
+    }
+}
+
 fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
     for a in &func_def.args {
         match a.value_type {
@@ -1198,6 +1181,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
                 errors.push(format!("{}:{} Undefined function or procedure {}", t.line, t.col, name));
+                return errors;
             }
             match name.as_str() {
                 // TODO get rid of this special case and its special function
@@ -1209,7 +1193,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     } else if context.procs.contains_key(name) {
                         func_def = context.procs.get(name).unwrap();
                     } else {
-                        panic!("cil error: Function '{}' isn't func nor proc. This should have been caught in the compile phase.\n", name);
+                        panic!("cil error: Undefined function or procedure '{}'. This should have been caught in the before.\n", name);
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
@@ -1242,6 +1226,12 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             }
         },
         NodeType::FuncDef(func_def) => {
+            for se in &func_def.body {
+                if is_expr_calling_procs(&context, &source, &tokens, &se) {
+                    let proc_t = tokens.get(se.token_index).unwrap();
+                    errors.push(format!("{}:{} compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
+                }
+            }
             errors.append(&mut check_func_proc_types(&func_def, &context, &source, &tokens));
         },
         NodeType::ProcDef(func_def) => {
