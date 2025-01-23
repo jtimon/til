@@ -1452,20 +1452,26 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext
 
     }
 
-    let mut result_str = "".to_string();
     for se in &func_def.body {
         match se.node_type {
             NodeType::Return => {
                 assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
-                result_str.push_str(&format!("{}", eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap())));
-                break;
+                return eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap());
+            },
+            NodeType::If => {
+                assert!(se.params.len() == 2 || se.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+                if eval_to_bool(&mut function_context, &source, &tokens, &se.params.get(0).unwrap()) {
+                    return eval_expr(&mut function_context, &source, &tokens, &se.params.get(1).unwrap())
+                } else if se.params.len() == 3 {
+                    return eval_expr(&mut function_context, &source, &tokens, &se.params.get(2).unwrap())
+                }
             },
             _ => {
                 eval_expr(&mut function_context, &source, &tokens, &se);
             }
         }
     }
-    result_str
+    "".to_string()
 }
 
 fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {

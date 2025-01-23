@@ -44,29 +44,68 @@ if lt(4, 5) {
     println("bbbbbbbb")
 }
 
-// TODO next:
-// test recursion
+int_func := proc(a: i64, b: i64) returns i64 {
+    if lt(a, b) {
+        return add(a, b)
+    }
+    return sub(a, b)
+}
 
-// fibonacci := func(number: i64, max: i64) returns i64 {
-//     if or(lt(number, 2), gt(number, max)) {
-//         return number
-//     } else {
-//         return fibonacci(sub(number, 1)) + fibonacci(sub(number, 2))
-//     }
-// }
+int_func2 := proc(a: i64, b: i64) returns i64 {
+    if lt(a, b) {
+        return add(a, b)
+    } else {
+        return sub(a, b)
+    }
+}
 
-// fibonacci_proc := proc(number: i64, max: i64) {
-//     println("fibonacci: ", itoa(fibonacci(number, max)))
-// }
-// fibonacci_proc(3, 7)
+println("int_func result: ", itoa(int_func(36, 35)))
+println("int_func2 result: ", itoa(int_func2(36, 35)))
+
+fibonacci := func(n: i64) returns i64 {
+    if lt(n, 2) {
+        return n
+    }
+    return add(fibonacci(sub(n, 1)), fibonacci(sub(n, 2)))
+}
+
+fibonacci2 := func(n: i64) returns i64 {
+    if lt(n, 2) {
+        return n
+    } else {
+        return add(fibonacci2(sub(n, 1)), fibonacci2(sub(n, 2)))
+    }
+}
+
+fib_arg := 15
+println("fibonacci of ", itoa(fib_arg), " = ", itoa(fibonacci(fib_arg)))
+println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 
 // TODO FIX handle col properly, @ should fail
-// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj
-
+// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
 
-// mut my_num := 1
-// my_num = 2
+// TODO next:
+
+// mut it := 2
+// it = 0
+// while lt(it, 10) {
+//     print(itoa(it), " ")
+//     it = add(it, 1)
+// }
+// printl(" ")
+
+// my_struct := struct {
+//     bool_field: bool
+//     int_field: i64
+//     string_field: String
+// }
+
+// NodeType := enum {
+//     LBool
+//     LNumber
+//     LString
+// }
 
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
