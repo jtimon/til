@@ -223,6 +223,25 @@ fn start_context() -> CilContext {
     context
 }
 
+fn value_type_func_proc(name: &str, func_def: &FuncDef) -> ValueType {
+    match func_def.returns.len() {
+        0 => {
+            panic!("cil error: func '{}' does not return anything" , name)
+        },
+        1 => {
+            match func_def.returns.get(0).unwrap() {
+                ValueType::TBool => ValueType::TBool,
+                ValueType::TI64 => ValueType::TI64,
+                ValueType::TString => ValueType::TString,
+                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
+            }
+        },
+        _ => {
+            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
+        },
+    }
+}
+
 fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
@@ -232,27 +251,14 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::ProcDef(_) => ValueType::TProc,
         NodeType::FCall(name) => {
-            match context.funcs.get(name) {
-                Some(func_def) => {
-
-                    match func_def.returns.len() {
-                        0 => {
-                            panic!("cil error: func '{}' does not return anything" , name)
-                        },
-                        1 => {
-                            match func_def.returns.get(0).unwrap() {
-                                ValueType::TBool => ValueType::TBool,
-                                ValueType::TI64 => ValueType::TI64,
-                                ValueType::TString => ValueType::TString,
-                                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
-                            }
-                        },
-                        _ => {
-                            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
-                        },
-                    }
-                },
-                None => panic!("compile error: value_type: Undefined function/procedure '{}'" , name),
+            if context.funcs.contains_key(name) {
+                value_type_func_proc(name, &context.funcs.get(name).unwrap())
+            } else if context.procs.contains_key(name) {
+                value_type_func_proc(name, &context.procs.get(name).unwrap())
+            } else if is_defined_symbol(&context, name) {
+                panic!("compile error: value_type: Cannot call '{}', it is not a function/procedure" , name);
+            } else {
+                panic!("compile error: value_type: Undefined function '{}'", name);
             }
         },
         NodeType::Identifier(name) => {
