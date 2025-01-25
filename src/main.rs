@@ -897,59 +897,43 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
 
 fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
-    if is_eof(&tokens, *current + 1) {
-        panic!("{}:{} compiler error: Expected Type or '=' after 'identifier :' in statement, found 'EOF'.", t.line, t.col);
-    } else {
-        let next_next_t = tokens.get(*current + 2).unwrap();
-        let next_next_token_type = &next_next_t.token_type;
-        match next_next_token_type {
-            TokenType::Identifier => {
-                let identifier = get_token_str(source, t);
-                let type_name = get_token_str(source, next_next_t);
-                panic!("{}:{} cil error: Suggestion: try changing '{} : {}' for just '{}:'\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
-            }
-            TokenType::Equal => {
-                let decl_name = get_token_str(source, t);
-                if is_defined_symbol(&context, decl_name) {
-                    panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
-                }
-                let initial_current = *current;
-                *current = *current + 3;
-                let mut params : Vec<Expr> = Vec::new();
-                params.push(primary(&mut context, &source, &tokens, current));
-                let e = params.get(0).unwrap();
-                let value_type = value_type(&context, &e);
-                match value_type {
-                    ValueType::TFunc => {
-                        match &e.node_type {
-                            NodeType::FuncDef(func_def) => {
-                                context.funcs.insert(decl_name.to_string(), func_def.clone());
-                            },
-                            _ => {
-                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
-                            },
-                        }
-                    },
-                    ValueType::TProc => {
-                        match &e.node_type {
-                            NodeType::ProcDef(func_def) => {
-                                context.procs.insert(decl_name.to_string(), func_def.clone());
-                            },
-                            _ => {
-                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
-                            },
-                        }
-                    },
-                    _ => {
-                        context.symbols.insert(decl_name.to_string(), value_type.clone());
-                    },
-                }
-                let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
-                Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
-            },
-            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, next_next_token_type),
-        }
+    let decl_name = get_token_str(source, t);
+    if is_defined_symbol(&context, decl_name) {
+        panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
     }
+    let initial_current = *current;
+    *current = *current + 3;
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(primary(&mut context, &source, &tokens, current));
+    let e = params.get(0).unwrap();
+    let value_type = value_type(&context, &e);
+    match value_type {
+        ValueType::TFunc => {
+            match &e.node_type {
+                NodeType::FuncDef(func_def) => {
+                    context.funcs.insert(decl_name.to_string(), func_def.clone());
+                },
+                _ => {
+                    panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                },
+            }
+        },
+        ValueType::TProc => {
+            match &e.node_type {
+                NodeType::ProcDef(func_def) => {
+                    context.procs.insert(decl_name.to_string(), func_def.clone());
+                },
+                _ => {
+                    panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                },
+            }
+        },
+        _ => {
+            context.symbols.insert(decl_name.to_string(), value_type.clone());
+        },
+    }
+    let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
+    Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
 }
 
 fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -978,7 +962,19 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                         parse_assignment(&mut context, &source, &tokens, current)
                     },
                     TokenType::Colon => {
-                        statement_declaration(&mut context, &source, &tokens, current)
+                        let next_next_t = tokens.get(*current + 2).unwrap();
+                        let next_next_token_type = &next_next_t.token_type;
+                        match next_next_token_type {
+                            TokenType::Identifier => {
+                                let identifier = get_token_str(source, t);
+                                let type_name = get_token_str(source, next_next_t);
+                                panic!("{}:{} cil error: Suggestion: try changing '{} : {}' for just '{}:'\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
+                            }
+                            TokenType::Equal => {
+                                statement_declaration(&mut context, &source, &tokens, current)
+                            },
+                            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, next_next_token_type),
+                        }
                     },
                     _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
                 }
