@@ -1260,7 +1260,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             } else if context.procs.contains_key(&asig.name)  {
                 errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
             } else if context.symbols.contains_key(&asig.name)  {
-                errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', declare it as 'mut'.", t.line, t.col, asig.name));
+                errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, asig.name));
             } else {
                 errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                        t.line, t.col, asig.name, asig.name, asig.name));
