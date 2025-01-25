@@ -88,7 +88,7 @@ println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 // TODO next:
 
 it := 2
-it = 1
+// it = 1
 
 // while lt(it, 10) {
 //     print(itoa(it), " ")

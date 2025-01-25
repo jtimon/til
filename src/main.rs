@@ -141,8 +141,8 @@ enum NodeType {
     // Mode,
     Body,
     LList,
-    LString,
-    LNumber,
+    LString(String),
+    LI64(i64),
     LBool(bool),
     // LDecimal(String),
     FCall(String),
@@ -256,8 +256,8 @@ fn value_type_func_proc(name: &str, func_def: &FuncDef) -> ValueType {
 fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
-        NodeType::LString => ValueType::TString,
-        NodeType::LNumber => ValueType::TI64,
+        NodeType::LI64(_) => ValueType::TI64,
+        NodeType::LString(_) => ValueType::TString,
         NodeType::LList => ValueType::TList,
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::ProcDef(_) => ValueType::TProc,
@@ -301,6 +301,15 @@ fn params_to_ast_str(end_line: bool, source: &String, tokens: &Vec<Token>, e: &E
 fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
+        NodeType::LBool(lbool) => {
+            return lbool.to_string();
+        },
+        NodeType::LI64(li64) => {
+            return li64.to_string();
+        },
+        NodeType::LString(lstring) => {
+            return lstring.to_string();
+        },
         NodeType::Body => {
             return params_to_ast_str(true, &source, &tokens, &e)
         },
@@ -320,19 +329,6 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         },
         NodeType::StructDef => {
             return "struct".to_string();
-        },
-        NodeType::LString => {
-            let t = tokens.get(e.token_index).unwrap();
-            ast_str.push_str(&format!("\"{}\"", get_token_str(source, t)));
-            return ast_str;
-        },
-        NodeType::LNumber => {
-            let t = tokens.get(e.token_index).unwrap();
-            return get_token_str(source, t).to_string();
-        },
-        NodeType::LBool(_lbool) => {
-            let t = tokens.get(e.token_index).unwrap();
-            return get_token_str(source, t).to_string();
         },
         NodeType::Identifier(id_name) => {
             return id_name.clone();
@@ -567,11 +563,11 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     }
 }
 
-fn literal(t: &Token, current: &mut usize) -> Expr {
+fn literal(source: &String, t: &Token, current: &mut usize) -> Expr {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
-        TokenType::String => NodeType::LString,
-        TokenType::Number => NodeType::LNumber,
+        TokenType::String => NodeType::LString(get_token_str(source, t).to_string()),
+        TokenType::Number => NodeType::LI64(get_token_str(source, t).parse::<i64>().unwrap()),
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => panic!("{}:{} cil error: Trying to parse a token that's not a literal as a literal.", t.line, t.col),
@@ -833,7 +829,7 @@ fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, c
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
-        literal(t, current)
+        literal(&source, t, current)
     } else {
         match &t.token_type {
             TokenType::LeftParen => list(&mut context, &source, &tokens, current),
@@ -1044,11 +1040,11 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
     for p in e.params.iter() {
         match &p.node_type {
             NodeType::LBool(_) => {},
+            NodeType::LI64(_) => {},
+            NodeType::LString(_) => {},
             NodeType::LList => {
                 errors.push(format!("Function '{}' cannot accept 'list' arguments", name));
             },
-            NodeType::LString => {},
-            NodeType::LNumber => {},
             NodeType::FuncDef(_) => {
                 errors.push(format!("Function '{}' cannot accept 'func' arguments", name));
             },
@@ -1141,8 +1137,8 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             false
         },
         NodeType::LBool(_) => false,
-        NodeType::LNumber => false,
-        NodeType::LString => false,
+        NodeType::LI64(_) => false,
+        NodeType::LString(_) => false,
         NodeType::LList => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall(call_name) => {
@@ -1328,7 +1324,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             assert!(e.params.len() == 1, "Cil error: return nodes must exactly 1 parameter.");
             errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
         },
-        NodeType::LNumber | NodeType::LString | NodeType::LBool(_) | NodeType::LList => {},
+        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList => {},
     }
     errors
 }
@@ -1648,8 +1644,10 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             }
             "".to_string()
         },
-        NodeType::LBool(bool_value) => bool_to_string(&bool_value),
-        NodeType::LString | NodeType::LNumber | NodeType::LList => {
+        NodeType::LBool(bool_value) => bool_value.to_string(),
+        NodeType::LI64(li64) => li64.to_string(),
+        NodeType::LString(lstring) => lstring.to_string(),
+        NodeType::LList => {
             let t = tokens.get(e.token_index).unwrap();
             let token_str = get_token_str(source, t);
             token_str.to_string()
