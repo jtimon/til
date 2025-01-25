@@ -966,7 +966,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
-                panic!("{}:{} compiler error: Expected '(' or ':' after identifier in statement, found 'EOF'.", t.line, t.col);
+                panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found 'EOF'.", t.line, t.col);
             } else {
                 let next_t = tokens.get(*current + 1).unwrap();
                 let next_token_type = &next_t.token_type;
