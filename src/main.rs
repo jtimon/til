@@ -117,6 +117,12 @@ struct Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct Assignement {
+    name: String,
+    value_type: ValueType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct Arg {
     name: String,
     value_type: ValueType,
@@ -142,7 +148,7 @@ enum NodeType {
     FCall(String),
     Identifier(String),
     Declaration(Declaration),
-    // Assignement(Declaration),
+    Assignement(Assignement),
     FuncDef(FuncDef),
     ProcDef(FuncDef),
     StructDef,
@@ -300,6 +306,10 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         },
         NodeType::Declaration(decl) => {
             ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::Assignement(asig) => {
+            ast_str.push_str(&format!("(set {} {})", asig.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
@@ -655,23 +665,17 @@ fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
     Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
 }
 
-fn parse_assignment(context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_assignment(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let name = get_token_str(source, t);
-    if is_core_func(name) {
-        panic!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, name);
-    } else if is_core_proc(name) {
-        panic!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, name);
-    } else if context.funcs.contains_key(name)  {
-        panic!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, name);
-    } else if context.procs.contains_key(name)  {
-        panic!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, name);
-    } else if context.symbols.contains_key(name)  {
-        panic!("{}:{} compiler error: Cannot assign to constant '{}', declare it as 'mut'.", t.line, t.col, name);
-    } else {
-        panic!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
-               t.line, t.col, name, name, name);
-    }
+    let initial_current = *current;
+    *current = *current + 2; // skip identifier and equal
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(primary(&mut context, &source, &tokens, current));
+    let e = params.get(0).unwrap();
+    let value_type = value_type(&context, &e);
+    let asig = Assignement{name: name.to_string(), value_type: value_type};
+    Expr { node_type: NodeType::Assignement(asig), token_index: initial_current, params: params}
 }
 
 fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
@@ -902,7 +906,7 @@ fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: 
         panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
     }
     let initial_current = *current;
-    *current = *current + 3;
+    *current = *current + 3; // skip identifier, colon and equal
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&mut context, &source, &tokens, current));
     let e = params.get(0).unwrap();
@@ -1105,6 +1109,9 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
             NodeType::Declaration(_) => {
                 errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
             }
+            NodeType::Assignement(_) => {
+                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
+            }
             NodeType::Body => {
                 errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
             }
@@ -1153,6 +1160,10 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         },
+        NodeType::Assignement(asig) => {
+            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignements must take exactly one value, not {}.", asig.name, e.params.len());
+            is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
+        }
         NodeType::ProcDef(func_def) => {
             for it_e in &func_def.body {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
@@ -1276,7 +1287,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
-                errors.push(format!("{}:{}:{} Undefined symbol {}", t.line, t.col, t.col, name));
+                errors.push(format!("{}:{} Undefined symbol {}", t.line, t.col, name));
             }
         },
         NodeType::FuncDef(func_def) => {
@@ -1293,6 +1304,24 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() == 1, "Cil error: in declaration of {} declaration nodes must exactly 1 parameter.", decl.name);
+            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+        },
+        NodeType::Assignement(asig) => {
+            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignements must take exactly one value, not {}.", asig.name, e.params.len());
+            if is_core_func(&asig.name) {
+                errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, asig.name));
+            } else if is_core_proc(&asig.name) {
+                errors.push(format!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
+            } else if context.funcs.contains_key(&asig.name)  {
+                errors.push(format!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, asig.name));
+            } else if context.procs.contains_key(&asig.name)  {
+                errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
+            } else if context.symbols.contains_key(&asig.name)  {
+                errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', declare it as 'mut'.", t.line, t.col, asig.name));
+            } else {
+                errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
+                       t.line, t.col, asig.name, asig.name, asig.name));
+            }
             errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
