@@ -286,19 +286,19 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
     }
 }
 
-fn params_to_ast_str(end_line: bool, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     for se in e.params.iter() {
         if end_line {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&source, &tokens, &se)));
+            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
         } else {
-            ast_str.push_str(&format!("{} ", to_ast_str(&source, &tokens, &se)));
+            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
         }
     }
     return ast_str;
 }
 
-fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
         NodeType::LBool(lbool) => {
@@ -311,14 +311,14 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
             return lstring.to_string();
         },
         NodeType::Body => {
-            return params_to_ast_str(true, &source, &tokens, &e)
+            return params_to_ast_str(true, &e)
         },
         NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Assignement(asig) => {
-            ast_str.push_str(&format!("(set {} {})", asig.name, to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(set {} {})", asig.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
@@ -334,15 +334,15 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
             return id_name.clone();
         },
         NodeType::FCall(name) => {
-            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &source, &tokens, &e)));
+            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
             return ast_str;
         },
         NodeType::LList => {
-            ast_str.push_str(&format!("({})", params_to_ast_str(false, &source, &tokens, &e)));
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
             return ast_str;
         },
         NodeType::If => {
-            ast_str.push_str(&format!("(if {})", to_ast_str(&source, &tokens, &e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Return => {
@@ -1748,7 +1748,7 @@ fn run(path: &String, source: &String) -> String {
 
     let mut context = start_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
-    println!("AST:\n{}", to_ast_str(&source, &tokens, &e));
+    println!("AST:\n{}", to_ast_str(&e));
 
     let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
