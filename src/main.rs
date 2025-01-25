@@ -968,7 +968,7 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                             TokenType::Identifier => {
                                 let identifier = get_token_str(source, t);
                                 let type_name = get_token_str(source, next_next_t);
-                                panic!("{}:{} cil error: Suggestion: try changing '{} : {}' for just '{}:'\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
+                                panic!("{}:{} cil error: Suggestion: try changing '{} : {} =' for just '{} :='\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
                             }
                             TokenType::Equal => {
                                 statement_declaration(&mut context, &source, &tokens, current)
