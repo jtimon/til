@@ -183,9 +183,11 @@ fn start_context() -> CilContext {
         strings: HashMap::new(),
     };
 
-    let args_print : Vec<Arg> = Vec::new();
-    let return_types_none : Vec<ValueType> = Vec::new();
     let body : Vec<Expr> = Vec::new();
+    let return_types_none : Vec<ValueType> = Vec::new();
+
+    let mut args_print : Vec<Arg> = Vec::new();
+    args_print.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString))});
     let func_def_print = FuncDef{args: args_print, returns: return_types_none, body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
@@ -222,7 +224,8 @@ fn start_context() -> CilContext {
     context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
 
-    let return_type_single_str : Vec<ValueType> = Vec::new();
+    let mut return_type_single_str : Vec<ValueType> = Vec::new();
+    return_type_single_str.push(ValueType::TString);
     let func_def_btoa = FuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("btoa".to_string(), func_def_btoa);
 
@@ -972,104 +975,6 @@ fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
     }
 }
 
-fn is_value_type_printable(value_type: &ValueType) -> bool {
-    match value_type {
-        ValueType::TBool => true,
-        ValueType::TI64 => true,
-        ValueType::TString => true,
-        _ => false,
-    }
-}
-
-fn check_all_params_printable(context: &CilContext, name: &str, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
-    let mut errors : Vec<String> = Vec::new();
-
-    for p in e.params.iter() {
-        match &p.node_type {
-            NodeType::LBool(_) => {},
-            NodeType::LI64(_) => {},
-            NodeType::LString(_) => {},
-            NodeType::LList => {
-                errors.push(format!("Function '{}' cannot accept 'list' arguments", name));
-            },
-            NodeType::FuncDef(_) => {
-                errors.push(format!("Function '{}' cannot accept 'func' arguments", name));
-            },
-            NodeType::StructDef => {
-                errors.push(format!("Function '{}' cannot accept 'struct' arguments", name));
-            },
-            NodeType::ProcDef(_) => {
-                errors.push(format!("Function '{}' cannot accept 'proc' arguments", name));
-            },
-            NodeType::Identifier(id_name) => {
-                if context.symbols.contains_key(id_name) {
-                    let value_type = context.symbols.get(id_name).unwrap();
-                    if !is_value_type_printable(value_type) {
-                        errors.push(format!("In call to '{}', expected printable arguments, but '{}' is {:?}", name, id_name, value_type));
-                    }
-                } else {
-                    errors.push(format!("In call to '{}', undefined symbol {}", name, id_name));
-                }
-            }
-            NodeType::FCall(func_name) => {
-                if context.funcs.contains_key(name) {
-                    let func_def = &context.funcs.get(name).unwrap();
-                    if func_def.returns.len() != 1 {
-                        errors.push(format!("func '{}' expects only calls that return single values as arguments, func '{}' returns {} values.",
-                                            name, func_name, func_def.returns.len()));
-                    } else {
-                        let value_type = func_def.returns.get(0).unwrap();
-                        if !is_value_type_printable(&value_type) {
-                            errors.push(format!(
-                                "func '{}' expects only printable arguments, func '{}' does not return something printable, it returns {:?}.",
-                                name, func_name, value_type));
-                        }
-                    }
-
-                } else if context.procs.contains_key(name) {
-                    // TODO fix
-                    // let func_def = &context.procs.get(name).unwrap();
-                    // if func_def.returns.len() != 1 {
-                    //     errors.push(format!("Function '{}' expects only calls that return single values as arguments, proc '{}' returns {} values.",
-                    //                         name, func_name, func_def.returns.len()));
-                    // } else {
-                    //     match *func_def.returns.get(0).unwrap() {
-                    //         ValueType::TBool => { continue; },
-                    //         ValueType::TI64 => { continue; },
-                    //         ValueType::TString => { continue; },
-                    //         _ => {
-                    //             errors.push(format!(
-                    //                 "Function '{}' expects only printable arguments, procedure '{}' does not return something printable, it returns {:?}.",
-                    //                 name, func_name, *func_def.returns.get(0).unwrap()));
-                    //         },
-                    //     }
-                    // }
-                } else {
-                    errors.push(format!("Cil error: Calling '{}', undefined func/proc '{}' This should never happen", name, func_name));
-                }
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
-            }
-            NodeType::Declaration(_) => {
-                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
-            }
-            NodeType::Assignement(_) => {
-                errors.push(format!("Cil error: Function '{}' cannot take a Declaration as an arg. This should never happen", name));
-            }
-            NodeType::Body => {
-                errors.push(format!("Cil error: Function '{}' cannot take a Body as an arg. This should never happen", name));
-            }
-            NodeType::Return => {
-                errors.push(format!("Cil error: Function '{}' cannot take a return statement as an arg. This should never happen", name));
-            }
-            NodeType::If => {
-                errors.push(format!("Cil error: Function '{}' cannot take an if statement as an arg. This should never happen", name));
-            }
-        }
-    }
-
-    errors
-}
-
 fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
@@ -1192,8 +1097,6 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 return errors;
             }
             match name.as_str() {
-                // TODO get rid of this special case and its special function
-                "print" | "println" => { errors.append(&mut check_all_params_printable(&context, &name, &source, &tokens, &e)); },
                 _ => {
                     let func_def;
                     if context.funcs.contains_key(name) {
