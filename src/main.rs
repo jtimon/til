@@ -1365,7 +1365,7 @@ fn eval_core_func_and(mut context: &mut CilContext, source: &String, tokens: &Ve
     for i in &e.params {
         truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &i);
     }
-    bool_to_string(&truthfulness)
+    truthfulness.to_string()
 }
 
 fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1373,47 +1373,47 @@ fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec
     for i in &e.params {
         truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
     }
-    bool_to_string(&truthfulness)
+    truthfulness.to_string()
 }
 
 fn eval_core_func_not(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "Cil Error: Core func 'not' only takes 1 argument. This should never happen.");
-    bool_to_string(&!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()))
+    (!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap())).to_string()
 }
 
 fn eval_core_func_eq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    bool_to_string(&(a == b))
+    (a == b).to_string()
 }
 
 fn eval_core_func_lt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    bool_to_string(&(a < b))
+    (a < b).to_string()
 }
 
 fn eval_core_func_lteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    bool_to_string(&(a <= b))
+    (a <= b).to_string()
 }
 
 fn eval_core_func_gt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    bool_to_string(&(a > b))
+    (a > b).to_string()
 }
 
 fn eval_core_func_gteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    bool_to_string(&(a >= b))
+    (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1465,14 +1465,6 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
         "true" => true,
         "false" => false,
         _ => panic!("Cil Error: expected string 'true' or 'false', this should never happen.")
-    }
-}
-
-fn bool_to_string(b: &bool) -> String {
-    if *b {
-        "true".to_string()
-    } else {
-        "false".to_string()
     }
 }
 
@@ -1663,7 +1655,7 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             match context.symbols.get(name) {
                 Some(value_type) => match value_type {
                     ValueType::TBool => {
-                        bool_to_string(context.bools.get(name).unwrap())
+                        context.bools.get(name).unwrap().to_string()
                     },
                     ValueType::TI64 => {
                         context.i64s.get(name).unwrap().to_string()
