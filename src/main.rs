@@ -91,6 +91,7 @@ enum ValueType {
     TList,
     TFunc,
     TProc,
+    TStruct,
     TMulti(Box<ValueType>),
     TCustom(String),
 }
@@ -102,6 +103,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
+        "struct" => ValueType::TStruct,
         "i64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
     }
@@ -130,6 +132,7 @@ struct FuncDef {
 
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
+    // Mode,
     Body,
     LList,
     LString,
@@ -139,8 +142,10 @@ enum NodeType {
     FCall(String),
     Identifier(String),
     Declaration(Declaration),
+    // Assignement(Declaration),
     FuncDef(FuncDef),
     ProcDef(FuncDef),
+    StructDef,
     Return,
     If,
 }
@@ -250,6 +255,7 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
         NodeType::LList => ValueType::TList,
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::ProcDef(_) => ValueType::TProc,
+        NodeType::StructDef => ValueType::TStruct,
         NodeType::FCall(name) => {
             if context.funcs.contains_key(name) {
                 value_type_func_proc(name, &context.funcs.get(name).unwrap())
@@ -269,8 +275,8 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
                 }
             }
         },
-        _ => panic!("cil error: value_type() not implement for this yet."),
-        // _(node_type) => panic!("cil error: value_type() not implement for this {:?} yet.", node_type),
+        // _ => panic!("cil error: value_type() not implement for this yet."),
+       node_type => panic!("cil error: value_type() not implement for {:?} yet.", node_type),
     }
 }
 
@@ -301,6 +307,9 @@ fn to_ast_str(source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
         },
         NodeType::ProcDef(_func_def) => {
             return "proc".to_string();
+        },
+        NodeType::StructDef => {
+            return "struct".to_string();
         },
         NodeType::LString => {
             let t = tokens.get(e.token_index).unwrap();
@@ -800,6 +809,22 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
     }
 }
 
+fn struct_definition(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let t = tokens.get(*current).unwrap();
+    if t.token_type != TokenType::LeftBrace {
+        panic!("{}:{} compiler error: Expected '{{' after 'struct'.", t.line, t.col);
+    }
+    if is_eof(&tokens, *current + 1) {
+        let t = tokens.get(*current).unwrap();
+        panic!("{}:{} compiler error: expected '' after 'func' or 'proc', found EOF.", t.line, t.col);
+    } else {
+        *current = *current + 1;
+        let params = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+        *current = *current + 1;
+        return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
+    }
+}
+
 fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
@@ -825,6 +850,10 @@ fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, c
             TokenType::Proc => {
                 *current = *current + 1;
                 func_proc_definition(false, &mut context, &source, &tokens, current)
+            },
+            TokenType::Struct => {
+                *current = *current + 1;
+                struct_definition(&mut context, &source, &tokens, current)
             },
             _ => panic!("{}:{} compiler error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
@@ -1023,6 +1052,9 @@ fn check_all_params_printable(context: &CilContext, name: &str, source: &String,
             NodeType::FuncDef(_) => {
                 errors.push(format!("Function '{}' cannot accept 'func' arguments", name));
             },
+            NodeType::StructDef => {
+                errors.push(format!("Function '{}' cannot accept 'struct' arguments", name));
+            },
             NodeType::ProcDef(_) => {
                 errors.push(format!("Function '{}' cannot accept 'proc' arguments", name));
             },
@@ -1100,6 +1132,9 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
                     return true;
                 }
             }
+            false
+        },
+        NodeType::StructDef => {
             false
         },
         NodeType::LBool(_) => false,
@@ -1180,6 +1215,17 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
+            }
+        },
+        NodeType::StructDef => {
+            for p in e.params.iter() {
+                match &p.node_type {
+                    NodeType::Declaration(_) => {}
+                    node_type => {
+                        errors.push(format!("{}:{} 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
+                    }
+                }
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
             }
         },
@@ -1531,6 +1577,10 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
             string_expr_result.to_string()
+        },
+        ValueType::TStruct => {
+            panic!("{}:{} cil error: Cannot declare {} of type {:?}. Not implemented yet.",
+                   t.line, t.col, &declaration.name, &declaration.value_type);
         },
         ValueType::TFunc => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");

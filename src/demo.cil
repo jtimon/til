@@ -96,9 +96,16 @@ println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 // printl(" ")
 
 // my_struct := struct {
-//     bool_field: bool
-//     int_field: i64
-//     string_field: String
+//     bool_field := false
+//     int_field := 0
+//     string_field := ""
+//     bool_method_func := func() returns bool {
+//         return true
+//     }
+//     bool_method_proc := proc() returns bool {
+// 	print("bool_method_proc called")
+// 	return false
+//     }
 // }
 
 // NodeType := enum {
