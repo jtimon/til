@@ -1690,10 +1690,7 @@ fn main() {
             "repl" => {
                 run_repl();
             },
-            "ast" | "interpret" | "build" | "run" => {
-                usage();
-            },
-            "help" | "-help" | "--help"=> {
+            "ast" | "interpret" | "build" | "run" | "help" | "-help" | "--help"=> {
                 usage();
             },
             _ => {
