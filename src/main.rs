@@ -5,6 +5,12 @@ use std::fs;
 use std::io::ErrorKind;
 use std::collections::HashMap;
 
+// We may want to change it to rsbootstrap later when self hosting, if we get there
+// or just change the name of the language
+// CIL stands for Compiled Interpreted Language
+// Because there is no good reason for a programming language not to be both compiled and interpreted.
+const BIN_NAME: &str = "cil";
+
 // ---------- lex stuff
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1636,12 +1642,6 @@ fn run_repl() {
         println!("{}", run(&path, &line));
     }
 }
-
-// We may want to change it to rsbootstrap later when self hosting, if we get there
-// or just change the name of the language
-// CIL stands for Compiled Interpreted Language
-// Because there is no good reason for a programming language not to be both compiled and interpreted.
-const BIN_NAME: &str = "cil";
 
 fn usage() {
     println!("Usage: {} [command] [path]\n", BIN_NAME);
