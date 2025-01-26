@@ -1655,7 +1655,7 @@ fn usage() {
     println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
     println!("build: reads a file in provided <path> and compiles it. Not implemented yet. Self Hosting first. This is rust.");
     println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet. Self Hosting first. This is rust.");
-    println!("help: Prints this.");
+    println!("help: Prints this.\n");
 }
 
 fn main() {
