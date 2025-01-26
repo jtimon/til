@@ -1620,7 +1620,7 @@ fn run_file(path: &String) {
     println!("eval: {}", run(&path, &source));
 }
 
-fn run_prompt() {
+fn run_repl() {
     loop {
         print!("cil> ");
         io::stdout().flush().unwrap();
@@ -1637,16 +1637,25 @@ fn run_prompt() {
     }
 }
 
+// We may want to change it to rsbootstrap later when self hosting, if we get there
+// or just change the name of the language
+// CIL stands for Compiled Interpreted Language
+// Because there is no good reason for a programming language not to be both compiled and interpreted.
+const BIN_NAME: &str = "cil";
+
 fn usage() {
-    // TODO document this properly
-    println!("Usage: Zero arguments for the repl mode:");
-    println!("example> cil");
-    println!("Usage: for the interpreted mode. running scripts: a single arg that's a path:");
-    println!("example> cil src/demo.cil");
-    println!("Usage: for the nasm mode. This is compiled:");
-    println!("example> cil build src/demo.cil");
-    println!("Usage: if you want to run what you just compiled:");
-    println!("example> cil run src/demo.cil");
+    println!("Usage: {} [command] [path]\n", BIN_NAME);
+    println!("Entering no arguments is equavalent to: {} repl", BIN_NAME);
+    println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: {} interpret <path>\n", BIN_NAME);
+
+    println!("Commands:\n");
+
+    println!("repl: read eval print loop. TODO FIX");
+    println!("interpret: reads a file in provided <path> and evaluates it.");
+    println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
+    println!("build: reads a file in provided <path> and compiles it. Not implemented yet. Self Hosting first. This is rust.");
+    println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet. Self Hosting first. This is rust.");
+    println!("help: Prints this.");
 }
 
 fn main() {
@@ -1655,10 +1664,43 @@ fn main() {
     if args.len() > 3 {
         usage();
     } else if args.len() > 2 {
-        println!("subcommand {} not implemented yet.", &args[1]);
+        match args[1].as_str() {
+            "repl" => {
+                usage();
+            },
+            "interpret" => {
+                run_file(&args[2]);
+            },
+            "ast" => {
+                panic!("{}:0:0 command 'ast' not implemented yet", &args[2])
+                // let e =
+                // println!("{}", to_ast_str(&e));
+            },
+            "build" | "run" => {
+                usage();
+            },
+            _ => {
+                usage();
+            },
+        }
+        println!("command '{}' not implemented yet.", &args[1]);
+        println!("in valid command '{}'.", &args[1]);
     } else if args.len() > 1 {
-        run_file(&args[1]);
+        match args[1].as_str() {
+            "repl" => {
+                run_repl();
+            },
+            "ast" | "interpret" | "build" | "run" => {
+                usage();
+            },
+            "help" | "-help" | "--help"=> {
+                usage();
+            },
+            _ => {
+                run_file(&args[1]);
+            },
+        }
     } else {
-        run_prompt();
+        run_repl();
     }
 }
