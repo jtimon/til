@@ -544,7 +544,6 @@ fn literal(source: &String, t: &Token, current: &mut usize) -> Expr {
 }
 
 fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-// fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, CompilerError> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = *current;
@@ -917,7 +916,7 @@ fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: 
     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
 }
 
-fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Return => {
@@ -1000,7 +999,7 @@ fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, to
         if tokens.get(*current).unwrap().token_type == end_token {
             end_found = true;
         } else {
-            params.push(statement(&mut context, &source, &tokens, current));
+            params.push(parse_statement(&mut context, &source, &tokens, current));
         }
     }
     if end_found {
