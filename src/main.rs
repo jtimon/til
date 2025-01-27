@@ -115,7 +115,6 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
     }
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 struct Declaration {
     name: String,
