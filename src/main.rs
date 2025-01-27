@@ -1652,9 +1652,9 @@ fn usage() {
 
     println!("repl: read eval print loop. TODO FIX");
     println!("interpret: reads a file in provided <path> and evaluates it.");
-    println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
-    println!("build: reads a file in provided <path> and compiles it. Not implemented yet. Self Hosting first. This is rust.");
-    println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet. Self Hosting first. This is rust.");
+    // println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
+    // println!("build: reads a file in provided <path> and compiles it. Not implemented yet.");
+    // println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet.");
     println!("help: Prints this.\n");
 }
 
@@ -1670,11 +1670,6 @@ fn main() {
             },
             "interpret" => {
                 run_file(&args[2]);
-            },
-            "ast" => {
-                panic!("{}:0:0 command 'ast' not implemented yet", &args[2])
-                // let e =
-                // println!("{}", to_ast_str(&e));
             },
             "build" | "run" => {
                 usage();
