@@ -1681,9 +1681,9 @@ fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
 fn run(path: &String, source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
     if tokens.len() < 1 {
-        panic!("{}:{}:{} compiler error: End of file not found.", path, 1, 0);
+        return format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0);
     } else if is_eof(&tokens, 0) {
-        panic!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0);
+        return format!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0);
     }
 
     let mut errors_found : usize = 0;
@@ -1701,7 +1701,7 @@ fn run(path: &String, source: &String) -> String {
         }
     }
     if errors_found > 0 {
-        panic!("Compiler errors: {} lexical errors found", errors_found);
+        return format!("Compiler errors: {} lexical errors found", errors_found);
     }
 
     let mut context = start_context();
@@ -1713,7 +1713,7 @@ fn run(path: &String, source: &String) -> String {
         for err in &errors {
             println!("{}:{}", path, err);
         }
-        panic!("Compiler errors: {} type errors found", errors.len());
+        return format!("Compiler errors: {} type errors found", errors.len());
     }
 
     eval_expr(&mut context, &source, &tokens, &e)
