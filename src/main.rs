@@ -856,7 +856,7 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
 }
 
-fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool) -> Expr {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
     if is_defined_symbol(&context, decl_name) {
@@ -890,7 +890,7 @@ fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: 
             }
         },
         _ => {
-            context.symbols.insert(decl_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: false});
+            context.symbols.insert(decl_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: is_mut});
         },
     }
     let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
@@ -907,7 +907,30 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             if_statement(&mut context, &source, &tokens, current)
         },
         TokenType::Mut => {
-            panic!("{}:{} cil error: Mutable values not implemented yet.", t.line, t.col);
+            let mut next_t = tokens.get(*current + 1).unwrap();
+            let mut next_token_type = &next_t.token_type;
+            if next_token_type != &TokenType::Identifier {
+                panic!("{}:{} compiler error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type);
+            }
+            let identifier = get_token_str(source, next_t);
+            *current = *current + 1;
+            next_t = tokens.get(*current + 1).unwrap();
+            next_token_type = &next_t.token_type;
+            if next_token_type != &TokenType::Colon {
+                panic!("{}:{} compiler error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type);
+            }
+            let next_next_t = tokens.get(*current + 2).unwrap();
+            let next_next_token_type = &next_next_t.token_type;
+            match next_next_token_type {
+                TokenType::Identifier => {
+                    let type_name = get_token_str(source, next_next_t);
+                    panic!("{}:{} cil error: Suggestion: try changing '{} : {} =' for just '{} :='\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
+                }
+                TokenType::Equal => {
+                    statement_declaration(&mut context, &source, &tokens, current, true)
+                },
+                _ => panic!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
+            }
         },
         TokenType::Identifier => {
             if is_eof(&tokens, *current) {
@@ -925,16 +948,16 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                     TokenType::Colon => {
                         let next_next_t = tokens.get(*current + 2).unwrap();
                         let next_next_token_type = &next_next_t.token_type;
+                        let identifier = get_token_str(source, t);
                         match next_next_token_type {
                             TokenType::Identifier => {
-                                let identifier = get_token_str(source, t);
                                 let type_name = get_token_str(source, next_next_t);
                                 panic!("{}:{} cil error: Suggestion: try changing '{} : {} =' for just '{} :='\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
                             }
                             TokenType::Equal => {
-                                statement_declaration(&mut context, &source, &tokens, current)
+                                statement_declaration(&mut context, &source, &tokens, current, false)
                             },
-                            _ => panic!("{}:{} parse error: Expected Type or '=' after 'identifier :' in statement, found {:?}.", t.line, t.col, next_next_token_type),
+                            _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
                         }
                     },
                     _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
