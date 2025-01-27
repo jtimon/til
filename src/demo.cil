@@ -1,9 +1,27 @@
 // mode pura
 
-AAA := and(false, false, false, true, false)
-BBB := or(false, true, false)
+AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
+BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
 // and := true // fails, double declaration of core func 'and'
 // AAA := true // fails, double declaration of user constant 'AAA'
+// AAA = false // fails, assignment to a constant, all declarations are constant by default
+
+// Here are some basic control flow examples:
+mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+print("it: ")
+while lt(it, 10) {
+    print(itoa(it), " ")
+    it = add(it, 1)
+}
+println(" ")
+
+if gteq(4, 2) {
+    println("aaaaaaaa")
+} else {
+    println("bbbbbbbb")
+}
+
+// here are some function and procedure definition and usage examples
 
 xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
@@ -38,11 +56,7 @@ main := proc() {
 }
 main()
 
-if lt(4, 5) {
-    println("aaaaaaaa")
-} else {
-    println("bbbbbbbb")
-}
+// Here are some examples with recursion:
 
 int_func := proc(a: i64, b: i64) returns i64 {
     if lt(a, b) {
@@ -85,15 +99,10 @@ println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
 
-mut it := 0
-print("it: ")
-while lt(it, 10) {
-    print(itoa(it), " ")
-    it = add(it, 1)
-}
-println(" ")
-
 // TODO next:
+
+// my_bool_slice : []bool = [true, false, true, false]
+// my_list := (true, 1111, "hello")
 
 // my_struct := struct {
 //     bool_field := false
@@ -113,9 +122,6 @@ println(" ")
 //     LNumber
 //     LString
 // }
-
-// my_bool_slice : []bool = [true, false, true, false]
-// my_list := (true, 1111, "hello")
 
 //// TODO mode test
 
