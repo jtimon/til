@@ -85,13 +85,13 @@ println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
 
+mut it := 2
+it = 1
+println("it: ", itoa(it), " ")
+
 // TODO next:
-
-it := 2
-// it = 1
-
 // while lt(it, 10) {
-//     print(itoa(it), " ")
+//     print("it: ", itoa(it), " ")
 //     it = add(it, 1)
 // }
 // printl(" ")
