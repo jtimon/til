@@ -966,35 +966,31 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
             }
         },
         TokenType::Identifier => {
-            if is_eof(&tokens, *current) {
-                panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found 'EOF'.", t.line, t.col);
-            } else {
-                let next_t = tokens.get(*current + 1).unwrap();
-                let next_token_type = &next_t.token_type;
-                match next_token_type {
-                    TokenType::LeftParen => {
-                        func_call(&mut context, &source, &tokens, current)
-                    },
-                    TokenType::Equal => {
-                        parse_assignment(&mut context, &source, &tokens, current)
-                    },
-                    TokenType::Colon => {
-                        let next_next_t = tokens.get(*current + 2).unwrap();
-                        let next_next_token_type = &next_next_t.token_type;
-                        let identifier = get_token_str(source, t);
-                        match next_next_token_type {
-                            TokenType::Identifier => {
-                                let type_name = get_token_str(source, next_next_t);
-                                parse_declaration(&mut context, &source, &tokens, current, false, type_name)
-                            }
-                            TokenType::Equal => {
-                                parse_declaration(&mut context, &source, &tokens, current, false, INFER_TYPE)
-                            },
-                            _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
+            let next_t = tokens.get(*current + 1).unwrap();
+            let next_token_type = &next_t.token_type;
+            match next_token_type {
+                TokenType::LeftParen => {
+                    func_call(&mut context, &source, &tokens, current)
+                },
+                TokenType::Equal => {
+                    parse_assignment(&mut context, &source, &tokens, current)
+                },
+                TokenType::Colon => {
+                    let next_next_t = tokens.get(*current + 2).unwrap();
+                    let next_next_token_type = &next_next_t.token_type;
+                    let identifier = get_token_str(source, t);
+                    match next_next_token_type {
+                        TokenType::Identifier => {
+                            let type_name = get_token_str(source, next_next_t);
+                            parse_declaration(&mut context, &source, &tokens, current, false, type_name)
                         }
-                    },
-                    _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
-                }
+                        TokenType::Equal => {
+                            parse_declaration(&mut context, &source, &tokens, current, false, INFER_TYPE)
+                        },
+                        _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
+                    }
+                },
+                _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
             }
         },
         _ => panic!("{}:{} compiler error: Expected statement, found {:?}.", t.line, t.col, t.token_type),
