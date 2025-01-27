@@ -135,7 +135,7 @@ struct Arg {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct FuncDef {
+struct SFuncDef {
     args: Vec<Arg>,
     returns: Vec<ValueType>,
     // throws: Vec<ValueType>,
@@ -155,8 +155,8 @@ enum NodeType {
     Identifier(String),
     Declaration(Declaration),
     Assignment(Assignment),
-    FuncDef(FuncDef),
-    ProcDef(FuncDef),
+    FuncDef(SFuncDef),
+    ProcDef(SFuncDef),
     StructDef,
     Return,
     If,
@@ -179,8 +179,8 @@ struct SymbolInfo {
 #[derive(Clone)]
 struct CilContext {
     symbols: HashMap<String, SymbolInfo>,
-    funcs: HashMap<String, FuncDef>,
-    procs: HashMap<String, FuncDef>,
+    funcs: HashMap<String, SFuncDef>,
+    procs: HashMap<String, SFuncDef>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
     strings: HashMap<String, String>,
@@ -201,7 +201,7 @@ fn start_context() -> CilContext {
 
     let mut args_print : Vec<Arg> = Vec::new();
     args_print.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString))});
-    let func_def_print = FuncDef{args: args_print, returns: return_types_none, body: body.clone()};
+    let func_def_print = SFuncDef{args: args_print, returns: return_types_none, body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
 
@@ -209,20 +209,20 @@ fn start_context() -> CilContext {
     args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
     let mut return_type_bool : Vec<ValueType> = Vec::new();
     return_type_bool.push(ValueType::TBool);
-    let func_def_and_or = FuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
 
     let mut args_single_bool : Vec<Arg> = Vec::new();
     args_single_bool.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
-    let func_def_not = FuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_not = SFuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
 
     let mut args_bin_i64 : Vec<Arg> = Vec::new();
     args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
     args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
 
-    let func_def_bin_i64_to_bool = FuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_bin_i64_to_bool = SFuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
@@ -231,7 +231,7 @@ fn start_context() -> CilContext {
 
     let mut return_type_i64 : Vec<ValueType> = Vec::new();
     return_type_i64.push(ValueType::TI64);
-    let func_def_bin_i64_to_i64 = FuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
+    let func_def_bin_i64_to_i64 = SFuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
     context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
@@ -239,18 +239,18 @@ fn start_context() -> CilContext {
 
     let mut return_type_single_str : Vec<ValueType> = Vec::new();
     return_type_single_str.push(ValueType::TString);
-    let func_def_btoa = FuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
+    let func_def_btoa = SFuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("btoa".to_string(), func_def_btoa);
 
     let mut args_single_i64 : Vec<Arg> = Vec::new();
     args_single_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
-    let func_def_itoa = FuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
+    let func_def_itoa = SFuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("itoa".to_string(), func_def_itoa);
 
     context
 }
 
-fn value_type_func_proc(name: &str, func_def: &FuncDef) -> ValueType {
+fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
     match func_def.returns.len() {
         0 => {
             panic!("cil error: func '{}' does not return anything" , name)
@@ -760,7 +760,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
             let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
-            let func_def = FuncDef{args: args, returns: returns, body: body};
+            let func_def = SFuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e;
             match is_func {
@@ -1086,7 +1086,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
     }
 }
 
-fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
+fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     for a in &func_def.args {
         match a.value_type {
             ValueType::TMulti(_) => {
@@ -1098,7 +1098,7 @@ fn func_proc_has_multi_arg(func_def: &FuncDef) -> bool {
     false
 }
 
-fn check_func_proc_types(func_def: &FuncDef, context: &CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
+fn check_func_proc_types(func_def: &SFuncDef, context: &CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut function_context = context.clone();
     for arg in &func_def.args {
@@ -1388,7 +1388,7 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &S
 
 // ---------- generic eval things
 
-fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
 
     let mut function_context = context.clone();
