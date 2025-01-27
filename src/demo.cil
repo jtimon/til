@@ -85,16 +85,15 @@ println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 // and(true, false, true, 15, "aaa", true, false) // fails because it only takes bool args
 
-mut it := 2
-it = 1
-println("it: ", itoa(it), " ")
+mut it := 0
+print("it: ")
+while lt(it, 10) {
+    print(itoa(it), " ")
+    it = add(it, 1)
+}
+println(" ")
 
 // TODO next:
-// while lt(it, 10) {
-//     print("it: ", itoa(it), " ")
-//     it = add(it, 1)
-// }
-// printl(" ")
 
 // my_struct := struct {
 //     bool_field := false

@@ -159,6 +159,7 @@ enum NodeType {
     StructDef,
     Return,
     If,
+    While,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -357,6 +358,10 @@ fn to_ast_str(e: &Expr) -> String {
         },
         NodeType::If => {
             ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::While => {
+            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Return => {
@@ -856,6 +861,21 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
 }
 
+fn while_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let initial_current = *current;
+    *current = *current + 1;
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(primary(&mut context, &source, &tokens, current));
+    let t = tokens.get(*current).unwrap();
+    if t.token_type != TokenType::LeftBrace {
+        panic!("{}:{} compiler error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
+    }
+    *current = *current + 1;
+    params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    *current = *current + 1;
+    Expr { node_type: NodeType::While, token_index: initial_current, params: params}
+}
+
 fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool) -> Expr {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
@@ -905,6 +925,9 @@ fn statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         },
         TokenType::If => {
             if_statement(&mut context, &source, &tokens, current)
+        },
+        TokenType::While => {
+            while_statement(&mut context, &source, &tokens, current)
         },
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
@@ -1030,14 +1053,6 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         NodeType::FCall(call_name) => {
             context.procs.contains_key(call_name)
         },
-        NodeType::Return => {
-            for it_e in &e.params {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
@@ -1046,7 +1061,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             assert!(e.params.len() == 1, "Cil error: while assigning {}, assignments must take exactly one value, not {}.", asig.name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
-        NodeType::ProcDef(func_def) => {
+        NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
@@ -1054,15 +1069,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             }
             false
         },
-        NodeType::FuncDef(func_def) => {
-            for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
-                    return true;
-                }
-            }
-            false
-        },
-        NodeType::If => {
+        NodeType::If | NodeType::While | NodeType::Return => {
             for it_e in &e.params {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
@@ -1120,6 +1127,13 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+            // TODO check that the first param is of value_type bool
+            for p in e.params.iter() {
+                errors.append(&mut check_types(&context, &source, &tokens, &p));
+            }
+        },
+        NodeType::While => {
+            assert!(e.params.len() == 2, "Cil error: while nodes must have exactly 2 parameters.");
             // TODO check that the first param is of value_type bool
             for p in e.params.iter() {
                 errors.append(&mut check_types(&context, &source, &tokens, &p));
@@ -1626,6 +1640,13 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
             } else {
                 "".to_string()
             }
+        },
+        NodeType::While => {
+            assert!(e.params.len() == 2, "Cil error: while nodes must have exactly 2 parameters.");
+            while eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+                eval_expr(&mut context, &source, &tokens, &e.params.get(1).unwrap());
+            }
+            "".to_string()
         },
         NodeType::Return => {
             assert!(e.params.len() == 1, "Cil error: return nodes must have exactly 1 parameter.");
