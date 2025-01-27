@@ -122,7 +122,7 @@ struct Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Assignement {
+struct Assignment {
     name: String,
     value_type: ValueType,
 }
@@ -153,7 +153,7 @@ enum NodeType {
     FCall(String),
     Identifier(String),
     Declaration(Declaration),
-    Assignement(Assignement),
+    Assignment(Assignment),
     FuncDef(FuncDef),
     ProcDef(FuncDef),
     StructDef,
@@ -168,9 +168,15 @@ struct Expr {
     params: Vec<Expr>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct SymbolInfo {
+    value_type: ValueType,
+    is_mut: bool,
+}
+
 #[derive(Clone)]
 struct CilContext {
-    symbols: HashMap<String, ValueType>,
+    symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, FuncDef>,
     procs: HashMap<String, FuncDef>,
     bools: HashMap<String, bool>,
@@ -283,7 +289,7 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
         },
         NodeType::Identifier(name) => {
             match context.symbols.get(name) {
-                Some(value_type) => value_type.clone(),
+                Some(symbol_info) => symbol_info.value_type.clone(),
                 None => {
                     panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'value_type()'.", name)
                 }
@@ -325,7 +331,7 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
-        NodeType::Assignement(asig) => {
+        NodeType::Assignment(asig) => {
             ast_str.push_str(&format!("(set {} {})", asig.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
@@ -625,8 +631,8 @@ fn parse_assignment(mut context: &mut CilContext, source: &String, tokens: &Vec<
     params.push(primary(&mut context, &source, &tokens, current));
     let e = params.get(0).unwrap();
     let value_type = value_type(&context, &e);
-    let asig = Assignement{name: name.to_string(), value_type: value_type};
-    Expr { node_type: NodeType::Assignement(asig), token_index: initial_current, params: params}
+    let asig = Assignment{name: name.to_string(), value_type: value_type};
+    Expr { node_type: NodeType::Assignment(asig), token_index: initial_current, params: params}
 }
 
 fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
@@ -884,7 +890,7 @@ fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: 
             }
         },
         _ => {
-            context.symbols.insert(decl_name.to_string(), value_type.clone());
+            context.symbols.insert(decl_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: false});
         },
     }
     let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
@@ -1013,8 +1019,8 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         },
-        NodeType::Assignement(asig) => {
-            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignements must take exactly one value, not {}.", asig.name, e.params.len());
+        NodeType::Assignment(asig) => {
+            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignments must take exactly one value, not {}.", asig.name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
         NodeType::ProcDef(func_def) => {
@@ -1060,7 +1066,7 @@ fn check_func_proc_types(func_def: &FuncDef, context: &CilContext, source: &Stri
     let mut errors : Vec<String> = Vec::new();
     let mut function_context = context.clone();
     for arg in &func_def.args {
-        function_context.symbols.insert(arg.name.clone(), arg.value_type.clone());
+        function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
     }
     for p in func_def.body.iter() {
         errors.append(&mut check_types(&function_context, &source, &tokens, &p));
@@ -1157,8 +1163,8 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             assert!(e.params.len() == 1, "Cil error: in declaration of {} declaration nodes must exactly 1 parameter.", decl.name);
             errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
         },
-        NodeType::Assignement(asig) => {
-            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignements must take exactly one value, not {}.", asig.name, e.params.len());
+        NodeType::Assignment(asig) => {
+            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignments must take exactly one value, not {}.", asig.name, e.params.len());
             if is_core_func(&asig.name) {
                 errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, asig.name));
             } else if is_core_proc(&asig.name) {
@@ -1167,8 +1173,11 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                 errors.push(format!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, asig.name));
             } else if context.procs.contains_key(&asig.name)  {
                 errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
-            } else if context.symbols.contains_key(&asig.name)  {
-                errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, asig.name));
+            } else if context.symbols.contains_key(&asig.name) {
+                let symbol_info = context.symbols.get(&asig.name).unwrap();
+                if !symbol_info.is_mut {
+                    errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, asig.name));
+                }
             } else {
                 errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                        t.line, t.col, asig.name, asig.name, asig.name));
@@ -1347,17 +1356,17 @@ fn eval_user_func_proc_call(func_def: &FuncDef, name: &str, context: &CilContext
     for arg in &func_def.args {
         if arg.value_type == ValueType::TBool {
             let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
-            function_context.symbols.insert(arg.name.clone(), ValueType::TBool);
+            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TBool, is_mut: false});
             function_context.bools.insert(arg.name.clone(), bool_expr_result);
             param_index += 1;
         } else if arg.value_type == ValueType::TI64 {
             let result = &eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-            function_context.symbols.insert(arg.name.clone(), ValueType::TI64);
+            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TI64, is_mut: false});
             function_context.i64s.insert(arg.name.clone(), result.parse::<i64>().unwrap());
             param_index += 1;
         } else if arg.value_type == ValueType::TString {
             let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-            function_context.symbols.insert(arg.name.clone(), ValueType::TString);
+            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TString, is_mut: false});
             function_context.strings.insert(arg.name.clone(), result);
             param_index += 1;
         } else {
@@ -1505,10 +1514,13 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         NodeType::Declaration(declaration) => {
             eval_declaration(&declaration, &mut context, &source, &tokens, &e)
         },
+        NodeType::Assignment(asig) => {
+            panic!("cil error: Can't assign to '{}'. Assignments not supported yet.", asig.name)
+        },
         NodeType::Identifier(name) => {
 
             match context.symbols.get(name) {
-                Some(value_type) => match value_type {
+                Some(symbol_info) => match symbol_info.value_type {
                     ValueType::TBool => {
                         context.bools.get(name).unwrap().to_string()
                     },
@@ -1519,7 +1531,7 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                         context.strings.get(name).unwrap().to_string()
                     },
                     _ => {
-                        panic!("cil error: Can't use identifier '{}'. Type {:?} not supported yet.", name, value_type)
+                        panic!("cil error: Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type)
                     },
                 }
                 None => {
