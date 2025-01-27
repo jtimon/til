@@ -1151,7 +1151,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                     } else if context.procs.contains_key(name) {
                         func_def = context.procs.get(name).unwrap();
                     } else {
-                        panic!("cil error: Undefined function or procedure '{}'. This should have been caught in the before.\n", name);
+                        panic!("cil error: Undefined function or procedure '{}'. This should have been caught before.\n", name);
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
