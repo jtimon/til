@@ -536,7 +536,7 @@ fn literal(source: &String, t: &Token, current: &mut usize) -> Expr {
         TokenType::Number => NodeType::LI64(get_token_str(source, t).parse::<i64>().unwrap()),
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
-        _ => panic!("{}:{} cil error: Trying to parse a token that's not a literal as a literal.", t.line, t.col),
+        _ => panic!("{}:{} cil error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, t.token_type),
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
     *current = *current + 1;
