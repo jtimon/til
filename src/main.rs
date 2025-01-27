@@ -875,7 +875,7 @@ fn while_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
     Expr { node_type: NodeType::While, token_index: initial_current, params: params}
 }
 
-fn statement_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool) -> Expr {
+fn parse_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool) -> Expr {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
     if is_defined_symbol(&context, decl_name) {
@@ -949,7 +949,7 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
                     panic!("{}:{} cil error: Suggestion: try changing '{} : {} =' for just '{} :='\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
                 }
                 TokenType::Equal => {
-                    statement_declaration(&mut context, &source, &tokens, current, true)
+                    parse_declaration(&mut context, &source, &tokens, current, true)
                 },
                 _ => panic!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
             }
@@ -977,7 +977,7 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
                                 panic!("{}:{} cil error: Suggestion: try changing '{} : {} =' for just '{} :='\nExplanation: Explicit type declaration is not allowed yet. Type inference is currently mandatory for declarations, the oposite is true for func/proc arguments. Ideally, in the future, type inference will both be allowed and not be mandatory for both arguments and declarations, for consistency (never for return types).\n ", t.line, t.col, identifier, type_name, identifier);
                             }
                             TokenType::Equal => {
-                                statement_declaration(&mut context, &source, &tokens, current, false)
+                                parse_declaration(&mut context, &source, &tokens, current, false)
                             },
                             _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
                         }
