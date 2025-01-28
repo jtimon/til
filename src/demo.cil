@@ -1,4 +1,4 @@
-// mode pura
+// mode script
 
 AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
 BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
@@ -6,22 +6,30 @@ BBB := or(false, true, false) // It is a strongly typed language, but allows typ
 // AAA := true // fails, double declaration of user constant 'AAA'
 // AAA = false // fails, assignment to a constant, all declarations are constant by default
 
-// Here are some basic control flow examples:
-mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-print("it: ")
-while lt(it, 10) {
-    print(itoa(it), " ")
-    it = add(it, 1)
-}
-println(" ")
+example_basic_workflow := proc() {
 
-if gteq(4, 2) {
-    println("aaaaaaaa")
-} else {
-    println("bbbbbbbb")
-}
+    mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+    print("it: ")
+    while lt(it, 10) {
+        print(itoa(it), " ")
+        it = add(it, 1)
+    }
+    println(" ")
 
-// here are some function and procedure definition and usage examples
+    if gteq(4, 2) {
+        println("aaaaaaaa")
+    } else {
+        println("bbbbbbbb")
+    }
+
+    abc := proc(a: bool, b: bool, c: bool) {
+	println("inside abc, three bools: ", btoa(a), ", ", btoa(b), ", ", btoa(c))
+    }
+    abc(true, true, true)
+}
+example_basic_workflow()
+
+// here are some function, procedure definition and usage examples
 
 xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
@@ -32,10 +40,7 @@ my_func := func(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 
-abc := proc(a: bool, b: bool, c: bool) {
-    println("inside abc, three bools: ", btoa(a), ", ", btoa(b), ", ", btoa(c))
-}
-
+// TODO it shouldn't matter the order, the previous could be after main
 main := proc() {
     my_bool := true
     my_num1 := 1
