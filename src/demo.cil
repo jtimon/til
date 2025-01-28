@@ -29,6 +29,27 @@ example_basic_workflow := proc() {
 }
 example_basic_workflow()
 
+// There can also be pure functions
+
+fibonacci := func(n: i64) returns i64 {
+    if lt(n, 2) {
+        return n
+    }
+    return add(fibonacci(sub(n, 1)), fibonacci(sub(n, 2)))
+}
+
+fibonacci2 := func(n: i64) returns i64 {
+    if lt(n, 2) {
+        return n
+    } else {
+        return add(fibonacci2(sub(n, 1)), fibonacci2(sub(n, 2)))
+    }
+}
+
+fib_arg := 15
+println("fibonacci: of ", itoa(fib_arg), " = ", itoa(fibonacci(fib_arg)))
+println("fibonacci2: of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
+
 // here are some function, procedure definition and usage examples
 
 xor := func(a: bool, b: bool) returns bool {
@@ -80,25 +101,6 @@ int_func2 := proc(a: i64, b: i64) returns i64 {
 
 println("int_func result: ", itoa(int_func(36, 35)))
 println("int_func2 result: ", itoa(int_func2(36, 35)))
-
-fibonacci := func(n: i64) returns i64 {
-    if lt(n, 2) {
-        return n
-    }
-    return add(fibonacci(sub(n, 1)), fibonacci(sub(n, 2)))
-}
-
-fibonacci2 := func(n: i64) returns i64 {
-    if lt(n, 2) {
-        return n
-    } else {
-        return add(fibonacci2(sub(n, 1)), fibonacci2(sub(n, 2)))
-    }
-}
-
-fib_arg := 15
-println("fibonacci of ", itoa(fib_arg), " = ", itoa(fibonacci(fib_arg)))
-println("fibonacci2 of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
 
 // TODO FIX handle col properly, @ should fail
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
