@@ -101,10 +101,27 @@ enum ValueType {
     TStruct,
     TMulti(Box<ValueType>),
     TCustom(String),
+    ToInferType,
+}
+
+fn value_type_to_str(arg_type: &ValueType) -> String {
+    match arg_type {
+        ValueType::ToInferType => INFER_TYPE.to_string(),
+        ValueType::TBool => "bool".to_string(),
+        ValueType::TI64 => "i64".to_string(),
+        ValueType::TString =>" String".to_string(),
+        ValueType::TList => "list".to_string(),
+        ValueType::TFunc => "func".to_string(),
+        ValueType::TProc => "proc".to_string(),
+        ValueType::TStruct => "truct".to_string(),
+        ValueType::TMulti(val_type) => format!("[]{}", value_type_to_str(val_type)).to_string(),
+        ValueType::TCustom(type_name) => format!("{}", type_name),
+    }
 }
 
 fn str_to_value_type(arg_type: &str) -> ValueType {
     match arg_type {
+        INFER_TYPE => ValueType::ToInferType,
         "bool" => ValueType::TBool,
         "String" => ValueType::TString,
         "list" => ValueType::TList,
@@ -654,21 +671,35 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
         match t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
+                if expect_colon {
+                    args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE)});
+                }
                 *current = *current + 1;
             },
             TokenType::Comma => {
                 if expect_comma {
                     expect_comma = false;
+                    expect_colon = false;
                     expect_name = true;
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("{}:{} compiler error: Unexpected ','.", t.line, t.col);
+                    if expect_colon {
+                        expect_colon = false;
+                        args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE)});
+                        expect_comma = true;
+                        *current = *current + 1;
+                        t = tokens.get(*current).unwrap();
+                    } else {
+                        panic!("{}:{} parse error: Expected identifier before ','.", t.line, t.col);
+                    }
                 }
             },
             TokenType::Colon => {
                 if expect_colon {
                     expect_colon = false;
+                    expect_name = false; // expect type name then
+                    expect_comma = false;
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
@@ -686,7 +717,7 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
                     arg_name = get_token_str(source, t);
                     expect_colon = true;
                     expect_name = false;
-                } else {
+                } else { // expect type name then
                     args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(get_token_str(source, t))});
                     expect_comma = true;
                 }
@@ -1178,8 +1209,13 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                         };
                         let found_type = value_type(&context, e.params.get(i).unwrap());
                         if expected_type != &found_type {
-                            errors.push(format!("{}:{} calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
-                                                t.line, t.col, name, expected_type, arg.name, found_type));
+                            if expected_type == &str_to_value_type(INFER_TYPE) {
+                                errors.push(format!("{}:{} calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
+                                                    t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
+                            } else {
+                                errors.push(format!("{}:{} calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                                    t.line, t.col, name, expected_type, arg.name, found_type));
+                            }
                         }
                     }
                 },
