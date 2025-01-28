@@ -1047,6 +1047,17 @@ fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, to
     }
 }
 
+
+// ---------- Init context stuff
+
+fn init_context(_context: &CilContext, _source: &String, _tokens: &Vec<Token>, _e: &Expr) -> Vec<String> {
+    let errors : Vec<String> = Vec::new();
+    // match e.node_type {
+    //     errors.push(format!("{}:{} 'init_context' can only include declarations, found {:?}.", t.line, t.col, node_type));
+    // }
+    errors
+}
+
 // ---------- Type checking stuff
 
 fn is_defined_func_proc(context: &CilContext, name: &str) -> bool {
@@ -1749,6 +1760,14 @@ fn run(path: &String, source: &String) -> String {
     let mut context = start_context();
     let e: Expr = parse_tokens(&mut context, &source, &tokens);
     println!("AST:\n{}", to_ast_str(&e));
+
+    let errors = init_context(&context, &source, &tokens, &e);
+    if errors.len() > 0 {
+        for err in &errors {
+            println!("{}:{}", path, err);
+        }
+        return format!("Compiler errors: {} declaration errors found", errors.len());
+    }
 
     let errors = check_types(&context, &source, &tokens, &e);
     if errors.len() > 0 {
