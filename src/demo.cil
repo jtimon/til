@@ -32,8 +32,8 @@ my_func := func(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 
-my_proc := proc(a: bool, b: bool) {
-    println("inside my_proc, two bools: ", btoa(a), ", ", btoa(b))
+abc := proc(a: bool, b: bool, c: bool) {
+    println("inside abc, three bools: ", btoa(a), ", ", btoa(b), ", ", btoa(c))
 }
 
 main := proc() {
@@ -52,7 +52,7 @@ main := proc() {
     println(btoa(eq(2, 2)), btoa(lt(1, 2)), btoa(lteq(2, 2)), btoa(gt(3, 2)), btoa(gteq(2, 2)))
     println(itoa(add(40, 2)), " ", itoa(sub(44, 2)), " ", itoa(mul(6, 7)), " ", itoa(div(420, 10)))
 
-    my_proc(false, true)
+    abc(false, true, false)
 }
 main()
 
