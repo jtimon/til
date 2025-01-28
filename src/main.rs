@@ -301,9 +301,9 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
             } else if context.procs.contains_key(name) {
                 value_type_func_proc(name, &context.procs.get(name).unwrap())
             } else if is_defined_symbol(&context, name) {
-                panic!("compile error: value_type: Cannot call '{}', it is not a function/procedure" , name);
+                panic!("parse error: value_type: Cannot call '{}', it is not a function/procedure" , name);
             } else {
-                panic!("compile error: value_type: Undefined function '{}'", name);
+                panic!("parse error: value_type: Undefined function '{}'", name);
             }
         },
         NodeType::Identifier(name) => {
