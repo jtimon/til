@@ -790,7 +790,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
         if t.token_type == TokenType::LeftParen {
             let args = func_proc_args(&context, &source, &tokens, current);
             let returns = func_proc_returns(&context, &source, &tokens, current);
-            let body = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+            let body = parse_body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
             let func_def = SFuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e;
@@ -816,7 +816,7 @@ fn struct_definition(mut context: &mut CilContext, source: &String, tokens: &Vec
         panic!("{}:{} compiler error: expected '' after 'func' or 'proc', found EOF.", t.line, t.col);
     } else {
         *current = *current + 1;
-        let params = body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+        let params = parse_body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
         *current = *current + 1;
         return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
     }
@@ -876,7 +876,7 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
         panic!("{}:{} compiler error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
     }
     *current = *current + 1;
-    params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
     *current = *current + 1;
     t = tokens.get(*current).unwrap();
     if t.token_type == TokenType::Else {
@@ -886,7 +886,7 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
             panic!("{}:{} compiler error: Expected '{{' after 'else'.", t.line, t.col);
         }
         *current = *current + 1;
-        params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+        params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
         *current = *current + 1;
     }
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
@@ -902,7 +902,7 @@ fn while_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
         panic!("{}:{} compiler error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
     }
     *current = *current + 1;
-    params.push(body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
     *current = *current + 1;
     Expr { node_type: NodeType::While, token_index: initial_current, params: params}
 }
@@ -1028,7 +1028,7 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
     }
 }
 
-fn body(end_token : TokenType, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_body(end_token : TokenType, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
@@ -1715,7 +1715,7 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
 fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = body(TokenType::Eof, &mut context, &source, tokens, &mut current);
+    let e: Expr = parse_body(TokenType::Eof, &mut context, &source, tokens, &mut current);
     current = current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
