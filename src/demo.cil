@@ -17,7 +17,7 @@ my_func(true, true)
 example_basic_workflow := proc() {
 
     // TODO fix type inference
-    mut it : i64 = 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+    mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
     print("it: ")
     while lt(it, 10) {
         print(itoa(it), " ")
@@ -66,8 +66,7 @@ main := proc() {
     my_string := "aaaa"
 
     my_func(true, my_func(true, my_func(true, true)))
-    // res := my_func(true, true) // TODO fix type inference
-    res : bool = my_func(true, true)
+    res := my_func(true, true) // TODO fix type inference
     and(res, my_func(true, my_func(true, true)))
     my_func(res, my_func(true, my_func(true, true)))
 
