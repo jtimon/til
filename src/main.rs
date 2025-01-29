@@ -330,12 +330,6 @@ struct Expr {
     params: Vec<Expr>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct SymbolInfo {
-    value_type: ValueType,
-    is_mut: bool,
-}
-
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     current > tokens.len() || match tokens.get(current).unwrap().token_type {
         TokenType::Eof => true,
@@ -794,6 +788,12 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
 }
 
 // ---------- Context
+
+#[derive(Debug, Clone, PartialEq)]
+struct SymbolInfo {
+    value_type: ValueType,
+    is_mut: bool,
+}
 
 #[derive(Clone)]
 struct CilContext {
