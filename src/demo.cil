@@ -16,7 +16,8 @@ my_func(true, true)
 // procedures can be declared and called
 example_basic_workflow := proc() {
 
-    mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+    // TODO fix type inference
+    mut it : i64 = 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
     print("it: ")
     while lt(it, 10) {
         print(itoa(it), " ")
@@ -59,31 +60,30 @@ fib_test := proc(fib_arg: i64) {
 }
 fib_test(15)
 
-// TODO declare bellow main
-xor := func(a: bool, b: bool) returns bool {
-    return or(and(not(a), b), and(a, not(b)))
-}
-
-// TODO it shouldn't matter the order, the previous could be after main
 main := proc() {
     my_bool := true
     my_num1 := 1
     my_string := "aaaa"
 
-    res := my_func(true, true)
     my_func(true, my_func(true, my_func(true, true)))
+    // res := my_func(true, true) // TODO fix type inference
+    res : bool = my_func(true, true)
     and(res, my_func(true, my_func(true, true)))
     my_func(res, my_func(true, my_func(true, true)))
 
     println("printed with println core proc: ", "aaaaa ", itoa(42), " ", btoa(true), " bbbbb")
-    println("xor(true, false) == ", btoa(xor(true, false)))
+    println("xor(true, false) == ", btoa(xor(true, false))) // Note that xor is defined after main but used inside it
     println(btoa(and(true, true)), btoa(or(true, false)), btoa(not(false)), btoa(xor(false, true)))
     println(btoa(eq(2, 2)), btoa(lt(1, 2)), btoa(lteq(2, 2)), btoa(gt(3, 2)), btoa(gteq(2, 2)))
     println("bin basic i64 ops: ", itoa(add(40, 2)), " ", itoa(sub(44, 2)), " ", itoa(mul(6, 7)), " ", itoa(div(420, 10)))
 
-    abc(false, true, false)
+    // abc(false, true, false) // fails, because abc is defined locally in proc example_basic_workflow
 }
 main()
+
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
 
 // TODO FIX handle col properly, @ should fail
 // adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer

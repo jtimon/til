@@ -137,12 +137,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
 struct Declaration {
     name: String,
     value_type: ValueType,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct Assignment {
-    name: String,
-    value_type: ValueType,
+    is_mut: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -171,7 +166,7 @@ enum NodeType {
     FCall(String),
     Identifier(String),
     Declaration(Declaration),
-    Assignment(Assignment),
+    Assignment(String),
     FuncDef(SFuncDef),
     ProcDef(SFuncDef),
     StructDef,
@@ -286,7 +281,7 @@ fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
     }
 }
 
-fn value_type(context: &CilContext, e: &Expr) -> ValueType {
+fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LI64(_) => ValueType::TI64,
@@ -310,12 +305,11 @@ fn value_type(context: &CilContext, e: &Expr) -> ValueType {
             match context.symbols.get(name) {
                 Some(symbol_info) => symbol_info.value_type.clone(),
                 None => {
-                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'value_type()'.", name)
+                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", name)
                 }
             }
         },
-        // _ => panic!("cil error: value_type() not implement for this yet."),
-       node_type => panic!("cil error: value_type() not implement for {:?} yet.", node_type),
+       node_type => panic!("cil error: get_value_type() not implement for {:?} yet.", node_type),
     }
 }
 
@@ -350,8 +344,8 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
-        NodeType::Assignment(asig) => {
-            ast_str.push_str(&format!("(set {} {})", asig.name, to_ast_str(&e.params.get(0).unwrap())));
+        NodeType::Assignment(var_name) => {
+            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
@@ -651,10 +645,7 @@ fn parse_assignment(mut context: &mut CilContext, source: &String, tokens: &Vec<
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&mut context, &source, &tokens, current));
-    let e = params.get(0).unwrap();
-    let value_type = value_type(&context, &e);
-    let asig = Assignment{name: name.to_string(), value_type: value_type};
-    Expr { node_type: NodeType::Assignment(asig), token_index: initial_current, params: params}
+    Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params}
 }
 
 fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
@@ -910,9 +901,6 @@ fn while_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
 fn parse_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Expr {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
-    if is_defined_symbol(&context, decl_name) {
-        panic!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl_name);
-    }
     let initial_current = *current;
     *current = *current + 3; // skip identifier, colon and equal
     if explicit_type != INFER_TYPE {
@@ -920,41 +908,8 @@ fn parse_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec
     }
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&mut context, &source, &tokens, current));
-    let e = params.get(0).unwrap();
-    let value_type = value_type(&context, &e);
-    if explicit_type != INFER_TYPE {
-        let explicit_value_type = str_to_value_type(explicit_type);
-        if value_type != explicit_value_type {
-            panic!("{}:{} type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl_name, explicit_type, value_type);
-        }
-
-    }
-    match value_type {
-        ValueType::TFunc => {
-            match &e.node_type {
-                NodeType::FuncDef(func_def) => {
-                    context.funcs.insert(decl_name.to_string(), func_def.clone());
-                },
-                _ => {
-                    panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
-                },
-            }
-        },
-        ValueType::TProc => {
-            match &e.node_type {
-                NodeType::ProcDef(func_def) => {
-                    context.procs.insert(decl_name.to_string(), func_def.clone());
-                },
-                _ => {
-                    panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
-                },
-            }
-        },
-        _ => {
-            context.symbols.insert(decl_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: is_mut});
-        },
-    }
-    let decl = Declaration{name: decl_name.to_string(), value_type: value_type};
+    let explicit_value_type = str_to_value_type(explicit_type);
+    let decl = Declaration{name: decl_name.to_string(), value_type: explicit_value_type, is_mut: is_mut};
     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
 }
 
@@ -1055,15 +1010,52 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                let mut stmt = init_context(context, &source, &tokens, &se);
-                errors.append(&mut stmt);
+                let mut stmt_context_errors = init_context(context, &source, &tokens, &se);
+                errors.append(&mut stmt_context_errors);
             }
         },
         NodeType::FCall(_) => { },
-        NodeType::Declaration(_dclr) => {
-            // match dclr {
-            // }
-        },
+        NodeType::Declaration(decl) => {
+            let t = tokens.get(e.token_index).unwrap();
+            if is_defined_symbol(&context, &decl.name) {
+                errors.push(format!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl.name));
+            }
+            assert!(e.params.len() == 1, "Cil error: in init_context, while declaring {}, declarations must take exactly one value.", decl.name);
+            let inner_e = e.params.get(0).unwrap();
+            let value_type = get_value_type(&context, &inner_e);
+            if decl.value_type != str_to_value_type(INFER_TYPE) {
+                if value_type != decl.value_type {
+                    errors.push(format!("{}:{} type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
+                }
+            }
+            match value_type {
+                ValueType::TFunc => {
+                    match &inner_e.node_type {
+                        NodeType::FuncDef(func_def) => {
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            context.funcs.insert(decl.name.to_string(), func_def.clone());
+                        },
+                        _ => {
+                            panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                        },
+                    }
+                },
+                ValueType::TProc => {
+                    match &inner_e.node_type {
+                        NodeType::ProcDef(func_def) => {
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            context.procs.insert(decl.name.to_string(), func_def.clone());
+                        },
+                        _ => {
+                            panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                        },
+                    }
+                },
+                _ => {
+                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                },
+            }
+        }
         _ => {
             let t = tokens.get(e.token_index).unwrap();
             errors.push(format!("{}:{} 'init_context' can only include declarations and calls, found {:?}.", t.line, t.col, e.node_type));
@@ -1113,14 +1105,14 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         NodeType::LList => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall(call_name) => {
-            context.procs.contains_key(call_name)
+            context.symbols.contains_key(call_name) && context.symbols.get(call_name).unwrap().value_type == ValueType::TProc
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         },
-        NodeType::Assignment(asig) => {
-            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignments must take exactly one value, not {}.", asig.name, e.params.len());
+        NodeType::Assignment(var_name) => {
+            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
         NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) => {
@@ -1154,26 +1146,25 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
-fn check_func_proc_types(func_def: &SFuncDef, context: &CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
+fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    let mut function_context = context.clone();
     for arg in &func_def.args {
-        function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
+        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
     }
     for p in func_def.body.iter() {
-        errors.append(&mut check_types(&function_context, &source, &tokens, &p));
+        errors.append(&mut check_types(&mut context, &source, &tokens, &p));
     }
     errors
 }
 
-fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = tokens.get(e.token_index).unwrap();
 
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
         NodeType::StructDef => {
@@ -1184,21 +1175,21 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                         errors.push(format!("{}:{} 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
                     }
                 }
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
             // TODO check that the first param is of value_type bool
             for p in e.params.iter() {
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
         NodeType::While => {
             assert!(e.params.len() == 2, "Cil error: while nodes must have exactly 2 parameters.");
             // TODO check that the first param is of value_type bool
             for p in e.params.iter() {
-                errors.append(&mut check_types(&context, &source, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
         NodeType::FCall(name) => {
@@ -1232,7 +1223,7 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
                             _ => &arg.value_type,
 
                         };
-                        let found_type = value_type(&context, e.params.get(i).unwrap());
+                        let found_type = get_value_type(&context, e.params.get(i).unwrap());
                         if expected_type != &found_type {
                             if expected_type == &str_to_value_type(INFER_TYPE) {
                                 errors.push(format!("{}:{} calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
@@ -1252,45 +1243,74 @@ fn check_types(context: &CilContext, source: &String, tokens: &Vec<Token>, e: &E
             }
         },
         NodeType::FuncDef(func_def) => {
+            let mut function_context = context.clone();
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
             for se in &func_def.body {
-                if is_expr_calling_procs(&context, &source, &tokens, &se) {
+                if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
                     let proc_t = tokens.get(se.token_index).unwrap();
                     errors.push(format!("{}:{} compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
                 }
             }
-            errors.append(&mut check_func_proc_types(&func_def, &context, &source, &tokens));
         },
         NodeType::ProcDef(func_def) => {
-            errors.append(&mut check_func_proc_types(&func_def, &context, &source, &tokens));
+            let mut function_context = context.clone();
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() == 1, "Cil error: in declaration of {} declaration nodes must exactly 1 parameter.", decl.name);
-            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+            let inner_e = e.params.get(0).unwrap();
+            if !context.symbols.contains_key(&decl.name) {
+                let mut value_type = decl.value_type.clone();
+                if value_type == ValueType::ToInferType {
+                    value_type = get_value_type(&context, &inner_e);
+                }
+                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                match value_type {
+                    ValueType::ToInferType => {
+                        panic!("{}:{} cil error: Cannot infer the declaration type of {}", t.line, t.col, decl.name);
+                    },
+                    ValueType::TFunc | ValueType::TProc => {
+                        match &inner_e.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                context.funcs.insert(decl.name.clone(), func_def.clone());
+                            },
+                            NodeType::ProcDef(func_def) => {
+                                context.procs.insert(decl.name.clone(), func_def.clone());
+                            },
+                            _ => {
+                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                            },
+                        }
+                    },
+                    _ => {},
+                }
+            }
+            errors.append(&mut check_types(&mut context, &source, &tokens, &inner_e));
         },
-        NodeType::Assignment(asig) => {
-            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignments must take exactly one value, not {}.", asig.name, e.params.len());
-            if is_core_func(&asig.name) {
-                errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, asig.name));
-            } else if is_core_proc(&asig.name) {
-                errors.push(format!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
-            } else if context.funcs.contains_key(&asig.name)  {
-                errors.push(format!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, asig.name));
-            } else if context.procs.contains_key(&asig.name)  {
-                errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, asig.name));
-            } else if context.symbols.contains_key(&asig.name) {
-                let symbol_info = context.symbols.get(&asig.name).unwrap();
+        NodeType::Assignment(var_name) => {
+            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignments must take exactly one value, not {}.", var_name, e.params.len());
+            if is_core_func(&var_name) {
+                errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
+            } else if is_core_proc(&var_name) {
+                errors.push(format!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
+            } else if context.funcs.contains_key(var_name)  {
+                errors.push(format!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
+            } else if context.procs.contains_key(var_name)  {
+                errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
+            } else if context.symbols.contains_key(var_name) {
+                let symbol_info = context.symbols.get(var_name).unwrap();
                 if !symbol_info.is_mut {
-                    errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, asig.name));
+                    errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, var_name));
                 }
             } else {
                 errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
-                       t.line, t.col, asig.name, asig.name, asig.name));
+                       t.line, t.col, var_name, var_name, var_name));
             }
-            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+            errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
             assert!(e.params.len() == 1, "Cil error: return nodes must exactly 1 parameter.");
-            errors.append(&mut check_types(&context, &source, &tokens, &e.params.get(0).unwrap()));
+            errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList => {},
     }
@@ -1540,23 +1560,33 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
 
 fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
-    match declaration.value_type {
+    let inner_e = e.params.get(0).unwrap();
+    let value_type = get_value_type(&context, &inner_e);
+    if declaration.value_type != str_to_value_type(INFER_TYPE) {
+        if value_type != declaration.value_type {
+            panic!("{}:{} cil error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+        }
+    }
+    match value_type {
         ValueType::TBool => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
             context.bools.insert(declaration.name.clone(), bool_expr_result);
+            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: declaration.value_type.clone(), is_mut: declaration.is_mut});
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
+            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: declaration.value_type.clone(), is_mut: declaration.is_mut});
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
             assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
+            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: declaration.value_type.clone(), is_mut: declaration.is_mut});
             string_expr_result.to_string()
         },
         ValueType::TStruct => {
@@ -1568,6 +1598,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             match &e.params.get(0).unwrap().node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.clone(), func_def.clone());
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: declaration.value_type.clone(), is_mut: declaration.is_mut});
                     "func declared".to_string()
                 },
                 _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
@@ -1579,6 +1610,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             match &e.params.get(0).unwrap().node_type {
                 NodeType::ProcDef(func_def) => {
                     context.procs.insert(declaration.name.clone(), func_def.clone());
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: declaration.value_type.clone(), is_mut: declaration.is_mut});
                     "proc declared".to_string()
                 },
                 _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
@@ -1590,57 +1622,55 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
 }
 
 // TODO reuse more code, update messages in this function 'decl' -> 'asig'
-fn eval_assignment(declaration: &Assignment, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_assignment(var_name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
-    let symbol_info = context.symbols.get(&declaration.name).unwrap();
-    assert!(symbol_info.is_mut, "Assignments can only be to mut values. This should never happen.");
+    let symbol_info = context.symbols.get(var_name).unwrap();
+    assert!(symbol_info.is_mut, "Cil error: Assignments can only be to mut values. This should never happen.");
+    assert!(e.params.len() == 1, "Cil error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", var_name);
 
-    match declaration.value_type {
+    let inner_e = e.params.get(0).unwrap();
+    let value_type = get_value_type(&context, &inner_e);
+    match value_type {
         ValueType::TBool => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
-            context.bools.insert(declaration.name.clone(), bool_expr_result);
+            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
+            context.bools.insert(var_name.to_string(), bool_expr_result);
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-            let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-            context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
+            let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, inner_e);
+            context.i64s.insert(var_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-            let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-            context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
+            let string_expr_result = &eval_expr(&mut context, &source, &tokens, inner_e);
+            context.strings.insert(var_name.to_string(), string_expr_result.to_string());
             string_expr_result.to_string()
         },
         ValueType::TStruct => {
-            panic!("{}:{} cil error: Cannot declare {} of type {:?}. Not implemented yet.",
-                   t.line, t.col, &declaration.name, &declaration.value_type);
+            panic!("{}:{} cil error: Cannot assign {} of type {:?}. Not implemented yet.",
+                   t.line, t.col, &var_name, &value_type);
         },
         ValueType::TFunc => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-            match &e.params.get(0).unwrap().node_type {
+            match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
-                    context.funcs.insert(declaration.name.clone(), func_def.clone());
+                    context.funcs.insert(var_name.to_string(), func_def.clone());
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} cil error: Cannot assign {} of type {:?}. This should never happen",
+                            t.line, t.col, &var_name, &value_type)
             }
         },
         ValueType::TProc => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
-            match &e.params.get(0).unwrap().node_type {
+            match &inner_e.node_type {
                 NodeType::ProcDef(func_def) => {
-                    context.procs.insert(declaration.name.clone(), func_def.clone());
+                    context.procs.insert(var_name.to_string(), func_def.clone());
                     "proc declared".to_string()
                 },
-                _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}. This should never happen",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} cil error: Cannot assign {} of type {:?}. This should never happen",
+                            t.line, t.col, &var_name, &value_type)
             }
         },
-        _ => panic!("{}:{} cil error: Cannot declare {} of type {:?}.", t.line, t.col, &declaration.name, &declaration.value_type)
+        _ => panic!("{}:{} cil error: Cannot assign {} of type {:?}.", t.line, t.col, &var_name, &value_type)
     }
 }
 
@@ -1673,8 +1703,8 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         NodeType::Declaration(declaration) => {
             eval_declaration(&declaration, &mut context, &source, &tokens, &e)
         },
-        NodeType::Assignment(asig) => {
-            eval_assignment(&asig, &mut context, &source, &tokens, &e)
+        NodeType::Assignment(var_name) => {
+            eval_assignment(&var_name, &mut context, &source, &tokens, &e)
         },
         NodeType::Identifier(name) => {
 
@@ -1688,6 +1718,9 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
                     },
                     ValueType::TString => {
                         context.strings.get(name).unwrap().to_string()
+                    },
+                    ValueType::ToInferType => {
+                        panic!("cil error: Can't use identifier '{}'. Type should have been inferred before runtime.", name)
                     },
                     _ => {
                         panic!("cil error: Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type)
@@ -1783,7 +1816,7 @@ fn run(path: &String, source: &String) -> String {
         return format!("Compiler errors: {} declaration errors found", errors.len());
     }
 
-    let errors = check_types(&context, &source, &tokens, &e);
+    let errors = check_types(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
             println!("{}:{}", path, err);
