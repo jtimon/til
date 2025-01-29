@@ -67,6 +67,158 @@ struct Token {
     col: usize,
 }
 
+fn is_digit(source: &String, pos: usize) -> bool {
+    match &source[pos..pos+1].chars().next().unwrap() {
+        '0'..='9' => true,
+        _ => false,
+    }
+}
+
+fn is_alphanumeric(source: &String, pos: usize) -> bool {
+    match &source[pos..pos+1].chars().next().unwrap() {
+        'a'..='z' | 'A'..='Z' => true,
+        '_' => true,
+        _ => false,
+    }
+    // source[pos..pos+1].bytes().all(|b| matches!(b, b'a'..=b'z'))
+    //     || source[pos..pos+1].bytes().all(|b| matches!(b, b'A'..=b'Z'))
+}
+
+fn get_identifier_type(identifier: &str) -> TokenType {
+    match identifier {
+        "true" => TokenType::True,
+        "false" => TokenType::False,
+        "mut" => TokenType::Mut,
+        "if" => TokenType::If,
+        "else" => TokenType::Else,
+        "while" => TokenType::While,
+        "for" => TokenType::For,
+        "in" => TokenType::In,
+        "match" => TokenType::Match,
+        "enum" => TokenType::Enum,
+        "struct" => TokenType::Struct,
+        "func" => TokenType::Func,
+        "proc" => TokenType::Proc,
+        "return" => TokenType::Return,
+        "returns" => TokenType::Returns,
+        "throw" => TokenType::Throw,
+        "throws" => TokenType::Throws,
+        "try" => TokenType::Try,
+        "catch" => TokenType::Catch,
+        "debug" => TokenType::Debug,
+        "log" => TokenType::Log,
+        _ => TokenType::Identifier,
+    }
+}
+
+fn increment_scan(pos: &mut usize, col: &mut usize) {
+    *pos += 1;
+    *col += 1;
+}
+
+// TODO FIX handle col properly
+fn scan_tokens(source: &String) -> Vec<Token> {
+    let mut tokens : Vec<Token> = Vec::new();
+
+    let eof_pos : usize = source.len();
+    let mut pos = 0;
+    let mut line = 1;
+    let mut col = 0;
+
+    while pos < eof_pos {
+        let start = pos;
+
+        if is_digit(source, pos) {
+            while pos < eof_pos && is_digit(source, pos) {
+                increment_scan(&mut pos, &mut col);
+            }
+            // Look for a fractional part.
+            if &source[pos..pos+1] == "." && is_digit(source, pos+1) {
+                increment_scan(&mut pos, &mut col);
+                while pos < eof_pos && is_digit(source, pos) {
+                    increment_scan(&mut pos, &mut col);
+                }
+            }
+            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: 0 });
+        } else {
+
+            let token_type = match &source[pos..pos+1] {
+                " " => { increment_scan(&mut pos, &mut col); continue; },
+                "\r" => { increment_scan(&mut pos, &mut col); continue; },
+                "\t" => { increment_scan(&mut pos, &mut col); continue; },
+                "\n" => {
+                    increment_scan(&mut pos, &mut col);
+                    line = line + 1;
+                    col = 0;
+                    continue;
+                },
+                "(" => TokenType::LeftParen,
+                ")" => TokenType::RightParen,
+                "{" => TokenType::LeftBrace,
+                "}" => TokenType::RightBrace,
+                "-" => TokenType::Minus,
+                "+" => TokenType::Plus,
+                "*" => TokenType::Star,
+                "," => TokenType::Comma,
+                "." => TokenType::Dot,
+                ":" => TokenType::Colon,
+                ";" => TokenType::Semicolon,
+                "=" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::EqualEqual } else { TokenType::Equal },
+                "<" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::LesserEqual } else { TokenType::Lesser },
+                ">" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::GreaterEqual } else { TokenType::Greater },
+                "!" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::NotEqual } else { TokenType::Not },
+
+                "/" => match &source[pos+1..pos+2] {
+                    "/" => {
+                        increment_scan(&mut pos, &mut col);
+                        while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
+                            increment_scan(&mut pos, &mut col);
+                        }
+                        continue;
+                        // TODO allow the other type of commments, allowing nesting
+                    },
+                    _ => TokenType::Slash,
+                },
+
+                "\"" => {
+                    increment_scan(&mut pos, &mut col);
+                    while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
+                        increment_scan(&mut pos, &mut col);
+                    }
+                    // pos = pos - 1;
+                    match &source[pos..pos+1] {
+                        "\"" => TokenType::String,
+                        _ => TokenType::UnterminatedString,
+                    }
+                },
+
+                _ => {
+                    if is_alphanumeric(source, pos){
+                        increment_scan(&mut pos, &mut col);
+                        // FIX invalid characters
+                        while pos < eof_pos && (is_alphanumeric(source, pos) || is_digit(source, pos)) {
+                            increment_scan(&mut pos, &mut col);
+                        }
+                        pos = pos - 1;
+                        get_identifier_type(&source[start..pos+1])
+
+                    } else {
+                        TokenType::Invalid
+                    }
+                },
+            }; // let match
+            if token_type == TokenType::String {
+                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: 0 });
+            } else {
+                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: 0 });
+            }
+            increment_scan(&mut pos, &mut col)
+        } // else
+    } // while
+    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0 });
+    tokens
+}
+
 fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
     &source[t.start..t.end]
 }
@@ -380,158 +532,6 @@ fn to_ast_str(e: &Expr) -> String {
             panic!("Cil error: Node_type::Return shouldn't be analized in to_ast_str().");
         },
     }
-}
-
-fn is_digit(source: &String, pos: usize) -> bool {
-    match &source[pos..pos+1].chars().next().unwrap() {
-        '0'..='9' => true,
-        _ => false,
-    }
-}
-
-fn is_alphanumeric(source: &String, pos: usize) -> bool {
-    match &source[pos..pos+1].chars().next().unwrap() {
-        'a'..='z' | 'A'..='Z' => true,
-        '_' => true,
-        _ => false,
-    }
-    // source[pos..pos+1].bytes().all(|b| matches!(b, b'a'..=b'z'))
-    //     || source[pos..pos+1].bytes().all(|b| matches!(b, b'A'..=b'Z'))
-}
-
-fn get_identifier_type(identifier: &str) -> TokenType {
-    match identifier {
-        "true" => TokenType::True,
-        "false" => TokenType::False,
-        "mut" => TokenType::Mut,
-        "if" => TokenType::If,
-        "else" => TokenType::Else,
-        "while" => TokenType::While,
-        "for" => TokenType::For,
-        "in" => TokenType::In,
-        "match" => TokenType::Match,
-        "enum" => TokenType::Enum,
-        "struct" => TokenType::Struct,
-        "func" => TokenType::Func,
-        "proc" => TokenType::Proc,
-        "return" => TokenType::Return,
-        "returns" => TokenType::Returns,
-        "throw" => TokenType::Throw,
-        "throws" => TokenType::Throws,
-        "try" => TokenType::Try,
-        "catch" => TokenType::Catch,
-        "debug" => TokenType::Debug,
-        "log" => TokenType::Log,
-        _ => TokenType::Identifier,
-    }
-}
-
-fn increment_scan(pos: &mut usize, col: &mut usize) {
-    *pos += 1;
-    *col += 1;
-}
-
-// TODO FIX handle col properly
-fn scan_tokens(source: &String) -> Vec<Token> {
-    let mut tokens : Vec<Token> = Vec::new();
-
-    let eof_pos : usize = source.len();
-    let mut pos = 0;
-    let mut line = 1;
-    let mut col = 0;
-
-    while pos < eof_pos {
-        let start = pos;
-
-        if is_digit(source, pos) {
-            while pos < eof_pos && is_digit(source, pos) {
-                increment_scan(&mut pos, &mut col);
-            }
-            // Look for a fractional part.
-            if &source[pos..pos+1] == "." && is_digit(source, pos+1) {
-                increment_scan(&mut pos, &mut col);
-                while pos < eof_pos && is_digit(source, pos) {
-                    increment_scan(&mut pos, &mut col);
-                }
-            }
-            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: 0 });
-        } else {
-
-            let token_type = match &source[pos..pos+1] {
-                " " => { increment_scan(&mut pos, &mut col); continue; },
-                "\r" => { increment_scan(&mut pos, &mut col); continue; },
-                "\t" => { increment_scan(&mut pos, &mut col); continue; },
-                "\n" => {
-                    increment_scan(&mut pos, &mut col);
-                    line = line + 1;
-                    col = 0;
-                    continue;
-                },
-                "(" => TokenType::LeftParen,
-                ")" => TokenType::RightParen,
-                "{" => TokenType::LeftBrace,
-                "}" => TokenType::RightBrace,
-                "-" => TokenType::Minus,
-                "+" => TokenType::Plus,
-                "*" => TokenType::Star,
-                "," => TokenType::Comma,
-                "." => TokenType::Dot,
-                ":" => TokenType::Colon,
-                ";" => TokenType::Semicolon,
-                "=" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::EqualEqual } else { TokenType::Equal },
-                "<" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::LesserEqual } else { TokenType::Lesser },
-                ">" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::GreaterEqual } else { TokenType::Greater },
-                "!" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::NotEqual } else { TokenType::Not },
-
-                "/" => match &source[pos+1..pos+2] {
-                    "/" => {
-                        increment_scan(&mut pos, &mut col);
-                        while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
-                            increment_scan(&mut pos, &mut col);
-                        }
-                        continue;
-                        // TODO allow the other type of commments, allowing nesting
-                    },
-                    _ => TokenType::Slash,
-                },
-
-                "\"" => {
-                    increment_scan(&mut pos, &mut col);
-                    while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
-                        increment_scan(&mut pos, &mut col);
-                    }
-                    // pos = pos - 1;
-                    match &source[pos..pos+1] {
-                        "\"" => TokenType::String,
-                        _ => TokenType::UnterminatedString,
-                    }
-                },
-
-                _ => {
-                    if is_alphanumeric(source, pos){
-                        increment_scan(&mut pos, &mut col);
-                        // FIX invalid characters
-                        while pos < eof_pos && (is_alphanumeric(source, pos) || is_digit(source, pos)) {
-                            increment_scan(&mut pos, &mut col);
-                        }
-                        pos = pos - 1;
-                        get_identifier_type(&source[start..pos+1])
-
-                    } else {
-                        TokenType::Invalid
-                    }
-                },
-            }; // let match
-            if token_type == TokenType::String {
-                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: 0 });
-            } else {
-                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: 0 });
-            }
-            increment_scan(&mut pos, &mut col)
-        } // else
-    } // while
-    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0 });
-    tokens
 }
 
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
