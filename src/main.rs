@@ -336,75 +336,6 @@ struct SymbolInfo {
     is_mut: bool,
 }
 
-fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
-    let mut ast_str = "".to_string();
-    for se in e.params.iter() {
-        if end_line {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
-        } else {
-            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
-        }
-    }
-    return ast_str;
-}
-
-fn to_ast_str(e: &Expr) -> String {
-    let mut ast_str = "".to_string();
-    match &e.node_type {
-        NodeType::LBool(lbool) => {
-            return lbool.to_string();
-        },
-        NodeType::LI64(li64) => {
-            return li64.to_string();
-        },
-        NodeType::LString(lstring) => {
-            return lstring.to_string();
-        },
-        NodeType::Body => {
-            return params_to_ast_str(true, &e)
-        },
-        NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
-            return ast_str;
-        },
-        NodeType::Assignment(var_name) => {
-            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
-            return ast_str;
-        },
-        NodeType::FuncDef(_func_def) => {
-            return "func".to_string();
-        },
-        NodeType::ProcDef(_func_def) => {
-            return "proc".to_string();
-        },
-        NodeType::StructDef => {
-            return "struct".to_string();
-        },
-        NodeType::Identifier(id_name) => {
-            return id_name.clone();
-        },
-        NodeType::FCall(name) => {
-            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
-            return ast_str;
-        },
-        NodeType::LList => {
-            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
-            return ast_str;
-        },
-        NodeType::If => {
-            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
-            return ast_str;
-        },
-        NodeType::While => {
-            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap())));
-            return ast_str;
-        },
-        NodeType::Return => {
-            panic!("Cil error: Node_type::Return shouldn't be analized in to_ast_str().");
-        },
-    }
-}
-
 fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     current > tokens.len() || match tokens.get(current).unwrap().token_type {
         TokenType::Eof => true,
@@ -841,6 +772,25 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     } else {
         panic!("compiler error: Expected {:?} to end body.", end_token);
     }
+}
+
+fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
+    let mut current: usize = 0;
+
+    let e: Expr = parse_body(TokenType::Eof, &source, tokens, &mut current);
+    current = current + 1; // Add one for the EOF
+
+    println!("Total tokens parsed: {}/{}", current, tokens.len());
+    let mut i = current;
+    if i < tokens.len() {
+        println!("Unparsed tokens ({}):", tokens.len() - i);
+    }
+    while i < tokens.len() {
+        let t = tokens.get(i).unwrap();
+        println!("Token: {:?}", t);
+        i = i + 1;
+    }
+    e
 }
 
 // ---------- Context
@@ -1754,26 +1704,78 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
     }
 }
 
-// ---------- main binary
+// ---------- to ast (aka code_gen lisp-like syntax)
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
-    let mut current: usize = 0;
-
-    let e: Expr = parse_body(TokenType::Eof, &source, tokens, &mut current);
-    current = current + 1; // Add one for the EOF
-
-    println!("Total tokens parsed: {}/{}", current, tokens.len());
-    let mut i = current;
-    if i < tokens.len() {
-        println!("Unparsed tokens ({}):", tokens.len() - i);
+fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    for se in e.params.iter() {
+        if end_line {
+            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
+        } else {
+            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
+        }
     }
-    while i < tokens.len() {
-        let t = tokens.get(i).unwrap();
-        println!("Token: {:?}", t);
-        i = i + 1;
-    }
-    e
+    return ast_str;
 }
+
+fn to_ast_str(e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    match &e.node_type {
+        NodeType::LBool(lbool) => {
+            return lbool.to_string();
+        },
+        NodeType::LI64(li64) => {
+            return li64.to_string();
+        },
+        NodeType::LString(lstring) => {
+            return lstring.to_string();
+        },
+        NodeType::Body => {
+            return params_to_ast_str(true, &e)
+        },
+        NodeType::Declaration(decl) => {
+            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::Assignment(var_name) => {
+            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::FuncDef(_func_def) => {
+            return "func".to_string();
+        },
+        NodeType::ProcDef(_func_def) => {
+            return "proc".to_string();
+        },
+        NodeType::StructDef => {
+            return "struct".to_string();
+        },
+        NodeType::Identifier(id_name) => {
+            return id_name.clone();
+        },
+        NodeType::FCall(name) => {
+            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
+            return ast_str;
+        },
+        NodeType::LList => {
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
+            return ast_str;
+        },
+        NodeType::If => {
+            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::While => {
+            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap())));
+            return ast_str;
+        },
+        NodeType::Return => {
+            panic!("Cil error: Node_type::Return shouldn't be analized in to_ast_str().");
+        },
+    }
+}
+
+// ---------- main binary
 
 fn run(path: &String, source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
@@ -1824,7 +1826,7 @@ fn run(path: &String, source: &String) -> String {
     eval_expr(&mut context, &source, &tokens, &e)
 }
 
-// ---------- main stuff, usage, args, etc
+// ---------- main, usage, args, etc
 
 fn run_file(path: &String) {
     let source: String = match fs::read_to_string(path) {
