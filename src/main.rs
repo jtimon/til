@@ -12,7 +12,7 @@ use std::collections::HashMap;
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
 
-// ---------- lex stuff
+// ---------- lexer
 
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
@@ -219,6 +219,8 @@ fn scan_tokens(source: &String) -> Vec<Token> {
     tokens
 }
 
+// ---------- parser
+
 fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
     &source[t.start..t.end]
 }
@@ -338,131 +340,6 @@ struct Expr {
 struct SymbolInfo {
     value_type: ValueType,
     is_mut: bool,
-}
-
-#[derive(Clone)]
-struct CilContext {
-    symbols: HashMap<String, SymbolInfo>,
-    funcs: HashMap<String, SFuncDef>,
-    procs: HashMap<String, SFuncDef>,
-    bools: HashMap<String, bool>,
-    i64s: HashMap<String, i64>,
-    strings: HashMap<String, String>,
-}
-
-fn start_context() -> CilContext {
-    let mut context: CilContext = CilContext {
-        symbols: HashMap::new(),
-        funcs: HashMap::new(),
-        procs: HashMap::new(),
-        bools: HashMap::new(),
-        i64s: HashMap::new(),
-        strings: HashMap::new(),
-    };
-
-    let body : Vec<Expr> = Vec::new();
-    let return_types_none : Vec<ValueType> = Vec::new();
-
-    let mut args_print : Vec<Arg> = Vec::new();
-    args_print.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString))});
-    let func_def_print = SFuncDef{args: args_print, returns: return_types_none, body: body.clone()};
-    context.procs.insert("print".to_string(), func_def_print.clone());
-    context.procs.insert("println".to_string(), func_def_print);
-
-    let mut args_and_or : Vec<Arg> = Vec::new();
-    args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
-    let mut return_type_bool : Vec<ValueType> = Vec::new();
-    return_type_bool.push(ValueType::TBool);
-    let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("and".to_string(), func_def_and_or.clone());
-    context.funcs.insert("or".to_string(), func_def_and_or);
-
-    let mut args_single_bool : Vec<Arg> = Vec::new();
-    args_single_bool.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
-    let func_def_not = SFuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("not".to_string(), func_def_not);
-
-    let mut args_bin_i64 : Vec<Arg> = Vec::new();
-    args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
-    args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
-
-    let func_def_bin_i64_to_bool = SFuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("gt".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("gteq".to_string(), func_def_bin_i64_to_bool.clone());
-
-    let mut return_type_i64 : Vec<ValueType> = Vec::new();
-    return_type_i64.push(ValueType::TI64);
-    let func_def_bin_i64_to_i64 = SFuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
-    context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
-
-    let mut return_type_single_str : Vec<ValueType> = Vec::new();
-    return_type_single_str.push(ValueType::TString);
-    let func_def_btoa = SFuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
-    context.funcs.insert("btoa".to_string(), func_def_btoa);
-
-    let mut args_single_i64 : Vec<Arg> = Vec::new();
-    args_single_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
-    let func_def_itoa = SFuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
-    context.funcs.insert("itoa".to_string(), func_def_itoa);
-
-    context
-}
-
-fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
-    match func_def.returns.len() {
-        0 => {
-            panic!("cil error: func '{}' does not return anything" , name)
-        },
-        1 => {
-            match func_def.returns.get(0).unwrap() {
-                ValueType::TBool => ValueType::TBool,
-                ValueType::TI64 => ValueType::TI64,
-                ValueType::TString => ValueType::TString,
-                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
-            }
-        },
-        _ => {
-            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
-        },
-    }
-}
-
-fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
-    match &e.node_type {
-        NodeType::LBool(_) => ValueType::TBool,
-        NodeType::LI64(_) => ValueType::TI64,
-        NodeType::LString(_) => ValueType::TString,
-        NodeType::LList => ValueType::TList,
-        NodeType::FuncDef(_) => ValueType::TFunc,
-        NodeType::ProcDef(_) => ValueType::TProc,
-        NodeType::StructDef => ValueType::TStruct,
-        NodeType::FCall(name) => {
-            if context.funcs.contains_key(name) {
-                value_type_func_proc(name, &context.funcs.get(name).unwrap())
-            } else if context.procs.contains_key(name) {
-                value_type_func_proc(name, &context.procs.get(name).unwrap())
-            } else if is_defined_symbol(&context, name) {
-                panic!("parse error: value_type: Cannot call '{}', it is not a function/procedure" , name);
-            } else {
-                panic!("parse error: value_type: Undefined function '{}'", name);
-            }
-        },
-        NodeType::Identifier(name) => {
-            match context.symbols.get(name) {
-                Some(symbol_info) => symbol_info.value_type.clone(),
-                None => {
-                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", name)
-                }
-            }
-        },
-       node_type => panic!("cil error: get_value_type() not implement for {:?} yet.", node_type),
-    }
 }
 
 fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
@@ -596,36 +473,6 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     match list_t.token_type {
         TokenType::RightParen => Expr { node_type: NodeType::LList, token_index: initial_current, params: params},
         _ => panic!("{}:{} compiler error: Expected closing parentheses.", list_t.line, list_t.col),
-    }
-}
-
-fn is_core_func(proc_name: &str) -> bool {
-    match proc_name {
-        "and" => true,
-        "or" => true,
-        "not" => true,
-        "eq" => true,
-        "lt" => true,
-        "lteq" => true,
-        "gt" => true,
-        "gteq" => true,
-        "add" => true,
-        "sub" => true,
-        "mul" => true,
-        "div" => true,
-        "btoa" => true,
-        "itoa" => true,
-        _ => false,
-    }
-}
-
-fn is_core_proc(proc_name: &str) -> bool {
-    match proc_name {
-        "print" => true,
-        "println" => true,
-        "test" => true, // can be func after implementing throws
-        "assert" => true, // can be func after implementing throws
-        _ => false,
     }
 }
 
@@ -1002,8 +849,162 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     }
 }
 
+// ---------- Context
 
-// ---------- Init context stuff
+#[derive(Clone)]
+struct CilContext {
+    symbols: HashMap<String, SymbolInfo>,
+    funcs: HashMap<String, SFuncDef>,
+    procs: HashMap<String, SFuncDef>,
+    bools: HashMap<String, bool>,
+    i64s: HashMap<String, i64>,
+    strings: HashMap<String, String>,
+}
+
+fn is_core_func(proc_name: &str) -> bool {
+    match proc_name {
+        "and" => true,
+        "or" => true,
+        "not" => true,
+        "eq" => true,
+        "lt" => true,
+        "lteq" => true,
+        "gt" => true,
+        "gteq" => true,
+        "add" => true,
+        "sub" => true,
+        "mul" => true,
+        "div" => true,
+        "btoa" => true,
+        "itoa" => true,
+        _ => false,
+    }
+}
+
+fn is_core_proc(proc_name: &str) -> bool {
+    match proc_name {
+        "print" => true,
+        "println" => true,
+        "test" => true, // can be func after implementing throws
+        "assert" => true, // can be func after implementing throws
+        _ => false,
+    }
+}
+
+fn start_context() -> CilContext {
+    let mut context: CilContext = CilContext {
+        symbols: HashMap::new(),
+        funcs: HashMap::new(),
+        procs: HashMap::new(),
+        bools: HashMap::new(),
+        i64s: HashMap::new(),
+        strings: HashMap::new(),
+    };
+
+    let body : Vec<Expr> = Vec::new();
+    let return_types_none : Vec<ValueType> = Vec::new();
+
+    let mut args_print : Vec<Arg> = Vec::new();
+    args_print.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString))});
+    let func_def_print = SFuncDef{args: args_print, returns: return_types_none, body: body.clone()};
+    context.procs.insert("print".to_string(), func_def_print.clone());
+    context.procs.insert("println".to_string(), func_def_print);
+
+    let mut args_and_or : Vec<Arg> = Vec::new();
+    args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
+    let mut return_type_bool : Vec<ValueType> = Vec::new();
+    return_type_bool.push(ValueType::TBool);
+    let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
+    context.funcs.insert("and".to_string(), func_def_and_or.clone());
+    context.funcs.insert("or".to_string(), func_def_and_or);
+
+    let mut args_single_bool : Vec<Arg> = Vec::new();
+    args_single_bool.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
+    let func_def_not = SFuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    context.funcs.insert("not".to_string(), func_def_not);
+
+    let mut args_bin_i64 : Vec<Arg> = Vec::new();
+    args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
+    args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
+
+    let func_def_bin_i64_to_bool = SFuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("gt".to_string(), func_def_bin_i64_to_bool.clone());
+    context.funcs.insert("gteq".to_string(), func_def_bin_i64_to_bool.clone());
+
+    let mut return_type_i64 : Vec<ValueType> = Vec::new();
+    return_type_i64.push(ValueType::TI64);
+    let func_def_bin_i64_to_i64 = SFuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
+    context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
+    context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
+
+    let mut return_type_single_str : Vec<ValueType> = Vec::new();
+    return_type_single_str.push(ValueType::TString);
+    let func_def_btoa = SFuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
+    context.funcs.insert("btoa".to_string(), func_def_btoa);
+
+    let mut args_single_i64 : Vec<Arg> = Vec::new();
+    args_single_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
+    let func_def_itoa = SFuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
+    context.funcs.insert("itoa".to_string(), func_def_itoa);
+
+    context
+}
+
+fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
+    match func_def.returns.len() {
+        0 => {
+            panic!("cil error: func '{}' does not return anything" , name)
+        },
+        1 => {
+            match func_def.returns.get(0).unwrap() {
+                ValueType::TBool => ValueType::TBool,
+                ValueType::TI64 => ValueType::TI64,
+                ValueType::TString => ValueType::TString,
+                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
+            }
+        },
+        _ => {
+            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
+        },
+    }
+}
+
+fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
+    match &e.node_type {
+        NodeType::LBool(_) => ValueType::TBool,
+        NodeType::LI64(_) => ValueType::TI64,
+        NodeType::LString(_) => ValueType::TString,
+        NodeType::LList => ValueType::TList,
+        NodeType::FuncDef(_) => ValueType::TFunc,
+        NodeType::ProcDef(_) => ValueType::TProc,
+        NodeType::StructDef => ValueType::TStruct,
+        NodeType::FCall(name) => {
+            if context.funcs.contains_key(name) {
+                value_type_func_proc(name, &context.funcs.get(name).unwrap())
+            } else if context.procs.contains_key(name) {
+                value_type_func_proc(name, &context.procs.get(name).unwrap())
+            } else if is_defined_symbol(&context, name) {
+                panic!("parse error: value_type: Cannot call '{}', it is not a function/procedure" , name);
+            } else {
+                panic!("parse error: value_type: Undefined function '{}'", name);
+            }
+        },
+        NodeType::Identifier(name) => {
+            match context.symbols.get(name) {
+                Some(symbol_info) => symbol_info.value_type.clone(),
+                None => {
+                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", name)
+                }
+            }
+        },
+       node_type => panic!("cil error: get_value_type() not implement for {:?} yet.", node_type),
+    }
+}
 
 fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
@@ -1064,7 +1065,7 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
     errors
 }
 
-// ---------- Type checking stuff
+// ---------- Type checking
 
 fn is_defined_func_proc(context: &CilContext, name: &str) -> bool {
     context.funcs.contains_key(name) || context.procs.contains_key(name)
@@ -1317,7 +1318,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
     errors
 }
 
-// ---------- eval repl interpreter stuff
+// ---------- eval repl interpreter
 
 fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
@@ -1758,6 +1759,8 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
         },
     }
 }
+
+// ---------- main binary
 
 fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
