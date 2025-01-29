@@ -111,45 +111,39 @@ fn get_identifier_type(identifier: &str) -> TokenType {
     }
 }
 
-fn increment_scan(pos: &mut usize, col: &mut usize) {
-    *pos += 1;
-    *col += 1;
-}
-
-// TODO FIX handle col properly
 fn scan_tokens(source: &String) -> Vec<Token> {
     let mut tokens : Vec<Token> = Vec::new();
 
     let eof_pos : usize = source.len();
     let mut pos = 0;
     let mut line = 1;
-    let mut col = 0;
+    let mut start_line_pos = 0;
 
     while pos < eof_pos {
         let start = pos;
 
         if is_digit(source, pos) {
             while pos < eof_pos && is_digit(source, pos) {
-                increment_scan(&mut pos, &mut col);
+                pos += 1;
             }
             // Look for a fractional part.
             if &source[pos..pos+1] == "." && is_digit(source, pos+1) {
-                increment_scan(&mut pos, &mut col);
+                pos += 1;
                 while pos < eof_pos && is_digit(source, pos) {
-                    increment_scan(&mut pos, &mut col);
+                    pos += 1;
                 }
             }
-            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: 0 });
+            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: pos - start_line_pos + 1});
         } else {
 
             let token_type = match &source[pos..pos+1] {
-                " " => { increment_scan(&mut pos, &mut col); continue; },
-                "\r" => { increment_scan(&mut pos, &mut col); continue; },
-                "\t" => { increment_scan(&mut pos, &mut col); continue; },
+                " " => { pos += 1; continue; },
+                "\r" => { pos += 1; continue; },
+                "\t" => { pos += 1; continue; },
                 "\n" => {
-                    increment_scan(&mut pos, &mut col);
+                    pos += 1;
                     line = line + 1;
-                    col = 0;
+                    start_line_pos = pos;
                     continue;
                 },
                 "(" => TokenType::LeftParen,
@@ -163,16 +157,16 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 "." => TokenType::Dot,
                 ":" => TokenType::Colon,
                 ";" => TokenType::Semicolon,
-                "=" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::EqualEqual } else { TokenType::Equal },
-                "<" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::LesserEqual } else { TokenType::Lesser },
-                ">" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::GreaterEqual } else { TokenType::Greater },
-                "!" => if &source[pos+1..pos+2] == "=" { increment_scan(&mut pos, &mut col); TokenType::NotEqual } else { TokenType::Not },
+                "=" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::EqualEqual } else { TokenType::Equal },
+                "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
+                ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
+                "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
 
                 "/" => match &source[pos+1..pos+2] {
                     "/" => {
-                        increment_scan(&mut pos, &mut col);
+                        pos += 1;
                         while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
-                            increment_scan(&mut pos, &mut col);
+                            pos += 1;
                         }
                         continue;
                         // TODO allow the other type of commments, allowing nesting
@@ -181,9 +175,9 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
 
                 "\"" => {
-                    increment_scan(&mut pos, &mut col);
+                    pos += 1;
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
-                        increment_scan(&mut pos, &mut col);
+                        pos += 1;
                     }
                     // pos = pos - 1;
                     match &source[pos..pos+1] {
@@ -194,10 +188,10 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 
                 _ => {
                     if is_alphanumeric(source, pos){
-                        increment_scan(&mut pos, &mut col);
+                        pos += 1;
                         // FIX invalid characters
                         while pos < eof_pos && (is_alphanumeric(source, pos) || is_digit(source, pos)) {
-                            increment_scan(&mut pos, &mut col);
+                            pos += 1;
                         }
                         pos = pos - 1;
                         get_identifier_type(&source[start..pos+1])
@@ -208,14 +202,14 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
             }; // let match
             if token_type == TokenType::String {
-                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: 0 });
+                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: pos - start_line_pos + 1});
             } else {
-                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: 0 });
+                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: pos - start_line_pos + 1});
             }
-            increment_scan(&mut pos, &mut col)
+            pos += 1;
         } // else
     } // while
-    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0 });
+    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0});
     tokens
 }
 
@@ -231,7 +225,7 @@ fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, 
     if end_symbol - t.start > max_symbol_len {
         end_symbol = max_symbol_len;
     }
-    println!("{}:{}:{} Lexical error {}: {}. Offending symbol: {}", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
+    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: {}", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
 }
 
 fn is_literal(t: &Token) -> bool {
