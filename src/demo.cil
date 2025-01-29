@@ -91,9 +91,6 @@ xor := func(a: bool, b: bool) returns bool {
 
 // TODO next:
 
-// my_bool_slice : []bool = [true, false, true, false]
-// my_list := (true, 1111, "hello")
-
 // my_struct := struct {
 //     bool_field := false
 //     int_field := 0
@@ -106,6 +103,9 @@ xor := func(a: bool, b: bool) returns bool {
 // 	return false
 //     }
 // }
+
+// my_bool_slice : []bool = [true, false, true, false]
+// my_list := (true, 1111, "hello")
 
 // NodeType := enum {
 //     LBool
