@@ -21,7 +21,7 @@ enum TokenType {
 
     // Single-character tokens.
     Minus, Plus, Slash, Star,
-    LeftParen, RightParen, LeftBrace, RightBrace,
+    LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
     Comma, Dot, Colon, Semicolon,
 
     // One or two character tokens.
@@ -150,6 +150,8 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 ")" => TokenType::RightParen,
                 "{" => TokenType::LeftBrace,
                 "}" => TokenType::RightBrace,
+                "[" => TokenType::LeftBracket,
+                "]" => TokenType::RightBracket,
                 "-" => TokenType::Minus,
                 "+" => TokenType::Plus,
                 "*" => TokenType::Star,
