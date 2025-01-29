@@ -555,7 +555,7 @@ fn literal(source: &String, t: &Token, current: &mut usize) -> Expr {
     e
 }
 
-fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = *current;
@@ -588,7 +588,7 @@ fn list(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, curr
                 //     panic!("{}:{} compiler error: Expected ')' or ',', found {}.", list_t.line, list_t.col, get_token_str(source, list_t));
                 // }
                 expect_comma = true;
-                params.push(primary(&mut context, &source, &tokens, current));
+                params.push(primary(&source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
             },
         }
@@ -629,26 +629,26 @@ fn is_core_proc(proc_name: &str) -> bool {
     }
 }
 
-fn func_call(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
     let initial_current = *current;
     *current = *current + 1;
-    let params : Vec<Expr> = list(&mut context, &source, &tokens, current).params;
+    let params : Vec<Expr> = list(&source, &tokens, current).params;
     Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
 }
 
-fn parse_assignment(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     let name = get_token_str(source, t);
     let initial_current = *current;
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
-    params.push(primary(&mut context, &source, &tokens, current));
+    params.push(primary(&source, &tokens, current));
     Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params}
 }
 
-fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
+fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
 
     let mut rightparent_found = false;
     let mut args : Vec<Arg> = Vec::new();
@@ -726,7 +726,7 @@ fn func_proc_args(_context: &CilContext, source: &String, tokens: &Vec<Token>, c
     }
 }
 
-fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     let mut t = tokens.get(*current).unwrap();
@@ -772,16 +772,16 @@ fn func_proc_returns(_context: &CilContext, source: &String, tokens: &Vec<Token>
     }
 }
 
-fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
         panic!("{}:{} compiler error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col);
     } else {
         let t = tokens.get(*current).unwrap();
         if t.token_type == TokenType::LeftParen {
-            let args = func_proc_args(&context, &source, &tokens, current);
-            let returns = func_proc_returns(&context, &source, &tokens, current);
-            let body = parse_body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+            let args = func_proc_args(&source, &tokens, current);
+            let returns = func_proc_returns(&source, &tokens, current);
+            let body = parse_body(TokenType::RightBrace, &source, tokens, current).params;
             let func_def = SFuncDef{args: args, returns: returns, body: body};
             let params : Vec<Expr> = Vec::new();
             let e;
@@ -797,7 +797,7 @@ fn func_proc_definition(is_func: bool, mut context: &mut CilContext, source: &St
     }
 }
 
-fn struct_definition(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
         panic!("{}:{} compiler error: Expected '{{' after 'struct'.", t.line, t.col);
@@ -807,20 +807,20 @@ fn struct_definition(mut context: &mut CilContext, source: &String, tokens: &Vec
         panic!("{}:{} compiler error: expected '' after 'func' or 'proc', found EOF.", t.line, t.col);
     } else {
         *current = *current + 1;
-        let params = parse_body(TokenType::RightBrace, &mut context, &source, tokens, current).params;
+        let params = parse_body(TokenType::RightBrace, &source, tokens, current).params;
         *current = *current + 1;
         return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
     }
 }
 
-fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
         literal(&source, t, current)
     } else {
         match &t.token_type {
-            TokenType::LeftParen => list(&mut context, &source, &tokens, current),
+            TokenType::LeftParen => list(&source, &tokens, current),
             TokenType::Identifier => {
                 if !(is_eof(&tokens, *current + 1) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen) {
                     let params : Vec<Expr> = Vec::new();
@@ -828,46 +828,46 @@ fn primary(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, c
                     *current = *current + 1;
                     e
                 } else {
-                    func_call(&mut context, &source, &tokens, current)
+                    func_call(&source, &tokens, current)
                 }
             },
             TokenType::Func => {
                 *current = *current + 1;
-                func_proc_definition(true, &mut context, &source, &tokens, current)
+                func_proc_definition(true, &source, &tokens, current)
             },
             TokenType::Proc => {
                 *current = *current + 1;
-                func_proc_definition(false, &mut context, &source, &tokens, current)
+                func_proc_definition(false, &source, &tokens, current)
             },
             TokenType::Struct => {
                 *current = *current + 1;
-                struct_definition(&mut context, &source, &tokens, current)
+                struct_definition(&source, &tokens, current)
             },
             _ => panic!("{}:{} compiler error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
     }
 }
 
-fn return_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
-    params.push(primary(&mut context, &source, &tokens, current));
+    params.push(primary(&source, &tokens, current));
     Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
 }
 
-fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     // TODO check EOF in this function, this is unsafe
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
-    params.push(primary(&mut context, &source, &tokens, current));
+    params.push(primary(&source, &tokens, current));
     let mut t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
         panic!("{}:{} compiler error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
     }
     *current = *current + 1;
-    params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
     *current = *current + 1;
     t = tokens.get(*current).unwrap();
     if t.token_type == TokenType::Else {
@@ -877,28 +877,28 @@ fn if_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
             panic!("{}:{} compiler error: Expected '{{' after 'else'.", t.line, t.col);
         }
         *current = *current + 1;
-        params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
+        params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
         *current = *current + 1;
     }
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
 }
 
-fn while_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
-    params.push(primary(&mut context, &source, &tokens, current));
+    params.push(primary(&source, &tokens, current));
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
         panic!("{}:{} compiler error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
     }
     *current = *current + 1;
-    params.push(parse_body(TokenType::RightBrace, &mut context, &source, tokens, current));
+    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
     *current = *current + 1;
     Expr { node_type: NodeType::While, token_index: initial_current, params: params}
 }
 
-fn parse_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Expr {
+fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Expr {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
     let initial_current = *current;
@@ -907,23 +907,23 @@ fn parse_declaration(mut context: &mut CilContext, source: &String, tokens: &Vec
         *current = *current + 1; // skip type identifier
     }
     let mut params : Vec<Expr> = Vec::new();
-    params.push(primary(&mut context, &source, &tokens, current));
+    params.push(primary(&source, &tokens, current));
     let explicit_value_type = str_to_value_type(explicit_type);
     let decl = Declaration{name: decl_name.to_string(), value_type: explicit_value_type, is_mut: is_mut};
     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
 }
 
-fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Return => {
-            return_statement(&mut context, &source, &tokens, current)
+            return_statement(&source, &tokens, current)
         },
         TokenType::If => {
-            if_statement(&mut context, &source, &tokens, current)
+            if_statement(&source, &tokens, current)
         },
         TokenType::While => {
-            while_statement(&mut context, &source, &tokens, current)
+            while_statement(&source, &tokens, current)
         },
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
@@ -943,10 +943,10 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = get_token_str(source, next_next_t);
-                    parse_declaration(&mut context, &source, &tokens, current, true, type_name)
+                    parse_declaration(&source, &tokens, current, true, type_name)
                 }
                 TokenType::Equal => {
-                    parse_declaration(&mut context, &source, &tokens, current, true, INFER_TYPE)
+                    parse_declaration(&source, &tokens, current, true, INFER_TYPE)
                 },
                 _ => panic!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
             }
@@ -956,10 +956,10 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
             let next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::LeftParen => {
-                    func_call(&mut context, &source, &tokens, current)
+                    func_call(&source, &tokens, current)
                 },
                 TokenType::Equal => {
-                    parse_assignment(&mut context, &source, &tokens, current)
+                    parse_assignment(&source, &tokens, current)
                 },
                 TokenType::Colon => {
                     let next_next_t = tokens.get(*current + 2).unwrap();
@@ -968,10 +968,10 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
                     match next_next_token_type {
                         TokenType::Identifier => {
                             let type_name = get_token_str(source, next_next_t);
-                            parse_declaration(&mut context, &source, &tokens, current, false, type_name)
+                            parse_declaration(&source, &tokens, current, false, type_name)
                         }
                         TokenType::Equal => {
-                            parse_declaration(&mut context, &source, &tokens, current, false, INFER_TYPE)
+                            parse_declaration(&source, &tokens, current, false, INFER_TYPE)
                         },
                         _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
                     }
@@ -983,7 +983,7 @@ fn parse_statement(mut context: &mut CilContext, source: &String, tokens: &Vec<T
     }
 }
 
-fn parse_body(end_token : TokenType, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
@@ -992,7 +992,7 @@ fn parse_body(end_token : TokenType, mut context: &mut CilContext, source: &Stri
         if tokens.get(*current).unwrap().token_type == end_token {
             end_found = true;
         } else {
-            params.push(parse_statement(&mut context, &source, &tokens, current));
+            params.push(parse_statement(&source, &tokens, current));
         }
     }
     if end_found {
@@ -1759,10 +1759,10 @@ fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>,
     }
 }
 
-fn parse_tokens(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>) -> Expr {
+fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
     let mut current: usize = 0;
 
-    let e: Expr = parse_body(TokenType::Eof, &mut context, &source, tokens, &mut current);
+    let e: Expr = parse_body(TokenType::Eof, &source, tokens, &mut current);
     current = current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
@@ -1804,10 +1804,10 @@ fn run(path: &String, source: &String) -> String {
         return format!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let mut context = start_context();
-    let e: Expr = parse_tokens(&mut context, &source, &tokens);
+    let e: Expr = parse_tokens(&source, &tokens);
     println!("AST:\n{}", to_ast_str(&e));
 
+    let mut context = start_context();
     let errors = init_context(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
