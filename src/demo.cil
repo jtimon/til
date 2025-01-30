@@ -18,12 +18,14 @@ example_basic_workflow := proc() {
 
     mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
     print("it: ")
+    // while 42 { // fails, because while expects a bool first, not an int
     while lt(it, 10) {
         print(itoa(it), " ")
         it = add(it, 1)
     }
     println(" ")
 
+    // if 42 { // fails, because if expects a bool first, not an int
     if gteq(4, 2) {
         println("aaaaaaaa")
     } else {

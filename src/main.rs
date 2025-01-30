@@ -1044,6 +1044,7 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             false
         },
         NodeType::StructDef => {
+            // TODO default values could try to call procs
             false
         },
         NodeType::LBool(_) => false,
@@ -1127,14 +1128,24 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
-            // TODO check that the first param is of value_type bool
+            let inner_e = e.params.get(0).unwrap();
+            let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
+            if !first_is_condition {
+                let next_t = tokens.get(inner_e.token_index).unwrap();
+                errors.push(format!("{}:{}: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+            }
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
         NodeType::While => {
             assert!(e.params.len() == 2, "Cil error: while nodes must have exactly 2 parameters.");
-            // TODO check that the first param is of value_type bool
+            let inner_e = e.params.get(0).unwrap();
+            let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
+            if !first_is_condition {
+                let next_t = tokens.get(inner_e.token_index).unwrap();
+                errors.push(format!("{}:{}: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+            }
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
