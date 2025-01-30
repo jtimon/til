@@ -820,6 +820,7 @@ fn is_core_func(proc_name: &str) -> bool {
         "sub" => true,
         "mul" => true,
         "div" => true,
+        "btoi" => true, // necessary for branchless arithmetic
         "btoa" => true,
         "itoa" => true,
         "assert" => true, // requires implementing throws or at least exit
@@ -1392,6 +1393,15 @@ fn eval_core_func_div(mut context: &mut CilContext, source: &String, tokens: &Ve
     (a / b).to_string()
 }
 
+fn eval_core_func_btoi(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "Cil Error: Core func 'btoi' takes exactly 1 argument. This should never happen.");
+    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+        "1".to_string()
+    } else {
+        "0".to_string()
+    }
+}
+
 fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "Cil Error: Core func 'btoa' takes exactly 1 argument. This should never happen.");
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
@@ -1497,6 +1507,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
             "sub" => eval_core_func_sub(&mut context, &source, &tokens, &e),
             "mul" => eval_core_func_mul(&mut context, &source, &tokens, &e),
             "div" => eval_core_func_div(&mut context, &source, &tokens, &e),
+            "btoi" => eval_core_func_btoi(&mut context, &source, &tokens, &e),
             "btoa" => eval_core_func_btoa(&mut context, &source, &tokens, &e),
             "itoa" => eval_core_func_itoa(&mut context, &source, &tokens, &e),
             _ => panic!("{}:{} cil eval error: Core function '{}' not implemented.", t.line, t.col, name),
