@@ -822,16 +822,18 @@ fn is_core_func(proc_name: &str) -> bool {
         "div" => true,
         "btoa" => true,
         "itoa" => true,
+        "assert" => true, // requires implementing throws or at least exit
         _ => false,
     }
 }
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
+        "eval" => true,
         "print" => true,
         "println" => true,
+        "exit" => true, // can be func after implementing throws
         "test" => true, // can be func after implementing throws
-        "assert" => true, // can be func after implementing throws
         _ => false,
     }
 }
