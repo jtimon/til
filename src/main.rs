@@ -34,6 +34,7 @@ enum TokenType {
     Identifier, String, Number,
 
     // Reserved words:
+    Mut,
 
     // bool
     True, False,
@@ -49,7 +50,6 @@ enum TokenType {
     Match, While, For, In,
 
     // TODO implement or remove
-    Mut,
     Debug , Log,
 
     // Errors
