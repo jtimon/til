@@ -1524,23 +1524,21 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             panic!("{}:{} cil eval error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         }
     }
+    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
     match value_type {
         ValueType::TBool => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
             context.bools.insert(declaration.name.clone(), bool_expr_result);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
             context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
@@ -1551,7 +1549,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
                    t.line, t.col, &declaration.name, &declaration.value_type);
         },
         ValueType::TFunc => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             match &e.params.get(0).unwrap().node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.clone(), func_def.clone());
@@ -1563,7 +1560,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             }
         },
         ValueType::TProc => {
-            assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
             match &e.params.get(0).unwrap().node_type {
                 NodeType::ProcDef(func_def) => {
                     context.procs.insert(declaration.name.clone(), func_def.clone());
