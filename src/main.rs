@@ -47,12 +47,15 @@ enum TokenType {
     Throw, Throws, Try, Catch,
     // flow control
     If, Else,
-    Match, While, For, In,
+    While, For, In,
+    Match, Switch,
 
     // TODO implement or remove
     Debug , Log,
 
     // Errors
+    Const, Var,
+    Fn,
     Invalid,
     UnterminatedString,
     // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
@@ -92,21 +95,38 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "if" => TokenType::If,
         "else" => TokenType::Else,
         "while" => TokenType::While,
-        "for" => TokenType::For,
-        "in" => TokenType::In,
-        "match" => TokenType::Match,
-        "enum" => TokenType::Enum,
-        "struct" => TokenType::Struct,
         "func" => TokenType::Func,
         "proc" => TokenType::Proc,
         "return" => TokenType::Return,
         "returns" => TokenType::Returns,
+        // TODO reserved words:
+        "enum" => TokenType::Enum,
+        "struct" => TokenType::Struct,
+        "switch" => TokenType::Switch,
+        "match" => TokenType::Match,
+        "for" => TokenType::For,
+        "in" => TokenType::In,
         "throw" => TokenType::Throw,
         "throws" => TokenType::Throws,
         "try" => TokenType::Try,
         "catch" => TokenType::Catch,
         "debug" => TokenType::Debug,
         "log" => TokenType::Log,
+
+        // Reserved illegal words:
+        // const/vars are the most abstract types, you can't even explicitly declare them
+        "const" => TokenType::Const,
+        "var" => TokenType::Var,
+        // intentionally unsupported reserved words:
+        "fn" => TokenType::Fn,
+
+        // TODO intentionally unsupport more reserved words
+        // TODO nicer messages for forbidden words
+        // Reserved forbidden words:
+        "function" => TokenType::Invalid,
+        "method" => TokenType::Invalid,
+        "static" => TokenType::Invalid,
+        "global" => TokenType::Invalid,
         _ => TokenType::Identifier,
     }
 }
@@ -683,6 +703,18 @@ fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, 
 fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
+        TokenType::Const => {
+            panic!("{}:{} parse error:\n keyword 'const' doesn't need to be constantly repeated in {}.\n Everyithing is const by default.\nUse 'mut' when you don't want a const", t.line, t.col, "here".to_string());
+        },
+        TokenType::Var => {
+            panic!("{}:{} parse error:\n keyword 'var' is supported in js, use 'mut' instead in {} .", t.line, t.col, "here".to_string());
+        },
+        TokenType::Fn => {
+            panic!("{}:{} parse error:\n keyword 'fn' is supported in rs, use 'func' instead in {} .", t.line, t.col, "here".to_string());
+        },
+        TokenType::For => {
+            panic!("{}:{} parse error: Suggestion: use 'while' while more loop options are implemented, for 'for' is not implemented yet.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col);
+        },
         TokenType::Return => {
             return_statement(&source, &tokens, current)
         },
