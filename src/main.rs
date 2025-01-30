@@ -625,7 +625,6 @@ fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -
 }
 
 fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
-    // TODO check EOF in this function, this is unsafe
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
