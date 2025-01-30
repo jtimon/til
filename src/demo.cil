@@ -1,5 +1,6 @@
 // mode script
 
+// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
 BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
 // and := true // fails, double declaration of core func 'and'
@@ -96,7 +97,6 @@ branchless := func(cond: bool, a: i64, b: i64) returns i64 {
 println("testing branchless: should be 4 = ", itoa(branchless(true, 4, 2)))
 println("testing branchless: should be 2 = ", itoa(branchless(false, 4, 2)))
 
-// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
 // TODO fix col for invalid args
 // and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
 
