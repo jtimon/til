@@ -832,6 +832,7 @@ fn is_core_proc(proc_name: &str) -> bool {
         "eval" => true,
         "print" => true,
         "println" => true,
+        "readfile" => true,
         "exit" => true, // can be func after implementing throws
         "test" => true, // can be func after implementing throws
         _ => false,
