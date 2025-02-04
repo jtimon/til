@@ -268,6 +268,7 @@ enum ValueType {
     TList,
     TFunc,
     TProc,
+    TEnum,
     TStruct,
     TMulti(Box<ValueType>),
     TCustom(String),
@@ -283,6 +284,7 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
         ValueType::TList => "list".to_string(),
         ValueType::TFunc => "func".to_string(),
         ValueType::TProc => "proc".to_string(),
+        ValueType::TEnum => "enum".to_string(),
         ValueType::TStruct => "struct".to_string(),
         ValueType::TMulti(val_type) => format!("[]{}", value_type_to_str(val_type)).to_string(),
         ValueType::TCustom(type_name) => format!("{}", type_name),
@@ -297,6 +299,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
+        "enum" => ValueType::TEnum,
         "struct" => ValueType::TStruct,
         "i64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
@@ -325,6 +328,17 @@ struct SFuncDef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct EnumDeclVal {
+    name: String,
+    union_type: Option<ValueType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SEnumDef {
+    enum_values: Vec<EnumDeclVal>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     // Mode,
     Body,
@@ -339,6 +353,7 @@ enum NodeType {
     Assignment(String),
     FuncDef(SFuncDef),
     ProcDef(SFuncDef),
+    EnumDef(SEnumDef),
     StructDef,
     Return,
     If,
@@ -583,6 +598,60 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
     e
 }
 
+fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+    let initial_current: usize = *current;
+
+    let t = tokens.get(*current).unwrap();
+    if t.token_type != TokenType::LeftBrace {
+        panic!("{}:{} parse error: Expected '{{' after 'enum'.", t.line, t.col);
+    }
+    if is_eof(&tokens, *current + 1) {
+        let t = tokens.get(*current).unwrap();
+        panic!("{}:{} parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col);
+    }
+    *current = *current + 1;
+    let mut enum_values : Vec<EnumDeclVal> = Vec::new();
+
+    let mut end_found = false;
+    while *current < tokens.len() && !end_found {
+        let it_t = tokens.get(*current).unwrap();
+        match it_t.token_type {
+            TokenType::RightBrace => {
+                end_found = true;
+            },
+            TokenType::Identifier => {
+                let next_t = tokens.get(*current + 1).unwrap();
+                let enum_val_name = get_token_str(source, it_t);
+                match next_t.token_type {
+                    TokenType::Identifier | TokenType::RightBrace => {
+                        enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: None});
+                    },
+                    TokenType::Colon => {
+                        let next2_t = tokens.get(*current + 2).unwrap();
+                        if next2_t.token_type != TokenType::Identifier {
+                            panic!("{}:{} parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type);
+                        }
+                        let enum_val_type = get_token_str(source, next2_t);
+                        enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: Some(str_to_value_type(enum_val_type))});
+                        *current = *current + 1;
+                    },
+                    _ => {},
+                }
+            },
+            _ => {
+                panic!("{}:{} parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type);
+            }
+        }
+        *current = *current + 1;
+    }
+    if !end_found {
+        panic!("{}:{} parse error: Expected '}}' to end enum.", t.line, t.col);
+    }
+    let params : Vec<Expr> = Vec::new();
+    return Expr { node_type: NodeType::EnumDef(SEnumDef{enum_values: enum_values}),
+                  token_index: initial_current, params: params};
+}
+
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
@@ -624,6 +693,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             TokenType::Proc => {
                 *current = *current + 1;
                 func_proc_definition(false, &source, &tokens, current)
+            },
+            TokenType::Enum => {
+                *current = *current + 1;
+                enum_definition(&source, &tokens, current)
             },
             TokenType::Struct => {
                 *current = *current + 1;
@@ -831,6 +904,7 @@ struct CilContext {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
+    enums: HashMap<String, SEnumDef>,
     structs: HashMap<String, Expr>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
@@ -876,6 +950,7 @@ fn start_context() -> CilContext {
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
+        enums: HashMap::new(),
         structs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
@@ -963,6 +1038,7 @@ fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
         NodeType::LList => ValueType::TList,
         NodeType::FuncDef(_) => ValueType::TFunc,
         NodeType::ProcDef(_) => ValueType::TProc,
+        NodeType::EnumDef(_) => ValueType::TEnum,
         NodeType::StructDef => ValueType::TStruct,
         NodeType::FCall(name) => {
             if context.funcs.contains_key(name) {
@@ -1018,7 +1094,7 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                            panic!("{}:{} cil error: funcs should have definitions. This should never happen", t.line, t.col);
                         },
                     }
                 },
@@ -1029,18 +1105,32 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                             context.procs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                            panic!("{}:{} cil error: procs should have definitions. This should never happen", t.line, t.col);
+                        },
+                    }
+                },
+                ValueType::TEnum => {
+                    assert!(inner_e.params.len() == 0, "Cil error: while declaring {}: enum declarations don't have any parameters in the tree.",
+                            decl.name);
+                    match &inner_e.node_type {
+                        NodeType::EnumDef(enum_def) => {
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            context.enums.insert(decl.name.to_string(), enum_def.clone());
+                        },
+                        _ => {
+                            panic!("{}:{} cil error: enums should have definitions. This should never happen", t.line, t.col);
                         },
                     }
                 },
                 ValueType::TStruct => {
-                    assert!(e.params.len() == 1, "Cil error: while declaring {}, struct declarations must take exactly one body.",
+                    assert!(inner_e.params.len() == 1, "Cil error: while declaring {}, struct declarations must take exactly one body.",
                             decl.name);
                     let inner_e = e.params.get(0).unwrap();
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                     context.structs.insert(decl.name.to_string(), inner_e.clone());
                 },
-                _ => {
+                ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
+                ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
             }
@@ -1087,6 +1177,9 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
         },
         NodeType::StructDef => {
             // TODO default values could try to call procs
+            false
+        },
+        NodeType::EnumDef(_) => {
             false
         },
         NodeType::LBool(_) => false,
@@ -1155,6 +1248,23 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
         NodeType::Body => {
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
+            }
+        },
+        NodeType::EnumDef(enum_def) => {
+            assert!(e.params.len() == 0, "Cil error: in check_types(): enum declarations don't have any parameters in the tree.");
+            for enum_it in &enum_def.enum_values {
+                match &enum_it.union_type {
+                    None => {},
+                    Some(value_type) => {
+                        match value_type {
+                            ValueType::TCustom(custom_name) => {
+                                errors.push(format!("{}:{} 'enum' does not support custom types yet, found custom type '{}'.",
+                                                    t.line, t.col, custom_name));
+                            },
+                            _ => {},
+                        }
+                    },
+                }
             }
         },
         NodeType::StructDef => {
@@ -1582,6 +1692,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
     }
     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
     match value_type {
+        ValueType::ToInferType => {
+            panic!("{}:{} cil eval error: '{}' declared of type {} but but still to infer type {:?}.", t.line, t.col, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+        },
         ValueType::TBool => {
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
             context.bools.insert(declaration.name.to_string(), bool_expr_result);
@@ -1599,6 +1712,17 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
             context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             string_expr_result.to_string()
+        },
+        ValueType::TEnum => {
+            match &inner_e.node_type {
+                NodeType::EnumDef(enum_def) => {
+                    context.enums.insert(declaration.name.clone(), enum_def.clone());
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    "enum declared".to_string()
+                },
+                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected enum definition.",
+                            t.line, t.col, &declaration.name, &declaration.value_type)
+            }
         },
         ValueType::TStruct => {
             match &inner_e.node_type {
@@ -1817,6 +1941,9 @@ fn to_ast_str(e: &Expr) -> String {
         },
         NodeType::ProcDef(_func_def) => {
             return "proc".to_string();
+        },
+        NodeType::EnumDef(_) => {
+            return "enum".to_string();
         },
         NodeType::StructDef => {
             return "struct".to_string();

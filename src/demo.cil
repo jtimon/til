@@ -97,6 +97,16 @@ branchless := func(cond: bool, a: i64, b: i64) returns i64 {
 println("testing branchless: should be 4 = ", itoa(branchless(true, 4, 2)))
 println("testing branchless: should be 2 = ", itoa(branchless(false, 4, 2)))
 
+ExampleEnum := enum {
+    eA
+    eB
+    LBool : bool
+    LNumber : i64
+    LString : String
+    eC
+    eD
+}
+
 my_struct := struct {
     bool_field : bool = true
     int_field : i64 = 0
@@ -117,12 +127,6 @@ my_struct := struct {
 
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
-
-// NodeType := enum {
-//     LBool
-//     LNumber
-//     LString
-// }
 
 //// TODO mode test
 
