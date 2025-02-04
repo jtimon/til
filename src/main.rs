@@ -563,43 +563,40 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
 fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("{}:{} compiler error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col);
-    } else {
-        let t = tokens.get(*current).unwrap();
-        if t.token_type == TokenType::LeftParen {
-            let args = func_proc_args(&source, &tokens, current);
-            let returns = func_proc_returns(&source, &tokens, current);
-            let body = parse_body(TokenType::RightBrace, &source, tokens, current).params;
-            let func_def = SFuncDef{args: args, returns: returns, body: body};
-            let params : Vec<Expr> = Vec::new();
-            let e;
-            match is_func {
-                true => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
-                false => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
-            }
-            *current = *current + 1;
-            e
-        } else {
-            panic!("{}:{} compiler error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type);
-        }
+        panic!("{}:{} parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col);
     }
+    let t = tokens.get(*current).unwrap();
+    if t.token_type != TokenType::LeftParen {
+        panic!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type);
+    }
+    let args = func_proc_args(&source, &tokens, current);
+    let returns = func_proc_returns(&source, &tokens, current);
+    let body = parse_body(TokenType::RightBrace, &source, tokens, current).params;
+    let func_def = SFuncDef{args: args, returns: returns, body: body};
+    let params : Vec<Expr> = Vec::new();
+    let e;
+    match is_func {
+        true => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
+        false => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
+    }
+    *current = *current + 1;
+    e
 }
 
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} compiler error: Expected '{{' after 'struct'.", t.line, t.col);
+        panic!("{}:{} parse error: Expected '{{' after 'struct'.", t.line, t.col);
     }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("{}:{} compiler error: expected '' after 'func' or 'proc', found EOF.", t.line, t.col);
-    } else {
-        *current = *current + 1;
-        let mut params : Vec<Expr> = Vec::new();
-        params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
-        *current = *current + 1;
-        return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
+        panic!("{}:{} parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col);
     }
+    *current = *current + 1;
+    let mut params : Vec<Expr> = Vec::new();
+    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
+    *current = *current + 1;
+    return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
 }
 
 fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
