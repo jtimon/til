@@ -595,7 +595,8 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
         panic!("{}:{} compiler error: expected '' after 'func' or 'proc', found EOF.", t.line, t.col);
     } else {
         *current = *current + 1;
-        let params = parse_body(TokenType::RightBrace, &source, tokens, current).params;
+        let mut params : Vec<Expr> = Vec::new();
+        params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
         *current = *current + 1;
         return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
     }
@@ -833,6 +834,7 @@ struct CilContext {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
+    structs: HashMap<String, Expr>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
     strings: HashMap<String, String>,
@@ -877,6 +879,7 @@ fn start_context() -> CilContext {
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
+        structs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
         strings: HashMap::new(),
@@ -1033,6 +1036,13 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                         },
                     }
                 },
+                ValueType::TStruct => {
+                    assert!(e.params.len() == 1, "Cil error: while declaring {}, struct declarations must take exactly one body.",
+                            decl.name);
+                    let inner_e = e.params.get(0).unwrap();
+                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                    context.structs.insert(decl.name.to_string(), inner_e.clone());
+                },
                 _ => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
@@ -1151,7 +1161,10 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             }
         },
         NodeType::StructDef => {
-            for p in e.params.iter() {
+            assert!(e.params.len() == 1, "Cil error: in check_types(): struct declarations must take exactly one param.");
+            let inner_e = e.params.get(0).unwrap();
+            assert!(inner_e.node_type == NodeType::Body, "Cil error: in check_types(): struct declarations must take exactly one body.");
+            for p in inner_e.params.iter() {
                 match &p.node_type {
                     NodeType::Declaration(_) => {}
                     node_type => {
@@ -1573,46 +1586,53 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
     assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
     match value_type {
         ValueType::TBool => {
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
-            context.bools.insert(declaration.name.clone(), bool_expr_result);
+            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
+            context.bools.insert(declaration.name.to_string(), bool_expr_result);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
-            let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-            context.i64s.insert(declaration.name.clone(), i64_expr_result_str.parse::<i64>().unwrap());
+            let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, inner_e);
+            context.i64s.insert(declaration.name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
-            let string_expr_result = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-            context.strings.insert(declaration.name.clone(), string_expr_result.to_string());
+            let string_expr_result = &eval_expr(&mut context, &source, &tokens, inner_e);
+            context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             string_expr_result.to_string()
         },
         ValueType::TStruct => {
-            panic!("{}:{} cil eval error: Cannot declare {} of type {:?}. Not implemented yet.",
-                   t.line, t.col, &declaration.name, &declaration.value_type);
+            match &inner_e.node_type {
+                NodeType::StructDef => {
+                    context.structs.insert(declaration.name.to_string(), inner_e.clone());
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    "struct declared".to_string()
+                },
+                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected struct definition.",
+                            t.line, t.col, &declaration.name, &declaration.value_type)
+            }
         },
         ValueType::TFunc => {
-            match &e.params.get(0).unwrap().node_type {
+            match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
-                    context.funcs.insert(declaration.name.clone(), func_def.clone());
+                    context.funcs.insert(declaration.name.to_string(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}.",
+                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected function definition.",
                             t.line, t.col, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TProc => {
-            match &e.params.get(0).unwrap().node_type {
+            match &inner_e.node_type {
                 NodeType::ProcDef(func_def) => {
                     context.procs.insert(declaration.name.clone(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "proc declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}.",
+                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected procedure definition.",
                             t.line, t.col, &declaration.name, &declaration.value_type)
             }
         },

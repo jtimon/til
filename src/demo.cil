@@ -97,23 +97,23 @@ branchless := func(cond: bool, a: i64, b: i64) returns i64 {
 println("testing branchless: should be 4 = ", itoa(branchless(true, 4, 2)))
 println("testing branchless: should be 2 = ", itoa(branchless(false, 4, 2)))
 
-// TODO fix col for invalid args
-// and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
+my_struct := struct {
+    bool_field : bool = true
+    int_field : i64 = 0
+    string_field := ""
+    bool_method_func := func() returns bool {
+        return true
+    }
+    bool_method_proc := proc() returns bool {
+	print("bool_method_proc called")
+	return false
+    }
+}
 
 // TODO next:
 
-// my_struct := struct {
-//     bool_field := false
-//     int_field := 0
-//     string_field := ""
-//     bool_method_func := func() returns bool {
-//         return true
-//     }
-//     bool_method_proc := proc() returns bool {
-// 	print("bool_method_proc called")
-// 	return false
-//     }
-// }
+// TODO fix col for invalid args
+// and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
 
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
