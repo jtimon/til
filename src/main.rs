@@ -1258,7 +1258,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                     Some(value_type) => {
                         match value_type {
                             ValueType::TCustom(custom_name) => {
-                                errors.push(format!("{}:{} 'enum' does not support custom types yet, found custom type '{}'.",
+                                errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                     t.line, t.col, custom_name));
                             },
                             _ => {},
@@ -1275,7 +1275,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                 match &p.node_type {
                     NodeType::Declaration(_) => {}
                     node_type => {
-                        errors.push(format!("{}:{} 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
+                        errors.push(format!("{}:{}: 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
                     }
                 }
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
@@ -1307,7 +1307,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
-                errors.push(format!("{}:{} Undefined function or procedure {}", t.line, t.col, name));
+                errors.push(format!("{}:{}: Undefined function or procedure {}", t.line, t.col, name));
                 return errors;
             }
             match name.as_str() {
@@ -1322,10 +1322,10 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
-                        errors.push(format!("{}:{} Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:{}: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
                     }
                     if has_multi_arg && func_def.args.len() > e.params.len() {
-                        errors.push(format!("{}:{} Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+                        errors.push(format!("{}:{}: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
                     }
 
                     let max_arg_def = func_def.args.len();
