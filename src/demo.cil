@@ -97,6 +97,9 @@ branchless := func(cond: bool, a: i64, b: i64) returns i64 {
 println("testing branchless: should be 4 = ", itoa(branchless(true, 4, 2)))
 println("testing branchless: should be 2 = ", itoa(branchless(false, 4, 2)))
 
+// TODO fix col for invalid args
+// and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
+
 ExampleEnum := enum {
     eA
     eB
@@ -122,8 +125,11 @@ my_struct := struct {
 
 // TODO next:
 
-// TODO fix col for invalid args
-// and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
+// ExampleEnum2 := enum {
+//     AAA : AAA
+//     BBB
+//     CCC : CCC
+// }
 
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
