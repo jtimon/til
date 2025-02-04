@@ -702,7 +702,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                 *current = *current + 1;
                 struct_definition(&source, &tokens, current)
             },
-            _ => panic!("{}:{} compiler error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
+            _ => panic!("{}:{} parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
     }
 }
@@ -722,7 +722,7 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Ex
     params.push(primary(&source, &tokens, current));
     let mut t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} compiler error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
+        panic!("{}:{} parse error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
     }
     *current = *current + 1;
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
@@ -732,7 +732,7 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Ex
         *current = *current + 1;
         t = tokens.get(*current).unwrap();
         if t.token_type != TokenType::LeftBrace {
-            panic!("{}:{} compiler error: Expected '{{' after 'else'.", t.line, t.col);
+            panic!("{}:{} parse error: Expected '{{' after 'else'.", t.line, t.col);
         }
         *current = *current + 1;
         params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
@@ -748,7 +748,7 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     params.push(primary(&source, &tokens, current));
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} compiler error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
+        panic!("{}:{} parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
     }
     *current = *current + 1;
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
