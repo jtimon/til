@@ -26,6 +26,9 @@ example_basic_workflow := proc() {
     }
     println(" ")
 
+    // and(true, 1111) // fails, and cannot take number literals
+    // and(true, "asdfgdfafgd") // fails, and cannot take string literals
+
     // if 42 { // fails, because if expects a bool first, not an int
     if gteq(4, 2) {
         println("aaaaaaaa")
@@ -110,7 +113,7 @@ ExampleEnum := enum {
     eD
 }
 
-my_struct := struct {
+MyStruct := struct {
     bool_field : bool = true
     int_field : i64 = 0
     string_field := ""
@@ -125,22 +128,37 @@ my_struct := struct {
 
 // TODO next:
 
-// ExampleEnum2 := enum {
-//     AAA : AAA
-//     BBB
-//     CCC : CCC
+ExampleEnum2 := enum {
+//     AAA : AAA // TODO should fail, because AAA is not a type, it's a bool
+    BBB
+//     CCC : CCC // TODO should fail, because CCC is not defined
+    DDD
+}
+
+// test_enums := proc() {
+//     enum_to_switch := ExampleEnum2.BBB
+//     switch enum_to_switch {
+//         ExampleEnum2.BBB {
+//             println("bbbbbb")
+// 	}
+//         ExampleEnum2.DDD {
+//             println("dddddd")
+// 	}
+//     }
 // }
+// test_enums()
+
+// test_structs := proc() {
+//     if MyStruct.bool_field {
+//         println("aaaaaaaa")
+//     }
+// }
+// test_structs()
 
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
 
 //// TODO mode test
-
-// my_num := 1111
-// and(true, my_num) // fails, and cannot take number literals
-
-// my_str := "asdfgdfafgd"
-// and(true, my_str) // fails, and cannot take string literals
 
 // FIX literals have to work in the repl
 // "aaa"
