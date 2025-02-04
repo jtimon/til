@@ -722,7 +722,7 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Ex
     params.push(primary(&source, &tokens, current));
     let mut t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} parse error: Expected '{{' after condition in 'if' statement.", t.line, t.col);
+        panic!("{}:{} parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type);
     }
     *current = *current + 1;
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
