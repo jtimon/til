@@ -158,6 +158,16 @@ ExampleEnum2 := enum {
 // my_bool_slice : []bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
 
+// test_int_switch := proc (i64_to_switch: i64) returns String {
+//     if eq(42, i64_to_switch) {
+//        return "That's the answer."
+//     } else {
+//        return "test_int_switch is not implemented yet."
+//     }
+// }
+// println(test_int_switch(42))
+// println(test_int_switch(43))
+
 //// TODO mode test
 
 // FIX literals have to work in the repl
