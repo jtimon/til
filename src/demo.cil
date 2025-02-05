@@ -134,6 +134,7 @@ ExampleEnum2 := enum {
 //     CCC : CCC // TODO should fail, because CCC is not defined
     DDD
 }
+// enum_to_switch := ExampleEnum2.BBB
 
 // test_enums := proc() {
 //     enum_to_switch := ExampleEnum2.BBB
