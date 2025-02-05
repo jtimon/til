@@ -672,7 +672,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
-        literal(&source, t, current)
+        return literal(&source, t, current)
     } else {
         match &t.token_type {
             TokenType::LeftParen => list(&source, &tokens, current),
@@ -682,38 +682,33 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                     panic!("{}:{} parse error: expected identifier after '{}.', found {:?}.",
                            t.line, t.col, get_token_str(source, t).to_string(), next_t.token_type);
                 }
-                // let next2_t = tokens.get(*current + 2).unwrap();
-                // if next2_t.token_type == TokenType::LeftParen {
-                //     func_call(&source, &tokens, current)
-                // } else {
-                // }
                 panic!("{}:{} parse error: '.' not allowed as part of a primary expression yet.", t.line, t.col);
             },
             TokenType::Identifier => {
-                if !(is_eof(&tokens, *current + 1) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen) {
-                    let params : Vec<Expr> = Vec::new();
-                    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: params};
-                    *current = *current + 1;
-                    e
-                } else {
-                    func_call(&source, &tokens, current)
+                let next_t = tokens.get(*current + 1).unwrap();
+                if TokenType::LeftParen == next_t.token_type {
+                    return func_call(&source, &tokens, current)
                 }
+                let params : Vec<Expr> = Vec::new();
+                let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: params};
+                *current = *current + 1;
+                return e
             },
             TokenType::Func => {
                 *current = *current + 1;
-                func_proc_definition(true, &source, &tokens, current)
+                return func_proc_definition(true, &source, &tokens, current)
             },
             TokenType::Proc => {
                 *current = *current + 1;
-                func_proc_definition(false, &source, &tokens, current)
+                return func_proc_definition(false, &source, &tokens, current)
             },
             TokenType::Enum => {
                 *current = *current + 1;
-                enum_definition(&source, &tokens, current)
+                return enum_definition(&source, &tokens, current)
             },
             TokenType::Struct => {
                 *current = *current + 1;
-                struct_definition(&source, &tokens, current)
+                return struct_definition(&source, &tokens, current)
             },
             _ => panic!("{}:{} parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
