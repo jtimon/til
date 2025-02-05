@@ -307,6 +307,17 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct EnumDeclVal {
+    name: String,
+    union_type: Option<ValueType>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SEnumDef {
+    enum_values: Vec<EnumDeclVal>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct Declaration {
     name: String,
     value_type: ValueType,
@@ -319,17 +330,6 @@ struct SFuncDef {
     returns: Vec<ValueType>,
     // throws: Vec<ValueType>,
     body: Vec<Expr>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct EnumDeclVal {
-    name: String,
-    union_type: Option<ValueType>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct SEnumDef {
-    enum_values: Vec<EnumDeclVal>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
