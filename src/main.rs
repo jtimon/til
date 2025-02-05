@@ -676,6 +676,19 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     } else {
         match &t.token_type {
             TokenType::LeftParen => list(&source, &tokens, current),
+            TokenType::Dot => {
+                let next_t = tokens.get(*current + 1).unwrap();
+                if next_t.token_type != TokenType::Identifier {
+                    panic!("{}:{} parse error: expected identifier after '{}.', found {:?}.",
+                           t.line, t.col, get_token_str(source, t).to_string(), next_t.token_type);
+                }
+                // let next2_t = tokens.get(*current + 2).unwrap();
+                // if next2_t.token_type == TokenType::LeftParen {
+                //     func_call(&source, &tokens, current)
+                // } else {
+                // }
+                panic!("{}:{} parse error: '.' not allowed as part of a primary expression yet.", t.line, t.col);
+            },
             TokenType::Identifier => {
                 if !(is_eof(&tokens, *current + 1) || tokens.get(*current + 1).unwrap().token_type == TokenType::LeftParen) {
                     let params : Vec<Expr> = Vec::new();
@@ -827,6 +840,9 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             match next_token_type {
                 TokenType::LeftParen => {
                     func_call(&source, &tokens, current)
+                },
+                TokenType::Dot => {
+                    panic!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col);
                 },
                 TokenType::Equal => {
                     parse_assignment(&source, &tokens, current)
