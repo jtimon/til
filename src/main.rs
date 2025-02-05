@@ -314,14 +314,8 @@ struct Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Arg {
-    name: String,
-    value_type: ValueType,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 struct SFuncDef {
-    args: Vec<Arg>,
+    args: Vec<Declaration>,
     returns: Vec<ValueType>,
     // throws: Vec<ValueType>,
     body: Vec<Expr>,
@@ -450,10 +444,10 @@ fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params}
 }
 
-fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Arg> {
+fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Declaration> {
 
     let mut rightparent_found = false;
-    let mut args : Vec<Arg> = Vec::new();
+    let mut args : Vec<Declaration> = Vec::new();
     *current = *current + 1;
     let mut t = tokens.get(*current).unwrap();
     let mut expect_comma = false;
@@ -465,7 +459,8 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
             TokenType::RightParen => {
                 rightparent_found = true;
                 if expect_colon {
-                    args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE)});
+                    args.push(Declaration{
+                        name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false});
                 }
                 *current = *current + 1;
             },
@@ -479,7 +474,8 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                 } else {
                     if expect_colon {
                         expect_colon = false;
-                        args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE)});
+                        args.push(Declaration{
+                            name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false});
                         expect_comma = true;
                         *current = *current + 1;
                         t = tokens.get(*current).unwrap();
@@ -511,7 +507,8 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                     expect_colon = true;
                     expect_name = false;
                 } else { // expect type name then
-                    args.push(Arg{name: arg_name.to_string(), value_type: str_to_value_type(get_token_str(source, t))});
+                    args.push(Declaration{
+                        name: arg_name.to_string(), value_type: str_to_value_type(get_token_str(source, t)), is_mut: false});
                     expect_comma = true;
                 }
                 *current = *current + 1;
@@ -970,28 +967,31 @@ fn start_context() -> CilContext {
     let body : Vec<Expr> = Vec::new();
     let return_types_none : Vec<ValueType> = Vec::new();
 
-    let mut args_print : Vec<Arg> = Vec::new();
-    args_print.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString))});
+    let mut args_print : Vec<Declaration> = Vec::new();
+    args_print.push(
+        Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
     let func_def_print = SFuncDef{args: args_print, returns: return_types_none, body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
 
-    let mut args_and_or : Vec<Arg> = Vec::new();
-    args_and_or.push(Arg{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool))});
+    let mut args_and_or : Vec<Declaration> = Vec::new();
+    args_and_or.push(
+        Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
     let mut return_type_bool : Vec<ValueType> = Vec::new();
     return_type_bool.push(ValueType::TBool);
     let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
 
-    let mut args_single_bool : Vec<Arg> = Vec::new();
-    args_single_bool.push(Arg{name: "a".to_string(), value_type: ValueType::TBool});
+    let mut args_single_bool : Vec<Declaration> = Vec::new();
+    args_single_bool.push(
+        Declaration{name: "a".to_string(), value_type: ValueType::TBool, is_mut: false});
     let func_def_not = SFuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
 
-    let mut args_bin_i64 : Vec<Arg> = Vec::new();
-    args_bin_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
-    args_bin_i64.push(Arg{name: "b".to_string(), value_type: ValueType::TI64});
+    let mut args_bin_i64 : Vec<Declaration> = Vec::new();
+    args_bin_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
+    args_bin_i64.push(Declaration{name: "b".to_string(), value_type: ValueType::TI64, is_mut: false});
 
     let func_def_bin_i64_to_bool = SFuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
@@ -1013,8 +1013,8 @@ fn start_context() -> CilContext {
     let func_def_btoa = SFuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("btoa".to_string(), func_def_btoa);
 
-    let mut args_single_i64 : Vec<Arg> = Vec::new();
-    args_single_i64.push(Arg{name: "a".to_string(), value_type: ValueType::TI64});
+    let mut args_single_i64 : Vec<Declaration> = Vec::new();
+    args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
     let func_def_itoa = SFuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("itoa".to_string(), func_def_itoa);
 
