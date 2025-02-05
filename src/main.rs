@@ -346,7 +346,6 @@ enum NodeType {
     LString(String),
     LI64(i64),
     LBool(bool),
-    // LDecimal(String),
     FCall(String),
     Identifier(String),
     Declaration(Declaration),
