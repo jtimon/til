@@ -521,13 +521,13 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
     }
 }
 
-fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<ValueType> {
+fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     let mut t = tokens.get(*current).unwrap();
     *current = *current + 1;
     if t.token_type != TokenType::Returns {
-        return return_types;
+        return Ok(return_types);
     }
     t = tokens.get(*current).unwrap();
     let mut expect_comma = false;
@@ -543,12 +543,12 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("{}:{} compiler error: Unexpected ','.", t.line, t.col);
+                    return Err(format!("{}:{} compiler error: Unexpected ','.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    panic!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
+                    return Err(format!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 return_types.push(str_to_value_type(get_token_str(source, t)));
                 expect_comma = true;
@@ -556,14 +556,14 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("{}:{} compiler error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type);
+                return Err(format!("{}:{} compiler error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
             },
         }
     }
     if end_found {
-        return_types
+        return Ok(return_types);
     } else {
-        panic!("{}:{} compiler error: Expected '{{' or 'throws' after return values.", t.line, t.col);
+        return Err(format!("{}:{} compiler error: Expected '{{' or 'throws' after return values.", t.line, t.col));
     }
 }
 
@@ -577,7 +577,10 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
         return Err(format!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
     let args = func_proc_args(&source, &tokens, current);
-    let returns = func_proc_returns(&source, &tokens, current);
+    let returns = match func_proc_returns(&source, &tokens, current) {
+        Ok(to_ret) => to_ret,
+        Err(err_str) => return Err(err_str),
+    };
     let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
         Ok(body) => body.params,
         Err(err_str) => return Err(err_str),
