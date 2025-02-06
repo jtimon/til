@@ -398,12 +398,12 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
                     *current = *current + 1;
                     list_t = tokens.get(*current).unwrap();
                 } else {
-                    return Err(format!("{}:{} compiler error: Unexpected ','.", list_t.line, list_t.col));
+                    return Err(format!("{}:{} parse error: Unexpected ','.", list_t.line, list_t.col));
                 }
             },
             _ => {
                 if expect_comma {
-                    return Err(format!("{}:{} compiler error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
+                    return Err(format!("{}:{} parse error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
                 }
                 expect_comma = true;
                 params.push(primary(&source, &tokens, current));
@@ -413,7 +413,7 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
     }
     match list_t.token_type {
         TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token_index: initial_current, params: params}),
-        _ => Err(format!("{}:{} compiler error: Expected closing parentheses.", list_t.line, list_t.col)),
+        _ => Err(format!("{}:{} parse error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
 
@@ -488,15 +488,15 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("{}:{} compiler error: Unexpected ':'.", t.line, t.col);
+                    panic!("{}:{} parse error: Unexpected ':'.", t.line, t.col);
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    panic!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
+                    panic!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
                 }
                 if expect_colon {
-                    panic!("{}:{} compiler error: Expected ':', found {:?}.", t.line, t.col, t.token_type);
+                    panic!("{}:{} parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type);
                 }
                 if expect_name {
                     arg_name = get_token_str(source, t);
@@ -511,13 +511,13 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("{}:{} compiler error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type);
+                panic!("{}:{} parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type);
             },
         }
     }
     match t.token_type {
         TokenType::RightParen => args,
-        _ => panic!("{}:{} compiler error: Expected closing parentheses.", t.line, t.col),
+        _ => panic!("{}:{} parse error: Expected closing parentheses.", t.line, t.col),
     }
 }
 
@@ -543,12 +543,12 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    return Err(format!("{}:{} compiler error: Unexpected ','.", t.line, t.col));
+                    return Err(format!("{}:{} parse error: Unexpected ','.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(format!("{}:{} compiler error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 return_types.push(str_to_value_type(get_token_str(source, t)));
                 expect_comma = true;
@@ -556,14 +556,14 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                return Err(format!("{}:{} compiler error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{} parse error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
             },
         }
     }
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(format!("{}:{} compiler error: Expected '{{' or 'throws' after return values.", t.line, t.col));
+        return Err(format!("{}:{} parse error: Expected '{{' or 'throws' after return values.", t.line, t.col));
     }
 }
 
@@ -840,14 +840,14 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             let mut next_t = tokens.get(*current + 1).unwrap();
             let mut next_token_type = &next_t.token_type;
             if next_token_type != &TokenType::Identifier {
-                return Err(format!("{}:{} compiler error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
+                return Err(format!("{}:{} parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
             }
             let identifier = get_token_str(source, next_t);
             *current = *current + 1;
             next_t = tokens.get(*current + 1).unwrap();
             next_token_type = &next_t.token_type;
             if next_token_type != &TokenType::Colon {
-                return Err(format!("{}:{} compiler error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
+                return Err(format!("{}:{} parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
             }
             let next_next_t = tokens.get(*current + 2).unwrap();
             let next_next_token_type = &next_next_t.token_type;
@@ -896,12 +896,12 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
 
                 },
                 _ => {
-                    Err(format!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
+                    Err(format!("{}:{} parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
                 },
             }
         },
         _ => {
-            Err(format!("{}:{} compiler error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
+            Err(format!("{}:{} parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
         },
     }
 }
@@ -925,7 +925,7 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     if end_found {
         return Ok(Expr { node_type: NodeType::Body, token_index: initial_current, params: params})
     }
-    return Err(format!("compiler error: Expected {:?} to end body.", end_token));
+    return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
 fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Result<Expr, String> {
