@@ -739,19 +739,19 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Ex
     Expr { node_type: NodeType::If, token_index: initial_current, params: params}
 }
 
-fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&source, &tokens, current));
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col);
+        return Err(format!("{}:{} parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
     }
     *current = *current + 1;
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
     *current = *current + 1;
-    Expr { node_type: NodeType::While, token_index: initial_current, params: params}
+    Ok(Expr { node_type: NodeType::While, token_index: initial_current, params: params})
 }
 
 fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Expr {
@@ -782,7 +782,12 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             if_statement(&source, &tokens, current)
         },
         TokenType::While => {
-            while_statement(&source, &tokens, current)
+            match while_statement(&source, &tokens, current) {
+                Ok(to_ret) => to_ret,
+                Err(error_string) => {
+                    panic!("{}", error_string);
+                }
+            }
         },
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
