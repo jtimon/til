@@ -970,9 +970,14 @@ fn start_context() -> CilContext {
     let mut args_print : Vec<Declaration> = Vec::new();
     args_print.push(
         Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
-    let func_def_print = SFuncDef{args: args_print, returns: return_types_none, body: body.clone()};
+    let func_def_print = SFuncDef{args: args_print, returns: return_types_none.clone(), body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
+
+    let mut args_single_i64 : Vec<Declaration> = Vec::new();
+    args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
+    let func_def_exit = SFuncDef{args: args_single_i64, returns: return_types_none, body: body.clone()};
+    context.procs.insert("exit".to_string(), func_def_exit);
 
     let mut args_and_or : Vec<Declaration> = Vec::new();
     args_and_or.push(
@@ -1599,6 +1604,21 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &S
     "".to_string()
 }
 
+fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "eval_core_exit expects a single parameter.");
+    let e_exit_code = e.params.get(0).unwrap();
+    let exit_code = match &e_exit_code.node_type {
+        NodeType::LI64(my_li64) => {
+            my_li64.clone()
+        },
+        node_type => {
+            let t = tokens.get(e.token_index).unwrap();
+            panic!("{}:{} cil error: calling core proc exit, but found {:?} instead of exit code.", t.line, t.col, node_type);
+        },
+    };
+    std::process::exit(exit_code as i32);
+}
+
 // ---------- generic eval things
 
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -1678,6 +1698,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
         match name {
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
+            "exit" => eval_core_exit(&tokens, &e),
             _ => panic!("{}:{} cil eval error: Core procedure '{}' not implemented.", t.line, t.col, name),
         }
     } else if context.funcs.contains_key(name) {

@@ -136,6 +136,8 @@ ExampleEnum2 := enum {
 }
 // trying_dot := __a.b
 
+exit(0)
+
 // test_enums := proc() {
 //     enum_to_switch := ExampleEnum2.BBB
 //     switch enum_to_switch {
