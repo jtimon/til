@@ -779,7 +779,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::Const => {
-            panic!("{}:{} parse error:\n keyword 'const' doesn't need to be constantly repeated in {}.\n Everyithing is const by default.\nUse 'mut' when you don't want a const", t.line, t.col, "here".to_string());
+            panic!("{}:{} parse error:\n keyword 'const' doesn't need to be constantly repeated in {}.\n Everything is const by default.\nUse 'mut' when you don't want a const", t.line, t.col, "here".to_string());
         },
         TokenType::Var => {
             panic!("{}:{} parse error:\n keyword 'var' is supported in js, use 'mut' instead in {} .", t.line, t.col, "here".to_string());
