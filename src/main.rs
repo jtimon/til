@@ -9,6 +9,7 @@ use std::collections::HashMap;
 // or just change the name of the language
 // CIL stands for Compiled Interpreted Language
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
+const LANG_NAME: &str = "lang";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
 
@@ -369,7 +370,7 @@ fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => {
-            return Err(format!("{}:{} cil error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, t.token_type));
+            return Err(format!("{}:{} {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, LANG_NAME, t.token_type));
         },
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
@@ -1075,18 +1076,18 @@ fn start_context() -> CilContext {
 fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
     match func_def.returns.len() {
         0 => {
-            panic!("cil error: func '{}' does not return anything" , name)
+            panic!("{} error: func '{}' does not return anything" , LANG_NAME, name)
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
                 ValueType::TBool => ValueType::TBool,
                 ValueType::TI64 => ValueType::TI64,
                 ValueType::TString => ValueType::TString,
-                _ => panic!("cil error: func '{}' returns unsupported type {:?}" , name, func_def.returns.get(0).unwrap()),
+                _ => panic!("{} error: func '{}' returns unsupported type {:?}" , LANG_NAME, name, func_def.returns.get(0).unwrap()),
             }
         },
         _ => {
-            panic!("cil error: func '{}' returns multiple values, but that's not implemented yet." , name)
+            panic!("{} error: func '{}' returns multiple values, but that's not implemented yet." , LANG_NAME, name)
         },
     }
 }
@@ -1116,11 +1117,11 @@ fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
             match context.symbols.get(name) {
                 Some(symbol_info) => symbol_info.value_type.clone(),
                 None => {
-                    panic!("cil error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", name)
+                    panic!("{} error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", LANG_NAME, name)
                 }
             }
         },
-       node_type => panic!("cil error: get_value_type() not implement for {:?} yet.", node_type),
+        node_type => panic!("{} error: get_value_type() not implement for {:?} yet.", LANG_NAME, node_type),
     }
 }
 
@@ -1137,14 +1138,14 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
         NodeType::Declaration(decl) => {
             let t = tokens.get(e.token_index).unwrap();
             if is_defined_symbol(&context, &decl.name) {
-                errors.push(format!("{}:{} compiler error: '{}' already declared.", t.line, t.col, decl.name));
+                errors.push(format!("{}:{}: compiler error: '{}' already declared.", t.line, t.col, decl.name));
             }
-            assert!(e.params.len() == 1, "Cil error: in init_context, while declaring {}, declarations must take exactly one value.", decl.name);
+            assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
             let value_type = get_value_type(&context, &inner_e);
             if decl.value_type != str_to_value_type(INFER_TYPE) {
                 if value_type != decl.value_type {
-                    errors.push(format!("{}:{} type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
+                    errors.push(format!("{}:{}: type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
                 }
             }
             match value_type {
@@ -1155,7 +1156,7 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{} cil error: funcs should have definitions. This should never happen", t.line, t.col);
+                            panic!("{}:{}: {} error: funcs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
                         },
                     }
                 },
@@ -1166,12 +1167,12 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                             context.procs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{} cil error: procs should have definitions. This should never happen", t.line, t.col);
+                            panic!("{}:{}: {} error: procs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
                         },
                     }
                 },
                 ValueType::TEnum => {
-                    assert!(inner_e.params.len() == 0, "Cil error: while declaring {}: enum declarations don't have any parameters in the tree.",
+                    assert!(inner_e.params.len() == 0, "{} error: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
                             decl.name);
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
@@ -1179,12 +1180,12 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
                             context.enums.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            panic!("{}:{} cil error: enums should have definitions. This should never happen", t.line, t.col);
+                            panic!("{}:{}: {} error: enums should have definitions. This should never happen", t.line, t.col, LANG_NAME);
                         },
                     }
                 },
                 ValueType::TStruct => {
-                    assert!(inner_e.params.len() == 1, "Cil error: while declaring {}, struct declarations must take exactly one body.",
+                    assert!(inner_e.params.len() == 1, "{} error: while declaring {}, struct declarations must take exactly one body.", LANG_NAME,
                             decl.name);
                     let inner_e = e.params.get(0).unwrap();
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
@@ -1252,11 +1253,11 @@ fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<To
             context.symbols.contains_key(call_name) && context.symbols.get(call_name).unwrap().value_type == ValueType::TProc
         },
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() != 1, "Cil error: while declaring {}, declarations must take exactly one value.", decl.name);
+            assert!(e.params.len() != 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         },
         NodeType::Assignment(var_name) => {
-            assert!(e.params.len() == 1, "Cil error: while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len());
+            assert!(e.params.len() == 1, "{} error: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
         NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) => {
@@ -1312,7 +1313,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             }
         },
         NodeType::EnumDef(enum_def) => {
-            assert!(e.params.len() == 0, "Cil error: in check_types(): enum declarations don't have any parameters in the tree.");
+            assert!(e.params.len() == 0, "{} error: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
             for enum_it in &enum_def.enum_values {
                 match &enum_it.union_type {
                     None => {},
@@ -1329,9 +1330,9 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             }
         },
         NodeType::StructDef => {
-            assert!(e.params.len() == 1, "Cil error: in check_types(): struct declarations must take exactly one param.");
+            assert!(e.params.len() == 1, "{} error: in check_types(): struct declarations must take exactly one param.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
-            assert!(inner_e.node_type == NodeType::Body, "Cil error: in check_types(): struct declarations must take exactly one body.");
+            assert!(inner_e.node_type == NodeType::Body, "{} error: in check_types(): struct declarations must take exactly one body.", LANG_NAME);
             for p in inner_e.params.iter() {
                 match &p.node_type {
                     NodeType::Declaration(_) => {}
@@ -1343,7 +1344,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             }
         },
         NodeType::If => {
-            assert!(e.params.len() == 2 || e.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+            assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
             let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
             if !first_is_condition {
@@ -1355,7 +1356,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             }
         },
         NodeType::While => {
-            assert!(e.params.len() == 2, "Cil error: while nodes must have exactly 2 parameters.");
+            assert!(e.params.len() == 2, "{} error: while nodes must have exactly 2 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
             let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
             if !first_is_condition {
@@ -1379,7 +1380,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                     } else if context.procs.contains_key(name) {
                         func_def = context.procs.get(name).unwrap();
                     } else {
-                        panic!("cil error: Undefined function or procedure '{}'. This should have been caught before.\n", name);
+                        panic!("{} error: Undefined function or procedure '{}'. This should have been caught before.\n", LANG_NAME, name);
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
@@ -1431,7 +1432,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
         },
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() == 1, "Cil error: in declaration of {} declaration nodes must exactly 1 parameter.", decl.name);
+            assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
             if !context.symbols.contains_key(&decl.name) {
                 let mut value_type = decl.value_type.clone();
@@ -1441,7 +1442,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                 context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 match value_type {
                     ValueType::ToInferType => {
-                        panic!("{}:{} cil error: Cannot infer the declaration type of {}", t.line, t.col, decl.name);
+                        panic!("{}:{} {} error: Cannot infer the declaration type of {}", t.line, t.col, LANG_NAME, decl.name);
                     },
                     ValueType::TFunc | ValueType::TProc => {
                         match &inner_e.node_type {
@@ -1452,7 +1453,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
                                 context.procs.insert(decl.name.clone(), func_def.clone());
                             },
                             _ => {
-                                panic!("{}:{} cil error: funcs/procs should have definitions. This should never happen", t.line, t.col);
+                                panic!("{}:{} {} error: funcs/procs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
                             },
                         }
                     },
@@ -1462,7 +1463,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             errors.append(&mut check_types(&mut context, &source, &tokens, &inner_e));
         },
         NodeType::Assignment(var_name) => {
-            assert!(e.params.len() == 1, "Cil error: in assignment to {}, assignments must take exactly one value, not {}.", var_name, e.params.len());
+            assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             if is_core_func(&var_name) {
                 errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if is_core_proc(&var_name) {
@@ -1483,7 +1484,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
-            assert!(e.params.len() == 1, "Cil error: return nodes must exactly 1 parameter.");
+            assert!(e.params.len() == 1, "{} error: return nodes must exactly 1 parameter.", LANG_NAME);
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList => {},
@@ -1501,7 +1502,7 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
             if does_func_return_bool(&context, f_name) {
                 lbool_in_string_to_bool(eval_func_proc_call(f_name, &mut context, &source, &tokens, &e).as_str())
             } else {
-                panic!("cil error: Function '{}' does not return bool. This should have been caught in the compile phase.\n", f_name);
+                panic!("{} error: Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
             }
         },
         NodeType::Identifier(name) => {
@@ -1509,14 +1510,14 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
                 match context.bools.get(name) {
                     Some(bool_value) => bool_value.clone(),
                     None => {
-                        panic!("cil error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", name)
+                        panic!("{} error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", LANG_NAME, name)
                     }
                 }
             } else {
-                panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'");
+                panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'", LANG_NAME);
             }
         },
-        node_type => panic!("cil error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", node_type),
+        node_type => panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", LANG_NAME, node_type),
     }
 }
 
@@ -1539,75 +1540,75 @@ fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec
 }
 
 fn eval_core_func_not(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "Cil Error: Core func 'not' only takes 1 argument. This should never happen.");
+    assert!(e.params.len() == 1, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
     (!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap())).to_string()
 }
 
 fn eval_core_func_eq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
 fn eval_core_func_lt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
 fn eval_core_func_lteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
 fn eval_core_func_gt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
 fn eval_core_func_gteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
 fn eval_core_func_sub(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
 fn eval_core_func_mul(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
 fn eval_core_func_div(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "Cil Error: Core func 'eq' takes exactly 2 arguments. This should never happen.");
+    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
 fn eval_core_func_btoi(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "Cil Error: Core func 'btoi' takes exactly 1 argument. This should never happen.");
+    assert!(e.params.len() == 1, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
         "1".to_string()
     } else {
@@ -1616,7 +1617,7 @@ fn eval_core_func_btoi(mut context: &mut CilContext, source: &String, tokens: &V
 }
 
 fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "Cil Error: Core func 'btoa' takes exactly 1 argument. This should never happen.");
+    assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
         "true".to_string()
     } else {
@@ -1625,7 +1626,7 @@ fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &V
 }
 
 fn eval_core_func_itoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "Cil Error: Core func 'btoa' takes exactly 1 argument. This should never happen.");
+    assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap())
 }
 
@@ -1635,7 +1636,7 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
         "false" => false,
-        _ => panic!("Cil Error: expected string 'true' or 'false', this should never happen.")
+        _ => panic!("{} Error: expected string 'true' or 'false', this should never happen.", LANG_NAME)
     }
 }
 
@@ -1659,7 +1660,7 @@ fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
         },
         node_type => {
             let t = tokens.get(e.token_index).unwrap();
-            panic!("{}:{} cil error: calling core proc exit, but found {:?} instead of exit code.", t.line, t.col, node_type);
+            panic!("{}:{} {} error: calling core proc exit, but found {:?} instead of exit code.", t.line, t.col, LANG_NAME, node_type);
         },
     };
     std::process::exit(exit_code as i32);
@@ -1671,8 +1672,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContex
     let t = tokens.get(e.token_index).unwrap();
 
     let mut function_context = context.clone();
-    assert!(e.params.len() == func_def.args.len(), "Cil error: func '{}' expected {} args, but {} were provided. This should never happen.",
-            name, func_def.args.len(), e.params.len());
+    assert!(e.params.len() == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
+            LANG_NAME, name, func_def.args.len(), e.params.len());
 
     let mut param_index = 0;
     for arg in &func_def.args {
@@ -1692,7 +1693,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContex
             function_context.strings.insert(arg.name.clone(), result);
             param_index += 1;
         } else {
-            panic!("{}:{} cil error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, name, arg.value_type);
+            panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, name, LANG_NAME, arg.value_type);
         }
 
     }
@@ -1700,11 +1701,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContex
     for se in &func_def.body {
         match se.node_type {
             NodeType::Return => {
-                assert!(e.params.len() != 0, "Cil error: return must currently always return exactly one value.");
+                assert!(e.params.len() != 0, "{} error: return must currently always return exactly one value.", LANG_NAME);
                 return eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap());
             },
             NodeType::If => {
-                assert!(se.params.len() == 2 || se.params.len() == 3, "Cil error: if nodes must have 2 or 3 parameters.");
+                assert!(se.params.len() == 2 || se.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
                 if eval_to_bool(&mut function_context, &source, &tokens, &se.params.get(0).unwrap()) {
                     return eval_expr(&mut function_context, &source, &tokens, &se.params.get(1).unwrap())
                 } else if se.params.len() == 3 {
