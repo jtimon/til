@@ -736,12 +736,12 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     }
 }
 
-fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&source, &tokens, current));
-    Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
+    Ok(Expr { node_type: NodeType::Return, token_index: initial_current, params: params})
 }
 
 fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -819,19 +819,13 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             return Err(format!("{}:{} parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
         TokenType::Return => {
-            Ok(return_statement(&source, &tokens, current))
+            return return_statement(&source, &tokens, current)
         },
         TokenType::If => {
-            match if_statement(&source, &tokens, current) {
-                Ok(to_ret) => Ok(to_ret),
-                Err(error_string) => Err(error_string),
-            }
+            return if_statement(&source, &tokens, current)
         },
         TokenType::While => {
-            match while_statement(&source, &tokens, current) {
-                Ok(to_ret) => Ok(to_ret),
-                Err(error_string) => Err(error_string),
-            }
+            return while_statement(&source, &tokens, current)
         },
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
