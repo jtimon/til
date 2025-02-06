@@ -593,16 +593,16 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
     Ok(e)
 }
 
-fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current: usize = *current;
 
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} parse error: Expected '{{' after 'enum'.", t.line, t.col);
+        return Err(format!("{}:{} parse error: Expected '{{' after 'enum'.", t.line, t.col));
     }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("{}:{} parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col);
+        return Err(format!("{}:{} parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let mut enum_values : Vec<EnumDeclVal> = Vec::new();
@@ -624,7 +624,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     TokenType::Colon => {
                         let next2_t = tokens.get(*current + 2).unwrap();
                         if next2_t.token_type != TokenType::Identifier {
-                            panic!("{}:{} parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type);
+                            return Err(format!("{}:{} parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
                         }
                         let enum_val_type = get_token_str(source, next2_t);
                         enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: Some(str_to_value_type(enum_val_type))});
@@ -634,17 +634,16 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 }
             },
             _ => {
-                panic!("{}:{} parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type);
+                return Err(format!("{}:{} parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));
             }
         }
         *current = *current + 1;
     }
     if !end_found {
-        panic!("{}:{} parse error: Expected '}}' to end enum.", t.line, t.col);
+        return Err(format!("{}:{} parse error: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
-    return Expr { node_type: NodeType::EnumDef(SEnumDef{enum_values: enum_values}),
-                  token_index: initial_current, params: params};
+    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_values: enum_values}), token_index: initial_current, params: params});
 }
 
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -716,7 +715,12 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             TokenType::Enum => {
                 *current = *current + 1;
-                return enum_definition(&source, &tokens, current)
+                match enum_definition(&source, &tokens, current) {
+                    Ok(to_ret) => return to_ret,
+                    Err(error_string) => {
+                        panic!("{}", error_string);
+                    },
+                }
             },
             TokenType::Struct => {
                 *current = *current + 1;
