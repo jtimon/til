@@ -430,14 +430,14 @@ fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr 
     Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
 }
 
-fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let name = get_token_str(source, t);
     let initial_current = *current;
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&source, &tokens, current));
-    Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params}
+    Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params})
 }
 
 fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Declaration> {
@@ -866,7 +866,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     Err(format!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
                 },
                 TokenType::Equal => {
-                    Ok(parse_assignment(&source, &tokens, current))
+                    return parse_assignment(&source, &tokens, current)
                 },
                 TokenType::Colon => {
                     let next_next_t = tokens.get(*current + 2).unwrap();
