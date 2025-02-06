@@ -713,14 +713,14 @@ fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     Expr { node_type: NodeType::Return, token_index: initial_current, params: params}
 }
 
-fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&source, &tokens, current));
     let mut t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type);
+        return Err(format!("{}:{} parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
     }
     *current = *current + 1;
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
@@ -730,13 +730,13 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Ex
         *current = *current + 1;
         t = tokens.get(*current).unwrap();
         if t.token_type != TokenType::LeftBrace {
-            panic!("{}:{} parse error: Expected '{{' after 'else'.", t.line, t.col);
+            return Err(format!("{}:{} parse error: Expected '{{' after 'else'.", t.line, t.col));
         }
         *current = *current + 1;
         params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
         *current = *current + 1;
     }
-    Expr { node_type: NodeType::If, token_index: initial_current, params: params}
+    Ok(Expr { node_type: NodeType::If, token_index: initial_current, params: params})
 }
 
 fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -779,14 +779,19 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             return_statement(&source, &tokens, current)
         },
         TokenType::If => {
-            if_statement(&source, &tokens, current)
+            match if_statement(&source, &tokens, current) {
+                Ok(to_ret) => to_ret,
+                Err(error_string) => {
+                    panic!("{}", error_string);
+                },
+            }
         },
         TokenType::While => {
             match while_statement(&source, &tokens, current) {
                 Ok(to_ret) => to_ret,
                 Err(error_string) => {
                     panic!("{}", error_string);
-                }
+                },
             }
         },
         TokenType::Mut => {
