@@ -803,29 +803,25 @@ fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, 
     Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params}
 }
 
-fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::For => {
             panic!("{}:{} parse error: Suggestion: use 'while' while more loop options are implemented, for 'for' is not implemented yet.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col);
         },
         TokenType::Return => {
-            return_statement(&source, &tokens, current)
+            Ok(return_statement(&source, &tokens, current))
         },
         TokenType::If => {
             match if_statement(&source, &tokens, current) {
-                Ok(to_ret) => to_ret,
-                Err(error_string) => {
-                    panic!("{}", error_string);
-                },
+                Ok(to_ret) => Ok(to_ret),
+                Err(error_string) => Err(error_string),
             }
         },
         TokenType::While => {
             match while_statement(&source, &tokens, current) {
-                Ok(to_ret) => to_ret,
-                Err(error_string) => {
-                    panic!("{}", error_string);
-                },
+                Ok(to_ret) => Ok(to_ret),
+                Err(error_string) => Err(error_string),
             }
         },
         TokenType::Mut => {
@@ -846,10 +842,10 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = get_token_str(source, next_next_t);
-                    parse_declaration(&source, &tokens, current, true, type_name)
+                    Ok(parse_declaration(&source, &tokens, current, true, type_name))
                 }
                 TokenType::Equal => {
-                    parse_declaration(&source, &tokens, current, true, INFER_TYPE)
+                    Ok(parse_declaration(&source, &tokens, current, true, INFER_TYPE))
                 },
                 _ => panic!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
             }
@@ -859,13 +855,13 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             let next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::LeftParen => {
-                    func_call(&source, &tokens, current)
+                    Ok(func_call(&source, &tokens, current))
                 },
                 TokenType::Dot => {
                     panic!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col);
                 },
                 TokenType::Equal => {
-                    parse_assignment(&source, &tokens, current)
+                    Ok(parse_assignment(&source, &tokens, current))
                 },
                 TokenType::Colon => {
                     let next_next_t = tokens.get(*current + 2).unwrap();
@@ -874,10 +870,10 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     match next_next_token_type {
                         TokenType::Identifier => {
                             let type_name = get_token_str(source, next_next_t);
-                            parse_declaration(&source, &tokens, current, false, type_name)
+                            Ok(parse_declaration(&source, &tokens, current, false, type_name))
                         }
                         TokenType::Equal => {
-                            parse_declaration(&source, &tokens, current, false, INFER_TYPE)
+                            Ok(parse_declaration(&source, &tokens, current, false, INFER_TYPE))
                         },
                         _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
                     }
@@ -898,7 +894,11 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
         if tokens.get(*current).unwrap().token_type == end_token {
             end_found = true;
         } else {
-            params.push(parse_statement(&source, &tokens, current));
+            let stmt = match parse_statement(&source, &tokens, current) {
+                Ok(statement) => statement,
+                Err(error_string) => return Err(error_string),
+            };
+            params.push(stmt);
         }
     }
     if end_found {
@@ -912,9 +912,7 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Result<Expr, String> {
 
     let e: Expr = match parse_body(TokenType::Eof, &source, tokens, &mut current) {
         Ok(expr) => expr,
-        Err(error_string) => {
-            return Err(format!("{}", error_string));
-        },
+        Err(error_string) => return Err(error_string),
     };
     current = current + 1; // Add one for the EOF
 
