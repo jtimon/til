@@ -114,7 +114,7 @@ ExampleEnum := enum {
 }
 
 MyStruct := struct {
-    bool_field : bool = true
+    bool_field : bool = false
     int_field : i64 = 0
     string_field := ""
     bool_method_func := func() returns bool {
@@ -138,6 +138,10 @@ ExampleEnum2 := enum {
 
 exit(0)
 
+// my_bool_array := [true, false, true, false]
+// my_bool_array : [4]bool = [true, false, true, false]
+// my_list := (true, 1111, "hello")
+
 // test_enums := proc() {
 //     enum_to_switch := ExampleEnum2.BBB
 //     switch enum_to_switch {
@@ -157,9 +161,6 @@ exit(0)
 //     }
 // }
 // test_structs()
-
-// my_bool_slice : []bool = [true, false, true, false]
-// my_list := (true, 1111, "hello")
 
 // test_int_switch := proc (i64_to_switch: i64) returns String {
 //     if eq(42, i64_to_switch) {
