@@ -2010,15 +2010,15 @@ fn run(path: &String, source: &String) -> String {
                 errors_found = errors_found + 1;
             },
             TokenType::Const => {
-                print_lex_error(&path, &source, &t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used.");
+                print_lex_error(&path, &source, &t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
                 errors_found = errors_found + 1;
             },
             TokenType::Var => {
-                print_lex_error(&path, &source, &t, errors_found, "Keyword 'var' is not supported, use 'mut' instead.");
+                print_lex_error(&path, &source, &t, errors_found, "Keyword 'var' is not supported, use 'mut' instead");
                 errors_found = errors_found + 1;
             },
             TokenType::Fn => {
-                print_lex_error(&path, &source, &t, errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead.");
+                print_lex_error(&path, &source, &t, errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
                 errors_found = errors_found + 1;
             },
             _ => {},
