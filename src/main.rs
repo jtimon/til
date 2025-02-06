@@ -576,7 +576,10 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
     }
     let args = func_proc_args(&source, &tokens, current);
     let returns = func_proc_returns(&source, &tokens, current);
-    let body = parse_body(TokenType::RightBrace, &source, tokens, current).params;
+    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+        Ok(body) => body.params,
+        Err(err_str) => return Err(err_str),
+    };
     let func_def = SFuncDef{args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
     let e;
@@ -653,7 +656,11 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
-    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
+    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+    params.push(body);
     *current = *current + 1;
     return Ok(Expr { node_type: NodeType::StructDef, token_index: *current, params: params});
 }
@@ -738,7 +745,11 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Re
         return Err(format!("{}:{} parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
     }
     *current = *current + 1;
-    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
+    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+    params.push(body);
     *current = *current + 1;
     t = tokens.get(*current).unwrap();
     if t.token_type == TokenType::Else {
@@ -748,7 +759,11 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Re
             return Err(format!("{}:{} parse error: Expected '{{' after 'else'.", t.line, t.col));
         }
         *current = *current + 1;
-        params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
+        let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+            Ok(body) => body,
+            Err(err_str) => return Err(err_str),
+        };
+        params.push(body);
         *current = *current + 1;
     }
     Ok(Expr { node_type: NodeType::If, token_index: initial_current, params: params})
@@ -764,7 +779,11 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         return Err(format!("{}:{} parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
     }
     *current = *current + 1;
-    params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
+    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+    params.push(body);
     *current = *current + 1;
     Ok(Expr { node_type: NodeType::While, token_index: initial_current, params: params})
 }
@@ -870,7 +889,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     }
 }
 
-fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
@@ -883,16 +902,20 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
         }
     }
     if end_found {
-        Expr { node_type: NodeType::Body, token_index: initial_current, params: params}
-    } else {
-        panic!("compiler error: Expected {:?} to end body.", end_token);
+        return Ok(Expr { node_type: NodeType::Body, token_index: initial_current, params: params})
     }
+    return Err(format!("compiler error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
+fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Result<Expr, String> {
     let mut current: usize = 0;
 
-    let e: Expr = parse_body(TokenType::Eof, &source, tokens, &mut current);
+    let e: Expr = match parse_body(TokenType::Eof, &source, tokens, &mut current) {
+        Ok(expr) => expr,
+        Err(error_string) => {
+            return Err(format!("{}", error_string));
+        },
+    };
     current = current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
@@ -905,7 +928,7 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Expr {
         println!("Token: {:?}", t);
         i = i + 1;
     }
-    e
+    return Ok(e)
 }
 
 // ---------- Context
@@ -2057,7 +2080,12 @@ fn run(path: &String, source: &String) -> String {
         return format!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let e: Expr = parse_tokens(&source, &tokens);
+    let e: Expr = match parse_tokens(&source, &tokens) {
+        Ok(expr) => expr,
+        Err(error_string) => {
+            return format!("{}", error_string);
+        },
+    };
     println!("AST:\n{}", to_ast_str(&e));
 
     let mut context = start_context();
