@@ -245,6 +245,36 @@ fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, 
     println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: {}", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
 }
 
+fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &mut usize) {
+    match t.token_type {
+        TokenType::Invalid => {
+            print_lex_error(&path, &source, &t, *errors_found, "Invalid character");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::UnterminatedString => {
+            print_lex_error(&path, &source, &t, *errors_found, "Unterminated String");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Const => {
+            print_lex_error(&path, &source, &t, *errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Var => {
+            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'var' is not supported, use 'mut' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Fn => {
+            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Semicolon => {
+            print_lex_error(&path, &source, &t, *errors_found, "No need for ';', use next line or simply a space instead");
+            *errors_found = *errors_found + 1;
+        },
+        _ => {},
+    }
+}
+
 fn is_literal(t: &Token) -> bool {
     match t.token_type {
         TokenType::String => true,
@@ -2062,33 +2092,7 @@ fn main_run(path: &String, source: &String) -> String {
 
     let mut errors_found : usize = 0;
     for t in &tokens {
-        match t.token_type {
-            TokenType::Invalid => {
-                print_lex_error(&path, &source, &t, errors_found, "Invalid character");
-                errors_found = errors_found + 1;
-            },
-            TokenType::UnterminatedString => {
-                print_lex_error(&path, &source, &t, errors_found, "Unterminated String");
-                errors_found = errors_found + 1;
-            },
-            TokenType::Const => {
-                print_lex_error(&path, &source, &t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
-                errors_found = errors_found + 1;
-            },
-            TokenType::Var => {
-                print_lex_error(&path, &source, &t, errors_found, "Keyword 'var' is not supported, use 'mut' instead");
-                errors_found = errors_found + 1;
-            },
-            TokenType::Fn => {
-                print_lex_error(&path, &source, &t, errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
-                errors_found = errors_found + 1;
-            },
-            TokenType::Semicolon => {
-                print_lex_error(&path, &source, &t, errors_found, "No need for ';', use next line or simply a space instead");
-                errors_found = errors_found + 1;
-            },
-            _ => {},
-        }
+        print_if_lex_error(&path, &source, &t, &mut errors_found)
     }
     if errors_found > 0 {
         return format!("Compiler errors: {} lexical errors found", errors_found);
