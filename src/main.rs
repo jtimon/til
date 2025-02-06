@@ -2052,7 +2052,7 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-fn run(path: &String, source: &String) -> String {
+fn main_run(path: &String, source: &String) -> String {
     let tokens: Vec<Token> = scan_tokens(&source);
     if tokens.len() < 1 {
         return format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0);
@@ -2136,7 +2136,7 @@ fn run_file(path: &String) {
             },
         },
     };
-    println!("eval: {}", run(&path, &source));
+    println!("eval: {}", main_run(&path, &source));
 }
 
 fn run_repl() {
@@ -2152,7 +2152,7 @@ fn run_repl() {
         if line.len() == 1 { break; }
 
         let path = "repl".to_string();
-        println!("{}", run(&path, &line));
+        println!("{}", main_run(&path, &line));
     }
 }
 
