@@ -807,7 +807,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::For => {
-            panic!("{}:{} parse error: Suggestion: use 'while' while more loop options are implemented, for 'for' is not implemented yet.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col);
+            return Err(format!("{}:{} parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
         TokenType::Return => {
             Ok(return_statement(&source, &tokens, current))
@@ -828,14 +828,14 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             let mut next_t = tokens.get(*current + 1).unwrap();
             let mut next_token_type = &next_t.token_type;
             if next_token_type != &TokenType::Identifier {
-                panic!("{}:{} compiler error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type);
+                return Err(format!("{}:{} compiler error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
             }
             let identifier = get_token_str(source, next_t);
             *current = *current + 1;
             next_t = tokens.get(*current + 1).unwrap();
             next_token_type = &next_t.token_type;
             if next_token_type != &TokenType::Colon {
-                panic!("{}:{} compiler error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type);
+                return Err(format!("{}:{} compiler error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
             }
             let next_next_t = tokens.get(*current + 2).unwrap();
             let next_next_token_type = &next_next_t.token_type;
@@ -847,7 +847,9 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 TokenType::Equal => {
                     Ok(parse_declaration(&source, &tokens, current, true, INFER_TYPE))
                 },
-                _ => panic!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
+                _ => {
+                    Err(format!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+                },
             }
         },
         TokenType::Identifier => {
@@ -858,7 +860,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     Ok(func_call(&source, &tokens, current))
                 },
                 TokenType::Dot => {
-                    panic!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col);
+                    Err(format!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
                 },
                 TokenType::Equal => {
                     Ok(parse_assignment(&source, &tokens, current))
@@ -875,13 +877,20 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                         TokenType::Equal => {
                             Ok(parse_declaration(&source, &tokens, current, false, INFER_TYPE))
                         },
-                        _ => panic!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type),
+                        _ => {
+                            Err(format!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+                        },
                     }
+
                 },
-                _ => panic!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type),
+                _ => {
+                    Err(format!("{}:{} compiler error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
+                },
             }
         },
-        _ => panic!("{}:{} compiler error: Expected statement, found {:?}.", t.line, t.col, t.token_type),
+        _ => {
+            Err(format!("{}:{} compiler error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
+        },
     }
 }
 
