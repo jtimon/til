@@ -565,14 +565,14 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
 }
 
-fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("{}:{} parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col);
+        return Err(format!("{}:{} parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
     }
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftParen {
-        panic!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type);
+        return Err(format!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
     let args = func_proc_args(&source, &tokens, current);
     let returns = func_proc_returns(&source, &tokens, current);
@@ -585,7 +585,7 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
         false => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
     }
     *current = *current + 1;
-    e
+    Ok(e)
 }
 
 fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -686,11 +686,21 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             TokenType::Func => {
                 *current = *current + 1;
-                return func_proc_definition(true, &source, &tokens, current)
+                match func_proc_definition(true, &source, &tokens, current) {
+                    Ok(to_ret) => return to_ret,
+                    Err(error_string) => {
+                        panic!("{}", error_string);
+                    },
+                }
             },
             TokenType::Proc => {
                 *current = *current + 1;
-                return func_proc_definition(false, &source, &tokens, current)
+                match func_proc_definition(false, &source, &tokens, current) {
+                    Ok(to_ret) => return to_ret,
+                    Err(error_string) => {
+                        panic!("{}", error_string);
+                    },
+                }
             },
             TokenType::Enum => {
                 *current = *current + 1;
