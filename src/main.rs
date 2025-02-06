@@ -772,15 +772,6 @@ fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, 
 fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
-        TokenType::Const => {
-            panic!("{}:{} parse error:\n keyword 'const' doesn't need to be constantly repeated in {}.\n Everything is const by default.\nUse 'mut' when you don't want a const", t.line, t.col, "here".to_string());
-        },
-        TokenType::Var => {
-            panic!("{}:{} parse error:\n keyword 'var' is supported in js, use 'mut' instead in {} .", t.line, t.col, "here".to_string());
-        },
-        TokenType::Fn => {
-            panic!("{}:{} parse error:\n keyword 'fn' is supported in rs, use 'func' instead in {} .", t.line, t.col, "here".to_string());
-        },
         TokenType::For => {
             panic!("{}:{} parse error: Suggestion: use 'while' while more loop options are implemented, for 'for' is not implemented yet.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col);
         },
@@ -2016,6 +2007,18 @@ fn run(path: &String, source: &String) -> String {
             },
             TokenType::UnterminatedString => {
                 print_lex_error(&path, &source, &t, errors_found, "Unterminated String");
+                errors_found = errors_found + 1;
+            },
+            TokenType::Const => {
+                print_lex_error(&path, &source, &t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used.");
+                errors_found = errors_found + 1;
+            },
+            TokenType::Var => {
+                print_lex_error(&path, &source, &t, errors_found, "Keyword 'var' is not supported, use 'mut' instead.");
+                errors_found = errors_found + 1;
+            },
+            TokenType::Fn => {
+                print_lex_error(&path, &source, &t, errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead.");
                 errors_found = errors_found + 1;
             },
             _ => {},
