@@ -361,18 +361,20 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
     }
 }
 
-fn literal(source: &String, t: &Token, current: &mut usize) -> Expr {
+fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr, String> {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
         TokenType::String => NodeType::LString(get_token_str(source, t).to_string()),
         TokenType::Number => NodeType::LI64(get_token_str(source, t).parse::<i64>().unwrap()),
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
-        _ => panic!("{}:{} cil error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, t.token_type),
+        _ => {
+            return Err(format!("{}:{} cil error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, t.token_type));
+        },
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
     *current = *current + 1;
-    e
+    Ok(e)
 }
 
 fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -669,7 +671,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
-        return literal(&source, t, current)
+        match parse_literal(&source, t, current) {
+            Ok(to_ret) => return to_ret,
+            Err(err_str) => panic!("{}", err_str),
+        }
     } else {
         match &t.token_type {
             TokenType::LeftParen => list(&source, &tokens, current),
