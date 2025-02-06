@@ -38,8 +38,7 @@ enum TokenType {
 
     // bool
     True, False,
-    // types
-    // bool, i64, string, // TODO decide if parse basic types as reserved words (probably not)
+    // type definition
     Struct, Enum,
     // function definition
     Func, Proc,
@@ -49,9 +48,6 @@ enum TokenType {
     If, Else,
     While, For, In,
     Match, Switch,
-
-    // TODO implement or remove
-    Debug , Log,
 
     // Errors
     Const, Var,
@@ -110,8 +106,6 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "throws" => TokenType::Throws,
         "try" => TokenType::Try,
         "catch" => TokenType::Catch,
-        "debug" => TokenType::Debug,
-        "log" => TokenType::Log,
 
         // Reserved illegal words:
         // const/vars are the most abstract types, you can't even explicitly declare them
@@ -1792,7 +1786,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
     }
 }
 
-// TODO reuse more code, update messages in this function 'decl' -> 'asig'
 fn eval_assignment(var_name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     let symbol_info = context.symbols.get(var_name).unwrap();
