@@ -2022,7 +2022,7 @@ fn run(path: &String, source: &String) -> String {
                 errors_found = errors_found + 1;
             },
             TokenType::Semicolon => {
-                print_lex_error(&path, &source, &t, errors_found, "no need for ';', use next line or simply a space instead");
+                print_lex_error(&path, &source, &t, errors_found, "No need for ';', use next line or simply a space instead");
                 errors_found = errors_found + 1;
             },
             _ => {},
