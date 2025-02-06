@@ -642,20 +642,20 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                   token_index: initial_current, params: params};
 }
 
-fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        panic!("{}:{} parse error: Expected '{{' after 'struct'.", t.line, t.col);
+        return Err(format!("{}:{} parse error: Expected '{{' after 'struct'.", t.line, t.col));
     }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        panic!("{}:{} parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col);
+        return Err(format!("{}:{} parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_body(TokenType::RightBrace, &source, tokens, current));
     *current = *current + 1;
-    return Expr { node_type: NodeType::StructDef, token_index: *current, params: params};
+    return Ok(Expr { node_type: NodeType::StructDef, token_index: *current, params: params});
 }
 
 fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
@@ -698,7 +698,12 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             TokenType::Struct => {
                 *current = *current + 1;
-                return struct_definition(&source, &tokens, current)
+                match struct_definition(&source, &tokens, current) {
+                    Ok(to_ret) => return to_ret,
+                    Err(error_string) => {
+                        panic!("{}", error_string);
+                    },
+                }
             },
             _ => panic!("{}:{} parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type),
         }
