@@ -2096,7 +2096,7 @@ fn run(path: &String, source: &String) -> String {
     let e: Expr = match parse_tokens(&source, &tokens) {
         Ok(expr) => expr,
         Err(error_string) => {
-            return format!("{}", error_string);
+            return format!("{}:{}", &path, error_string);
         },
     };
     println!("AST:\n{}", to_ast_str(&e));
