@@ -377,7 +377,7 @@ fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr
     Ok(e)
 }
 
-fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = *current;
@@ -398,17 +398,13 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
                     *current = *current + 1;
                     list_t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("{}:{} compiler error: Unexpected ','.", list_t.line, list_t.col);
+                    return Err(format!("{}:{} compiler error: Unexpected ','.", list_t.line, list_t.col));
                 }
             },
             _ => {
                 if expect_comma {
-                    panic!("{}:{} compiler error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type);
+                    return Err(format!("{}:{} compiler error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
                 }
-                // TODO fix the error msg when...
-                // if list_t.token_type == TokenType::Identifier {
-                //     panic!("{}:{} compiler error: Expected ')' or ',', found {}.", list_t.line, list_t.col, get_token_str(source, list_t));
-                // }
                 expect_comma = true;
                 params.push(primary(&source, &tokens, current));
                 list_t = tokens.get(*current).unwrap();
@@ -416,18 +412,22 @@ fn list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
         }
     }
     match list_t.token_type {
-        TokenType::RightParen => Expr { node_type: NodeType::LList, token_index: initial_current, params: params},
-        _ => panic!("{}:{} compiler error: Expected closing parentheses.", list_t.line, list_t.col),
+        TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token_index: initial_current, params: params}),
+        _ => Err(format!("{}:{} compiler error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
 
-fn func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
+fn parse_func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let token_str = get_token_str(source, t);
     let initial_current = *current;
     *current = *current + 1;
-    let params : Vec<Expr> = list(&source, &tokens, current).params;
-    Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params}
+    let arg_list = match parse_list(&source, &tokens, current) {
+        Ok(a_list) => a_list,
+        Err(err_str) => return Err(err_str),
+    };
+    let params : Vec<Expr> = arg_list.params;
+    Ok(Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params})
 }
 
 fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -676,11 +676,17 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
         }
     } else {
         match &t.token_type {
-            TokenType::LeftParen => list(&source, &tokens, current),
+            TokenType::LeftParen => match parse_list(&source, &tokens, current) {
+                Ok(to_ret) => to_ret,
+                Err(err_str) => panic!("{}", err_str),
+            },
             TokenType::Identifier => {
                 let next_t = tokens.get(*current + 1).unwrap();
                 if TokenType::LeftParen == next_t.token_type {
-                    return func_call(&source, &tokens, current)
+                    match parse_func_call(&source, &tokens, current) {
+                        Ok(to_ret) => return to_ret,
+                        Err(err_str) => panic!("{}", err_str),
+                    };
                 }
                 if TokenType::Dot == next_t.token_type {
                     let next2_t = tokens.get(*current + 2).unwrap();
@@ -860,7 +866,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             let next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::LeftParen => {
-                    Ok(func_call(&source, &tokens, current))
+                    parse_func_call(&source, &tokens, current)
                 },
                 TokenType::Dot => {
                     Err(format!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
