@@ -440,7 +440,7 @@ fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params})
 }
 
-fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Vec<Declaration> {
+fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<Declaration>, String> {
 
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
@@ -476,7 +476,7 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                         *current = *current + 1;
                         t = tokens.get(*current).unwrap();
                     } else {
-                        panic!("{}:{} parse error: Expected identifier before ','.", t.line, t.col);
+                        return Err(format!("{}:{} parse error: Expected identifier before ','.", t.line, t.col));
                     }
                 }
             },
@@ -488,15 +488,15 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    panic!("{}:{} parse error: Unexpected ':'.", t.line, t.col);
+                    return Err(format!("{}:{} parse error: Unexpected ':'.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    panic!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type);
+                    return Err(format!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_colon {
-                    panic!("{}:{} parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type);
+                    return Err(format!("{}:{} parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
                     arg_name = get_token_str(source, t);
@@ -511,13 +511,13 @@ fn func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> 
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                panic!("{}:{} parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type);
+                return Err(format!("{}:{} parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
             },
         }
     }
     match t.token_type {
-        TokenType::RightParen => args,
-        _ => panic!("{}:{} parse error: Expected closing parentheses.", t.line, t.col),
+        TokenType::RightParen => return Ok(args),
+        _ => return Err(format!("{}:{} parse error: Expected closing parentheses.", t.line, t.col)),
     }
 }
 
@@ -567,7 +567,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
 }
 
-fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
         return Err(format!("{}:{} parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
@@ -576,7 +576,10 @@ fn func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, cur
     if t.token_type != TokenType::LeftParen {
         return Err(format!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
-    let args = func_proc_args(&source, &tokens, current);
+    let args = match parse_func_proc_args(&source, &tokens, current) {
+        Ok(to_ret) => to_ret,
+        Err(err_str) => return Err(err_str),
+    };
     let returns = match func_proc_returns(&source, &tokens, current) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
@@ -706,7 +709,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             TokenType::Func => {
                 *current = *current + 1;
-                match func_proc_definition(true, &source, &tokens, current) {
+                match parse_func_proc_definition(true, &source, &tokens, current) {
                     Ok(to_ret) => return to_ret,
                     Err(error_string) => {
                         panic!("{}", error_string);
@@ -715,7 +718,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Expr {
             },
             TokenType::Proc => {
                 *current = *current + 1;
-                match func_proc_definition(false, &source, &tokens, current) {
+                match parse_func_proc_definition(false, &source, &tokens, current) {
                     Ok(to_ret) => return to_ret,
                     Err(error_string) => {
                         panic!("{}", error_string);
