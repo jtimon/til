@@ -2044,16 +2044,16 @@ fn to_ast_str(e: &Expr) -> String {
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
-            return "func".to_string();
+            return "(func)".to_string();
         },
         NodeType::ProcDef(_func_def) => {
-            return "proc".to_string();
+            return "(proc)".to_string();
         },
         NodeType::EnumDef(_) => {
-            return "enum".to_string();
+            return "(enum)".to_string();
         },
         NodeType::StructDef => {
-            return "struct".to_string();
+            return "(struct)".to_string();
         },
         NodeType::Identifier(id_name) => {
             return id_name.clone();
@@ -2075,7 +2075,7 @@ fn to_ast_str(e: &Expr) -> String {
             return ast_str;
         },
         NodeType::Return => {
-            panic!("Cil AST error: Node_type::Return shouldn't be analized in to_ast_str().");
+            panic!("{} AST error: Node_type::Return shouldn't be analized in to_ast_str().", LANG_NAME);
         },
     }
 }
