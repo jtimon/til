@@ -276,7 +276,7 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
 }
 
 fn is_literal(t: &Token) -> bool {
-    match t.token_type {
+    return match t.token_type {
         TokenType::String => true,
         TokenType::Number => true,
         TokenType::True => true,
