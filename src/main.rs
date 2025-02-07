@@ -1045,8 +1045,7 @@ fn start_context() -> Context {
     let return_types_none : Vec<ValueType> = Vec::new();
 
     let mut args_print : Vec<Declaration> = Vec::new();
-    args_print.push(
-        Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
+    args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
     let func_def_print = SFuncDef{args: args_print, returns: return_types_none.clone(), body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
@@ -1057,8 +1056,7 @@ fn start_context() -> Context {
     context.procs.insert("exit".to_string(), func_def_exit);
 
     let mut args_and_or : Vec<Declaration> = Vec::new();
-    args_and_or.push(
-        Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
+    args_and_or.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
     let mut return_type_bool : Vec<ValueType> = Vec::new();
     return_type_bool.push(ValueType::TBool);
     let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
