@@ -964,13 +964,17 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Result<Expr, String> {
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
     let mut i = current;
+    let mut unparsed_tokens = 0;
     if i < tokens.len() {
-        println!("Unparsed tokens ({}):", tokens.len() - i);
+        unparsed_tokens = tokens.len() - i;
     }
     while i < tokens.len() {
         let t = tokens.get(i).unwrap();
         println!("Token: {:?}", t);
         i = i + 1;
+    }
+    if unparsed_tokens > 0 {
+        return Err(format!("Total unparsed tokens: {}/{}", unparsed_tokens, tokens.len()));
     }
     return Ok(e)
 }
