@@ -1795,13 +1795,13 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
     let value_type = get_value_type(&context, &inner_e);
     if declaration.value_type != ValueType::ToInferType {
         if value_type != declaration.value_type {
-            panic!("{}:{} cil eval error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+            panic!("{}:{} {} eval error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         }
     }
-    assert!(e.params.len() == 1, "Declarations can have only one child expression. This should never happen.");
+    assert!(e.params.len() == 1, "{} error: Declarations can have only one child expression. This should never happen.", LANG_NAME);
     match value_type {
         ValueType::ToInferType => {
-            panic!("{}:{} cil eval error: '{}' declared of type {} but but still to infer type {:?}.", t.line, t.col, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+            panic!("{}:{} {} eval error: '{}' declared of type {} but but still to infer type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         },
         ValueType::TBool => {
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
