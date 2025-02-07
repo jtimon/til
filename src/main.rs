@@ -1769,14 +1769,14 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
             "btoi" => eval_core_func_btoi(&mut context, &source, &tokens, &e),
             "btoa" => eval_core_func_btoa(&mut context, &source, &tokens, &e),
             "itoa" => eval_core_func_itoa(&mut context, &source, &tokens, &e),
-            _ => panic!("{}:{} cil eval error: Core function '{}' not implemented.", t.line, t.col, name),
+            _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if is_core_proc(&name) {
         match name {
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
             "exit" => eval_core_exit(&tokens, &e),
-            _ => panic!("{}:{} cil eval error: Core procedure '{}' not implemented.", t.line, t.col, name),
+            _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
@@ -1785,7 +1785,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         let func_def = context.procs.get(name).unwrap();
         eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else {
-        panic!("{}:{} cil eval error: Cannot call '{}'. Undefined function.", t.line, t.col, name);
+        panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function.", t.line, t.col, LANG_NAME, name);
     }
 }
 
@@ -1828,8 +1828,8 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "enum declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected enum definition.",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected enum definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TStruct => {
@@ -1839,8 +1839,8 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "struct declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected struct definition.",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected struct definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TFunc => {
@@ -1850,8 +1850,8 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected function definition.",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected function definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TProc => {
@@ -1861,19 +1861,19 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "proc declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}, expected procedure definition.",
-                            t.line, t.col, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected procedure definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
-        _ => panic!("{}:{} cil eval error: Cannot declare {} of type {:?}.", t.line, t.col, &declaration.name, &declaration.value_type)
+        _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
     }
 }
 
 fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     let symbol_info = context.symbols.get(var_name).unwrap();
-    assert!(symbol_info.is_mut, "cil eval error: Assignments can only be to mut values");
-    assert!(e.params.len() == 1, "cil eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", var_name);
+    assert!(symbol_info.is_mut, "{} eval error: Assignments can only be to mut values", LANG_NAME);
+    assert!(e.params.len() == 1, "{} eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
 
     let inner_e = e.params.get(0).unwrap();
     let value_type = get_value_type(&context, &inner_e);
@@ -1894,8 +1894,8 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
             string_expr_result.to_string()
         },
         ValueType::TStruct => {
-            panic!("{}:{} cil eval error: Cannot assign {} of type {:?}. Not implemented yet.",
-                   t.line, t.col, &var_name, &value_type);
+            panic!("{}:{} {} eval error: Cannot assign {} of type {:?}. Not implemented yet.",
+                   t.line, t.col, LANG_NAME, &var_name, &value_type);
         },
         ValueType::TFunc => {
             match &inner_e.node_type {
@@ -1903,8 +1903,8 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
                     context.funcs.insert(var_name.to_string(), func_def.clone());
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot assign {} of type {:?}.",
-                            t.line, t.col, &var_name, &value_type)
+                _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.",
+                            t.line, t.col, LANG_NAME, &var_name, &value_type)
             }
         },
         ValueType::TProc => {
@@ -1913,11 +1913,11 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
                     context.procs.insert(var_name.to_string(), func_def.clone());
                     "proc declared".to_string()
                 },
-                _ => panic!("{}:{} cil eval error: Cannot assign {} of type {:?}.",
-                            t.line, t.col, &var_name, &value_type)
+                _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.",
+                            t.line, t.col, LANG_NAME, &var_name, &value_type)
             }
         },
-        _ => panic!("{}:{} cil eval error: Cannot assign {} of type {:?}.", t.line, t.col, &var_name, &value_type)
+        _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", t.line, t.col, LANG_NAME, &var_name, &value_type)
     }
 }
 
@@ -1967,19 +1967,19 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
                         context.strings.get(name).unwrap().to_string()
                     },
                     ValueType::ToInferType => {
-                        panic!("cil eval error: Can't infer the type of identifier '{}'.", name)
+                        panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
                     },
                     _ => {
-                        panic!("cil eval error: Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type)
+                        panic!("{} eval error: Can't use identifier '{}'. Type {:?} not supported yet.", LANG_NAME, name, symbol_info.value_type)
                     },
                 }
                 None => {
-                    panic!("cil eval error: Undefined symbol '{}'. This should have been caught in the compile phase.", name)
+                    panic!("{} eval error: Undefined symbol '{}'. This should have been caught in the compile phase.", LANG_NAME, name)
                 },
             }
         },
         NodeType::If => {
-            assert!(e.params.len() == 2 || e.params.len() == 3, "cil eval error: if nodes must have 2 or 3 parameters.");
+            assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
             if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
                 eval_expr(&mut context, &source, &tokens, &e.params.get(1).unwrap())
             } else if e.params.len() == 3 {
@@ -1989,19 +1989,19 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             }
         },
         NodeType::While => {
-            assert!(e.params.len() == 2, "cil eval error: while nodes must have exactly 2 parameters.");
+            assert!(e.params.len() == 2, "{} eval error: while nodes must have exactly 2 parameters.", LANG_NAME);
             while eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
                 eval_expr(&mut context, &source, &tokens, &e.params.get(1).unwrap());
             }
             "".to_string()
         },
         NodeType::Return => {
-            assert!(e.params.len() == 1, "cil eval error: return nodes must have exactly 1 parameter.");
+            assert!(e.params.len() == 1, "{} eval error: return nodes must have exactly 1 parameter.", LANG_NAME);
             eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
         }
         _ => {
             let t = tokens.get(e.token_index).unwrap();
-            panic!("{}:{} cil eval error: Not implemented, found {}.", t.line, t.col, get_token_str(source, t))
+            panic!("{}:{} {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))
         },
     }
 }
@@ -2145,7 +2145,7 @@ fn run_file(path: &String) {
 
 fn run_repl() {
     loop {
-        print!("cil> ");
+        print!("{}> ", LANG_NAME);
         io::stdout().flush().unwrap();
 
         let mut line = String::new();
