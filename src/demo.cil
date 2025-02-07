@@ -1,6 +1,15 @@
 // mode rust
 
-// future std lib
+// intro to the language:
+
+// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
+AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
+BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
+// and := true // fails, double declaration of core func 'and'
+// AAA := true // fails, double declaration of user constant 'AAA'
+// AAA = false // fails, assignment to a constant, all declarations are constant by default
+
+// self hosted:
 
 assertm := proc(cond: bool, msg: String) {
     if not(cond) {
@@ -10,7 +19,7 @@ assertm := proc(cond: bool, msg: String) {
 }
 
 assert := proc(cond: bool) {
-    assertm(cond, "basic: ")
+    assertm(cond, "")
 }
 
 test := proc(cond: bool, msg: String) {
@@ -22,12 +31,24 @@ panic := proc(msg: String) {
 }
 // panic("panic for good reason: we need to test panic at timesm, or at least assertm") // fails, because it panics
 
+// logic 101:
 test(true, "true is true")
+// test(eq(not(true), false), "not true is false") // ERROR FIX TODO
+// test(eq(false, not(true)), "false is not true") // ERROR FIX TODO
+
+// comparisons:
 test(lt(0, 1), "0 is less than 1")
 test(gt(2, 1), "2 is greater than 1")
+
+// arithmetics 101:
 test(eq(add(2, 2), 4), "2 + 2 = 4")
 test(eq(mul(2, 2), 4), "2 * 2 = 4")
-// test(eq(false, not(true)), "false is not(true)") // ERROR FIX TODO
+
+// arithmetics 42:
+test(eq(add(40, 2), 42), "40 + 2 = 42")
+test(eq(sub(44, 2), 42), "44 - 2 = 42")
+test(eq(mul(6, 7), 42), " 6 * 7 = 42")
+test(eq(div(420, 10), 42), " 420 / 10 = 42")
 
 // There can also be pure functions
 my_func := func(a: bool, b: bool) returns bool {
@@ -35,14 +56,6 @@ my_func := func(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
-
-// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
-AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
-BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
-// and := true // fails, double declaration of core func 'and'
-// AAA := true // fails, double declaration of user constant 'AAA'
-// AAA = false // fails, assignment to a constant, all declarations are constant by default
-
 
 // procedures can be declared and called
 example_basic_workflow := proc() {
@@ -111,7 +124,6 @@ main := proc() {
     println("printed from main: ", my_string, itoa(42), " ", btoa(true), " bbbbb")
     println(btoa(and(true, true)), btoa(or(true, false)), btoa(not(false)), btoa(xor(false, true)))
     println(btoa(eq(2, 2)), btoa(lt(my_num1, 2)), btoa(lteq(2, 2)), btoa(gt(3, 2)), btoa(gteq(2, 2)))
-    println("bin basic i64 ops: ", itoa(add(40, 2)), " ", itoa(sub(44, 2)), " ", itoa(mul(6, 7)), " ", itoa(div(420, 10)))
 
     // abc(false, true, false) // fails, because abc is defined locally in proc example_basic_workflow
 }
