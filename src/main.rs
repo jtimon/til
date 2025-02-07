@@ -984,7 +984,7 @@ struct SymbolInfo {
 }
 
 #[derive(Clone)]
-struct CilContext {
+struct Context {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
@@ -1029,8 +1029,8 @@ fn is_core_proc(proc_name: &str) -> bool {
     }
 }
 
-fn start_context() -> CilContext {
-    let mut context: CilContext = CilContext {
+fn start_context() -> Context {
+    let mut context: Context = Context {
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
@@ -1122,7 +1122,7 @@ fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
     }
 }
 
-fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
+fn get_value_type(context: &Context, e: &Expr) -> ValueType {
     match &e.node_type {
         NodeType::LBool(_) => ValueType::TBool,
         NodeType::LI64(_) => ValueType::TI64,
@@ -1155,7 +1155,7 @@ fn get_value_type(context: &CilContext, e: &Expr) -> ValueType {
     }
 }
 
-fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
         NodeType::Body => {
@@ -1237,15 +1237,15 @@ fn init_context(context: &mut CilContext, source: &String, tokens: &Vec<Token>, 
 
 // ---------- Type checking
 
-fn is_defined_func_proc(context: &CilContext, name: &str) -> bool {
+fn is_defined_func_proc(context: &Context, name: &str) -> bool {
     context.funcs.contains_key(name) || context.procs.contains_key(name)
 }
 
-fn is_defined_symbol(context: &CilContext, name: &str) -> bool {
+fn is_defined_symbol(context: &Context, name: &str) -> bool {
     is_defined_func_proc(&context, name) || context.symbols.contains_key(name)
 }
 
-fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
+fn does_func_return_bool(context: &Context, name: &str) -> bool {
     if context.funcs.contains_key(name) {
         let func_def = &context.funcs.get(name).unwrap();
         func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
@@ -1257,7 +1257,7 @@ fn does_func_return_bool(context: &CilContext, name: &str) -> bool {
     }
 }
 
-fn is_expr_calling_procs(context: &CilContext, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
+fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
@@ -1321,7 +1321,7 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
-fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>) -> Vec<String> {
+fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source: &String, tokens: &Vec<Token>) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     for arg in &func_def.args {
         context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
@@ -1332,7 +1332,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut CilContext, sour
     errors
 }
 
-fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = tokens.get(e.token_index).unwrap();
 
@@ -1524,7 +1524,7 @@ fn check_types(mut context: &mut CilContext, source: &String, tokens: &Vec<Token
 
 // ---------- eval repl interpreter
 
-fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
@@ -1553,7 +1553,7 @@ fn eval_to_bool(mut context: &mut CilContext, source: &String, tokens: &Vec<Toke
 
 // ---------- core funcs implementations for eval
 
-fn eval_core_func_and(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_and(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = true;
     for i in &e.params {
         truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &i);
@@ -1561,7 +1561,7 @@ fn eval_core_func_and(mut context: &mut CilContext, source: &String, tokens: &Ve
     truthfulness.to_string()
 }
 
-fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_or(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = false;
     for i in &e.params {
         truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
@@ -1569,75 +1569,75 @@ fn eval_core_func_or(mut context: &mut CilContext, source: &String, tokens: &Vec
     truthfulness.to_string()
 }
 
-fn eval_core_func_not(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_not(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
     (!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap())).to_string()
 }
 
-fn eval_core_func_eq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_eq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
-fn eval_core_func_lt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_lt(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
-fn eval_core_func_lteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_lteq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
-fn eval_core_func_gt(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_gt(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
-fn eval_core_func_gteq(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_gteq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
-fn eval_core_func_add(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_add(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
-fn eval_core_func_sub(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_sub(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
-fn eval_core_func_mul(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_mul(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
-fn eval_core_func_div(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_div(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
-fn eval_core_func_btoi(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_btoi(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
         "1".to_string()
@@ -1646,7 +1646,7 @@ fn eval_core_func_btoi(mut context: &mut CilContext, source: &String, tokens: &V
     }
 }
 
-fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_btoa(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
         "true".to_string()
@@ -1655,7 +1655,7 @@ fn eval_core_func_btoa(mut context: &mut CilContext, source: &String, tokens: &V
     }
 }
 
-fn eval_core_func_itoa(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_itoa(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap())
 }
@@ -1670,7 +1670,7 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     }
 }
 
-fn eval_core_proc_print(end_line: bool, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_print(end_line: bool, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     for it in &e.params {
         print!("{}", eval_expr(&mut context, &source, &tokens, &it));
     }
@@ -1698,7 +1698,7 @@ fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
 
 // ---------- generic eval things
 
-fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
 
     let mut function_context = context.clone();
@@ -1750,7 +1750,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &CilContex
     "".to_string()
 }
 
-fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     if is_core_func(&name) {
         match name {
@@ -1789,7 +1789,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut CilContext, source: &String
     }
 }
 
-fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     let inner_e = e.params.get(0).unwrap();
     let value_type = get_value_type(&context, &inner_e);
@@ -1869,7 +1869,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut CilContext, sou
     }
 }
 
-fn eval_assignment(var_name: &str, mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     let symbol_info = context.symbols.get(var_name).unwrap();
     assert!(symbol_info.is_mut, "cil eval error: Assignments can only be to mut values");
@@ -1921,7 +1921,7 @@ fn eval_assignment(var_name: &str, mut context: &mut CilContext, source: &String
     }
 }
 
-fn eval_expr(mut context: &mut CilContext, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
