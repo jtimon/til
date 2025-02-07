@@ -1016,19 +1016,18 @@ fn is_core_func(proc_name: &str) -> bool {
         "btoi" => true, // necessary for branchless arithmetic
         "btoa" => true,
         "itoa" => true,
-        "assert" => true, // requires implementing throws or at least exit
         _ => false,
     }
 }
 
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
-        "eval" => true,
+        "exit" => true,
         "print" => true,
         "println" => true,
+        // TODO implement more core procs in rust:
         "readfile" => true,
-        "exit" => true, // can be func after implementing throws
-        "test" => true, // can be func after implementing throws
+        "eval" => true,
         _ => false,
     }
 }
