@@ -2203,7 +2203,7 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
-    println!("AST:\n{}", to_ast_str(&e));
+    // println!("AST:\n{}", to_ast_str(&e));
 
     let mut context = start_context();
     let errors = init_context(&mut context, &source, &tokens, &e);
