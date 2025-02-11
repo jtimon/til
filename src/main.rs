@@ -1109,16 +1109,16 @@ fn start_context() -> Context {
     context
 }
 
-fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
+fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.returns.len() {
         0 => {
             panic!("{} error: func '{}' does not return anything" , LANG_NAME, name)
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
-                ValueType::TBool => ValueType::TBool,
-                ValueType::TI64 => ValueType::TI64,
-                ValueType::TString => ValueType::TString,
+                ValueType::TBool => Ok(ValueType::TBool),
+                ValueType::TI64 => Ok(ValueType::TI64),
+                ValueType::TString => Ok(ValueType::TString),
                 _ => panic!("{} error: func '{}' returns unsupported type {:?}" , LANG_NAME, name, func_def.returns.get(0).unwrap()),
             }
         },
@@ -1128,32 +1128,35 @@ fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> ValueType {
     }
 }
 
-fn get_value_type(context: &Context, e: &Expr) -> ValueType {
+fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
-        NodeType::LBool(_) => ValueType::TBool,
-        NodeType::LI64(_) => ValueType::TI64,
-        NodeType::LString(_) => ValueType::TString,
-        NodeType::LList => ValueType::TList,
-        NodeType::FuncDef(_) => ValueType::TFunc,
-        NodeType::ProcDef(_) => ValueType::TProc,
-        NodeType::EnumDef(_) => ValueType::TEnum,
-        NodeType::StructDef => ValueType::TStruct,
+        NodeType::LBool(_) => Ok(ValueType::TBool),
+        NodeType::LI64(_) => Ok(ValueType::TI64),
+        NodeType::LString(_) => Ok(ValueType::TString),
+        NodeType::LList => Ok(ValueType::TList),
+        NodeType::FuncDef(_) => Ok(ValueType::TFunc),
+        NodeType::ProcDef(_) => Ok(ValueType::TProc),
+        NodeType::EnumDef(_) => Ok(ValueType::TEnum),
+        NodeType::StructDef => Ok(ValueType::TStruct),
         NodeType::FCall(name) => {
             if context.funcs.contains_key(name) {
                 value_type_func_proc(name, &context.funcs.get(name).unwrap())
             } else if context.procs.contains_key(name) {
                 value_type_func_proc(name, &context.procs.get(name).unwrap())
             } else if is_defined_symbol(&context, name) {
-                panic!("parse error: value_type: Cannot call '{}', it is not a function/procedure" , name);
+                let t = tokens.get(e.token_index).unwrap();
+                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
             } else {
-                panic!("parse error: value_type: Undefined function '{}'", name);
+                let t = tokens.get(e.token_index).unwrap();
+                return Err(format!("{}:{}: type error: Undefined function/procedure '{}", t.line, t.col, name));
             }
         },
         NodeType::Identifier(name) => {
             match context.symbols.get(name) {
-                Some(symbol_info) => symbol_info.value_type.clone(),
+                Some(symbol_info) => Ok(symbol_info.value_type.clone()),
                 None => {
-                    panic!("{} error: Undefined symbol '{}'. This should have been caught outside 'get_value_type()'.", LANG_NAME, name)
+                    let t = tokens.get(e.token_index).unwrap();
+                    return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
                 }
             }
         },
@@ -1178,7 +1181,13 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
             }
             assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
-            let value_type = get_value_type(&context, &inner_e);
+            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+                Ok(val_type) => val_type,
+                Err(error_string) => {
+                    errors.push(error_string);
+                    return errors;
+                },
+            };
             if decl.value_type != str_to_value_type(INFER_TYPE) {
                 if value_type != decl.value_type {
                     errors.push(format!("{}:{}: type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
@@ -1382,7 +1391,14 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
-            let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
+            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+                Ok(val_type) => val_type,
+                Err(error_string) => {
+                    errors.push(error_string);
+                    return errors;
+                },
+            };
+            let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
                 let next_t = tokens.get(inner_e.token_index).unwrap();
                 errors.push(format!("{}:{}: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
@@ -1394,7 +1410,14 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::While => {
             assert!(e.params.len() == 2, "{} error: while nodes must have exactly 2 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
-            let first_is_condition = get_value_type(&context, &inner_e) == ValueType::TBool;
+            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+                Ok(val_type) => val_type,
+                Err(error_string) => {
+                    errors.push(error_string);
+                    return errors;
+                },
+            };
+            let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
                 let next_t = tokens.get(inner_e.token_index).unwrap();
                 errors.push(format!("{}:{}: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
@@ -1434,7 +1457,13 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                             _ => &arg.value_type,
 
                         };
-                        let found_type = get_value_type(&context, e.params.get(i).unwrap());
+                        let found_type = match get_value_type(&context, &tokens, e.params.get(i).unwrap()) {
+                            Ok(val_type) => val_type,
+                            Err(error_string) => {
+                                errors.push(error_string);
+                                return errors;
+                            },
+                        };
                         if expected_type != &found_type {
                             if expected_type == &str_to_value_type(INFER_TYPE) {
                                 errors.push(format!("{}:{} calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
@@ -1473,7 +1502,13 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             if !context.symbols.contains_key(&decl.name) {
                 let mut value_type = decl.value_type.clone();
                 if value_type == ValueType::ToInferType {
-                    value_type = get_value_type(&context, &inner_e);
+                    value_type = match get_value_type(&context, &tokens, &inner_e) {
+                        Ok(val_type) => val_type,
+                        Err(error_string) => {
+                            errors.push(error_string);
+                            return errors;
+                        },
+                    };
                 }
                 context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 match value_type {
@@ -1798,7 +1833,12 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
 fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     let inner_e = e.params.get(0).unwrap();
-    let value_type = get_value_type(&context, &inner_e);
+    let value_type = match get_value_type(&context, &tokens, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            panic!("{}", error_string);
+        },
+    };
     if declaration.value_type != ValueType::ToInferType {
         if value_type != declaration.value_type {
             panic!("{}:{} {} eval error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
@@ -1882,7 +1922,12 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
     assert!(e.params.len() == 1, "{} eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
 
     let inner_e = e.params.get(0).unwrap();
-    let value_type = get_value_type(&context, &inner_e);
+    let value_type = match get_value_type(&context, &tokens, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            panic!("{}", error_string);
+        },
+    };
     match value_type {
         ValueType::TBool => {
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
