@@ -709,6 +709,7 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
 
 fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
+    let initial_current = *current;
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
         return parse_literal(&source, t, current)
@@ -716,20 +717,24 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
         match &t.token_type {
             TokenType::LeftParen => parse_list(&source, &tokens, current),
             TokenType::Identifier => {
-                let next_t = tokens.get(*current + 1).unwrap();
+                let mut next_t = tokens.get(*current + 1).unwrap();
                 if TokenType::LeftParen == next_t.token_type {
                     return parse_func_call(&source, &tokens, current);
                 }
-                if TokenType::Dot == next_t.token_type {
+                let mut current_identifier = get_token_str(source, t).to_string();
+                let mut params : Vec<Expr> = Vec::new();
+                while TokenType::Dot == next_t.token_type {
                     let next2_t = tokens.get(*current + 2).unwrap();
-                    if next2_t.token_type == TokenType::Identifier {
-                        return Err(format!("{}:{} parse error: '.' not allowed as part of a primary expression yet.", t.line, t.col));
+                    if TokenType::Identifier != next2_t.token_type {
+                        return Err(format!("{}:{} parse error: expected identifier after '{}.', found {:?}.",
+                                           next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
                     }
-                    return Err(format!("{}:{} parse error: expected identifier after '{}.', found {:?}.",
-                           t.line, t.col, get_token_str(source, t).to_string(), next_t.token_type));
+                    current_identifier = get_token_str(source, next2_t).to_string();
+                    *current = *current + 2;
+                    params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
+                    next_t = tokens.get(*current + 1).unwrap();
                 }
-                let params : Vec<Expr> = Vec::new();
-                let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: params};
+                let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
                 *current = *current + 1;
                 return Ok(e);
             },

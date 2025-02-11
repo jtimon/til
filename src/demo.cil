@@ -183,15 +183,16 @@ MyStruct := struct {
     }
 }
 
+// trying_dot : bool = MyStruct.bool_field.ccccc.dddddd.eeeee.ffffff
+
 // TODO next:
 
 ExampleEnum2 := enum {
-//     AAA : AAA // TODO should fail, because AAA is not a type, it's a bool
-    BBB
-//     CCC : CCC // TODO should fail, because CCC is not defined
+    // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
+    // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
+    // CCC : CCC // TODO This fails, because CCC is not defined
     DDD
 }
-// trying_dot := __a.b
 
 exit(0)
 
