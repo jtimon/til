@@ -1,0 +1,31 @@
+
+* Compiled Interpreted Language
+
+Cil is a general purpose language that is meant to be interpreted or compiled to machine code or to some other high level language.
+
+The goal is to have a self hosted implementation as soon as possible,
+although the bootstrap implementation is written in rust.
+
+* Main ideas:
+
+** Pure functions:
+
+So called "pure functional languages" do not use only pure functions,
+they all use procedures too, for side effects. At the same time,
+procedural languages can have pure functions too.
+Pure functions could be declared explicitly and the compiler could make
+sure that they are in fact pure functions.
+
+** Modes:
+
+Somewhat similar to [[https://www.roc-lang.org/platforms][roclang's platforms]], but they can be used per file rather
+than per executable, to impose special restrictions per file, as per
+the chosen mode.
+For example, there can be a "mode pure" that only allows pure
+functions to be defined in the file, but no procedures.
+
+* WARNING: Do not use this language, it is not ready.
+
+It is just a pet experimental language. Nobody should use it for
+anything besides testing or extending it.
+It may never be finished. The name may change in the future too.
