@@ -161,17 +161,15 @@ xor := func(a: bool, b: bool) returns bool {
 // and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
 
 ExampleEnum := enum {
-    eA
-    eB
-    LBool : bool
-    LNumber : i64
-    LString : String
-    eC
-    eD
+    A
+    B
+    C
 }
 
-trying_dot_enum := ExampleEnum.eA
-trying_dot_enum2 : ExampleEnum = ExampleEnum.eA
+trying_dot_enum := ExampleEnum.A
+trying_dot_enum2 : ExampleEnum = ExampleEnum.B
+
+// TODO next:
 
 MyStruct := struct {
     bool_field : bool = false
@@ -185,36 +183,32 @@ MyStruct := struct {
 	return false
     }
 }
-
 // trying_dot_struct : bool = MyStruct.bool_field.ccccc
-
-// TODO next:
 
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
     // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
     // CCC : CCC // TODO This fails, because CCC is not defined
     DDD
+    LBool : bool
+    LNumber : i64
+    LString : String
 }
+
+// test_switch := proc(enum_to_switch : ExampleEnum) returns string {
+//     switch enum_to_switch {
+//         ExampleEnum.A: return "enum aaaaaa"
+//         ExampleEnum.B: return "enum bbbbbb"
+//         ExampleEnum.C: return "enum cccccc"
+//     }
+// }
+// println(test_switch(ExampleEnum.A))
 
 exit(0)
 
 // my_bool_array := [true, false, true, false]
 // my_bool_array : [4]bool = [true, false, true, false]
 // my_list := (true, 1111, "hello")
-
-// test_enums := proc() {
-//     enum_to_switch := ExampleEnum2.BBB
-//     switch enum_to_switch {
-//         ExampleEnum2.BBB {
-//             println("bbbbbb")
-// 	}
-//         ExampleEnum2.DDD {
-//             println("dddddd")
-// 	}
-//     }
-// }
-// test_enums()
 
 // test_structs := proc() {
 //     if MyStruct.bool_field {
