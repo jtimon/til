@@ -170,6 +170,9 @@ ExampleEnum := enum {
     eD
 }
 
+trying_dot_enum := ExampleEnum.eA
+trying_dot_enum2 : ExampleEnum = ExampleEnum.eA
+
 MyStruct := struct {
     bool_field : bool = false
     int_field : i64 = 0
@@ -183,7 +186,7 @@ MyStruct := struct {
     }
 }
 
-// trying_dot : bool = MyStruct.bool_field.ccccc.dddddd.eeeee.ffffff
+// trying_dot_struct : bool = MyStruct.bool_field.ccccc
 
 // TODO next:
 

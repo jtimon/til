@@ -1152,28 +1152,54 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
             }
         },
         NodeType::Identifier(name) => {
+            let t = tokens.get(e.token_index).unwrap();
             match context.symbols.get(name) {
                 Some(symbol_info) => {
-                    if 0 == e.params.len() {
+                    if e.params.len() == 0 {
                         return Ok(symbol_info.value_type.clone());
                     }
-                    let t = tokens.get(e.token_index).unwrap();
                     let member_str = match &e.params.get(0).unwrap().node_type {
                         NodeType::Identifier(member_name) => member_name,
                         node_type => panic!("{} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, node_type),
                     };
                     match symbol_info.value_type {
                         ValueType::TStruct => {
-                            return Err(format!("{}:{}: type error: {:?} '{}' has no member '{}'", t.line, t.col, symbol_info.value_type, name, member_str))
+                            return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
+                        },
+                        ValueType::TEnum => {
+                            match context.enums.get(name) {
+                                Some(enum_def) => {
+                                    let mut found_member = false;
+                                    for enum_val in &enum_def.enum_values {
+                                        if &enum_val.name == member_str {
+                                            found_member = true;
+                                            break;
+                                        }
+                                    }
+                                    if found_member {
+                                        if e.params.len() > 1 {
+                                            let extra_member_str = match &e.params.get(1).unwrap().node_type {
+                                                NodeType::Identifier(member_name) => member_name,
+                                                node_type => panic!("{} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, node_type),
+                                            };
+                                            return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members", t.line, t.col, extra_member_str, name, member_str, name, member_str));
+                                        }
+                                        return Ok(ValueType::TCustom(name.to_string()));
+                                    }
+                                    return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
+                                }
+                                None => {
+                                    return Err(format!("{}:{}: type error: Undefined enum '{}'. This should never happen", t.line, t.col, name));
+                                }
+                            }
                         },
                         _ => {
-                            return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member.",
+                            return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member",
                                                t.line, t.col, symbol_info.value_type, name, member_str))
                         },
                     }
                 },
                 None => {
-                    let t = tokens.get(e.token_index).unwrap();
                     return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
                 }
             }
@@ -1928,6 +1954,10 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected procedure definition.",
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
+        },
+        ValueType::TCustom(ref custom_type) => {
+            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+            format!("{} declared", custom_type)
         },
         _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
     }
