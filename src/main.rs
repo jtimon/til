@@ -1153,7 +1153,25 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         },
         NodeType::Identifier(name) => {
             match context.symbols.get(name) {
-                Some(symbol_info) => Ok(symbol_info.value_type.clone()),
+                Some(symbol_info) => {
+                    if 0 == e.params.len() {
+                        return Ok(symbol_info.value_type.clone());
+                    }
+                    let t = tokens.get(e.token_index).unwrap();
+                    let member_str = match &e.params.get(0).unwrap().node_type {
+                        NodeType::Identifier(member_name) => member_name,
+                        node_type => panic!("{} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, node_type),
+                    };
+                    match symbol_info.value_type {
+                        ValueType::TStruct => {
+                            return Err(format!("{}:{}: type error: {:?} '{}' has no member '{}'", t.line, t.col, symbol_info.value_type, name, member_str))
+                        },
+                        _ => {
+                            return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member.",
+                                               t.line, t.col, symbol_info.value_type, name, member_str))
+                        },
+                    }
+                },
                 None => {
                     let t = tokens.get(e.token_index).unwrap();
                     return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
