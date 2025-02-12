@@ -1494,6 +1494,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
+                // TODO stop mutants in the main body
+                // if is_body_base && !context.mode.allows_base_mut && symbol_info.is_mut {
+                // }
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
