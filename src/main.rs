@@ -607,6 +607,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
 }
 
 fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+    *current = *current + 1;
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
         return Err(format!("{}:{}: parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
@@ -640,6 +641,7 @@ fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token
 
 fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current: usize = *current;
+    *current = *current + 1;
 
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
@@ -692,6 +694,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
 }
 
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+    *current = *current + 1;
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
         return Err(format!("{}:{}: parse error: Expected '{{' after 'struct'.", t.line, t.col));
@@ -719,6 +722,10 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
         return parse_literal(&source, t, current)
     } else {
         match &t.token_type {
+            TokenType::Func => return parse_func_proc_definition(true, &source, &tokens, current),
+            TokenType::Proc => return parse_func_proc_definition(false, &source, &tokens, current),
+            TokenType::Enum => return enum_definition(&source, &tokens, current),
+            TokenType::Struct => return struct_definition(&source, &tokens, current),
             TokenType::LeftParen => parse_list(&source, &tokens, current),
             TokenType::Identifier => {
                 let mut next_t = tokens.get(*current + 1).unwrap();
@@ -741,22 +748,6 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
                 let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
                 *current = *current + 1;
                 return Ok(e);
-            },
-            TokenType::Func => {
-                *current = *current + 1;
-                return parse_func_proc_definition(true, &source, &tokens, current);
-            },
-            TokenType::Proc => {
-                *current = *current + 1;
-                return parse_func_proc_definition(false, &source, &tokens, current);
-            },
-            TokenType::Enum => {
-                *current = *current + 1;
-                return enum_definition(&source, &tokens, current);
-            },
-            TokenType::Struct => {
-                *current = *current + 1;
-                return struct_definition(&source, &tokens, current);
             },
             _ => return Err(format!("{}:{}: parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type)),
         }
