@@ -1104,6 +1104,7 @@ fn is_core_proc(proc_name: &str) -> bool {
         "print" => true,
         "println" => true,
         // TODO implement more core procs in rust:
+        "import" => true,
         "readfile" => true,
         "eval" => true,
         _ => false,
@@ -1966,6 +1967,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         match name {
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
+            // "import" => eval_core_proc_import(false, &mut context, &source, &tokens, &e),
             "exit" => eval_core_exit(&tokens, &e),
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
