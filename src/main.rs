@@ -48,11 +48,12 @@ enum TokenType {
     // flow control
     If, Else,
     While, For, In,
-    Match, Switch,
+    Match, Switch, Default,
 
     // Errors
     Const, Var,
     Fn,
+    Case,
     Invalid,
     UnterminatedString,
     // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
@@ -101,6 +102,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "struct" => TokenType::Struct,
         "switch" => TokenType::Switch,
         "match" => TokenType::Match,
+        "default" => TokenType::Default,
         "for" => TokenType::For,
         "in" => TokenType::In,
         "throw" => TokenType::Throw,
@@ -114,6 +116,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "var" => TokenType::Var,
         // intentionally unsupported reserved words:
         "fn" => TokenType::Fn,
+        "case" => TokenType::Case,
 
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
@@ -833,14 +836,36 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     Ok(Expr { node_type: NodeType::While, token_index: initial_current, params: params})
 }
 
-fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
-    // TODO parse_switch_statement actually implement parse_switch_statement
-    let t = tokens.get(*current).unwrap();
-    let _decl_name = get_token_str(source, t);
+fn current_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a TokenType {
+    let next_t = &tokens.get(*current).unwrap();
+    return &next_t.token_type;
+}
 
+// fn next_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a TokenType {
+//     let next_t = &tokens.get(*current + 1).unwrap();
+//     return &next_t.token_type;
+// }
+
+fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+    let t = tokens.get(*current).unwrap();
     let initial_current = *current;
     *current = *current + 1;
-    let params : Vec<Expr> = Vec::new();
+    let mut params : Vec<Expr> = Vec::new();
+    let prim = match primary(&source, &tokens, current) {
+        Ok(to_ret) => to_ret,
+        Err(err_str) => return Err(err_str),
+    };
+    params.push(prim);
+
+    if &TokenType::LeftBrace != current_token_type(&tokens, current) {
+        return Err(format!("{}:{} parse error: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
+    }
+    *current = *current + 1;
+    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
+        Ok(body) => body,
+        Err(err_str) => return Err(err_str),
+    };
+    params.push(body);
 
     Ok(Expr { node_type: NodeType::Switch, token_index: initial_current, params: params})
 }
@@ -913,7 +938,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     parse_func_call(&source, &tokens, current)
                 },
                 TokenType::Dot => {
-                    Err(format!("{}:{} parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
+                    Err(format!("{}:{}: parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
                 },
                 TokenType::Equal => {
                     return parse_assignment(&source, &tokens, current)

@@ -195,14 +195,14 @@ ExampleEnum2 := enum {
     LString : String
 }
 
-// test_switch := proc(enum_to_switch : ExampleEnum) returns string {
+// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns string {
 //     switch enum_to_switch {
-//         case ExampleEnum.A: return "enum switch aaaaaa"
+//         ExampleEnum.A: return "enum switch aaaaaa"
 //         case ExampleEnum.B: return "enum switch bbbbbb"
-//         case: return "enum cccccc"
+//         default: return "enum cccccc by default"
 //     }
 // }
-// println(test_switch(ExampleEnum.A))
+// println(test_switch(ExampleEnum.C))
 
 exit(0)
 
