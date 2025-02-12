@@ -864,6 +864,36 @@ fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, 
     Ok(Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params})
 }
 
+fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+    let t = tokens.get(*current).unwrap();
+    let mut next_t = tokens.get(*current + 1).unwrap();
+    let mut next_token_type = &next_t.token_type;
+    if next_token_type != &TokenType::Identifier {
+        return Err(format!("{}:{} parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
+    }
+    let identifier = get_token_str(source, next_t);
+    *current = *current + 1;
+    next_t = tokens.get(*current + 1).unwrap();
+    next_token_type = &next_t.token_type;
+    if next_token_type != &TokenType::Colon {
+        return Err(format!("{}:{} parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
+    }
+    let next_next_t = tokens.get(*current + 2).unwrap();
+    let next_next_token_type = &next_next_t.token_type;
+    match next_next_token_type {
+        TokenType::Identifier => {
+            let type_name = get_token_str(source, next_next_t);
+            return parse_declaration(&source, &tokens, current, true, type_name)
+        }
+        TokenType::Equal => {
+            return parse_declaration(&source, &tokens, current, true, INFER_TYPE)
+        },
+        _ => {
+            Err(format!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+        },
+    }
+}
+
 fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
@@ -874,34 +904,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         TokenType::If => return if_statement(&source, &tokens, current),
         TokenType::While => return while_statement(&source, &tokens, current),
         TokenType::Switch => return parse_switch_statement(&source, &tokens, current),
-        TokenType::Mut => {
-            let mut next_t = tokens.get(*current + 1).unwrap();
-            let mut next_token_type = &next_t.token_type;
-            if next_token_type != &TokenType::Identifier {
-                return Err(format!("{}:{} parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
-            }
-            let identifier = get_token_str(source, next_t);
-            *current = *current + 1;
-            next_t = tokens.get(*current + 1).unwrap();
-            next_token_type = &next_t.token_type;
-            if next_token_type != &TokenType::Colon {
-                return Err(format!("{}:{} parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
-            }
-            let next_next_t = tokens.get(*current + 2).unwrap();
-            let next_next_token_type = &next_next_t.token_type;
-            match next_next_token_type {
-                TokenType::Identifier => {
-                    let type_name = get_token_str(source, next_next_t);
-                    return parse_declaration(&source, &tokens, current, true, type_name)
-                }
-                TokenType::Equal => {
-                    return parse_declaration(&source, &tokens, current, true, INFER_TYPE)
-                },
-                _ => {
-                    Err(format!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
-                },
-            }
-        },
+        TokenType::Mut => return parse_mut_declaration(&source, &tokens, current),
         TokenType::Identifier => {
             let next_t = tokens.get(*current + 1).unwrap();
             let next_token_type = &next_t.token_type;
