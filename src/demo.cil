@@ -1,4 +1,5 @@
-// mode script
+// TODO implement other modes: script, safe_script, main, pure, proc, etc
+mode test
 
 // intro to the language:
 

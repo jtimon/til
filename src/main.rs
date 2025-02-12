@@ -12,6 +12,7 @@ use std::collections::HashMap;
 const LANG_NAME: &str = "lang";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
+const SUPPORTED_MODE: &str = "test";
 
 // ---------- lexer
 
@@ -399,6 +400,42 @@ fn is_eof(tokens: &Vec<Token>, current: usize) -> bool {
         TokenType::Eof => true,
         _ => false,
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ModeDef {
+    name: String,
+    allows_base_mut: bool,
+    allows_base_calls: bool,
+}
+
+fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
+    return match mode_name {
+        "script" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: true, allows_base_mut: true}),
+        "test" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: true, allows_base_mut: false}),
+        "pure" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: false, allows_base_mut: false}),
+        _  => return Err(format!("0:0: Rust interpreter implementation doesn't support mode '{}'", mode_name)),
+    };
+}
+
+fn parse_mode(source: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
+    if &TokenType::Mode != current_token_type(&tokens, &mut current) {
+        return Err(format!("0:0: 'mode' is required in the beginning of the file"));
+    }
+    *current = *current + 1; // Add one for mode
+
+    if &TokenType::Identifier != current_token_type(&tokens, &mut current) {
+        return Err(format!("0:0: Expected identifier after 'mode'"));
+    }
+    let t = current_token(&tokens, &mut current);
+    let mode_name = get_token_str(source, t).to_string();
+    let mode = match mode_from_name(&mode_name) {
+        Ok(mode_) => mode_,
+        Err(err_) => return Err(err_),
+    };
+
+    *current = *current + 1; // Add one for the identifier mode
+    return Ok(mode);
 }
 
 fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr, String> {
@@ -837,6 +874,10 @@ fn current_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a
     return &next_t.token_type;
 }
 
+fn current_token<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a Token {
+    return &tokens.get(*current).unwrap();
+}
+
 // fn next_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a TokenType {
 //     let next_t = &tokens.get(*current + 1).unwrap();
 //     return &next_t.token_type;
@@ -990,17 +1031,16 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>) -> Result<Expr, String> {
-    let mut current: usize = 0;
+fn parse_tokens(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
-    let e: Expr = match parse_body(TokenType::Eof, &source, tokens, &mut current) {
+    let e: Expr = match parse_body(TokenType::Eof, &source, tokens, current) {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
-    current = current + 1; // Add one for the EOF
+    *current = *current + 1; // Add one for the EOF
 
     println!("Total tokens parsed: {}/{}", current, tokens.len());
-    let mut i = current;
+    let mut i = *current;
     let mut unparsed_tokens = 0;
     if i < tokens.len() {
         unparsed_tokens = tokens.len() - i;
@@ -1026,6 +1066,7 @@ struct SymbolInfo {
 
 #[derive(Clone)]
 struct Context {
+    mode: ModeDef,
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
@@ -1069,8 +1110,9 @@ fn is_core_proc(proc_name: &str) -> bool {
     }
 }
 
-fn start_context() -> Context {
+fn start_context(mode: ModeDef) -> Context {
     let mut context: Context = Context {
+        mode: mode,
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
@@ -1426,6 +1468,28 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source:
 fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = tokens.get(e.token_index).unwrap();
+
+    if context.mode.name == "pure" {
+        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try {}",
+                            t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
+        return errors;
+    }
+    if context.mode.name == "script" {
+        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try {}",
+                            t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
+        return errors;
+    }
+
+    if context.mode.allows_base_mut {
+        errors.push(format!("{}:{}: modes that allow mut declarations in the root context of the file are not supported yet, culprit mode: '{}'.",
+                            t.line, t.col, context.mode.name));
+        return errors;
+    }
+    if !context.mode.allows_base_calls {
+        errors.push(format!("{}:{}: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.",
+                            t.line, t.col, context.mode.name));
+        return errors;
+    }
 
     match &e.node_type {
         NodeType::Body => {
@@ -2243,7 +2307,16 @@ fn main_run(path: &String, source: &String) -> String {
         return format!("Compiler errors: {} lexical errors found", errors_found);
     }
 
-    let e: Expr = match parse_tokens(&source, &tokens) {
+    let mut current: usize = 0;
+    let mode = match parse_mode(&source, &tokens, &mut current) {
+        Ok(mode_) => mode_,
+        Err(error_string) => {
+            return format!("{}:{}", &path, error_string);
+        },
+    };
+    println!("Mode: {}\n", mode.name);
+
+    let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -2251,7 +2324,7 @@ fn main_run(path: &String, source: &String) -> String {
     };
     println!("AST:\n{}", to_ast_str(&e, true));
 
-    let mut context = start_context();
+    let mut context = start_context(mode);
     let errors = init_context(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
