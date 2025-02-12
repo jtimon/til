@@ -47,7 +47,9 @@ example_basic_workflow()
 
 // self hosted:
 
-assertm := proc(cond: bool, msg: String) {
+// TODO mut func/procs shouldn't be allowed at this level, in this mode, or perhaps never
+mut assertm := proc(cond: bool, msg: String) {
+// assertm := proc(cond: bool, msg: String) {
     if not(cond) {
         println("assert failed: ", msg)
         exit(1)
@@ -77,8 +79,14 @@ test(eq(btoi(false), btoi(not(true))), "false is not true")
 test(not(or(false, false)), "or: two false don't make a true")
 test(and(true, true), "and: true and true is true")
 test(or(true, false), "and: true or false is true")
+test(xor(true, false), "and: true xor false is true") // Note that xor is used before being defined, but in the same file context
 test(eq(btoi(not(true)), btoi(false)), "not true is false")
 test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
+
+// TODO mut func/procs shouldn't be allowed at this level, in this mode, or perhaps never
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
 
 // comparisons 101:
 test(eq(0, 0), "0 == 0")
@@ -132,9 +140,6 @@ fib_test(15)
 // fibonacci(15) // fails because 'fibonacci' is defined locally inside fib_test
 
 main := proc() {
-    // Note that xor is defined after main but used inside it
-    println("printed from main: xor(true, false) == ", btoa(xor(true, false)))
-
     my_bool := true
     my_num1 := 1
     my_string := "aaaa "
@@ -144,18 +149,9 @@ main := proc() {
     and(res, my_func(true, my_func(true, true)))
     my_func(res, my_func(true, my_func(true, true)))
 
-    println("printed from main: ", my_string, itoa(42), " ", btoa(true), " bbbbb")
-
     // abc(false, true, false) // fails, because abc is defined locally in proc example_basic_workflow
 }
 main()
-
-////////////////
-// TODO mut func/procs shouldn't be allowed at this level, in this mode
-// mut xor := func(a: bool, b: bool) returns bool {
-xor := func(a: bool, b: bool) returns bool {
-    return or(and(not(a), b), and(a, not(b)))
-}
 
 // TODO fix col for invalid args
 // and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
