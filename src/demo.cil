@@ -197,8 +197,8 @@ ExampleEnum2 := enum {
 
 // test_switch := proc(enum_to_switch : ExampleEnum) returns string {
 //     switch enum_to_switch {
-//         case ExampleEnum.A: return "enum aaaaaa"
-//         case ExampleEnum.B: return "enum bbbbbb"
+//         case ExampleEnum.A: return "enum switch aaaaaa"
+//         case ExampleEnum.B: return "enum switch bbbbbb"
 //         case: return "enum cccccc"
 //     }
 // }

@@ -376,6 +376,7 @@ enum NodeType {
     Return,
     If,
     While,
+    Switch,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -832,6 +833,18 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     Ok(Expr { node_type: NodeType::While, token_index: initial_current, params: params})
 }
 
+fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+    // TODO parse_switch_statement actually implement parse_switch_statement
+    let t = tokens.get(*current).unwrap();
+    let _decl_name = get_token_str(source, t);
+
+    let initial_current = *current;
+    *current = *current + 1;
+    let params : Vec<Expr> = Vec::new();
+
+    Ok(Expr { node_type: NodeType::Switch, token_index: initial_current, params: params})
+}
+
 fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let decl_name = get_token_str(source, t);
@@ -866,6 +879,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         TokenType::While => {
             return while_statement(&source, &tokens, current)
         },
+        TokenType::Switch => return parse_switch_statement(&source, &tokens, current),
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
             let mut next_token_type = &next_t.token_type;
@@ -926,7 +940,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
 
                 },
                 _ => {
-                    Err(format!("{}:{} parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
+                    Err(format!("{}:{}: parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
                 },
             }
         },
@@ -1357,7 +1371,7 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
             }
             false
         },
-        NodeType::If | NodeType::While | NodeType::Return => {
+        NodeType::If | NodeType::While | NodeType::Switch | NodeType::Return => {
             for it_e in &e.params {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
@@ -1469,6 +1483,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
+        },
+        NodeType::Switch => {
+            panic!("{} TODO check_types error: keyword 'switch' not implemented yet\n", LANG_NAME);
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
@@ -2094,6 +2111,10 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             }
             "".to_string()
         },
+        NodeType::Switch => {
+            assert!(e.params.len() == 2, "{} eval error: switch nodes must have exactly 2 parameters.", LANG_NAME);
+            panic!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
+        },
         NodeType::Return => {
             assert!(e.params.len() == 1, "{} eval error: return nodes must have exactly 1 parameter.", LANG_NAME);
             eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
@@ -2107,20 +2128,23 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
 
 // ---------- to ast (aka code_gen lisp-like syntax)
 
-fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
+fn params_to_ast_str(end_line: bool, e: &Expr, skip : bool) -> String {
     let mut ast_str = "".to_string();
     for se in e.params.iter() {
         if end_line {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
+            ast_str.push_str(&format!("{}\n", to_ast_str(&se, skip)));
         } else {
-            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
+            ast_str.push_str(&format!("{} ", to_ast_str(&se, skip)));
         }
     }
     return ast_str;
 }
 
-fn to_ast_str(e: &Expr) -> String {
+fn to_ast_str(e: &Expr, skip : bool) -> String {
     let mut ast_str = "".to_string();
+    if skip {
+        return ast_str;
+    }
     match &e.node_type {
         NodeType::LBool(lbool) => {
             return lbool.to_string();
@@ -2132,14 +2156,14 @@ fn to_ast_str(e: &Expr) -> String {
             return lstring.to_string();
         },
         NodeType::Body => {
-            return params_to_ast_str(true, &e)
+            return params_to_ast_str(true, &e, skip)
         },
         NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap(), skip)));
             return ast_str;
         },
         NodeType::Assignment(var_name) => {
-            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap(), skip)));
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
@@ -2158,19 +2182,23 @@ fn to_ast_str(e: &Expr) -> String {
             return id_name.clone();
         },
         NodeType::FCall(name) => {
-            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
+            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e, skip)));
             return ast_str;
         },
         NodeType::LList => {
-            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e, skip)));
             return ast_str;
         },
         NodeType::If => {
-            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
             return ast_str;
         },
         NodeType::While => {
-            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap())));
+            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
+            return ast_str;
+        },
+        NodeType::Switch => {
+            ast_str.push_str(&format!("(switch {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
             return ast_str;
         },
         NodeType::Return => {
@@ -2203,7 +2231,7 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
-    // println!("AST:\n{}", to_ast_str(&e));
+    println!("AST:\n{}", to_ast_str(&e, true));
 
     let mut context = start_context();
     let errors = init_context(&mut context, &source, &tokens, &e);
