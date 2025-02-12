@@ -42,13 +42,17 @@ enum TokenType {
     // type definition
     Struct, Enum,
     // function definition
-    Func, Proc,
-    Return, Returns,
-    Throw, Throws, Try, Catch,
+    Returns, Throws,
     // flow control
     If, Else,
     While, For, In,
     Match, Switch, Default,
+    Return, Throw,
+    Try, Catch,
+
+    // Special in this language:
+    Func, Proc,
+    Mode,
 
     // Errors
     Const, Var,
@@ -109,6 +113,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "throws" => TokenType::Throws,
         "try" => TokenType::Try,
         "catch" => TokenType::Catch,
+        "mode" => TokenType::Mode,
 
         // Reserved illegal words:
         // const/vars are the most abstract types, you can't even explicitly declare them
