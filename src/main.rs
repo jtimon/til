@@ -53,7 +53,7 @@ enum TokenType {
 
     // Special in this language:
     Func, Proc,
-    Mode,
+    Mode, Import,
 
     // Errors
     Const, Var,
@@ -115,6 +115,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "try" => TokenType::Try,
         "catch" => TokenType::Catch,
         "mode" => TokenType::Mode,
+        "import" => TokenType::Import,
 
         // Reserved illegal words:
         // const/vars are the most abstract types, you can't even explicitly declare them
