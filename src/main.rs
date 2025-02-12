@@ -404,7 +404,7 @@ fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => {
-            return Err(format!("{}:{} {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, LANG_NAME, t.token_type));
+            return Err(format!("{}:{}: {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, LANG_NAME, t.token_type));
         },
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
@@ -433,12 +433,12 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
                     *current = *current + 1;
                     list_t = tokens.get(*current).unwrap();
                 } else {
-                    return Err(format!("{}:{} parse error: Unexpected ','.", list_t.line, list_t.col));
+                    return Err(format!("{}:{}: parse error: Unexpected ','.", list_t.line, list_t.col));
                 }
             },
             _ => {
                 if expect_comma {
-                    return Err(format!("{}:{} parse error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
+                    return Err(format!("{}:{}: parse error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
                 }
                 expect_comma = true;
                 let prim = match primary(&source, &tokens, current) {
@@ -452,7 +452,7 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
     }
     match list_t.token_type {
         TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token_index: initial_current, params: params}),
-        _ => Err(format!("{}:{} parse error: Expected closing parentheses.", list_t.line, list_t.col)),
+        _ => Err(format!("{}:{}: parse error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
 
@@ -515,7 +515,7 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                         *current = *current + 1;
                         t = tokens.get(*current).unwrap();
                     } else {
-                        return Err(format!("{}:{} parse error: Expected identifier before ','.", t.line, t.col));
+                        return Err(format!("{}:{}: parse error: Expected identifier before ','.", t.line, t.col));
                     }
                 }
             },
@@ -527,15 +527,15 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    return Err(format!("{}:{} parse error: Unexpected ':'.", t.line, t.col));
+                    return Err(format!("{}:{}: parse error: Unexpected ':'.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(format!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_colon {
-                    return Err(format!("{}:{} parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
                     arg_name = get_token_str(source, t);
@@ -550,13 +550,13 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                return Err(format!("{}:{} parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
             },
         }
     }
     match t.token_type {
         TokenType::RightParen => return Ok(args),
-        _ => return Err(format!("{}:{} parse error: Expected closing parentheses.", t.line, t.col)),
+        _ => return Err(format!("{}:{}: parse error: Expected closing parentheses.", t.line, t.col)),
     }
 }
 
@@ -582,12 +582,12 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                     *current = *current + 1;
                     t = tokens.get(*current).unwrap();
                 } else {
-                    return Err(format!("{}:{} parse error: Unexpected ','.", t.line, t.col));
+                    return Err(format!("{}:{}: parse error: Unexpected ','.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(format!("{}:{} parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 return_types.push(str_to_value_type(get_token_str(source, t)));
                 expect_comma = true;
@@ -595,25 +595,25 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                 t = tokens.get(*current).unwrap();
             },
             _ => {
-                return Err(format!("{}:{} parse error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
             },
         }
     }
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(format!("{}:{} parse error: Expected '{{' or 'throws' after return values.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '{{' or 'throws' after return values.", t.line, t.col));
     }
 }
 
 fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        return Err(format!("{}:{} parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
     }
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftParen {
-        return Err(format!("{}:{} parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
+        return Err(format!("{}:{}: parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
     let args = match parse_func_proc_args(&source, &tokens, current) {
         Ok(to_ret) => to_ret,
@@ -643,11 +643,11 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
 
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{} parse error: Expected '{{' after 'enum'.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '{{' after 'enum'.", t.line, t.col));
     }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        return Err(format!("{}:{} parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let mut enum_values : Vec<EnumDeclVal> = Vec::new();
@@ -669,7 +669,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     TokenType::Colon => {
                         let next2_t = tokens.get(*current + 2).unwrap();
                         if next2_t.token_type != TokenType::Identifier {
-                            return Err(format!("{}:{} parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
+                            return Err(format!("{}:{}: parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
                         }
                         let enum_val_type = get_token_str(source, next2_t);
                         enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: Some(str_to_value_type(enum_val_type))});
@@ -679,13 +679,13 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 }
             },
             _ => {
-                return Err(format!("{}:{} parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));
+                return Err(format!("{}:{}: parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));
             }
         }
         *current = *current + 1;
     }
     if !end_found {
-        return Err(format!("{}:{} parse error: Expected '}}' to end enum.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
     return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_values: enum_values}), token_index: initial_current, params: params});
@@ -694,11 +694,11 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{} parse error: Expected '{{' after 'struct'.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '{{' after 'struct'.", t.line, t.col));
     }
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
-        return Err(format!("{}:{} parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
@@ -730,7 +730,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
                 while TokenType::Dot == next_t.token_type {
                     let next2_t = tokens.get(*current + 2).unwrap();
                     if TokenType::Identifier != next2_t.token_type {
-                        return Err(format!("{}:{} parse error: expected identifier after '{}.', found {:?}.",
+                        return Err(format!("{}:{}: parse error: expected identifier after '{}.', found {:?}.",
                                            next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
                     }
                     current_identifier = get_token_str(source, next2_t).to_string();
@@ -758,7 +758,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
                 *current = *current + 1;
                 return struct_definition(&source, &tokens, current);
             },
-            _ => return Err(format!("{}:{} parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type)),
+            _ => return Err(format!("{}:{}: parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type)),
         }
     }
 }
@@ -800,7 +800,7 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Re
         *current = *current + 1;
         t = tokens.get(*current).unwrap();
         if t.token_type != TokenType::LeftBrace {
-            return Err(format!("{}:{} parse error: Expected '{{' after 'else'.", t.line, t.col));
+            return Err(format!("{}:{}: parse error: Expected '{{' after 'else'.", t.line, t.col));
         }
         *current = *current + 1;
         let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
@@ -824,7 +824,7 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     params.push(prim);
     let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{} parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
     }
     *current = *current + 1;
     let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
@@ -858,7 +858,7 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
     params.push(prim);
 
     if &TokenType::LeftBrace != current_token_type(&tokens, current) {
-        return Err(format!("{}:{} parse error: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
+        return Err(format!("{}:{}: parse error: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
     }
     *current = *current + 1;
     let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
@@ -894,14 +894,14 @@ fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usi
     let mut next_t = tokens.get(*current + 1).unwrap();
     let mut next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Identifier {
-        return Err(format!("{}:{} parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
+        return Err(format!("{}:{}: parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
     }
     let identifier = get_token_str(source, next_t);
     *current = *current + 1;
     next_t = tokens.get(*current + 1).unwrap();
     next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Colon {
-        return Err(format!("{}:{} parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
+        return Err(format!("{}:{}: parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
     }
     let next_next_t = tokens.get(*current + 2).unwrap();
     let next_next_token_type = &next_next_t.token_type;
@@ -914,7 +914,7 @@ fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usi
             return parse_declaration(&source, &tokens, current, true, INFER_TYPE)
         },
         _ => {
-            Err(format!("{}:{} parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+            Err(format!("{}:{}: parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
         },
     }
 }
@@ -923,7 +923,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     let t = tokens.get(*current).unwrap();
     match &t.token_type {
         TokenType::For => {
-            return Err(format!("{}:{} parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
+            return Err(format!("{}:{}: parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
         TokenType::Return => return return_statement(&source, &tokens, current),
         TokenType::If => return if_statement(&source, &tokens, current),
@@ -956,7 +956,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                             return parse_declaration(&source, &tokens, current, false, INFER_TYPE)
                         },
                         _ => {
-                            Err(format!("{}:{} parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+                            Err(format!("{}:{}: parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
                         },
                     }
 
@@ -967,7 +967,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             }
         },
         _ => {
-            Err(format!("{}:{} parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
+            Err(format!("{}:{}: parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
         },
     }
 }
@@ -1324,7 +1324,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
         }
         _ => {
             let t = tokens.get(e.token_index).unwrap();
-            errors.push(format!("{}:{} 'init_context' can only include declarations and calls, found {:?}.", t.line, t.col, e.node_type));
+            errors.push(format!("{}:{}: 'init_context' can only include declarations and calls, found {:?}.", t.line, t.col, e.node_type));
         },
     }
     errors
@@ -1549,10 +1549,10 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                         };
                         if expected_type != &found_type {
                             if expected_type == &str_to_value_type(INFER_TYPE) {
-                                errors.push(format!("{}:{} calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
+                                errors.push(format!("{}:{}: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
                                                     t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
                             } else {
-                                errors.push(format!("{}:{} calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                errors.push(format!("{}:{}: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
                                                     t.line, t.col, name, expected_type, arg.name, found_type));
                             }
                         }
@@ -1562,7 +1562,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
-                errors.push(format!("{}:{} Undefined symbol {}", t.line, t.col, name));
+                errors.push(format!("{}:{}: Undefined symbol {}", t.line, t.col, name));
             }
         },
         NodeType::FuncDef(func_def) => {
@@ -1571,7 +1571,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             for se in &func_def.body {
                 if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
                     let proc_t = tokens.get(se.token_index).unwrap();
-                    errors.push(format!("{}:{} compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
+                    errors.push(format!("{}:{}: compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
                 }
             }
         },
@@ -1619,17 +1619,17 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::Assignment(var_name) => {
             assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             if is_core_func(&var_name) {
-                errors.push(format!("{}:{} compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if is_core_proc(&var_name) {
-                errors.push(format!("{}:{} compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.funcs.contains_key(var_name)  {
-                errors.push(format!("{}:{} compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.procs.contains_key(var_name)  {
-                errors.push(format!("{}:{} compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.symbols.contains_key(var_name) {
                 let symbol_info = context.symbols.get(var_name).unwrap();
                 if !symbol_info.is_mut {
-                    errors.push(format!("{}:{} compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, var_name));
+                    errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, var_name));
                 }
             } else {
                 errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
