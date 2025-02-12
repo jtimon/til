@@ -185,6 +185,15 @@ MyStruct := struct {
 }
 // trying_dot_struct : bool = MyStruct.bool_field.ccccc
 
+// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns string {
+//     switch enum_to_switch {
+//         ExampleEnum.A: return "enum switch aaaaaa"
+//         case ExampleEnum.B: return "enum switch bbbbbb"
+//         default: return "enum cccccc by default"
+//     }
+// }
+// println(test_switch(ExampleEnum.C))
+
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
     // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
@@ -194,15 +203,6 @@ ExampleEnum2 := enum {
     LNumber : i64
     LString : String
 }
-
-// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns string {
-//     switch enum_to_switch {
-//         ExampleEnum.A: return "enum switch aaaaaa"
-//         case ExampleEnum.B: return "enum switch bbbbbb"
-//         default: return "enum cccccc by default"
-//     }
-// }
-// println(test_switch(ExampleEnum.C))
 
 exit(0)
 
