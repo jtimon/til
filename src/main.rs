@@ -1620,11 +1620,13 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 },
             }
         },
+
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
                 errors.push(format!("{}:{}: Undefined symbol {}", t.line, t.col, name));
             }
         },
+
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
@@ -1639,6 +1641,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
         },
+
         NodeType::Declaration(decl) => {
             assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
@@ -1676,6 +1679,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             }
             errors.append(&mut check_types(&mut context, &source, &tokens, &inner_e));
         },
+
         NodeType::Assignment(var_name) => {
             assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             if is_core_func(&var_name) {
