@@ -870,15 +870,9 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         TokenType::For => {
             return Err(format!("{}:{} parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
-        TokenType::Return => {
-            return return_statement(&source, &tokens, current)
-        },
-        TokenType::If => {
-            return if_statement(&source, &tokens, current)
-        },
-        TokenType::While => {
-            return while_statement(&source, &tokens, current)
-        },
+        TokenType::Return => return return_statement(&source, &tokens, current),
+        TokenType::If => return if_statement(&source, &tokens, current),
+        TokenType::While => return while_statement(&source, &tokens, current),
         TokenType::Switch => return parse_switch_statement(&source, &tokens, current),
         TokenType::Mut => {
             let mut next_t = tokens.get(*current + 1).unwrap();
