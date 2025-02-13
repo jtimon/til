@@ -1017,13 +1017,13 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
         // println!("next token: {:?}, {:?}", tokens.get(*current).unwrap().token_type, end_token);
         if tokens.get(*current).unwrap().token_type == end_token {
             end_found = true;
-        } else {
-            let stmt = match parse_statement(&source, &tokens, current) {
-                Ok(statement) => statement,
-                Err(error_string) => return Err(error_string),
-            };
-            params.push(stmt);
+            break;
         }
+        let stmt = match parse_statement(&source, &tokens, current) {
+            Ok(statement) => statement,
+            Err(error_string) => return Err(error_string),
+        };
+        params.push(stmt);
     }
     if end_found {
         return Ok(Expr { node_type: NodeType::Body, token_index: initial_current, params: params})
