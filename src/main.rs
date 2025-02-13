@@ -1184,26 +1184,28 @@ fn start_context(mode: ModeDef) -> Context {
     context
 }
 
-fn value_type_func_proc(name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
+fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.returns.len() {
         0 => {
-            panic!("{} error: func '{}' does not return anything" , LANG_NAME, name)
+            return Err(format!("{}:{}: {} error: func '{}' does not return anything", t.line, t.col, LANG_NAME, name))
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
                 ValueType::TBool => Ok(ValueType::TBool),
                 ValueType::TI64 => Ok(ValueType::TI64),
                 ValueType::TString => Ok(ValueType::TString),
-                _ => panic!("{} error: func '{}' returns unsupported type {:?}" , LANG_NAME, name, func_def.returns.get(0).unwrap()),
+                _ => return Err(format!("{}:{}: {} error: func '{}' returns unsupported type {:?}",
+                                        t.line, t.col, LANG_NAME, name, func_def.returns.get(0).unwrap())),
             }
         },
         _ => {
-            panic!("{} error: func '{}' returns multiple values, but that's not implemented yet." , LANG_NAME, name)
+            return Err(format!("{}:{}: {} error: func '{}' returns multiple values, but that's not implemented yet.", t.line, t.col, LANG_NAME, name));
         },
     }
 }
 
 fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
+    let t = tokens.get(e.token_index).unwrap();
     match &e.node_type {
         NodeType::LBool(_) => Ok(ValueType::TBool),
         NodeType::LI64(_) => Ok(ValueType::TI64),
@@ -1215,9 +1217,9 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         NodeType::StructDef => Ok(ValueType::TStruct),
         NodeType::FCall(name) => {
             if context.funcs.contains_key(name) {
-                value_type_func_proc(name, &context.funcs.get(name).unwrap())
+                value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
             } else if context.procs.contains_key(name) {
-                value_type_func_proc(name, &context.procs.get(name).unwrap())
+                value_type_func_proc(t, name, &context.procs.get(name).unwrap())
             } else if is_defined_symbol(&context, name) {
                 let t = tokens.get(e.token_index).unwrap();
                 return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
@@ -1227,7 +1229,6 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
             }
         },
         NodeType::Identifier(name) => {
-            let t = tokens.get(e.token_index).unwrap();
             match context.symbols.get(name) {
                 Some(symbol_info) => {
                     if e.params.len() == 0 {
@@ -1235,7 +1236,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                     }
                     let member_str = match &e.params.get(0).unwrap().node_type {
                         NodeType::Identifier(member_name) => member_name,
-                        node_type => panic!("{} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, node_type),
+                        node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, t.line, t.col, node_type)),
                     };
                     match symbol_info.value_type {
                         ValueType::TStruct => {
