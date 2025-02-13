@@ -166,6 +166,17 @@ ExampleEnum := enum {
 trying_dot_enum := ExampleEnum.A
 trying_dot_enum2 : ExampleEnum = ExampleEnum.B
 
+// TODO next:
+
+// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns string {
+//     switch enum_to_switch {
+//         case ExampleEnum.A: return "enum switch aaaaaa"
+//         case ExampleEnum.B: return "enum switch bbbbbb"
+//         case: return "enum cccccc by default"
+//     }
+// }
+// println(test_switch_enum(ExampleEnum.C))
+
 MyStruct := struct {
     bool_field : bool = false
     int_field : i64 = 0
@@ -179,19 +190,8 @@ MyStruct := struct {
     }
 }
 
-// TODO next:
-
 // my_struct := MyStruct()
 // trying_dot_struct : bool = MyStruct.bool_field.ccccc
-
-// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns string {
-//     switch enum_to_switch {
-//         case: ExampleEnum.A: return "enum switch aaaaaa"
-//         case ExampleEnum.B: return "enum switch bbbbbb"
-//         case: return "enum cccccc by default"
-//     }
-// }
-// println(test_switch(ExampleEnum.C))
 
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool

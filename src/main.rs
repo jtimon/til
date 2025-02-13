@@ -9,7 +9,7 @@ use std::collections::HashMap;
 // or just change the name of the language
 // CIL stands for Compiled Interpreted Language
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
-const LANG_NAME: &str = "lang";
+const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
 const SUPPORTED_MODE: &str = "test";
@@ -386,6 +386,7 @@ enum NodeType {
     If,
     While,
     Switch,
+    DefaultCase,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -898,13 +899,58 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
         return Err(format!("{}:{}: parse error: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
     }
     *current = *current + 1;
-    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
-        Ok(body) => body,
-        Err(err_str) => return Err(err_str),
-    };
-    params.push(body);
 
-    Ok(Expr { node_type: NodeType::Switch, token_index: initial_current, params: params})
+    let mut end_found = false;
+    while *current < tokens.len() && !end_found {
+        let mut next_t = tokens.get(*current).unwrap();
+        if next_t.token_type != TokenType::Case {
+            return Err(format!("{}:{}: parse error: Expected 'case' in switch, found {:?}", next_t.line, next_t.col, next_t.token_type));
+        }
+
+        *current = *current + 1;
+        next_t = tokens.get(*current).unwrap();
+        if next_t.token_type == TokenType::Colon {
+            params.push(Expr{node_type: NodeType::DefaultCase, token_index: *current, params: Vec::new()});
+        } else {
+            let prim = match primary(&source, &tokens, current) {
+                Ok(to_ret) => to_ret,
+                Err(err_str) => return Err(err_str),
+            };
+            params.push(prim);
+        }
+
+        next_t = tokens.get(*current).unwrap();
+        if next_t.token_type != TokenType::Colon {
+            return Err(format!("{}:{}: parse error: Expected ':' case <primary_expr> in switch, found {:?}",
+                               next_t.line, next_t.col, next_t.token_type));
+        }
+
+        *current = *current + 1;
+        next_t = tokens.get(*current).unwrap();
+        let mut body_params : Vec<Expr> = Vec::new();
+        while *current < tokens.len() {
+            if next_t.token_type == TokenType::RightBrace {
+                params.push(Expr{node_type: NodeType::Body, token_index: *current, params: body_params});
+                end_found = true;
+                *current = *current + 1;
+                break;
+            }
+            if next_t.token_type == TokenType::Case {
+                params.push(Expr{node_type: NodeType::Body, token_index: *current, params: body_params});
+                break;
+            }
+            let stmt = match parse_statement(&source, &tokens, current) {
+                Ok(statement) => statement,
+                Err(error_string) => return Err(error_string),
+            };
+            body_params.push(stmt);
+            next_t = tokens.get(*current).unwrap();
+        }
+    }
+    if end_found {
+        return Ok(Expr { node_type: NodeType::Switch, token_index: initial_current, params: params})
+    }
+    return Err(format!("parse error: Expected '}}' to end switch."));
 }
 
 fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
@@ -1424,6 +1470,7 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
         NodeType::LBool(_) => false,
         NodeType::LI64(_) => false,
         NodeType::LString(_) => false,
+        NodeType::DefaultCase => false,
         NodeType::LList => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall(call_name) => {
@@ -1584,8 +1631,13 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             }
         },
         NodeType::Switch => {
-            errors.push(format!("{}:{}: {} TODO check_types error: keyword 'switch' not implemented yet\n", t.line, t.col, LANG_NAME));
-            return errors;
+            assert!(e.params.len() >= 3, "{} error: switch nodes must have at least 3 parameters.", LANG_NAME);
+            // TODO check that the type to be switch corresponds to each case
+            // TODO check that there's a body param after each case
+            // TODO check that all the cases are covered
+            for p in e.params.iter() {
+                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
+            }
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
@@ -1726,7 +1778,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             assert!(e.params.len() == 1, "{} error: return nodes must exactly 1 parameter.", LANG_NAME);
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
-        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList => {},
+        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
     }
     errors
 }
@@ -2263,6 +2315,9 @@ fn to_ast_str(e: &Expr, skip : bool) -> String {
         NodeType::LString(lstring) => {
             return lstring.to_string();
         },
+        NodeType::DefaultCase => {
+            return "default_case".to_string();
+        }
         NodeType::Body => {
             return params_to_ast_str(true, &e, skip)
         },
