@@ -1239,7 +1239,14 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                     };
                     match symbol_info.value_type {
                         ValueType::TStruct => {
-                            return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
+                            match context.structs.get(name) {
+                                Some(_struct_def) => {
+                                    return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
+                                },
+                                None => {
+                                    return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, t.line, t.col, name));
+                                },
+                            }
                         },
                         ValueType::TEnum => {
                             match context.enums.get(name) {
@@ -1264,7 +1271,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                                     return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
                                 }
                                 None => {
-                                    return Err(format!("{}:{}: type error: Undefined enum '{}'. This should never happen", t.line, t.col, name));
+                                    return Err(format!("{}:{}: {} error: Undefined enum '{}'", t.line, t.col, LANG_NAME, name));
                                 }
                             }
                         },
