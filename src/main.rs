@@ -1263,9 +1263,11 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                                         if e.params.len() > 1 {
                                             let extra_member_str = match &e.params.get(1).unwrap().node_type {
                                                 NodeType::Identifier(member_name) => member_name,
-                                                node_type => panic!("{} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, node_type),
+                                                node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
+                                                                                t.line, t.col, LANG_NAME, node_type)),
                                             };
-                                            return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members", t.line, t.col, extra_member_str, name, member_str, name, member_str));
+                                            return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
+                                                               t.line, t.col, extra_member_str, name, member_str, name, member_str));
                                         }
                                         return Ok(ValueType::TCustom(name.to_string()));
                                     }
@@ -1287,7 +1289,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                 }
             }
         },
-        node_type => panic!("{} error: get_value_type() not implement for {:?} yet.", LANG_NAME, node_type),
+        node_type => return Err(format!("{}:{}: {} error: get_value_type() not implement for {:?} yet.", t.line, t.col, LANG_NAME, node_type)),
     }
 }
 
@@ -1328,7 +1330,8 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{}: {} error: funcs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
+                            errors.push(format!("{}:{}: {} error: funcs should have definitions", t.line, t.col, LANG_NAME));
+                            return errors;
                         },
                     }
                 },
@@ -1339,7 +1342,8 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.procs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            panic!("{}:{}: {} error: procs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
+                            errors.push(format!("{}:{}: {} error: procs should have definitions", t.line, t.col, LANG_NAME));
+                            return errors;
                         },
                     }
                 },
@@ -1352,7 +1356,8 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.enums.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            panic!("{}:{}: {} error: enums should have definitions. This should never happen", t.line, t.col, LANG_NAME);
+                            errors.push(format!("{}:{}: {} error: enums should have definitions.", t.line, t.col, LANG_NAME));
+                            return errors;
                         },
                     }
                 },
@@ -1579,7 +1584,8 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             }
         },
         NodeType::Switch => {
-            panic!("{} TODO check_types error: keyword 'switch' not implemented yet\n", LANG_NAME);
+            errors.push(format!("{}:{}: {} TODO check_types error: keyword 'switch' not implemented yet\n", t.line, t.col, LANG_NAME));
+            return errors;
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
@@ -1594,7 +1600,8 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                     } else if context.procs.contains_key(name) {
                         func_def = context.procs.get(name).unwrap();
                     } else {
-                        panic!("{} error: Undefined function or procedure '{}'. This should have been caught before.\n", LANG_NAME, name);
+                        errors.push(format!("{}:{}: {} error: Undefined function or procedure '{}'", t.line, t.col, LANG_NAME, name));
+                        return errors;
                     }
                     let has_multi_arg = func_proc_has_multi_arg(func_def);
                     if !has_multi_arg && func_def.args.len() != e.params.len() {
@@ -1671,7 +1678,8 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 match value_type {
                     ValueType::ToInferType => {
-                        panic!("{}:{} {} error: Cannot infer the declaration type of {}", t.line, t.col, LANG_NAME, decl.name);
+                        errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", t.line, t.col, LANG_NAME, decl.name));
+                        return errors;
                     },
                     ValueType::TFunc | ValueType::TProc => {
                         match &inner_e.node_type {
@@ -1682,7 +1690,8 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                                 context.procs.insert(decl.name.clone(), func_def.clone());
                             },
                             _ => {
-                                panic!("{}:{} {} error: funcs/procs should have definitions. This should never happen", t.line, t.col, LANG_NAME);
+                                errors.push(format!("{}:{} {} error: funcs/procs should have definitions", t.line, t.col, LANG_NAME));
+                                return errors;
                             },
                         }
                     },
