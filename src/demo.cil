@@ -140,6 +140,11 @@ fib_test := proc(fib_arg: i64) {
 fib_test(15)
 // fibonacci(15) // fails because 'fibonacci' is defined locally inside fib_test
 
+my_str_func := func(a: String) returns String {
+    return a
+}
+println(my_str_func("strings can be passed as params and returned"))
+
 main := proc() {
     my_bool := true
     my_num1 := 1
@@ -164,14 +169,13 @@ ExampleEnum := enum {
 }
 
 trying_dot_enum := ExampleEnum.A
-trying_dot_enum2 : ExampleEnum = ExampleEnum.B
-
-// TODO next:
-
-my_str_func := func(a: String) returns String {
+my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
     return a
 }
-println(my_str_func("strings can be passed as params and returned"))
+trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
+trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
+
+// TODO next:
 
 // test_switch_enum := proc(enum_to_switch : ExampleEnum) returns String {
 //     switch enum_to_switch {

@@ -1240,6 +1240,7 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
                 ValueType::TBool => Ok(ValueType::TBool),
                 ValueType::TI64 => Ok(ValueType::TI64),
                 ValueType::TString => Ok(ValueType::TString),
+                ValueType::TCustom(type_str) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 _ => return Err(format!("{}:{}: {} error: func '{}' returns unsupported type {:?}",
                                         t.line, t.col, LANG_NAME, name, func_def.returns.get(0).unwrap())),
             }
