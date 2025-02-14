@@ -2273,7 +2273,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             "".to_string()
         },
         NodeType::Switch => {
-            assert!(e.params.len() >= 3, "{} eval error: switch nodes must have exactly at least 3 parameters.", LANG_NAME);
+            assert!(e.params.len() >= 3, "{} eval error: switch nodes must have at least 3 parameters.", LANG_NAME);
             panic!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
         },
         NodeType::Return => {
