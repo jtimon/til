@@ -24,9 +24,10 @@ enum TokenType {
     // Single-character tokens.
     Minus, Plus, Slash, Star,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
-    Comma, Dot, Colon, Semicolon,
+    Comma, Colon, Semicolon,
 
     // One or two character tokens.
+    Dot, DoubleDot,
     Not, NotEqual,
     Equal, EqualEqual,
     Greater, GreaterEqual,
@@ -180,9 +181,9 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 "+" => TokenType::Plus,
                 "*" => TokenType::Star,
                 "," => TokenType::Comma,
-                "." => TokenType::Dot,
                 ":" => TokenType::Colon,
                 ";" => TokenType::Semicolon,
+                "." => if &source[pos+1..pos+2] == "." { pos += 1; TokenType::DoubleDot } else { TokenType::Dot },
                 "=" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::EqualEqual } else { TokenType::Equal },
                 "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
