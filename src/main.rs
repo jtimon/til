@@ -2199,6 +2199,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
 }
 
 fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    let t = tokens.get(e.token_index).unwrap();
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
@@ -2217,7 +2218,6 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
         NodeType::LList => {
-            let t = tokens.get(e.token_index).unwrap();
             let token_str = get_token_str(source, t);
             token_str.to_string()
         },
@@ -2275,13 +2275,12 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
         NodeType::Switch => {
             assert!(e.params.len() >= 3, "{} eval error: switch nodes must have at least 3 parameters.", LANG_NAME);
 
-            // let to_switch = e.params.get(0).unwrap();
-            // let mut param_it = 0;
-            // for p in e.params {
-            //     if param_it != 0 {
-            //         println!("eval switch: param_it {}", param_it);
+            let _to_switch = e.params.get(0).unwrap();
+            let mut param_it = 0;
+            for _switch_params in &e.params {
+                println!("eval switch: param_it {}", param_it);
 
-            //         param_it += 1;
+                param_it += 1;
             //         match get_value_type(&context, &tokens, to_switch) {
             //             ValueType::TI64 => {
             //                 let case = e.params.get(1).unwrap();
@@ -2299,18 +2298,15 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             //                 panic!("{} eval error: expected I64 to switch found {:?}", LANG_NAME, other_to_switch);
             //             },
             //         }
-
             //     }
-            // }
-
-            return format!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
+            }
+            return format!("{}:{}:{}: eval error: switch nodes are not implemented yet.", t.line, t.col, LANG_NAME);
         },
         NodeType::Return => {
             assert!(e.params.len() == 1, "{} eval error: return nodes must have exactly 1 parameter.", LANG_NAME);
             eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
         }
         _ => {
-            let t = tokens.get(e.token_index).unwrap();
             panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))
         },
     }
