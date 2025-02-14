@@ -2282,7 +2282,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
         }
         _ => {
             let t = tokens.get(e.token_index).unwrap();
-            panic!("{}:{} {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))
+            panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))
         },
     }
 }
