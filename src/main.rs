@@ -1985,7 +1985,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             function_context.strings.insert(arg.name.clone(), result);
             param_index += 1;
         } else {
-            panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, name, LANG_NAME, arg.value_type);
+            panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, LANG_NAME, name, arg.value_type);
         }
 
     }
@@ -2273,7 +2273,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             "".to_string()
         },
         NodeType::Switch => {
-            assert!(e.params.len() == 2, "{} eval error: switch nodes must have exactly 2 parameters.", LANG_NAME);
+            assert!(e.params.len() >= 3, "{} eval error: switch nodes must have exactly at least 3 parameters.", LANG_NAME);
             panic!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
         },
         NodeType::Return => {

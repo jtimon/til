@@ -177,8 +177,19 @@ trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
 // TODO next:
 
-// test_switch_enum := proc(enum_to_switch : ExampleEnum) returns String {
-//     switch enum_to_switch {
+// test_int_switch := proc (to_switch: i64) {
+//     switch to_switch {
+//     case 42:
+//        println("in test_int_switch(), ", itoa(to_switch), "is the answer.")
+//     case:
+//        println("in test_int_switch(), ", itoa(to_switch), "is a wrong answer.")
+//     }
+// }
+// test_int_switch(42)
+// test_int_switch(43)
+
+// test_switch_enum := proc(to_switch : ExampleEnum) returns String {
+//     switch to_switch {
 //         case ExampleEnum.A: return "enum switch aaaaaa"
 //         case ExampleEnum.B: return "enum switch bbbbbb"
 //         case: return "enum cccccc by default"
@@ -224,16 +235,6 @@ exit(0)
 //     }
 // }
 // test_structs()
-
-// test_int_switch := proc (i64_to_switch: i64) returns String {
-//     if eq(42, i64_to_switch) {
-//        return "That's the answer."
-//     } else {
-//        return "test_int_switch is not implemented yet."
-//     }
-// }
-// println(test_int_switch(42))
-// println(test_int_switch(43))
 
 // FIX literals have to work in the repl
 // "aaa"
