@@ -2274,7 +2274,36 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
         },
         NodeType::Switch => {
             assert!(e.params.len() >= 3, "{} eval error: switch nodes must have at least 3 parameters.", LANG_NAME);
-            panic!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
+
+            // let to_switch = e.params.get(0).unwrap();
+            // let mut param_it = 0;
+            // for p in e.params {
+            //     if param_it != 0 {
+            //         println!("eval switch: param_it {}", param_it);
+
+            //         param_it += 1;
+            //         match get_value_type(&context, &tokens, to_switch) {
+            //             ValueType::TI64 => {
+            //                 let case = e.params.get(1).unwrap();
+            //                 let case_type = get_value_type(&context, &tokens, case);
+            //                 match case_type {
+            //                     ValueType::TI64 => {
+            //                         panic!("{} eval error: expected I64 to switch found {:?}", LANG_NAME, to_switch);
+            //                     },
+            //                     _ => {
+            //                         panic!("{} eval error: expected I64 to switch found {:?}", LANG_NAME, to_switch);
+            //                     },
+            //                 }
+            //             },
+            //             other_to_switch => {
+            //                 panic!("{} eval error: expected I64 to switch found {:?}", LANG_NAME, other_to_switch);
+            //             },
+            //         }
+
+            //     }
+            // }
+
+            return format!("{} eval error: switch nodes are not implemented yet.", LANG_NAME);
         },
         NodeType::Return => {
             assert!(e.params.len() == 1, "{} eval error: return nodes must have exactly 1 parameter.", LANG_NAME);
