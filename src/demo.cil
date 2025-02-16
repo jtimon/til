@@ -167,16 +167,17 @@ ExampleEnum := enum {
     B
     C
 }
-
-trying_dot_enum := ExampleEnum.A
-my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
-    return a
-}
-// my_enum_func(ExampleEnum.B)
-trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
-trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
+// trying_dot_enum : ExampleEnum = 0 // fails because an enum is not an int
+trying_dot_enum : ExampleEnum = ExampleEnum.A
 
 // TODO next:
+
+// my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
+//     return a
+// }
+// trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
+// trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
+// my_enum_func(ExampleEnum.B)
 
 test_int_switch := proc (to_switch: i64) {
     switch to_switch {

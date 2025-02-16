@@ -1111,6 +1111,14 @@ struct SymbolInfo {
     is_mut: bool,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+struct EnumVal {
+    enum_type: String,
+    enum_name: String,
+    // enum_unsigned_val: String,
+    // extra_Val: Option<Anything>,
+}
+
 #[derive(Clone)]
 struct Context {
     mode: ModeDef,
@@ -1118,6 +1126,7 @@ struct Context {
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
     enum_defs: HashMap<String, SEnumDef>,
+    enums: HashMap<String, EnumVal>,
     structs: HashMap<String, Expr>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
@@ -1165,6 +1174,7 @@ fn start_context(mode: ModeDef) -> Context {
         funcs: HashMap::new(),
         procs: HashMap::new(),
         enum_defs: HashMap::new(),
+        enums: HashMap::new(),
         structs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
@@ -2134,12 +2144,17 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
-        ValueType::TCustom(ref custom_type) => {
+        ValueType::TCustom(ref custom_type_name) => {
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            // TODO insert custom types in the context
-            // let custom_expr_result = &eval_expr(&mut context, &source, &tokens, inner_e);
-            // context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
-            format!("{} declared", custom_type)
+            let custom_symbol = context.symbols.get(custom_type_name).unwrap();
+            if custom_symbol.value_type == ValueType::TEnumDef {
+                let enum_expr_result_str = &eval_expr(&mut context, &source, &tokens, inner_e);
+                context.enums.insert(declaration.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: enum_expr_result_str.to_string()});
+            } else {
+                panic!("{}:{} {} eval error: Cannot declare {} of type {:?}. Only enum custom types allowed yet.",
+                       t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+            }
+            return format!("{} declared", custom_type_name)
         },
         _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
     }
@@ -2246,6 +2261,21 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
                     },
                     ValueType::TString => {
                         context.strings.get(name).unwrap().to_string()
+                    },
+                    ValueType::TEnumDef => {
+                        assert!(e.params.len() > 0, "{} eval error: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                        // let enum_def = context.enum_defs.get(name).unwrap();
+                        let inner_e = e.params.get(0).unwrap();
+                        match &inner_e.node_type {
+                            NodeType::Identifier(inner_name) => {
+                                // TODO check that inner_name is in enum_def
+                                // TODO check if that inner_name has an optional type
+                                return format!("{}.{}", name, inner_name);
+                            },
+                            _ => {
+                                panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
+                            },
+                        }
                     },
                     ValueType::ToInferType => {
                         panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
