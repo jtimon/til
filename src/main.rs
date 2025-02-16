@@ -2136,6 +2136,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         },
         ValueType::TCustom(ref custom_type) => {
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+            // TODO insert custom types in the context
+            // let custom_expr_result = &eval_expr(&mut context, &source, &tokens, inner_e);
+            // context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
             format!("{} declared", custom_type)
         },
         _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)

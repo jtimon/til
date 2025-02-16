@@ -172,6 +172,7 @@ trying_dot_enum := ExampleEnum.A
 my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
     return a
 }
+// my_enum_func(ExampleEnum.B)
 trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
@@ -197,7 +198,7 @@ test_int_switch(43)
 // }
 // println(test_switch_enum())
 
-// test_switch_enum := proc(to_switch : ExampleEnum) returns String {
+// test_switch_enum := proc(to_switch: ExampleEnum) returns String {
 //     switch to_switch {
 //         case ExampleEnum.A: return "enum switch aaaaaa"
 //         case ExampleEnum.B: return "enum switch bbbbbb"
