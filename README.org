@@ -24,6 +24,18 @@ the chosen mode.
 For example, there can be a "mode pure" that only allows pure
 functions to be defined in the file, but no procedures.
 
+* Dependencies
+
+Only rust, and it's temporary.
+Next, when self hosted, nasm will be the only dependency.
+Then some more advanced compiler backend like LLVM, QBM or Tilde can be used.
+
+* Get started
+
+#+BEGIN_SRC bash
+cargo run src/demo.cil
+#+END_SRC
+
 * WARNING: Do not use this language, it is not ready.
 
 It is just a pet experimental language. Nobody should use it for
