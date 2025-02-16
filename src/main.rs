@@ -342,14 +342,8 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct EnumDeclVal {
-    name: String,
-    union_type: Option<ValueType>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 struct SEnumDef {
-    enum_values: Vec<EnumDeclVal>,
+    enum_map: HashMap<String, Option<ValueType>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -696,7 +690,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         return Err(format!("{}:{}: parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
-    let mut enum_values : Vec<EnumDeclVal> = Vec::new();
+    let mut enum_map: HashMap<String, Option<ValueType>> = HashMap::new();
 
     let mut end_found = false;
     while *current < tokens.len() && !end_found {
@@ -710,7 +704,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 let enum_val_name = get_token_str(source, it_t);
                 match next_t.token_type {
                     TokenType::Identifier | TokenType::RightBrace => {
-                        enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: None});
+                        enum_map.insert(enum_val_name.to_string(), None);
                     },
                     TokenType::Colon => {
                         let next2_t = tokens.get(*current + 2).unwrap();
@@ -718,7 +712,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                             return Err(format!("{}:{}: parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
                         }
                         let enum_val_type = get_token_str(source, next2_t);
-                        enum_values.push(EnumDeclVal {name: enum_val_name.to_string(), union_type: Some(str_to_value_type(enum_val_type))});
+                        enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
                         *current = *current + 1;
                     },
                     _ => {},
@@ -734,7 +728,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         return Err(format!("{}:{}: parse error: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_values: enum_values}), token_index: initial_current, params: params});
+    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_map: enum_map}), token_index: initial_current, params: params});
 }
 
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -1310,14 +1304,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                         ValueType::TEnumDef => {
                             match context.enum_defs.get(name) {
                                 Some(enum_def) => {
-                                    let mut found_member = false;
-                                    for enum_val in &enum_def.enum_values {
-                                        if &enum_val.name == member_str {
-                                            found_member = true;
-                                            break;
-                                        }
-                                    }
-                                    if found_member {
+                                    if enum_def.enum_map.contains_key(member_str) {
                                         if e.params.len() > 1 {
                                             let extra_member_str = match &e.params.get(1).unwrap().node_type {
                                                 NodeType::Identifier(member_name) => member_name,
@@ -1575,8 +1562,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         },
         NodeType::EnumDef(enum_def) => {
             assert!(e.params.len() == 0, "{} error: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
-            for enum_it in &enum_def.enum_values {
-                match &enum_it.union_type {
+
+            for (_enum_val_name, enum_opt) in &enum_def.enum_map {
+                match &enum_opt {
                     None => {},
                     Some(value_type) => {
                         match value_type {
