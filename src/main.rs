@@ -1117,7 +1117,7 @@ struct Context {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
-    enums: HashMap<String, SEnumDef>,
+    enum_defs: HashMap<String, SEnumDef>,
     structs: HashMap<String, Expr>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
@@ -1164,7 +1164,7 @@ fn start_context(mode: ModeDef) -> Context {
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
-        enums: HashMap::new(),
+        enum_defs: HashMap::new(),
         structs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
@@ -1298,7 +1298,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                             }
                         },
                         ValueType::TEnumDef => {
-                            match context.enums.get(name) {
+                            match context.enum_defs.get(name) {
                                 Some(enum_def) => {
                                     let mut found_member = false;
                                     for enum_val in &enum_def.enum_values {
@@ -1401,7 +1401,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                            context.enums.insert(decl.name.to_string(), enum_def.clone());
+                            context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
                             errors.push(format!("{}:{}: {} error: enums should have definitions.", t.line, t.col, LANG_NAME));
@@ -2093,7 +2093,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         ValueType::TEnumDef => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
-                    context.enums.insert(declaration.name.clone(), enum_def.clone());
+                    context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "enum declared".to_string()
                 },
