@@ -303,8 +303,8 @@ enum ValueType {
     TList,
     TFunc,
     TProc,
-    TEnum,
-    TStruct,
+    TEnumDef,
+    TStructDef,
     TMulti(Box<ValueType>),
     TCustom(String),
     ToInferType,
@@ -319,8 +319,8 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
         ValueType::TList => "list".to_string(),
         ValueType::TFunc => "func".to_string(),
         ValueType::TProc => "proc".to_string(),
-        ValueType::TEnum => "enum".to_string(),
-        ValueType::TStruct => "struct".to_string(),
+        ValueType::TEnumDef => "enum".to_string(),
+        ValueType::TStructDef => "struct".to_string(),
         ValueType::TMulti(val_type) => format!("[]{}", value_type_to_str(val_type)).to_string(),
         ValueType::TCustom(type_name) => format!("{}", type_name),
     }
@@ -334,8 +334,8 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
-        "enum" => ValueType::TEnum,
-        "struct" => ValueType::TStruct,
+        "enum" => ValueType::TEnumDef,
+        "struct" => ValueType::TStructDef,
         "i64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
     }
@@ -1261,8 +1261,8 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         NodeType::LList => Ok(ValueType::TList),
         NodeType::FuncDef(_) => Ok(ValueType::TFunc),
         NodeType::ProcDef(_) => Ok(ValueType::TProc),
-        NodeType::EnumDef(_) => Ok(ValueType::TEnum),
-        NodeType::StructDef => Ok(ValueType::TStruct),
+        NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
+        NodeType::StructDef => Ok(ValueType::TStructDef),
         NodeType::FCall(name) => {
             if context.funcs.contains_key(name) {
                 value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
@@ -1287,7 +1287,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                         node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, t.line, t.col, node_type)),
                     };
                     match symbol_info.value_type {
-                        ValueType::TStruct => {
+                        ValueType::TStructDef => {
                             match context.structs.get(name) {
                                 Some(_struct_def) => {
                                     return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
@@ -1297,7 +1297,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                                 },
                             }
                         },
-                        ValueType::TEnum => {
+                        ValueType::TEnumDef => {
                             match context.enums.get(name) {
                                 Some(enum_def) => {
                                     let mut found_member = false;
@@ -1395,7 +1395,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                         },
                     }
                 },
-                ValueType::TEnum => {
+                ValueType::TEnumDef => {
                     assert!(inner_e.params.len() == 0, "{} error: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
                             decl.name);
                     match &inner_e.node_type {
@@ -1409,7 +1409,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                         },
                     }
                 },
-                ValueType::TStruct => {
+                ValueType::TStructDef => {
                     assert!(inner_e.params.len() == 1, "{} error: while declaring {}, struct declarations must take exactly one body.", LANG_NAME,
                             decl.name);
                     let inner_e = e.params.get(0).unwrap();
@@ -2090,7 +2090,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             string_expr_result.to_string()
         },
-        ValueType::TEnum => {
+        ValueType::TEnumDef => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.enums.insert(declaration.name.clone(), enum_def.clone());
@@ -2101,7 +2101,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
-        ValueType::TStruct => {
+        ValueType::TStructDef => {
             match &inner_e.node_type {
                 NodeType::StructDef => {
                     context.structs.insert(declaration.name.to_string(), inner_e.clone());
@@ -2174,7 +2174,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
             context.strings.insert(var_name.to_string(), string_expr_result.to_string());
             string_expr_result.to_string()
         },
-        ValueType::TStruct => {
+        ValueType::TStructDef => {
             panic!("{}:{} {} eval error: Cannot assign {} of type {:?}. Not implemented yet.",
                    t.line, t.col, LANG_NAME, &var_name, &value_type);
         },
