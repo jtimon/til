@@ -1256,6 +1256,19 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
     }
 }
 
+fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &Expr) -> Result<ValueType, String> {
+    let t = tokens.get(e.token_index).unwrap();
+    if context.funcs.contains_key(name) {
+        value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
+    } else if context.procs.contains_key(name) {
+        value_type_func_proc(t, name, &context.procs.get(name).unwrap())
+    } else if is_defined_symbol(&context, name) {
+        return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
+    } else {
+        return Err(format!("{}:{}: type error: Undefined function/procedure '{}", t.line, t.col, name));
+    }
+}
+
 fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
     let t = tokens.get(e.token_index).unwrap();
     match &e.node_type {
@@ -1267,19 +1280,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         NodeType::ProcDef(_) => Ok(ValueType::TProc),
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef => Ok(ValueType::TStructDef),
-        NodeType::FCall(name) => {
-            if context.funcs.contains_key(name) {
-                value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
-            } else if context.procs.contains_key(name) {
-                value_type_func_proc(t, name, &context.procs.get(name).unwrap())
-            } else if is_defined_symbol(&context, name) {
-                let t = tokens.get(e.token_index).unwrap();
-                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
-            } else {
-                let t = tokens.get(e.token_index).unwrap();
-                return Err(format!("{}:{}: type error: Undefined function/procedure '{}", t.line, t.col, name));
-            }
-        },
+        NodeType::FCall(name) => get_fcall_value_type(&context, &tokens, &name, &e),
         NodeType::Identifier(name) => {
             let symbol_info = match context.symbols.get(name) {
                 Some(symbol_info_m) => {
