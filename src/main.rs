@@ -1281,57 +1281,60 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
             }
         },
         NodeType::Identifier(name) => {
-            match context.symbols.get(name) {
-                Some(symbol_info) => {
-                    if e.params.len() == 0 {
-                        return Ok(symbol_info.value_type.clone());
-                    }
-                    let member_str = match &e.params.get(0).unwrap().node_type {
-                        NodeType::Identifier(member_name) => member_name,
-                        node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.", LANG_NAME, t.line, t.col, node_type)),
-                    };
-                    match symbol_info.value_type {
-                        ValueType::TStructDef => {
-                            match context.structs.get(name) {
-                                Some(_struct_def) => {
-                                    return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
-                                },
-                                None => {
-                                    return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, t.line, t.col, name));
-                                },
-                            }
-                        },
-                        ValueType::TEnumDef => {
-                            match context.enum_defs.get(name) {
-                                Some(enum_def) => {
-                                    if enum_def.enum_map.contains_key(member_str) {
-                                        if e.params.len() > 1 {
-                                            let extra_member_str = match &e.params.get(1).unwrap().node_type {
-                                                NodeType::Identifier(member_name) => member_name,
-                                                node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
-                                                                                t.line, t.col, LANG_NAME, node_type)),
-                                            };
-                                            return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
-                                                               t.line, t.col, extra_member_str, name, member_str, name, member_str));
-                                        }
-                                        return Ok(ValueType::TCustom(name.to_string()));
-                                    }
-                                    return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
-                                }
-                                None => {
-                                    return Err(format!("{}:{}: {} error: Undefined enum '{}'", t.line, t.col, LANG_NAME, name));
-                                }
-                            }
-                        },
-                        _ => {
-                            return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member",
-                                               t.line, t.col, symbol_info.value_type, name, member_str))
-                        },
-                    }
+            let symbol_info = match context.symbols.get(name) {
+                Some(symbol_info_m) => {
+                    symbol_info_m
                 },
                 None => {
                     return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
                 }
+            };
+            if e.params.len() == 0 {
+                return Ok(symbol_info.value_type.clone());
+            }
+            let member_str = match &e.params.get(0).unwrap().node_type {
+                NodeType::Identifier(member_name) => member_name,
+                node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
+                                                LANG_NAME, t.line, t.col, node_type)),
+            };
+
+            match symbol_info.value_type {
+                ValueType::TStructDef => {
+                    match context.structs.get(name) {
+                        Some(_struct_def) => {
+                            return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
+                        },
+                        None => {
+                            return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, t.line, t.col, name));
+                        },
+                    }
+                },
+                ValueType::TEnumDef => {
+                    match context.enum_defs.get(name) {
+                        Some(enum_def) => {
+                            if enum_def.enum_map.contains_key(member_str) {
+                                if e.params.len() > 1 {
+                                    let extra_member_str = match &e.params.get(1).unwrap().node_type {
+                                        NodeType::Identifier(member_name) => member_name,
+                                        node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
+                                                                        t.line, t.col, LANG_NAME, node_type)),
+                                    };
+                                    return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
+                                                       t.line, t.col, extra_member_str, name, member_str, name, member_str));
+                                }
+                                return Ok(ValueType::TCustom(name.to_string()));
+                            }
+                            return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
+                        }
+                        None => {
+                            return Err(format!("{}:{}: {} error: Undefined enum '{}'", t.line, t.col, LANG_NAME, name));
+                        }
+                    }
+                },
+                _ => {
+                    return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member",
+                                       t.line, t.col, symbol_info.value_type, name, member_str))
+                },
             }
         },
         node_type => return Err(format!("{}:{}: {} error: get_value_type() not implement for {:?} yet.", t.line, t.col, LANG_NAME, node_type)),
