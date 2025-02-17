@@ -119,23 +119,23 @@ test(eq(2, branchless(false, 4, 2)), " branchless(true, 4, 2) = 2")
 
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: i64) {
-    fibonacci := func(n: i64) returns i64 {
+    fibonacci0 := func(n: i64) returns i64 {
         if lt(n, 2) {
             return n
         }
-        return add(fibonacci(sub(n, 1)), fibonacci(sub(n, 2)))
+        return add(fibonacci0(sub(n, 1)), fibonacci0(sub(n, 2)))
     }
 
-    fibonacci2 := func(n: i64) returns i64 {
+    fibonacci1 := func(n: i64) returns i64 {
         if lt(n, 2) {
             return n
         } else {
-            return add(fibonacci2(sub(n, 1)), fibonacci2(sub(n, 2)))
+            return add(fibonacci1(sub(n, 1)), fibonacci1(sub(n, 2)))
 	}
     }
 
-    println("fibonacci: of ", itoa(fib_arg), " = ", itoa(fibonacci(fib_arg)))
-    println("fibonacci2: of ", itoa(fib_arg), " = ", itoa(fibonacci2(fib_arg)))
+    println("fibonacci: of ", itoa(fib_arg), " = ", itoa(fibonacci0(fib_arg)))
+    println("fibonacci2: of ", itoa(fib_arg), " = ", itoa(fibonacci1(fib_arg)))
 }
 fib_test(15)
 // fibonacci(15) // fails because 'fibonacci' is defined locally inside fib_test
