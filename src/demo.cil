@@ -34,7 +34,10 @@ example_basic_workflow := proc() {
 
     // if 42 { // fails, because if expects a bool first, not an int
     if gteq(4, 2) {
-        println("aaaaaaaa")
+        println("aaa", "y", "aaa")
+        print("aaa", "y", "eee")
+        print("\n") // TODO make this and the next line be equivalent
+        println("")
     } else {
         println("bbbbbbbb")
     }
