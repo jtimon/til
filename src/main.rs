@@ -362,6 +362,12 @@ struct SFuncDef {
     body: Vec<Expr>,
 }
 
+// #[derive(Debug, Clone, PartialEq)]
+// struct SStructDef {
+//     const_members : HashMap<String, ValueType>,
+//     mut_members : HashMap<String, ValueType>,
+// }
+
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     // Mode,
