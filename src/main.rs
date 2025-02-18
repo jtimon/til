@@ -1979,25 +1979,30 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
     let mut param_index = 0;
     for arg in &func_def.args {
-        if arg.value_type == ValueType::TBool {
-            let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
-            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TBool, is_mut: false});
-            function_context.bools.insert(arg.name.clone(), bool_expr_result);
-            param_index += 1;
-        } else if arg.value_type == ValueType::TI64 {
-            let result = &eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TI64, is_mut: false});
-            function_context.i64s.insert(arg.name.clone(), result.parse::<i64>().unwrap());
-            param_index += 1;
-        } else if arg.value_type == ValueType::TString {
-            let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-            function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TString, is_mut: false});
-            function_context.strings.insert(arg.name.clone(), result);
-            param_index += 1;
-        } else {
-            panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, LANG_NAME, name, arg.value_type);
-        }
+        match arg.value_type {
+            ValueType::TBool => {
+                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
+                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TBool, is_mut: false});
+                function_context.bools.insert(arg.name.clone(), bool_expr_result);
+                param_index += 1;
+            },
+            ValueType::TI64 =>  {
+                let result = &eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
+                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TI64, is_mut: false});
+                function_context.i64s.insert(arg.name.clone(), result.parse::<i64>().unwrap());
+                param_index += 1;
+            },
+            ValueType::TString =>  {
+                let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
+                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TString, is_mut: false});
+                function_context.strings.insert(arg.name.clone(), result);
+                param_index += 1;
+            },
 
+            _ => {
+                panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, LANG_NAME, name, arg.value_type);
+            },
+        }
     }
 
     for se in &func_def.body {
