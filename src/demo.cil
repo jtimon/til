@@ -224,10 +224,13 @@ println("test_switch_enum(): ", test_switch_enum())
 // println(test_switch_enum(ExampleEnum.C))
 
 MyStruct := struct {
-    bool_field : bool = false
-    int_field : i64 = 0
-    string_field := ""
-    bool_method_func := func() returns bool {
+    mut bool_field : bool = false
+    mut int_field : i64 = 0
+    mut string_field := ""
+
+    int_const : i64 = 42
+    // TODO forbid mut func/proc fields for now
+    mut bool_method_func := func() returns bool {
         return true
     }
     bool_method_proc := proc() returns bool {
