@@ -13,6 +13,7 @@ const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
 const SUPPORTED_MODE: &str = "test";
+const SKIP_AST: bool = true;
 
 // ---------- lexer
 
@@ -2466,7 +2467,7 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
-    println!("AST:\n{}", to_ast_str(&e, true));
+    println!("AST: \n{}", to_ast_str(&e, SKIP_AST));
 
     let mut context = start_context(mode);
     let errors = init_context(&mut context, &source, &tokens, &e);
