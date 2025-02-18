@@ -1979,30 +1979,41 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
     let mut param_index = 0;
     for arg in &func_def.args {
-        match arg.value_type {
+
+        function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+        match &arg.value_type {
             ValueType::TBool => {
                 let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap()));
-                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TBool, is_mut: false});
                 function_context.bools.insert(arg.name.clone(), bool_expr_result);
-                param_index += 1;
             },
             ValueType::TI64 =>  {
                 let result = &eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TI64, is_mut: false});
-                function_context.i64s.insert(arg.name.clone(), result.parse::<i64>().unwrap());
-                param_index += 1;
+                function_context.i64s.insert(arg.name.to_string(), result.parse::<i64>().unwrap());
             },
             ValueType::TString =>  {
                 let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
-                function_context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: ValueType::TString, is_mut: false});
-                function_context.strings.insert(arg.name.clone(), result);
-                param_index += 1;
+                function_context.strings.insert(arg.name.to_string(), result);
+            },
+            ValueType::TCustom(ref custom_type_name) => {
+                let result = eval_expr(&mut function_context, &source, &tokens, e.params.get(param_index).unwrap());
+                let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
+                match custom_symbol.value_type {
+                    ValueType::TEnumDef => {
+                        function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
+                    },
+                    _ => {
+                        panic!("{}:{} {} eval error: Cannot use {} of type {:?} as an argument. Only enum custom types allowed for now.",
+                               t.line, t.col, LANG_NAME, &arg.name, &arg.value_type)
+                    },
+                }
             },
 
             _ => {
                 panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, LANG_NAME, name, arg.value_type);
             },
         }
+
+        param_index += 1;
     }
 
     for se in &func_def.body {
