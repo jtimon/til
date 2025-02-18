@@ -1122,7 +1122,7 @@ struct Context {
     procs: HashMap<String, SFuncDef>,
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
-    structs: HashMap<String, Expr>,
+    struct_defs: HashMap<String, Expr>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
     strings: HashMap<String, String>,
@@ -1170,7 +1170,7 @@ fn start_context(mode: ModeDef) -> Context {
         procs: HashMap::new(),
         enum_defs: HashMap::new(),
         enums: HashMap::new(),
-        structs: HashMap::new(),
+        struct_defs: HashMap::new(),
         bools: HashMap::new(),
         i64s: HashMap::new(),
         strings: HashMap::new(),
@@ -1302,7 +1302,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
 
             match symbol_info.value_type {
                 ValueType::TStructDef => {
-                    match context.structs.get(name) {
+                    match context.struct_defs.get(name) {
                         Some(_struct_def) => {
                             return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
                         },
@@ -1416,7 +1416,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             decl.name);
                     let inner_e = e.params.get(0).unwrap();
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                    context.structs.insert(decl.name.to_string(), inner_e.clone());
+                    context.struct_defs.insert(decl.name.to_string(), inner_e.clone());
                 },
                 ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
@@ -2107,7 +2107,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         ValueType::TStructDef => {
             match &inner_e.node_type {
                 NodeType::StructDef => {
-                    context.structs.insert(declaration.name.to_string(), inner_e.clone());
+                    context.struct_defs.insert(declaration.name.to_string(), inner_e.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "struct declared".to_string()
                 },
