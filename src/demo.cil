@@ -193,14 +193,26 @@ test_int_switch := proc (to_switch: i64) {
 test_int_switch(42)
 test_int_switch(43)
 
-// test_switch_enum := proc() returns String {
+test_switch_enum := proc() returns String {
+    mut to_return := ""
+    switch ExampleEnum.C {
+        case ExampleEnum.A: to_return = "enum switch aaaaaa"
+        case ExampleEnum.B: to_return = "enum switch bbbbbb"
+        case: to_return = "enum cccccc by default"
+    }
+    return to_return
+}
+println("test_switch_enum(): ", test_switch_enum())
+
+// TODO fix returns inside switch statements
+// test_switch_enum2 := proc() returns String {
 //     switch ExampleEnum.C {
 //         case ExampleEnum.A: return "enum switch aaaaaa"
 //         case ExampleEnum.B: return "enum switch bbbbbb"
 //         case: return "enum cccccc by default"
 //     }
 // }
-// println(test_switch_enum())
+// println("test_switch_enum2(): ", test_switch_enum2())
 
 // test_switch_enum := proc(to_switch: ExampleEnum) returns String {
 //     switch to_switch {

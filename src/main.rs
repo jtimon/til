@@ -1997,7 +1997,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     for se in &func_def.body {
         match se.node_type {
             NodeType::Return => {
-                assert!(e.params.len() != 0, "{} error: return must currently always return exactly one value.", LANG_NAME);
+                assert!(se.params.len() != 0, "{} error: return must currently always return exactly one value.", LANG_NAME);
                 return eval_expr(&mut function_context, &source, &tokens, &se.params.get(0).unwrap());
             },
             NodeType::If => {
