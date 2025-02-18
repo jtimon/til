@@ -1525,9 +1525,17 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
-fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source: &String, tokens: &Vec<Token>) -> Vec<String> {
+fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source: &String, tokens: &Vec<Token>, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     for arg in &func_def.args {
+        match &arg.value_type {
+            ValueType::TCustom(ref custom_type_name) => {
+                if !context.symbols.contains_key(custom_type_name) {
+                    errors.push(format!("{}:{}: type error: Argument '{}' is of undefined type {}.", t.line, t.col, &arg.name, &custom_type_name));
+                }
+            },
+            _ => {},
+        }
         context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
     }
     for p in func_def.body.iter() {
@@ -1579,9 +1587,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                     None => {},
                     Some(value_type) => {
                         match value_type {
-                            ValueType::TCustom(custom_name) => {
+                            ValueType::TCustom(ref custom_type_name) => {
                                 errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
-                                                    t.line, t.col, custom_name));
+                                                    t.line, t.col, custom_type_name));
                             },
                             _ => {},
                         }
@@ -1711,7 +1719,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
 
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
             for se in &func_def.body {
                 if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
                     let proc_t = tokens.get(se.token_index).unwrap();
@@ -1721,7 +1729,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         },
         NodeType::ProcDef(func_def) => {
             let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens));
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
         },
 
         NodeType::Declaration(decl) => {

@@ -176,7 +176,7 @@ trying_dot_enum : ExampleEnum = ExampleEnum.A
 // TODO next:
 
 // TODO undeclared custom arguments should fails at compile time
-my_enum_func := func(a: ExampleEnumAAAA) returns ExampleEnum {
+my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
     return a
 }
 // my_enum_func(ExampleEnum.B)
