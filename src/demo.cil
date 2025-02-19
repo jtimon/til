@@ -191,6 +191,7 @@ test_int_switch := proc (to_switch: i64) {
 test_int_switch(42)
 test_int_switch(43)
 
+// TODO fix assignments inside switch statements
 test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     mut to_return := ""
     switch to_switch {
@@ -200,10 +201,25 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     }
     return to_return
 }
+
 println("test_switch_enum(A): ", test_switch_enum(ExampleEnum.A))
 println("test_switch_enum(B): ", test_switch_enum(ExampleEnum.B))
 println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
 println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
+
+// TODO fix returns inside switch statements
+test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
+    switch to_switch {
+        case ExampleEnum.A: return "enum switch aaaaaa"
+        case ExampleEnum.B: return "enum switch bbbbbb"
+        case: return "enum cccccc by default"
+    }
+    return "xxxxxx because return inside switch doesn't work even for enum"
+}
+println("test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum.A))
+println("test_return_switch_enum(B): ", test_return_switch_enum(ExampleEnum.B))
+println("test_return_switch_enum(C): ", test_return_switch_enum(ExampleEnum.C))
+println("test_return_switch_enum(D): ", test_return_switch_enum(ExampleEnum.D))
 
 // TODO next:
 
@@ -213,16 +229,6 @@ println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
 //   println(eval_example_result)
 // }
 // test_fails_example("enum_func_fails := func(a: ExampleEnumAAAAAAAA) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
-
-// TODO fix returns inside switch statements
-// test_switch_enum2 := proc() returns String {
-//     switch ExampleEnum.C {
-//         case ExampleEnum.A: return "enum switch aaaaaa"
-//         case ExampleEnum.B: return "enum switch bbbbbb"
-//         case: return "enum cccccc by default"
-//     }
-// }
-// println("test_switch_enum2(): ", test_switch_enum2())
 
 MyStruct := struct {
     mut bool_field : bool = false
