@@ -1166,9 +1166,12 @@ fn is_core_proc(proc_name: &str) -> bool {
         "print" => true,
         "println" => true,
         // TODO implement more core procs in rust:
-        "import" => true,
         "readfile" => true,
-        "eval" => true,
+        "writefile" => true,
+        "import" => true,
+        "eval_to_str" => true,
+        "eval_to_ast_str" => true,
+        "eval_to_expr" => true,
         _ => false,
     }
 }
