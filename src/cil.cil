@@ -45,7 +45,7 @@ TokenType := enum {
     Try Catch
 
     // Special in this language:
-    Func Proc
+    Func Proc Macro
     Mode
 
     // Errors

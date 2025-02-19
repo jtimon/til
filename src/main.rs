@@ -54,7 +54,7 @@ enum TokenType {
     Try, Catch,
 
     // Special in this language:
-    Func, Proc,
+    Func, Proc, Macro,
     Mode,
 
     // Errors
@@ -102,6 +102,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "while" => TokenType::While,
         "func" => TokenType::Func,
         "proc" => TokenType::Proc,
+        "macro" => TokenType::Macro,
         "return" => TokenType::Return,
         "returns" => TokenType::Returns,
         // TODO reserved words:
@@ -276,6 +277,10 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
         },
         TokenType::Fn => {
             print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Macro => {
+            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'macro' is not supported yet, use 'func' or 'proc' instead for now");
             *errors_found = *errors_found + 1;
         },
         TokenType::Semicolon => {

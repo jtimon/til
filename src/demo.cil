@@ -207,6 +207,9 @@ println("test_switch_enum(B): ", test_switch_enum(ExampleEnum.B))
 println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
 println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
 
+// TODO fix macro() not implement yet
+// test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
+
 // TODO fix returns inside switch statements
 test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     switch to_switch {
