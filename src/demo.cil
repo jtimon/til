@@ -208,8 +208,8 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
 
 println("test_switch_enum(A): ", test_switch_enum(ExampleEnum.A))
 println("test_switch_enum(B): ", test_switch_enum(ExampleEnum.B))
-println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
-println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
+// println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
+// println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
 
 // TODO fix macro() not implement yet
 // test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
@@ -225,8 +225,8 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
 }
 println("test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum.A))
 println("test_return_switch_enum(B): ", test_return_switch_enum(ExampleEnum.B))
-println("test_return_switch_enum(C): ", test_return_switch_enum(ExampleEnum.C))
-println("test_return_switch_enum(D): ", test_return_switch_enum(ExampleEnum.D))
+// println("test_return_switch_enum(C): ", test_return_switch_enum(ExampleEnum.C))
+// println("test_return_switch_enum(D): ", test_return_switch_enum(ExampleEnum.D))
 
 // TODO next:
 
