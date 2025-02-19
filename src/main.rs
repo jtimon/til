@@ -1533,6 +1533,8 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source:
                 if !context.symbols.contains_key(custom_type_name) {
                     errors.push(format!("{}:{}: type error: Argument '{}' is of undefined type {}.", t.line, t.col, &arg.name, &custom_type_name));
                 }
+                let _custom_symbol = context.symbols.get(custom_type_name).unwrap();
+                // TODO check more type stuff
             },
             _ => {},
         }
@@ -2302,6 +2304,26 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
                     },
                     ValueType::ToInferType => {
                         panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
+                    },
+                    ValueType::TCustom(ref custom_type_name) => {
+                        if !context.symbols.contains_key(custom_type_name) {
+                            // note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+                            // thank you, rust, format inside format for no reason I want to understand
+                            panic!("{}", format!("{}:{}: {} eval error: : Argument '{}' is of undefined type {}.",
+                                                 t.line, t.col, LANG_NAME, &name, &custom_type_name)
+                            );
+                        }
+                        let custom_symbol = context.symbols.get(custom_type_name).unwrap();
+                        match custom_symbol.value_type {
+                            ValueType::TEnumDef => {
+                                return format!("TODO: can't eval enum values yet");
+                                // function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
+                            },
+
+                            _ => {
+                                panic!("{} eval error: TODO Can't eval '{}' of custom type {}.", LANG_NAME, name, custom_type_name)
+                            },
+                        }
                     },
                     _ => {
                         panic!("{} eval error: Can't use identifier '{}'. Type {:?} not supported yet.", LANG_NAME, name, symbol_info.value_type)

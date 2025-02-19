@@ -173,15 +173,12 @@ ExampleEnum := enum {
 // trying_dot_enum : ExampleEnum = 0 // fails because an enum is not an int
 trying_dot_enum : ExampleEnum = ExampleEnum.A
 
-// TODO next:
-
-// TODO undeclared custom arguments should fails at compile time
 my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
     return a
 }
-// my_enum_func(ExampleEnum.B)
-// trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
-// trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
+my_enum_func(ExampleEnum.B)
+trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
+trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
 test_int_switch := proc (to_switch: i64) {
     switch to_switch {
@@ -194,16 +191,28 @@ test_int_switch := proc (to_switch: i64) {
 test_int_switch(42)
 test_int_switch(43)
 
-test_switch_enum := proc() returns String {
+test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     mut to_return := ""
-    switch ExampleEnum.C {
+    switch to_switch {
         case ExampleEnum.A: to_return = "enum switch aaaaaa"
         case ExampleEnum.B: to_return = "enum switch bbbbbb"
         case: to_return = "enum cccccc by default"
     }
     return to_return
 }
-println("test_switch_enum(): ", test_switch_enum())
+println("test_switch_enum(A): ", test_switch_enum(ExampleEnum.A))
+println("test_switch_enum(B): ", test_switch_enum(ExampleEnum.B))
+println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
+println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
+
+// TODO next:
+
+// TODO undeclared custom arguments should fail at compile time
+// test_fails_example := proc(example: Strng, msg: String) {
+//   eval_example_result : String = _eval_string(example)
+//   println(eval_example_result)
+// }
+// test_fails_example("enum_func_fails := func(a: ExampleEnumAAAAAAAA) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
 
 // TODO fix returns inside switch statements
 // test_switch_enum2 := proc() returns String {
@@ -214,15 +223,6 @@ println("test_switch_enum(): ", test_switch_enum())
 //     }
 // }
 // println("test_switch_enum2(): ", test_switch_enum2())
-
-// test_switch_enum := proc(to_switch: ExampleEnum) returns String {
-//     switch to_switch {
-//         case ExampleEnum.A: return "enum switch aaaaaa"
-//         case ExampleEnum.B: return "enum switch bbbbbb"
-//         case: return "enum cccccc by default"
-//     }
-// }
-// println(test_switch_enum(ExampleEnum.C))
 
 MyStruct := struct {
     mut bool_field : bool = false
