@@ -395,7 +395,6 @@ struct SFuncDef {
 
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
-    // Mode,
     Body,
     LList,
     LString(String),
@@ -2585,7 +2584,7 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
-    println!("Mode: {}\n", mode.name);
+    println!("Mode: {}", mode.name);
 
     let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
