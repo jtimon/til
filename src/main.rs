@@ -415,14 +415,55 @@ struct ModeDef {
     name: String,
     allows_base_mut: bool,
     allows_base_calls: bool,
+    needs_main_proc: bool,
 }
 
 fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     return match mode_name {
-        "script" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: true, allows_base_mut: true}),
-        "test" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: true, allows_base_mut: false}),
-        "pure" => Ok(ModeDef{name: mode_name.to_string(), allows_base_calls: false, allows_base_mut: false}),
-        _  => return Err(format!("0:0: Rust interpreter implementation doesn't support mode '{}'", mode_name)),
+        "lib" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: false,
+                    allows_base_mut: false,
+                    needs_main_proc: false,
+        }),
+        "external" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: false,
+                    allows_base_mut: false,
+                    needs_main_proc: false,
+        }),
+        "pure" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: false,
+                    allows_base_mut: false,
+                    needs_main_proc: false,
+        }),
+        "script" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: true,
+                    allows_base_mut: true,
+                    needs_main_proc: false,
+        }),
+        "safe_script" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: true,
+                    allows_base_mut: true,
+                    needs_main_proc: false,
+        }),
+        "cli" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: false,
+                    allows_base_mut: true,
+                    needs_main_proc: true,
+        }),
+        "test" => Ok(
+            ModeDef{name: mode_name.to_string(),
+                    allows_base_calls: true,
+                    allows_base_mut: false,
+                    needs_main_proc: false,
+        }),
+
+        _  => return Err(format!("0:0: {} interpreter implementation doesn't support mode '{}'", LANG_NAME, mode_name)),
     };
 }
 
@@ -1576,6 +1617,11 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
     }
     if !context.mode.allows_base_calls {
         errors.push(format!("{}:{}: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.",
+                            t.line, t.col, context.mode.name));
+        return errors;
+    }
+    if context.mode.needs_main_proc {
+        errors.push(format!("{}:{}: modes that require a main proc to be defined are not supported yet, culprit mode: '{}'.",
                             t.line, t.col, context.mode.name));
         return errors;
     }
