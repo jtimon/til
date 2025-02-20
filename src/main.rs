@@ -15,6 +15,26 @@ const INFER_TYPE: &str = "_Infer";
 const SUPPORTED_MODE: &str = "test";
 const SKIP_AST: bool = true;
 
+// ---------- format errors
+
+// struct RscilErr {
+//     error_str: &str,
+//     t: &Token,
+//     level: &str,
+// }
+
+// fn init_err(t: &Token, level: &str, error_str: &str) return RscilErr {
+//     return RscilErr(format!("{}:{}: {} error: {}", t.line, t.col, level, error_str));
+// }
+
+// fn format_err(RscilErr: err) -> String {
+//     return format!("{}:{}: {} error: {}", err.t.line, err.t.col, err.level, err.error_str);
+// }
+
+// fn print_err(RscilErr: err) {
+//     println(format_err(err))
+// }
+
 // ---------- lexer
 
 #[derive(Debug, Clone, PartialEq)]
