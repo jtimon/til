@@ -2477,23 +2477,20 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
 
 // ---------- to ast (aka code_gen lisp-like syntax)
 
-fn params_to_ast_str(end_line: bool, e: &Expr, skip : bool) -> String {
+fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
     let mut ast_str = "".to_string();
     for se in e.params.iter() {
         if end_line {
-            ast_str.push_str(&format!("{}\n", to_ast_str(&se, skip)));
+            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
         } else {
-            ast_str.push_str(&format!("{} ", to_ast_str(&se, skip)));
+            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
         }
     }
     return ast_str;
 }
 
-fn to_ast_str(e: &Expr, skip : bool) -> String {
+fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
-    if skip {
-        return ast_str;
-    }
     match &e.node_type {
         NodeType::LBool(lbool) => {
             return lbool.to_string();
@@ -2508,14 +2505,14 @@ fn to_ast_str(e: &Expr, skip : bool) -> String {
             return "default_case".to_string();
         }
         NodeType::Body => {
-            return params_to_ast_str(true, &e, skip)
+            return params_to_ast_str(true, &e)
         },
         NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap(), skip)));
+            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Assignment(var_name) => {
-            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap(), skip)));
+            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::FuncDef(_func_def) => {
@@ -2534,23 +2531,23 @@ fn to_ast_str(e: &Expr, skip : bool) -> String {
             return id_name.clone();
         },
         NodeType::FCall(name) => {
-            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e, skip)));
+            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
             return ast_str;
         },
         NodeType::LList => {
-            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e, skip)));
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
             return ast_str;
         },
         NodeType::If => {
-            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
+            ast_str.push_str(&format!("(if {})", to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::While => {
-            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
+            ast_str.push_str(&format!("(while {})", to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Switch => {
-            ast_str.push_str(&format!("(switch {})", to_ast_str(&e.params.get(0).unwrap(), skip)));
+            ast_str.push_str(&format!("(switch {})", to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
         NodeType::Return => {
@@ -2592,7 +2589,9 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
-    println!("AST: \n{}", to_ast_str(&e, SKIP_AST));
+    if !SKIP_AST {
+        println!("AST: \n{}", to_ast_str(&e));
+    }
 
     let mut context = start_context(mode);
     let errors = init_context(&mut context, &source, &tokens, &e);
