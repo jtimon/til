@@ -1,23 +1,32 @@
 // TODO implement other modes: script, safe_script, main, pure, proc, etc
 mode test
 
-// intro to the language:
+//// Intro to the language
+// @ // fails because @ is invalid on the lexer for now
 
-// adsgffdgfdg sdfgfsdgsf @ sdfhgsfgh dfghj dgfhj // fails because @ is invalid on the lexer
+// Declarations and assignments:
+
+// adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
 AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
 BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
-// and := true // fails, double declaration of core func 'and'
-// AAA := true // fails, double declaration of user constant 'AAA'
+// AAA := true // fails, re-declaration of user constant 'AAA'
 // AAA = false // fails, assignment to a constant, all declarations are constant by default
 
-// There can also be pure functions
+// core bool functions used as examples:
+
+// and := true // fails, re-declaration of core func 'and'
+// or := true // fails, re-declaration of core func 'or'
+// not := func(a: bool) returns bool {} // fails, re-declaration of core func 'not'
+
+// Pure functions:
+
 my_func := func(a: bool, b: bool) returns bool {
 //     println("proc") // fails, funcs cannot call procs
     return and(a, b)
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
 
-// procedures can be declared and called
+// procedures can be declared and directly called in some modes
 example_basic_workflow := proc() {
 
     mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default

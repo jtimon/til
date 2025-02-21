@@ -1618,14 +1618,37 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
     let mut errors : Vec<String> = Vec::new();
     let t = tokens.get(e.token_index).unwrap();
 
+    if context.mode.needs_main_proc {
+        if !context.symbols.contains_key("main") {
+            errors.push(format!("{}:{}: mode {} requires 'main' to be defined as a proc.",
+                                t.line, t.col, context.mode.name));
+            return errors;
+        }
+        let main_type : ValueType = match context.symbols.get("main") {
+            Some(main_type_) => main_type_.value_type.clone(),
+            None => panic!("main proc not provided in mode '{}'", context.mode.name),
+            // ValueType::TProc => ValueType::TProc,
+        };
+        if main_type != ValueType::TProc {
+            errors.push(format!("{}:{}: mode {} requires 'main' to be defined as a proc. It was defined as a {:?} instead",
+                                t.line, t.col, context.mode.name, main_type));
+            return errors;
+        }
+    }
+
     if context.mode.name == "pure" {
-        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try {}",
+        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
                             t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
         return errors;
     }
     if context.mode.name == "script" {
-        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try {}",
+        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
                             t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
+        return errors;
+    }
+    if context.mode.name == "safe_script" {
+        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
+                            t.line, t.col, context.mode.name, BIN_NAME, "script"));
         return errors;
     }
 
@@ -1636,11 +1659,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
     }
     if !context.mode.allows_base_calls {
         errors.push(format!("{}:{}: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.",
-                            t.line, t.col, context.mode.name));
-        return errors;
-    }
-    if context.mode.needs_main_proc {
-        errors.push(format!("{}:{}: modes that require a main proc to be defined are not supported yet, culprit mode: '{}'.",
                             t.line, t.col, context.mode.name));
         return errors;
     }
