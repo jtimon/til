@@ -1223,6 +1223,7 @@ fn is_core_func(proc_name: &str) -> bool {
         "btoi" => true, // necessary for branchless arithmetics
         "btoa" => true,
         "itoa" => true,
+        "str_eq" => true, // TODO implement
         _ => false,
     }
 }
@@ -1347,7 +1348,7 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
     } else if is_defined_symbol(&context, name) {
         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
     } else {
-        return Err(format!("{}:{}: type error: Undefined function/procedure '{}", t.line, t.col, name));
+        return Err(format!("{}:{}: type error: Undefined function/procedure '{}'", t.line, t.col, name));
     }
 }
 

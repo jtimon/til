@@ -50,7 +50,7 @@ Pure functions could be declared explicitly and the compiler could make
 sure that they are in fact pure functions.
 
 This language has different reserved words for declaring different
-types of "callables".
+types of algorithms.
 
 ** func
 
@@ -61,9 +61,10 @@ In other words, [[https://en.wikipedia.org/wiki/Memoization][memoization]] is po
 
 Procedures (procs) can have side effects. Procs can call funcs, but not the
 other way around.
-In other words, memoization may not be possible because the result may be different
-each time or, even if it was the same, some side effects may not be
-executed if memoization was used instead of executing the procedure again.
+In other words, memoization may not be possible because the result for
+the same input may be different each time it is called or, even if it
+was the same, some side effects may not be executed if memoization was
+used instead of executing the procedure again.
 
 ** macro
 
