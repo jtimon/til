@@ -2579,14 +2579,8 @@ fn main_run(path: &String, source: &String) -> String {
     if mode.name == "script" {
         return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "cli");
     }
-    if mode.name == "cli" {
-        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "test");
-    }
     if mode.name == "safe_script" {
         return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script");
-    }
-    if !mode.allows_base_calls {
-        return format!("0:0: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.", mode.name);
     }
 
     let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
@@ -2610,17 +2604,23 @@ fn main_run(path: &String, source: &String) -> String {
 
     match &e.node_type {
         NodeType::Body => {
-            let allow_mutants = context.mode.allows_base_mut;
             for p in e.params.iter() {
                 match &p.node_type {
 
                     NodeType::Declaration(decl) => {
-                        if !allow_mutants && decl.is_mut {
+                        if !context.mode.allows_base_mut && decl.is_mut {
                             let t = tokens.get(p.token_index).unwrap();
-                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change mode",
-                                t.line, t.col, "mode", context.mode.name, "context.mode.FIXTODO"));
+                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
+                                t.line, t.col, "mode", context.mode.name, decl.name));
                         }
                     },
+                    NodeType::FCall(name) => {
+                        if !context.mode.allows_base_calls {
+                            let t = tokens.get(p.token_index).unwrap();
+                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
+                                t.line, t.col, "mode", context.mode.name, name));
+                        }
+                    }
                     _ => {},
                 }
             }

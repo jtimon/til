@@ -1,6 +1,6 @@
 // Self hosted implementation of LANG_NAME
 
-mode test
+mode cli
 
 LANG_NAME: String = "cil"
 
@@ -71,3 +71,7 @@ Token := struct {
 // TODO rscil implement arrays
 // TODO rscil allow access to individual chars inside a string
 // scan_tokens := func(source: String) returns Array(Token) {}
+
+main := proc() {
+    println("TODO implement lexer")
+}
