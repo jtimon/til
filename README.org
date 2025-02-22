@@ -1,7 +1,9 @@
 
 * Compiled Interpreted Language
 
-Cil is a general purpose language that is meant to be interpreted or compiled to machine code or to some other high level language.
+Cil is a general purpose experimental language that is meant to be
+interpreted or compiled to machine code or to some other high level
+language.
 
 The goal is to have a self hosted implementation as soon as possible,
 although the bootstrap implementation is written in rust.
@@ -23,21 +25,87 @@ than per executable, to impose special restrictions per file, as per
 the chosen mode.
 For example, there can be a "mode pure" that only allows pure
 functions to be defined in the file, but no procedures.
+Users should be able to define their own modes with their own extra
+restrictions and their own built-in types and core functions or
+procedures.
+A user could define a mode not allowing calls to core procedure
+"print", or replacing it with his own version, for example.
+
+*** Built-in modes:
+
+**** script
+
+Basically no restrictions, statements will just be run as they are,
+including if, switch or while statements in the root context of the
+file, for example.
+
+**** TODO safe_script
+
+Similar to script, but any unsafe action like running a non
+whitelisted command or reading or writting to the filesystem will
+require confirmation from the user running the script.
+In other words, it's like script, but with internal wrappers around
+certain things
+
+This idea comes from Richard Feldman, but as far as I know Roc hasn't
+implemented it yet.
+Not implemented yet.
+
+**** cli
+
+It only allows declarations in the root context of the file.
+It requires the declaration of a proc named "main", which will be run.
+
+**** test
+
+Similar to script, but it only allows declarations and calls in the root context.
+It does not allow mut declarations in the root context (this may change).
+
+**** lib
+
+Only allow constant declarations, not mut declarations.
+Currently it is useless, because "import" is not implemented yet.
+
+**** TODO pure
+
+Like lib, but it doesn't allow proc declarations, calls or imports.
+When you import a mode pure file, you can be sure Everything exposed
+by the file are constants or pure functions.
+Not implemented yet.
+
+**** TODO external
+
+Similar to lib, but to interface with other languages.
+Files of this mode should only contain declarations of headers, basically.
+Not implemented yet.
+
 
 * Dependencies
 
-Only rust, and it's temporary.
+Only rustc, and it's temporary.
 Next, when self hosted, nasm will be the only dependency.
-Then some more advanced compiler backend like LLVM, QBM or Tilde can be used.
+Then some more advanced compiler backend like LLVM. MLIR, QBM or Tilde can be used.
+Or perhaps just translate to a higher language first.
 
 * Get started
 
+See examples dir.
+You can run it with cargo, but you don't need to since it has no dependencies besides rustc.
+You could use rustc directly.
+
 #+BEGIN_SRC bash
-cargo run src/demo.cil
+cargo run examples/demo.cil
+#+END_SRC
+
+To build with cargo:
+
+#+BEGIN_SRC bash
+cargo build
 #+END_SRC
 
 * WARNING: Do not use this language, it is not ready.
 
-It is just a pet experimental language. Nobody should use it for
+This is just a pet experimental language. Nobody should use it for
 anything besides testing or extending it.
 It may never be finished. The name may change in the future too.
+It may become unmaintained.
