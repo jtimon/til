@@ -1220,7 +1220,7 @@ fn is_core_func(proc_name: &str) -> bool {
         "sub" => true,
         "mul" => true,
         "div" => true,
-        "btoi" => true, // necessary for branchless arithmetic
+        "btoi" => true, // necessary for branchless arithmetics
         "btoa" => true,
         "itoa" => true,
         _ => false,
