@@ -1,4 +1,4 @@
-// #!/usr/bin/env cil TODO allow # comments for shebang
+#!/usr/bin/env cil
 mode script
 
 println("Hello World!")

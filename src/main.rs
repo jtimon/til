@@ -210,6 +210,14 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
                 "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
 
+                // comments:
+                "#" => {
+                    pos += 1;
+                    while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
+                        pos += 1;
+                    }
+                    continue;
+                },
                 "/" => match &source[pos+1..pos+2] {
                     "/" => {
                         pos += 1;
@@ -217,8 +225,12 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                             pos += 1;
                         }
                         continue;
-                        // TODO allow the other type of commments, allowing nesting
                     },
+                    // TODO allow the other type of commments, allowing nesting
+                    // "*" => {
+                    //     // /* style of comment not allowed yet
+                    //     TokenType::Invalid,
+                    // },
                     _ => TokenType::Slash,
                 },
 
