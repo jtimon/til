@@ -18,6 +18,7 @@ Or perhaps just translate to a higher language first.
 * Get started
 
 See /examples directory after reading this file.
+
 It can be run with cargo for convenience, but it's not needed to since
 it has no dependencies besides rustc, rustc can be used directly instead.
 
@@ -66,8 +67,22 @@ executed if memoization was used instead of executing the procedure again.
 
 ** macro
 
-Macros are used for metaprogramming. They are executed at compile time.
-Macros can call funcs or procs and vice-versa
+Macros are used for metaprogramming. Macros are executed at compile time.
+Macros can call funcs or procs and vice-versa, but after running the
+macros, the resulting program may still fail to compile.
+
+Macros have more restrictions than func/procs in some senses but less
+restrictions in others.
+
+For example, a macro can return the definition of a struct, or a body
+(a sequence of statements to be executed); whereas funcs and procs
+cannot.
+
+At the same time, all the values of for the arguments of every call of
+a macro must be guaranteed to be knowable at compile time. The values
+of the arguments for a macro call must be literals or the results of
+other macros or of other functions whose arguments are in turn also
+literals or the result of other macros, or equivalent.
 
 * Modes:
 
