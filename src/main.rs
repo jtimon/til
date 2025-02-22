@@ -12,7 +12,6 @@ use std::collections::HashMap;
 const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
-const SUPPORTED_MODE: &str = "test";
 const SKIP_AST: bool = true;
 
 // ---------- format errors
@@ -1636,34 +1635,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         }
     }
 
-    if context.mode.name == "pure" {
-        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
-                            t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
-        return errors;
-    }
-    if context.mode.name == "script" {
-        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
-                            t.line, t.col, context.mode.name, BIN_NAME, SUPPORTED_MODE));
-        return errors;
-    }
-    if context.mode.name == "safe_script" {
-        errors.push(format!("{}:{}: mode '{}' is not properly supported in {} yet. Try mode {} instead",
-                            t.line, t.col, context.mode.name, BIN_NAME, "script"));
-        return errors;
-    }
-
-    if !context.mode.allows_base_calls {
-        errors.push(format!("{}:{}: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.",
-                            t.line, t.col, context.mode.name));
-        return errors;
-    }
-
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
-                // TODO stop mutants in the main body
-                // if is_body_base && !context.mode.allows_base_mut && symbol_info.is_mut {
-                // }
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
@@ -2595,6 +2569,25 @@ fn main_run(path: &String, source: &String) -> String {
         },
     };
     println!("Mode: {}", mode.name);
+
+    if mode.name == "pure" {
+        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib");
+    }
+    if mode.name == "external" {
+        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib");
+    }
+    if mode.name == "script" {
+        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "cli");
+    }
+    if mode.name == "cli" {
+        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "test");
+    }
+    if mode.name == "safe_script" {
+        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script");
+    }
+    if !mode.allows_base_calls {
+        return format!("0:0: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.", mode.name);
+    }
 
     let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
