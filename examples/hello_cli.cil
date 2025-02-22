@@ -1,0 +1,5 @@
+mode cli
+
+main := proc() {
+    println("Hello World!")
+}

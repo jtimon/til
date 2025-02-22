@@ -3,10 +3,12 @@ mode test
 
 //// Intro to the language
 // @ // fails because @ is invalid on the lexer for now
+// adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
+
+// if true { println("aaa") } // fails because test mode only allows declaration and calls in the root context
 
 // Declarations and assignments:
 
-// adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
 AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
 BBB := or(false, true, false) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
 // AAA := true // fails, re-declaration of user constant 'AAA'

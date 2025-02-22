@@ -433,6 +433,7 @@ struct ModeDef {
     name: String,
     allows_base_mut: bool,
     allows_base_calls: bool,
+    allows_base_anything: bool,
     needs_main_proc: bool,
 }
 
@@ -442,42 +443,49 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: false,
                     allows_base_mut: false,
+                    allows_base_anything: false,
                     needs_main_proc: false,
         }),
         "external" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: false,
                     allows_base_mut: false,
+                    allows_base_anything: false,
                     needs_main_proc: false,
         }),
         "pure" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: false,
                     allows_base_mut: false,
+                    allows_base_anything: false,
                     needs_main_proc: false,
         }),
         "script" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: true,
                     allows_base_mut: true,
+                    allows_base_anything: true,
                     needs_main_proc: false,
         }),
         "safe_script" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: true,
                     allows_base_mut: true,
+                    allows_base_anything: true,
                     needs_main_proc: false,
         }),
         "cli" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: false,
                     allows_base_mut: true,
+                    allows_base_anything: false,
                     needs_main_proc: true,
         }),
         "test" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: true,
                     allows_base_mut: false,
+                    allows_base_anything: false,
                     needs_main_proc: false,
         }),
 
@@ -1498,8 +1506,16 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
             }
         }
         _ => {
+            if !context.mode.allows_base_anything {
             let t = tokens.get(e.token_index).unwrap();
-            errors.push(format!("{}:{}: 'init_context' can only include declarations and calls, found {:?}.", t.line, t.col, e.node_type));
+                if context.mode.allows_base_calls {
+                    errors.push(format!("{}:{}: mode '{}' allows only declarations and calls in the root context, found {:?}.",
+                                        t.line, t.col, context.mode.name, e.node_type));
+                } else {
+                    errors.push(format!("{}:{}: mode '{}' allows only declarations in the root context, found {:?}.",
+                                        t.line, t.col, context.mode.name, e.node_type));
+                }
+            }
         },
     }
     errors
@@ -2576,14 +2592,11 @@ fn main_run(path: &String, source: &String) -> String {
     if mode.name == "external" {
         return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib");
     }
-    if mode.name == "script" {
-        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "cli");
-    }
     if mode.name == "safe_script" {
         return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script");
     }
 
-    let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
+    let mut e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -2632,6 +2645,9 @@ fn main_run(path: &String, source: &String) -> String {
             println!("{}:{}", path, err);
         }
         return format!("Mode errors: {} type errors found", errors.len());
+    }
+    if context.mode.needs_main_proc {
+        e.params.push(Expr{node_type: NodeType::FCall("main".to_string()), token_index: 0, params: Vec::new()});
     }
 
     let errors = check_types(&mut context, &source, &tokens, &e);
