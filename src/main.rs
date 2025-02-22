@@ -1652,11 +1652,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         return errors;
     }
 
-    if context.mode.allows_base_mut {
-        errors.push(format!("{}:{}: modes that allow mut declarations in the root context of the file are not supported yet, culprit mode: '{}'.",
-                            t.line, t.col, context.mode.name));
-        return errors;
-    }
     if !context.mode.allows_base_calls {
         errors.push(format!("{}:{}: modes that don't allow calls in the root context of the file are not supported yet, culprit mode: '{}'.",
                             t.line, t.col, context.mode.name));
@@ -2612,12 +2607,38 @@ fn main_run(path: &String, source: &String) -> String {
     }
 
     let mut context = start_context(mode);
-    let errors = init_context(&mut context, &source, &tokens, &e);
+    let mut errors = init_context(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
             println!("{}:{}", path, err);
         }
         return format!("Compiler errors: {} declaration errors found", errors.len());
+    }
+
+    match &e.node_type {
+        NodeType::Body => {
+            let allow_mutants = context.mode.allows_base_mut;
+            for p in e.params.iter() {
+                match &p.node_type {
+
+                    NodeType::Declaration(decl) => {
+                        if !allow_mutants && decl.is_mut {
+                            let t = tokens.get(p.token_index).unwrap();
+                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change mode",
+                                t.line, t.col, "mode", context.mode.name, "context.mode.FIXTODO"));
+                        }
+                    },
+                    _ => {},
+                }
+            }
+        },
+        _ => {},
+    }
+    if errors.len() > 0 {
+        for err in &errors {
+            println!("{}:{}", path, err);
+        }
+        return format!("Mode errors: {} type errors found", errors.len());
     }
 
     let errors = check_types(&mut context, &source, &tokens, &e);

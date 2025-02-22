@@ -60,9 +60,9 @@ example_basic_workflow()
 
 // self hosted:
 
-// TODO mut func/procs shouldn't be allowed at this level, in this mode, or perhaps never
-mut assertm := proc(cond: bool, msg: String) {
-// assertm := proc(cond: bool, msg: String) {
+// fails because mut func/procs shouldn't be allowed at this level, in this mode, or perhaps never
+// mut assertm := proc(cond: bool, msg: String) {
+assertm := proc(cond: bool, msg: String) {
     if not(cond) {
         println("assert failed: ", msg)
         exit(1)
