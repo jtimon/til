@@ -151,3 +151,12 @@ Similar to lib, but to interface with other languages.
 Files of this mode should only contain declarations of headers, basically.
 
 Not implemented yet.
+
+* Contributing
+
+Until src/cil.cil does everything src/main.rs does and also compiles to a
+amd64-linux binary, it is not worth it.
+
+Please, don't even try yet.
+
+Perhaps an emacs mode for the language, that would be nice.
