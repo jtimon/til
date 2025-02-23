@@ -354,6 +354,7 @@ enum ValueType {
     TList,
     TFunc,
     TProc,
+    TMacro,
     TEnumDef,
     TStructDef,
     TMulti(Box<ValueType>),
@@ -370,6 +371,7 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
         ValueType::TList => "list".to_string(),
         ValueType::TFunc => "func".to_string(),
         ValueType::TProc => "proc".to_string(),
+        ValueType::TMacro => "macro".to_string(),
         ValueType::TEnumDef => "enum".to_string(),
         ValueType::TStructDef => "struct".to_string(),
         ValueType::TMulti(val_type) => format!("[]{}", value_type_to_str(val_type)).to_string(),
@@ -1237,6 +1239,7 @@ struct Context {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
     procs: HashMap<String, SFuncDef>,
+    macros: HashMap<String, SFuncDef>,
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, Expr>,
@@ -1289,6 +1292,7 @@ fn start_context(mode: ModeDef) -> Context {
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         procs: HashMap::new(),
+        macros: HashMap::new(),
         enum_defs: HashMap::new(),
         enums: HashMap::new(),
         struct_defs: HashMap::new(),
@@ -1518,6 +1522,19 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                         },
                     }
                 },
+                ValueType::TMacro => {
+                    match &inner_e.node_type {
+                        NodeType::ProcDef(func_def) => {
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            context.macros.insert(decl.name.to_string(), func_def.clone());
+                        },
+                        _ => {
+                            errors.push(format!("{}:{}: {} error: procs should have definitions", t.line, t.col, LANG_NAME));
+                            return errors;
+                        },
+                    }
+                },
+
                 ValueType::TEnumDef => {
                     assert!(inner_e.params.len() == 0, "{} error: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
                             decl.name);
