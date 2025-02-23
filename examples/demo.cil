@@ -252,7 +252,8 @@ MyStruct := struct {
     }
 }
 
-// my_struct := MyStruct()
+// my_struct_type := MyStruct
+// my_struct := MyStruct.init()
 // trying_dot_struct : bool = MyStruct.bool_field.ccccc
 
 ExampleEnum2 := enum {
