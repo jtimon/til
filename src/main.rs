@@ -1148,7 +1148,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             }
         },
         TokenType::Semicolon => {
-            /// TODO turn some errors into warnings
+            // TODO turn some errors into warnings
             return Err(format!("{}:{}: parse warning: Suggestion: don't use ';', no need for semicolon.\nExplanation: keyword 'for' is not supported yet,",
                                t.line, t.col));
         },
