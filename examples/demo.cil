@@ -143,12 +143,12 @@ fib_test := proc(fib_arg: i64) {
     println("fibonacci2: of ", itoa(fib_arg), " = ", itoa(fibonacci1(fib_arg)))
 }
 fib_test(15)
-// fibonacci(15) // fails because 'fibonacci' is defined locally inside fib_test
+// fibonacci0(15) // fails because 'fibonacci0' is defined locally inside fib_test
 
 my_str_func := func(a: String) returns String {
     return a
 }
-println(my_str_func("strings can be passed as params and returned"))
+println(my_str_func("strings can be passed as arguments and returned"))
 
 main := proc() {
     my_bool := true
