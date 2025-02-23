@@ -44,7 +44,7 @@ enum TokenType {
     // Single-character tokens.
     Minus, Plus, Slash, Star,
     LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
-    Comma, Colon, Semicolon,
+    Comma, Colon,
 
     // One or two character tokens.
     Dot, DoubleDot,
@@ -52,6 +52,7 @@ enum TokenType {
     Equal, EqualEqual,
     Greater, GreaterEqual,
     Lesser, LesserEqual,
+    Semicolon, DoubleSemicolon,
 
     // Literals.
     Identifier, String, Number,
@@ -184,6 +185,7 @@ fn scan_tokens(source: &String) -> Vec<Token> {
 
             let token_type = match &source[pos..pos+1] {
                 " " => { pos += 1; continue; },
+                // chars to ignore in this language:
                 "\r" => { pos += 1; continue; },
                 "\t" => { pos += 1; continue; },
                 "\n" => {
@@ -192,23 +194,32 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                     start_line_pos = pos;
                     continue;
                 },
+                // open/close. left/right
                 "(" => TokenType::LeftParen,
                 ")" => TokenType::RightParen,
                 "{" => TokenType::LeftBrace,
                 "}" => TokenType::RightBrace,
                 "[" => TokenType::LeftBracket,
                 "]" => TokenType::RightBracket,
+
+                // separator for optional type before the equal in declarations or args
+                ":" => TokenType::Colon,
+                // separator for args
+                "," => TokenType::Comma, // args can/must? have ',', otherwise the language would be too lispy when parsing from C
+
+                // math
                 "-" => TokenType::Minus,
                 "+" => TokenType::Plus,
                 "*" => TokenType::Star,
-                "," => TokenType::Comma,
-                ":" => TokenType::Colon,
-                ";" => TokenType::Semicolon,
+
+                // reserved for two chars in a row
                 "." => if &source[pos+1..pos+2] == "." { pos += 1; TokenType::DoubleDot } else { TokenType::Dot },
                 "=" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::EqualEqual } else { TokenType::Equal },
                 "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
                 "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
+                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement //#TODO implement warnings
+                ";" => if &source[pos+1..pos+2] == ";" { pos += 1; TokenType::DoubleSemicolon } else { TokenType::Semicolon },
 
                 // comments:
                 "#" => {
@@ -268,6 +279,7 @@ fn scan_tokens(source: &String) -> Vec<Token> {
             }
             pos += 1;
         } // else
+
     } // while
     tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0});
     tokens
@@ -314,8 +326,8 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
             print_lex_error(&path, &source, &t, *errors_found, "Keyword 'macro' is not supported yet, use 'func' or 'proc' instead for now");
             *errors_found = *errors_found + 1;
         },
-        TokenType::Semicolon => {
-            print_lex_error(&path, &source, &t, *errors_found, "No need for ';', use next line or simply a space instead");
+        TokenType::DoubleSemicolon => {
+            print_lex_error(&path, &source, &t, *errors_found, "No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for");
             *errors_found = *errors_found + 1;
         },
         _ => {},
@@ -1134,6 +1146,11 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                     Err(format!("{}:{}: parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
                 },
             }
+        },
+        TokenType::Semicolon => {
+            /// TODO turn some errors into warnings
+            return Err(format!("{}:{}: parse warning: Suggestion: don't use ';', no need for semicolon.\nExplanation: keyword 'for' is not supported yet,",
+                               t.line, t.col));
         },
         _ => {
             Err(format!("{}:{}: parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))

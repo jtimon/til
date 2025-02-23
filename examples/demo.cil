@@ -267,6 +267,7 @@ ExampleEnum2 := enum {
 }
 
 exit(0)
+// exit(0); // TODO note the semicolon is being ignored
 
 // TODO more built-in data types:
 
