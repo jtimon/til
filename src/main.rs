@@ -218,7 +218,9 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
                 ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
                 "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
-                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement //#TODO implement warnings
+
+                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement
+                // TODO implement better warnings
                 ";" => if &source[pos+1..pos+2] == ";" { pos += 1; TokenType::DoubleSemicolon } else { TokenType::Semicolon },
 
                 // comments:
@@ -1147,9 +1149,17 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 },
             }
         },
+        // TokenType::For => {
+        //     return Err(format!("{}:{}: parse warning: keyword 'for' is not supported yet.\nSuggestion: don't use ';', no need for 'for', use while in the meantime",
+        //                        t.line, t.col));
+        // },
         TokenType::Semicolon => {
+            *current = *current + 1;
+            return parse_statement(&source, &tokens, current);
+        },
+        TokenType::DoubleSemicolon => {
             // TODO turn some errors into warnings
-            return Err(format!("{}:{}: parse warning: Suggestion: don't use ';', no need for semicolon.\nExplanation: keyword 'for' is not supported yet,",
+            return Err(format!("{}:{}: parse warning: Suggestion: don't use ';', Explanation: no need for Double Semicolon, try 'if true' instead.\n",
                                t.line, t.col));
         },
         _ => {
@@ -2768,7 +2778,8 @@ fn main() {
             "repl" => {
                 run_repl();
             },
-            "ast" | "interpret" | "build" | "run" | "help" | "-help" | "--help"=> {
+            "ast" | "interpret" | "build" | "run" |
+            "help" | "-help" | "--help"=> {
                 usage();
             },
             _ => {

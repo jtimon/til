@@ -274,8 +274,9 @@ ExampleEnum2 := enum {
     LString : String
 }
 
-exit(0)
-// exit(0); // TODO note the semicolon is being ignored
+exit(0); // TODO note the semicolon is being ignored
+// fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
+// exit(0);;
 
 // TODO more built-in data types:
 
