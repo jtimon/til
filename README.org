@@ -12,7 +12,7 @@ although the bootstrap implementation is written in rust.
 
 Only rustc, and it's temporary.
 Next, when self hosted, nasm will be the only dependency.
-Then some more advanced compiler backend like LLVM. MLIR, QBM or Tilde can be used.
+Then some more advanced compiler backend like LLVM, MLIR, QBM or Tilde can be used.
 Or perhaps just translate to a higher language first.
 
 * Get started
