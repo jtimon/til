@@ -1159,7 +1159,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         },
         TokenType::DoubleSemicolon => {
             // TODO turn some errors into warnings
-            return Err(format!("{}:{}: parse warning: Suggestion: don't use ';', Explanation: no need for Double Semicolon, try 'if true' instead.\n",
+            return Err(format!("{}:{}: parse error: Suggestion: don't use ';', Explanation: no need for Double Semicolon, try 'if true' instead.\n",
                                t.line, t.col));
         },
         _ => {
