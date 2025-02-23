@@ -237,15 +237,23 @@ println("TODO test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum
 // println("str_eq: ", str_eq(test_return_switch_enum(ExampleEnum.A), no_return_switch_str))
 
 MyStruct := struct {
+    bool_field_static : bool = false
+    int_const : i64 = 42 // 42 is just the default, but you can set something else onze in the init func
     mut bool_field : bool = false
     mut int_field : i64 = 0
     mut string_field := ""
 
-    int_const : i64 = 42
-    // TODO forbid mut func/proc fields for now
-    mut bool_method_func := func() returns bool {
-        return true
+    // TODO allow assingments to struct fields, both mut or only overwrite the default once in init,
+    // but then it is no longer "static", that's only for the compiler to care, not the user's problem
+    // TODO static vs only_one assignment are details the interpreter should be smart enough to through errors about
+    init := func(self: MyStruct, int_const : i64, bool_field : bool, int_field : i64, string_field) {
+        // self.bool_field_static = 69 // TODO think of a keyword to force this to fail
+        // self.int_const = 69
+        // self.bool_field = true
+        // self.int_field = 1
+        // self.string_field = "true"
     }
+
     bool_method_proc := proc() returns bool {
 	print("bool_method_proc called")
 	return false
