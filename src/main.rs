@@ -1505,7 +1505,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: funcs should have definitions", t.line, t.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "func"));
                             return errors;
                         },
                     }
@@ -1517,7 +1517,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.procs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: procs should have definitions", t.line, t.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "proc"));
                             return errors;
                         },
                     }
@@ -1529,7 +1529,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                             context.macros.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: procs should have definitions", t.line, t.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "macro"));
                             return errors;
                         },
                     }
