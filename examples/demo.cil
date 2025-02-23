@@ -298,6 +298,13 @@ exit(0); // TODO note the semicolon is being ignored
 // }
 // test_structs()
 
+// TODO implement Type type
+// Note aliases can be used before declared:
+// Bool := bool
+// Int := i64
+// Unsigned := i64
+// Str := String
+
 // TODO implement import at least for mode lib, and then "import core", move these functions to core.cil
 // self hosted:
 
