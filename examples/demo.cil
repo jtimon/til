@@ -1,10 +1,10 @@
 mode script
 
+// core := import("core") // fails because 'import' is not implemented yet
+
 //// Intro to the language
 // @ // fails because @ is invalid on the lexer for now
 // adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
-
-// if true { println("aaa") } // fails because test mode only allows declarations and calls in the root context
 
 // Declarations and assignments:
 
