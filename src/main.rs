@@ -904,11 +904,12 @@ fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     let initial_current = *current;
     *current = *current + 1;
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match primary(&source, &tokens, current) {
-        Ok(to_ret) => to_ret,
-        Err(err_str) => return Err(err_str),
+    match primary(&source, &tokens, current) {
+        Ok(prim) => {
+            params.push(prim);
+        },
+        Err(_err_str) => {},
     };
-    params.push(prim);
     let mut t = tokens.get(*current).unwrap();
     while t.token_type == TokenType::Comma {
         *current = *current + 1;
@@ -1972,7 +1973,9 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
-            errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
+            for return_val in &e.params {
+                errors.append(&mut check_types(&mut context, &source, &tokens, &return_val));
+            }
         },
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
     }
@@ -2579,8 +2582,13 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             return "".to_string();
         },
         NodeType::Return => {
-            assert!(e.params.len() == 1, "{} eval error: return nodes must have exactly 1 parameter.", LANG_NAME);
-            eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
+            if e.params.len() == 0 {
+                return "".to_string();
+            } else if e.params.len() == 1 {
+                return eval_expr(&mut context, &source, &tokens, &e.params.get(0).unwrap())
+            } else {
+                panic!("{}:{}: {} eval error: mutltiple return values not implemented yet.", t.line, t.col, LANG_NAME);
+            }
         }
         _ => {
             panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))

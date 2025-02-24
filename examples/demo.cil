@@ -37,23 +37,23 @@ my_func := func(a: bool, b: bool) returns bool {
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
 
+// return can be used in functions that don't return anything to exit early
+exit_early_print := proc(a: bool, msg: String) {
+    println(msg)
+    if a {
+        return
+    }
+    println("exit_early_print didn't exit early")
+}
+exit_early_print(false, "Calling: exit_early_print(false, msg)")
+exit_early_print(true, "Calling: exit_early_print(true, msg)")
+
 // TODO Functions can return multiple values
-my_func2 := func(a: bool, b: bool) returns bool, bool {
+my_func_multi := func(a: bool, b: bool) returns bool, bool {
     return a, b
 }
-// _a, _b := my_func2(true, true)
+// _a, _b := my_func_multi(true, true)
 // test(and(_a, _b), "multiple returns don't seem to be working")
-
-// TODO return can be used in functions that don't return anything to exit early
-// exit_early_print := proc(a: bool, msg: String) {
-//     println(msg)
-//     if a {
-//         return
-//     }
-//     println("exit_early_print didn't exit early")
-// }
-// exit_early_print(true, "Calling exit_early_print(true, )")
-// exit_early_print(false, "exit_early_print(false, )")
 
 // TODO treat macros differently, currently they're equivalent to procs
 my_macro := macro(a: bool, b: bool) returns bool {
