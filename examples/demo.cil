@@ -38,9 +38,11 @@ my_func := func(a: bool, b: bool) returns bool {
 test(my_func(true, true), "my_func(true, true) didn't return true")
 
 // TODO Functions can return multiple values
-// my_func2 := func(a: bool, b: bool) returns bool, bool {
-//     return a, b
-// }
+my_func2 := func(a: bool, b: bool) returns bool, bool {
+    return a, b
+}
+// _a, _b := my_func2(true, true)
+// test(and(_a, _b), "multiple returns don't seem to be working")
 
 // TODO return can be used in functions that don't return anything to exit early
 // exit_early_print := proc(a: bool, msg: String) {

@@ -909,6 +909,16 @@ fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -
         Err(err_str) => return Err(err_str),
     };
     params.push(prim);
+    let mut t = tokens.get(*current).unwrap();
+    while t.token_type == TokenType::Comma {
+        *current = *current + 1;
+        let prim2 = match primary(&source, &tokens, current) {
+            Ok(to_ret) => to_ret,
+            Err(err_str) => return Err(err_str),
+        };
+        params.push(prim2);
+        t = tokens.get(*current).unwrap();
+    }
     Ok(Expr { node_type: NodeType::Return, token_index: initial_current, params: params})
 }
 
@@ -1962,7 +1972,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
-            assert!(e.params.len() == 1, "{} error: return nodes must exactly 1 parameter.", LANG_NAME);
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
         },
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
