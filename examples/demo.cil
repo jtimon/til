@@ -61,8 +61,8 @@ test(my_macro(true, true), "my_macro(true, true) didn't return true")
 
 // core bool functions:
 
-// and(true, 1111) // fails, and cannot take number literals
-// and(true, "asdfgdfafgd") // fails, and cannot take string literals
+// and(true, 1111) // fails, 'and' cannot take number literals
+// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
 test(and(true, true), "and(true, true) == true")
 test(not(and(false, true)), "or(false, true) == false")
 test(not(and(false, true, true)), "or(false, false, true) == false") // note that both 'and' and 'or' can take any number of bools as args
