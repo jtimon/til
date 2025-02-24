@@ -16,9 +16,9 @@ mut CCC := true // variables need the mut keyword, both as variables and as argu
 CCC = false // assignments to mut declarations (aka variables/arguments) are allowed
 // and := true // fails, re-declaration of core func 'and'
 
-// Pure functions:
+// Functions types:
 
-// Procedures can be declared and directly called in some modes including script
+// Procedures or procs can be declared and directly called in most modes including script
 my_proc := proc() {
 
     abc := proc(a: bool, b: bool, c: bool) {
@@ -28,13 +28,30 @@ my_proc := proc() {
 }
 my_proc()
 
-// Pure functions are similar to procs, but they can't have side effects, thus they cannot call to procedures
+// Pure functions or funcs are similar to procs, but they can't have side effects, thus they cannot call to procedures
 my_func := func(a: bool, b: bool) returns bool {
 //     println("proc") // fails, funcs cannot call procs, println is a core proc
 //     my_proc() // fails, funcs cannot call procs, my_proc is a custom proc
+    // return 42 // fails, because 42 is not a bool
     return and(a, b)
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
+
+// TODO Functions can return multiple values
+// my_func2 := func(a: bool, b: bool) returns bool, bool {
+//     return a, b
+// }
+
+// TODO return can be used in functions that don't return anything to exit early
+// exit_early_print := proc(a: bool, msg: String) {
+//     println(msg)
+//     if a {
+//         return
+//     }
+//     println("exit_early_print didn't exit early")
+// }
+// exit_early_print(true, "Calling exit_early_print(true, )")
+// exit_early_print(false, "exit_early_print(false, )")
 
 // TODO treat macros differently, currently they're equivalent to procs
 my_macro := macro(a: bool, b: bool) returns bool {
@@ -262,7 +279,7 @@ MyStruct := struct {
 
     to_string := proc() returns String {
 	todo("implement MyStruct.to_string()")
-	return 42 // TODO fails, because 42 is not a string
+	return ""
     }
 }
 

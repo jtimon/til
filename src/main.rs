@@ -1684,7 +1684,32 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source:
         }
         context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
     }
+
+    let returns_len = func_def.returns.len();
     for p in func_def.body.iter() {
+        match &p.node_type {
+            NodeType::Return => {
+                if returns_len != p.params.len() {
+                    errors.push(format!("{}:{}: type error: Returning {} values when {} were expected.", t.line, t.col, returns_len, p.params.len()));
+                } else {
+                    for i in 0..p.params.len() {
+                        let expected_value_type = func_def.returns.get(i).unwrap();
+                        match get_value_type(&context, &tokens, p.params.get(i).unwrap()) {
+                            Ok(actual_value_type) => {
+                                if expected_value_type != &actual_value_type {
+                                    errors.push(format!("{}:{}: type error: Return value in pos {} expected to be {:?}, but found {:?} instead",
+                                                        t.line, t.col, i, expected_value_type, actual_value_type));
+                                }
+                            },
+                            Err(error_string) => {
+                                errors.push(error_string);
+                            },
+                        };
+                    }
+                }
+            },
+            _ => {},
+        }
         errors.append(&mut check_types(&mut context, &source, &tokens, &p));
     }
     errors
