@@ -260,9 +260,9 @@ MyStruct := struct {
         // self.string_field = "true"
     }
 
-    bool_method_proc := proc() returns bool {
-	print("bool_method_proc called")
-	return false
+    to_string := proc() returns String {
+	todo("implement MyStruct.to_string()")
+	return ""
     }
 }
 
@@ -336,6 +336,11 @@ panic := proc(msg: String) {
     assertm(false, msg)
 }
 // panic("panic panics when uncommented") // fails, because it panics
+
+todo := proc(msg: String) {
+    print("TODO: ")
+    assertm(false, msg)
+}
 
 // FIX literals have to work in the repl, but it's good they don't work here
 // TODO implement mode repl
