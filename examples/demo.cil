@@ -16,6 +16,95 @@ mut CCC := true // variables need the mut keyword, both as variables and as argu
 CCC = false // assignments to mut declarations (aka variables/arguments) are allowed
 // and := true // fails, re-declaration of core func 'and'
 
+// boolean logic:
+
+test(true, "true is true")
+test(not(false), "not: not false is true")
+test(not(not(true)), "not: not not true is true")
+// and(true, 1111) // fails, 'and' cannot take number literals
+// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
+test(and(true, true), "and(true, true) == true")
+test(not(and(true, false)), "and(true, false) == false")
+test(not(and(true, false)), "and(false, true) == false")
+test(not(and(false, true)), "and(false, true) == false")
+test(not(and(false, false)), "and(false, false) == false")
+
+test(or(true, true), "or(true, true) == true")
+test(or(true, false), "or(true, false) == true")
+test(or(false, true), "or(false, true) == true")
+test(not(or(false, false)), "or(false, false) == false")
+
+// note that both 'and' and 'or' can take any number of bools as args, like in lisp
+test(or(false, true, true), "or(false, false, true) == true")
+test(not(and(false, true, true)), "and(false, false, true) == false")
+
+test(or(true, false), "and: true or false is true")
+
+// Note that func 'xor' is used before being declared, but in the root context of the file
+test(xor(true, false), "and: true xor false is true")
+test(not(xor(true, true)), "xor(true, true) == false")
+
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
+
+// comparisons:
+test(eq(0, 0), "0 == 0")
+test(eq(2, 2), "2 == 2")
+test(lt(0, 1), "0 is less than 1")
+test(gt(2, 1), "2 is greater than 1")
+test(lteq(2, 2), "2 is gt-equal to 2")
+test(gteq(2, 2), "2 is lt-equal to 2")
+
+// arithmetics:
+test(eq(add(40, 2), 42), "40 + 2 = 42")
+test(eq(sub(44, 2), 42), "44 - 2 = 42")
+test(eq(mul(6, 7), 42), " 6 * 7 = 42")
+test(eq(div(420, 10), 42), " 420 / 10 = 42")
+test(eq(add(2, 2), 4), "2 + 2 = 4")
+test(eq(mul(2, 2), 4), "2 * 2 = 4")
+// TODO test(eq(exp(2, 2), 4), "exp(2, 2) == 4")
+// TODO test(eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
+// TODO test(eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
+
+// Basic control flow:
+
+// curly braces are mandatory for control flow statements, including functions, if/else, while, switch, etc
+
+// if and if else statements:
+
+// if 42 { // fails because ints are not allowed for conditions, only bool
+// unnecessary parentheses are not implemented yet, not sure if they will be allowed
+if gteq(4, 2) {
+    println("aaa", "y", "aaa")
+    print("aaa", "y", "eee")
+    print("\n") // TODO make this and the next line be equivalent, don't escape \n
+    println("")
+} else {
+    println("bbbbbbbb")
+}
+
+// branchless conditions:
+
+// btoi is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
+// btoi can also be useful simply for optimizations, because branches are bad for branch prediction
+test(eq(btoi(false), btoi(not(true))), "false is not true")
+test(eq(btoi(not(true)), btoi(false)), "not true is false")
+test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
+test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
+test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
+
+// while loop:
+
+mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+print("it: ")
+// while 42 { // fails, because while expects a bool first, not an int
+while lt(it, 10) {
+    print(itoa(it), " ")
+    it = add(it, 1)
+}
+println(" ")
+
 // Functions types:
 
 // Procedures or procs can be declared and directly called in most modes including script
@@ -60,92 +149,6 @@ my_macro := macro(a: bool, b: bool) returns bool {
     return and(a, b)
 }
 test(my_macro(true, true), "my_macro(true, true) didn't return true")
-
-// core bool functions:
-
-// and(true, 1111) // fails, 'and' cannot take number literals
-// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
-test(and(true, true), "and(true, true) == true")
-test(not(and(false, true)), "or(false, true) == false")
-test(not(and(false, true, true)), "or(false, false, true) == false") // note that both 'and' and 'or' can take any number of bools as args
-test(or(true, true), "or(true, true) == true")
-test(not(or(false, false)), "or(false, false) == false")
-
-// comparisons:
-test(eq(0, 0), "0 == 0")
-test(eq(2, 2), "2 == 2")
-test(lt(0, 1), "0 is less than 1")
-test(gt(2, 1), "2 is greater than 1")
-test(lteq(2, 2), "2 is gt-equal to 2")
-test(gteq(2, 2), "2 is lt-equal to 2")
-
-// arithmetics:
-test(eq(add(40, 2), 42), "40 + 2 = 42")
-test(eq(sub(44, 2), 42), "44 - 2 = 42")
-test(eq(mul(6, 7), 42), " 6 * 7 = 42")
-test(eq(div(420, 10), 42), " 420 / 10 = 42")
-test(eq(add(2, 2), 4), "2 + 2 = 4")
-test(eq(mul(2, 2), 4), "2 * 2 = 4")
-// TODO test(eq(exp(2, 2), 4), "exp(2, 2) == 4")
-// TODO test(eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
-// TODO test(eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
-
-// more boolean logic:
-test(true, "true is true")
-test(not(false), "not: not false is true")
-test(not(not(true)), "not: not not true is true")
-test(not(or(false, false)), "or: two false don't make a true")
-test(and(true, true), "and: true and true is true")
-test(or(true, false), "and: true or false is true")
-
-test(xor(true, false), "and: true xor false is true") // Note that func 'xor' is used before being declared, but in the same file context
-test(not(xor(true, true)), "xor(true, true) == false") // note xor func is defined afterwards, it's not a core func
-
-xor := func(a: bool, b: bool) returns bool {
-    return or(and(not(a), b), and(a, not(b)))
-}
-
-// Basic control flow:
-
-// if 42 { // fails, because if expects a bool first, not an int
-
-// if and if else statements:
-
-// similar to many other languages (curly braces are mandatory)
-// if 42 { // fails because ints are not allowed for conditions, only bool
-if gteq(4, 2) {
-    println("aaa", "y", "aaa")
-    print("aaa", "y", "eee")
-    print("\n") // TODO make this and the next line be equivalent, don't escape \n
-    println("")
-} else {
-    println("bbbbbbbb")
-}
-
-// branchless conditions:
-
-// btoi is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
-// btoi can also be useful simply for optimizations, because branches are bad for branch prediction
-test(eq(btoi(false), btoi(not(true))), "false is not true")
-test(eq(btoi(not(true)), btoi(false)), "not true is false")
-test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
-
-branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
-}
-test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
-test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
-
-// while loop:
-
-mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-print("it: ")
-// while 42 { // fails, because while expects a bool first, not an int
-while lt(it, 10) {
-    print(itoa(it), " ")
-    it = add(it, 1)
-}
-println(" ")
 
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: i64) {
@@ -330,11 +333,13 @@ exit(0); // TODO note the semicolon is being ignored
 // Unsigned := i64
 // Str := String
 
+
+// ---------------------------------------------------
 // TODO implement import at least for mode lib, and then "import core", move these functions to core.cil
+
 // self hosted:
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// TODO move the above "fails" in inner levels inside file root context
 // mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
     if not(cond) {
@@ -361,9 +366,6 @@ todo := proc(msg: String) {
     assertm(false, msg)
 }
 
-// FIX literals have to work in the repl, but it's good they don't work here
-// TODO implement mode repl
-// "aaa"
-// 1111
-// true
-// (true (true 1111 "1a" aaa) (false 2222 "2b" bbb))
+branchless := func(cond: bool, a: i64, b: i64) returns i64 {
+    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
+}

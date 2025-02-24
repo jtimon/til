@@ -1,0 +1,7 @@
+mode repl // TODO implement mode repl
+
+// FIX literals have to work in the repl
+"aaa"
+1111
+true
+(true (true 1111 "1a" aaa) (false 2222 "2b" bbb))
