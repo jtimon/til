@@ -324,10 +324,6 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
             print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
             *errors_found = *errors_found + 1;
         },
-        TokenType::Macro => {
-            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'macro' is not supported yet, use 'func' or 'proc' instead for now");
-            *errors_found = *errors_found + 1;
-        },
         TokenType::DoubleSemicolon => {
             print_lex_error(&path, &source, &t, *errors_found, "No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for");
             *errors_found = *errors_found + 1;
@@ -433,6 +429,7 @@ enum NodeType {
     Assignment(String),
     FuncDef(SFuncDef),
     ProcDef(SFuncDef),
+    MacroDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef,
     Return,
@@ -751,7 +748,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
 }
 
-fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_func_proc_definition(func_type: &str, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     *current = *current + 1;
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
@@ -776,9 +773,12 @@ fn parse_func_proc_definition(is_func: bool, source: &String, tokens: &Vec<Token
     let func_def = SFuncDef{args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
     let e;
-    match is_func {
-        true => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
-        false => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
+    match func_type {
+        "func" => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
+        "proc" => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
+        "macro" => e = Expr { node_type: NodeType::MacroDef(func_def), token_index: *current, params: params},
+        _ => return Err(format!("{}:{}: {} error: expected a function type, found {}.", t.line, t.col, LANG_NAME, func_type)),
+
     }
     *current = *current + 1;
     Ok(e)
@@ -867,8 +867,9 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
         return parse_literal(&source, t, current)
     } else {
         match &t.token_type {
-            TokenType::Func => return parse_func_proc_definition(true, &source, &tokens, current),
-            TokenType::Proc => return parse_func_proc_definition(false, &source, &tokens, current),
+            TokenType::Func => return parse_func_proc_definition("func", &source, &tokens, current),
+            TokenType::Proc => return parse_func_proc_definition("proc", &source, &tokens, current),
+            TokenType::Macro => return parse_func_proc_definition("macro", &source, &tokens, current),
             TokenType::Enum => return enum_definition(&source, &tokens, current),
             TokenType::Struct => return struct_definition(&source, &tokens, current),
             TokenType::LeftParen => parse_list(&source, &tokens, current),
@@ -1388,6 +1389,8 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
         value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
     } else if context.procs.contains_key(name) {
         value_type_func_proc(t, name, &context.procs.get(name).unwrap())
+    } else if context.macros.contains_key(name) {
+        value_type_func_proc(t, name, &context.macros.get(name).unwrap())
     } else if is_defined_symbol(&context, name) {
         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
     } else {
@@ -1404,6 +1407,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         NodeType::LList => Ok(ValueType::TList),
         NodeType::FuncDef(_) => Ok(ValueType::TFunc),
         NodeType::ProcDef(_) => Ok(ValueType::TProc),
+        NodeType::MacroDef(_) => Ok(ValueType::TMacro),
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef => Ok(ValueType::TStructDef),
         NodeType::FCall(name) => get_fcall_value_type(&context, &tokens, &name, &e),
@@ -1524,7 +1528,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 },
                 ValueType::TMacro => {
                     match &inner_e.node_type {
-                        NodeType::ProcDef(func_def) => {
+                        NodeType::MacroDef(func_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                             context.macros.insert(decl.name.to_string(), func_def.clone());
                         },
@@ -1634,7 +1638,7 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
             assert!(e.params.len() == 1, "{} error: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
-        NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) => {
+        NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) | NodeType::MacroDef(func_def) => {
             for it_e in &func_def.body {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
@@ -1863,6 +1867,10 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             }
         },
         NodeType::ProcDef(func_def) => {
+            let mut function_context = context.clone();
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
+        },
+        NodeType::MacroDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
         },
@@ -2302,6 +2310,17 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
+        ValueType::TMacro => {
+            match &inner_e.node_type {
+                NodeType::MacroDef(func_def) => {
+                    context.procs.insert(declaration.name.clone(), func_def.clone());
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    "macro declared".to_string()
+                },
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected procedure definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+            }
+        },
         ValueType::TCustom(ref custom_type_name) => {
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             let custom_symbol = context.symbols.get(custom_type_name).unwrap();
@@ -2580,6 +2599,9 @@ fn to_ast_str(e: &Expr) -> String {
         },
         NodeType::ProcDef(_func_def) => {
             return "(proc)".to_string();
+        },
+        NodeType::MacroDef(_func_def) => {
+            return "(macro)".to_string();
         },
         NodeType::EnumDef(_) => {
             return "(enum)".to_string();

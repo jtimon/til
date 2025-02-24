@@ -36,6 +36,12 @@ my_func := func(a: bool, b: bool) returns bool {
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
 
+// TODO treat macros differently, currently they're equivalent to procs
+my_macro := macro(a: bool, b: bool) returns bool {
+    return and(a, b)
+}
+test(my_macro(true, true), "my_macro(true, true) didn't return true")
+
 // core bool functions:
 
 // and(true, 1111) // fails, and cannot take number literals
