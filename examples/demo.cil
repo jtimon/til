@@ -262,7 +262,7 @@ MyStruct := struct {
 
     to_string := proc() returns String {
 	todo("implement MyStruct.to_string()")
-	return ""
+	return 42 // TODO fails, because 42 is not a string
     }
 }
 
