@@ -152,6 +152,34 @@ Files of this mode should only contain declarations of headers, basically.
 
 Not implemented yet.
 
+* Motivation
+
+There are [[https://xkcd.com/927/][too many languages]], we need a new language that covers
+everyone's use cases.
+
+* Requirements
+
+- compiled and interpreted
+- self hosted and backend agnostic
+- purely functional and purely procedural
+- strongly typed and a dynamic language
+- data and algorithm oriented but with OOOPS allowed (Optional Object
+  Oriented Programming Syntax)
+
+** Secondary requirements
+
+- no errors when you forget a semicolon (like in python), also no errors when you
+  forget this language doesn't need them (like in swift)
+- less parentheses because they're not allowed in if/else, while, etc
+  conditions
+- also more parentheses like lisp, because instead of operators there are
+  just function calls so far (when self hosted we may implement
+  precedence like almost everyone else)
+- screwing up by using tabs is allowed, but braces are mandatory for
+  control flow, not allowed to get a new bug by pressing tab too much like in python
+- spaces or tabs allowed (even though using tabs sucks imo, TODO,
+  implement format subcommand after self hosting)
+
 * Contributing
 
 Until src/cil.cil does everything src/main.rs does and also compiles to a
