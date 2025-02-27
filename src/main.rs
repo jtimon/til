@@ -421,11 +421,11 @@ struct SFuncDef {
     body: Vec<Expr>,
 }
 
-// #[derive(Debug, Clone, PartialEq)]
-// struct SStructDef {
-//     const_members : HashMap<String, ValueType>,
-//     mut_members : HashMap<String, ValueType>,
-// }
+#[derive(Debug, Clone, PartialEq)]
+struct SStructDef {
+    members : HashMap<String, Declaration>,
+    default_values : HashMap<String, Expr>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
@@ -440,7 +440,7 @@ enum NodeType {
     Assignment(String),
     FuncDef(SFuncDef),
     EnumDef(SEnumDef),
-    StructDef,
+    StructDef(SStructDef),
     Return,
     If,
     While,
@@ -851,14 +851,30 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
         return Err(format!("{}:{}: parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
-    let mut params : Vec<Expr> = Vec::new();
     let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
-    params.push(body);
+    let mut members = HashMap::new();
+    let mut default_values = HashMap::new();
+    for p in body.params {
+        match p.node_type {
+            NodeType::Declaration(decl) => {
+                members.insert(decl.name.clone(), decl.clone());
+                if p.params.len() == 1 {
+                    default_values.insert(decl.name.clone(), p.params.get(0).unwrap().clone());
+                } else {
+                    // TODO allow not setting default values in struct members
+                    return Err(format!("{}:{}: parse error: all declarations inside struct defitions must have a value for now", t.line, t.col));
+                }
+            },
+            _ => return Err(format!("{}:{}: parse error: expected only declarations inside struct defition", t.line, t.col)),
+        }
+    }
+
     *current = *current + 1;
-    return Ok(Expr { node_type: NodeType::StructDef, token_index: *current, params: params});
+    return Ok(Expr{node_type: NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
+                   token_index: *current, params: Vec::new()});
 }
 
 fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -1255,7 +1271,7 @@ struct Context {
     funcs: HashMap<String, SFuncDef>,
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
-    struct_defs: HashMap<String, Expr>,
+    struct_defs: HashMap<String, SStructDef>,
     bools: HashMap<String, bool>,
     i64s: HashMap<String, i64>,
     strings: HashMap<String, String>,
@@ -1423,7 +1439,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
             FunctionType::FTMacro => Ok(ValueType::TMacro),
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
-        NodeType::StructDef => Ok(ValueType::TStructDef),
+        NodeType::StructDef(_) => Ok(ValueType::TStructDef),
         NodeType::FCall(name) => get_fcall_value_type(&context, &tokens, &name, &e),
         NodeType::Identifier(name) => {
             let symbol_info = match context.symbols.get(name) {
@@ -1446,8 +1462,20 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
             match symbol_info.value_type {
                 ValueType::TStructDef => {
                     match context.struct_defs.get(name) {
-                        Some(_struct_def) => {
-                            return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}'", t.line, t.col, name, member_str))
+                        Some(struct_def) => {
+                            match struct_def.members.get(member_str) {
+                                Some(decl) => {
+                                    if !decl.is_mut {
+                                        return Ok(decl.value_type.clone());
+                                    } else {
+                                        return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}', an instance is needed to access mutable members",
+                                                           t.line, t.col, name, member_str));
+                                    }
+                                },
+                                _ => {
+                                    return Err(format!("{}:{}: type error: struct '{}' has no member '{}'", t.line, t.col, name, member_str))
+                                },
+                            }
                         },
                         None => {
                             return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, t.line, t.col, name));
@@ -1547,12 +1575,20 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                     }
                 },
                 ValueType::TStructDef => {
-                    assert!(inner_e.params.len() == 1, "{} error: while declaring {}, struct declarations must take exactly one body.", LANG_NAME,
+                    assert!(inner_e.params.len() == 0, "{} error: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME,
                             decl.name);
-                    let inner_e = e.params.get(0).unwrap();
-                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                    context.struct_defs.insert(decl.name.to_string(), inner_e.clone());
+                    match &inner_e.node_type {
+                        NodeType::StructDef(struct_def) => {
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
+                        },
+                        _ => {
+                            errors.push(format!("{}:{}: {} error: enums should have definitions.", t.line, t.col, LANG_NAME));
+                            return errors;
+                        },
+                    }
                 },
+
                 ValueType::TType | ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
@@ -1603,7 +1639,7 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
             }
             false
         },
-        NodeType::StructDef => {
+        NodeType::StructDef(_) => {
             // TODO default values could try to call procs
             false
         },
@@ -1750,19 +1786,20 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 }
             }
         },
-        NodeType::StructDef => {
-            assert!(e.params.len() == 1, "{} error: in check_types(): struct declarations must take exactly one param.", LANG_NAME);
-            let inner_e = e.params.get(0).unwrap();
-            assert!(inner_e.node_type == NodeType::Body, "{} error: in check_types(): struct declarations must take exactly one body.", LANG_NAME);
-            for p in inner_e.params.iter() {
-                match &p.node_type {
-                    NodeType::Declaration(_) => {}
-                    node_type => {
-                        errors.push(format!("{}:{}: 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
-                    }
-                }
-                errors.append(&mut check_types(&mut context, &source, &tokens, &p));
-            }
+        NodeType::StructDef(_struct_def) => {
+            assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
+            // TODO check if an accessed member is mut or not here instead of in get_value_type()
+            // let inner_e = e.params.get(0).unwrap();
+            // assert!(inner_e.node_type == NodeType::Body, "{} error: in check_types(): struct declarations must take exactly one body.", LANG_NAME);
+            // for p in inner_e.params.iter() {
+            //     match &p.node_type {
+            //         NodeType::Declaration(_) => {}
+            //         node_type => {
+            //             errors.push(format!("{}:{}: 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
+            //         }
+            //     }
+            //     errors.append(&mut check_types(&mut context, &source, &tokens, &p));
+            // }
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
@@ -2279,9 +2316,34 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         },
         ValueType::TStructDef => {
             match &inner_e.node_type {
-                NodeType::StructDef => {
-                    context.struct_defs.insert(declaration.name.to_string(), inner_e.clone());
+                NodeType::StructDef(struct_def) => {
+                    context.struct_defs.insert(declaration.name.to_string(), struct_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    for (_, member_decl) in &struct_def.members {
+                        if !member_decl.is_mut {
+                            let combined_name = format!("{}.{}", declaration.name, member_decl.name);
+                            context.symbols.insert(combined_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                            let default_value = match struct_def.default_values.get(&member_decl.name) {
+                                Some(_default_value) => _default_value,
+                                None => {
+                                    panic!("{}:{} {} eval error: Struct member '{}.{}' expected to have default value.",
+                                           t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name);
+                                },
+                            };
+                            match member_decl.value_type {
+                                ValueType::TString => {
+                                    let string_expr_result = &eval_expr(&mut context, &source, &tokens, default_value);
+                                    context.strings.insert(combined_name.to_string(), string_expr_result.to_string());
+                                },
+                                _ => {
+                                    // TODO remove default case
+                                    // panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, TODO remove default case in struct members.",
+                                    //             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                                },
+
+                            }
+                        }
+                    }
                     "struct declared".to_string()
                 },
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected struct definition.",
@@ -2423,6 +2485,44 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
                             },
                         }
                     },
+
+                    ValueType::TStructDef => {
+                        assert!(e.params.len() > 0, "{} eval error: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                        let struct_def = context.struct_defs.get(name).unwrap();
+                        let inner_e = e.params.get(0).unwrap();
+                        match &inner_e.node_type {
+                            NodeType::Identifier(inner_name) => {
+                                match struct_def.members.get(inner_name) {
+                                    Some(member_decl) => {
+                                        match member_decl.value_type {
+                                            ValueType::TString => {
+                                                match context.strings.get(&format!("{}.{}", name, inner_name)) {
+                                                    Some(result_str) => return result_str.to_string(),
+                                                    None => {
+                                                        panic!("{}:{}: {} eval error: value not set for '{}.{}'",
+                                                               t.line, t.col, LANG_NAME, name, inner_name)
+                                                    },
+                                                }
+
+                                            },
+                                            _ => {
+                                                panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
+                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                            },
+                                        }
+                                    },
+                                    _ => {
+                                        panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
+                                               t.line, t.col, LANG_NAME, name, inner_name)
+                                    },
+                                }
+                            },
+                            _ => {
+                                panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
+                            },
+                        }
+                    }
+
                     ValueType::ToInferType => {
                         panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
                     },
@@ -2578,7 +2678,7 @@ fn to_ast_str(e: &Expr) -> String {
         NodeType::EnumDef(_) => {
             return "(enum)".to_string();
         },
-        NodeType::StructDef => {
+        NodeType::StructDef(_) => {
             return "(struct)".to_string();
         },
         NodeType::Identifier(id_name) => {
