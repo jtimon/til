@@ -55,6 +55,7 @@ test(lt(0, 1), "0 is less than 1")
 test(gt(2, 1), "2 is greater than 1")
 test(lteq(2, 2), "2 is gt-equal to 2")
 test(gteq(2, 2), "2 is lt-equal to 2")
+test(str_eq("aa", "aa"), "str_eq('aa', 'aa') is true")
 
 // arithmetics:
 test(eq(add(40, 2), 42), "40 + 2 = 42")
@@ -258,11 +259,9 @@ println("TODO test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum
 // println("test_return_switch_enum(B): ", test_return_switch_enum(ExampleEnum.B))
 // println("test_return_switch_enum(C): ", test_return_switch_enum(ExampleEnum.C))
 // println("test_return_switch_enum(D): ", test_return_switch_enum(ExampleEnum.D))
+// test(str_eq(test_return_switch_enum(ExampleEnum.A), no_return_switch_str), "error in test_return_switch_enum")
 
 // TODO next:
-
-// TODO implement core func 'str_eq'
-// println("str_eq: ", str_eq(test_return_switch_enum(ExampleEnum.A), no_return_switch_str))
 
 // Struct definitions can be used as namespaces by declaring only constants in them (no mut)
 MyNamespace := struct {

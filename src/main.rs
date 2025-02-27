@@ -1373,6 +1373,12 @@ fn start_context(mode: ModeDef) -> Context {
     context.funcs.insert("gt".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("gteq".to_string(), func_def_bin_i64_to_bool.clone());
 
+    let mut args_bin_str : Vec<Declaration> = Vec::new();
+    args_bin_str.push(Declaration{name: "a".to_string(), value_type: ValueType::TString, is_mut: false});
+    args_bin_str.push(Declaration{name: "b".to_string(), value_type: ValueType::TString, is_mut: false});
+    let func_def_bin_str_to_bool = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_str.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    context.funcs.insert("str_eq".to_string(), func_def_bin_str_to_bool.clone());
+
     let mut return_type_i64 : Vec<ValueType> = Vec::new();
     return_type_i64.push(ValueType::TI64);
     let func_def_bin_i64_to_i64 = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
@@ -1418,7 +1424,11 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
 fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &Expr) -> Result<ValueType, String> {
     let t = tokens.get(e.token_index).unwrap();
     if context.funcs.contains_key(name) {
-        value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
+        return value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
+    } else if is_core_func(name) {
+        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in context", t.line, t.col, context.mode.name, name));
+    } else if is_core_proc(name) {
+        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in context", t.line, t.col, context.mode.name, name));
     } else if is_defined_symbol(&context, name) {
         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
     } else {
@@ -2044,6 +2054,13 @@ fn eval_core_func_eq(mut context: &mut Context, source: &String, tokens: &Vec<To
     (a == b).to_string()
 }
 
+fn eval_core_func_str_eq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap());
+    (a == b).to_string()
+}
+
 fn eval_core_func_lt(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
@@ -2237,6 +2254,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
             "or" => eval_core_func_or(&mut context, &source, &tokens, &e),
             "not" => eval_core_func_not(&mut context, &source, &tokens, &e),
             "eq" => eval_core_func_eq(&mut context, &source, &tokens, &e),
+            "str_eq" => eval_core_func_str_eq(&mut context, &source, &tokens, &e),
             "lt" => eval_core_func_lt(&mut context, &source, &tokens, &e),
             "lteq" => eval_core_func_lteq(&mut context, &source, &tokens, &e),
             "gt" => eval_core_func_gt(&mut context, &source, &tokens, &e),
