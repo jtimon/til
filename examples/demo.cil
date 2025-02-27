@@ -265,7 +265,7 @@ println("TODO test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum
 // println("str_eq: ", str_eq(test_return_switch_enum(ExampleEnum.A), no_return_switch_str))
 
 MyStruct := struct {
-    bool_field_static : bool = false
+    string_field_static : String = "string_field_static in MyStruct"
     int_const : i64 = 42 // 42 is just the default, but you can set something else onze in the init func
     mut bool_field : bool = false
     mut int_field : i64 = 0
@@ -282,15 +282,16 @@ MyStruct := struct {
         // self.string_field = "true"
     }
 
-    to_string := proc() returns String {
+    to_string := proc(self: MyStruct) returns String {
 	todo("implement MyStruct.to_string()")
 	return ""
     }
 }
 
+// println(MyStruct.string_field_static)
 // my_struct_type := MyStruct
 // my_struct := MyStruct.init()
-// trying_dot_struct : bool = MyStruct.bool_field.ccccc
+// trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
 
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
@@ -332,15 +333,32 @@ exit(0); // TODO note the semicolon is being ignored
 // self hosted:
 
 // TODO fix aliases
-// my_int : I64 = 1
+// my_int : U64 = 1
 
 // Note aliases can be used before declared:
 Bool : Type = bool
 Integer : Type = i64
 Unsigned : Type = i64
-I64 : Type = i64
 U64 : Type = i64
 OtherType : Type = Type
+
+I64 := struct {
+    mut data : i64 = 0
+
+    // init := func(i: i64) returns I64 {
+    //     n : I64
+    // 	n.data = i;
+    // 	return n
+    // }
+
+    // _add := func(self: I64, other: I64) returns I64 {
+    // 	return add(self.data, other.data)
+    // }
+
+    // to_string := func(self: I64) returns String {
+    // 	return itoa(self.data)
+    // }
+}
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm := proc(cond: bool, msg: String) {
