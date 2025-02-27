@@ -344,6 +344,7 @@ fn is_literal(t: &Token) -> bool {
 
 #[derive(Debug, Clone, PartialEq)]
 enum ValueType {
+    TType,
     TBool,
     TString,
     TI64,
@@ -360,6 +361,7 @@ enum ValueType {
 
 fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
+        ValueType::TType => "Type".to_string(),
         ValueType::ToInferType => INFER_TYPE.to_string(),
         ValueType::TBool => "bool".to_string(),
         ValueType::TI64 => "i64".to_string(),
@@ -380,6 +382,7 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         INFER_TYPE => ValueType::ToInferType,
         "bool" => ValueType::TBool,
         "String" => ValueType::TString,
+        "Type" => ValueType::TType,
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
@@ -1111,7 +1114,8 @@ fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usi
             return parse_declaration(&source, &tokens, current, true, INFER_TYPE)
         },
         _ => {
-            Err(format!("{}:{}: parse error: Expected Type or '=' after 'mut {} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+            Err(format!("{}:{}: parse error: Expected a type identifier or '=' after 'mut {} :' in statement, found {:?}.",
+                        t.line, t.col, identifier, next_next_token_type))
         },
     }
 }
@@ -1313,6 +1317,12 @@ fn start_context(mode: ModeDef) -> Context {
         strings: HashMap::new(),
     };
 
+    let core_type_symbol_info = SymbolInfo{value_type: ValueType::TType, is_mut: false};
+    context.symbols.insert("i64".to_string(), core_type_symbol_info.clone());
+    context.symbols.insert("bool".to_string(), core_type_symbol_info.clone());
+    context.symbols.insert("String".to_string(), core_type_symbol_info.clone());
+    context.symbols.insert("Type".to_string(), core_type_symbol_info.clone());
+
     let body : Vec<Expr> = Vec::new();
     let return_types_none : Vec<ValueType> = Vec::new();
 
@@ -1464,6 +1474,9 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                                     return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
                                                        t.line, t.col, extra_member_str, name, member_str, name, member_str));
                                 }
+                                if name.to_string() == "Type" {
+                                    return Ok(ValueType::TType);
+                                }
                                 return Ok(ValueType::TCustom(name.to_string()));
                             }
                             return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
@@ -1509,7 +1522,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
             };
             if decl.value_type != str_to_value_type(INFER_TYPE) {
                 if value_type != decl.value_type {
-                    errors.push(format!("{}:{}: type error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
+                    errors.push(format!("{}:{}: type error: '{}' declared of type '{}' but initialized to type '{}'.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
                 }
             }
             match value_type {
@@ -1571,7 +1584,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                     context.struct_defs.insert(decl.name.to_string(), inner_e.clone());
                 },
-                ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
+                ValueType::TType | ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },

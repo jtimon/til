@@ -326,18 +326,21 @@ exit(0); // TODO note the semicolon is being ignored
 // }
 // test_structs()
 
-// TODO implement Type type
-// Note aliases can be used before declared:
-// Bool := bool
-// Int := i64
-// Unsigned := i64
-// Str := String
-
-
 // ---------------------------------------------------
 // TODO implement import at least for mode lib, and then "import core", move these functions to core.cil
 
 // self hosted:
+
+// TODO fix aliases
+// my_int : I64 = 1
+
+// Note aliases can be used before declared:
+Bool : Type = bool
+Integer : Type = i64
+Unsigned : Type = i64
+I64 : Type = i64
+U64 : Type = i64
+OtherType : Type = Type
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm := proc(cond: bool, msg: String) {
