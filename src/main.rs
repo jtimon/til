@@ -406,7 +406,15 @@ struct Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+enum FunctionType {
+    FTFunc,
+    FTProc,
+    FTMacro,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct SFuncDef {
+    function_type: FunctionType,
     args: Vec<Declaration>,
     returns: Vec<ValueType>,
     // throws: Vec<ValueType>,
@@ -431,8 +439,6 @@ enum NodeType {
     Declaration(Declaration),
     Assignment(String),
     FuncDef(SFuncDef),
-    ProcDef(SFuncDef),
-    MacroDef(SFuncDef),
     EnumDef(SEnumDef),
     StructDef,
     Return,
@@ -751,7 +757,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
 }
 
-fn parse_func_proc_definition(func_type: &str, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_func_proc_definition(function_type: FunctionType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     *current = *current + 1;
     if is_eof(&tokens, *current + 1) {
         let t = tokens.get(*current).unwrap();
@@ -773,16 +779,9 @@ fn parse_func_proc_definition(func_type: &str, source: &String, tokens: &Vec<Tok
         Ok(body) => body.params,
         Err(err_str) => return Err(err_str),
     };
-    let func_def = SFuncDef{args: args, returns: returns, body: body};
+    let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
-    let e;
-    match func_type {
-        "func" => e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params},
-        "proc" => e = Expr { node_type: NodeType::ProcDef(func_def), token_index: *current, params: params},
-        "macro" => e = Expr { node_type: NodeType::MacroDef(func_def), token_index: *current, params: params},
-        _ => return Err(format!("{}:{}: {} error: expected a function type, found {}.", t.line, t.col, LANG_NAME, func_type)),
-
-    }
+    let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
     *current = *current + 1;
     Ok(e)
 }
@@ -870,9 +869,9 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
         return parse_literal(&source, t, current)
     } else {
         match &t.token_type {
-            TokenType::Func => return parse_func_proc_definition("func", &source, &tokens, current),
-            TokenType::Proc => return parse_func_proc_definition("proc", &source, &tokens, current),
-            TokenType::Macro => return parse_func_proc_definition("macro", &source, &tokens, current),
+            TokenType::Func => return parse_func_proc_definition(FunctionType::FTFunc, &source, &tokens, current),
+            TokenType::Proc => return parse_func_proc_definition(FunctionType::FTProc, &source, &tokens, current),
+            TokenType::Macro => return parse_func_proc_definition(FunctionType::FTMacro, &source, &tokens, current),
             TokenType::Enum => return enum_definition(&source, &tokens, current),
             TokenType::Struct => return struct_definition(&source, &tokens, current),
             TokenType::LeftParen => parse_list(&source, &tokens, current),
@@ -1328,34 +1327,34 @@ fn start_context(mode: ModeDef) -> Context {
 
     let mut args_print : Vec<Declaration> = Vec::new();
     args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
-    let func_def_print = SFuncDef{args: args_print, returns: return_types_none.clone(), body: body.clone()};
+    let func_def_print = SFuncDef{function_type: FunctionType::FTProc, args: args_print, returns: return_types_none.clone(), body: body.clone()};
     context.procs.insert("print".to_string(), func_def_print.clone());
     context.procs.insert("println".to_string(), func_def_print);
 
     let mut args_single_i64 : Vec<Declaration> = Vec::new();
     args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
-    let func_def_exit = SFuncDef{args: args_single_i64, returns: return_types_none, body: body.clone()};
+    let func_def_exit = SFuncDef{function_type: FunctionType::FTProc, args: args_single_i64, returns: return_types_none, body: body.clone()};
     context.procs.insert("exit".to_string(), func_def_exit);
 
     let mut args_and_or : Vec<Declaration> = Vec::new();
     args_and_or.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
     let mut return_type_bool : Vec<ValueType> = Vec::new();
     return_type_bool.push(ValueType::TBool);
-    let func_def_and_or = SFuncDef{args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_and_or = SFuncDef{function_type: FunctionType::FTFunc, args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
 
     let mut args_single_bool : Vec<Declaration> = Vec::new();
     args_single_bool.push(
         Declaration{name: "a".to_string(), value_type: ValueType::TBool, is_mut: false});
-    let func_def_not = SFuncDef{args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_not = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("not".to_string(), func_def_not);
 
     let mut args_bin_i64 : Vec<Declaration> = Vec::new();
     args_bin_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
     args_bin_i64.push(Declaration{name: "b".to_string(), value_type: ValueType::TI64, is_mut: false});
 
-    let func_def_bin_i64_to_bool = SFuncDef{args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
+    let func_def_bin_i64_to_bool = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
     context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
     context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
@@ -1364,7 +1363,7 @@ fn start_context(mode: ModeDef) -> Context {
 
     let mut return_type_i64 : Vec<ValueType> = Vec::new();
     return_type_i64.push(ValueType::TI64);
-    let func_def_bin_i64_to_i64 = SFuncDef{args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
+    let func_def_bin_i64_to_i64 = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
     context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
     context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
@@ -1372,12 +1371,12 @@ fn start_context(mode: ModeDef) -> Context {
 
     let mut return_type_single_str : Vec<ValueType> = Vec::new();
     return_type_single_str.push(ValueType::TString);
-    let func_def_btoa = SFuncDef{args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
+    let func_def_btoa = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("btoa".to_string(), func_def_btoa);
 
     let mut args_single_i64 : Vec<Declaration> = Vec::new();
     args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
-    let func_def_itoa = SFuncDef{args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
+    let func_def_itoa = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
     context.funcs.insert("itoa".to_string(), func_def_itoa);
 
     context
@@ -1426,9 +1425,11 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         NodeType::LI64(_) => Ok(ValueType::TI64),
         NodeType::LString(_) => Ok(ValueType::TString),
         NodeType::LList => Ok(ValueType::TList),
-        NodeType::FuncDef(_) => Ok(ValueType::TFunc),
-        NodeType::ProcDef(_) => Ok(ValueType::TProc),
-        NodeType::MacroDef(_) => Ok(ValueType::TMacro),
+        NodeType::FuncDef(func_def) => match func_def.function_type {
+            FunctionType::FTFunc => Ok(ValueType::TFunc),
+            FunctionType::FTProc => Ok(ValueType::TProc),
+            FunctionType::FTMacro => Ok(ValueType::TMacro),
+        },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef => Ok(ValueType::TStructDef),
         NodeType::FCall(name) => get_fcall_value_type(&context, &tokens, &name, &e),
@@ -1540,7 +1541,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 },
                 ValueType::TProc => {
                     match &inner_e.node_type {
-                        NodeType::ProcDef(func_def) => {
+                        NodeType::FuncDef(func_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                             context.procs.insert(decl.name.to_string(), func_def.clone());
                         },
@@ -1552,7 +1553,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 },
                 ValueType::TMacro => {
                     match &inner_e.node_type {
-                        NodeType::MacroDef(func_def) => {
+                        NodeType::FuncDef(func_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                             context.macros.insert(decl.name.to_string(), func_def.clone());
                         },
@@ -1662,7 +1663,7 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
             assert!(e.params.len() == 1, "{} error: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             is_expr_calling_procs(&context, &source, &tokens, &e.params.get(0).unwrap())
         }
-        NodeType::ProcDef(func_def) | NodeType::FuncDef(func_def) | NodeType::MacroDef(func_def) => {
+        NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
                 if is_expr_calling_procs(&context, &source, &tokens, &it_e) {
                     return true;
@@ -1908,20 +1909,15 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
-            for se in &func_def.body {
-                if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
-                    let proc_t = tokens.get(se.token_index).unwrap();
-                    errors.push(format!("{}:{}: compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
+            // TODO should macros be allowd to call procs?
+            if func_def.function_type == FunctionType::FTFunc {
+                for se in &func_def.body {
+                    if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
+                        let proc_t = tokens.get(se.token_index).unwrap();
+                        errors.push(format!("{}:{}: compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
+                    }
                 }
             }
-        },
-        NodeType::ProcDef(func_def) => {
-            let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
-        },
-        NodeType::MacroDef(func_def) => {
-            let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
         },
 
         NodeType::Declaration(decl) => {
@@ -1944,16 +1940,23 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                         errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", t.line, t.col, LANG_NAME, decl.name));
                         return errors;
                     },
-                    ValueType::TFunc | ValueType::TProc => {
+                    ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
-                                context.funcs.insert(decl.name.clone(), func_def.clone());
-                            },
-                            NodeType::ProcDef(func_def) => {
-                                context.procs.insert(decl.name.clone(), func_def.clone());
+                                match func_def.function_type {
+                                    FunctionType::FTFunc => {
+                                        context.funcs.insert(decl.name.clone(), func_def.clone());
+                                    },
+                                    FunctionType::FTProc => {
+                                        context.procs.insert(decl.name.clone(), func_def.clone());
+                                    },
+                                    FunctionType::FTMacro => {
+                                        context.macros.insert(decl.name.clone(), func_def.clone());
+                                    },
+                                }
                             },
                             _ => {
-                                errors.push(format!("{}:{} {} error: funcs/procs should have definitions", t.line, t.col, LANG_NAME));
+                                errors.push(format!("{}:{} {} error: functions should have definitions", t.line, t.col, LANG_NAME));
                                 return errors;
                             },
                         }
@@ -2274,6 +2277,9 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
     } else if context.procs.contains_key(name) {
         let func_def = context.procs.get(name).unwrap();
         eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
+    } else if context.macros.contains_key(name) {
+        let func_def = context.macros.get(name).unwrap();
+        eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else {
         panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function.", t.line, t.col, LANG_NAME, name);
     }
@@ -2351,7 +2357,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         },
         ValueType::TProc => {
             match &inner_e.node_type {
-                NodeType::ProcDef(func_def) => {
+                NodeType::FuncDef(func_def) => {
                     context.procs.insert(declaration.name.clone(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "proc declared".to_string()
@@ -2362,12 +2368,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
         },
         ValueType::TMacro => {
             match &inner_e.node_type {
-                NodeType::MacroDef(func_def) => {
-                    context.procs.insert(declaration.name.clone(), func_def.clone());
+                NodeType::FuncDef(func_def) => {
+                    context.macros.insert(declaration.name.clone(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "macro declared".to_string()
                 },
-                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected procedure definition.",
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected macro definition.",
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
@@ -2432,7 +2438,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
         },
         ValueType::TProc => {
             match &inner_e.node_type {
-                NodeType::ProcDef(func_def) => {
+                NodeType::FuncDef(func_def) => {
                     context.procs.insert(var_name.to_string(), func_def.clone());
                     "proc declared".to_string()
                 },
@@ -2649,14 +2655,12 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.params.get(0).unwrap())));
             return ast_str;
         },
-        NodeType::FuncDef(_func_def) => {
-            return "(func)".to_string();
-        },
-        NodeType::ProcDef(_func_def) => {
-            return "(proc)".to_string();
-        },
-        NodeType::MacroDef(_func_def) => {
-            return "(macro)".to_string();
+        NodeType::FuncDef(func_def) => {
+            match func_def.function_type {
+                FunctionType::FTFunc => return "(func)".to_string(),
+                FunctionType::FTProc => return "(proc)".to_string(),
+                FunctionType::FTMacro => return "(macro)".to_string(),
+            }
         },
         NodeType::EnumDef(_) => {
             return "(enum)".to_string();
