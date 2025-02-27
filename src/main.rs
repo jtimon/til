@@ -1253,8 +1253,6 @@ struct Context {
     mode: ModeDef,
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>,
-    procs: HashMap<String, SFuncDef>,
-    macros: HashMap<String, SFuncDef>,
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, Expr>,
@@ -1306,8 +1304,6 @@ fn start_context(mode: ModeDef) -> Context {
         mode: mode,
         symbols: HashMap::new(),
         funcs: HashMap::new(),
-        procs: HashMap::new(),
-        macros: HashMap::new(),
         enum_defs: HashMap::new(),
         enums: HashMap::new(),
         struct_defs: HashMap::new(),
@@ -1328,13 +1324,13 @@ fn start_context(mode: ModeDef) -> Context {
     let mut args_print : Vec<Declaration> = Vec::new();
     args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
     let func_def_print = SFuncDef{function_type: FunctionType::FTProc, args: args_print, returns: return_types_none.clone(), body: body.clone()};
-    context.procs.insert("print".to_string(), func_def_print.clone());
-    context.procs.insert("println".to_string(), func_def_print);
+    context.funcs.insert("print".to_string(), func_def_print.clone());
+    context.funcs.insert("println".to_string(), func_def_print);
 
     let mut args_single_i64 : Vec<Declaration> = Vec::new();
     args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
     let func_def_exit = SFuncDef{function_type: FunctionType::FTProc, args: args_single_i64, returns: return_types_none, body: body.clone()};
-    context.procs.insert("exit".to_string(), func_def_exit);
+    context.funcs.insert("exit".to_string(), func_def_exit);
 
     let mut args_and_or : Vec<Declaration> = Vec::new();
     args_and_or.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
@@ -1407,10 +1403,6 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
     let t = tokens.get(e.token_index).unwrap();
     if context.funcs.contains_key(name) {
         value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
-    } else if context.procs.contains_key(name) {
-        value_type_func_proc(t, name, &context.procs.get(name).unwrap())
-    } else if context.macros.contains_key(name) {
-        value_type_func_proc(t, name, &context.macros.get(name).unwrap())
     } else if is_defined_symbol(&context, name) {
         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
     } else {
@@ -1527,38 +1519,14 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 }
             }
             match value_type {
-                ValueType::TFunc => {
+                ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                     match &inner_e.node_type {
                         NodeType::FuncDef(func_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "func"));
-                            return errors;
-                        },
-                    }
-                },
-                ValueType::TProc => {
-                    match &inner_e.node_type {
-                        NodeType::FuncDef(func_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                            context.procs.insert(decl.name.to_string(), func_def.clone());
-                        },
-                        _ => {
-                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "proc"));
-                            return errors;
-                        },
-                    }
-                },
-                ValueType::TMacro => {
-                    match &inner_e.node_type {
-                        NodeType::FuncDef(func_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                            context.macros.insert(decl.name.to_string(), func_def.clone());
-                        },
-                        _ => {
-                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, "macro"));
+                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, value_type_to_str(&value_type)));
                             return errors;
                         },
                     }
@@ -1610,7 +1578,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
 // ---------- Type checking
 
 fn is_defined_func_proc(context: &Context, name: &str) -> bool {
-    context.funcs.contains_key(name) || context.procs.contains_key(name)
+    context.funcs.contains_key(name)
 }
 
 fn is_defined_symbol(context: &Context, name: &str) -> bool {
@@ -1620,13 +1588,9 @@ fn is_defined_symbol(context: &Context, name: &str) -> bool {
 fn does_func_return_bool(context: &Context, name: &str) -> bool {
     if context.funcs.contains_key(name) {
         let func_def = &context.funcs.get(name).unwrap();
-        func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
-    } else if context.procs.contains_key(name) {
-        let func_def = &context.procs.get(name).unwrap();
-        func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool
-    } else {
-        false
+        return func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool;
     }
+    return false;
 }
 
 fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token>, e: &Expr) -> bool {
@@ -1857,8 +1821,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                     let func_def;
                     if context.funcs.contains_key(name) {
                         func_def = context.funcs.get(name).unwrap();
-                    } else if context.procs.contains_key(name) {
-                        func_def = context.procs.get(name).unwrap();
                     } else {
                         errors.push(format!("{}:{}: {} error: Undefined function or procedure '{}'", t.line, t.col, LANG_NAME, name));
                         return errors;
@@ -1943,17 +1905,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                     ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
-                                match func_def.function_type {
-                                    FunctionType::FTFunc => {
-                                        context.funcs.insert(decl.name.clone(), func_def.clone());
-                                    },
-                                    FunctionType::FTProc => {
-                                        context.procs.insert(decl.name.clone(), func_def.clone());
-                                    },
-                                    FunctionType::FTMacro => {
-                                        context.macros.insert(decl.name.clone(), func_def.clone());
-                                    },
-                                }
+                                context.funcs.insert(decl.name.clone(), func_def.clone());
                             },
                             _ => {
                                 errors.push(format!("{}:{} {} error: functions should have definitions", t.line, t.col, LANG_NAME));
@@ -1975,8 +1927,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 errors.push(format!("{}:{}: compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.funcs.contains_key(var_name)  {
                 errors.push(format!("{}:{}: compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
-            } else if context.procs.contains_key(var_name)  {
-                errors.push(format!("{}:{}: compiler error: User defined procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.symbols.contains_key(var_name) {
                 let symbol_info = context.symbols.get(var_name).unwrap();
                 if !symbol_info.is_mut {
@@ -2274,12 +2224,6 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
         eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
-    } else if context.procs.contains_key(name) {
-        let func_def = context.procs.get(name).unwrap();
-        eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
-    } else if context.macros.contains_key(name) {
-        let func_def = context.macros.get(name).unwrap();
-        eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
     } else {
         panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function.", t.line, t.col, LANG_NAME, name);
     }
@@ -2344,39 +2288,18 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
-        ValueType::TFunc => {
+        ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected function definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected {} definition.",
+                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type, value_type_to_str(&value_type))
             }
         },
-        ValueType::TProc => {
-            match &inner_e.node_type {
-                NodeType::FuncDef(func_def) => {
-                    context.procs.insert(declaration.name.clone(), func_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    "proc declared".to_string()
-                },
-                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected procedure definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
-            }
-        },
-        ValueType::TMacro => {
-            match &inner_e.node_type {
-                NodeType::FuncDef(func_def) => {
-                    context.macros.insert(declaration.name.clone(), func_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    "macro declared".to_string()
-                },
-                _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected macro definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
-            }
-        },
+
         ValueType::TCustom(ref custom_type_name) => {
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             let custom_symbol = context.symbols.get(custom_type_name).unwrap();
@@ -2426,24 +2349,14 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
             panic!("{}:{} {} eval error: Cannot assign {} of type {:?}. Not implemented yet.",
                    t.line, t.col, LANG_NAME, &var_name, &value_type);
         },
-        ValueType::TFunc => {
+        ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(var_name.to_string(), func_def.clone());
                     "func declared".to_string()
                 },
-                _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.",
-                            t.line, t.col, LANG_NAME, &var_name, &value_type)
-            }
-        },
-        ValueType::TProc => {
-            match &inner_e.node_type {
-                NodeType::FuncDef(func_def) => {
-                    context.procs.insert(var_name.to_string(), func_def.clone());
-                    "proc declared".to_string()
-                },
-                _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.",
-                            t.line, t.col, LANG_NAME, &var_name, &value_type)
+                _ => panic!("{}:{} {} eval error: Cannot assign {} to function type {}.",
+                            t.line, t.col, LANG_NAME, &var_name, value_type_to_str(&value_type))
             }
         },
         _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", t.line, t.col, LANG_NAME, &var_name, &value_type)
