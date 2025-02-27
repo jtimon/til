@@ -385,6 +385,14 @@ test := proc(cond: bool, msg: String) {
     assertm(cond, msg)
 }
 
+// TODO use assert_eq_str in some example
+assert_eq_str := proc(a: String, b: String) {
+    if not(str_eq(a, b)) {
+        println("assert_eq_str failed: '", a, "' != '", b, "'")
+        exit(1)
+    }
+}
+
 panic := proc(msg: String) {
     assertm(false, msg)
 }
