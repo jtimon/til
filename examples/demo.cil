@@ -177,7 +177,8 @@ fib_test(15)
 my_str_func := func(a: String) returns String {
     return a
 }
-println(my_str_func("strings can be passed as arguments and returned"))
+arg_test_str := "strings can be passed as arguments and returned"
+assert_eq_str(my_str_func(arg_test_str), arg_test_str)
 
 main := proc() {
     my_bool := true
