@@ -208,36 +208,6 @@ exit(0); // TODO note the semicolon is being ignored
 // ---------------------------------------------------
 // TODO implement import at least for mode lib, and then "import core", move these functions to core.cil
 
-// self hosted:
-
-// TODO fix aliases
-// my_int : U64 = 1
-
-// Note aliases can be used before declared:
-Bool : Type = bool
-Integer : Type = i64
-Unsigned : Type = i64
-U64 : Type = i64
-OtherType : Type = Type
-
-I64 := struct {
-    mut data : i64 = 0
-
-    // init := func(i: i64) returns I64 {
-    //     n : I64
-    // 	n.data = i;
-    // 	return n
-    // }
-
-    // _add := func(self: I64, other: I64) returns I64 {
-    // 	return add(self.data, other.data)
-    // }
-
-    // to_string := func(self: I64) returns String {
-    // 	return itoa(self.data)
-    // }
-}
-
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
