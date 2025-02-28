@@ -7,6 +7,7 @@ rscil:
 cilcil: rscil
 	cargo run src/cil.cil
 test: rscil cilcil
+	cargo run src/tests.cil
 	cargo run examples/arithmetics.cil
 	cargo run examples/boolean.cil
 	cargo run examples/branchless.cil
