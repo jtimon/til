@@ -12,6 +12,7 @@ test: rscil cilcil
 	cargo run examples/branchless.cil
 	cargo run examples/comparisons.cil
 	cargo run examples/core.cil
+	cargo run examples/enums.cil
 	cargo run examples/execution.cil
 	cargo run examples/fib.cil
 	cargo run examples/hello.cil

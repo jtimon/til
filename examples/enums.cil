@@ -1,0 +1,76 @@
+
+mode test
+
+ExampleEnum := enum {
+    A
+    B
+    C
+}
+// trying_dot_enum : ExampleEnum = 0 // fails because an enum is not an int
+trying_dot_enum : ExampleEnum = ExampleEnum.A
+
+my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
+    return a
+}
+my_enum_func(ExampleEnum.B)
+trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
+trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
+
+// TODO fix assignments inside switch statements
+test_switch_enum := proc(to_switch: ExampleEnum) returns String {
+    mut to_return := ""
+    switch to_switch {
+        case ExampleEnum.A: to_return = "enum switch aaaaaa"
+        case ExampleEnum.B: to_return = "enum switch bbbbbb"
+        case: to_return = "enum cccccc by default"
+    }
+    // TODO core define etoa, base_enum_to_str or some equivalent
+    // println("in test_switch_enum: to_switch: ", etoa(to_switch), " to_return: ", to_return)
+
+    // println("inside test_switch_enum(): to_return: ", to_return)
+    return to_return
+}
+
+// assert_eq_str(test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+// assert_eq_str(test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(test_switch_enum(ExampleEnum.C), "enum cccccc by default")
+assert_eq_str(test_switch_enum(ExampleEnum.D), "enum cccccc by default")
+
+// TODO fix macro() not implement yet
+// test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
+
+// TODO fix returns inside switch statements
+no_return_switch_str := "xxxxxx because return inside switch doesn't work even for enum"
+test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
+    switch to_switch {
+        case ExampleEnum.A: return "enum switch aaaaaa"
+        case ExampleEnum.B: return "enum switch bbbbbb"
+        case: return "enum cccccc by default"
+    }
+    return no_return_switch_str
+}
+// assert_eq_str(test_return_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+// assert_eq_str(test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(test_return_switch_enum(ExampleEnum.C), no_return_switch_str)
+assert_eq_str(test_return_switch_enum(ExampleEnum.D), no_return_switch_str)
+
+// TODO implement in core
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}
+
+// TODO use assert_eq_str in some example
+assert_eq_str := proc(a: String, b: String) {
+    if not(str_eq(a, b)) {
+        println("assert_eq_str failed: '", a, "' != '", b, "'")
+        exit(1)
+    }
+}
