@@ -1,0 +1,12 @@
+
+.PHONY: all rscil cilcil test
+
+all: rscil cilcil test
+rscil:
+	cargo build
+cilcil: rscil
+	cargo run src/cil.cil
+test: rscil
+	cargo run examples/hello.cil
+	cargo run examples/hello_cli.cil
+	cargo run examples/demo.cil
