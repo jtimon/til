@@ -10,36 +10,11 @@ although the bootstrap implementation is written in rust.
 
 * Dependencies
 
-Only rustc, and it's temporary.
-Next, when self hosted, nasm will be the only dependency.
-Then some more advanced compiler backend like LLVM, MLIR, QBM or Tilde can be used.
-Or perhaps just translate to a higher language first.
+make cargo
 
 * Get started
 
-See /examples directory after reading this file.
-
-It can be run with cargo for convenience, but it's not needed to since
-it has no dependencies besides rustc, rustc can be used directly instead.
-
-To build using cargo:
-
-#+BEGIN_SRC bash
-cargo build
-#+END_SRC
-
-To run an example using cargo:
-
-#+BEGIN_SRC bash
-cargo run examples/demo.cil
-#+END_SRC
-
-* WARNING: Do not use this language, it is not ready.
-
-This is just a pet experimental language. Nobody should use it for
-anything besides testing or extending it.
-It may never be finished. The name may change in the future too.
-It may become unmaintained.
+See examples and src directories.
 
 * Pure functions:
 
@@ -152,6 +127,14 @@ Files of this mode should only contain declarations of headers, basically.
 
 Not implemented yet.
 
+* WARNING: Do not use this language, it is not ready.
+
+This is just a pet experimental language. Nobody should use it for
+anything besides testing or extending it.
+It may never be finished. The name may change in the future too.
+It may become unmaintained.
+
+* TODO reduce README
 * Motivation
 
 There are [[https://xkcd.com/927/][too many languages]], we need a new language that covers
