@@ -10,34 +10,6 @@ mut CCC := true // variables need the mut keyword, both as variables and as argu
 CCC = false // assignments to mut declarations (aka variables/mut arguments) are allowed
 // and := true // fails, re-declaration of core func 'and'
 
-// Basic control flow:
-
-// curly braces are mandatory for control flow definitions/statements, including functions, if/else, while, switch, etc
-
-// if and if else statements:
-
-// if 42 { // fails because ints are not allowed for conditions, only bool
-// unnecessary parentheses are not implemented yet, not sure if they will be allowed
-if gteq(2, 4) {
-    println("aaa", "y", "aaa")
-    print("aaa", "y", "eee")
-    print("\n") // TODO make this and the next line be equivalent, don't escape \n
-    println("")
-} else {
-    println("bbbbbbbb")
-}
-
-// while loop:
-
-mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-print("it: ")
-// while 42 { // fails, because while expects a bool first, not an int
-while lt(it, 10) {
-    print(itoa(it), " ")
-    it = add(it, 1)
-}
-println(" ")
-
 // Functions types:
 
 // Procedures or procs can be declared and directly called in most modes including script
@@ -120,17 +92,6 @@ my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
 my_enum_func(ExampleEnum.B)
 trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
-
-test_int_switch := proc (to_switch: i64) {
-    switch to_switch {
-    case add(40, 2):
-       println("in test_int_switch(): ", itoa(to_switch), " is the answer.")
-    case:
-       println("in test_int_switch(): ", itoa(to_switch), " is a wrong answer.")
-    }
-}
-test_int_switch(42)
-test_int_switch(43)
 
 // TODO fix assignments inside switch statements
 test_switch_enum := proc(to_switch: ExampleEnum) returns String {

@@ -1,0 +1,57 @@
+
+mode script
+
+// execution/flow:
+
+// Basic control flow:
+
+// if and if else statements:
+
+// if 42 { // fails because ints are not allowed for conditions, only bool
+if gteq(2, 4) {
+    println("if: ")
+    println("aaa", "y", "aaa")
+    print("aaa", "y", "eee")
+    print("\n") // TODO make this and the next line be equivalent, don't escape \n
+    println("")
+} else {
+    println("else: bbbbbbbb")
+}
+
+// while loops:
+
+mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+print("it: ")
+// while 42 { // fails, because while expects a bool first, not an int
+while lt(it, 5) {
+    print(itoa(it), " ")
+    it = add(it, 1)
+}
+println(" ")
+
+// switch statements:
+
+test_int_switch := proc (to_switch: i64) {
+    switch to_switch {
+    case add(40, 2):
+       println("in test_int_switch(): ", itoa(to_switch), " is the answer.")
+    case:
+       println("in test_int_switch(): ", itoa(to_switch), " is a wrong answer.")
+    }
+}
+test_int_switch(42)
+test_int_switch(69)
+
+// ---------------------
+// TODO implement in core
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}
