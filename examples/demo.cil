@@ -103,19 +103,21 @@ println(" ")
 // Functions types:
 
 // Procedures or procs can be declared and directly called in most modes including script
-my_proc := proc() {
+abc_proc := proc(a: bool, b: bool, c: bool) {
 
     abc := proc(a: bool, b: bool, c: bool) {
 	println("inside abc, three bools: ", btoa(a), ", ", btoa(b), ", ", btoa(c))
     }
-    abc(true, true, true)
+    abc(a, b, c)
 }
-my_proc()
+abc_proc(true, true, true)
+// TODO explicitly implement closures or equivalent before fixing this bug
+abc_proc(false, false, false)
 
 // Pure functions or funcs are similar to procs, but they can't have side effects, thus they cannot call to procedures
 my_func := func(a: bool, b: bool) returns bool {
 //     println("proc") // fails, funcs cannot call procs, println is a core proc
-//     my_proc() // fails, funcs cannot call procs, my_proc is a custom proc
+//     abc_proc() // fails, funcs cannot call procs, abc_proc is a custom proc
 //     return 42 // fails, because 42 is not a bool
     return and(a, b)
 }
@@ -132,12 +134,12 @@ exit_early_print := proc(a: bool, msg: String) {
 exit_early_print(false, "Calling: exit_early_print(false, msg)")
 exit_early_print(true, "Calling: exit_early_print(true, msg)")
 
-// TODO Functions can return multiple values
+// Functions can return multiple values
 my_func_multi := func(a: bool, b: bool) returns bool, bool {
     return a, b
 }
-// _a, _b := my_func_multi(true, true)
-// test(and(_a, _b), "multiple returns don't seem to be working")
+// _a, _b := my_func_multi(true, true) // TODO multiple declarations
+// _a, _b = my_func_multi(true, true) // TODO multiple assignments
 
 // TODO treat macros differently, currently they're equivalent to procs
 my_macro := macro(a: bool, b: bool) returns bool {
@@ -192,7 +194,7 @@ main := proc() {
     my_bool = and(res, my_func(true, my_func(true, true)))
     my_bool = my_func(res, my_func(true, my_func(true, true)))
 
-    // abc(false, true, false) // fails, because abc is defined locally in proc 'my_proc'
+    // abc(false, true, false) // fails, because abc is defined locally in proc 'abc_proc'
 }
 main()
 
