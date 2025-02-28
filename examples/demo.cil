@@ -64,21 +64,6 @@ test(eq(mul(2, 2), 4), "2 * 2 = 4")
 
 // Basic control flow:
 
-// curly braces are mandatory for control flow statements, including functions, if/else, while, switch, etc
-
-// if and if else statements:
-
-// if 42 { // fails because ints are not allowed for conditions, only bool
-// unnecessary parentheses are not implemented yet, not sure if they will be allowed
-if gteq(4, 2) {
-    println("aaa", "y", "aaa")
-    print("aaa", "y", "eee")
-    print("\n") // TODO make this and the next line be equivalent, don't escape \n
-    println("")
-} else {
-    println("bbbbbbbb")
-}
-
 // branchless conditions:
 
 // btoi is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
@@ -88,6 +73,21 @@ test(eq(btoi(not(true)), btoi(false)), "not true is false")
 test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
 test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
 test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
+
+// curly braces are mandatory for control flow definitions/statements, including functions, if/else, while, switch, etc
+
+// if and if else statements:
+
+// if 42 { // fails because ints are not allowed for conditions, only bool
+// unnecessary parentheses are not implemented yet, not sure if they will be allowed
+if gteq(2, 4) {
+    println("aaa", "y", "aaa")
+    print("aaa", "y", "eee")
+    print("\n") // TODO make this and the next line be equivalent, don't escape \n
+    println("")
+} else {
+    println("bbbbbbbb")
+}
 
 // while loop:
 
