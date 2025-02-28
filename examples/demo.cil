@@ -1,11 +1,5 @@
 mode script
 
-// core := import("core") // fails because 'import' is not implemented yet
-
-//// Intro to the language
-// @ // fails because @ is invalid on the lexer for now
-// adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
-
 // Declarations and assignments:
 
 AAA : bool = and(false, false, false, true, false) // Explicit types are allowed in declarations, but optional
@@ -13,7 +7,7 @@ BBB := or(false, true, false) // It is a strongly typed language, but allows typ
 // AAA := true // fails, re-declaration of user constant 'AAA'
 // AAA = false // fails, assignment to a constant, all declarations are constant by default
 mut CCC := true // variables need the mut keyword, both as variables and as arguments
-CCC = false // assignments to mut declarations (aka variables/arguments) are allowed
+CCC = false // assignments to mut declarations (aka variables/mut arguments) are allowed
 // and := true // fails, re-declaration of core func 'and'
 
 // boolean logic:
@@ -122,7 +116,7 @@ my_proc()
 my_func := func(a: bool, b: bool) returns bool {
 //     println("proc") // fails, funcs cannot call procs, println is a core proc
 //     my_proc() // fails, funcs cannot call procs, my_proc is a custom proc
-    // return 42 // fails, because 42 is not a bool
+//     return 42 // fails, because 42 is not a bool
     return and(a, b)
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
@@ -153,26 +147,37 @@ test(my_macro(true, true), "my_macro(true, true) didn't return true")
 
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: i64) {
-    fibonacci0 := func(n: i64) returns i64 {
+    fibonacci_0 := func(n: i64) returns i64 {
         if lt(n, 2) {
             return n
         }
-        return add(fibonacci0(sub(n, 1)), fibonacci0(sub(n, 2)))
+        return add(fibonacci_0(sub(n, 1)), fibonacci_0(sub(n, 2)))
     }
 
-    fibonacci1 := func(n: i64) returns i64 {
+    fibonacci_1 := func(n: i64) returns i64 {
         if lt(n, 2) {
             return n
         } else {
-            return add(fibonacci1(sub(n, 1)), fibonacci1(sub(n, 2)))
+            return add(fibonacci_1(sub(n, 1)), fibonacci_1(sub(n, 2)))
 	}
     }
 
-    println("fibonacci: of ", itoa(fib_arg), " = ", itoa(fibonacci0(fib_arg)))
-    println("fibonacci2: of ", itoa(fib_arg), " = ", itoa(fibonacci1(fib_arg)))
+    test_fib_alg := proc(num_alg: i64, n: i64) returns {
+    	switch num_alg {
+            case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
+            case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
+            case:
+                println("test_fib_alg: algorithm '", itoa(num_alg), "' not implemented")
+		panic("TODO: another fib algorithm")
+	}
+    }
+
+    test_fib_alg(0, fib_arg)
+    test_fib_alg(1, fib_arg)
+    // test_fib_alg(2, fib_arg) // TODO iterative, memoize, cached iterative
 }
 fib_test(15)
-// fibonacci0(15) // fails because 'fibonacci0' is defined locally inside fib_test
+// fibonacci_0(15) // fails because 'fibonacci_0' is defined locally inside fib_test
 
 my_str_func := func(a: String) returns String {
     return a
@@ -403,3 +408,9 @@ todo := proc(msg: String) {
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {
     return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
 }
+
+// core := import("core") // fails because 'import' is not implemented yet
+
+//// Intro to the language
+// @ // fails because @ is invalid on the lexer for now
+// adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer
