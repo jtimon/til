@@ -230,17 +230,17 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
         case ExampleEnum.B: to_return = "enum switch bbbbbb"
         case: to_return = "enum cccccc by default"
     }
-    // TODO core efine etoa, base_enum_to_str or some equivalent
+    // TODO core define etoa, base_enum_to_str or some equivalent
     // println("in test_switch_enum: to_switch: ", etoa(to_switch), " to_return: ", to_return)
 
-    println("inside test_switch_enum(): to_return: ", to_return)
+    // println("inside test_switch_enum(): to_return: ", to_return)
     return to_return
 }
 
-println("test_switch_enum(A): ", test_switch_enum(ExampleEnum.A))
-println("test_switch_enum(B): ", test_switch_enum(ExampleEnum.B))
-// println("test_switch_enum(C): ", test_switch_enum(ExampleEnum.C))
-// println("test_switch_enum(D): ", test_switch_enum(ExampleEnum.D))
+// assert_eq_str(test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+// assert_eq_str(test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(test_switch_enum(ExampleEnum.C), "enum cccccc by default")
+assert_eq_str(test_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
 // TODO fix macro() not implement yet
 // test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
@@ -255,13 +255,10 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     }
     return no_return_switch_str
 }
-println("TODO test_return_switch_enum(A): ", test_return_switch_enum(ExampleEnum.A))
-// println("test_return_switch_enum(B): ", test_return_switch_enum(ExampleEnum.B))
-// println("test_return_switch_enum(C): ", test_return_switch_enum(ExampleEnum.C))
-// println("test_return_switch_enum(D): ", test_return_switch_enum(ExampleEnum.D))
-// test(str_eq(test_return_switch_enum(ExampleEnum.A), no_return_switch_str), "error in test_return_switch_enum")
-
-// TODO next:
+// assert_eq_str(test_return_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+// assert_eq_str(test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(test_return_switch_enum(ExampleEnum.C), no_return_switch_str)
+assert_eq_str(test_return_switch_enum(ExampleEnum.D), no_return_switch_str)
 
 // Struct definitions can be used as namespaces by declaring only constants in them (no mut)
 MyNamespace := struct {
@@ -274,6 +271,8 @@ MyNamespace := struct {
 }
 println(MyNamespace.field_static_str)
 // TODO println(MyNamespace.func_static_str())
+
+// TODO next:
 
 MyStruct := struct {
     mut bool_field : bool = false
