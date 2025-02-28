@@ -11,5 +11,6 @@ test: rscil
 	cargo run examples/hello_cli.cil
 	cargo run examples/comparisons.cil
 	cargo run examples/arithmetics.cil
+	cargo run examples/branchless.cil
 	cargo run examples/fib.cil
 	cargo run examples/demo.cil

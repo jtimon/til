@@ -44,16 +44,6 @@ xor := func(a: bool, b: bool) returns bool {
 
 // Basic control flow:
 
-// branchless conditions:
-
-// btoi is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
-// btoi can also be useful simply for optimizations, because branches are bad for branch prediction
-test(eq(btoi(false), btoi(not(true))), "false is not true")
-test(eq(btoi(not(true)), btoi(false)), "not true is false")
-test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
-test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
-test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
-
 // curly braces are mandatory for control flow definitions/statements, including functions, if/else, while, switch, etc
 
 // if and if else statements:
@@ -352,10 +342,6 @@ panic := proc(msg: String) {
 todo := proc(msg: String) {
     print("TODO: ")
     assertm(false, msg)
-}
-
-branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
 }
 
 // core := import("core") // fails because 'import' is not implemented yet
