@@ -1,0 +1,25 @@
+
+mode test
+
+// comparisons:
+
+test(eq(0, 0), "0 == 0")
+test(eq(2, 2), "2 == 2")
+test(lt(0, 1), "0 is less than 1")
+test(gt(2, 1), "2 is greater than 1")
+test(lteq(2, 2), "2 is gt-equal to 2")
+test(gteq(2, 2), "2 is lt-equal to 2")
+test(str_eq("aa", "aa"), "str_eq('aa', 'aa') is true")
+
+// TODO implement in core
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}

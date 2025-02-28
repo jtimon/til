@@ -1,0 +1,27 @@
+
+mode test
+
+// arithmetics:
+
+test(eq(add(40, 2), 42), "40 + 2 = 42")
+test(eq(sub(44, 2), 42), "44 - 2 = 42")
+test(eq(mul(6, 7), 42), " 6 * 7 = 42")
+test(eq(div(420, 10), 42), " 420 / 10 = 42")
+test(eq(add(2, 2), 4), "2 + 2 = 4")
+test(eq(mul(2, 2), 4), "2 * 2 = 4")
+// TODO test(eq(exp(2, 2), 4), "exp(2, 2) == 4")
+// TODO test(eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
+// TODO test(eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
+
+// TODO implement in core
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}

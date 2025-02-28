@@ -42,26 +42,6 @@ xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
 }
 
-// comparisons:
-test(eq(0, 0), "0 == 0")
-test(eq(2, 2), "2 == 2")
-test(lt(0, 1), "0 is less than 1")
-test(gt(2, 1), "2 is greater than 1")
-test(lteq(2, 2), "2 is gt-equal to 2")
-test(gteq(2, 2), "2 is lt-equal to 2")
-test(str_eq("aa", "aa"), "str_eq('aa', 'aa') is true")
-
-// arithmetics:
-test(eq(add(40, 2), 42), "40 + 2 = 42")
-test(eq(sub(44, 2), 42), "44 - 2 = 42")
-test(eq(mul(6, 7), 42), " 6 * 7 = 42")
-test(eq(div(420, 10), 42), " 420 / 10 = 42")
-test(eq(add(2, 2), 4), "2 + 2 = 4")
-test(eq(mul(2, 2), 4), "2 * 2 = 4")
-// TODO test(eq(exp(2, 2), 4), "exp(2, 2) == 4")
-// TODO test(eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
-// TODO test(eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
-
 // Basic control flow:
 
 // branchless conditions:
