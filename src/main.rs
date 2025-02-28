@@ -1305,6 +1305,7 @@ fn is_core_proc(proc_name: &str) -> bool {
         "print" => true,
         "println" => true,
         // TODO implement more core procs in rust:
+        "runfile" => true,
         "readfile" => true,
         "writefile" => true,
         "import" => true,
@@ -1341,7 +1342,8 @@ fn start_context(mode: ModeDef) -> Context {
     args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
     let func_def_print = SFuncDef{function_type: FunctionType::FTProc, args: args_print, returns: return_types_none.clone(), body: body.clone()};
     context.funcs.insert("print".to_string(), func_def_print.clone());
-    context.funcs.insert("println".to_string(), func_def_print);
+    context.funcs.insert("println".to_string(), func_def_print.clone());
+    context.funcs.insert("runfile".to_string(), func_def_print.clone());
 
     let mut args_single_i64 : Vec<Declaration> = Vec::new();
     args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
@@ -2161,6 +2163,13 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut Context, source: &Stri
     "".to_string()
 }
 
+fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "eval_core_proc_runfile expects a single parameter.");
+    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+    run_file(&path);
+    return "".to_string();
+}
+
 fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_exit expects a single parameter.");
     let e_exit_code = e.params.get(0).unwrap();
@@ -2272,6 +2281,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         match name {
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
+            "runfile" => eval_core_proc_runfile(&mut context, &source, &tokens, &e),
             // "import" => eval_core_proc_import(false, &mut context, &source, &tokens, &e),
             "exit" => eval_core_exit(&tokens, &e),
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
@@ -2833,6 +2843,7 @@ fn main_run(path: &String, source: &String) -> String {
 // ---------- main, usage, args, etc
 
 fn run_file(path: &String) {
+    println!("Running file '{}'", &path);
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
         Err(error) => match error.kind() {

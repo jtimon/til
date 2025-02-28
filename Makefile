@@ -1,22 +1,10 @@
 
-.PHONY: all rscil cilcil test
+.PHONY: all cilcil test demo
 
-all: rscil cilcil test demo
-rscil:
-	cargo build
-cilcil: rscil
-	cargo run src/cil.cil
-test: rscil cilcil
+all: test
+test:
 	cargo run src/tests.cil
-	cargo run examples/arithmetics.cil
-	cargo run examples/boolean.cil
-	cargo run examples/branchless.cil
-	cargo run examples/comparisons.cil
-	cargo run examples/core.cil
-	cargo run examples/enums.cil
-	cargo run examples/execution.cil
-	cargo run examples/fib.cil
-	cargo run examples/hello.cil
-	cargo run examples/hello_cli.cil
-demo: rscil test
+cilcil:
+	cargo run src/cil.cil
+demo:
 	cargo run examples/demo.cil

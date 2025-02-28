@@ -10,11 +10,12 @@ although the bootstrap implementation is written in rust.
 
 * Dependencies
 
-make cargo
+make (temporary)
+cargo (temporary)
 
 * Get started
 
-See examples and src directories.
+See Makefile and directories /src and /examples.
 
 * Pure functions:
 

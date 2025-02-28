@@ -1,3 +1,15 @@
 mode test
 
-// TODO implement 'runfile' core proc
+runfile("src/cil.cil")
+
+runfile("examples/arithmetics.cil")
+runfile("examples/boolean.cil")
+runfile("examples/branchless.cil")
+runfile("examples/comparisons.cil")
+runfile("examples/core.cil")
+runfile("examples/enums.cil")
+runfile("examples/execution.cil")
+runfile("examples/fib.cil")
+runfile("examples/hello.cil")
+runfile("examples/hello_cli.cil")
+runfile("examples/demo.cil")
