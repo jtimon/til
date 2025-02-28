@@ -1,0 +1,49 @@
+
+mode test
+
+// boolean logic:
+
+test(true, "true is true")
+test(not(false), "not: not false is true")
+test(not(not(true)), "not: not not true is true")
+// and(true, 1111) // fails, 'and' cannot take number literals
+// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
+test(and(true, true), "and(true, true) == true")
+test(not(and(true, false)), "and(true, false) == false")
+test(not(and(true, false)), "and(false, true) == false")
+test(not(and(false, true)), "and(false, true) == false")
+test(not(and(false, false)), "and(false, false) == false")
+
+test(or(true, true), "or(true, true) == true")
+test(or(true, false), "or(true, false) == true")
+test(or(false, true), "or(false, true) == true")
+test(not(or(false, false)), "or(false, false) == false")
+
+// note that both 'and' and 'or' can take any number of bools as args, like in lisp
+test(or(false, true, true), "or(false, false, true) == true")
+test(not(and(false, true, true)), "and(false, false, true) == false")
+
+test(or(true, false), "and: true or false is true")
+
+// Note that func 'xor' is used before being declared, but in the root context of the file
+test(xor(true, false), "and: true xor false is true")
+test(not(xor(true, true)), "xor(true, true) == false")
+
+xor := func(a: bool, b: bool) returns bool {
+    return or(and(not(a), b), and(a, not(b)))
+}
+
+// ---------------------------------
+
+// TODO implement in core
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}
