@@ -147,40 +147,6 @@ my_macro := macro(a: bool, b: bool) returns bool {
 }
 test(my_macro(true, true), "my_macro(true, true) didn't return true")
 
-// Here are some examples of pure functions, this time with recursion:
-fib_test := proc(fib_arg: i64) {
-    fibonacci_0 := func(n: i64) returns i64 {
-        if lt(n, 2) {
-            return n
-        }
-        return add(fibonacci_0(sub(n, 1)), fibonacci_0(sub(n, 2)))
-    }
-
-    fibonacci_1 := func(n: i64) returns i64 {
-        if lt(n, 2) {
-            return n
-        } else {
-            return add(fibonacci_1(sub(n, 1)), fibonacci_1(sub(n, 2)))
-	}
-    }
-
-    test_fib_alg := proc(num_alg: i64, n: i64) returns {
-    	switch num_alg {
-            case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
-            case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
-            case:
-                println("test_fib_alg: algorithm '", itoa(num_alg), "' not implemented")
-		panic("TODO: another fib algorithm")
-	}
-    }
-
-    test_fib_alg(0, fib_arg)
-    test_fib_alg(1, fib_arg)
-    // test_fib_alg(2, fib_arg) // TODO iterative, memoize, cached iterative
-}
-fib_test(15)
-// fibonacci_0(15) // fails because 'fibonacci_0' is defined locally inside fib_test
-
 my_str_func := func(a: String) returns String {
     return a
 }
@@ -196,6 +162,7 @@ main := proc() {
 
     // abc(false, true, false) // fails, because abc is defined locally in proc 'abc_proc'
 }
+// 'mode script' doesn't need to declare a main proc, but it can, and also call it
 main()
 
 // TODO fix col for invalid args
