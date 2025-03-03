@@ -287,19 +287,13 @@ fn scan_tokens(source: &String) -> Vec<Token> {
     tokens
 }
 
-// ---------- parser
-
-fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
-    &source[t.start..t.end]
-}
-
 fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, msg: &str) {
     let max_symbol_len = 20;
     let mut end_symbol = t.end;
     if end_symbol - t.start > max_symbol_len {
         end_symbol = max_symbol_len;
     }
-    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: {}", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
+    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
 }
 
 fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &mut usize) {
@@ -309,7 +303,7 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
             *errors_found = *errors_found + 1;
         },
         TokenType::UnterminatedString => {
-            print_lex_error(&path, &source, &t, *errors_found, "Unterminated String");
+            print_lex_error(&path, &source, &t, *errors_found, "Unterminated String\nSuggestion: add missing '\"'");
             *errors_found = *errors_found + 1;
         },
         TokenType::Const => {
@@ -317,19 +311,25 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
             *errors_found = *errors_found + 1;
         },
         TokenType::Var => {
-            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'var' is not supported, use 'mut' instead");
+            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::Fn => {
-            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported, use 'func' or 'proc' instead");
+            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::DoubleSemicolon => {
-            print_lex_error(&path, &source, &t, *errors_found, "No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for");
+            print_lex_error(&path, &source, &t, *errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
             *errors_found = *errors_found + 1;
         },
         _ => {},
     }
+}
+
+// ---------- parser
+
+fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
+    &source[t.start..t.end]
 }
 
 fn is_literal(t: &Token) -> bool {
