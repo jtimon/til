@@ -555,7 +555,8 @@ fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => {
-            return Err(format!("{}:{}: {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.", t.line, t.col, LANG_NAME, t.token_type));
+            return Err(format!("{}:{}: {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.",
+                               t.line, t.col, LANG_NAME, t.token_type));
         },
     };
     let e = Expr { node_type: node_type, token_index: *current, params: params};
