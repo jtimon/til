@@ -1155,7 +1155,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             let next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::LeftParen => {
-                    parse_func_call(&source, &tokens, current)
+                    return parse_primary_identifier(&source, &tokens, current)
                 },
                 TokenType::Dot => {
                     Err(format!("{}:{}: parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
