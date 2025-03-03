@@ -877,9 +877,34 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                    token_index: *current, params: Vec::new()});
 }
 
-fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
     let initial_current = *current;
+    let t = tokens.get(*current).unwrap();
+    let mut next_t = tokens.get(*current + 1).unwrap();
+    if TokenType::LeftParen == next_t.token_type {
+        return parse_func_call(&source, &tokens, current);
+    }
+    let mut current_identifier = get_token_str(source, t).to_string();
+    let mut params : Vec<Expr> = Vec::new();
+    while TokenType::Dot == next_t.token_type {
+        let next2_t = tokens.get(*current + 2).unwrap();
+        if TokenType::Identifier != next2_t.token_type {
+            return Err(format!("{}:{}: parse error: expected identifier after '{}.', found {:?}.",
+                               next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
+        }
+        current_identifier = get_token_str(source, next2_t).to_string();
+        *current = *current + 2;
+        params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
+        next_t = tokens.get(*current + 1).unwrap();
+    }
+    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
+    *current = *current + 1;
+    return Ok(e);
+}
+
+fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
         return parse_literal(&source, t, current)
@@ -890,29 +915,8 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
             TokenType::Macro => return parse_func_proc_definition(FunctionType::FTMacro, &source, &tokens, current),
             TokenType::Enum => return enum_definition(&source, &tokens, current),
             TokenType::Struct => return struct_definition(&source, &tokens, current),
-            TokenType::LeftParen => parse_list(&source, &tokens, current),
-            TokenType::Identifier => {
-                let mut next_t = tokens.get(*current + 1).unwrap();
-                if TokenType::LeftParen == next_t.token_type {
-                    return parse_func_call(&source, &tokens, current);
-                }
-                let mut current_identifier = get_token_str(source, t).to_string();
-                let mut params : Vec<Expr> = Vec::new();
-                while TokenType::Dot == next_t.token_type {
-                    let next2_t = tokens.get(*current + 2).unwrap();
-                    if TokenType::Identifier != next2_t.token_type {
-                        return Err(format!("{}:{}: parse error: expected identifier after '{}.', found {:?}.",
-                                           next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
-                    }
-                    current_identifier = get_token_str(source, next2_t).to_string();
-                    *current = *current + 2;
-                    params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
-                    next_t = tokens.get(*current + 1).unwrap();
-                }
-                let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
-                *current = *current + 1;
-                return Ok(e);
-            },
+            TokenType::LeftParen => return parse_list(&source, &tokens, current),
+            TokenType::Identifier => return parse_primary_identifier(&source, &tokens, current),
             _ => return Err(format!("{}:{}: parse error: Expected primary expression, found {:?}.", t.line, t.col, t.token_type)),
         }
     }
