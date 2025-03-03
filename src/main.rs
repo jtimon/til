@@ -1015,11 +1015,6 @@ fn current_token<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a Toke
     return &tokens.get(*current).unwrap();
 }
 
-// fn next_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a TokenType {
-//     let next_t = &tokens.get(*current + 1).unwrap();
-//     return &next_t.token_type;
-// }
-
 fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let initial_current = *current;
