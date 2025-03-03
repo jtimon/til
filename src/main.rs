@@ -903,6 +903,45 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
     return Ok(e);
 }
 
+fn parse_statement_identifier(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+
+    let t = tokens.get(*current).unwrap();
+    let next_t = tokens.get(*current + 1).unwrap();
+    let next_token_type = &next_t.token_type;
+    match next_token_type {
+        TokenType::LeftParen => {
+            return parse_primary_identifier(&source, &tokens, current)
+        },
+        TokenType::Dot => {
+            Err(format!("{}:{}: parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
+        },
+        TokenType::Equal => {
+            return parse_assignment(&source, &tokens, current)
+        },
+        TokenType::Colon => {
+            let next_next_t = tokens.get(*current + 2).unwrap();
+            let next_next_token_type = &next_next_t.token_type;
+            let identifier = get_token_str(source, t);
+            match next_next_token_type {
+                TokenType::Identifier => {
+                    let type_name = get_token_str(source, next_next_t);
+                    return parse_declaration(&source, &tokens, current, false, type_name)
+                }
+                TokenType::Equal => {
+                    return parse_declaration(&source, &tokens, current, false, INFER_TYPE)
+                },
+                _ => {
+                    Err(format!("{}:{}: parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+                },
+            }
+
+        },
+        _ => {
+            Err(format!("{}:{}: parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
+        },
+    }
+}
+
 fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
     let t = tokens.get(*current).unwrap();
@@ -1145,42 +1184,7 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         TokenType::While => return while_statement(&source, &tokens, current),
         TokenType::Switch => return parse_switch_statement(&source, &tokens, current),
         TokenType::Mut => return parse_mut_declaration(&source, &tokens, current),
-        TokenType::Identifier => {
-            let next_t = tokens.get(*current + 1).unwrap();
-            let next_token_type = &next_t.token_type;
-            match next_token_type {
-                TokenType::LeftParen => {
-                    return parse_primary_identifier(&source, &tokens, current)
-                },
-                TokenType::Dot => {
-                    Err(format!("{}:{}: parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
-                },
-                TokenType::Equal => {
-                    return parse_assignment(&source, &tokens, current)
-                },
-                TokenType::Colon => {
-                    let next_next_t = tokens.get(*current + 2).unwrap();
-                    let next_next_token_type = &next_next_t.token_type;
-                    let identifier = get_token_str(source, t);
-                    match next_next_token_type {
-                        TokenType::Identifier => {
-                            let type_name = get_token_str(source, next_next_t);
-                            return parse_declaration(&source, &tokens, current, false, type_name)
-                        }
-                        TokenType::Equal => {
-                            return parse_declaration(&source, &tokens, current, false, INFER_TYPE)
-                        },
-                        _ => {
-                            Err(format!("{}:{}: parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
-                        },
-                    }
-
-                },
-                _ => {
-                    Err(format!("{}:{}: parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
-                },
-            }
-        },
+        TokenType::Identifier => return parse_statement_identifier(&source, &tokens, current),
         TokenType::Semicolon => { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
             *current = *current + 1;
             return parse_statement(&source, &tokens, current);
