@@ -1182,18 +1182,9 @@ fn parse_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                 },
             }
         },
-        // TokenType::For => {
-        //     return Err(format!("{}:{}: parse warning: keyword 'for' is not supported yet.\nSuggestion: don't use ';', no need for 'for', use while in the meantime",
-        //                        t.line, t.col));
-        // },
-        TokenType::Semicolon => {
+        TokenType::Semicolon => { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
             *current = *current + 1;
             return parse_statement(&source, &tokens, current);
-        },
-        TokenType::DoubleSemicolon => {
-            // TODO turn some errors into warnings
-            return Err(format!("{}:{}: parse error: Suggestion: don't use ';', Explanation: no need for Double Semicolon, try 'if true' instead.\n",
-                               t.line, t.col));
         },
         _ => {
             Err(format!("{}:{}: parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
