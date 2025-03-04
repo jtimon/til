@@ -326,6 +326,25 @@ fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &
     }
 }
 
+fn tokens_from_source(path: &String, source: &String) -> Result<Vec<Token>, String> {
+
+    let tokens: Vec<Token> = scan_tokens(&source);
+    if tokens.len() < 1 {
+        return Err(format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0));
+    } else if is_eof(&tokens, 0) {
+        return Err(format!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0));
+    }
+
+    let mut errors_found : usize = 0;
+    for t in &tokens {
+        print_if_lex_error(&path, &source, &t, &mut errors_found)
+    }
+    if errors_found > 0 {
+        return Err(format!("Compiler errors: {} lexical errors found", errors_found));
+    }
+    return Ok(tokens);
+}
+
 // ---------- parser
 
 fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
@@ -2732,20 +2751,13 @@ fn to_ast_str(e: &Expr) -> String {
 // ---------- main binary
 
 fn main_run(path: &String, source: &String) -> String {
-    let tokens: Vec<Token> = scan_tokens(&source);
-    if tokens.len() < 1 {
-        return format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0);
-    } else if is_eof(&tokens, 0) {
-        return format!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0);
-    }
 
-    let mut errors_found : usize = 0;
-    for t in &tokens {
-        print_if_lex_error(&path, &source, &t, &mut errors_found)
-    }
-    if errors_found > 0 {
-        return format!("Compiler errors: {} lexical errors found", errors_found);
-    }
+    let tokens = match tokens_from_source(&path, &source) {
+        Ok(tokens_) => tokens_,
+        Err(error_string) => {
+            return format!("{}:{}", &path, error_string);
+        },
+    };
 
     let mut current: usize = 0;
     let mode = match parse_mode(&source, &tokens, &mut current) {
