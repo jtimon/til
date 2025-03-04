@@ -1,4 +1,3 @@
-
 mode lib
 
 assertm := proc(cond: bool, msg: String) {
