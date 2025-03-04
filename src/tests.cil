@@ -1,15 +1,20 @@
 mode test
 
+// WIP Work towards self hosting
 runfile("src/cil.cil")
+runfile("src/core.cil")
 
-runfile("src/test/arithmetics.cil")
-runfile("src/test/boolean.cil")
-runfile("src/test/branchless.cil")
-runfile("src/test/comparisons.cil")
-runfile("src/test/core.cil")
-runfile("src/test/enums.cil")
-runfile("src/test/execution.cil")
-runfile("src/test/fib.cil")
+// Two equivalent versions of "hello world"
 runfile("src/test/hello.cil")
 runfile("src/test/hello_cli.cil")
+
+// basic
+runfile("src/test/boolean.cil")
+runfile("src/test/arithmetics.cil")
+runfile("src/test/comparisons.cil")
+runfile("src/test/execution.cil")
+runfile("src/test/fib.cil")
+runfile("src/test/branchless.cil")
+runfile("src/test/enums.cil")
+
 runfile("src/test/demo.cil")
