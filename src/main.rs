@@ -608,19 +608,6 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
     }
 }
 
-fn parse_func_call(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
-    let t = tokens.get(*current).unwrap();
-    let token_str = get_token_str(source, t);
-    let initial_current = *current;
-    *current = *current + 1;
-    let arg_list = match parse_list(&source, &tokens, current) {
-        Ok(a_list) => a_list,
-        Err(err_str) => return Err(err_str),
-    };
-    let params : Vec<Expr> = arg_list.params;
-    Ok(Expr { node_type: NodeType::FCall(token_str.to_string()), token_index: initial_current, params: params})
-}
-
 fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let name = get_token_str(source, t);
@@ -883,10 +870,17 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
     let initial_current = *current;
     let t = tokens.get(*current).unwrap();
     let mut next_t = tokens.get(*current + 1).unwrap();
-    if TokenType::LeftParen == next_t.token_type {
-        return parse_func_call(&source, &tokens, current);
-    }
     let mut current_identifier = get_token_str(source, t).to_string();
+    if TokenType::LeftParen == next_t.token_type {
+        *current = *current + 1;
+        let arg_list = match parse_list(&source, &tokens, current) {
+            Ok(a_list) => a_list,
+            Err(err_str) => return Err(err_str),
+        };
+        let params : Vec<Expr> = arg_list.params;
+        return Ok(Expr { node_type: NodeType::FCall(current_identifier.to_string()), token_index: initial_current, params: params})
+    }
+
     let mut params : Vec<Expr> = Vec::new();
     while TokenType::Dot == next_t.token_type {
         let next2_t = tokens.get(*current + 2).unwrap();
@@ -894,11 +888,13 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
             return Err(format!("{}:{}: parse error: expected identifier after '{}.', found {:?}.",
                                next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
         }
+
         current_identifier = get_token_str(source, next2_t).to_string();
         *current = *current + 2;
         params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
         next_t = tokens.get(*current + 1).unwrap();
     }
+
     let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
     *current = *current + 1;
     return Ok(e);
