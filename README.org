@@ -10,13 +10,17 @@ although the bootstrap implementation is written in rust.
 
 * Dependencies
 
-- make (temporary, only for convenience)
-- cargo (temporary, only for convenience)
-- rustc (temporary, needed until the language is self hosted)
+- cargo/rustc (temporary, needed until the language is self hosted)
 
 * Get started
 
-See Makefile and directories /src and /examples.
+See /src/test to read some examples.
+
+To run the tests:
+
+#+BEGIN_SRC shell
+cargo run src/tests.cil
+#+END_SRC
 
 * Pure functions:
 
