@@ -546,7 +546,7 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     };
 }
 
-fn parse_mode(source: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
+fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
     if &TokenType::Mode != current_token_type(&tokens, &mut current) {
         return Err(format!("0:0: 'mode' is required in the beginning of the file"));
     }
@@ -561,6 +561,17 @@ fn parse_mode(source: &String, tokens: &Vec<Token>, mut current: &mut usize) -> 
         Ok(mode_) => mode_,
         Err(err_) => return Err(err_),
     };
+
+    println!("Mode: {}", mode.name);
+    if mode.name == "pure" {
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib"));
+    }
+    if mode.name == "external" {
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib"));
+    }
+    if mode.name == "safe_script" {
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script"));
+    }
 
     *current = *current + 1; // Add one for the identifier mode
     return Ok(mode);
@@ -2760,23 +2771,12 @@ fn main_run(path: &String, source: &String) -> String {
     };
 
     let mut current: usize = 0;
-    let mode = match parse_mode(&source, &tokens, &mut current) {
+    let mode = match parse_mode(&path, &source, &tokens, &mut current) {
         Ok(mode_) => mode_,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
         },
     };
-    println!("Mode: {}", mode.name);
-
-    if mode.name == "pure" {
-        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib");
-    }
-    if mode.name == "external" {
-        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib");
-    }
-    if mode.name == "safe_script" {
-        return format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script");
-    }
 
     let mut e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
