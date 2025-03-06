@@ -1,11 +1,6 @@
 mode test
 
-// WIP Work towards self hosting
-runfile("src/cil.cil")
-// WIP The closest to a std lib that the language has
-runfile("src/core.cil")
-
-// Two equivalent versions of "hello world"
+// Some versions of "hello world" in different modes
 runfile("src/test/hello.cil")
 runfile("src/test/hello_cli.cil")
 runfile("src/test/hello_cli_shebang.cil")
@@ -19,6 +14,13 @@ runfile("src/test/enums.cil")
 runfile("src/test/execution.cil")
 runfile("src/test/fib.cil") // recursive examples
 
+// The closest to a std lib this language has
+runfile("src/core.cil")
+
 // next level
 runfile("src/test/intro.cil")
 runfile("src/test/todo_next.cil")
+runfile("src/test/errors.cil")
+
+// WIP Work towards self hosting
+runfile("src/cil.cil")

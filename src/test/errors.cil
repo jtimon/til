@@ -1,0 +1,20 @@
+mode test
+
+// TODO do beter examples with throw, including catch in the examples
+# example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {
+
+#     if (a > b) throw AaaException;
+#     else if (a > b) throw BbbException
+#     else if (a < 32) return a;
+#     return 42;
+# }
+
+# main := proc() throws BbbException {
+
+#     const result1 = example1(50, 50) catch {
+#         AaaException: debug.print("AaaException\n");
+#         BbbException: rethrow;
+#     }
+
+#     const result2 = example2(50, 50) catch debug.print("Exception calling example2\n");
+# }
