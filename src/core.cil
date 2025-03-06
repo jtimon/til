@@ -1,0 +1,64 @@
+mode lib
+
+assertm := proc(cond: bool, msg: String) {
+    if not(cond) {
+        println("assert failed: ", msg)
+        exit(1)
+    }
+}
+
+assert := proc(cond: bool) {
+    assertm(cond, "")
+}
+
+test := proc(cond: bool, msg: String) {
+    assertm(cond, msg)
+}
+
+// TODO use assert_eq_str in some example
+assert_eq_str := proc(a: String, b: String) {
+    if not(str_eq(a, b)) {
+        println("assert_eq_str failed: '", a, "' != '", b, "'")
+        exit(1)
+    }
+}
+
+panic := proc(msg: String) {
+    assertm(false, msg)
+}
+// panic("panic panics when uncommented") // fails, because it panics
+
+todo := proc(msg: String) {
+    print("TODO: ")
+    assertm(false, msg)
+}
+
+// self hosted:
+
+// TODO fix aliases
+// my_int : U64 = 1
+
+// Note aliases can be used before declared:
+// Bool : Type = bool
+// Integer : Type = i64
+// Unsigned : Type = i64
+// U64 : Type = i64
+// OtherType : Type = Type
+
+I64 := struct {
+    mut data : i64 = 0
+
+    // init := func(i: i64) returns I64 {
+    //     n : I64
+    // 	n.data = i;
+    // 	return n
+    // }
+
+    // _add := func(self: I64, other: I64) returns I64 {
+    // 	return add(self.data, other.data)
+    // }
+
+    // to_string := func(self: I64) returns String {
+    // 	return itoa(self.data)
+    // }
+}
