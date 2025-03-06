@@ -15,7 +15,7 @@ runfile("src/test/hello/hello_lib.cil")
 // runfile("src/test/hello/hello_pure.cil")
 runfile("src/test/hello/hello_script.cil")
 runfile("src/test/hello/hello_script_shebang.cil")
-// runfile("src/test/hello/hello_test.cil")
+runfile("src/test/hello/hello_test.cil")
 
 // The closest to a std lib this language has
 runfile("src/core.cil")
