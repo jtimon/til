@@ -2,6 +2,7 @@ mode test
 
 // WIP Work towards self hosting
 runfile("src/cil.cil")
+// WIP The closest to a std lib that the language has
 runfile("src/core.cil")
 
 // Two equivalent versions of "hello world"
@@ -10,12 +11,14 @@ runfile("src/test/hello_cli.cil")
 runfile("src/test/hello_cli_shebang.cil")
 
 // basic
-runfile("src/test/boolean.cil")
 runfile("src/test/arithmetics.cil")
-runfile("src/test/comparisons.cil")
-runfile("src/test/execution.cil")
+runfile("src/test/boolean.cil")
 runfile("src/test/branchless.cil")
+runfile("src/test/comparisons.cil")
 runfile("src/test/enums.cil")
+runfile("src/test/execution.cil")
 runfile("src/test/fib.cil") // recursive examples
 
-runfile("src/test/demo.cil")
+// next level
+runfile("src/test/intro.cil")
+runfile("src/test/todo_next.cil")

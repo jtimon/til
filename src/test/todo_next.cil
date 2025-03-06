@@ -1,0 +1,64 @@
+mode script
+
+import("src/core.cil")
+
+// TODO next:
+
+MyStruct := struct {
+    static_bool_field : bool = true
+    mut bool_field : bool = false
+    mut int_field : i64 = 42 // 42 is just the default, but you can set something else once in the init func
+    mut string_field := ""
+
+    // TODO allow assingments to struct fields, both mut or only overwrite the default once in init,
+    // but then it is no longer "static", that's only for the compiler to care, not the user's problem
+    // TODO static vs only_one assignment are details the interpreter should be smart enough to through errors about
+    init := func(self: MyStruct, int_const : i64, bool_field : bool, int_field : i64, string_field) {
+        // self.bool_field_static = 69 // TODO think of a keyword to force this to fail
+        // self.int_const = 69
+        // self.bool_field = true
+        // self.int_field = 1
+        // self.string_field = "true"
+    }
+
+    to_string := proc(self: MyStruct) returns String {
+	todo("implement MyStruct.to_string()")
+	return ""
+    }
+}
+
+// my_struct_type := MyStruct
+// my_struct := MyStruct.init()
+// trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
+
+ExampleEnum2 := enum {
+    // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
+    // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
+    // CCC : CCC // TODO This fails, because CCC is not defined
+    DDD
+    LBool : bool
+    LNumber : i64
+    LString : String
+}
+
+exit(0); // TODO note the semicolon is being ignored
+// fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
+// exit(0);;
+
+// TODO more built-in data types:
+
+// my_bool_array := [true, false, true, false]
+// my_bool_array : [4]bool = [true, false, true, false]
+// my_list := (true, 1111, "hello")
+
+// TODO undeclared custom arguments should fail at compile time
+// test_fails_example := proc(example: String, msg: String) {
+//   eval_example_result : String = _eval_string(example)
+//   println(eval_example_result)
+// }
+// test_fails_example("enum_func_fails := func(a: ExampleEnumAAAAAAAA) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
+
+test_structs := proc() {
+    test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
+}
+test_structs()
