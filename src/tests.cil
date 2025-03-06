@@ -23,4 +23,4 @@ runfile("src/test/todo_next.cil")
 runfile("src/test/errors.cil")
 
 // WIP Work towards self hosting
-runfile("src/cil.cil")
+runfile("src/test/cil.cil")
