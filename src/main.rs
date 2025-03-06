@@ -901,16 +901,6 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
     let t = tokens.get(*current).unwrap();
     let mut next_t = tokens.get(*current + 1).unwrap();
     let mut current_identifier = get_token_str(source, t).to_string();
-    if TokenType::LeftParen == next_t.token_type {
-        *current = *current + 1;
-        let arg_list = match parse_list(&source, &tokens, current) {
-            Ok(a_list) => a_list,
-            Err(err_str) => return Err(err_str),
-        };
-        let params : Vec<Expr> = arg_list.params;
-        return Ok(Expr { node_type: NodeType::FCall(current_identifier.to_string()), token_index: initial_current, params: params})
-    }
-
     let mut params : Vec<Expr> = Vec::new();
     while TokenType::Dot == next_t.token_type {
         let next2_t = tokens.get(*current + 2).unwrap();
@@ -923,6 +913,16 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
         *current = *current + 2;
         params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
         next_t = tokens.get(*current + 1).unwrap();
+    }
+
+    if TokenType::LeftParen == next_t.token_type {
+        *current = *current + 1;
+        let arg_list = match parse_list(&source, &tokens, current) {
+            Ok(a_list) => a_list,
+            Err(err_str) => return Err(err_str),
+        };
+        let params : Vec<Expr> = arg_list.params;
+        return Ok(Expr { node_type: NodeType::FCall(current_identifier.to_string()), token_index: initial_current, params: params})
     }
 
     let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
