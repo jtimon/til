@@ -573,13 +573,13 @@ fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: 
 
     println!("Mode: {}", mode.name);
     if mode.name == "pure" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "lib"));
     }
     if mode.name == "external" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "lib"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "lib"));
     }
     if mode.name == "safe_script" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in {} yet. Try mode {} instead", path, mode.name, BIN_NAME, "script"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "script"));
     }
 
     *current = *current + 1; // Add one for the identifier mode
