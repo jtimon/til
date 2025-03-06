@@ -1,5 +1,7 @@
 mode lib
 
+// fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
+// mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
     if not(cond) {
         println("assert failed: ", msg)
@@ -32,8 +34,6 @@ todo := proc(msg: String) {
     print("TODO: ")
     assertm(false, msg)
 }
-
-// self hosted:
 
 // TODO fix aliases
 // my_int : U64 = 1
