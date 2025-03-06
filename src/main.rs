@@ -2191,6 +2191,14 @@ fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &V
     return "".to_string();
 }
 
+fn eval_core_proc_import(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "eval_core_proc_import expects a single parameter.");
+    // TODO properly import
+    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+    run_file(&path);
+    return "".to_string();
+}
+
 fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_exit expects a single parameter.");
     let e_exit_code = e.params.get(0).unwrap();
@@ -2300,11 +2308,11 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         }
     } else if is_core_proc(&name) {
         match name {
+            "exit" => eval_core_exit(&tokens, &e),
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
             "runfile" => eval_core_proc_runfile(&mut context, &source, &tokens, &e),
-            // "import" => eval_core_proc_import(false, &mut context, &source, &tokens, &e),
-            "exit" => eval_core_exit(&tokens, &e),
+            "import" => eval_core_proc_import(&mut context, &source, &tokens, &e),
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if context.funcs.contains_key(name) {
