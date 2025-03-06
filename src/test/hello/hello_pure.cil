@@ -1,0 +1,5 @@
+mode pure
+
+hello := func() returns String {
+    return "Hello World!"
+}

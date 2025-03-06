@@ -1,3 +1,5 @@
+#!/usr/bin/env cil
+// REM shebang can be used
 mode script
 
 import("src/core.cil")

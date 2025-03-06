@@ -1,10 +1,5 @@
 mode test
 
-// Some versions of "hello world" in different modes
-runfile("src/test/hello.cil")
-runfile("src/test/hello_cli.cil")
-runfile("src/test/hello_cli_shebang.cil")
-
 // basic
 runfile("src/test/arithmetics.cil")
 runfile("src/test/boolean.cil")
@@ -13,6 +8,14 @@ runfile("src/test/comparisons.cil")
 runfile("src/test/enums.cil")
 runfile("src/test/execution.cil")
 runfile("src/test/fib.cil") // recursive examples
+
+// Some versions of "hello world" in different modes
+runfile("src/test/hello/hello_cli.cil")
+runfile("src/test/hello/hello_lib.cil")
+// runfile("src/test/hello/hello_pure.cil")
+runfile("src/test/hello/hello_script.cil")
+runfile("src/test/hello/hello_script_shebang.cil")
+// runfile("src/test/hello/hello_test.cil")
 
 // The closest to a std lib this language has
 runfile("src/core.cil")

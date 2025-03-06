@@ -1,7 +1,0 @@
-#!/usr/bin/env cil
-mode cli
-
-// Mode cli requies a proc named 'main' to be defined, which will be run
-main := proc() {
-    println("Hello World!")
-}

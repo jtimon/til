@@ -1,0 +1,5 @@
+mode lib
+
+print_hello := proc() {
+    println("Hello World!")
+}

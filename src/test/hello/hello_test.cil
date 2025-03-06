@@ -1,0 +1,10 @@
+mode test
+
+import("src/core.cil")
+
+hello := func() returns String {
+    return "Hello World!"
+}
+
+test(str_eq(hello(), "Hello World!"),
+     "hello() should return 'Hello World!'")
