@@ -8,6 +8,7 @@ runfile("src/test/comparisons.cil")
 runfile("src/test/enums.cil")
 runfile("src/test/execution.cil")
 runfile("src/test/fib.cil") // recursive examples
+runfile("src/test/loops.cil")
 
 // Some versions of "hello world" in different modes
 runfile("src/test/hello/hello_cli.cil")
