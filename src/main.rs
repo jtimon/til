@@ -490,6 +490,15 @@ struct ModeDef {
     needs_main_proc: bool,
 }
 
+fn can_be_imported(mode: &ModeDef) -> bool {
+    return !(
+        mode.needs_main_proc || // TODO think harder, why not?
+        mode.allows_base_mut ||
+        mode.allows_base_calls ||
+        mode.allows_base_anything
+    );
+}
+
 fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     return match mode_name {
         "lib" => Ok(
@@ -2199,7 +2208,7 @@ fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &V
 fn eval_core_proc_import(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_proc_import expects a single parameter.");
     let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-    run_file_with_context(&mut context, &path);
+    run_file_with_context(true, &mut context, &path);
     return "".to_string();
 }
 
@@ -2859,10 +2868,10 @@ fn main_run(mut context: &mut Context, path: &String, source: &String) -> String
 
 fn run_file(path: &String) {
     let mut context = start_context();
-    run_file_with_context(&mut context, &path);
+    run_file_with_context(false, &mut context, &path);
 }
 
-fn run_file_with_context(mut context: &mut Context, path: &String) {
+fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String) {
     let previous_mode = context.mode.clone();
     println!("Running file '{}'", &path);
     let source: String = match fs::read_to_string(path) {
@@ -2876,7 +2885,13 @@ fn run_file_with_context(mut context: &mut Context, path: &String) {
             },
         },
     };
-    println!("eval: {}", main_run(&mut context, &path, &source));
+    let run_result = main_run(&mut context, &path, &source);
+    // REM: this print shit is still here only because repl is still broken
+    println!("eval: {}", run_result);
+
+    if is_import && !can_be_imported(&context.mode) {
+        panic!("file '{}' of mode '{}' cannot be imported", path, context.mode.name)
+    }
     context.mode = previous_mode; // restore the context mode of the calling file
 }
 
