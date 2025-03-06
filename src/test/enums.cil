@@ -1,5 +1,7 @@
 mode test
 
+import("src/core.cil")
+
 ExampleEnum := enum {
     A
     B
@@ -52,24 +54,3 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
 // assert_eq_str(test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
 assert_eq_str(test_return_switch_enum(ExampleEnum.C), no_return_switch_str)
 assert_eq_str(test_return_switch_enum(ExampleEnum.D), no_return_switch_str)
-
-// TODO implement in core
-
-assertm := proc(cond: bool, msg: String) {
-    if not(cond) {
-        println("assert failed: ", msg)
-        exit(1)
-    }
-}
-
-test := proc(cond: bool, msg: String) {
-    assertm(cond, msg)
-}
-
-// TODO use assert_eq_str in some example
-assert_eq_str := proc(a: String, b: String) {
-    if not(str_eq(a, b)) {
-        println("assert_eq_str failed: '", a, "' != '", b, "'")
-        exit(1)
-    }
-}

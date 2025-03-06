@@ -1,5 +1,7 @@
 mode test
 
+import("src/core.cil")
+
 // branchless conditions:
 
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {
@@ -13,16 +15,3 @@ test(eq(btoi(not(true)), btoi(false)), "not true is false")
 test(eq(btoi(eq(2, 2)), btoi(true)), "2 and 2 are equal")
 test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
 test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
-
-// TODO implement in core
-
-assertm := proc(cond: bool, msg: String) {
-    if not(cond) {
-        println("assert failed: ", msg)
-        exit(1)
-    }
-}
-
-test := proc(cond: bool, msg: String) {
-    assertm(cond, msg)
-}

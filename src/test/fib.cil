@@ -1,5 +1,7 @@
 mode test
 
+import("src/core.cil")
+
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: i64) {
     fibonacci_0 := func(n: i64) returns i64 {
@@ -34,27 +36,3 @@ fib_test := proc(fib_arg: i64) {
 fib_test(5)
 fib_test(10)
 // fibonacci_0(15) // fails because 'fibonacci_0' is defined locally inside fib_test
-
-
-
-// ------------------------------------
-
-// TODO more to core.cil
-
-test := proc(cond: bool, msg: String) {
-    assertm(cond, msg)
-}
-
-// fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// mut assertm := proc(cond: bool, msg: String) {
-assertm := proc(cond: bool, msg: String) {
-    if not(cond) {
-        println("assert failed: ", msg)
-        exit(1)
-    }
-}
-
-panic := proc(msg: String) {
-    assertm(false, msg)
-}
-// panic("panic panics when uncommented") // fails, because it panics

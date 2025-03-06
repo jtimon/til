@@ -1,5 +1,7 @@
 mode test
 
+import("src/core.cil")
+
 // boolean logic:
 
 test(true, "true is true")
@@ -30,19 +32,4 @@ test(not(xor(true, true)), "xor(true, true) == false")
 
 xor := func(a: bool, b: bool) returns bool {
     return or(and(not(a), b), and(a, not(b)))
-}
-
-// ---------------------------------
-
-// TODO implement in core
-
-assertm := proc(cond: bool, msg: String) {
-    if not(cond) {
-        println("assert failed: ", msg)
-        exit(1)
-    }
-}
-
-test := proc(cond: bool, msg: String) {
-    assertm(cond, msg)
 }

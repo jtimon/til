@@ -1337,9 +1337,9 @@ fn is_core_proc(proc_name: &str) -> bool {
     }
 }
 
-fn start_context(mode: ModeDef) -> Context {
+fn start_context() -> Context {
     let mut context: Context = Context {
-        mode: mode,
+        mode: mode_from_name("lib").unwrap(),
         symbols: HashMap::new(),
         funcs: HashMap::new(),
         enum_defs: HashMap::new(),
@@ -1365,6 +1365,7 @@ fn start_context(mode: ModeDef) -> Context {
     context.funcs.insert("print".to_string(), func_def_print.clone());
     context.funcs.insert("println".to_string(), func_def_print.clone());
     context.funcs.insert("runfile".to_string(), func_def_print.clone());
+    context.funcs.insert("import".to_string(), func_def_print.clone());
 
     let mut args_single_i64 : Vec<Declaration> = Vec::new();
     args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
@@ -1559,7 +1560,11 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 errors.append(&mut stmt_context_errors);
             }
         },
-        NodeType::FCall(_) => { },
+        NodeType::FCall(f_name) => {
+            if f_name == "import" {
+                eval_core_proc_import(context, &source, &tokens, &e);
+            }
+        },
         NodeType::Declaration(decl) => {
             let t = tokens.get(e.token_index).unwrap();
             if is_defined_symbol(&context, &decl.name) {
@@ -1883,7 +1888,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         },
         NodeType::FCall(name) => {
             if !is_defined_func_proc(&context, &name) {
-                errors.push(format!("{}:{}: Undefined function or procedure {}", t.line, t.col, name));
+                errors.push(format!("{}:{}: Undefined function or procedure '{}'", t.line, t.col, name));
                 return errors;
             }
             match name.as_str() {
@@ -2193,9 +2198,8 @@ fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &V
 
 fn eval_core_proc_import(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_proc_import expects a single parameter.");
-    // TODO properly import
     let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-    run_file(&path);
+    run_file_with_context(&mut context, &path);
     return "".to_string();
 }
 
@@ -2312,7 +2316,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
             "runfile" => eval_core_proc_runfile(&mut context, &source, &tokens, &e),
-            "import" => eval_core_proc_import(&mut context, &source, &tokens, &e),
+            "import" => "".to_string(), // Should already be imported in init_context
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if context.funcs.contains_key(name) {
@@ -2769,7 +2773,7 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-fn main_run(path: &String, source: &String) -> String {
+fn main_run(mut context: &mut Context, path: &String, source: &String) -> String {
 
     let tokens = match tokens_from_source(&path, &source) {
         Ok(tokens_) => tokens_,
@@ -2785,6 +2789,7 @@ fn main_run(path: &String, source: &String) -> String {
             return format!("{}:{}", &path, error_string);
         },
     };
+    context.mode = mode;
 
     let mut e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
@@ -2796,7 +2801,6 @@ fn main_run(path: &String, source: &String) -> String {
         println!("AST: \n{}", to_ast_str(&e));
     }
 
-    let mut context = start_context(mode);
     let mut errors = init_context(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
@@ -2854,6 +2858,12 @@ fn main_run(path: &String, source: &String) -> String {
 // ---------- main, usage, args, etc
 
 fn run_file(path: &String) {
+    let mut context = start_context();
+    run_file_with_context(&mut context, &path);
+}
+
+fn run_file_with_context(mut context: &mut Context, path: &String) {
+    let previous_mode = context.mode.clone();
     println!("Running file '{}'", &path);
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
@@ -2866,10 +2876,14 @@ fn run_file(path: &String) {
             },
         },
     };
-    println!("eval: {}", main_run(&path, &source));
+    println!("eval: {}", main_run(&mut context, &path, &source));
+    context.mode = previous_mode; // restore the context mode of the calling file
 }
 
 fn run_repl() {
+    let mut context = start_context();
+    context.mode = mode_from_name("repl").unwrap();
+    let path = "repl".to_string();
     loop {
         print!("{}> ", LANG_NAME);
         io::stdout().flush().unwrap();
@@ -2881,8 +2895,7 @@ fn run_repl() {
 
         if line.len() == 1 { break; }
 
-        let path = "repl".to_string();
-        println!("{}", main_run(&path, &line));
+        println!("{}", main_run(&mut context, &path, &line));
     }
 }
 
