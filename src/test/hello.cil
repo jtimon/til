@@ -1,4 +1,3 @@
-#!/usr/bin/env cil
 mode script
 
 println("Hello World!")

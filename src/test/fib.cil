@@ -36,3 +36,5 @@ fib_test := proc(fib_arg: i64) {
 fib_test(5)
 fib_test(10)
 // fibonacci_0(15) // fails because 'fibonacci_0' is defined locally inside fib_test
+
+// TODO make memoize, dumb iterative and cached iterative versions for when benchmarks; after self hosting
