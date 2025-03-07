@@ -2,7 +2,7 @@ mode script
 
 import("src/core.cil")
 
-//// Intro to the language (suggestion: uncommentt lines which claim will fail and see what happens)
+//// Intro to the language (suggestion: uncomment lines which claim will fail and see what happens)
 // @ // fails because @ is invalid on the lexer for now
 // adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer, but at a different line and col
 
@@ -85,22 +85,3 @@ main()
 
 // TODO fix col for invalid args
 // and(true, false, true, 15, "aaa", true, false) // fails because and only takes bool args
-
-// Struct definitions can be used as namespaces by declaring only constants in them (no mut)
-MyNamespace := struct {
-
-    field_static_str : String = "field 'field_static_str' in struct 'MyNamespace' is being accessed"
-
-    proc_static := proc() {
-        return "func 'proc_static' in struct 'MyNamespace' is being called"
-    }
-
-    func_static_str := func() returns String {
-        return "func 'func_static_str' in struct 'MyNamespace' has being called"
-    }
-}
-println(MyNamespace.field_static_str)
-// MyNamespace.proc_static() // TODO method calls as statements
-// temp_str := MyNamespace.func_static_str() // TODO method calls as primary expr in declaration
-// println(temp_str)
-// println(MyNamespace.func_static_str()) // TODO method calls as primary expr as argument
