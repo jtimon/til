@@ -10,7 +10,9 @@ although the bootstrap implementation is written in rust.
 
 * Dependencies
 
-- cargo/rustc (temporary, needed until the language is self hosted)
+- make (Optional, for convenience)
+- cargo (Optional, for convenience. Temporary)
+- rustc (Temporary, needed until the language is self hosted)
 
 * Get started
 
