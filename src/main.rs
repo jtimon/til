@@ -1462,7 +1462,7 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
         return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in context", t.line, t.col, context.mode.name, name));
     } else if is_core_proc(name) {
         return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in context", t.line, t.col, context.mode.name, name));
-    } else if is_defined_symbol(&context, name) {
+    } else if context.symbols.contains_key(name) {
         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
     } else {
         return Err(format!("{}:{}: type error: Undefined function/procedure '{}'", t.line, t.col, name));
