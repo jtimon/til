@@ -2414,7 +2414,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    "func declared".to_string()
+                    return format!("{} declared", value_type_to_str(&value_type));
                 },
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected {} definition.",
                             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type, value_type_to_str(&value_type))
