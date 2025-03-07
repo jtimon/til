@@ -1660,12 +1660,8 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
 
 // ---------- Type checking
 
-fn is_defined_func_proc(context: &Context, name: &str) -> bool {
-    context.funcs.contains_key(name)
-}
-
 fn is_defined_symbol(context: &Context, name: &str) -> bool {
-    is_defined_func_proc(&context, name) || context.symbols.contains_key(name)
+    context.funcs.contains_key(name) || context.symbols.contains_key(name)
 }
 
 fn does_func_return_bool(context: &Context, name: &str) -> bool {
