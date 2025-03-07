@@ -1895,54 +1895,47 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
             }
         },
+
         NodeType::FCall(name) => {
-            if !is_defined_func_proc(&context, &name) {
+            let func_def;
+            if context.funcs.contains_key(name) {
+                func_def = context.funcs.get(name).unwrap();
+            } else {
                 errors.push(format!("{}:{}: Undefined function or procedure '{}'", t.line, t.col, name));
                 return errors;
             }
-            match name.as_str() {
-                _ => {
-                    let func_def;
-                    if context.funcs.contains_key(name) {
-                        func_def = context.funcs.get(name).unwrap();
-                    } else {
-                        errors.push(format!("{}:{}: {} error: Undefined function or procedure '{}'", t.line, t.col, LANG_NAME, name));
+            let has_multi_arg = func_proc_has_multi_arg(func_def);
+            if !has_multi_arg && func_def.args.len() != e.params.len() {
+                errors.push(format!("{}:{}: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+            }
+            if has_multi_arg && func_def.args.len() > e.params.len() {
+                errors.push(format!("{}:{}: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+            }
+
+            let max_arg_def = func_def.args.len();
+            for i in 0..e.params.len() {
+                let arg = func_def.args.get(std::cmp::min(i, max_arg_def-1)).unwrap();
+                let expected_type = match &arg.value_type {
+                    ValueType::TMulti(inner_type) => inner_type,
+                    _ => &arg.value_type,
+
+                };
+                let found_type = match get_value_type(&context, &tokens, e.params.get(i).unwrap()) {
+                    Ok(val_type) => val_type,
+                    Err(error_string) => {
+                        errors.push(error_string);
                         return errors;
+                    },
+                };
+                if expected_type != &found_type {
+                    if expected_type == &str_to_value_type(INFER_TYPE) {
+                        errors.push(format!("{}:{}: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
+                                            t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
+                    } else {
+                        errors.push(format!("{}:{}: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                                            t.line, t.col, name, expected_type, arg.name, found_type));
                     }
-                    let has_multi_arg = func_proc_has_multi_arg(func_def);
-                    if !has_multi_arg && func_def.args.len() != e.params.len() {
-                        errors.push(format!("{}:{}: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
-                    }
-                    if has_multi_arg && func_def.args.len() > e.params.len() {
-                        errors.push(format!("{}:{}: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
-                    }
-
-                    let max_arg_def = func_def.args.len();
-                    for i in 0..e.params.len() {
-                        let arg = func_def.args.get(std::cmp::min(i, max_arg_def-1)).unwrap();
-                        let expected_type = match &arg.value_type {
-                            ValueType::TMulti(inner_type) => inner_type,
-                            _ => &arg.value_type,
-
-                        };
-                        let found_type = match get_value_type(&context, &tokens, e.params.get(i).unwrap()) {
-                            Ok(val_type) => val_type,
-                            Err(error_string) => {
-                                errors.push(error_string);
-                                return errors;
-                            },
-                        };
-                        if expected_type != &found_type {
-                            if expected_type == &str_to_value_type(INFER_TYPE) {
-                                errors.push(format!("{}:{}: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
-                                                    t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
-                            } else {
-                                errors.push(format!("{}:{}: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
-                                                    t.line, t.col, name, expected_type, arg.name, found_type));
-                            }
-                        }
-                    }
-                },
+                }
             }
         },
 
