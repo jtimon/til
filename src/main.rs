@@ -1492,14 +1492,52 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Res
         let symbol = context.symbols.get(&f_name).unwrap();
         match symbol.value_type {
             ValueType::TStructDef => {
-                if e.params.len() == 0 {
-                    return Ok(ValueType::TCustom(f_name.clone()));
+                let struct_def = match context.struct_defs.get(&f_name) {
+                    Some(_struct_def) => _struct_def,
+                    None => {
+                        return Err(format!("{}:{}: {} error: struct '{}' not found in context", t.line, t.col, LANG_NAME, f_name));
+                    },
+                };
+                let id_expr = e.params.get(0).unwrap();
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        return Ok(ValueType::TCustom(f_name.clone()));
+                    },
+                };
+                match &after_dot.node_type {
+                    NodeType::Identifier(after_dot_name) => {
+                        let member_decl = match struct_def.members.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' a", t.line, t.col, f_name, after_dot_name));
+                            },
+                        };
+                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' b", t.line, t.col, f_name, after_dot_name));
+                            },
+                        };
+                        match &member_default_value.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                let combined_name = format!("{}.{}", f_name, after_dot_name);
+                                return value_type_func_proc(t, &combined_name, &func_def);
+                            },
+                            _  => {
+                                return Err(format!("{}:{}: type error: Cannot call '{}.{}', it is not a function, it is a {:?}",
+                                                   t.line, t.col, f_name, after_dot_name, member_decl.value_type));
+                            },
+                        }
+                    },
+                    _ => {
+                        return Err(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
+                                           t.line, t.col, LANG_NAME, f_name, after_dot.node_type));
+                    },
                 }
-                return Err(format!("{}:{}: {} error: Cannot call members of struct '{}' yet, not implemented",
-                                   t.line, t.col, LANG_NAME, &f_name));
             },
             _ => {
-                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function, it is a {:?}",
+                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is a {:?}",
                                    t.line, t.col, &f_name, symbol.value_type));
             },
         }
@@ -1556,7 +1594,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
                                     }
                                 },
                                 _ => {
-                                    return Err(format!("{}:{}: type error: struct '{}' has no member '{}'", t.line, t.col, name, member_str))
+                                    return Err(format!("{}:{}: type error: struct '{}' has no member '{}' d", t.line, t.col, name, member_str))
                                 },
                             }
                         },
@@ -1929,13 +1967,65 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             let func_def;
             if context.funcs.contains_key(&f_name) {
                 func_def = context.funcs.get(&f_name).unwrap();
-            } else if context.struct_defs.contains_key(&f_name) {
-                errors.push(format!("{}:{}: {} error: Cannot instantiate struct '{}', constructors not implemented yet", t.line, t.col, LANG_NAME, &f_name));
-                return errors;
             } else {
-                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", t.line, t.col, LANG_NAME, &f_name));
-                return errors;
+                let symbol = match context.symbols.get(&f_name) {
+                    Some(_symbol) => _symbol,
+                    None => {
+                        errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", t.line, t.col, LANG_NAME, f_name));
+                        return errors;
+                    },
+                };
+                match symbol.value_type {
+                    ValueType::TStructDef => {
+                        let struct_def = match context.struct_defs.get(&f_name) {
+                            Some(_struct_def) => _struct_def,
+                            None => {
+                                errors.push(format!("{}:{}: struct '{}' not found in context.", t.line, t.col, f_name));
+                                return errors;
+                            },
+                        };
+
+                        if e.params.len() == 0 {
+                            errors.push(format!("{}:{}: {} error: struct '{}' cannot be instanciated. Constructors not implemented yet",
+                                                t.line, t.col, LANG_NAME, f_name));
+                            return errors;
+                        }
+
+                        let after_dot = e.params.get(0).unwrap().params.get(0).unwrap();
+                        match &after_dot.node_type {
+                            NodeType::Identifier(after_dot_name) => {
+                                let member_value = match struct_def.default_values.get(after_dot_name) {
+                                    Some(_member_value) => _member_value,
+                                    None => {
+                                        errors.push(format!("{}:{}: struct '{}' has no member '{}' e", t.line, t.col, f_name, after_dot_name));
+                                        return errors;
+                                    },
+                                };
+                                match &member_value.node_type {
+                                    NodeType::FuncDef(_func_def) => {
+                                        func_def = &_func_def;
+                                    },
+                                    _ => {
+                                        errors.push(format!("{}:{}: Cannot call '{}.{}', it is a '{:?}', not a function.", t.line, t.col, f_name, after_dot_name, member_value.node_type));
+                                        return errors;
+                                    },
+                                }
+                            },
+                            _ => {
+                                errors.push(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
+                                                    t.line, t.col, LANG_NAME, f_name, after_dot.node_type));
+                                return errors;
+                            },
+                        }
+                    },
+                    _ => {
+                        errors.push(format!("{}:{}: Cannot call '{}', it is a '{:?}', not a function nor a struct.",
+                                            t.line, t.col, f_name, symbol.value_type));
+                        return errors;
+                    }
+                }
             }
+
             let has_multi_arg = func_proc_has_multi_arg(func_def);
             if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
                 errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, &f_name, func_def.args.len(), e.params.len()));
@@ -2412,8 +2502,37 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
         eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e)
+    } else if context.struct_defs.contains_key(name) {
+        let struct_def = context.struct_defs.get(name).unwrap();
+        let id_expr = e.params.get(0).unwrap();
+        let after_dot = match id_expr.params.get(0) {
+            Some(_after_dot) => _after_dot,
+            None => {
+                panic!("{}:{} {} eval error: Cannot instantiate '{}'. Not implemented yet.", t.line, t.col, LANG_NAME, name);
+            },
+        };
+        match &after_dot.node_type {
+            NodeType::Identifier(after_dot_name) => {
+                let _member_decl = match struct_def.members.get(after_dot_name) {
+                    Some(_member) => _member,
+                    None => {
+                        panic!("{}:{}: eval error: struct '{}' has no member '{}' a", t.line, t.col, name, after_dot_name);
+                    },
+                };
+                let combined_name = format!("{}.{}", name, after_dot_name);
+                if !context.funcs.contains_key(&combined_name) {
+                    panic!("{}:{}: eval {} error: method '{}' not found in context", t.line, t.col, LANG_NAME, combined_name);
+                }
+
+                let func_def = context.funcs.get(&combined_name).unwrap();
+                return eval_user_func_proc_call(func_def, &name, &context, &source, &tokens, &e);
+            },
+            _ => {
+                panic!("{}:{}: eval {} error: expected identifier after '{}.' found {:?}", t.line, t.col, LANG_NAME, name, after_dot.node_type);
+            },
+        }
     } else {
-        panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function.", t.line, t.col, LANG_NAME, name);
+        panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function or struct.", t.line, t.col, LANG_NAME, name);
     }
 }
 
