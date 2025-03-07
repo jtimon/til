@@ -47,7 +47,7 @@ MyStruct := struct {
 }
 
 // my_struct_type := MyStruct
-// my_struct := MyStruct.init()
+// my_struct := MyStruct()
 // trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
 
 ExampleEnum2 := enum {

@@ -1463,9 +1463,24 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
     } else if is_core_proc(name) {
         return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in context", t.line, t.col, context.mode.name, name));
     } else if context.symbols.contains_key(name) {
-        return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function/procedure", t.line, t.col, name));
+
+        let symbol = context.symbols.get(name).unwrap();
+        match symbol.value_type {
+            ValueType::TStructDef => {
+                if e.params.len() == 0 {
+                    return Ok(ValueType::TCustom(name.to_string()));
+                }
+                return Err(format!("{}:{}: {} error: Cannot call members of struct '{}' yet, not implemented",
+                                   t.line, t.col, LANG_NAME, name));
+            },
+            _ => {
+                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function, it is a {:?}",
+                                   t.line, t.col, name, symbol.value_type));
+            },
+        }
+
     } else {
-        return Err(format!("{}:{}: type error: Undefined function/procedure '{}'", t.line, t.col, name));
+        return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
     }
 }
 
