@@ -1848,18 +1848,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         },
         NodeType::StructDef(_struct_def) => {
             assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
-            // TODO check if an accessed member is mut or not here instead of in get_value_type()
-            // let inner_e = e.params.get(0).unwrap();
-            // assert!(inner_e.node_type == NodeType::Body, "{} error: in check_types(): struct declarations must take exactly one body.", LANG_NAME);
-            // for p in inner_e.params.iter() {
-            //     match &p.node_type {
-            //         NodeType::Declaration(_) => {}
-            //         node_type => {
-            //             errors.push(format!("{}:{}: 'struct' can only include declarations, found {:?}.", t.line, t.col, node_type));
-            //         }
-            //     }
-            //     errors.append(&mut check_types(&mut context, &source, &tokens, &p));
-            // }
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
