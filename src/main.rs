@@ -2223,6 +2223,10 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, _source: &String, 
     return line.to_string()
 }
 
+fn eval_core_proc_eval_to_str(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    return eval_expr(&mut context, &source, &tokens, &e);
+}
+
 fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_proc_runfile expects a single parameter.");
     let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
@@ -2346,7 +2350,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         }
     } else if is_core_proc(&name) {
         match name {
-            "eval_to_str" => panic!("core proc 'eval_to_str' not implemented"),
+            "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &source, &tokens, &e),
             "exit" => eval_core_exit(&tokens, &e),
             "import" => "".to_string(), // Should already be imported in init_context
             "input_read_line" => eval_core_proc_input_read_line(&mut context, &source, &tokens, &e),
