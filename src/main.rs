@@ -2497,6 +2497,10 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
         },
     };
     match value_type {
+        ValueType::ToInferType => {
+            panic!("{}:{} {} eval error: Cannot assign {}, type should already be inferred of type '{:?}'.", t.line, t.col, LANG_NAME, &var_name, &symbol_info.value_type);
+        },
+
         ValueType::TBool => {
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, inner_e));
             context.bools.insert(var_name.to_string(), bool_expr_result);
@@ -2526,7 +2530,10 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
                             t.line, t.col, LANG_NAME, &var_name, value_type_to_str(&value_type))
             }
         },
-        _ => panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", t.line, t.col, LANG_NAME, &var_name, &value_type)
+
+        ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) | ValueType::TCustom(_) => {
+            panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", t.line, t.col, LANG_NAME, &var_name, &value_type);
+        },
     }
 }
 
