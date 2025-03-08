@@ -12,6 +12,7 @@ use std::collections::HashMap;
 const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
 const INFER_TYPE: &str = "_Infer";
+const REPL_PATH: &str = "src/repl.cil";
 const SKIP_AST: bool = true;
 
 // ---------- format errors
@@ -2976,25 +2977,6 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
     context.mode = previous_mode; // restore the context mode of the calling file
 }
 
-fn run_repl() {
-    let mut context = start_context();
-    context.mode = mode_from_name("repl").unwrap();
-    let path = "repl".to_string();
-    loop {
-        print!("{}> ", LANG_NAME);
-        io::stdout().flush().unwrap();
-
-        let mut line = String::new();
-        io::stdin()
-            .read_line(&mut line)
-            .expect("repl error: Failed to read line");
-
-        if line.len() == 1 { break; }
-
-        println!("{}", main_run(&mut context, &path, &line));
-    }
-}
-
 fn usage() {
     println!("Usage: {} [command] [path]\n", BIN_NAME);
     println!("Entering no arguments is equavalent to: {} repl", BIN_NAME);
@@ -3018,25 +3000,23 @@ fn main() {
         usage();
     } else if args.len() > 2 {
         match args[1].as_str() {
-            "repl" => {
-                usage();
-            },
             "interpret" => {
                 run_file(&args[2]);
             },
-            "build" | "run" => {
+            "repl" | "build" | "run" => {
                 usage();
             },
             _ => {
                 usage();
             },
         }
-        println!("command '{}' not implemented yet.", &args[1]);
-        println!("in valid command '{}'.", &args[1]);
+        println!("subcommand '{}' not implemented yet.", &args[1]);
+        println!("callled within valid command '{}'.", &args[0]);
+
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
-                run_repl();
+                run_file(&REPL_PATH.to_string());
             },
             "ast" | "interpret" | "build" | "run" |
             "help" | "-help" | "--help"=> {
@@ -3046,7 +3026,8 @@ fn main() {
                 run_file(&args[1]);
             },
         }
-    } else {
-        run_repl();
     }
+
+    // TODO fix repl option
+    run_file(&REPL_PATH.to_string()) // If not arguments, then repl/interactive "mode"
 }
