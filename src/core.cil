@@ -45,20 +45,20 @@ todo := proc(msg: String) {
 // U64 : Type = i64
 // OtherType : Type = Type
 
-I64 := struct {
-    mut data : i64 = 0
+# I64 := struct {
+#     mut data : i64 = 0
 
-    // init := func(i: i64) returns I64 {
-    //     n : I64
-    // 	n.data = i;
-    // 	return n
-    // }
+#     // init := func(i: i64) returns I64 {
+#     //     n : I64
+#     // 	n.data = i;
+#     // 	return n
+#     // }
 
-    // _add := func(self: I64, other: I64) returns I64 {
-    // 	return add(self.data, other.data)
-    // }
+#     // _add := func(self: I64, other: I64) returns I64 {
+#     // 	return add(self.data, other.data)
+#     // }
 
-    // to_string := func(self: I64) returns String {
-    // 	return itoa(self.data)
-    // }
-}
+#     // to_string := func(self: I64) returns String {
+#     // 	return itoa(self.data)
+#     // }
+# }
