@@ -2484,7 +2484,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
             }
             return format!("{} declared", custom_type_name)
         },
-        _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+        ValueType::TType | ValueType::TList | ValueType::TMulti(_) => {
+            panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+        },
     }
 }
 
