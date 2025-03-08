@@ -2396,7 +2396,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                     for (_, member_decl) in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);
-                            context.symbols.insert(combined_name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                             let default_value = match struct_def.default_values.get(&member_decl.name) {
                                 Some(_default_value) => _default_value,
                                 None => {
@@ -2404,18 +2403,55 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                                            t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name);
                                 },
                             };
-                            match member_decl.value_type {
+                            let member_value_type = match member_decl.value_type {
+                                ValueType::ToInferType => {
+                                    match get_value_type(&context, &tokens, &default_value) {
+                                        Ok(val_type) => val_type,
+                                        Err(error_string) => {
+                                            panic!("{}", error_string);
+                                        },
+                                    }
+                                },
+                                _ => member_decl.value_type.clone(),
+                            };
+
+                            match member_value_type {
+                                ValueType::TBool => {
+                                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &source, &tokens, default_value));
+                                    context.bools.insert(combined_name.to_string(), bool_expr_result);
+                                },
+                                ValueType::TI64 => {
+                                    let i64_expr_result_str = &eval_expr(&mut context, &source, &tokens, default_value);
+                                    context.i64s.insert(combined_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
+                                },
                                 ValueType::TString => {
                                     let string_expr_result = &eval_expr(&mut context, &source, &tokens, default_value);
                                     context.strings.insert(combined_name.to_string(), string_expr_result.to_string());
                                 },
-                                _ => {
-                                    // TODO remove default case
-                                    // panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, TODO remove default case in struct members.",
-                                    //             t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                                ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+                                    match &default_value.node_type {
+                                        NodeType::FuncDef(func_def) => {
+                                            context.funcs.insert(combined_name.to_string(), func_def.clone());
+                                        },
+                                        _ => panic!("{}:{} {} eval error: Cannot declare '{}.{}' of type {:?}, expected {} definition.",
+                                                    t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type,
+                                                    value_type_to_str(&member_decl.value_type)),
+                                    }
+                                },
+                                ValueType::ToInferType => {
+                                        panic!("{}:{} {} eval error: Cannot infer type of '{}.{}', but it should be inferred already.",
+                                               t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name)
+                                },
+                                ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_)
+                                    | ValueType::TCustom(_) => {
+                                    panic!("{}:{} {} eval error: Cannot declare '{}.{}' of type {:?}. Not implemented yet",
+                                                t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type)
                                 },
 
                             }
+
+                            context.symbols.insert(combined_name.to_string(),
+                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut});
                         }
                     }
                     "struct declared".to_string()

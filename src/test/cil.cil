@@ -58,7 +58,7 @@ TokenType := enum {
 }
 
 Token := struct {
-    token_type: TokenType = TokenType.Invalid
+//    token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
     start: i64 = 0
     end: i64 = 0
     line: i64 = 0
