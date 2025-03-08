@@ -1332,14 +1332,15 @@ fn is_core_func(proc_name: &str) -> bool {
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
         "exit" => true,
+        "import" => true,
         "print" => true,
         "println" => true,
-        // TODO implement more core procs in rust:
         "runfile" => true,
+        // TODO implement more core procs in rust:
+        "input_read_line" => true,
+        "eval_to_str" => true,
         "readfile" => true,
         "writefile" => true,
-        "import" => true,
-        "eval_to_str" => true,
         "eval_to_ast_str" => true,
         "eval_to_expr" => true,
         _ => false,
@@ -1367,6 +1368,16 @@ fn start_context() -> Context {
 
     let body : Vec<Expr> = Vec::new();
     let return_types_none : Vec<ValueType> = Vec::new();
+
+    let mut returns_one_str : Vec<ValueType> = Vec::new();
+    returns_one_str.push(ValueType::TString);
+
+    let mut args_one_str : Vec<Declaration> = Vec::new();
+    args_one_str.push(Declaration{name: "a".to_string(), value_type: ValueType::TString, is_mut: false});
+
+    let func_def_one_str_proc = SFuncDef{function_type: FunctionType::FTProc, args: args_one_str, returns: returns_one_str.clone(), body: body.clone()};
+    context.funcs.insert("input_read_line".to_string(), func_def_one_str_proc.clone());
+    context.funcs.insert("eval_to_str".to_string(), func_def_one_str_proc.clone());
 
     let mut args_print : Vec<Declaration> = Vec::new();
     args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
@@ -1459,9 +1470,9 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &
     if context.funcs.contains_key(name) {
         return value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
     } else if is_core_func(name) {
-        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in context", t.line, t.col, context.mode.name, name));
+        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", t.line, t.col, context.mode.name, name));
     } else if is_core_proc(name) {
-        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in context", t.line, t.col, context.mode.name, name));
+        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", t.line, t.col, context.mode.name, name));
     } else if context.symbols.contains_key(name) {
 
         let symbol = context.symbols.get(name).unwrap();
@@ -2195,6 +2206,23 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut Context, source: &Stri
     "".to_string()
 }
 
+fn eval_core_proc_input_read_line(mut _context: &mut Context, _source: &String, _tokens: &Vec<Token>, e: &Expr) -> String {
+    // TODO properly implement
+    // io::stdout().flush().unwrap(); // QUE is this needed?
+
+    let first_param = e.params.get(0).unwrap();
+    let read_line_error_msg = match &first_param.node_type {
+        NodeType::LString(error_msg_) => error_msg_.clone(),
+        _ => format!("input_read_line() can only take literal strings as its single argument for an error String for now. The user, perhaps wisely, tried node type '{:?}' instead", first_param.node_type).to_string(),
+    };
+    let mut line = String::new();
+    io::stdin()
+        .read_line(&mut line)
+        .expect(&read_line_error_msg);
+
+    return line.to_string()
+}
+
 fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 1, "eval_core_proc_runfile expects a single parameter.");
     let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
@@ -2318,11 +2346,13 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
         }
     } else if is_core_proc(&name) {
         match name {
+            "eval_to_str" => panic!("core proc 'eval_to_str' not implemented"),
             "exit" => eval_core_exit(&tokens, &e),
+            "import" => "".to_string(), // Should already be imported in init_context
+            "input_read_line" => eval_core_proc_input_read_line(&mut context, &source, &tokens, &e),
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
             "println" => eval_core_proc_print(true, &mut context, &source, &tokens, &e),
             "runfile" => eval_core_proc_runfile(&mut context, &source, &tokens, &e),
-            "import" => "".to_string(), // Should already be imported in init_context
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if context.funcs.contains_key(name) {

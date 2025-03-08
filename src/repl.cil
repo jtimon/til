@@ -1,0 +1,19 @@
+// WIP: this is a work in progress, core procs 'eval_to_str' and 'input_read_line' are not implemented yet
+// REM don't run this from the tests
+// Suggestion: run 'make repl' from another terminal insted
+mode cli
+
+LANG_NAME := "cil(interactive)"
+
+main := proc() {
+
+    println("Started interactive (repl) ", LANG_NAME, " session. Press Ctrl-c to quit.")
+    while true {
+        print(LANG_NAME, "> ")
+        line := input_read_line("cil(interactive) error: Failed to read line")
+
+        print(line)
+        println("REM: Implement core proc 'eval_to_str' to make this real")
+//        println(eval_to_str(line))
+    }
+}
