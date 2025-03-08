@@ -1804,17 +1804,19 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
 
     if context.mode.needs_main_proc {
         if !context.symbols.contains_key("main") {
-            errors.push(format!("{}:{}: mode {} requires 'main' to be defined as a proc.",
+            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.",
                                 t.line, t.col, context.mode.name));
             return errors;
         }
         let main_type : ValueType = match context.symbols.get("main") {
             Some(main_type_) => main_type_.value_type.clone(),
-            None => panic!("main proc not provided in mode '{}'", context.mode.name),
-            // ValueType::TProc => ValueType::TProc,
+            None => {
+                errors.push(format!("{}:{}: mode error: main proc not provided in mode '{}'", t.line, t.col, context.mode.name));
+                return errors;
+            },
         };
         if main_type != ValueType::TProc {
-            errors.push(format!("{}:{}: mode {} requires 'main' to be defined as a proc. It was defined as a {:?} instead",
+            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {:?} instead",
                                 t.line, t.col, context.mode.name, main_type));
             return errors;
         }
@@ -1872,7 +1874,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
                 let next_t = tokens.get(inner_e.token_index).unwrap();
-                errors.push(format!("{}:{}: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+                errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
@@ -1891,7 +1893,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
                 let next_t = tokens.get(inner_e.token_index).unwrap();
-                errors.push(format!("{}:{}: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+                errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &source, &tokens, &p));
@@ -1911,16 +1913,19 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             let func_def;
             if context.funcs.contains_key(name) {
                 func_def = context.funcs.get(name).unwrap();
+            } else if context.struct_defs.contains_key(name) {
+                errors.push(format!("{}:{}: {} error: Cannot instantiate struct '{}', constructors not implemented yet", t.line, t.col, LANG_NAME, name));
+                return errors;
             } else {
-                errors.push(format!("{}:{}: Undefined function or procedure '{}'", t.line, t.col, name));
+                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", t.line, t.col, LANG_NAME, name));
                 return errors;
             }
             let has_multi_arg = func_proc_has_multi_arg(func_def);
             if !has_multi_arg && func_def.args.len() != e.params.len() {
-                errors.push(format!("{}:{}: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
             }
             if has_multi_arg && func_def.args.len() > e.params.len() {
-                errors.push(format!("{}:{}: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
             }
 
             let max_arg_def = func_def.args.len();
@@ -1940,10 +1945,10 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 };
                 if expected_type != &found_type {
                     if expected_type == &str_to_value_type(INFER_TYPE) {
-                        errors.push(format!("{}:{}: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
+                        errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
                                             t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
                     } else {
-                        errors.push(format!("{}:{}: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
+                        errors.push(format!("{}:{}: type error: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
                                             t.line, t.col, name, expected_type, arg.name, found_type));
                     }
                 }
@@ -1952,7 +1957,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
 
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
-                errors.push(format!("{}:{}: Undefined symbol {}", t.line, t.col, name));
+                errors.push(format!("{}:{}: type error: Undefined symbol {}", t.line, t.col, name));
             }
         },
 
@@ -1964,7 +1969,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 for se in &func_def.body {
                     if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
                         let proc_t = tokens.get(se.token_index).unwrap();
-                        errors.push(format!("{}:{}: compiler error: funcs cannot call procs.", proc_t.line, proc_t.col));
+                        errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
                     }
                 }
             }
@@ -2010,18 +2015,18 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::Assignment(var_name) => {
             assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             if is_core_func(&var_name) {
-                errors.push(format!("{}:{}: compiler error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if is_core_proc(&var_name) {
-                errors.push(format!("{}:{}: compiler error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.funcs.contains_key(var_name)  {
-                errors.push(format!("{}:{}: compiler error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
+                errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", t.line, t.col, var_name));
             } else if context.symbols.contains_key(var_name) {
                 let symbol_info = context.symbols.get(var_name).unwrap();
                 if !symbol_info.is_mut {
                     errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", t.line, t.col, var_name));
                 }
             } else {
-                errors.push(format!("{}:{}: compiler error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
+                errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                        t.line, t.col, var_name, var_name, var_name));
             }
             errors.append(&mut check_types(&mut context, &source, &tokens, &e.params.get(0).unwrap()));
