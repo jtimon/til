@@ -931,7 +931,7 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
             Err(err_str) => return Err(err_str),
         };
         let params : Vec<Expr> = arg_list.params;
-        return Ok(Expr { node_type: NodeType::FCall(current_identifier.to_string()), token_index: initial_current, params: params})
+        return Ok(Expr { node_type: NodeType::FCall(get_token_str(source, t).to_string()), token_index: initial_current, params: params})
     }
 
     let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
