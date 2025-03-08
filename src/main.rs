@@ -2537,6 +2537,106 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
     }
 }
 
+fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+
+    let t = tokens.get(e.token_index).unwrap();
+    match context.symbols.get(name) {
+        Some(symbol_info) => match symbol_info.value_type {
+            ValueType::TBool => {
+                context.bools.get(name).unwrap().to_string()
+            },
+            ValueType::TI64 => {
+                context.i64s.get(name).unwrap().to_string()
+            },
+            ValueType::TString => {
+                context.strings.get(name).unwrap().to_string()
+            },
+            ValueType::TEnumDef => {
+                assert!(e.params.len() > 0, "{} eval error: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                // let enum_def = context.enum_defs.get(name).unwrap();
+                let inner_e = e.params.get(0).unwrap();
+                match &inner_e.node_type {
+                    NodeType::Identifier(inner_name) => {
+                        // TODO check that inner_name is in enum_def
+                        // TODO check if that inner_name has an optional type
+                        return format!("{}.{}", name, inner_name);
+                    },
+                    _ => {
+                        panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
+                    },
+                }
+            },
+
+            ValueType::TStructDef => {
+                assert!(e.params.len() > 0, "{} eval error: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                let struct_def = context.struct_defs.get(name).unwrap();
+                let inner_e = e.params.get(0).unwrap();
+                match &inner_e.node_type {
+                    NodeType::Identifier(inner_name) => {
+                        match struct_def.members.get(inner_name) {
+                            Some(member_decl) => {
+                                match member_decl.value_type {
+                                    ValueType::TString => {
+                                        match context.strings.get(&format!("{}.{}", name, inner_name)) {
+                                            Some(result_str) => return result_str.to_string(),
+                                            None => {
+                                                panic!("{}:{}: {} eval error: value not set for '{}.{}'",
+                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                            },
+                                        }
+
+                                    },
+                                    _ => {
+                                        panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
+                                               t.line, t.col, LANG_NAME, name, inner_name)
+                                    },
+                                }
+                            },
+                            _ => {
+                                panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
+                                       t.line, t.col, LANG_NAME, name, inner_name)
+                            },
+                        }
+                    },
+                    _ => {
+                        panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
+                    },
+                }
+            }
+
+            ValueType::ToInferType => {
+                panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
+            },
+            ValueType::TCustom(ref custom_type_name) => {
+                if !context.symbols.contains_key(custom_type_name) {
+                    // note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
+                    // thank you, rust, format inside format for no reason I want to understand
+                    panic!("{}", format!("{}:{}: {} eval error: : Argument '{}' is of undefined type {}.",
+                                         t.line, t.col, LANG_NAME, &name, &custom_type_name)
+                    );
+                }
+                let custom_symbol = context.symbols.get(custom_type_name).unwrap();
+                match custom_symbol.value_type {
+                    ValueType::TEnumDef => {
+                        return format!("TODO: can't eval enum values yet");
+                        // function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
+                    },
+
+                    _ => {
+                        panic!("{} eval error: TODO Can't eval '{}' of custom type {}.", LANG_NAME, name, custom_type_name)
+                    },
+                }
+            },
+            _ => {
+                panic!("{} eval error: Can't use identifier '{}'. Type {:?} not supported yet.", LANG_NAME, name, symbol_info.value_type)
+            },
+        }
+        None => {
+            panic!("{} eval error: Undefined symbol '{}'. This should have been caught in the compile phase.", LANG_NAME, name)
+        },
+    }
+}
+
 fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let t = tokens.get(e.token_index).unwrap();
     match &e.node_type {
@@ -2570,102 +2670,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             eval_assignment(&var_name, &mut context, &source, &tokens, &e)
         },
         NodeType::Identifier(name) => {
-
-            match context.symbols.get(name) {
-                Some(symbol_info) => match symbol_info.value_type {
-                    ValueType::TBool => {
-                        context.bools.get(name).unwrap().to_string()
-                    },
-                    ValueType::TI64 => {
-                        context.i64s.get(name).unwrap().to_string()
-                    },
-                    ValueType::TString => {
-                        context.strings.get(name).unwrap().to_string()
-                    },
-                    ValueType::TEnumDef => {
-                        assert!(e.params.len() > 0, "{} eval error: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
-                        // let enum_def = context.enum_defs.get(name).unwrap();
-                        let inner_e = e.params.get(0).unwrap();
-                        match &inner_e.node_type {
-                            NodeType::Identifier(inner_name) => {
-                                // TODO check that inner_name is in enum_def
-                                // TODO check if that inner_name has an optional type
-                                return format!("{}.{}", name, inner_name);
-                            },
-                            _ => {
-                                panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
-                            },
-                        }
-                    },
-
-                    ValueType::TStructDef => {
-                        assert!(e.params.len() > 0, "{} eval error: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
-                        let struct_def = context.struct_defs.get(name).unwrap();
-                        let inner_e = e.params.get(0).unwrap();
-                        match &inner_e.node_type {
-                            NodeType::Identifier(inner_name) => {
-                                match struct_def.members.get(inner_name) {
-                                    Some(member_decl) => {
-                                        match member_decl.value_type {
-                                            ValueType::TString => {
-                                                match context.strings.get(&format!("{}.{}", name, inner_name)) {
-                                                    Some(result_str) => return result_str.to_string(),
-                                                    None => {
-                                                        panic!("{}:{}: {} eval error: value not set for '{}.{}'",
-                                                               t.line, t.col, LANG_NAME, name, inner_name)
-                                                    },
-                                                }
-
-                                            },
-                                            _ => {
-                                                panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
-                                                       t.line, t.col, LANG_NAME, name, inner_name)
-                                            },
-                                        }
-                                    },
-                                    _ => {
-                                        panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
-                                               t.line, t.col, LANG_NAME, name, inner_name)
-                                    },
-                                }
-                            },
-                            _ => {
-                                panic!("{} eval error: identifier '{}' should only have identifiers inside.", LANG_NAME, name)
-                            },
-                        }
-                    }
-
-                    ValueType::ToInferType => {
-                        panic!("{} eval error: Can't infer the type of identifier '{}'.", LANG_NAME, name)
-                    },
-                    ValueType::TCustom(ref custom_type_name) => {
-                        if !context.symbols.contains_key(custom_type_name) {
-                            // note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
-                            // thank you, rust, format inside format for no reason I want to understand
-                            panic!("{}", format!("{}:{}: {} eval error: : Argument '{}' is of undefined type {}.",
-                                                 t.line, t.col, LANG_NAME, &name, &custom_type_name)
-                            );
-                        }
-                        let custom_symbol = context.symbols.get(custom_type_name).unwrap();
-                        match custom_symbol.value_type {
-                            ValueType::TEnumDef => {
-                                return format!("TODO: can't eval enum values yet");
-                                // function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
-                            },
-
-                            _ => {
-                                panic!("{} eval error: TODO Can't eval '{}' of custom type {}.", LANG_NAME, name, custom_type_name)
-                            },
-                        }
-                    },
-                    _ => {
-                        panic!("{} eval error: Can't use identifier '{}'. Type {:?} not supported yet.", LANG_NAME, name, symbol_info.value_type)
-                    },
-                }
-                None => {
-                    panic!("{} eval error: Undefined symbol '{}'. This should have been caught in the compile phase.", LANG_NAME, name)
-                },
-            }
+            return eval_identifier_expr(&name, &context, &source, &tokens, &e);
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
