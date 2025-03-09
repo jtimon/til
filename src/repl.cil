@@ -1,18 +1,12 @@
 // REM don't run this from the tests
 // Suggestion: run 'make repl' from another terminal insted
-mode cli
+mode script
 
-LANG_NAME := "cil(interactive)"
+__LANG_NAME := "cil(interactive)"
 
-main := proc() {
-
-    println("Started interactive (repl) ", LANG_NAME, " session. Press Ctrl-c to quit.")
-    while true {
-        print(LANG_NAME, "> ")
-        line := input_read_line("cil(interactive) error: Failed to read line")
-
-//        print(line)
-//        println("REM: Implement core proc 'eval_to_str' to make this real")
-        println(eval_to_str(line))
-    }
+println("Started ", __LANG_NAME, " session. Press Ctrl-c or call 'exit(0)' to exit the session.")
+while true {
+    print(__LANG_NAME, "> ")
+    __line := input_read_line("cil(interactive) error: Failed to read line")
+    println(eval_to_str(__line))
 }

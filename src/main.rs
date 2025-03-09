@@ -572,7 +572,6 @@ fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: 
         Err(err_) => return Err(err_),
     };
 
-    println!("Mode: {}", mode.name);
     if mode.name == "pure" {
         return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "lib"));
     }
@@ -1254,7 +1253,7 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_tokens(print_extra: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
     let e: Expr = match parse_body(TokenType::Eof, &source, tokens, current) {
         Ok(expr) => expr,
@@ -1262,7 +1261,9 @@ fn parse_tokens(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Re
     };
     *current = *current + 1; // Add one for the EOF
 
-    println!("Total tokens parsed: {}/{}", current, tokens.len());
+    if print_extra {
+        println!("Total tokens parsed: {}/{}", current, tokens.len());
+    }
     let mut i = *current;
     let mut unparsed_tokens = 0;
     if i < tokens.len() {
@@ -2225,7 +2226,10 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, _source: &String, 
 }
 
 fn eval_core_proc_eval_to_str(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    return eval_expr(&mut context, &source, &tokens, &e);
+    assert!(e.params.len() == 1, "eval_core_proc_eval_to_str expects a single parameter.");
+    let path = "eval".to_string(); // TODO Bring the path down here
+    let str_source = format!("mode script; {}", &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
+    return main_run(false, &mut context, &path, &str_source);
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -2864,7 +2868,7 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-fn main_run(mut context: &mut Context, path: &String, source: &String) -> String {
+fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: &String) -> String {
 
     let tokens = match tokens_from_source(&path, &source) {
         Ok(tokens_) => tokens_,
@@ -2881,8 +2885,11 @@ fn main_run(mut context: &mut Context, path: &String, source: &String) -> String
         },
     };
     context.mode = mode;
+    if print_extra {
+        println!("Mode: {}", context.mode.name);
+    }
 
-    let mut e: Expr = match parse_tokens(&source, &tokens, &mut current) {
+    let mut e: Expr = match parse_tokens(print_extra, &source, &tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -2967,7 +2974,7 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
             },
         },
     };
-    let run_result = main_run(&mut context, &path, &source);
+    let run_result = main_run(true, &mut context, &path, &source);
     // REM: this print shit is still here only because repl is still broken
     println!("eval: {}", run_result);
 
@@ -2984,7 +2991,7 @@ fn usage() {
 
     println!("Commands:\n");
 
-    println!("repl: read eval print loop. TODO FIX");
+    println!("repl: read eval print loop.");
     println!("interpret: reads a file in provided <path> and evaluates it.");
     // println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
     // println!("build: reads a file in provided <path> and compiles it. Not implemented yet.");
@@ -3026,8 +3033,7 @@ fn main() {
                 run_file(&args[1]);
             },
         }
+    } else {
+        run_file(&REPL_PATH.to_string()) // If not arguments, then repl/interactive "mode"
     }
-
-    // TODO fix repl option
-    run_file(&REPL_PATH.to_string()) // If not arguments, then repl/interactive "mode"
 }

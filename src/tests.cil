@@ -22,7 +22,6 @@ runfile("src/test/hello/hello_test.cil")
 // WIP Work towards self hosting
 runfile("src/test/cil.cil")
 
-// WIP self host repl/iteractive
 // runfile("src/repl.cil") // REM don't run this from the tests unless for debug
 // Suggestion: run 'make repl' from another terminal insted
 
