@@ -5,7 +5,7 @@ Cil is a general purpose experimental language that is meant to be
 interpreted or compiled to machine code or to some other high level
 language.
 
-The goal is to have a self hosted implementation as soon as possible,
+A priority is to have a self hosted implementation as soon as possible,
 although the bootstrap implementation is written in rust.
 
 * Dependencies

@@ -1,5 +1,8 @@
 mode test
 
+// WIP Work towards self hosting
+runfile("src/cil.cil")
+
 // basic
 runfile("src/test/arithmetics.cil")
 runfile("src/test/boolean.cil")
@@ -18,9 +21,6 @@ runfile("src/test/hello/hello_lib.cil")
 runfile("src/test/hello/hello_script.cil")
 runfile("src/test/hello/hello_script_shebang.cil")
 runfile("src/test/hello/hello_test.cil")
-
-// WIP Work towards self hosting
-runfile("src/test/cil.cil")
 
 // runfile("src/repl.cil") // REM don't run this from the tests unless for debug
 // Suggestion: run 'make repl' from another terminal insted
