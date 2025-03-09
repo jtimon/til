@@ -1946,11 +1946,11 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 };
                 if expected_type != &found_type {
                     if expected_type == &str_to_value_type(INFER_TYPE) {
-                        errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
-                                            t.line, t.col, name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
+                        errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg '{}' without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: '{:?}'",
+                                            t.line, t.col, &name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
                     } else {
-                        errors.push(format!("{}:{}: type error: calling func/proc '{}' expects {:?} for arg {}, but {:?} was provided.",
-                                            t.line, t.col, name, expected_type, arg.name, found_type));
+                        errors.push(format!("{}:{}: type error: calling function '{}' expects '{:?}' for arg '{}', but '{:?}' was provided.",
+                                            t.line, t.col, &name, expected_type, arg.name, found_type));
                     }
                 }
             }
