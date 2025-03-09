@@ -454,7 +454,7 @@ enum NodeType {
     LString(String),
     LI64(i64),
     LBool(bool),
-    FCall(String),
+    FCall,
     Identifier(String),
     Declaration(Declaration),
     Assignment(String),
@@ -926,12 +926,14 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
 
     if TokenType::LeftParen == next_t.token_type {
         *current = *current + 1;
-        let arg_list = match parse_list(&source, &tokens, current) {
+        let mut arg_list = match parse_list(&source, &tokens, current) {
             Ok(a_list) => a_list,
             Err(err_str) => return Err(err_str),
         };
-        let params : Vec<Expr> = arg_list.params;
-        return Ok(Expr { node_type: NodeType::FCall(get_token_str(source, t).to_string()), token_index: initial_current, params: params})
+        let mut params : Vec<Expr> = Vec::new();
+        params.push(Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: Vec::new()});
+        params.append(&mut arg_list.params);
+        return Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
     }
 
     let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
@@ -1446,6 +1448,15 @@ fn start_context() -> Context {
     context
 }
 
+fn get_func_name_in_call(e: &Expr) -> String {
+    assert!(e.node_type == NodeType::FCall);
+    assert!(e.params.len() > 0);
+    match &e.params.get(0).unwrap().node_type {
+        NodeType::Identifier(f_name) => return f_name.clone(),
+        _ => panic!("panic calling get_func_name_in_call(), this should never happen."),
+    }
+}
+
 fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.returns.len() {
         0 => {
@@ -1467,33 +1478,35 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
     }
 }
 
-fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, name: &str, e: &Expr) -> Result<ValueType, String> {
-    let t = tokens.get(e.token_index).unwrap();
-    if context.funcs.contains_key(name) {
-        return value_type_func_proc(t, name, &context.funcs.get(name).unwrap())
-    } else if is_core_func(name) {
-        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", t.line, t.col, context.mode.name, name));
-    } else if is_core_proc(name) {
-        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", t.line, t.col, context.mode.name, name));
-    } else if context.symbols.contains_key(name) {
+fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
 
-        let symbol = context.symbols.get(name).unwrap();
+    let f_name = get_func_name_in_call(&e);
+    let t = tokens.get(e.token_index).unwrap();
+    if context.funcs.contains_key(&f_name) {
+        return value_type_func_proc(t, &f_name, &context.funcs.get(&f_name).unwrap())
+    } else if is_core_func(&f_name) {
+        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", t.line, t.col, context.mode.name, &f_name));
+    } else if is_core_proc(&f_name) {
+        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", t.line, t.col, context.mode.name, &f_name));
+    } else if context.symbols.contains_key(&f_name) {
+
+        let symbol = context.symbols.get(&f_name).unwrap();
         match symbol.value_type {
             ValueType::TStructDef => {
                 if e.params.len() == 0 {
-                    return Ok(ValueType::TCustom(name.to_string()));
+                    return Ok(ValueType::TCustom(f_name.clone()));
                 }
                 return Err(format!("{}:{}: {} error: Cannot call members of struct '{}' yet, not implemented",
-                                   t.line, t.col, LANG_NAME, name));
+                                   t.line, t.col, LANG_NAME, &f_name));
             },
             _ => {
                 return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function, it is a {:?}",
-                                   t.line, t.col, name, symbol.value_type));
+                                   t.line, t.col, &f_name, symbol.value_type));
             },
         }
 
     } else {
-        return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
+        return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, &f_name));
     }
 }
 
@@ -1511,7 +1524,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef(_) => Ok(ValueType::TStructDef),
-        NodeType::FCall(name) => get_fcall_value_type(&context, &tokens, &name, &e),
+        NodeType::FCall => get_fcall_value_type(&context, &tokens, &e),
         NodeType::Identifier(name) => {
             let symbol_info = match context.symbols.get(name) {
                 Some(symbol_info_m) => {
@@ -1597,7 +1610,8 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
                 errors.append(&mut stmt_context_errors);
             }
         },
-        NodeType::FCall(f_name) => {
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
                 eval_core_proc_import(context, &source, &tokens, &e);
             }
@@ -1723,8 +1737,9 @@ fn is_expr_calling_procs(context: &Context, source: &String,  tokens: &Vec<Token
         NodeType::DefaultCase => false,
         NodeType::LList => false,
         NodeType::Identifier(_) => false,
-        NodeType::FCall(call_name) => {
-            context.symbols.contains_key(call_name) && context.symbols.get(call_name).unwrap().value_type == ValueType::TProc
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
+            return context.symbols.contains_key(&f_name) && context.symbols.get(&f_name).unwrap().value_type == ValueType::TProc
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() != 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
@@ -1910,34 +1925,35 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             }
         },
 
-        NodeType::FCall(name) => {
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
             let func_def;
-            if context.funcs.contains_key(name) {
-                func_def = context.funcs.get(name).unwrap();
-            } else if context.struct_defs.contains_key(name) {
-                errors.push(format!("{}:{}: {} error: Cannot instantiate struct '{}', constructors not implemented yet", t.line, t.col, LANG_NAME, name));
+            if context.funcs.contains_key(&f_name) {
+                func_def = context.funcs.get(&f_name).unwrap();
+            } else if context.struct_defs.contains_key(&f_name) {
+                errors.push(format!("{}:{}: {} error: Cannot instantiate struct '{}', constructors not implemented yet", t.line, t.col, LANG_NAME, &f_name));
                 return errors;
             } else {
-                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", t.line, t.col, LANG_NAME, name));
+                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", t.line, t.col, LANG_NAME, &f_name));
                 return errors;
             }
             let has_multi_arg = func_proc_has_multi_arg(func_def);
-            if !has_multi_arg && func_def.args.len() != e.params.len() {
-                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+            if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
+                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", t.line, t.col, &f_name, func_def.args.len(), e.params.len()));
             }
-            if has_multi_arg && func_def.args.len() > e.params.len() {
-                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, name, func_def.args.len(), e.params.len()));
+            if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
+                errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", t.line, t.col, &f_name, func_def.args.len(), e.params.len()));
             }
 
             let max_arg_def = func_def.args.len();
-            for i in 0..e.params.len() {
+            for i in 0..e.params.len()-1 {
                 let arg = func_def.args.get(std::cmp::min(i, max_arg_def-1)).unwrap();
                 let expected_type = match &arg.value_type {
                     ValueType::TMulti(inner_type) => inner_type,
                     _ => &arg.value_type,
 
                 };
-                let found_type = match get_value_type(&context, &tokens, e.params.get(i).unwrap()) {
+                let found_type = match get_value_type(&context, &tokens, e.params.get(i+1).unwrap()) {
                     Ok(val_type) => val_type,
                     Err(error_string) => {
                         errors.push(error_string);
@@ -1946,11 +1962,11 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                 };
                 if expected_type != &found_type {
                     if expected_type == &str_to_value_type(INFER_TYPE) {
-                        errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg '{}' without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: '{:?}'",
-                                            t.line, t.col, &name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
+                        errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
+                                            t.line, t.col, &f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
                     } else {
                         errors.push(format!("{}:{}: type error: calling function '{}' expects '{:?}' for arg '{}', but '{:?}' was provided.",
-                                            t.line, t.col, &name, expected_type, arg.name, found_type));
+                                            t.line, t.col, &f_name, expected_type, arg.name, found_type));
                     }
                 }
             }
@@ -2048,9 +2064,10 @@ fn eval_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>,
 
     match &e.node_type {
         NodeType::LBool(b_value) => *b_value,
-        NodeType::FCall(f_name) => {
-            if does_func_return_bool(&context, f_name) {
-                lbool_in_string_to_bool(eval_func_proc_call(f_name, &mut context, &source, &tokens, &e).as_str())
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
+            if does_func_return_bool(&context, &f_name) {
+                lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &source, &tokens, &e).as_str())
             } else {
                 panic!("{} error: Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
             }
@@ -2064,7 +2081,8 @@ fn eval_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>,
                     }
                 }
             } else {
-                panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'", LANG_NAME);
+                panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier', '{}' is not a bool.",
+                       LANG_NAME, name);
             }
         },
         node_type => panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", LANG_NAME, node_type),
@@ -2075,98 +2093,98 @@ fn eval_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>,
 
 fn eval_core_func_and(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = true;
-    for i in &e.params {
-        truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &i);
+    for i in 1..e.params.len() {
+        truthfulness = truthfulness && eval_to_bool(&mut context, &source, &tokens, &e.params.get(i).unwrap());
     }
     truthfulness.to_string()
 }
 
 fn eval_core_func_or(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     let mut truthfulness = false;
-    for i in &e.params {
-        truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &i);
+    for i in 1..e.params.len() {
+        truthfulness = truthfulness || eval_to_bool(&mut context, &source, &tokens, &e.params.get(i).unwrap());
     }
     truthfulness.to_string()
 }
 
 fn eval_core_func_not(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
-    (!eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap())).to_string()
+    assert!(e.params.len() == 2, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
+    (!eval_to_bool(&mut context, &source, &tokens, &e.params.get(1).unwrap())).to_string()
 }
 
 fn eval_core_func_eq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
 fn eval_core_func_str_eq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap());
+    assert!(e.params.len() == 3, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap());
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap());
     (a == b).to_string()
 }
 
 fn eval_core_func_lt(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
 fn eval_core_func_lteq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
 fn eval_core_func_gt(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
 fn eval_core_func_gteq(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
 fn eval_core_func_sub(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
 fn eval_core_func_mul(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
 fn eval_core_func_div(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, &source, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
 fn eval_core_func_btoi(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+    assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(1).unwrap()) {
         "1".to_string()
     } else {
         "0".to_string()
@@ -2174,8 +2192,8 @@ fn eval_core_func_btoi(mut context: &mut Context, source: &String, tokens: &Vec<
 }
 
 fn eval_core_func_btoa(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(0).unwrap()) {
+    assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    if eval_to_bool(&mut context, &source, &tokens, &e.params.get(1).unwrap()) {
         "true".to_string()
     } else {
         "true".to_string()
@@ -2183,8 +2201,8 @@ fn eval_core_func_btoa(mut context: &mut Context, source: &String, tokens: &Vec<
 }
 
 fn eval_core_func_itoa(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap())
+    assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap())
 }
 
 // ---------- core procs implementations for eval
@@ -2193,13 +2211,13 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
         "false" => false,
-        _ => panic!("{} Error: expected string 'true' or 'false', this should never happen.", LANG_NAME)
+        _ => panic!("{} Error: expected string 'true' or 'false', found '{}'. this should never happen.", LANG_NAME, b)
     }
 }
 
 fn eval_core_proc_print(end_line: bool, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    for it in &e.params {
-        print!("{}", eval_expr(&mut context, &source, &tokens, &it));
+    for i in 1..e.params.len() {
+        print!("{}", eval_expr(&mut context, &source, &tokens, &e.params.get(i).unwrap()));
     }
     if end_line {
         print!("\n");
@@ -2226,29 +2244,29 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, _source: &String, 
 }
 
 fn eval_core_proc_eval_to_str(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "eval_core_proc_eval_to_str expects a single parameter.");
+    assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
-    let str_source = format!("mode script; {}", &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap()));
+    let str_source = format!("mode script; {}", &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap()));
     return main_run(false, &mut context, &path, &str_source);
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "eval_core_proc_runfile expects a single parameter.");
-    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+    assert!(e.params.len() == 2, "eval_core_proc_runfile expects a single parameter.");
+    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap());
     run_file(&path);
     return "".to_string();
 }
 
 fn eval_core_proc_import(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "eval_core_proc_import expects a single parameter.");
-    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(0).unwrap());
+    assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
+    let path = &eval_expr(&mut context, &source, &tokens, e.params.get(1).unwrap());
     run_file_with_context(true, &mut context, &path);
     return "".to_string();
 }
 
 fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
-    assert!(e.params.len() == 1, "eval_core_exit expects a single parameter.");
-    let e_exit_code = e.params.get(0).unwrap();
+    assert!(e.params.len() == 2, "eval_core_exit expects a single parameter.");
+    let e_exit_code = e.params.get(1).unwrap();
     let exit_code = match &e_exit_code.node_type {
         NodeType::LI64(my_li64) => {
             my_li64.clone()
@@ -2267,10 +2285,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     let t = tokens.get(e.token_index).unwrap();
 
     let mut function_context = context.clone();
-    assert!(e.params.len() == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
-            LANG_NAME, name, func_def.args.len(), e.params.len());
+    assert!(e.params.len() - 1 == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
+            LANG_NAME, name, func_def.args.len(), e.params.len()-1);
 
-    let mut param_index = 0;
+    let mut param_index = 1;
     for arg in &func_def.args {
 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
@@ -2590,6 +2608,9 @@ fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens:
             ValueType::TString => {
                 context.strings.get(name).unwrap().to_string()
             },
+            ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+                return name.to_string();
+            },
             ValueType::TEnumDef => {
                 assert!(e.params.len() > 0, "{} eval error: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
                 // let enum_def = context.enum_defs.get(name).unwrap();
@@ -2699,8 +2720,9 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             let token_str = get_token_str(source, t);
             token_str.to_string()
         },
-        NodeType::FCall(name) => {
-            eval_func_proc_call(&name, &mut context, &source, &tokens, &e)
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
+            eval_func_proc_call(&f_name, &mut context, &source, &tokens, &e)
         },
         NodeType::Declaration(declaration) => {
             eval_declaration(&declaration, &mut context, &source, &tokens, &e)
@@ -2840,8 +2862,9 @@ fn to_ast_str(e: &Expr) -> String {
         NodeType::Identifier(id_name) => {
             return id_name.clone();
         },
-        NodeType::FCall(name) => {
-            ast_str.push_str(&format!("({} {})", name, params_to_ast_str(false, &e)));
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
+            ast_str.push_str(&format!("({} {})", f_name, params_to_ast_str(false, &e)));
             return ast_str;
         },
         NodeType::LList => {
@@ -2889,7 +2912,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
-    let mut e: Expr = match parse_tokens(print_extra, &source, &tokens, &mut current) {
+    let e: Expr = match parse_tokens(print_extra, &source, &tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -2919,11 +2942,12 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
                                 t.line, t.col, "mode", context.mode.name, decl.name));
                         }
                     },
-                    NodeType::FCall(name) => {
+                    NodeType::FCall => {
                         if !context.mode.allows_base_calls {
+                            let f_name = get_func_name_in_call(&e);
                             let t = tokens.get(p.token_index).unwrap();
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
-                                t.line, t.col, "mode", context.mode.name, name));
+                                t.line, t.col, "mode", context.mode.name, f_name));
                         }
                     }
                     _ => {},
@@ -2938,9 +2962,10 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         }
         return format!("Mode errors: {} type errors found", errors.len());
     }
-    if context.mode.needs_main_proc {
-        e.params.push(Expr{node_type: NodeType::FCall("main".to_string()), token_index: 0, params: Vec::new()});
-    }
+    // TODO what? make sure we can remove that, what is this?
+    // if context.mode.needs_main_proc {
+    //     e.params.push(Expr{node_type: NodeType::FCall("main".to_string()), token_index: 0, params: Vec::new()});
+    // }
 
     let errors = check_types(&mut context, &source, &tokens, &e);
     if errors.len() > 0 {
