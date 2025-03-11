@@ -24,6 +24,7 @@ runfile("src/test/loops.cil")
 runfile("src/test/flow.cil") // control flow, execution paths
 runfile("src/test/fib.cil") // recursive examples
 runfile("src/test/enums.cil")
+runfile("src/test/namespaces.cil")
 
 // next level:
 
