@@ -1,26 +1,26 @@
 mode test
 
-// WIP Work towards self hosting
-runfile("src/cil.cil")
+// Some versions of "hello world" in different modes
+runfile("src/test/hello/hello_cli.cil")
+runfile("src/test/hello/hello_lib.cil")
+// runfile("src/test/hello/hello_pure.cil") // TODO
+runfile("src/test/hello/hello_script.cil")
+// test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
+// Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
+runfile("src/test/hello/hello_script_shebang.cil")
+// runfile("src/test/hello/hello_script_safe.cil") // TODO this is much harder than it sounds
+runfile("src/test/hello/hello_test.cil")
 
 // basic
 runfile("src/test/arithmetics.cil")
 runfile("src/test/boolean.cil")
 runfile("src/test/branchless.cil")
 runfile("src/test/comparisons.cil")
-runfile("src/test/enums.cil")
-runfile("src/test/execution.cil")
-runfile("src/test/fib.cil") // recursive examples
 runfile("src/test/intro.cil")
 runfile("src/test/loops.cil")
-
-// Some versions of "hello world" in different modes
-runfile("src/test/hello/hello_cli.cil")
-runfile("src/test/hello/hello_lib.cil")
-// runfile("src/test/hello/hello_pure.cil")
-runfile("src/test/hello/hello_script.cil")
-runfile("src/test/hello/hello_script_shebang.cil")
-runfile("src/test/hello/hello_test.cil")
+runfile("src/test/flow.cil") // control flow, execution paths
+runfile("src/test/fib.cil") // recursive examples
+runfile("src/test/enums.cil")
 
 // runfile("src/repl.cil") // REM don't run this from the tests unless for debug
 // Suggestion: run 'make repl' from another terminal insted
@@ -29,6 +29,9 @@ runfile("src/test/hello/hello_test.cil")
 // runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
 runfile("src/test/todo_next.cil")
 runfile("src/test/eval.cil")
+
+// WIP Work towards self hosting
+runfile("src/cil.cil")
 
 // The closest to a std lib this language has
 runfile("src/core.cil")
