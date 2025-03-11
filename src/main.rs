@@ -2646,9 +2646,19 @@ fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens:
                                         }
 
                                     },
+                                    ValueType::TI64 => {
+                                        match context.i64s.get(&format!("{}.{}", name, inner_name)) {
+                                            Some(result) => return result.to_string(),
+                                            None => {
+                                                panic!("{}:{}: {} eval error: value not set for '{}.{}'",
+                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                            },
+                                        }
+
+                                    },
                                     _ => {
-                                        panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
-                                               t.line, t.col, LANG_NAME, name, inner_name)
+                                        panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}' of value type '{:?}'",
+                                               t.line, t.col, LANG_NAME, name, inner_name, member_decl.value_type)
                                     },
                                 }
                             },
