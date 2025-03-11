@@ -3035,7 +3035,9 @@ fn run_file(path: &String) {
 
 fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String) {
     let previous_mode = context.mode.clone();
-    println!("Running file '{}'", &path);
+    if !is_import {
+        println!("Running file '{}'", &path);
+    }
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
