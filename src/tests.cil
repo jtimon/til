@@ -27,7 +27,7 @@ runfile("src/test/enums.cil")
 
 // next level:
 // runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
-runfile("src/test/todo_next.cil")
+runfile("src/test/todo.cil") // permanent TODO
 runfile("src/test/eval.cil")
 
 // WIP Work towards self hosting
