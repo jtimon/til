@@ -1,5 +1,8 @@
 mode test
 
+// runfile("src/repl.cil") // REM don't run this from the tests unless for debug
+// Suggestion: run 'make repl' from another terminal insted, at least if you use emacs compilation mode for compiling
+
 // Some versions of "hello world" in different modes
 runfile("src/test/hello/hello_cli.cil")
 runfile("src/test/hello/hello_lib.cil")
@@ -22,16 +25,15 @@ runfile("src/test/flow.cil") // control flow, execution paths
 runfile("src/test/fib.cil") // recursive examples
 runfile("src/test/enums.cil")
 
-// runfile("src/repl.cil") // REM don't run this from the tests unless for debug
-// Suggestion: run 'make repl' from another terminal insted
-
 // next level:
-// runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
-runfile("src/test/todo.cil") // permanent TODO
-runfile("src/test/eval.cil")
 
-// WIP Work towards self hosting
-runfile("src/cil.cil")
+// runfile("src/test/eval.cil") // TODO fix eval tests
 
 // The closest to a std lib this language has
 runfile("src/core.cil")
+
+runfile("src/test/todo.cil") // permanent TODO
+// runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
+
+// WIP Work towards self hosting
+runfile("src/cil.cil")
