@@ -924,20 +924,19 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
         next_t = tokens.get(*current + 1).unwrap();
     }
 
+    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
+    *current = *current + 1;
+
     if TokenType::LeftParen == next_t.token_type {
-        *current = *current + 1;
         let mut arg_list = match parse_list(&source, &tokens, current) {
             Ok(a_list) => a_list,
             Err(err_str) => return Err(err_str),
         };
         let mut params : Vec<Expr> = Vec::new();
-        params.push(Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: *current, params: Vec::new()});
+        params.push(e);
         params.append(&mut arg_list.params);
         return Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
     }
-
-    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
-    *current = *current + 1;
     return Ok(e);
 }
 
