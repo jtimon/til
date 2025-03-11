@@ -6,17 +6,29 @@ import("src/core.cil")
 
 // Basic control flow:
 
-// if and if else statements:
+// basic 'if' statements:
+
+if not(gt(4, 2)) {
+    panic("'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
+}
+
+// basic 'if/else' statements:
 
 // if 42 { // fails because ints are not allowed for conditions, only bool
-if gteq(2, 4) {
-    println("if: ")
-    println("aaa", "y", "aaa")
-    print("aaa", "y", "eee")
-    print("\n") // TODO make this and the next line be equivalent, don't escape \n
-    println("")
+if gt(2, 4) {
+    println("'if' within  if/else not acepting  2 is lesser than 4")
 } else {
-    println("else: bbbbbbbb")
+    print("else: 'else' is allowed and functional")
+}
+
+// while loops:
+
+mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+print("it: ")
+// while 42 { // fails, because while expects a bool first, not an int
+while lt(it, 5) {
+    print(itoa(it), " ")
+    it = add(it, 1)
 }
 
 // switch statements:
@@ -32,3 +44,13 @@ test_int_switch := proc (to_switch: i64) {
 test_int_switch(00)
 test_int_switch(42); // note the semicolon between statements is being ignored
 test_int_switch(69)
+
+// TODO Move 'print' tests elsewhere:
+
+print("\n") // TODO make this and the next line be equivalent, don't escape \n
+println("")
+
+// exit is optional with a 0 value at the end of the target file, but it can be called earlier and with other values for posix return errors
+exit(0)
+// exit(0); // TODO the semicolon is not being ignored at the end of the file
+// exit(0);; // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.

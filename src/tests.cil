@@ -20,7 +20,6 @@ runfile("src/test/boolean.cil")
 runfile("src/test/branchless.cil")
 runfile("src/test/comparisons.cil")
 runfile("src/test/intro.cil")
-runfile("src/test/loops.cil")
 runfile("src/test/flow.cil") // control flow, execution paths
 runfile("src/test/fib.cil") // recursive examples
 runfile("src/test/enums.cil")
