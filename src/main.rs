@@ -2060,32 +2060,60 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
 
 // ---------- eval repl interpreter
 
+fn eval_call_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
+    let f_name = get_func_name_in_call(&e);
+    if !does_func_return_bool(&context, &f_name) {
+        panic!("{} error: eval_to_bool(): Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
+    }
+    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &source, &tokens, &e).as_str())
+}
+
 fn eval_to_bool(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> bool {
 
     match &e.node_type {
-        NodeType::LBool(b_value) => *b_value,
-        NodeType::FCall => {
-            let f_name = get_func_name_in_call(&e);
-            if does_func_return_bool(&context, &f_name) {
-                lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &source, &tokens, &e).as_str())
-            } else {
-                panic!("{} error: Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
-            }
-        },
+        NodeType::LBool(b_value) => return *b_value,
+        NodeType::FCall => return eval_call_to_bool(&mut context, &source, &tokens, &e),
         NodeType::Identifier(name) => {
             if context.bools.contains_key(name) {
-                match context.bools.get(name) {
-                    Some(bool_value) => bool_value.clone(),
-                    None => {
-                        panic!("{} error: Undefined boolean symbol '{}'. This should have been caught in the compile phase.", LANG_NAME, name)
-                    }
-                }
-            } else {
-                panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier', '{}' is not a bool.",
-                       LANG_NAME, name);
+                return context.bools.get(name).unwrap().clone();
             }
+            if context.struct_defs.contains_key(name) {
+                let struct_def = context.struct_defs.get(name).unwrap();
+
+                if e.params.len() == 0 {
+                    panic!("{} error: eval_to_bool(): struct '{}' is not a bool.", LANG_NAME, name);
+                }
+                let after_dot = e.params.get(0).unwrap();
+                match &after_dot.node_type {
+                    NodeType::Identifier(after_dot_name) => {
+                        let member_decl = match struct_def.members.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                panic!("{} eval error: eval_to_bool(): struct '{}' has no member '{}'", LANG_NAME, name, after_dot_name);
+                            },
+                        };
+
+                        let combined_name = format!("{}.{}", name, after_dot_name);
+                        if context.bools.contains_key(&combined_name) {
+                            return context.bools.get(&combined_name).unwrap().clone();
+                        }
+                        panic!("{} eval error: eval_to_bool(): '{}' is not a bool, it is a '{}'",
+                               LANG_NAME, combined_name, value_type_to_str(&member_decl.value_type));
+                    },
+
+                    _ => {
+                        panic!("{} eval error: eval_to_bool(): expected identifier after '{}.' found {:?}",
+                               LANG_NAME, name, after_dot.node_type);
+                    },
+                }
+            }
+
+            panic!("{} eval error: eval_to_bool(): Identifier '{}' is not a bool nor a struct.", LANG_NAME, name);
         },
-        node_type => panic!("{} error: The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", LANG_NAME, node_type),
+        node_type => {
+            panic!("{} eval error: eval_to_bool(): The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'",
+                   LANG_NAME, node_type)
+        },
     }
 }
 
@@ -2648,6 +2676,16 @@ fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens:
                                     },
                                     ValueType::TI64 => {
                                         match context.i64s.get(&format!("{}.{}", name, inner_name)) {
+                                            Some(result) => return result.to_string(),
+                                            None => {
+                                                panic!("{}:{}: {} eval error: value not set for '{}.{}'",
+                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                            },
+                                        }
+
+                                    },
+                                    ValueType::TBool => {
+                                        match context.bools.get(&format!("{}.{}", name, inner_name)) {
                                             Some(result) => return result.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
