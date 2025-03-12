@@ -29,5 +29,6 @@ test_int_switch := proc (to_switch: i64) {
        println("in test_int_switch(): ", itoa(to_switch), " is a wrong answer.")
     }
 }
-test_int_switch(42)
+test_int_switch(00)
+test_int_switch(42); // note the semicolon between statements is being ignored
 test_int_switch(69)

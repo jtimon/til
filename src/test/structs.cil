@@ -1,0 +1,35 @@
+mode test
+
+import("src/core.cil")
+
+MyStruct := struct {
+    static_bool_field : bool = true
+    mut bool_field : bool = false
+    mut int_field : i64 = 42 // 42 is just the default, but you can set something else once in the init func
+    mut string_field := ""
+
+    // TODO allow assingments to struct fields, both mut or only overwrite the default once in init,
+    // but then it is no longer "static", that's only for the compiler to care, not the user's problem
+    // TODO static vs only_one assignment are details the interpreter should be smart enough to through errors about
+    init := func(self: MyStruct, int_const : i64, bool_field : bool, int_field : i64, string_field) {
+        // self.bool_field_static = 69 // TODO think of a keyword to force this to fail
+        // self.int_const = 69
+        // self.bool_field = true
+        // self.int_field = 1
+        // self.string_field = "true"
+    }
+
+    to_string := proc(self: MyStruct) returns String {
+	todo("implement MyStruct.to_string()")
+	return ""
+    }
+}
+
+// my_struct_type := MyStruct
+// my_struct := MyStruct()
+// trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
+
+test_structs := proc() {
+    test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
+}
+test_structs()
