@@ -54,3 +54,13 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
 // assert_eq_str(test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
 assert_eq_str(test_return_switch_enum(ExampleEnum.C), no_return_switch_str)
 assert_eq_str(test_return_switch_enum(ExampleEnum.D), no_return_switch_str)
+
+ExampleEnum2 := enum {
+    // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
+    // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
+    // CCC : CCC // TODO This fails, because CCC is not defined
+    DDD
+    LBool : bool
+    LNumber : i64
+    LString : String
+}

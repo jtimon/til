@@ -4,17 +4,7 @@ import("src/core.cil")
 
 // TODO next:
 
-ExampleEnum2 := enum {
-    // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
-    // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
-    // CCC : CCC // TODO This fails, because CCC is not defined
-    DDD
-    LBool : bool
-    LNumber : i64
-    LString : String
-}
-
-exit(0) // TODO note the semicolon is not being ignored
+// exit(0) // TODO note the semicolon is not being ignored
 // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
 // exit(0);;
 
