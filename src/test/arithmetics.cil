@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // arithmetics:
 
 test(eq(add(40, 2), 42), "40 + 2 = 42")

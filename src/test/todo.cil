@@ -1,7 +1,5 @@
 mode script
 
-import("src/core.cil")
-
 // TODO next:
 
 // exit(0) // TODO note the semicolon is not being ignored

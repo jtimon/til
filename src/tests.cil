@@ -38,7 +38,7 @@ runfile("src/test/structs.cil")
 // runfile("src/test/eval.cil") // TODO fix eval tests
 
 // The closest to a std lib this language has
-runfile("src/core.cil")
+// runfile("src/core.cil") // you can't run it because it is already imported everywhere
 
 runfile("src/test/todo.cil") // permanent TODO
 // runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")

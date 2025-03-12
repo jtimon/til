@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // branchless conditions:
 
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {

@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // comparisons:
 
 test(eq(0, 0), "0 == 0")

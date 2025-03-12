@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 ExampleEnum := enum {
     A
     B

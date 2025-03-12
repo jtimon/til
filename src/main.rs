@@ -3148,6 +3148,8 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 
 fn run_file(path: &String) {
     let mut context = start_context();
+    let core_path = "src/core.cil".to_string();
+    run_file_with_context(true, &mut context, &core_path);
     run_file_with_context(false, &mut context, &path);
 }
 

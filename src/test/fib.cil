@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: i64) {
     fibonacci_0 := func(n: i64) returns i64 {

@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 MyStruct := struct {
     static_bool_field : bool = true
     mut bool_field : bool = false

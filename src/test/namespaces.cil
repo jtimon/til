@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // Struct definitions can be used as namespaces by declaring only constants in them (no mut)
 MyNamespace := struct {
 

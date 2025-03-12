@@ -1,7 +1,5 @@
 mode test
 
-import("src/core.cil")
-
 // boolean logic:
 
 test(true, "true is true")

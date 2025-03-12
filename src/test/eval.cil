@@ -1,6 +1,5 @@
 mode test
 
-import("src/core.cil")
 
 test(eq(btoi(true), atoi(eval_to_str("true")), "eval_to_str() can't turn literal bools strings into 'true'")
 test(eq(btoi(false), atoi(eval_to_str("false")), "eval_to_str() can't turn literal bools strings into 'false'")

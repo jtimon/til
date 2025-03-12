@@ -1,7 +1,5 @@
 mode script
 
-import("src/core.cil")
-
 //// Intro to the language (suggestion: uncomment lines which claim will fail and see what happens)
 // @ // fails because @ is invalid on the lexer for now
 // adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer, but at a different line and col
