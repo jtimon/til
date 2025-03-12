@@ -41,6 +41,10 @@ branchless := func(cond: bool, a: i64, b: i64) returns i64 {
 
 Bool := struct {
 
+    to_str := func(b: bool) returns String {
+        return btoa(b)
+    }
+
     // TODO Use in branchless
     to_int := func(data: bool) returns i64 {
         return btoi(data)

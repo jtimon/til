@@ -22,7 +22,7 @@ CCC = false; // assignments to mut declarations (aka variables/mut arguments) ar
 abc_proc := proc(a: bool, b: bool, c: bool) {
 
     abc := proc(a: bool, b: bool, c: bool) {
-	println("inside abc, three bools: ", btoa(a), ", ", btoa(b), ", ", btoa(c))
+	println("inside abc, three bools: ", Bool.to_str(a), ", ", Bool.to_str(a), ", ", Bool.to_str(a))
     }
     abc(a, b, c)
 }
