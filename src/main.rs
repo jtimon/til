@@ -75,8 +75,9 @@ enum TokenType {
     Try, Catch,
 
     // Special in this language:
-    Func, Proc, Macro,
     Mode,
+    Func, Proc, Macro,
+    FuncExt, ProcExt,
 
     // Errors
     Const, Var,
@@ -124,6 +125,8 @@ fn get_identifier_type(identifier: &str) -> TokenType {
         "func" => TokenType::Func,
         "proc" => TokenType::Proc,
         "macro" => TokenType::Macro,
+        "ext_func" => TokenType::FuncExt,
+        "ext_proc" => TokenType::ProcExt,
         "return" => TokenType::Return,
         "returns" => TokenType::Returns,
         // TODO reserved words:
@@ -430,6 +433,8 @@ enum FunctionType {
     FTFunc,
     FTProc,
     FTMacro,
+    FTFuncExt,
+    FTProcExt,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -750,7 +755,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     let mut expect_comma = false;
     while !(is_eof(&tokens, *current) || end_found) {
         match t.token_type {
-            TokenType::Throws | TokenType::LeftBrace => {
+            TokenType::Throws | TokenType::LeftBrace | TokenType::Semicolon => {
                 end_found = true;
                 *current = *current + 1;
             },
@@ -784,7 +789,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
     }
 }
 
-fn parse_func_proc_definition(function_type: FunctionType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_func_proc_definition(function_type: FunctionType, do_parse_body: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     *current = *current + 1;
     let t = tokens.get(*current).unwrap();
     if is_eof(&tokens, *current + 1) {
@@ -801,10 +806,18 @@ fn parse_func_proc_definition(function_type: FunctionType, source: &String, toke
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
-    let body = match parse_body(TokenType::RightBrace, &source, tokens, current) {
-        Ok(body) => body.params,
-        Err(err_str) => return Err(err_str),
+
+    let body = match do_parse_body {
+        false => {
+            *current = *current - 1; // Discount the closing brace we won't need
+            Vec::new()
+        },
+        true => match parse_body(TokenType::RightBrace, &source, tokens, current) {
+            Ok(body) => body.params,
+            Err(err_str) => return Err(err_str),
+        },
     };
+
     let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
     let e = Expr { node_type: NodeType::FuncDef(func_def), token: t.clone(), params: params};
@@ -985,9 +998,11 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
         return parse_literal(&source, t, current)
     } else {
         match &t.token_type {
-            TokenType::Func => return parse_func_proc_definition(FunctionType::FTFunc, &source, &tokens, current),
-            TokenType::Proc => return parse_func_proc_definition(FunctionType::FTProc, &source, &tokens, current),
-            TokenType::Macro => return parse_func_proc_definition(FunctionType::FTMacro, &source, &tokens, current),
+            TokenType::Func => return parse_func_proc_definition(FunctionType::FTFunc, true, &source, &tokens, current),
+            TokenType::FuncExt => return parse_func_proc_definition(FunctionType::FTFuncExt, false, &source, &tokens, current),
+            TokenType::Macro => return parse_func_proc_definition(FunctionType::FTMacro, true, &source, &tokens, current),
+            TokenType::Proc => return parse_func_proc_definition(FunctionType::FTProc, true, &source, &tokens, current),
+            TokenType::ProcExt => return parse_func_proc_definition(FunctionType::FTProcExt, false, &source, &tokens, current),
             TokenType::Enum => return enum_definition(&source, &tokens, current),
             TokenType::Struct => return struct_definition(&source, &tokens, current),
             TokenType::LeftParen => return parse_list(&source, &tokens, current),
@@ -1554,8 +1569,8 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::LString(_) => Ok(ValueType::TString),
         NodeType::LList => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
-            FunctionType::FTFunc => Ok(ValueType::TFunc),
-            FunctionType::FTProc => Ok(ValueType::TProc),
+            FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunc),
+            FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TProc),
             FunctionType::FTMacro => Ok(ValueType::TMacro),
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
@@ -3016,6 +3031,8 @@ fn to_ast_str(e: &Expr) -> String {
                 FunctionType::FTFunc => return "(func)".to_string(),
                 FunctionType::FTProc => return "(proc)".to_string(),
                 FunctionType::FTMacro => return "(macro)".to_string(),
+                FunctionType::FTFuncExt => return "(ext_func)".to_string(),
+                FunctionType::FTProcExt => return "(ext_proc)".to_string(),
             }
         },
         NodeType::EnumDef(_) => {
