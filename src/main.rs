@@ -1255,7 +1255,7 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(print_extra: bool, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_tokens(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
     let e: Expr = match parse_body(TokenType::Eof, &source, tokens, current) {
         Ok(expr) => expr,
@@ -1263,13 +1263,13 @@ fn parse_tokens(print_extra: bool, source: &String, tokens: &Vec<Token>, current
     };
     *current = *current + 1; // Add one for the EOF
 
-    if print_extra {
-        println!("Total tokens parsed: {}/{}", current, tokens.len());
-    }
     let mut i = *current;
     let mut unparsed_tokens = 0;
     if i < tokens.len() {
         unparsed_tokens = tokens.len() - i;
+    }
+    if unparsed_tokens > 0 {
+        println!("Total tokens parsed: {}/{}", current, tokens.len());
     }
     while i < tokens.len() {
         let t = tokens.get(i).unwrap();
@@ -2960,7 +2960,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
-    let e: Expr = match parse_tokens(print_extra, &source, &tokens, &mut current) {
+    let e: Expr = match parse_tokens(&source, &tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
