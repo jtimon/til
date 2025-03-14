@@ -3048,8 +3048,9 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
         },
     };
     let run_result = main_run(true, &mut context, &path, &source);
-    // REM: this print shit is still here only because repl is still broken
-    println!("eval: {}", run_result);
+    if run_result != "" {
+        println!("{}", run_result);
+    }
 
     if is_import && !can_be_imported(&context.mode) {
         panic!("file '{}' of mode '{}' cannot be imported", path, context.mode.name)
