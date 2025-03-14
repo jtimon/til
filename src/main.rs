@@ -3049,7 +3049,7 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
             },
         },
     };
-    let run_result = main_run(true, &mut context, &path, &source);
+    let run_result = main_run(!is_import, &mut context, &path, &source);
     if run_result != "" {
         println!("{}", run_result);
     }
