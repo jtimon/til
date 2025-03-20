@@ -1386,28 +1386,11 @@ fn start_context() -> Context {
     let body : Vec<Expr> = Vec::new();
     let return_types_none : Vec<ValueType> = Vec::new();
 
-    let mut returns_one_str : Vec<ValueType> = Vec::new();
-    returns_one_str.push(ValueType::TString);
-
-    let mut args_one_str : Vec<Declaration> = Vec::new();
-    args_one_str.push(Declaration{name: "a".to_string(), value_type: ValueType::TString, is_mut: false});
-
-    let func_def_one_str_proc = SFuncDef{function_type: FunctionType::FTProc, args: args_one_str, returns: returns_one_str.clone(), body: body.clone()};
-    context.funcs.insert("input_read_line".to_string(), func_def_one_str_proc.clone());
-    context.funcs.insert("eval_to_str".to_string(), func_def_one_str_proc.clone());
-
     let mut args_print : Vec<Declaration> = Vec::new();
     args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
     let func_def_print = SFuncDef{function_type: FunctionType::FTProc, args: args_print, returns: return_types_none.clone(), body: body.clone()};
     context.funcs.insert("print".to_string(), func_def_print.clone());
     context.funcs.insert("println".to_string(), func_def_print.clone());
-    context.funcs.insert("runfile".to_string(), func_def_print.clone());
-    context.funcs.insert("import".to_string(), func_def_print.clone());
-
-    let mut args_single_i64 : Vec<Declaration> = Vec::new();
-    args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
-    let func_def_exit = SFuncDef{function_type: FunctionType::FTProc, args: args_single_i64, returns: return_types_none, body: body.clone()};
-    context.funcs.insert("exit".to_string(), func_def_exit);
 
     let mut args_and_or : Vec<Declaration> = Vec::new();
     args_and_or.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
@@ -1417,48 +1400,7 @@ fn start_context() -> Context {
     context.funcs.insert("and".to_string(), func_def_and_or.clone());
     context.funcs.insert("or".to_string(), func_def_and_or);
 
-    let mut args_single_bool : Vec<Declaration> = Vec::new();
-    args_single_bool.push(
-        Declaration{name: "a".to_string(), value_type: ValueType::TBool, is_mut: false});
-    let func_def_not = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_bool.clone(), returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("not".to_string(), func_def_not);
-
-    let mut args_bin_i64 : Vec<Declaration> = Vec::new();
-    args_bin_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
-    args_bin_i64.push(Declaration{name: "b".to_string(), value_type: ValueType::TI64, is_mut: false});
-
-    let func_def_bin_i64_to_bool = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_i64.clone(), returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("eq".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("lt".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("lteq".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("gt".to_string(), func_def_bin_i64_to_bool.clone());
-    context.funcs.insert("gteq".to_string(), func_def_bin_i64_to_bool.clone());
-
-    let mut args_bin_str : Vec<Declaration> = Vec::new();
-    args_bin_str.push(Declaration{name: "a".to_string(), value_type: ValueType::TString, is_mut: false});
-    args_bin_str.push(Declaration{name: "b".to_string(), value_type: ValueType::TString, is_mut: false});
-    let func_def_bin_str_to_bool = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_str.clone(), returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("str_eq".to_string(), func_def_bin_str_to_bool.clone());
-
-    let mut return_type_i64 : Vec<ValueType> = Vec::new();
-    return_type_i64.push(ValueType::TI64);
-    let func_def_bin_i64_to_i64 = SFuncDef{function_type: FunctionType::FTFunc, args: args_bin_i64, returns: return_type_i64.clone(), body: body.clone()};
-    context.funcs.insert("add".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("sub".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("mul".to_string(), func_def_bin_i64_to_i64.clone());
-    context.funcs.insert("div".to_string(), func_def_bin_i64_to_i64.clone());
-
-    let mut return_type_single_str : Vec<ValueType> = Vec::new();
-    return_type_single_str.push(ValueType::TString);
-    let func_def_btoa = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_bool, returns: return_type_single_str.clone(), body: body.clone()};
-    context.funcs.insert("btoa".to_string(), func_def_btoa);
-
-    let mut args_single_i64 : Vec<Declaration> = Vec::new();
-    args_single_i64.push(Declaration{name: "a".to_string(), value_type: ValueType::TI64, is_mut: false});
-    let func_def_itoa = SFuncDef{function_type: FunctionType::FTFunc, args: args_single_i64, returns: return_type_single_str.clone(), body: body.clone()};
-    context.funcs.insert("itoa".to_string(), func_def_itoa);
-
-    context
+    return context;
 }
 
 fn get_func_name_in_call(e: &Expr) -> String {

@@ -1,5 +1,33 @@
 mode lib
 
+not := ext_func(a: bool) returns bool;
+// and := ext_func(a: bool) returns bool; // TODO variadic args
+// or  := ext_func(a: bool) returns bool; // TODO variadic args
+
+eq := ext_func(a: i64, b: i64) returns bool;
+lt := ext_func(a: i64, b: i64) returns bool;
+lteq := ext_func(a: i64, b: i64) returns bool;
+gt := ext_func(a: i64, b: i64) returns bool;
+gteq := ext_func(a: i64, b: i64) returns bool;
+str_eq := ext_func(a: String, b: String) returns bool;
+
+add := ext_func(a: i64, b: i64) returns i64;
+sub := ext_func(a: i64, b: i64) returns i64;
+mul := ext_func(a: i64, b: i64) returns i64;
+div := ext_func(a: i64, b: i64) returns i64;
+
+btoa := ext_func(a: bool) returns String;
+itoa := ext_func(a: i64) returns String;
+
+exit := ext_proc(code: i64);
+import := ext_proc(path: String);
+runfile := ext_proc(path: String);
+// print   := ext_proc(); // TODO variadic args
+// println := ext_proc(); // TODO variadic args
+
+eval_to_str := ext_proc(a: String) returns String;
+input_read_line := ext_proc(a: String) returns String;
+
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
