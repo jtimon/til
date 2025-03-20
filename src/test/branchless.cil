@@ -2,10 +2,6 @@ mode test
 
 // branchless conditions:
 
-branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
-}
-
 // btoi is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
 // btoi can also be useful simply for optimizations, because branches are bad for branch prediction
 test(eq(btoi(false), btoi(not(true))), "false is not true")

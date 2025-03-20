@@ -35,6 +35,10 @@ todo := proc(msg: String) {
     assertm(false, msg)
 }
 
+branchless := func(cond: bool, a: i64, b: i64) returns i64 {
+    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
+}
+
 Bool := struct {
 
     // TODO Use in branchless
