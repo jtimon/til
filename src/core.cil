@@ -35,6 +35,14 @@ todo := proc(msg: String) {
     assertm(false, msg)
 }
 
+Bool := struct {
+
+    // TODO Use in branchless
+    to_int := func(b: bool) returns i64 {
+        return btoi(b)
+    }
+}
+
 // TODO fix aliases
 // my_int : U64 = 1
 
