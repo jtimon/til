@@ -45,8 +45,3 @@ test_int_switch(69)
 
 print("\n") // TODO make this and the next line be equivalent, don't escape \n
 println("")
-
-// exit is optional with a 0 value at the end of the target file, but it can be called earlier and with other values for posix return errors
-exit(0)
-// exit(0); // TODO the semicolon is not being ignored at the end of the file
-// exit(0);; // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.

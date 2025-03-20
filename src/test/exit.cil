@@ -1,0 +1,11 @@
+mode test
+
+// TODO FIX exit at the end of files
+// exit is optional with a 0 value at the end of the target file, but it can be called earlier and with other values for posix return errors
+// exit(0); // TODO the semicolon is not being ignored at the end of the file
+// exit(0);; // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
+// exit is optional with a 0 value at the end of the target file,
+// but it can be called earlier and/or with other values for posix return errors or other operative systems
+// exit(0) // TODO uncomment
+// exit(0); // TODO the semicolon is not being ignored at the end of the file
+// exit(0);; // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.

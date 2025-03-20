@@ -45,3 +45,4 @@ runfile("src/test/todo.cil") // permanent TODO
 
 // WIP Work towards self hosting
 runfile("src/cil.cil")
+// runfile("src/test/exit.cil")
