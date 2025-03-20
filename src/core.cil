@@ -36,14 +36,14 @@ todo := proc(msg: String) {
 }
 
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, btoi(cond)), mul(b, btoi(not(cond))))
+    return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
 }
 
 Bool := struct {
 
     // TODO Use in branchless
-    to_int := func(b: bool) returns i64 {
-        return btoi(b)
+    to_int := func(data: bool) returns i64 {
+        return btoi(data)
     }
 }
 
