@@ -87,7 +87,7 @@ enum TokenType {
     // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Token {
     token_type: TokenType,
     start: usize,
@@ -471,7 +471,7 @@ enum NodeType {
 #[derive(Debug, Clone, PartialEq)]
 struct Expr {
     node_type: NodeType,
-    token_index: usize,
+    token: Token,
     params: Vec<Expr>,
 }
 
@@ -598,7 +598,7 @@ fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr
                                t.line, t.col, LANG_NAME, t.token_type));
         },
     };
-    let e = Expr { node_type: node_type, token_index: *current, params: params};
+    let e = Expr { node_type: node_type, token: t.clone(), params: params};
     *current = *current + 1;
     Ok(e)
 }
@@ -642,7 +642,7 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
         }
     }
     match list_t.token_type {
-        TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token_index: initial_current, params: params}),
+        TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token: tokens.get(initial_current).unwrap().clone(), params: params}),
         _ => Err(format!("{}:{}: parse error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
@@ -654,7 +654,7 @@ fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
     params.push(primary(&source, &tokens, current)?);
-    Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token_index: initial_current, params: params})
+    Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
 fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<Declaration>, String> {
@@ -786,11 +786,10 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
 
 fn parse_func_proc_definition(function_type: FunctionType, source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     *current = *current + 1;
+    let t = tokens.get(*current).unwrap();
     if is_eof(&tokens, *current + 1) {
-        let t = tokens.get(*current).unwrap();
         return Err(format!("{}:{}: parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
     }
-    let t = tokens.get(*current).unwrap();
     if t.token_type != TokenType::LeftParen {
         return Err(format!("{}:{}: parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
@@ -808,7 +807,7 @@ fn parse_func_proc_definition(function_type: FunctionType, source: &String, toke
     };
     let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
-    let e = Expr { node_type: NodeType::FuncDef(func_def), token_index: *current, params: params};
+    let e = Expr { node_type: NodeType::FuncDef(func_def), token: t.clone(), params: params};
     *current = *current + 1;
     Ok(e)
 }
@@ -864,7 +863,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
         return Err(format!("{}:{}: parse error: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_map: enum_map}), token_index: initial_current, params: params});
+    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_map: enum_map}), token: tokens.get(initial_current).unwrap().clone(), params: params});
 }
 
 fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -901,7 +900,7 @@ fn struct_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) 
 
     *current = *current + 1;
     return Ok(Expr{node_type: NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
-                   token_index: *current, params: Vec::new()});
+                   token: t.clone(), params: Vec::new()});
 }
 
 fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -920,11 +919,11 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
 
         current_identifier = get_token_str(source, next2_t).to_string();
         *current = *current + 2;
-        params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token_index: *current, params: Vec::new()});
+        params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token: t.clone(), params: Vec::new()});
         next_t = tokens.get(*current + 1).unwrap();
     }
 
-    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token_index: initial_current, params: params};
+    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token: tokens.get(initial_current).unwrap().clone(), params: params};
     *current = *current + 1;
 
     if TokenType::LeftParen == next_t.token_type {
@@ -935,7 +934,7 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
         let mut params : Vec<Expr> = Vec::new();
         params.push(e);
         params.append(&mut arg_list.params);
-        return Ok(Expr { node_type: NodeType::FCall, token_index: initial_current, params: params})
+        return Ok(Expr { node_type: NodeType::FCall, token: tokens.get(initial_current).unwrap().clone(), params: params})
     }
     return Ok(e);
 }
@@ -1018,7 +1017,7 @@ fn return_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -
         params.push(prim2);
         t = tokens.get(*current).unwrap();
     }
-    Ok(Expr { node_type: NodeType::Return, token_index: initial_current, params: params})
+    Ok(Expr { node_type: NodeType::Return, token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
 fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -1056,7 +1055,7 @@ fn if_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Re
         params.push(body);
         *current = *current + 1;
     }
-    Ok(Expr { node_type: NodeType::If, token_index: initial_current, params: params})
+    Ok(Expr { node_type: NodeType::If, token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
 fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -1079,7 +1078,7 @@ fn while_statement(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
     };
     params.push(body);
     *current = *current + 1;
-    Ok(Expr { node_type: NodeType::While, token_index: initial_current, params: params})
+    Ok(Expr { node_type: NodeType::While, token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
 fn current_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a TokenType {
@@ -1117,7 +1116,7 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
         *current = *current + 1;
         next_t = tokens.get(*current).unwrap();
         if next_t.token_type == TokenType::Colon {
-            params.push(Expr{node_type: NodeType::DefaultCase, token_index: *current, params: Vec::new()});
+            params.push(Expr{node_type: NodeType::DefaultCase, token: t.clone(), params: Vec::new()});
         } else {
             let prim = match primary(&source, &tokens, current) {
                 Ok(to_ret) => to_ret,
@@ -1137,13 +1136,13 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
         let mut body_params : Vec<Expr> = Vec::new();
         while *current < tokens.len() {
             if next_t.token_type == TokenType::RightBrace {
-                params.push(Expr{node_type: NodeType::Body, token_index: *current, params: body_params});
+                params.push(Expr{node_type: NodeType::Body, token: t.clone(), params: body_params});
                 end_found = true;
                 *current = *current + 1;
                 break;
             }
             if next_t.token_type == TokenType::Case {
-                params.push(Expr{node_type: NodeType::Body, token_index: *current, params: body_params});
+                params.push(Expr{node_type: NodeType::Body, token: t.clone(), params: body_params});
                 break;
             }
             let stmt = match parse_statement(&source, &tokens, current) {
@@ -1155,7 +1154,7 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
         }
     }
     if end_found {
-        return Ok(Expr { node_type: NodeType::Switch, token_index: initial_current, params: params})
+        return Ok(Expr { node_type: NodeType::Switch, token: tokens.get(initial_current).unwrap().clone(), params: params})
     }
     return Err(format!("parse error: Expected '}}' to end switch."));
 }
@@ -1176,7 +1175,7 @@ fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, 
     params.push(prim);
     let explicit_value_type = str_to_value_type(explicit_type);
     let decl = Declaration{name: decl_name.to_string(), value_type: explicit_value_type, is_mut: is_mut};
-    Ok(Expr { node_type: NodeType::Declaration(decl), token_index: initial_current, params: params})
+    Ok(Expr { node_type: NodeType::Declaration(decl), token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
 fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
@@ -1249,7 +1248,7 @@ fn parse_body(end_token : TokenType, source: &String, tokens: &Vec<Token>, curre
         params.push(stmt);
     }
     if end_found {
-        return Ok(Expr { node_type: NodeType::Body, token_index: initial_current, params: params})
+        return Ok(Expr { node_type: NodeType::Body, token: tokens.get(initial_current).unwrap().clone(), params: params})
     }
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
@@ -1477,10 +1476,10 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
     }
 }
 
-fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
+fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
 
     let f_name = get_func_name_in_call(&e);
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     if context.funcs.contains_key(&f_name) {
         return value_type_func_proc(t, &f_name, &context.funcs.get(&f_name).unwrap())
     } else if is_core_func(&f_name) {
@@ -1547,8 +1546,8 @@ fn get_fcall_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Res
     }
 }
 
-fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<ValueType, String> {
-    let t = tokens.get(e.token_index).unwrap();
+fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
+    let t = &e.token;
     match &e.node_type {
         NodeType::LBool(_) => Ok(ValueType::TBool),
         NodeType::LI64(_) => Ok(ValueType::TI64),
@@ -1561,7 +1560,7 @@ fn get_value_type(context: &Context, tokens: &Vec<Token>, e: &Expr) -> Result<Va
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef(_) => Ok(ValueType::TStructDef),
-        NodeType::FCall => get_fcall_value_type(&context, &tokens, &e),
+        NodeType::FCall => get_fcall_value_type(&context, &e),
         NodeType::Identifier(name) => {
             let symbol_info = match context.symbols.get(name) {
                 Some(symbol_info_m) => {
@@ -1654,13 +1653,13 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
             }
         },
         NodeType::Declaration(decl) => {
-            let t = tokens.get(e.token_index).unwrap();
+            let t = &e.token;
             if is_defined_symbol(&context, &decl.name) {
                 errors.push(format!("{}:{}: compiler error: '{}' already declared.", t.line, t.col, decl.name));
             }
             assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
-            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+            let value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
@@ -1723,7 +1722,7 @@ fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: 
         }
         _ => {
             if !context.mode.allows_base_anything {
-            let t = tokens.get(e.token_index).unwrap();
+            let t = &e.token;
                 if context.mode.allows_base_calls {
                     errors.push(format!("{}:{}: mode '{}' allows only declarations and calls in the root context, found {:?}.",
                                         t.line, t.col, context.mode.name, e.node_type));
@@ -1842,7 +1841,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source:
                 } else {
                     for i in 0..p.params.len() {
                         let expected_value_type = func_def.returns.get(i).unwrap();
-                        match get_value_type(&context, &tokens, p.params.get(i).unwrap()) {
+                        match get_value_type(&context, p.params.get(i).unwrap()) {
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
                                     errors.push(format!("{}:{}: type error: Return value in pos {} expected to be {:?}, but found {:?} instead",
@@ -1865,7 +1864,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source:
 
 fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
 
     if context.mode.needs_main_proc {
         if !context.symbols.contains_key("main") {
@@ -1917,7 +1916,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
-            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+            let value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
@@ -1926,7 +1925,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             };
             let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
-                let next_t = tokens.get(inner_e.token_index).unwrap();
+                let next_t = &inner_e.token;
                 errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
@@ -1936,7 +1935,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::While => {
             assert!(e.params.len() == 2, "{} error: while nodes must have exactly 2 parameters.", LANG_NAME);
             let inner_e = e.params.get(0).unwrap();
-            let value_type = match get_value_type(&context, &tokens, &inner_e) {
+            let value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
@@ -1945,7 +1944,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             };
             let first_is_condition = ValueType::TBool == value_type;
             if !first_is_condition {
-                let next_t = tokens.get(inner_e.token_index).unwrap();
+                let next_t = &inner_e.token;
                 errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
@@ -2042,7 +2041,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
                     _ => &arg.value_type,
 
                 };
-                let found_type = match get_value_type(&context, &tokens, e.params.get(i+1).unwrap()) {
+                let found_type = match get_value_type(&context, e.params.get(i+1).unwrap()) {
                     Ok(val_type) => val_type,
                     Err(error_string) => {
                         errors.push(error_string);
@@ -2074,7 +2073,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             if func_def.function_type == FunctionType::FTFunc {
                 for se in &func_def.body {
                     if is_expr_calling_procs(&function_context, &source, &tokens, &se) {
-                        let proc_t = tokens.get(se.token_index).unwrap();
+                        let proc_t = &se.token;
                         errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
                     }
                 }
@@ -2087,7 +2086,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
             if !context.symbols.contains_key(&decl.name) {
                 let mut value_type = decl.value_type.clone();
                 if value_type == ValueType::ToInferType {
-                    value_type = match get_value_type(&context, &tokens, &inner_e) {
+                    value_type = match get_value_type(&context, &inner_e) {
                         Ok(val_type) => val_type,
                         Err(error_string) => {
                             errors.push(error_string);
@@ -2381,7 +2380,7 @@ fn eval_core_proc_import(mut context: &mut Context, source: &String, tokens: &Ve
     return "".to_string();
 }
 
-fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_exit(e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_exit expects a single parameter.");
     let e_exit_code = e.params.get(1).unwrap();
     let exit_code = match &e_exit_code.node_type {
@@ -2389,7 +2388,7 @@ fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
             my_li64.clone()
         },
         node_type => {
-            let t = tokens.get(e.token_index).unwrap();
+            let t = &e.token;
             panic!("{}:{} {} error: calling core proc exit, but found {:?} instead of exit code.", t.line, t.col, LANG_NAME, node_type);
         },
     };
@@ -2399,7 +2398,7 @@ fn eval_core_exit(tokens: &Vec<Token>, e: &Expr) -> String {
 // ---------- generic eval things
 
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
 
     let mut function_context = context.clone();
     assert!(e.params.len() - 1 == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
@@ -2467,7 +2466,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 }
 
 fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     if is_core_func(&name) {
         match name {
             "and" => eval_core_func_and(&mut context, &source, &tokens, &e),
@@ -2491,7 +2490,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
     } else if is_core_proc(&name) {
         match name {
             "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &source, &tokens, &e),
-            "exit" => eval_core_exit(&tokens, &e),
+            "exit" => eval_core_exit(&e),
             "import" => "".to_string(), // Should already be imported in init_context
             "input_read_line" => eval_core_proc_input_read_line(&mut context, &source, &tokens, &e),
             "print" => eval_core_proc_print(false, &mut context, &source, &tokens, &e),
@@ -2537,9 +2536,9 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
 }
 
 fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     let inner_e = e.params.get(0).unwrap();
-    let value_type = match get_value_type(&context, &tokens, &inner_e) {
+    let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             panic!("{}", error_string);
@@ -2601,7 +2600,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
                             };
                             let member_value_type = match member_decl.value_type {
                                 ValueType::ToInferType => {
-                                    match get_value_type(&context, &tokens, &default_value) {
+                                    match get_value_type(&context, &default_value) {
                                         Ok(val_type) => val_type,
                                         Err(error_string) => {
                                             panic!("{}", error_string);
@@ -2687,13 +2686,13 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, source
 }
 
 fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     let symbol_info = context.symbols.get(var_name).unwrap();
     assert!(symbol_info.is_mut, "{} eval error: Assignments can only be to mut values", LANG_NAME);
     assert!(e.params.len() == 1, "{} eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
 
     let inner_e = e.params.get(0).unwrap();
-    let value_type = match get_value_type(&context, &tokens, &inner_e) {
+    let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             panic!("{}", error_string);
@@ -2740,9 +2739,9 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, source: &String, t
     }
 }
 
-fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_identifier_expr(name: &str, context: &Context, _source: &String, e: &Expr) -> String {
 
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
             ValueType::TBool => {
@@ -2864,7 +2863,7 @@ fn eval_identifier_expr(name: &str, context: &Context, _source: &String, tokens:
 }
 
 fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
-    let t = tokens.get(e.token_index).unwrap();
+    let t = &e.token;
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
@@ -2897,7 +2896,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             eval_assignment(&var_name, &mut context, &source, &tokens, &e)
         },
         NodeType::Identifier(name) => {
-            return eval_identifier_expr(&name, &context, &source, &tokens, &e);
+            return eval_identifier_expr(&name, &context, &source, &e);
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
@@ -2920,7 +2919,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             assert!(e.params.len() >= 3, "{} eval error: switch nodes must have at least 3 parameters.", LANG_NAME);
 
             let to_switch = e.params.get(0).unwrap();
-            let value_type = match get_value_type(&context, &tokens, &to_switch) {
+            let value_type = match get_value_type(&context, &to_switch) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     panic!("{} eval error: {}", LANG_NAME, error_string);
@@ -2937,7 +2936,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
                     return eval_expr(&mut context, &source, &tokens, &body);
                 }
 
-                let case_type = match get_value_type(&context, &tokens, &case) {
+                let case_type = match get_value_type(&context, &case) {
                     Ok(val_type) => val_type,
                     Err(error_string) => {
                         panic!("{} eval error: {}", LANG_NAME, error_string);
@@ -3099,11 +3098,11 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
+                let t = &p.token;
                 match &p.node_type {
 
                     NodeType::Declaration(decl) => {
                         if !context.mode.allows_base_mut && decl.is_mut {
-                            let t = tokens.get(p.token_index).unwrap();
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
                                 t.line, t.col, "mode", context.mode.name, decl.name));
                         }
@@ -3111,7 +3110,6 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
                     NodeType::FCall => {
                         if !context.mode.allows_base_calls {
                             let f_name = get_func_name_in_call(&e);
-                            let t = tokens.get(p.token_index).unwrap();
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
                                 t.line, t.col, "mode", context.mode.name, f_name));
                         }
