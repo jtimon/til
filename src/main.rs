@@ -1583,12 +1583,12 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     }
 }
 
-fn init_context(context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn init_context(context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                let mut stmt_context_errors = init_context(context, &source, &tokens, &se);
+                let mut stmt_context_errors = init_context(context, &tokens, &se);
                 errors.append(&mut stmt_context_errors);
             }
         },
@@ -3050,7 +3050,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("AST: \n{}", to_ast_str(&e));
     }
 
-    let mut errors = init_context(&mut context, &source, &tokens, &e);
+    let mut errors = init_context(&mut context, &tokens, &e);
     if errors.len() > 0 {
         for err in &errors {
             println!("{}:{}", path, err);
