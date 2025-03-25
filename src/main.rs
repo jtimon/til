@@ -91,8 +91,7 @@ enum TokenType {
 #[derive(Debug, Clone, PartialEq)]
 struct Token {
     token_type: TokenType,
-    start: usize,
-    end: usize,
+    token_str: String,
     line: usize,
     col: usize,
 }
@@ -184,7 +183,7 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                     pos += 1;
                 }
             }
-            tokens.push(Token { token_type: TokenType::Number, start: start, end: pos, line: line, col: pos - start_line_pos + 1});
+            tokens.push(Token { token_type: TokenType::Number, token_str: source[start..pos].to_string(), line: line, col: pos - start_line_pos + 1});
         } else {
 
             let token_type = match &source[pos..pos+1] {
@@ -279,51 +278,46 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
             }; // let match
             if token_type == TokenType::String {
-                tokens.push(Token { token_type: token_type, start: start + 1, end: pos, line: line, col: pos - start_line_pos + 1});
+                tokens.push(Token { token_type: token_type, token_str: source[start + 1..pos].to_string(), line: line, col: pos - start_line_pos + 1});
             } else {
-                tokens.push(Token { token_type: token_type, start: start, end: pos + 1, line: line, col: pos - start_line_pos + 1});
+                tokens.push(Token { token_type: token_type, token_str: source[start..pos + 1].to_string(), line: line, col: pos - start_line_pos + 1});
             }
             pos += 1;
         } // else
 
     } // while
-    tokens.push(Token { token_type: TokenType::Eof, start: pos, end: pos + 1, line: line, col: 0});
+    tokens.push(Token { token_type: TokenType::Eof, token_str: "End of file".to_string(), line: line, col: 0});
     tokens
 }
 
-fn print_lex_error(path: &String, source: &String, t: &Token, num_error: usize, msg: &str) {
-    let max_symbol_len = 20;
-    let mut end_symbol = t.end;
-    if end_symbol - t.start > max_symbol_len {
-        end_symbol = max_symbol_len;
-    }
-    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'", path, t.line, t.col, num_error, msg, &source[t.start..end_symbol]);
+fn print_lex_error(path: &String, t: &Token, num_error: usize, msg: &str) {
+    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'", path, t.line, t.col, num_error, msg, t.token_str);
 }
 
-fn print_if_lex_error(path: &String, source: &String, t: &Token, errors_found: &mut usize) {
+fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
     match t.token_type {
         TokenType::Invalid => {
-            print_lex_error(&path, &source, &t, *errors_found, "Invalid character");
+            print_lex_error(&path, &t, *errors_found, "Invalid character");
             *errors_found = *errors_found + 1;
         },
         TokenType::UnterminatedString => {
-            print_lex_error(&path, &source, &t, *errors_found, "Unterminated String\nSuggestion: add missing '\"'");
+            print_lex_error(&path, &t, *errors_found, "Unterminated String\nSuggestion: add missing '\"'");
             *errors_found = *errors_found + 1;
         },
         TokenType::Const => {
-            print_lex_error(&path, &source, &t, *errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
+            print_lex_error(&path, &t, *errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
             *errors_found = *errors_found + 1;
         },
         TokenType::Var => {
-            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
+            print_lex_error(&path, &t, *errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::Fn => {
-            print_lex_error(&path, &source, &t, *errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
+            print_lex_error(&path, &t, *errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::DoubleSemicolon => {
-            print_lex_error(&path, &source, &t, *errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
+            print_lex_error(&path, &t, *errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
             *errors_found = *errors_found + 1;
         },
         _ => {},
@@ -341,7 +335,7 @@ fn tokens_from_source(path: &String, source: &String) -> Result<Vec<Token>, Stri
 
     let mut errors_found : usize = 0;
     for t in &tokens {
-        print_if_lex_error(&path, &source, &t, &mut errors_found)
+        print_if_lex_error(&path, &t, &mut errors_found)
     }
     if errors_found > 0 {
         return Err(format!("Compiler errors: {} lexical errors found", errors_found));
@@ -350,10 +344,6 @@ fn tokens_from_source(path: &String, source: &String) -> Result<Vec<Token>, Stri
 }
 
 // ---------- parser
-
-fn get_token_str<'a>(source: &'a String, t: &'a Token) -> &'a str {
-    &source[t.start..t.end]
-}
 
 fn is_literal(t: &Token) -> bool {
     return match t.token_type {
@@ -561,7 +551,7 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     };
 }
 
-fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
+fn parse_mode(path: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
     if &TokenType::Mode != current_token_type(&tokens, &mut current) {
         return Err(format!("0:0: 'mode' is required in the beginning of the file"));
     }
@@ -571,7 +561,7 @@ fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: 
         return Err(format!("0:0: Expected identifier after 'mode'"));
     }
     let t = current_token(&tokens, &mut current);
-    let mode_name = get_token_str(source, t).to_string();
+    let mode_name = &t.token_str;
     let mode = match mode_from_name(&mode_name) {
         Ok(mode_) => mode_,
         Err(err_) => return Err(err_),
@@ -591,11 +581,11 @@ fn parse_mode(path: &String, source: &String, tokens: &Vec<Token>, mut current: 
     return Ok(mode);
 }
 
-fn parse_literal(source: &String, t: &Token, current: &mut usize) -> Result<Expr, String> {
+fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
-        TokenType::String => NodeType::LString(get_token_str(source, t).to_string()),
-        TokenType::Number => NodeType::LI64(get_token_str(source, t).parse::<i64>().unwrap()),
+        TokenType::String => NodeType::LString(t.token_str.clone()),
+        TokenType::Number => NodeType::LI64(t.token_str.parse::<i64>().unwrap()),
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => {
@@ -654,7 +644,7 @@ fn parse_list(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Resu
 
 fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
-    let name = get_token_str(source, t);
+    let name = &t.token_str;
     let initial_current = *current;
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
@@ -662,7 +652,7 @@ fn parse_assignment(source: &String, tokens: &Vec<Token>, current: &mut usize) -
     Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token: tokens.get(initial_current).unwrap().clone(), params: params})
 }
 
-fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<Declaration>, String> {
+fn parse_func_proc_args(tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<Declaration>, String> {
 
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
@@ -736,19 +726,19 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                     return Err(format!("{}:{}: parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
-                    arg_name = get_token_str(source, t);
+                    arg_name = &t.token_str;
                     expect_colon = true;
                     expect_name = false;
                 } else { // expect type name then
                     if is_variadic {
                         args.push(Declaration{
                             name: arg_name.to_string(),
-                            value_type: ValueType::TMulti(Box::new(str_to_value_type(get_token_str(source, t)))), is_mut: false});
+                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))), is_mut: false});
                         is_variadic = false;
                     } else {
                         args.push(Declaration{
                             name: arg_name.to_string(),
-                            value_type: str_to_value_type(get_token_str(source, t)), is_mut: false});
+                            value_type: str_to_value_type(&t.token_str), is_mut: false});
                     }
                     expect_comma = true;
                 }
@@ -766,7 +756,7 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
     }
 }
 
-fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<ValueType>, String> {
+fn func_proc_returns(tokens: &Vec<Token>, current: &mut usize) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
     let mut t = tokens.get(*current).unwrap();
@@ -795,7 +785,7 @@ fn func_proc_returns(source: &String, tokens: &Vec<Token>, current: &mut usize) 
                 if expect_comma {
                     return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
-                return_types.push(str_to_value_type(get_token_str(source, t)));
+                return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
                 *current = *current + 1;
                 t = tokens.get(*current).unwrap();
@@ -821,11 +811,11 @@ fn parse_func_proc_definition(function_type: FunctionType, do_parse_body: bool, 
     if t.token_type != TokenType::LeftParen {
         return Err(format!("{}:{}: parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
-    let args = match parse_func_proc_args(&source, &tokens, current) {
+    let args = match parse_func_proc_args(&tokens, current) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
-    let returns = match func_proc_returns(&source, &tokens, current) {
+    let returns = match func_proc_returns(&tokens, current) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
@@ -848,7 +838,7 @@ fn parse_func_proc_definition(function_type: FunctionType, do_parse_body: bool, 
     Ok(e)
 }
 
-fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn enum_definition(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let initial_current: usize = *current;
     *current = *current + 1;
 
@@ -872,7 +862,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
             },
             TokenType::Identifier => {
                 let next_t = tokens.get(*current + 1).unwrap();
-                let enum_val_name = get_token_str(source, it_t);
+                let enum_val_name = &it_t.token_str;
                 match next_t.token_type {
                     TokenType::Identifier | TokenType::RightBrace => {
                         enum_map.insert(enum_val_name.to_string(), None);
@@ -882,7 +872,7 @@ fn enum_definition(source: &String, tokens: &Vec<Token>, current: &mut usize) ->
                         if next2_t.token_type != TokenType::Identifier {
                             return Err(format!("{}:{}: parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
                         }
-                        let enum_val_type = get_token_str(source, next2_t);
+                        let enum_val_type = &next2_t.token_str;
                         enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
                         *current = *current + 1;
                     },
@@ -944,7 +934,7 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
     let initial_current = *current;
     let t = tokens.get(*current).unwrap();
     let mut next_t = tokens.get(*current + 1).unwrap();
-    let mut current_identifier = get_token_str(source, t).to_string();
+    let mut current_identifier = &t.token_str;
     let mut params : Vec<Expr> = Vec::new();
     while TokenType::Dot == next_t.token_type {
         let next2_t = tokens.get(*current + 2).unwrap();
@@ -953,13 +943,13 @@ fn parse_primary_identifier(source: &String, tokens: &Vec<Token>, current: &mut 
                                next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
         }
 
-        current_identifier = get_token_str(source, next2_t).to_string();
+        current_identifier = &next2_t.token_str;
         *current = *current + 2;
         params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token: t.clone(), params: Vec::new()});
         next_t = tokens.get(*current + 1).unwrap();
     }
 
-    let e = Expr { node_type: NodeType::Identifier(get_token_str(source, t).to_string()), token: tokens.get(initial_current).unwrap().clone(), params: params};
+    let e = Expr { node_type: NodeType::Identifier(t.token_str.clone()), token: tokens.get(initial_current).unwrap().clone(), params: params};
     *current = *current + 1;
 
     if TokenType::LeftParen == next_t.token_type {
@@ -993,10 +983,10 @@ fn parse_statement_identifier(source: &String, tokens: &Vec<Token>, current: &mu
         TokenType::Colon => {
             let next_next_t = tokens.get(*current + 2).unwrap();
             let next_next_token_type = &next_next_t.token_type;
-            let identifier = get_token_str(source, t);
+            let identifier = &t.token_str;
             match next_next_token_type {
                 TokenType::Identifier => {
-                    let type_name = get_token_str(source, next_next_t);
+                    let type_name = &next_next_t.token_str;
                     return parse_declaration(&source, &tokens, current, false, type_name)
                 }
                 TokenType::Equal => {
@@ -1018,7 +1008,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
 
     let t = tokens.get(*current).unwrap();
     if is_literal(t) {
-        return parse_literal(&source, t, current)
+        return parse_literal(t, current)
     } else {
         match &t.token_type {
             TokenType::Func => return parse_func_proc_definition(FunctionType::FTFunc, true, &source, &tokens, current),
@@ -1026,7 +1016,7 @@ fn primary(source: &String, tokens: &Vec<Token>, current: &mut usize) -> Result<
             TokenType::Macro => return parse_func_proc_definition(FunctionType::FTMacro, true, &source, &tokens, current),
             TokenType::Proc => return parse_func_proc_definition(FunctionType::FTProc, true, &source, &tokens, current),
             TokenType::ProcExt => return parse_func_proc_definition(FunctionType::FTProcExt, false, &source, &tokens, current),
-            TokenType::Enum => return enum_definition(&source, &tokens, current),
+            TokenType::Enum => return enum_definition(&tokens, current),
             TokenType::Struct => return struct_definition(&source, &tokens, current),
             TokenType::LeftParen => return parse_list(&source, &tokens, current),
             TokenType::Identifier => return parse_primary_identifier(&source, &tokens, current),
@@ -1199,7 +1189,7 @@ fn parse_switch_statement(source: &String, tokens: &Vec<Token>, current: &mut us
 
 fn parse_declaration(source: &String, tokens: &Vec<Token>, current: &mut usize, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
-    let decl_name = get_token_str(source, t);
+    let decl_name = &t.token_str;
     let initial_current = *current;
     *current = *current + 3; // skip identifier, colon and equal
     if explicit_type != INFER_TYPE {
@@ -1223,7 +1213,7 @@ fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usi
     if next_token_type != &TokenType::Identifier {
         return Err(format!("{}:{}: parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
     }
-    let identifier = get_token_str(source, next_t);
+    let identifier = &next_t.token_str;
     *current = *current + 1;
     next_t = tokens.get(*current + 1).unwrap();
     next_token_type = &next_t.token_type;
@@ -1234,7 +1224,7 @@ fn parse_mut_declaration(source: &String, tokens: &Vec<Token>, current: &mut usi
     let next_next_token_type = &next_next_t.token_type;
     match next_next_token_type {
         TokenType::Identifier => {
-            let type_name = get_token_str(source, next_next_t);
+            let type_name = &next_next_t.token_str;
             return parse_declaration(&source, &tokens, current, true, type_name)
         }
         TokenType::Equal => {
@@ -2853,7 +2843,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
         NodeType::LList => {
-            let token_str = get_token_str(source, t);
+            let token_str = &t.token_str;
             token_str.to_string()
         },
         NodeType::FCall => {
@@ -2937,7 +2927,7 @@ fn eval_expr(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e:
             }
         }
         _ => {
-            panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, get_token_str(source, t))
+            panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, t.token_str)
         },
     }
 }
@@ -3039,7 +3029,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     };
 
     let mut current: usize = 0;
-    let mode = match parse_mode(&path, &source, &tokens, &mut current) {
+    let mode = match parse_mode(&path, &tokens, &mut current) {
         Ok(mode_) => mode_,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
