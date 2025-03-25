@@ -1389,7 +1389,7 @@ fn is_core_proc(proc_name: &str) -> bool {
 }
 
 fn start_context() -> Context {
-    let mut context: Context = Context {
+    return Context {
         mode: mode_from_name("lib").unwrap(),
         symbols: HashMap::new(),
         funcs: HashMap::new(),
@@ -1400,14 +1400,6 @@ fn start_context() -> Context {
         i64s: HashMap::new(),
         strings: HashMap::new(),
     };
-
-    let core_type_symbol_info = SymbolInfo{value_type: ValueType::TType, is_mut: false};
-    context.symbols.insert("i64".to_string(), core_type_symbol_info.clone());
-    context.symbols.insert("bool".to_string(), core_type_symbol_info.clone());
-    context.symbols.insert("String".to_string(), core_type_symbol_info.clone());
-    context.symbols.insert("Type".to_string(), core_type_symbol_info.clone());
-
-    return context;
 }
 
 fn get_func_name_in_call(e: &Expr) -> String {
