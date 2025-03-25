@@ -31,6 +31,7 @@ eval_to_str     := ext_proc(a: String) returns String;
 input_read_line := ext_proc(a: String) returns String;
 
 panic2 := proc(msgs: ..String) {
+    // TODO use variadic args in user defined functions. requires arrays
     exit(1)
 }
 
