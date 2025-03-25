@@ -23,7 +23,7 @@ mut it := 0 // one has to use the 'mut' keyword for actual variables, since all 
 print("it: ")
 // while 42 { // fails, because while expects a bool first, not an int
 while lt(it, 5) {
-    print(itoa(it), " ")
+    print(i64.to_str(it), " ")
     it = add(it, 1)
 }
 

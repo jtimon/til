@@ -1,7 +1,7 @@
 mode test
 
 test(eq(42, atoi("42")), "42 = atoi(42)")
-test(str_eq("42", itoa(atoi("42"))), "'42' = itoa(atoi('42'))")
+test(str_eq("42", i64.to_str(atoi("42"))), "'42' = i64.to_str(atoi('42'))")
 
 // TODO fix eval tests
 // test(str_eq("aaa", eval_to_str("aaa")), "eval_to_str() can't turn literal strings into identical strings")
