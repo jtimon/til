@@ -1595,7 +1595,7 @@ fn init_context(context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<Str
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
             if f_name == "import" {
-                eval_core_proc_import(context, &tokens, &e);
+                eval_core_proc_import(context, &e);
             }
         },
         NodeType::Declaration(decl) => {
@@ -2102,19 +2102,19 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
 
 // ---------- eval repl interpreter
 
-fn eval_call_to_bool(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
     let f_name = get_func_name_in_call(&e);
     if !does_func_return_bool(&context, &f_name) {
         panic!("{} error: eval_to_bool(): Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
     }
-    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &tokens, &e).as_str())
+    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &e).as_str())
 }
 
-fn eval_to_bool(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
 
     match &e.node_type {
         NodeType::LBool(b_value) => return *b_value,
-        NodeType::FCall => return eval_call_to_bool(&mut context, &tokens, &e),
+        NodeType::FCall => return eval_call_to_bool(&mut context, &e),
         NodeType::Identifier(name) => {
             if context.bools.contains_key(name) {
                 return context.bools.get(name).unwrap().clone();
@@ -2161,124 +2161,124 @@ fn eval_to_bool(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> boo
 
 // ---------- core funcs implementations for eval
 
-fn eval_core_func_and(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_and(mut context: &mut Context, e: &Expr) -> String {
     let mut truthfulness = true;
     for i in 1..e.params.len() {
-        truthfulness = truthfulness && eval_to_bool(&mut context, &tokens, &e.params.get(i).unwrap());
+        truthfulness = truthfulness && eval_to_bool(&mut context, &e.params.get(i).unwrap());
     }
     truthfulness.to_string()
 }
 
-fn eval_core_func_or(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_or(mut context: &mut Context, e: &Expr) -> String {
     let mut truthfulness = false;
     for i in 1..e.params.len() {
-        truthfulness = truthfulness || eval_to_bool(&mut context, &tokens, &e.params.get(i).unwrap());
+        truthfulness = truthfulness || eval_to_bool(&mut context, &e.params.get(i).unwrap());
     }
     truthfulness.to_string()
 }
 
-fn eval_core_func_not(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_not(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
-    (!eval_to_bool(&mut context, &tokens, &e.params.get(1).unwrap())).to_string()
+    (!eval_to_bool(&mut context, &e.params.get(1).unwrap())).to_string()
 }
 
-fn eval_core_func_eq(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
-fn eval_core_func_str_eq(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap());
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap());
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap());
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap());
     (a == b).to_string()
 }
 
-fn eval_core_func_lt(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
-fn eval_core_func_lteq(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_lteq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
-fn eval_core_func_gt(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_gt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
-fn eval_core_func_gteq(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_gteq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
-fn eval_core_func_add(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_add(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
-fn eval_core_func_sub(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_sub(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
-fn eval_core_func_mul(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_mul(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
-fn eval_core_func_div(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, &tokens, e.params.get(2).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
-fn eval_core_func_btoi(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_btoi(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &tokens, &e.params.get(1).unwrap()) {
+    if eval_to_bool(&mut context, &e.params.get(1).unwrap()) {
         "1".to_string()
     } else {
         "0".to_string()
     }
 }
 
-fn eval_core_func_atoi(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &tokens, &e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, &e.params.get(1).unwrap()).parse::<i64>().unwrap();
     return a.to_string();
 }
 
-fn eval_core_func_btoa(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_btoa(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &tokens, &e.params.get(1).unwrap()) {
+    if eval_to_bool(&mut context, &e.params.get(1).unwrap()) {
         "true".to_string()
     } else {
         "true".to_string()
     }
 }
 
-fn eval_core_func_itoa(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_func_itoa(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    eval_expr(&mut context, &tokens, e.params.get(1).unwrap())
+    eval_expr(&mut context, e.params.get(1).unwrap())
 }
 
 // ---------- core procs implementations for eval
@@ -2291,9 +2291,9 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     }
 }
 
-fn eval_core_proc_print(end_line: bool, mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_print(end_line: bool, mut context: &mut Context, e: &Expr) -> String {
     for i in 1..e.params.len() {
-        print!("{}", eval_expr(&mut context, &tokens, &e.params.get(i).unwrap()));
+        print!("{}", eval_expr(&mut context, &e.params.get(i).unwrap()));
     }
     if end_line {
         print!("\n");
@@ -2302,7 +2302,7 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut Context, tokens: &Vec<
     "".to_string()
 }
 
-fn eval_core_proc_input_read_line(mut _context: &mut Context, __tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> String {
     // TODO properly implement
     // io::stdout().flush().unwrap(); // QUE is this needed?
 
@@ -2319,23 +2319,23 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, __tokens: &Vec<Tok
     return line.to_string()
 }
 
-fn eval_core_proc_eval_to_str(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
-    let str_source = format!("mode script; {}", &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()));
+    let str_source = format!("mode script; {}", &eval_expr(&mut context, e.params.get(1).unwrap()));
     return main_run(false, &mut context, &path, str_source);
 }
 
-fn eval_core_proc_runfile(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_runfile expects a single parameter.");
-    let path = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap());
+    let path = &eval_expr(&mut context, e.params.get(1).unwrap());
     run_file(&path);
     return "".to_string();
 }
 
-fn eval_core_proc_import(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
-    let path = &eval_expr(&mut context, &tokens, e.params.get(1).unwrap());
+    let path = &eval_expr(&mut context, e.params.get(1).unwrap());
     run_file_with_context(true, &mut context, &path);
     return "".to_string();
 }
@@ -2357,7 +2357,7 @@ fn eval_core_exit(e: &Expr) -> String {
 
 // ---------- generic eval things
 
-fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, e: &Expr) -> String {
     let t = &e.token;
 
     let mut function_context = context.clone();
@@ -2370,19 +2370,19 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
             ValueType::TBool => {
-                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &tokens, e.params.get(param_index).unwrap()));
+                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &e.params.get(param_index).unwrap()));
                 function_context.bools.insert(arg.name.clone(), bool_expr_result);
             },
             ValueType::TI64 =>  {
-                let result = &eval_expr(&mut function_context, &tokens, e.params.get(param_index).unwrap());
+                let result = &eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
                 function_context.i64s.insert(arg.name.to_string(), result.parse::<i64>().unwrap());
             },
             ValueType::TString =>  {
-                let result = eval_expr(&mut function_context, &tokens, e.params.get(param_index).unwrap());
+                let result = eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
                 function_context.strings.insert(arg.name.to_string(), result);
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let result = eval_expr(&mut function_context, &tokens, e.params.get(param_index).unwrap());
+                let result = eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
                 let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
@@ -2407,61 +2407,61 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
         match se.node_type {
             NodeType::Return => {
                 assert!(se.params.len() != 0, "{} error: return must currently always return exactly one value.", LANG_NAME);
-                return eval_expr(&mut function_context, &tokens, &se.params.get(0).unwrap());
+                return eval_expr(&mut function_context, &se.params.get(0).unwrap());
             },
             NodeType::If => {
                 assert!(se.params.len() == 2 || se.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
-                if eval_to_bool(&mut function_context, &tokens, &se.params.get(0).unwrap()) {
-                    return eval_expr(&mut function_context, &tokens, &se.params.get(1).unwrap())
+                if eval_to_bool(&mut function_context, &se.params.get(0).unwrap()) {
+                    return eval_expr(&mut function_context, &se.params.get(1).unwrap())
                 } else if se.params.len() == 3 {
-                    return eval_expr(&mut function_context, &tokens, &se.params.get(2).unwrap())
+                    return eval_expr(&mut function_context, &se.params.get(2).unwrap())
                 }
             },
             _ => {
-                eval_expr(&mut function_context, &tokens, &se);
+                eval_expr(&mut function_context, &se);
             }
         }
     }
     "".to_string()
 }
 
-fn eval_func_proc_call(name: &str, mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     if is_core_func(&name) {
         match name {
-            "and" => eval_core_func_and(&mut context, &tokens, &e),
-            "or" => eval_core_func_or(&mut context, &tokens, &e),
-            "not" => eval_core_func_not(&mut context, &tokens, &e),
-            "eq" => eval_core_func_eq(&mut context, &tokens, &e),
-            "str_eq" => eval_core_func_str_eq(&mut context, &tokens, &e),
-            "lt" => eval_core_func_lt(&mut context, &tokens, &e),
-            "lteq" => eval_core_func_lteq(&mut context, &tokens, &e),
-            "gt" => eval_core_func_gt(&mut context, &tokens, &e),
-            "gteq" => eval_core_func_gteq(&mut context, &tokens, &e),
-            "add" => eval_core_func_add(&mut context, &tokens, &e),
-            "sub" => eval_core_func_sub(&mut context, &tokens, &e),
-            "mul" => eval_core_func_mul(&mut context, &tokens, &e),
-            "div" => eval_core_func_div(&mut context, &tokens, &e),
-            "btoi" => eval_core_func_btoi(&mut context, &tokens, &e),
-            "atoi" => eval_core_func_atoi(&mut context, &tokens, &e),
-            "btoa" => eval_core_func_btoa(&mut context, &tokens, &e),
-            "itoa" => eval_core_func_itoa(&mut context, &tokens, &e),
+            "and" => eval_core_func_and(&mut context, &e),
+            "or" => eval_core_func_or(&mut context, &e),
+            "not" => eval_core_func_not(&mut context, &e),
+            "eq" => eval_core_func_eq(&mut context, &e),
+            "str_eq" => eval_core_func_str_eq(&mut context, &e),
+            "lt" => eval_core_func_lt(&mut context, &e),
+            "lteq" => eval_core_func_lteq(&mut context, &e),
+            "gt" => eval_core_func_gt(&mut context, &e),
+            "gteq" => eval_core_func_gteq(&mut context, &e),
+            "add" => eval_core_func_add(&mut context, &e),
+            "sub" => eval_core_func_sub(&mut context, &e),
+            "mul" => eval_core_func_mul(&mut context, &e),
+            "div" => eval_core_func_div(&mut context, &e),
+            "btoi" => eval_core_func_btoi(&mut context, &e),
+            "atoi" => eval_core_func_atoi(&mut context, &e),
+            "btoa" => eval_core_func_btoa(&mut context, &e),
+            "itoa" => eval_core_func_itoa(&mut context, &e),
             _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if is_core_proc(&name) {
         match name {
-            "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &tokens, &e),
+            "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
             "exit" => eval_core_exit(&e),
             "import" => "".to_string(), // Should already be imported in init_context
-            "input_read_line" => eval_core_proc_input_read_line(&mut context, &tokens, &e),
-            "print" => eval_core_proc_print(false, &mut context, &tokens, &e),
-            "println" => eval_core_proc_print(true, &mut context, &tokens, &e),
-            "runfile" => eval_core_proc_runfile(&mut context, &tokens, &e),
+            "input_read_line" => eval_core_proc_input_read_line(&mut context, &e),
+            "print" => eval_core_proc_print(false, &mut context, &e),
+            "println" => eval_core_proc_print(true, &mut context, &e),
+            "runfile" => eval_core_proc_runfile(&mut context, &e),
             _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
         }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
-        eval_user_func_proc_call(func_def, &name, &context, &tokens, &e)
+        eval_user_func_proc_call(func_def, &name, &context, &e)
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
         let id_expr = e.params.get(0).unwrap();
@@ -2485,7 +2485,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, tokens: &Vec<Token
                 }
 
                 let func_def = context.funcs.get(&combined_name).unwrap();
-                return eval_user_func_proc_call(func_def, &name, &context, &tokens, &e);
+                return eval_user_func_proc_call(func_def, &name, &context, &e);
             },
             _ => {
                 panic!("{}:{}: eval {} error: expected identifier after '{}.' found {:?}", t.line, t.col, LANG_NAME, name, after_dot.node_type);
@@ -2496,7 +2496,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, tokens: &Vec<Token
     }
 }
 
-fn eval_declaration(declaration: &Declaration, mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     let inner_e = e.params.get(0).unwrap();
     let value_type = match get_value_type(&context, &inner_e) {
@@ -2516,19 +2516,19 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, tokens
             panic!("{}:{} {} eval error: '{}' declared of type {} but but still to infer type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         },
         ValueType::TBool => {
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &tokens, inner_e));
+            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, inner_e));
             context.bools.insert(declaration.name.to_string(), bool_expr_result);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
-            let i64_expr_result_str = &eval_expr(&mut context, &tokens, inner_e);
+            let i64_expr_result_str = &eval_expr(&mut context, inner_e);
             context.i64s.insert(declaration.name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
-            let string_expr_result = &eval_expr(&mut context, &tokens, inner_e);
+            let string_expr_result = &eval_expr(&mut context, inner_e);
             context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             string_expr_result.to_string()
@@ -2573,15 +2573,15 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, tokens
 
                             match member_value_type {
                                 ValueType::TBool => {
-                                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &tokens, default_value));
+                                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, default_value));
                                     context.bools.insert(combined_name.to_string(), bool_expr_result);
                                 },
                                 ValueType::TI64 => {
-                                    let i64_expr_result_str = &eval_expr(&mut context, &tokens, default_value);
+                                    let i64_expr_result_str = &eval_expr(&mut context, default_value);
                                     context.i64s.insert(combined_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
                                 },
                                 ValueType::TString => {
-                                    let string_expr_result = &eval_expr(&mut context, &tokens, default_value);
+                                    let string_expr_result = &eval_expr(&mut context, default_value);
                                     context.strings.insert(combined_name.to_string(), string_expr_result.to_string());
                                 },
                                 ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
@@ -2632,7 +2632,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, tokens
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             let custom_symbol = context.symbols.get(custom_type_name).unwrap();
             if custom_symbol.value_type == ValueType::TEnumDef {
-                let enum_expr_result_str = &eval_expr(&mut context, &tokens, inner_e);
+                let enum_expr_result_str = &eval_expr(&mut context, inner_e);
                 context.enums.insert(declaration.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: enum_expr_result_str.to_string()});
             } else {
                 panic!("{}:{} {} eval error: Cannot declare {} of type {:?}. Only enum custom types allowed yet.",
@@ -2646,7 +2646,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, tokens
     }
 }
 
-fn eval_assignment(var_name: &str, mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     let symbol_info = context.symbols.get(var_name).unwrap();
     assert!(symbol_info.is_mut, "{} eval error: Assignments can only be to mut values", LANG_NAME);
@@ -2665,17 +2665,17 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, tokens: &Vec<Token
         },
 
         ValueType::TBool => {
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, &tokens, inner_e));
+            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, inner_e));
             context.bools.insert(var_name.to_string(), bool_expr_result);
             bool_expr_result.to_string()
         },
         ValueType::TI64 => {
-            let i64_expr_result_str = &eval_expr(&mut context, &tokens, inner_e);
+            let i64_expr_result_str = &eval_expr(&mut context, inner_e);
             context.i64s.insert(var_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
-            let string_expr_result = &eval_expr(&mut context, &tokens, inner_e);
+            let string_expr_result = &eval_expr(&mut context, inner_e);
             context.strings.insert(var_name.to_string(), string_expr_result.to_string());
             string_expr_result.to_string()
         },
@@ -2823,17 +2823,17 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
     }
 }
 
-fn eval_expr(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
+fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
                 match &se.node_type {
                     NodeType::Return => {
-                        return eval_expr(&mut context, &tokens, &se);
+                        return eval_expr(&mut context, &se);
                     }
                     _ => {
-                        eval_expr(&mut context, &tokens, &se);
+                        eval_expr(&mut context, &se);
                     }
                 }
             }
@@ -2848,31 +2848,31 @@ fn eval_expr(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
-            eval_func_proc_call(&f_name, &mut context, &tokens, &e)
+            eval_func_proc_call(&f_name, &mut context, &e)
         },
         NodeType::Declaration(declaration) => {
-            eval_declaration(&declaration, &mut context, &tokens, &e)
+            eval_declaration(&declaration, &mut context, &e)
         },
         NodeType::Assignment(var_name) => {
-            eval_assignment(&var_name, &mut context, &tokens, &e)
+            eval_assignment(&var_name, &mut context, &e)
         },
         NodeType::Identifier(name) => {
             return eval_identifier_expr(&name, &context, &e);
         },
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
-            if eval_to_bool(&mut context, &tokens, &e.params.get(0).unwrap()) {
-                eval_expr(&mut context, &tokens, &e.params.get(1).unwrap())
+            if eval_to_bool(&mut context, &e.params.get(0).unwrap()) {
+                eval_expr(&mut context, &e.params.get(1).unwrap())
             } else if e.params.len() == 3 {
-                eval_expr(&mut context, &tokens, &e.params.get(2).unwrap())
+                eval_expr(&mut context, &e.params.get(2).unwrap())
             } else {
                 "".to_string()
             }
         },
         NodeType::While => {
             assert!(e.params.len() == 2, "{} eval error: while nodes must have exactly 2 parameters.", LANG_NAME);
-            while eval_to_bool(&mut context, &tokens, &e.params.get(0).unwrap()) {
-                eval_expr(&mut context, &tokens, &e.params.get(1).unwrap());
+            while eval_to_bool(&mut context, &e.params.get(0).unwrap()) {
+                eval_expr(&mut context, &e.params.get(1).unwrap());
             }
             "".to_string()
         },
@@ -2887,14 +2887,14 @@ fn eval_expr(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String
                 },
             };
             let mut param_it = 1;
-            let result_to_switch = eval_expr(&mut context, &tokens, &to_switch);
+            let result_to_switch = eval_expr(&mut context, &to_switch);
             while param_it < e.params.len() {
 
                 let case = e.params.get(param_it).unwrap();
                 if case.node_type == NodeType::DefaultCase {
                     param_it += 1;
                     let body = e.params.get(param_it).unwrap();
-                    return eval_expr(&mut context, &tokens, &body);
+                    return eval_expr(&mut context, &body);
                 }
 
                 let case_type = match get_value_type(&context, &case) {
@@ -2907,11 +2907,11 @@ fn eval_expr(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String
                     panic!("{} eval error: switch value type {:?}, vase value type {:?}", LANG_NAME, value_type, case_type);
                 }
 
-                let result_case = eval_expr(&mut context, &tokens, &case);
+                let result_case = eval_expr(&mut context, &case);
                 param_it += 1;
                 if result_to_switch == result_case {
                     let body = e.params.get(param_it).unwrap();
-                    return eval_expr(&mut context, &tokens, &body);
+                    return eval_expr(&mut context, &body);
                 }
                 param_it += 1;
             }
@@ -2921,7 +2921,7 @@ fn eval_expr(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String
             if e.params.len() == 0 {
                 return "".to_string();
             } else if e.params.len() == 1 {
-                return eval_expr(&mut context, &tokens, &e.params.get(0).unwrap())
+                return eval_expr(&mut context, &e.params.get(0).unwrap())
             } else {
                 panic!("{}:{}: {} eval error: mutltiple return values not implemented yet.", t.line, t.col, LANG_NAME);
             }
@@ -3102,7 +3102,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         return format!("Compiler errors: {} type errors found", errors.len());
     }
 
-    eval_expr(&mut context, &tokens, &e)
+    return eval_expr(&mut context, &e);
 }
 
 // ---------- main, usage, args, etc
