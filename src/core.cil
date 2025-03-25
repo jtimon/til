@@ -68,24 +68,23 @@ todo := proc(msg: String) {
 }
 
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
+    return add(mul(a, bool.to_int(cond)), mul(b, bool.to_int(not(cond))))
 }
 
-Bool := struct {
-
-    to_str := func(b: bool) returns String {
-        return btoa(b)
+bool := struct {
+    to_str := func(self: bool) returns String {
+        return btoa(self)
     }
 
     // TODO Use in branchless
-    to_int := func(data: bool) returns i64 {
-        return btoi(data)
+    to_int := func(self: bool) returns i64 {
+        return btoi(self)
     }
 }
 
-I64 := struct {
-     to_str := func(i: i64) returns String {
-          return itoa(i)
+i64 := struct {
+     to_str := func(self: i64) returns String {
+          return itoa(self)
      }
 }
 

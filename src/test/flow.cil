@@ -32,9 +32,9 @@ while lt(it, 5) {
 test_int_switch := proc (to_switch: i64) {
     switch to_switch {
     case add(40, 2):
-       println("in test_int_switch(): ", I64.to_str(to_switch), " is the answer.")
+       println("in test_int_switch(): ", i64.to_str(to_switch), " is the answer.")
     case:
-       println("in test_int_switch(): ", I64.to_str(to_switch), " is a wrong answer.")
+       println("in test_int_switch(): ", i64.to_str(to_switch), " is a wrong answer.")
     }
 }
 test_int_switch(00)

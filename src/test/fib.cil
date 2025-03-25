@@ -22,7 +22,7 @@ fib_test := proc(fib_arg: i64) {
             case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
             case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
             case:
-                println("test_fib_alg: algorithm '", I64.to_str(num_alg), "' not implemented")
+                println("test_fib_alg: algorithm '", i64.to_str(num_alg), "' not implemented")
                 panic("TODO: another fib algorithm")
 	}
     }
