@@ -161,7 +161,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
     }
 }
 
-fn scan_tokens(source: &String) -> Vec<Token> {
+fn scan_tokens(source: String) -> Vec<Token> {
     let mut tokens : Vec<Token> = Vec::new();
 
     let eof_pos : usize = source.len();
@@ -172,14 +172,14 @@ fn scan_tokens(source: &String) -> Vec<Token> {
     while pos < eof_pos {
         let start = pos;
 
-        if is_digit(source, pos) {
-            while pos < eof_pos && is_digit(source, pos) {
+        if is_digit(&source, pos) {
+            while pos < eof_pos && is_digit(&source, pos) {
                 pos += 1;
             }
             // Look for a fractional part.
-            if &source[pos..pos+1] == "." && is_digit(source, pos+1) {
+            if &source[pos..pos+1] == "." && is_digit(&source, pos+1) {
                 pos += 1;
-                while pos < eof_pos && is_digit(source, pos) {
+                while pos < eof_pos && is_digit(&source, pos) {
                     pos += 1;
                 }
             }
@@ -263,10 +263,10 @@ fn scan_tokens(source: &String) -> Vec<Token> {
                 },
 
                 _ => {
-                    if is_alphanumeric(source, pos){
+                    if is_alphanumeric(&source, pos){
                         pos += 1;
                         // FIX invalid characters
-                        while pos < eof_pos && (is_alphanumeric(source, pos) || is_digit(source, pos)) {
+                        while pos < eof_pos && (is_alphanumeric(&source, pos) || is_digit(&source, pos)) {
                             pos += 1;
                         }
                         pos = pos - 1;
@@ -324,9 +324,9 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
     }
 }
 
-fn tokens_from_source(path: &String, source: &String) -> Result<Vec<Token>, String> {
+fn tokens_from_source(path: &String, source: String) -> Result<Vec<Token>, String> {
 
-    let tokens: Vec<Token> = scan_tokens(&source);
+    let tokens: Vec<Token> = scan_tokens(source);
     if tokens.len() < 1 {
         return Err(format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0));
     } else if is_eof(&tokens, 0) {
@@ -2323,7 +2323,7 @@ fn eval_core_proc_eval_to_str(mut context: &mut Context, tokens: &Vec<Token>, e:
     assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
     let str_source = format!("mode script; {}", &eval_expr(&mut context, &tokens, e.params.get(1).unwrap()));
-    return main_run(false, &mut context, &path, &str_source);
+    return main_run(false, &mut context, &path, str_source);
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> String {
@@ -3019,9 +3019,9 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: &String) -> String {
+fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String) -> String {
 
-    let tokens = match tokens_from_source(&path, &source) {
+    let tokens = match tokens_from_source(&path, source) {
         Ok(tokens_) => tokens_,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -3130,7 +3130,7 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
             },
         },
     };
-    let run_result = main_run(!is_import, &mut context, &path, &source);
+    let run_result = main_run(!is_import, &mut context, &path, source);
     if run_result != "" {
         println!("{}", run_result);
     }
