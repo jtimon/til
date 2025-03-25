@@ -96,6 +96,31 @@ struct Token {
     col: usize,
 }
 
+struct Lexer {
+    tokens: Vec<Token>,
+}
+
+impl Lexer {
+    fn new(source: String) -> Self {
+        return Self{tokens: scan_tokens(source)};
+    }
+
+    fn len(self: &Lexer) -> usize {
+        return self.tokens.len();
+    }
+
+    fn get(self: &Lexer, i: &usize) -> Result<&Token, String> {
+        match self.tokens.get(*i) {
+            Some(_t) => {
+                return Ok(_t);
+            },
+            None => {
+                return Err(format!("Token in pos {} is out of bounds", i));
+            },
+        };
+    }
+}
+
 fn is_digit(source: &String, pos: usize) -> bool {
     match &source[pos..pos+1].chars().next().unwrap() {
         '0'..='9' => true,
@@ -324,23 +349,23 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
     }
 }
 
-fn tokens_from_source(path: &String, source: String) -> Result<Vec<Token>, String> {
+fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String> {
 
-    let tokens: Vec<Token> = scan_tokens(source);
-    if tokens.len() < 1 {
+    let lexer = Lexer::new(source);
+    if lexer.tokens.len() < 1 {
         return Err(format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0));
-    } else if is_eof(&tokens, 0) {
-        return Err(format!("{}:{}:{} compiler error: Nothing to be done", path, tokens.get(0).unwrap().line, 0));
+    } else if is_eof(&lexer.tokens, 0) {
+        return Err(format!("{}:{}:{} compiler error: Nothing to be done", path, 0, 0));
     }
 
     let mut errors_found : usize = 0;
-    for t in &tokens {
+    for t in &lexer.tokens {
         print_if_lex_error(&path, &t, &mut errors_found)
     }
     if errors_found > 0 {
         return Err(format!("Compiler errors: {} lexical errors found", errors_found));
     }
-    return Ok(tokens);
+    return Ok(lexer);
 }
 
 // ---------- parser
@@ -551,16 +576,16 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     };
 }
 
-fn parse_mode(path: &String, tokens: &Vec<Token>, mut current: &mut usize) -> Result<ModeDef, String> {
-    if &TokenType::Mode != current_token_type(&tokens, &mut current) {
+fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Result<ModeDef, String> {
+    if &TokenType::Mode != current_token_type(&lexer.tokens, &mut current) {
         return Err(format!("0:0: 'mode' is required in the beginning of the file"));
     }
     *current = *current + 1; // Add one for mode
 
-    if &TokenType::Identifier != current_token_type(&tokens, &mut current) {
+    if &TokenType::Identifier != current_token_type(&lexer.tokens, &mut current) {
         return Err(format!("0:0: Expected identifier after 'mode'"));
     }
-    let t = current_token(&tokens, &mut current);
+    let t = lexer.get(current)?;
     let mode_name = &t.token_str;
     let mode = match mode_from_name(&mode_name) {
         Ok(mode_) => mode_,
@@ -1114,10 +1139,6 @@ fn current_token_type<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a
     return &next_t.token_type;
 }
 
-fn current_token<'a>(tokens: &'a Vec<Token>, current: &'a mut usize) -> &'a Token {
-    return &tokens.get(*current).unwrap();
-}
-
 fn parse_switch_statement(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
     let t = tokens.get(*current).unwrap();
     let initial_current = *current;
@@ -1281,9 +1302,9 @@ fn parse_body(tokens: &Vec<Token>, current: &mut usize, end_token : TokenType) -
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(tokens: Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_tokens(lexer: Lexer, current: &mut usize) -> Result<Expr, String> {
 
-    let e: Expr = match parse_body(&tokens, current, TokenType::Eof) {
+    let e: Expr = match parse_body(&lexer.tokens, current, TokenType::Eof) {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
@@ -1291,19 +1312,20 @@ fn parse_tokens(tokens: Vec<Token>, current: &mut usize) -> Result<Expr, String>
 
     let mut i = *current;
     let mut unparsed_tokens = 0;
-    if i < tokens.len() {
-        unparsed_tokens = tokens.len() - i;
+    let lexer_len = lexer.len();
+    if i < lexer_len {
+        unparsed_tokens = lexer_len - i;
     }
     if unparsed_tokens > 0 {
-        println!("Total tokens parsed: {}/{}", current, tokens.len());
+        println!("Total tokens parsed: {}/{}", current, lexer_len);
     }
-    while i < tokens.len() {
-        let t = tokens.get(i).unwrap();
+    while i < lexer_len {
+        let t = lexer.get(&i)?;
         println!("Token: {:?}", t);
         i = i + 1;
     }
     if unparsed_tokens > 0 {
-        return Err(format!("Total unparsed tokens: {}/{}", unparsed_tokens, tokens.len()));
+        return Err(format!("Total unparsed tokens: {}/{}", unparsed_tokens, lexer_len));
     }
     return Ok(e)
 }
@@ -3021,15 +3043,15 @@ fn to_ast_str(e: &Expr) -> String {
 
 fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String) -> String {
 
-    let tokens = match tokens_from_source(&path, source) {
-        Ok(tokens_) => tokens_,
+    let lexer = match lexer_from_source(&path, source) {
+        Ok(_result) => _result,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
         },
     };
 
     let mut current: usize = 0;
-    let mode = match parse_mode(&path, &tokens, &mut current) {
+    let mode = match parse_mode(&path, &lexer, &mut current) {
         Ok(mode_) => mode_,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -3040,7 +3062,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
-    let e: Expr = match parse_tokens(tokens, &mut current) {
+    let e: Expr = match parse_tokens(lexer, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
