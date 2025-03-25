@@ -825,7 +825,7 @@ fn parse_func_proc_definition(function_type: FunctionType, do_parse_body: bool, 
             *current = *current - 1; // Discount the closing brace we won't need
             Vec::new()
         },
-        true => match parse_body(TokenType::RightBrace, &tokens, current) {
+        true => match parse_body(&tokens, current, TokenType::RightBrace) {
             Ok(body) => body.params,
             Err(err_str) => return Err(err_str),
         },
@@ -903,7 +903,7 @@ fn struct_definition(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, S
         return Err(format!("{}:{}: parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
-    let body = match parse_body(TokenType::RightBrace, &tokens, current) {
+    let body = match parse_body(&tokens, current, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
@@ -1062,7 +1062,7 @@ fn if_statement(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String
         return Err(format!("{}:{}: parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
     }
     *current = *current + 1;
-    let body = match parse_body(TokenType::RightBrace, &tokens, current) {
+    let body = match parse_body(&tokens, current, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
@@ -1076,7 +1076,7 @@ fn if_statement(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String
             return Err(format!("{}:{}: parse error: Expected '{{' after 'else'.", t.line, t.col));
         }
         *current = *current + 1;
-        let body = match parse_body(TokenType::RightBrace, &tokens, current) {
+        let body = match parse_body(&tokens, current, TokenType::RightBrace) {
             Ok(body) => body,
             Err(err_str) => return Err(err_str),
         };
@@ -1100,7 +1100,7 @@ fn while_statement(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, Str
         return Err(format!("{}:{}: parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
     }
     *current = *current + 1;
-    let body = match parse_body(TokenType::RightBrace, &tokens, current) {
+    let body = match parse_body(&tokens, current, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
@@ -1259,7 +1259,7 @@ fn parse_statement(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, Str
     }
 }
 
-fn parse_body(end_token : TokenType, tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_body(tokens: &Vec<Token>, current: &mut usize, end_token : TokenType) -> Result<Expr, String> {
     let initial_current: usize = *current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
@@ -1283,7 +1283,7 @@ fn parse_body(end_token : TokenType, tokens: &Vec<Token>, current: &mut usize) -
 
 fn parse_tokens(tokens: Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
-    let e: Expr = match parse_body(TokenType::Eof, &tokens, current) {
+    let e: Expr = match parse_body(&tokens, current, TokenType::Eof) {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
