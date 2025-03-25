@@ -17,7 +17,7 @@ MyNamespace := struct {
 }
 
 println("field 'field_static_str' in struct 'MyNamespace' is being accessed: ", MyNamespace.field_static_str)
-println("field 'field_static_int' in struct 'MyNamespace' is being accessed: ", Int.to_str(MyNamespace.field_static_int))
+println("field 'field_static_int' in struct 'MyNamespace' is being accessed: ", I64.to_str(MyNamespace.field_static_int))
 println("field 'field_static_bool' in struct 'MyNamespace' is being accessed: ", Bool.to_str(MyNamespace.field_static_bool))
 // MyNamespace.proc_static() // TODO method calls as statements
 // temp_str := MyNamespace.func_static_str() // TODO method calls as primary expr in declaration
