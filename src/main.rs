@@ -1339,6 +1339,7 @@ fn is_core_func(proc_name: &str) -> bool {
         "mul" => true,
         "div" => true,
         "btoi" => true, // necessary for branchless arithmetics
+        "atoi" => true,
         "btoa" => true,
         "itoa" => true,
         "str_eq" => true, // TODO implement
@@ -2264,6 +2265,12 @@ fn eval_core_func_btoi(mut context: &mut Context, source: &String, tokens: &Vec<
     }
 }
 
+fn eval_core_func_atoi(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &source, &tokens, &e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    return a.to_string();
+}
+
 fn eval_core_func_btoa(mut context: &mut Context, source: &String, tokens: &Vec<Token>, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     if eval_to_bool(&mut context, &source, &tokens, &e.params.get(1).unwrap()) {
@@ -2440,6 +2447,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, source: &String, t
             "mul" => eval_core_func_mul(&mut context, &source, &tokens, &e),
             "div" => eval_core_func_div(&mut context, &source, &tokens, &e),
             "btoi" => eval_core_func_btoi(&mut context, &source, &tokens, &e),
+            "atoi" => eval_core_func_atoi(&mut context, &source, &tokens, &e),
             "btoa" => eval_core_func_btoa(&mut context, &source, &tokens, &e),
             "itoa" => eval_core_func_itoa(&mut context, &source, &tokens, &e),
             _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", t.line, t.col, LANG_NAME, name),
