@@ -40,6 +40,8 @@ types of algorithms.
 Pure functions (funcs) don't have "side effects".
 In other words, [[https://en.wikipedia.org/wiki/Memoization][memoization]] is possible for funcs.
 
+This is similar to using the keyword "pure" in [[https://dlang.org/spec/function.html#pure-functions][D-lang functions]].
+
 ** proc
 
 Procedures (procs) can have side effects. Procs can call funcs, but not the
