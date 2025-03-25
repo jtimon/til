@@ -1,14 +1,14 @@
 mode lib
 
 not := ext_func(a: bool) returns bool;
-// and := ext_func(a: bool) returns bool; // TODO variadic args
-// or  := ext_func(a: bool) returns bool; // TODO variadic args
+and := ext_func(args: ..bool) returns bool;
+or  := ext_func(args: ..bool) returns bool;
 
-eq := ext_func(a: i64, b: i64) returns bool;
-lt := ext_func(a: i64, b: i64) returns bool;
-lteq := ext_func(a: i64, b: i64) returns bool;
-gt := ext_func(a: i64, b: i64) returns bool;
-gteq := ext_func(a: i64, b: i64) returns bool;
+eq     := ext_func(a: i64, b: i64) returns bool;
+lt     := ext_func(a: i64, b: i64) returns bool;
+lteq   := ext_func(a: i64, b: i64) returns bool;
+gt     := ext_func(a: i64, b: i64) returns bool;
+gteq   := ext_func(a: i64, b: i64) returns bool;
 str_eq := ext_func(a: String, b: String) returns bool;
 
 add := ext_func(a: i64, b: i64) returns i64;
@@ -20,19 +20,27 @@ btoa := ext_func(a: bool) returns String;
 itoa := ext_func(a: i64) returns String;
 atoi := ext_func(a: String) returns i64;
 
-exit := ext_proc(code: i64);
-import := ext_proc(path: String);
+exit    := ext_proc(code: i64);
+import  := ext_proc(path: String);
 runfile := ext_proc(path: String);
-// print   := ext_proc(); // TODO variadic args
-// println := ext_proc(); // TODO variadic args
+print   := ext_proc(args: ..String);
+println := ext_proc(args: ..String);
 
-eval_to_str := ext_proc(a: String) returns String;
+eval_to_str     := ext_proc(a: String) returns String;
 input_read_line := ext_proc(a: String) returns String;
+
+panic := proc(msg: String) {
+    println(msg)
+    exit(1)
+}
+// panic("panic panics when uncommented") // fails, because it panics
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
     if not(cond) {
+        // TODO Call panic instead, requires variadic args
+	// panic("assert failed: ", msg)
         println("assert failed: ", msg)
         exit(1)
     }
@@ -53,11 +61,6 @@ assert_eq_str := proc(a: String, b: String) {
         exit(1)
     }
 }
-
-panic := proc(msg: String) {
-    assertm(false, msg)
-}
-// panic("panic panics when uncommented") // fails, because it panics
 
 todo := proc(msg: String) {
     print("TODO: ")

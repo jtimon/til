@@ -1407,23 +1407,6 @@ fn start_context() -> Context {
     context.symbols.insert("String".to_string(), core_type_symbol_info.clone());
     context.symbols.insert("Type".to_string(), core_type_symbol_info.clone());
 
-    let body : Vec<Expr> = Vec::new();
-    let return_types_none : Vec<ValueType> = Vec::new();
-
-    let mut args_print : Vec<Declaration> = Vec::new();
-    args_print.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TString)), is_mut: false});
-    let func_def_print = SFuncDef{function_type: FunctionType::FTProc, args: args_print, returns: return_types_none.clone(), body: body.clone()};
-    context.funcs.insert("print".to_string(), func_def_print.clone());
-    context.funcs.insert("println".to_string(), func_def_print.clone());
-
-    let mut args_and_or : Vec<Declaration> = Vec::new();
-    args_and_or.push(Declaration{name: "args".to_string(), value_type: ValueType::TMulti(Box::new(ValueType::TBool)), is_mut: false});
-    let mut return_type_bool : Vec<ValueType> = Vec::new();
-    return_type_bool.push(ValueType::TBool);
-    let func_def_and_or = SFuncDef{function_type: FunctionType::FTFunc, args: args_and_or, returns: return_type_bool.clone(), body: body.clone()};
-    context.funcs.insert("and".to_string(), func_def_and_or.clone());
-    context.funcs.insert("or".to_string(), func_def_and_or);
-
     return context;
 }
 
