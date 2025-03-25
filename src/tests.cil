@@ -35,7 +35,7 @@ runfile("src/test/structs.cil")
 
 // next level:
 
-// runfile("src/test/eval.cil") // TODO fix eval tests
+runfile("src/test/eval.cil")
 
 // The closest to a std lib this language has
 // runfile("src/core.cil") // you can't run it because it is already imported everywhere
