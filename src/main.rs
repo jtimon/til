@@ -1774,8 +1774,16 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
 
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, source: &String, tokens: &Vec<Token>, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
+    let mut has_variadic = false;
     for arg in &func_def.args {
+        if has_variadic {
+            errors.push(format!("{}:{}: type error: Variadic argument '{}' must be the last (only one variadic argument allowed).",
+                                t.line, t.col, &arg.name));
+        }
         match &arg.value_type {
+            ValueType::TMulti(_) => {
+                has_variadic = true;
+            }
             ValueType::TCustom(ref custom_type_name) => {
                 if !context.symbols.contains_key(custom_type_name) {
                     errors.push(format!("{}:{}: type error: Argument '{}' is of undefined type {}.", t.line, t.col, &arg.name, &custom_type_name));
@@ -2025,7 +2033,6 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
-            // TODO check that only at most one arg is variadic (Multi) and it is the last one
             // TODO should macros be allowd to call procs?
             if func_def.function_type == FunctionType::FTFunc {
                 for se in &func_def.body {
