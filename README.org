@@ -8,6 +8,8 @@ language.
 A priority is to have a self hosted implementation as soon as possible,
 although the bootstrap implementation is written in rust.
 
+TODO change name, since it conflicts with https://github.com/cil-project/cil
+
 * Dependencies
 
 - make (Optional, for convenience)
