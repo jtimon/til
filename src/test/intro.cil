@@ -18,6 +18,11 @@ CCC = false; // assignments to mut declarations (aka variables/mut arguments) ar
 
 // Functions types:
 
+// Note that proc 'abc_proc' is used before being defined, but it is defined in the root context of the file
+abc_proc(true, true, true)
+// TODO explicitly implement closures or equivalent before fixing this bug
+abc_proc(false, false, false)
+
 // Procedures or procs can be declared and directly called in most modes including script
 abc_proc := proc(a: bool, b: bool, c: bool) {
 
@@ -26,9 +31,6 @@ abc_proc := proc(a: bool, b: bool, c: bool) {
     }
     abc(a, b, c)
 }
-abc_proc(true, true, true)
-// TODO explicitly implement closures or equivalent before fixing this bug
-abc_proc(false, false, false)
 
 // Pure functions or funcs are similar to procs, but they can't have side effects, thus they cannot call to procedures
 my_func := func(a: bool, b: bool) returns bool {

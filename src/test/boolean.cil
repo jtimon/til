@@ -24,10 +24,5 @@ test(not(and(false, true, true)), "and(false, false, true) == false")
 
 test(or(true, false), "and: true or false is true")
 
-// Note that func 'xor' is used before being declared, but in the root context of the file
 test(xor(true, false), "and: true xor false is true")
 test(not(xor(true, true)), "xor(true, true) == false")
-
-xor := func(a: bool, b: bool) returns bool {
-    return or(and(not(a), b), and(a, not(b)))
-}
