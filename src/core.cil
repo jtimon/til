@@ -89,9 +89,15 @@ bool := struct {
 }
 
 i64 := struct {
-     to_str := func(self: i64) returns String {
-          return itoa(self)
-     }
+    to_str := func(self: i64) returns String {
+         return itoa(self)
+    }
+}
+
+String := struct {
+    to_int := func(self: String) returns i64 {
+        return atoi(self)
+    }
 }
 
 // TODO fix aliases
