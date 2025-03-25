@@ -128,12 +128,6 @@ erlang; in the "pure functions only" sense.
 
 Not implemented yet.
 
-** TODO external
-
-Similar to lib, but to interface with other languages.
-Files of this mode should only contain declarations of headers, basically.
-
-Not implemented yet.
 
 * WARNING: Do not use this language, it is not ready.
 
