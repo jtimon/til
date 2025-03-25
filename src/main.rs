@@ -1696,11 +1696,11 @@ fn does_func_return_bool(context: &Context, name: &str) -> bool {
     return false;
 }
 
-fn is_expr_calling_procs(context: &Context, tokens: &Vec<Token>, e: &Expr) -> bool {
+fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                if is_expr_calling_procs(&context, &tokens, &se) {
+                if is_expr_calling_procs(&context, &se) {
                     return true;
                 }
             }
@@ -1725,15 +1725,15 @@ fn is_expr_calling_procs(context: &Context, tokens: &Vec<Token>, e: &Expr) -> bo
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() != 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
-            is_expr_calling_procs(&context, &tokens, &e.params.get(0).unwrap())
+            is_expr_calling_procs(&context, &e.params.get(0).unwrap())
         },
         NodeType::Assignment(var_name) => {
             assert!(e.params.len() == 1, "{} error: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
-            is_expr_calling_procs(&context, &tokens, &e.params.get(0).unwrap())
+            is_expr_calling_procs(&context, &e.params.get(0).unwrap())
         }
         NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &tokens, &it_e) {
+                if is_expr_calling_procs(&context, &it_e) {
                     return true;
                 }
             }
@@ -1741,7 +1741,7 @@ fn is_expr_calling_procs(context: &Context, tokens: &Vec<Token>, e: &Expr) -> bo
         },
         NodeType::If | NodeType::While | NodeType::Switch | NodeType::Return => {
             for it_e in &e.params {
-                if is_expr_calling_procs(&context, &tokens, &it_e) {
+                if is_expr_calling_procs(&context, &it_e) {
                     return true;
                 }
             }
@@ -1762,7 +1762,7 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
-fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, tokens: &Vec<Token>, t: &Token) -> Vec<String> {
+fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut has_variadic = false;
     for arg in &func_def.args {
@@ -1811,12 +1811,12 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, tokens:
             },
             _ => {},
         }
-        errors.append(&mut check_types(&mut context, &tokens, &p));
+        errors.append(&mut check_types(&mut context, &p));
     }
     errors
 }
 
-fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<String> {
+fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = &e.token;
 
@@ -1843,7 +1843,7 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &p));
             }
         },
         NodeType::EnumDef(enum_def) => {
@@ -1883,7 +1883,7 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
                 errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &p));
             }
         },
         NodeType::While => {
@@ -1902,7 +1902,7 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
                 errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
             }
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &p));
             }
         },
         NodeType::Switch => {
@@ -1911,7 +1911,7 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
             // TODO check that there's a body param after each case
             // TODO check that all the cases are covered
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &tokens, &p));
+                errors.append(&mut check_types(&mut context, &p));
             }
         },
 
@@ -2022,11 +2022,11 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
 
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &tokens, &t));
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &t));
             // TODO should macros be allowd to call procs?
             if func_def.function_type == FunctionType::FTFunc {
                 for se in &func_def.body {
-                    if is_expr_calling_procs(&function_context, &tokens, &se) {
+                    if is_expr_calling_procs(&function_context, &se) {
                         let proc_t = &se.token;
                         errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
                     }
@@ -2068,7 +2068,7 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
                     _ => {},
                 }
             }
-            errors.append(&mut check_types(&mut context, &tokens, &inner_e));
+            errors.append(&mut check_types(&mut context, &inner_e));
         },
 
         NodeType::Assignment(var_name) => {
@@ -2088,11 +2088,11 @@ fn check_types(mut context: &mut Context, tokens: &Vec<Token>, e: &Expr) -> Vec<
                 errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                        t.line, t.col, var_name, var_name, var_name));
             }
-            errors.append(&mut check_types(&mut context, &tokens, &e.params.get(0).unwrap()));
+            errors.append(&mut check_types(&mut context, &e.params.get(0).unwrap()));
         },
         NodeType::Return => {
             for return_val in &e.params {
-                errors.append(&mut check_types(&mut context, &tokens, &return_val));
+                errors.append(&mut check_types(&mut context, &return_val));
             }
         },
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
@@ -3094,7 +3094,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     //     e.params.push(Expr{node_type: NodeType::FCall("main".to_string()), token_index: 0, params: Vec::new()});
     // }
 
-    let errors = check_types(&mut context, &tokens, &e);
+    let errors = check_types(&mut context, &e);
     if errors.len() > 0 {
         for err in &errors {
             println!("{}:{}", path, err);
