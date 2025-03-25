@@ -1281,9 +1281,9 @@ fn parse_body(end_token : TokenType, tokens: &Vec<Token>, current: &mut usize) -
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
 
-fn parse_tokens(tokens: &Vec<Token>, current: &mut usize) -> Result<Expr, String> {
+fn parse_tokens(tokens: Vec<Token>, current: &mut usize) -> Result<Expr, String> {
 
-    let e: Expr = match parse_body(TokenType::Eof, tokens, current) {
+    let e: Expr = match parse_body(TokenType::Eof, &tokens, current) {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
@@ -3040,7 +3040,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
-    let e: Expr = match parse_tokens(&tokens, &mut current) {
+    let e: Expr = match parse_tokens(tokens, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
