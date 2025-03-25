@@ -671,6 +671,7 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
     let mut expect_comma = false;
     let mut expect_colon = false;
     let mut expect_name = true;
+    let mut is_variadic = false;
     let mut arg_name = "unnamed";
     while !(is_eof(&tokens, *current) || rightparent_found) {
         match t.token_type {
@@ -713,6 +714,20 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                     return Err(format!("{}:{}: parse error: Unexpected ':'.", t.line, t.col));
                 }
             },
+            TokenType::DoubleDot => {
+                if expect_comma {
+                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                }
+                if expect_colon {
+                    return Err(format!("{}:{}: parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
+                }
+                if expect_name {
+                    return Err(format!("{}:{}: parse error: Expected arg name, found {:?}.", t.line, t.col, t.token_type));
+                }
+                is_variadic = true;
+                *current = *current + 1;
+                t = tokens.get(*current).unwrap();
+            },
             TokenType::Identifier => {
                 if expect_comma {
                     return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
@@ -725,8 +740,16 @@ fn parse_func_proc_args(source: &String, tokens: &Vec<Token>, current: &mut usiz
                     expect_colon = true;
                     expect_name = false;
                 } else { // expect type name then
-                    args.push(Declaration{
-                        name: arg_name.to_string(), value_type: str_to_value_type(get_token_str(source, t)), is_mut: false});
+                    if is_variadic {
+                        args.push(Declaration{
+                            name: arg_name.to_string(),
+                            value_type: ValueType::TMulti(Box::new(str_to_value_type(get_token_str(source, t)))), is_mut: false});
+                        is_variadic = false;
+                    } else {
+                        args.push(Declaration{
+                            name: arg_name.to_string(),
+                            value_type: str_to_value_type(get_token_str(source, t)), is_mut: false});
+                    }
                     expect_comma = true;
                 }
                 *current = *current + 1;
@@ -2027,6 +2050,7 @@ fn check_types(mut context: &mut Context, source: &String, tokens: &Vec<Token>, 
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &source, &tokens, &t));
+            // TODO check that only at most one arg is variadic (Multi) and it is the last one
             // TODO should macros be allowd to call procs?
             if func_def.function_type == FunctionType::FTFunc {
                 for se in &func_def.body {
