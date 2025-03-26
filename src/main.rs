@@ -109,7 +109,16 @@ impl Lexer {
         return self.tokens.len();
     }
 
-    fn get(self: &Lexer, i: usize) -> Result<&Token, String> {
+    fn is_eof(self: &Lexer, current: usize) -> bool {
+        return current >= self.tokens.len() ||
+            match self.tokens.get(current) {
+                Some(_t) => TokenType::Eof == _t.token_type,
+                None => false,
+
+            }
+    }
+
+    fn get_token(self: &Lexer, i: usize) -> Result<&Token, String> {
         match self.tokens.get(i) {
             Some(_t) => {
                 return Ok(_t);
@@ -352,13 +361,13 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
 fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String> {
 
     let lexer = Lexer::new(source);
-    if lexer.tokens.len() < 1 {
+    if lexer.len() < 1 {
         return Err(format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0));
-    } else if is_eof(&lexer, 0) {
+    } else if lexer.is_eof(0) {
         return Err(format!("{}:{}:{} compiler error: Nothing to be done", path, 0, 0));
     }
 
-    let mut errors_found : usize = 0;
+    let mut errors_found: usize = 0;
     for t in &lexer.tokens {
         print_if_lex_error(&path, &t, &mut errors_found)
     }
@@ -495,13 +504,6 @@ struct Expr {
     params: Vec<Expr>,
 }
 
-fn is_eof(lexer: &Lexer, current: usize) -> bool {
-    return current > lexer.tokens.len() || match lexer.tokens.get(current).unwrap().token_type {
-        TokenType::Eof => true,
-        _ => false,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 struct ModeDef {
     name: String,
@@ -585,7 +587,7 @@ fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Result<M
     if &TokenType::Identifier != current_token_type(&lexer, &mut current) {
         return Err(format!("0:0: Expected identifier after 'mode'"));
     }
-    let t = lexer.get(*current)?;
+    let t = lexer.get_token(*current)?;
     let mode_name = &t.token_str;
     let mode = match mode_from_name(&mode_name) {
         Ok(mode_) => mode_,
@@ -631,7 +633,7 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     let mut list_t = lexer.tokens.get(*current).unwrap();
     // println!("primary debug LeftParen: {} {}", initial_current, *current);
     let mut expect_comma = false;
-    while !(is_eof(&lexer, *current) || rightparent_found) {
+    while !(lexer.is_eof(*current) || rightparent_found) {
         // println!("primary debug LeftParen while: {} {}", current, *current);
         match list_t.token_type {
             TokenType::RightParen => {
@@ -682,13 +684,13 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
     *current = *current + 1;
-    let mut t = lexer.tokens.get(*current).unwrap();
+    let mut t = lexer.get_token(*current)?;
     let mut expect_comma = false;
     let mut expect_colon = false;
     let mut expect_name = true;
     let mut is_variadic = false;
     let mut arg_name = "unnamed";
-    while !(is_eof(&lexer, *current) || rightparent_found) {
+    while !(lexer.is_eof(*current) || rightparent_found) {
         match t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
@@ -791,7 +793,7 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
     }
     t = lexer.tokens.get(*current).unwrap();
     let mut expect_comma = false;
-    while !(is_eof(&lexer, *current) || end_found) {
+    while !(lexer.is_eof(*current) || end_found) {
         match t.token_type {
             TokenType::Throws | TokenType::LeftBrace | TokenType::Semicolon => {
                 end_found = true;
@@ -830,8 +832,8 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
 fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_parse_body: bool, current: &mut usize) -> Result<Expr, String> {
 
     *current = *current + 1;
-    let t = lexer.get(*current)?;
-    if is_eof(&lexer, *current + 1) {
+    let t = lexer.get_token(*current)?;
+    if lexer.is_eof(*current + 1) {
         return Err(format!("{}:{}: parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
     }
     if t.token_type != TokenType::LeftParen {
@@ -872,7 +874,7 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     if t.token_type != TokenType::LeftBrace {
         return Err(format!("{}:{}: parse error: Expected '{{' after 'enum'.", t.line, t.col));
     }
-    if is_eof(&lexer, *current + 1) {
+    if lexer.is_eof(*current + 1) {
         let t = lexer.tokens.get(*current).unwrap();
         return Err(format!("{}:{}: parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
     }
@@ -920,12 +922,12 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
 
 fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     *current = *current + 1;
-    let t = lexer.get(*current)?;
+    let t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
         return Err(format!("{}:{}: parse error: Expected '{{' after 'struct'.", t.line, t.col));
     }
-    if is_eof(&lexer, *current + 1) {
-        let t = lexer.get(*current)?;
+    if lexer.is_eof(*current + 1) {
+        let t = lexer.get_token(*current)?;
         return Err(format!("{}:{}: parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
@@ -1136,7 +1138,7 @@ fn while_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
 }
 
 fn current_token_type<'a>(lexer: &'a Lexer, current: &'a mut usize) -> &'a TokenType {
-    return &lexer.get(*current).unwrap().token_type;
+    return &lexer.get_token(*current).unwrap().token_type;
 }
 
 fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1287,7 +1289,7 @@ fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Resul
     let mut end_found = false;
     while *current < lexer.tokens.len() && !end_found {
         // println!("next token: {:?}, {:?}", lexer.tokens.get(*current).unwrap().token_type, end_token);
-        if lexer.get(*current)?.token_type == end_token {
+        if lexer.get_token(*current)?.token_type == end_token {
             end_found = true;
             break;
         }
@@ -1322,7 +1324,7 @@ fn parse_tokens(lexer: Lexer, current: &mut usize) -> Result<Expr, String> {
         println!("Total tokens parsed: {}/{}", current, lexer_len);
     }
     while i < lexer_len {
-        let t = lexer.get(i)?;
+        let t = lexer.get_token(i)?;
         println!("Token: {:?}", t);
         i = i + 1;
     }
