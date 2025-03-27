@@ -139,12 +139,9 @@ fn is_digit(source: &String, pos: usize) -> bool {
 
 fn is_alphanumeric(source: &String, pos: usize) -> bool {
     match &source[pos..pos+1].chars().next().unwrap() {
-        'a'..='z' | 'A'..='Z' => true,
-        '_' => true,
+        'a'..='z' | 'A'..='Z' | '_' => true,
         _ => false,
     }
-    // source[pos..pos+1].bytes().all(|b| matches!(b, b'a'..=b'z'))
-    //     || source[pos..pos+1].bytes().all(|b| matches!(b, b'A'..=b'Z'))
 }
 
 fn get_identifier_type(identifier: &str) -> TokenType {
