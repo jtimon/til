@@ -4,6 +4,7 @@ not := ext_func(a: bool) returns bool;
 and := ext_func(args: ..bool) returns bool;
 or  := ext_func(args: ..bool) returns bool;
 xor := func(a: bool, b: bool) returns bool {
+    // return or(a.and(not(b), b.and(not(a)))) // TODO implement UFCS (Uniform Function Call Syntax)
     return or(and(not(a), b), and(a, not(b)))
 }
 
