@@ -86,15 +86,29 @@ bool := struct {
         return btoa(self)
     }
 
-    // TODO Use in branchless
     to_int := func(self: bool) returns i64 {
         return btoi(self)
     }
 }
 
 i64 := struct {
+    // mut data : i64 = 0 // self host the data
+
     to_str := func(self: i64) returns String {
-         return itoa(self)
+        return itoa(self)
+    }
+
+    // TODO instantiate structs somehow
+    __init__ := func(i: i64) returns i64 {
+        // n := i64{data: i}
+        // n.data = i;
+        // return n
+        return i
+    }
+
+    // TODO implement operators and allow operator overload
+    __add__ := func(self: I64, other: I64) returns I64 {
+        return add(self.data, other.data)
     }
 }
 
@@ -105,29 +119,10 @@ String := struct {
 }
 
 // TODO fix aliases
-// my_int : U64 = 1
+// my_int : i64 = 1
 
 // Note aliases can be used before declared:
 // Bool : Type = bool
-// Integer : Type = i64
-// Unsigned : Type = i64
+// Int : Type = i64
 // U64 : Type = i64
 // OtherType : Type = Type
-
-# I64 := struct {
-#     mut data : i64 = 0
-
-#     // init := func(i: i64) returns I64 {
-#     //     n : I64
-#     // 	n.data = i;
-#     // 	return n
-#     // }
-
-#     // _add := func(self: I64, other: I64) returns I64 {
-#     // 	return add(self.data, other.data)
-#     // }
-
-#     // to_string := func(self: I64) returns String {
-#     // 	return itoa(self.data)
-#     // }
-# }
