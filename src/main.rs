@@ -137,57 +137,75 @@ fn is_digit(source: &String, pos: usize) -> bool {
     }
 }
 
-fn is_alphanumeric(source: &String, pos: usize) -> bool {
+fn is_id_start(source: &String, pos: usize) -> bool {
     match &source[pos..pos+1].chars().next().unwrap() {
         'a'..='z' | 'A'..='Z' | '_' => true,
         _ => false,
     }
 }
 
-fn get_identifier_type(identifier: &str) -> TokenType {
+fn scan_reserved_words(identifier: &str) -> TokenType {
     match identifier {
+        "mode" => TokenType::Mode,
+
+        // declaration/arg modifiers
+        "mut" => TokenType::Mut,
+
+        // bool literals
         "true" => TokenType::True,
         "false" => TokenType::False,
-        "mut" => TokenType::Mut,
+
+        // core data types
+        "enum" => TokenType::Enum,
+        "struct" => TokenType::Struct,
+
+        // function declaration
+        "returns" => TokenType::Returns,
+        // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
+        // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
+        // or perhaps not, for that may degenerate in an extra warning option
+        // perhaps just force the user to explicitly catch and exit any potential panic from the callee
+        "throws" => TokenType::Throws, // TODO
+        "func" => TokenType::Func,
+        "proc" => TokenType::Proc,
+        "macro" => TokenType::Macro, // TODO implement for real once we compile
+        "ext_func" => TokenType::FuncExt, // this have to link when we compile
+        "ext_proc" => TokenType::ProcExt, // this have to link when we compile
+
+        // control flow
         "if" => TokenType::If,
         "else" => TokenType::Else,
         "while" => TokenType::While,
-        "func" => TokenType::Func,
-        "proc" => TokenType::Proc,
-        "macro" => TokenType::Macro,
-        "ext_func" => TokenType::FuncExt,
-        "ext_proc" => TokenType::ProcExt,
-        "return" => TokenType::Return,
-        "returns" => TokenType::Returns,
-        // TODO reserved words:
-        "enum" => TokenType::Enum,
-        "struct" => TokenType::Struct,
+        "for" => TokenType::For, // TODO
+        "in" => TokenType::In, // TODO, or just use semicolon reserve forbid this
         "switch" => TokenType::Switch,
-        "match" => TokenType::Match,
-        "default" => TokenType::Default,
-        "for" => TokenType::For,
-        "in" => TokenType::In,
-        "throw" => TokenType::Throw,
-        "throws" => TokenType::Throws,
-        "try" => TokenType::Try,
+        "match" => TokenType::Match, // TODO like switch but special for declarations/assignments
+        "case" => TokenType::Case,
+        "default" => TokenType::Default, // TODO currently using "case:", but "default:" is more traditional, grepable and overt
+        "return" => TokenType::Return,
+        "throw" => TokenType::Throw, // TODO
+        // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
         "catch" => TokenType::Catch,
-        "mode" => TokenType::Mode,
+        "try" => TokenType::Try, // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
+        // or should 'try:' be optional?
 
-        // Reserved illegal words:
+        // Reserved forbidden/illegal words (intentionally unsupported reserved words)
+        // TODO intentionally unsupport more reserved words
+        // TODO nicer messages for forbidden words
+        "fn" => TokenType::Fn,
+        "function" => TokenType::Invalid,
+        "method" => TokenType::Invalid,
+        "global" => TokenType::Invalid, // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
         "const" => TokenType::Const,
         "var" => TokenType::Var,
-        // intentionally unsupported reserved words:
-        "fn" => TokenType::Fn,
-        "case" => TokenType::Case,
 
-        // TODO intentionally unsupport more reserved words
-        // TODO nicer messages for forbidden words
-        // Reserved forbidden words:
-        "function" => TokenType::Invalid,
-        "method" => TokenType::Invalid,
+        // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
+        // The answer is probably yet, but perhaps static is not the right answer
+        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions\
+        // or do we need mut function fields too? probably yes
         "static" => TokenType::Invalid,
-        "global" => TokenType::Invalid,
+
         _ => TokenType::Identifier,
     }
 }
@@ -195,7 +213,7 @@ fn get_identifier_type(identifier: &str) -> TokenType {
 fn scan_tokens(source: String) -> Vec<Token> {
     let mut tokens : Vec<Token> = Vec::new();
 
-    let eof_pos : usize = source.len();
+    let eof_pos: usize = source.len();
     let mut pos = 0;
     let mut line = 1;
     let mut start_line_pos = 0;
@@ -281,6 +299,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     _ => TokenType::Slash,
                 },
 
+                // literal strings
                 "\"" => {
                     pos += 1;
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
@@ -293,20 +312,19 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     }
                 },
 
-                _ => {
-                    if is_alphanumeric(&source, pos){
+                _ => { // Everything else must be reserved words, identifiers or invalid
+                    if is_id_start(&source, pos) {
                         pos += 1;
-                        // FIX invalid characters
-                        while pos < eof_pos && (is_alphanumeric(&source, pos) || is_digit(&source, pos)) {
+                        while pos < eof_pos && (is_digit(&source, pos) || is_id_start(&source, pos)) {
                             pos += 1;
                         }
                         pos = pos - 1;
-                        get_identifier_type(&source[start..pos+1])
-
+                        scan_reserved_words(&source[start..pos+1])
                     } else {
                         TokenType::Invalid
                     }
                 },
+
             }; // let match
             if token_type == TokenType::String {
                 tokens.push(Token { token_type: token_type, token_str: source[start + 1..pos].to_string(), line: line, col: pos - start_line_pos + 1});
