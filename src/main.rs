@@ -210,13 +210,12 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
     }
 }
 
-fn scan_token_push(tokens: &mut Vec<Token>, a: Token) {
-    tokens.push(a);
+fn scan_push_token(tokens: &mut Vec<Token>, token_type: TokenType, token_str: &str, line: usize, col: usize) {
+    tokens.push(Token{token_type: token_type, token_str: token_str.to_string(), line: line, col: col});
 }
 
 fn scan_tokens(source: String) -> Vec<Token> {
     let mut tokens : Vec<Token> = Vec::new();
-
     let eof_pos: usize = source.len();
     let mut pos = 0;
     let mut line = 1;
@@ -236,10 +235,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     pos += 1;
                 }
             }
-            scan_token_push(&mut tokens,
-                            Token{token_type: TokenType::Number,
-                                  token_str: source[start..pos].to_string(),
-                                  line: line, col: pos - start_line_pos + 1});
+            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, pos - start_line_pos + 1);
         } else {
 
             let token_type = match &source[pos..pos+1] {
@@ -334,25 +330,16 @@ fn scan_tokens(source: String) -> Vec<Token> {
 
             }; // let match
             if token_type == TokenType::String {
-                scan_token_push(&mut tokens,
-                                Token{token_type: token_type,
-                                      token_str: source[start + 1..pos].to_string(),
-                                      line: line, col: pos - start_line_pos + 1});
+                scan_push_token(&mut tokens, token_type, &source[start + 1..pos], line, pos - start_line_pos + 1);
             } else {
-                scan_token_push(&mut tokens,
-                                Token{token_type: token_type,
-                                      token_str: source[start..pos + 1].to_string(),
-                                      line: line, col: pos - start_line_pos + 1});
+                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, pos - start_line_pos + 1);
             }
             pos += 1;
         } // else
-
     } // while
 
-    scan_token_push(&mut tokens,
-                    Token{token_type: TokenType::Eof,
-                          token_str: "End of file".to_string(), line: line, col: 0});
-    tokens
+    scan_push_token(&mut tokens, TokenType::Eof, "End of file", line, 0);
+    return tokens
 }
 
 fn print_lex_error(path: &String, t: &Token, num_error: usize, msg: &str) {
