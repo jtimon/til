@@ -24,6 +24,7 @@ btoi := ext_func(a: bool) returns i64;
 btoa := ext_func(a: bool) returns String;
 itoa := ext_func(a: i64) returns String;
 atoi := ext_func(a: String) returns i64;
+concat := ext_func(a: String, b: String) returns String;
 
 exit    := ext_proc(code: i64);
 import  := ext_proc(path: String);
@@ -49,10 +50,7 @@ panic := proc(msg: String) {
 // mut assertm := proc(cond: bool, msg: String) {
 assertm := proc(cond: bool, msg: String) {
     if not(cond) {
-        // TODO Call panic instead, requires variadic args
-	// panic("assert failed: ", msg)
-        println("assert failed: ", msg)
-        exit(1)
+	panic(concat("assert failed: ", msg))
     }
 }
 

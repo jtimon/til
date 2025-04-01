@@ -1395,10 +1395,11 @@ fn is_core_func(proc_name: &str) -> bool {
         "mul" => true,
         "div" => true,
         "btoi" => true, // necessary for branchless arithmetics
-        "atoi" => true,
         "btoa" => true,
         "itoa" => true,
-        "str_eq" => true, // TODO implement
+        "atoi" => true,
+        "str_eq" => true,
+        "concat" => true,
         _ => false,
     }
 }
@@ -2239,6 +2240,13 @@ fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
     (a == b).to_string()
 }
 
+fn eval_core_func_concat(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 3, "{} Error: Core func 'concat' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    let a = eval_expr(&mut context, e.params.get(1).unwrap());
+    let b = eval_expr(&mut context, e.params.get(2).unwrap());
+    format!("{}{}", a, b)
+}
+
 fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
@@ -2477,6 +2485,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
             "not" => eval_core_func_not(&mut context, &e),
             "eq" => eval_core_func_eq(&mut context, &e),
             "str_eq" => eval_core_func_str_eq(&mut context, &e),
+            "concat" => eval_core_func_concat(&mut context, &e),
             "lt" => eval_core_func_lt(&mut context, &e),
             "lteq" => eval_core_func_lteq(&mut context, &e),
             "gt" => eval_core_func_gt(&mut context, &e),
