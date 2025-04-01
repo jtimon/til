@@ -17,10 +17,27 @@ fib_test := proc(fib_arg: i64) {
 	}
     }
 
+    fibonacci_2 := func(n: i64) returns i64 {
+        if lt(n, 2) {
+            return n
+        }
+        mut a := 0
+        mut b := 1
+        mut i := 2
+        while lteq(i, n) {
+            temp := add(a, b)
+            a = b
+            b = temp
+            i = add(i, 1)
+        }
+        return b
+    }
+
     test_fib_alg := proc(num_alg: i64, n: i64) returns {
     	switch num_alg {
             case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
             case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
+            case 2: test(eq(fibonacci_2(n), fibonacci_0(n)), "fibonacci_2(n) is faulty")
             case:
                 println("test_fib_alg: algorithm '", i64.to_str(num_alg), "' not implemented")
                 panic("TODO: another fib algorithm")
@@ -29,7 +46,8 @@ fib_test := proc(fib_arg: i64) {
 
     test_fib_alg(0, fib_arg)
     test_fib_alg(1, fib_arg)
-    // test_fib_alg(2, fib_arg) // TODO iterative, memoize, cached iterative
+    test_fib_alg(2, fib_arg)
+    // test_fib_alg(3, fib_arg) // TODO memoize version
 }
 fib_test(5)
 fib_test(10)
