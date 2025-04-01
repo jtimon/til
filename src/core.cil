@@ -35,6 +35,45 @@ println := ext_proc(args: ..String);
 eval_to_str     := ext_proc(a: String) returns String;
 input_read_line := ext_proc(a: String) returns String;
 
+// Note that bool, i64 and String don't have fields because the're the core types
+// think of them as "half-external types" for now
+bool := struct {
+    to_str := func(self: bool) returns String {
+        return btoa(self)
+    }
+
+    to_int := func(self: bool) returns i64 {
+        return btoi(self)
+    }
+}
+
+i64 := struct {
+    // mut data : i64 = 0 // self host the data
+
+    to_str := func(self: i64) returns String {
+        return itoa(self)
+    }
+
+    // TODO instantiate structs somehow
+    __init__ := func(i: i64) returns i64 {
+        // n := i64{data: i}
+        // n.data = i;
+        // return n
+        return i
+    }
+
+    // TODO implement operators and allow operator overload
+    __add__ := func(self: I64, other: I64) returns I64 {
+        return add(self.data, other.data)
+    }
+}
+
+String := struct {
+    to_int := func(self: String) returns i64 {
+        return atoi(self)
+    }
+}
+
 panic2 := proc(msgs: ..String) {
     // TODO use variadic args in user defined functions. requires arrays
     exit(1)
@@ -77,43 +116,6 @@ todo := proc(msg: String) {
 
 branchless := func(cond: bool, a: i64, b: i64) returns i64 {
     return add(mul(a, bool.to_int(cond)), mul(b, bool.to_int(not(cond))))
-}
-
-bool := struct {
-    to_str := func(self: bool) returns String {
-        return btoa(self)
-    }
-
-    to_int := func(self: bool) returns i64 {
-        return btoi(self)
-    }
-}
-
-i64 := struct {
-    // mut data : i64 = 0 // self host the data
-
-    to_str := func(self: i64) returns String {
-        return itoa(self)
-    }
-
-    // TODO instantiate structs somehow
-    __init__ := func(i: i64) returns i64 {
-        // n := i64{data: i}
-        // n.data = i;
-        // return n
-        return i
-    }
-
-    // TODO implement operators and allow operator overload
-    __add__ := func(self: I64, other: I64) returns I64 {
-        return add(self.data, other.data)
-    }
-}
-
-String := struct {
-    to_int := func(self: String) returns i64 {
-        return atoi(self)
-    }
 }
 
 // TODO fix aliases
