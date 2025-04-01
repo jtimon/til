@@ -1,0 +1,12 @@
+mode test
+
+// String tests
+test(str_eq(concat("Hello, ", "world!"), "Hello, world!"), "concat('Hello, ', 'world!') = 'Hello, world!'")
+test(eq(atoi("123"), 123), "atoi('123') = 123")
+test(eq(atoi("0"), 0), "atoi('0') = 0")
+// TODO: Test with invalid strings for atoi, e.g., atoi("abc") // Expected: error or undefined behavior
+test(str_eq(itoa(456), "456"), "itoa(456) = '456'")
+test(str_eq(itoa(0), "0"), "itoa(0) = '0'")
+
+print("TODO\n"); // TODO make this and the next line be equivalent, don't escape \n
+println("");

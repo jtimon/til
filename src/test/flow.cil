@@ -1,10 +1,5 @@
 mode script
 
-// TODO Move 'print' tests elsewhere:
-
-print("\n"); // TODO make this and the next line be equivalent, don't escape \n
-println("");
-
 // Basic control flow (execution):
 
 // basic 'if' statements:
