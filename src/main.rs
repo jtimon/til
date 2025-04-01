@@ -1265,6 +1265,10 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
             };
             body_params.push(stmt);
             next_t = lexer.get_token(*current)?;
+            if next_t.token_type == TokenType::Semicolon {
+                *current = *current + 1;
+                next_t = lexer.get_token(*current)?;
+            }
         }
     }
     if end_found {
@@ -1335,10 +1339,6 @@ fn parse_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         TokenType::Switch => return parse_switch_statement(&lexer, current),
         TokenType::Mut => return parse_mut_declaration(&lexer, current),
         TokenType::Identifier => return parse_statement_identifier(&lexer, current),
-        TokenType::Semicolon => { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-            *current = *current + 1;
-            return parse_statement(&lexer, current);
-        },
         _ => {
             Err(format!("{}:{}: parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
         },
@@ -1351,11 +1351,16 @@ fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Resul
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
     while *current < lexer.len() && !end_found {
-        // println!("next token: {:?}, {:?}", lexer.get_token(*current)?.token_type, end_token);
-        if lexer.get_token(*current)?.token_type == end_token {
+        let token_type = &lexer.get_token(*current)?.token_type;
+        if token_type == &end_token {
             end_found = true;
             break;
         }
+        if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
+            *current = *current + 1;
+            continue;
+        }
+
         let stmt = match parse_statement(&lexer, current) {
             Ok(statement) => statement,
             Err(error_string) => return Err(error_string),

@@ -1,5 +1,10 @@
 mode script
 
+// TODO Move 'print' tests elsewhere:
+
+print("\n"); // TODO make this and the next line be equivalent, don't escape \n
+println("");
+
 // Basic control flow (execution):
 
 // basic 'if' statements:
@@ -32,16 +37,12 @@ while lt(it, 5) {
 test_int_switch := proc (to_switch: i64) {
     switch to_switch {
     case add(40, 2):
-       println("in test_int_switch(): ", i64.to_str(to_switch), " is the answer.")
+       println("in test_int_switch(): ", i64.to_str(to_switch), " is the answer."); // semicolons are optional here too
     case:
-       println("in test_int_switch(): ", i64.to_str(to_switch), " is a wrong answer.")
+       println("in test_int_switch(): ", i64.to_str(to_switch), " is a wrong answer.");
     }
 }
-test_int_switch(00)
+test_int_switch(00);
 test_int_switch(42); // note the semicolon between statements is being ignored
-test_int_switch(69)
-
-// TODO Move 'print' tests elsewhere:
-
-print("\n") // TODO make this and the next line be equivalent, don't escape \n
-println("")
+test_int_switch(69); // note the semicolon between statements is being ignored at the end of the file too
+// test_int_switch(69);; // fails because there's no need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
