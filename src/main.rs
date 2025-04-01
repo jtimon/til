@@ -372,6 +372,51 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             print_lex_error(&path, &t, *errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
             *errors_found = *errors_found + 1;
         },
+        TokenType::Plus => {
+            print_lex_error(&path, &t, *errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Minus => {
+            print_lex_error(&path, &t, *errors_found, "Operator '-' is not supported yet\nSuggestion: use core func 'sub' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Star => {
+            print_lex_error(&path, &t, *errors_found, "Operator '*' is not supported yet\nSuggestion: use core func 'mul' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Slash => {
+            print_lex_error(&path, &t, *errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::EqualEqual => {
+            print_lex_error(&path, &t, *errors_found, "Operator '==' is not supported yet\nSuggestion: use core func 'eq' or 'str_eq' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Lesser => {
+            print_lex_error(&path, &t, *errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::LesserEqual => {
+            print_lex_error(&path, &t, *errors_found, "Operator '<=' is not supported yet\nSuggestion: use core func 'lteq' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Greater => {
+            print_lex_error(&path, &t, *errors_found, "Operator '>' is not supported yet\nSuggestion: use core func 'gt' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::GreaterEqual => {
+            print_lex_error(&path, &t, *errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::Not => {
+            print_lex_error(&path, &t, *errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
+            *errors_found = *errors_found + 1;
+        },
+        TokenType::NotEqual => {
+            print_lex_error(&path, &t, *errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'eq' instead");
+            *errors_found = *errors_found + 1;
+        },
+
         _ => {},
     }
 }
