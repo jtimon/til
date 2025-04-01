@@ -275,7 +275,6 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
 
                 // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement
-                // TODO implement better warnings
                 ";" => if &source[pos+1..pos+2] == ";" { pos += 1; TokenType::DoubleSemicolon } else { TokenType::Semicolon },
 
                 // comments:
@@ -1461,9 +1460,9 @@ fn is_core_proc(proc_name: &str) -> bool {
         "print" => true,
         "println" => true,
         "runfile" => true,
-        // TODO implement more core procs in rust:
         "input_read_line" => true,
         "eval_to_str" => true,
+        // TODO implement more core procs in rust:
         "readfile" => true,
         "writefile" => true,
         "eval_to_ast_str" => true,
@@ -2404,9 +2403,6 @@ fn eval_core_proc_print(end_line: bool, mut context: &mut Context, e: &Expr) -> 
 }
 
 fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> String {
-    // TODO properly implement
-    // io::stdout().flush().unwrap(); // QUE is this needed?
-
     let first_param = e.params.get(0).unwrap();
     let read_line_error_msg = match &first_param.node_type {
         NodeType::LString(error_msg_) => error_msg_.clone(),
@@ -2421,6 +2417,7 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> Strin
 }
 
 fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> String {
+    // TODO properly implement
     assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
     let str_source = format!("mode script; {}", &eval_expr(&mut context, e.params.get(1).unwrap()));

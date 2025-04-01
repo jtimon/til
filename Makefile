@@ -8,4 +8,4 @@ rscil:
 cil:
 	cargo run src/cil.cil
 repl:
-	cargo run src/repl.cil
+	rlwrap cargo run src/repl.cil
