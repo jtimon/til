@@ -26,3 +26,39 @@ test(or(true, false), "and: true or false is true")
 
 test(xor(true, false), "and: true xor false is true")
 test(not(xor(true, true)), "xor(true, true) == false")
+
+// --------------- TODO remove redundancies
+
+// bool to int tests tests
+test(eq(bool.to_int(true), 1), "bool.to_int(true) = 1")
+test(eq(bool.to_int(false), 0), "bool.to_int(false) = 0")
+
+// Testing 'and' with all combinations
+test(and(true, true), "true AND true = true")
+test(not(and(true, false)), "true AND false = false")
+test(not(and(false, true)), "false AND true = false")
+test(not(and(false, false)), "false AND false = false")
+
+// variadic 'and'
+test(and(true), "true AND = true")
+test(not(and(false)), "false AND = false")
+test(and(true, true, true), "true AND true AND true = true")
+test(not(and(true, false, true)), "true AND false AND true = false")
+
+// Testing 'or' with all combinations
+test(not(or(false, false)), "false OR false = false")
+test(or(true, false), "true OR false = true")
+test(or(false, true), "false OR true = true")
+test(or(true, true), "true OR true = true")
+
+// variadic 'or'
+test(or(true), "true OR = true")
+test(not(or(false)), "false OR = false")
+test(or(false, false, true), "false OR false OR true = true")
+test(not(or(false, false, false)), "false OR false OR false = false")
+
+// Testing 'xor' with all combinations
+test(xor(true, false), "true XOR false = true")
+test(xor(false, true), "false XOR true = true")
+test(not(xor(true, true)), "true XOR true = false")
+test(not(xor(false, false)), "false XOR false = false")
