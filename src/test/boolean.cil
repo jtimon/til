@@ -9,6 +9,10 @@ test(not(not(true)), "not: not not true is true")
 // and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
 test(and(true, true), "and(true, true) == true")
 test(not(and(true, false)), "and(true, false) == false")
+// test(true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
+// test(and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
+aaa := true
+test(aaa.and(true), "true.and(true) == true") // UFCS (Uniform Function Call Syntax)
 test(not(and(true, false)), "and(false, true) == false")
 test(not(and(false, true)), "and(false, true) == false")
 test(not(and(false, false)), "and(false, false) == false")

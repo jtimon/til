@@ -1574,9 +1574,28 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
                 }
             },
-            _ => {
-                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is '{}'",
-                                   t.line, t.col, &f_name, value_type_to_str(&symbol.value_type)));
+            _ => { // For UFCS
+                let id_expr = e.params.get(0).unwrap();
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is a {:?}",
+                                           t.line, t.col, &f_name, symbol.value_type));
+                    },
+                };
+                match &after_dot.node_type {
+                    NodeType::Identifier(after_dot_name) => {
+                        if context.funcs.contains_key(after_dot_name) {
+                            return value_type_func_proc(t, &f_name, &context.funcs.get(after_dot_name).unwrap())
+                        }
+                        return Err(format!("{}:{}: {} error: expected function name after '{}.' found {:?}",
+                                           t.line, t.col, LANG_NAME, f_name, after_dot_name));
+                    },
+                    _ => {
+                        return Err(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
+                                           t.line, t.col, LANG_NAME, f_name, after_dot.node_type));
+                    },
+                }
             },
         }
 
@@ -2196,11 +2215,33 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
 // ---------- eval repl interpreter
 
 fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
-    let f_name = get_func_name_in_call(&e);
+    // TODO refactor common code with eval_func_proc_call() to reuse
+    let id_expr = e.params.get(0).unwrap();
+    let mut extra_arg = false;
+    let f_name = if id_expr.params.len() == 0 {
+        get_func_name_in_call(&e)
+    } else {
+        extra_arg = true;
+        match &id_expr.params.get(0).unwrap().node_type {
+            NodeType::Identifier(f_name) => f_name.clone(),
+            _ => panic!("panic eval_call_to_bool(), this should never happen."),
+        }
+    };
+
     if !does_func_return_bool(&context, &f_name) {
         panic!("{} error: eval_to_bool(): Function '{}' does not return bool. This should have been caught in the compile phase.\n", LANG_NAME, f_name);
     }
-    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &e).as_str())
+
+    if extra_arg {
+        let id_expr_name = get_func_name_in_call(&e);
+        let extr_arg_e = Expr{node_type: NodeType::Identifier(id_expr_name), token: e.token.clone(), params: Vec::new()};
+        let mut new_args = Vec::new();
+        new_args.push(extr_arg_e);
+        new_args.append(&mut e.params.clone());
+        let new_e = Expr{node_type: NodeType::Identifier(f_name.clone()), token: e.params.get(0).unwrap().token.clone(), params: new_args};
+        return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &new_e).as_str());
+    }
+    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &e).as_str());
 }
 
 fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
@@ -2243,7 +2284,7 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
                 }
             }
 
-            panic!("{} eval error: eval_to_bool(): Identifier '{}' is not a bool nor a struct.", LANG_NAME, name);
+            panic!("{} eval error: eval_to_bool(): Identifier '{}' is not a bool.", LANG_NAME, name);
         },
         node_type => {
             panic!("{} eval error: eval_to_bool(): The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'",
@@ -2590,6 +2631,31 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 panic!("{}:{}: eval {} error: expected identifier after '{}.' found {:?}", t.line, t.col, LANG_NAME, name, after_dot.node_type);
             },
         }
+    } else if context.symbols.contains_key(name) { // For UFCS
+        // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
+        let id_expr = e.params.get(0).unwrap();
+        let mut extra_arg = false;
+        let f_name = if id_expr.params.len() == 0 {
+            get_func_name_in_call(&e)
+        } else {
+            extra_arg = true;
+            match &id_expr.params.get(0).unwrap().node_type {
+                NodeType::Identifier(f_name) => f_name.clone(),
+                _ => panic!("panic eval_func_proc_call(), this should never happen."),
+            }
+        };
+
+        if extra_arg {
+            let id_expr_name = get_func_name_in_call(&e);
+            let extr_arg_e = Expr{node_type: NodeType::Identifier(id_expr_name), token: e.token.clone(), params: Vec::new()};
+            let mut new_args = Vec::new();
+            new_args.push(extr_arg_e);
+            new_args.append(&mut e.params.clone());
+            let new_e = Expr{node_type: NodeType::Identifier(f_name.clone()), token: e.params.get(0).unwrap().token.clone(), params: new_args};
+            return eval_func_proc_call(&f_name, &mut context, &new_e);
+        }
+        return eval_func_proc_call(&f_name, &mut context, &e);
+
     } else {
         panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function or struct.", t.line, t.col, LANG_NAME, name);
     }
