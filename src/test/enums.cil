@@ -15,7 +15,6 @@ my_enum_func(ExampleEnum.B)
 trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
-// TODO fix assignments inside switch statements
 test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     mut to_return := ""
     switch to_switch {
@@ -23,15 +22,11 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
         case ExampleEnum.B: to_return = "enum switch bbbbbb"
         case: to_return = "enum cccccc by default"
     }
-    // TODO core define etoa, base_enum_to_str or some equivalent
-    // println("in test_switch_enum: to_switch: ", etoa(to_switch), " to_return: ", to_return)
-
-    // println("inside test_switch_enum(): to_return: ", to_return)
     return to_return
 }
 
-// assert_eq_str(test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
-// assert_eq_str(test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+assert_eq_str(test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
 assert_eq_str(test_switch_enum(ExampleEnum.C), "enum cccccc by default")
 assert_eq_str(test_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
@@ -41,6 +36,8 @@ assert_eq_str(test_switch_enum(ExampleEnum.D), "enum cccccc by default")
 // TODO fix returns inside switch statements
 no_return_switch_str := "xxxxxx because return inside switch doesn't work even for enum"
 test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
+    // TODO core define etoa, base_enum_to_str or some equivalent
+    // println("in test_switch_enum: to_switch: ", etoa(to_switch))
     switch to_switch {
         case ExampleEnum.A: return "enum switch aaaaaa"
         case ExampleEnum.B: return "enum switch bbbbbb"

@@ -2847,8 +2847,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 let custom_symbol = context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
-                        return format!("TODO: can't eval enum values yet");
-                        // function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
+                        let enum_val = context.enums.get(name).unwrap();
+                        return enum_val.enum_name.clone();
                     },
 
                     _ => {
@@ -2947,7 +2947,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
                     },
                 };
                 if value_type != case_type {
-                    panic!("{} eval error: switch value type {:?}, vase value type {:?}", LANG_NAME, value_type, case_type);
+                    panic!("{} eval error: switch value type {:?}, case value type {:?}", LANG_NAME, value_type, case_type);
                 }
 
                 let result_case = eval_expr(&mut context, &case);
