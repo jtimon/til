@@ -11,7 +11,7 @@ use std::collections::HashMap;
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
 const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
-const INFER_TYPE: &str = "_Infer";
+const INFER_TYPE: &str = "auto";
 const REPL_PATH: &str = "src/repl.cil";
 const SKIP_AST: bool = true;
 
@@ -1505,8 +1505,8 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
                 ValueType::TI64 => Ok(ValueType::TI64),
                 ValueType::TString => Ok(ValueType::TString),
                 ValueType::TCustom(type_str) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
-                _ => return Err(format!("{}:{}: {} error: func '{}' returns unsupported type {:?}",
-                                        t.line, t.col, LANG_NAME, name, func_def.returns.get(0).unwrap())),
+                _ => return Err(format!("{}:{}: {} error: func '{}' returns unsupported type {}",
+                                        t.line, t.col, LANG_NAME, name, value_type_to_str(func_def.returns.get(0).unwrap()))),
             }
         },
         _ => {
@@ -1563,8 +1563,8 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                 return value_type_func_proc(t, &combined_name, &func_def);
                             },
                             _  => {
-                                return Err(format!("{}:{}: type error: Cannot call '{}.{}', it is not a function, it is a {:?}",
-                                                   t.line, t.col, f_name, after_dot_name, member_decl.value_type));
+                                return Err(format!("{}:{}: type error: Cannot call '{}.{}', it is not a function, it is '{}'",
+                                                   t.line, t.col, f_name, after_dot_name, value_type_to_str(&member_decl.value_type)));
                             },
                         }
                     },
@@ -1575,8 +1575,8 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 }
             },
             _ => {
-                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is a {:?}",
-                                   t.line, t.col, &f_name, symbol.value_type));
+                return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is '{}'",
+                                   t.line, t.col, &f_name, value_type_to_str(&symbol.value_type)));
             },
         }
 
@@ -1667,8 +1667,8 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                     }
                 },
                 _ => {
-                    return Err(format!("{}:{}: type error: {:?} '{}' can't have members, '{}' is not a member",
-                                       t.line, t.col, symbol_info.value_type, name, member_str))
+                    return Err(format!("{}:{}: type error: '{}' of type '{}' can't have members, '{}' is not a member",
+                                       t.line, t.col, value_type_to_str(&symbol_info.value_type), name, member_str))
                 },
             }
         },
