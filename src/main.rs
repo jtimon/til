@@ -1767,7 +1767,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             return context.symbols.contains_key(&f_name) && context.symbols.get(&f_name).unwrap().value_type == ValueType::TProc
         },
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() != 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
+            assert!(e.params.len() == 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             is_expr_calling_procs(&context, &e.params.get(0).unwrap())
         },
         NodeType::Assignment(var_name) => {
