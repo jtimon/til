@@ -1,0 +1,28 @@
+mode test
+
+// Function tests:
+
+test(eq(add_two(5), 7), "add_two(5) = 7")
+test(eq(subtract_three(10), 7), "subtract_three(10) = 7")
+test(eq(add_and_subtract(10), 9), "add_and_subtract(10) = 9")
+test(not(is_positive(0)), "is_positive(0) = false")
+test(is_positive(3), "is_positive(3) = true")
+test(is_positive(5), "is_positive(5) = true")
+
+// Local functions only for testing:
+
+add_two := func(a: i64) returns i64 {
+    return add(a, 2)
+}
+
+subtract_three := func(a: i64) returns i64 {
+    return sub(a, 3)
+}
+
+add_and_subtract := func(a: i64) returns i64 {
+    return subtract_three(add_two(a))
+}
+
+is_positive := func(a: i64) returns bool {
+    return gt(a, 0)
+}

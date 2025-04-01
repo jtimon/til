@@ -44,6 +44,9 @@ runfile("src/test/eval.cil")
 runfile("src/test/todo.cil") // permanent TODO
 // runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
 
+// LLM suggested tests:
+runfile("src/test/test_gpt4o_mini_tests.cil")
+
 // WIP Work towards self hosting
 runfile("src/cil.cil")
 runfile("src/test/exit.cil")
