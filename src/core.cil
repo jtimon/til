@@ -101,6 +101,15 @@ test := proc(cond: bool, msg: String) {
     assertm(cond, msg)
 }
 
+// WIP TODO fix first example of eval_expect_error in test/lexer.cil
+eval_expect_error := proc(expr_to_str: String, expected_error: String) {
+    if not(str_eq(eval_to_str(expr_to_str), expected_error)) {
+        println("expected_error: ", expected_error)
+        println("eval_to_str(expr_to_str): ", eval_to_str(expr_to_str))
+        exit(1)
+    }
+}
+
 // TODO use assert_eq_str in some example
 assert_eq_str := proc(a: String, b: String) {
     if not(str_eq(a, b)) {

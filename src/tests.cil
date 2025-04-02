@@ -33,6 +33,7 @@ runfile("src/test/enums.cil")
 runfile("src/test/namespaces.cil")
 runfile("src/test/strings.cil")
 runfile("src/test/structs.cil")
+runfile("src/test/lexer.cil")
 
 // next level:
 
@@ -50,4 +51,6 @@ runfile("src/test/test_grok3_tests.cil")
 
 // WIP Work towards self hosting
 runfile("src/cil.cil")
+
+// Test exit at the end
 runfile("src/test/exit.cil")

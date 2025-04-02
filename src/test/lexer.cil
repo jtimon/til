@@ -1,0 +1,7 @@
+mode test
+
+
+# eval_expect_error("1 + 1", "my expected error") // TODO fix first example of eval_expect_error
+
+// eval_expect_error("1 + 1", "my expected error") // TODO complete all lexer errors
+// eval_expect_error("1 + 1", "my expected error") // TODO complete all lexer errors
