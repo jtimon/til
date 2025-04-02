@@ -1,0 +1,33 @@
+mode test
+
+// Test is_zero:
+test(is_zero(0), "is_zero(0) = true")
+test(not(is_zero(5)), "is_zero(5) = false")
+
+// More verbose tests:
+test(eq(bool.to_int(is_zero(0)), 1), "eq(bool.to_int(is_zero(0)), 1) = true")
+test(eq(bool.to_int(is_zero(5)), 0), "eq(bool.to_int(is_zero(5)), 0) = false")
+
+// Increment tests
+test(eq(increment(5), 6), "increment(5) = 6")
+test(eq(increment(0), 1), "increment(0) = 1")
+
+// Subtraction test
+test(eq(decrement(5), 4), "decrement(5) = 4")
+
+// Local functions only for testing:
+
+// Simple function with a condition
+is_zero := func(x: i64) returns bool {
+    return eq(x, 0)
+}
+
+// Simple addition function
+increment := func(x: i64) returns i64 {
+    return add(x, 1)
+}
+
+// Simple subtraction function
+decrement := func(x: i64) returns i64 {
+    return sub(x, 1)
+}

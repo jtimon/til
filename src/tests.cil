@@ -46,6 +46,7 @@ runfile("src/test/todo.cil") // permanent TODO
 
 // LLM suggested tests:
 runfile("src/test/test_gpt4o_mini_tests.cil")
+runfile("src/test/test_grok3_tests.cil")
 
 // WIP Work towards self hosting
 runfile("src/cil.cil")
