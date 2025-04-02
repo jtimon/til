@@ -1,7 +1,12 @@
 mode test
 
+// TODO fix first example of eval_expect_error
+// eval_expect_error("print(2 + 1)", "src/test/lexer.cil:4:45: Lexical error 0: Operator '+' is not supported yet")
 
-# eval_expect_error("1 + 1", "my expected error") // TODO fix first example of eval_expect_error
+eval_expect_error("2 + 1", "assert failed: 2 + 1")
+// eval_expect_error("2 - 1", "assert failed: 2 - 1")
+// eval_expect_error("2 * 1", "assert failed: 2 * 1")
+// eval_expect_error("2 / 1", "assert failed: 2 / 1")
 
 // eval_expect_error("1 + 1", "my expected error") // TODO complete all lexer errors
 // eval_expect_error("1 + 1", "my expected error") // TODO complete all lexer errors

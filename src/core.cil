@@ -103,11 +103,30 @@ test := proc(cond: bool, msg: String) {
 
 // WIP TODO fix first example of eval_expect_error in test/lexer.cil
 eval_expect_error := proc(expr_to_str: String, expected_error: String) {
-    if not(str_eq(eval_to_str(expr_to_str), expected_error)) {
+
+    let cmp_eval_expect_error = str_eq(eval_to_str(expr_to_str), expected_error);
+    if not(cmp_eval_expect_error) {
         println("expected_error: ", expected_error)
         println("eval_to_str(expr_to_str): ", eval_to_str(expr_to_str))
         exit(1)
     }
+
+    return_str := eval_to_str(expr_to_str)
+    # if str_eq(return_str, expected_error) {
+    #     return return_str
+    # }
+    return return_str
+
+    println("expr_to_str: ", expr_to_str)
+    println("expected_error: ", expected_error)
+    # assertm(str_eq(expr_to_str, expected_error), concat(expr_to_str, expected_error))
+
+    # if not(str_eq(eval_to_str(expr_to_str), expected_error)) { // TODO FIX ERROR
+    # if not(str_eq(expr_to_str, expected_error)) {
+    # 	println("expected_error: ", expected_error)
+    # 	println("eval_to_str(expr_to_str): ", eval_to_str(expr_to_str))
+    # 	exit(1)
+    # }
 }
 
 // TODO use assert_eq_str in some example
