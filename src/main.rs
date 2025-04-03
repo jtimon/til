@@ -2156,9 +2156,9 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
 }
 
 fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
+    assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
     let mut errors : Vec<String> = Vec::new();
 
-    assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
     let inner_e = e.params.get(0).unwrap();
     if !context.symbols.contains_key(&decl.name) {
         let mut value_type = decl.value_type.clone();
@@ -2198,21 +2198,45 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
     return errors
 }
 
-fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
+fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<String> {
+    assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
     let mut errors : Vec<String> = Vec::new();
 
+    if is_core_func(&var_name) {
+        errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
+    } else if is_core_proc(&var_name) {
+        errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
+    } else if context.funcs.contains_key(var_name)  {
+        errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
+    } else if context.symbols.contains_key(var_name) {
+        let symbol_info = context.symbols.get(var_name).unwrap();
+        if !symbol_info.is_mut {
+            errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.token.line, e.token.col, var_name));
+        }
+    } else {
+        errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
+                            e.token.line, e.token.col, var_name, var_name, var_name));
+    }
+    errors.append(&mut check_types(&mut context, &e.params.get(0).unwrap()));
+    return errors
+}
+
+fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
                 errors.append(&mut check_types(&mut context, &p));
             }
         },
+
         NodeType::EnumDef(enum_def) => {
             errors.append(&mut check_enum_def(&e, enum_def));
         },
         NodeType::StructDef(_struct_def) => {
             assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
         },
+
         NodeType::If => {
             errors.append(&mut check_if_statement(&mut context, &e));
         },
@@ -2228,8 +2252,13 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.append(&mut check_types(&mut context, &p));
             }
         },
+
         NodeType::FCall => {
             errors.append(&mut check_fcall(&context, &e));
+        },
+        NodeType::FuncDef(func_def) => {
+            let mut function_context = context.clone();
+            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &e));
         },
         NodeType::Identifier(name) => {
             if !is_defined_symbol(&context, &name) {
@@ -2237,42 +2266,22 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
 
-        NodeType::FuncDef(func_def) => {
-            let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &e));
-        },
-
         NodeType::Declaration(decl) => {
             errors.append(&mut check_declaration(&mut context, &e, decl));
         },
-
         NodeType::Assignment(var_name) => {
-            assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
-            if is_core_func(&var_name) {
-                errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
-            } else if is_core_proc(&var_name) {
-                errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
-            } else if context.funcs.contains_key(var_name)  {
-                errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", e.token.line, e.token.col, var_name));
-            } else if context.symbols.contains_key(var_name) {
-                let symbol_info = context.symbols.get(var_name).unwrap();
-                if !symbol_info.is_mut {
-                    errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.token.line, e.token.col, var_name));
-                }
-            } else {
-                errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
-                       e.token.line, e.token.col, var_name, var_name, var_name));
-            }
-            errors.append(&mut check_types(&mut context, &e.params.get(0).unwrap()));
+            errors.append(&mut check_assignment(&mut context, &e, var_name));
         },
         NodeType::Return => {
             for return_val in &e.params {
                 errors.append(&mut check_types(&mut context, &return_val));
             }
         },
+
         NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
     }
-    errors
+
+    return errors
 }
 
 // ---------- eval repl interpreter
