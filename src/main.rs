@@ -1991,7 +1991,18 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, t: &Tok
         }
         errors.append(&mut check_types(&mut context, &p));
     }
-    errors
+
+    // TODO should macros be allowed to call procs?
+    if func_def.function_type == FunctionType::FTFunc {
+        for se in &func_def.body {
+            if is_expr_calling_procs(&context, &se) {
+                let proc_t = &se.token;
+                errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
+            }
+        }
+    }
+
+    return errors
 }
 
 fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
@@ -2166,15 +2177,6 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &t));
-            // TODO should macros be allowed to call procs?
-            if func_def.function_type == FunctionType::FTFunc {
-                for se in &func_def.body {
-                    if is_expr_calling_procs(&function_context, &se) {
-                        let proc_t = &se.token;
-                        errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
-                    }
-                }
-            }
         },
 
         NodeType::Declaration(decl) => {
