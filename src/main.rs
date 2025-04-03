@@ -1940,6 +1940,29 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     return errors;
 }
 
+fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
+    assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
+    let mut errors : Vec<String> = Vec::new();
+
+    let inner_e = e.params.get(0).unwrap();
+    let value_type = match get_value_type(&context, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            errors.push(error_string);
+            return errors;
+        },
+    };
+    let first_is_condition = ValueType::TBool == value_type;
+    if !first_is_condition {
+        let next_t = &inner_e.token;
+        errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+    }
+    for p in e.params.iter() {
+        errors.append(&mut check_types(&mut context, &p));
+    }
+    return errors;
+}
+
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut has_variadic = false;
@@ -2022,23 +2045,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
         },
         NodeType::If => {
-            assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
-            let inner_e = e.params.get(0).unwrap();
-            let value_type = match get_value_type(&context, &inner_e) {
-                Ok(val_type) => val_type,
-                Err(error_string) => {
-                    errors.push(error_string);
-                    return errors;
-                },
-            };
-            let first_is_condition = ValueType::TBool == value_type;
-            if !first_is_condition {
-                let next_t = &inner_e.token;
-                errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
-            }
-            for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &p));
-            }
+            errors.append(&mut check_if_statement(&mut context, &e));
         },
         NodeType::While => {
             assert!(e.params.len() == 2, "{} error: while nodes must have exactly 2 parameters.", LANG_NAME);
