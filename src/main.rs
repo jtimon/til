@@ -2185,6 +2185,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                         },
                     };
                 }
+                // TODO move to init_context() ? inner contexts are not persisted in init_context
                 context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 match value_type {
                     ValueType::ToInferType => {
@@ -2194,6 +2195,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                     ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
+                                // TODO move to init_context() ? inner contexts are not persisted in init_context
                                 context.funcs.insert(decl.name.clone(), func_def.clone());
                             },
                             _ => {
