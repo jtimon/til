@@ -1919,6 +1919,27 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     return errors;
 }
 
+fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
+    assert!(e.params.len() == 0, "{} error: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
+    let mut errors : Vec<String> = Vec::new();
+
+    for (_enum_val_name, enum_opt) in &enum_def.enum_map {
+        match &enum_opt {
+            None => {},
+            Some(value_type) => {
+                match value_type {
+                    ValueType::TCustom(ref custom_type_name) => {
+                        errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
+                                            e.token.line, e.token.col, custom_type_name));
+                    },
+                    _ => {},
+                }
+            },
+        }
+    }
+    return errors;
+}
+
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut has_variadic = false;
@@ -1984,22 +2005,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
         NodeType::EnumDef(enum_def) => {
-            assert!(e.params.len() == 0, "{} error: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
-
-            for (_enum_val_name, enum_opt) in &enum_def.enum_map {
-                match &enum_opt {
-                    None => {},
-                    Some(value_type) => {
-                        match value_type {
-                            ValueType::TCustom(ref custom_type_name) => {
-                                errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
-                                                    t.line, t.col, custom_type_name));
-                            },
-                            _ => {},
-                        }
-                    },
-                }
-            }
+            errors.append(&mut check_enum_def(&e, enum_def));
         },
         NodeType::StructDef(_struct_def) => {
             assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
@@ -2160,7 +2166,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &t));
-            // TODO should macros be allowd to call procs?
+            // TODO should macros be allowed to call procs?
             if func_def.function_type == FunctionType::FTFunc {
                 for se in &func_def.body {
                     if is_expr_calling_procs(&function_context, &se) {
