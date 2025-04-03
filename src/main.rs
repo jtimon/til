@@ -2372,7 +2372,7 @@ fn eval_core_func_btoa(mut context: &mut Context, e: &Expr) -> String {
     if eval_to_bool(&mut context, &e.params.get(1).unwrap()) {
         "true".to_string()
     } else {
-        "true".to_string()
+        "false".to_string()
     }
 }
 
