@@ -26,10 +26,10 @@ runfile("src/test/arithmetics.cil")
 runfile("src/test/boolean.cil")
 runfile("src/test/branchless.cil")
 runfile("src/test/comparisons.cil")
-runfile("src/test/intro.cil")
-runfile("src/test/flow.cil") // control flow, execution paths
-runfile("src/test/fib.cil") // recursive examples
 runfile("src/test/enums.cil")
+runfile("src/test/fib.cil") // recursive examples
+runfile("src/test/flow.cil") // control flow, execution path examples
+runfile("src/test/intro.cil")
 runfile("src/test/namespaces.cil")
 runfile("src/test/strings.cil")
 runfile("src/test/structs.cil")
