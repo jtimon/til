@@ -1946,8 +1946,8 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             },
         };
         if main_type != ValueType::TProc {
-            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {:?} instead",
-                                t.line, t.col, context.mode.name, main_type));
+            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
+                                t.line, t.col, context.mode.name, value_type_to_str(&main_type)));
             return errors;
         }
     }
