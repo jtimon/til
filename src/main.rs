@@ -1950,8 +1950,6 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = &e.token;
 
-    errors.append(&mut check_needs_main_proc(&context, &e));
-
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
@@ -3248,18 +3246,10 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         },
         _ => {},
     }
-    if errors.len() > 0 {
-        for err in &errors {
-            println!("{}:{}", path, err);
-        }
-        return format!("Mode errors: {} type errors found", errors.len());
-    }
-    // TODO what? make sure we can remove that, what is this?
-    // if context.mode.needs_main_proc {
-    //     e.params.push(Expr{node_type: NodeType::FCall("main".to_string()), token_index: 0, params: Vec::new()});
-    // }
 
-    let errors = check_types(&mut context, &e);
+    errors.append(&mut check_needs_main_proc(&context, &e));
+    errors.append(&mut check_types(&mut context, &e)); // TODO remove mut from context arg
+
     if errors.len() > 0 {
         for err in &errors {
             println!("{}:{}", path, err);
