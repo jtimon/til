@@ -1874,6 +1874,24 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
+fn check_needs_main_proc(context: &Context, e: &Expr) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+    if context.mode.needs_main_proc {
+        match context.symbols.get("main") {
+            Some(symbol_info) => {
+                if symbol_info.value_type != ValueType::TProc {
+                    errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
+                                        e.token.line, e.token.col, context.mode.name, value_type_to_str(&symbol_info.value_type)));
+                }
+            },
+            None => {
+                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", e.token.line, e.token.col, context.mode.name));
+            },
+        };
+    }
+    return errors;
+}
+
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, t: &Token) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut has_variadic = false;
@@ -1932,19 +1950,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let t = &e.token;
 
-    if context.mode.needs_main_proc {
-        match context.symbols.get("main") {
-            Some(symbol_info) => {
-                if symbol_info.value_type != ValueType::TProc {
-                    errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
-                                        t.line, t.col, context.mode.name, value_type_to_str(&symbol_info.value_type)));
-                }
-            },
-            None => {
-                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", t.line, t.col, context.mode.name));
-            },
-        };
-    }
+    errors.append(&mut check_needs_main_proc(&context, &e));
 
     match &e.node_type {
         NodeType::Body => {
