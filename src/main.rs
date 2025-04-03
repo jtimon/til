@@ -1874,8 +1874,35 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
     false
 }
 
-fn check_needs_main_proc(context: &Context, e: &Expr) -> Vec<String> {
+fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
+
+    match &e.node_type {
+        NodeType::Body => {
+            for p in e.params.iter() {
+                let t = &p.token;
+                match &p.node_type {
+
+                    NodeType::Declaration(decl) => {
+                        if !context.mode.allows_base_mut && decl.is_mut {
+                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
+                                t.line, t.col, "mode", context.mode.name, decl.name));
+                        }
+                    },
+                    NodeType::FCall => {
+                        if !context.mode.allows_base_calls {
+                            let f_name = get_func_name_in_call(&e);
+                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
+                                t.line, t.col, "mode", context.mode.name, f_name));
+                        }
+                    },
+                    _ => {},
+                }
+            }
+        },
+        _ => panic!("check_needs_main_proc() expects a body expression, this should never happen."),
+    }
+
     if context.mode.needs_main_proc {
         match context.symbols.get("main") {
             Some(symbol_info) => {
@@ -3221,33 +3248,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         return format!("Compiler errors: {} declaration errors found", errors.len());
     }
 
-    match &e.node_type {
-        NodeType::Body => {
-            for p in e.params.iter() {
-                let t = &p.token;
-                match &p.node_type {
-
-                    NodeType::Declaration(decl) => {
-                        if !context.mode.allows_base_mut && decl.is_mut {
-                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
-                                t.line, t.col, "mode", context.mode.name, decl.name));
-                        }
-                    },
-                    NodeType::FCall => {
-                        if !context.mode.allows_base_calls {
-                            let f_name = get_func_name_in_call(&e);
-                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
-                                t.line, t.col, "mode", context.mode.name, f_name));
-                        }
-                    }
-                    _ => {},
-                }
-            }
-        },
-        _ => {},
-    }
-
-    errors.append(&mut check_needs_main_proc(&context, &e));
+    errors.append(&mut basic_mode_checks(&context, &e));
     errors.append(&mut check_types(&mut context, &e)); // TODO remove mut from context arg
 
     if errors.len() > 0 {
