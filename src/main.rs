@@ -1420,7 +1420,7 @@ struct EnumVal {
 struct Context {
     mode: ModeDef,
     symbols: HashMap<String, SymbolInfo>,
-    funcs: HashMap<String, SFuncDef>,
+    funcs: HashMap<String, SFuncDef>, // REM: currently funcs are not on symbols, perhaps they should?
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, SStructDef>,
@@ -1712,7 +1712,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Declaration(decl) => {
             let t = &e.token;
-            if is_defined_symbol(&context, &decl.name) {
+            if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
                 errors.push(format!("{}:{}: compiler error: '{}' already declared.", t.line, t.col, decl.name));
             }
             assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
@@ -1795,10 +1795,6 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 // ---------- Type checking
-
-fn is_defined_symbol(context: &Context, name: &str) -> bool {
-    context.funcs.contains_key(name) || context.symbols.contains_key(name)
-}
 
 fn does_func_return_bool(context: &Context, name: &str) -> bool {
     if context.funcs.contains_key(name) {
@@ -2261,7 +2257,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &e));
         },
         NodeType::Identifier(name) => {
-            if !is_defined_symbol(&context, &name) {
+            if !(context.funcs.contains_key(name) || context.symbols.contains_key(name)) {
                 errors.push(format!("{}:{}: type error: Undefined symbol {}", e.token.line, e.token.col, name));
             }
         },
