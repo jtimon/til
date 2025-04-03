@@ -1933,23 +1933,17 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let t = &e.token;
 
     if context.mode.needs_main_proc {
-        if !context.symbols.contains_key("main") {
-            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.",
-                                t.line, t.col, context.mode.name));
-            return errors;
-        }
-        let main_type : ValueType = match context.symbols.get("main") {
-            Some(main_type_) => main_type_.value_type.clone(),
+        match context.symbols.get("main") {
+            Some(symbol_info) => {
+                if symbol_info.value_type != ValueType::TProc {
+                    errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
+                                        t.line, t.col, context.mode.name, value_type_to_str(&symbol_info.value_type)));
+                }
+            },
             None => {
-                errors.push(format!("{}:{}: mode error: main proc not provided in mode '{}'", t.line, t.col, context.mode.name));
-                return errors;
+                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", t.line, t.col, context.mode.name));
             },
         };
-        if main_type != ValueType::TProc {
-            errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
-                                t.line, t.col, context.mode.name, value_type_to_str(&main_type)));
-            return errors;
-        }
     }
 
     match &e.node_type {
