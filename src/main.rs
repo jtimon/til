@@ -2155,6 +2155,49 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     return errors
 }
 
+fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
+    let mut errors : Vec<String> = Vec::new();
+
+    assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
+    let inner_e = e.params.get(0).unwrap();
+    if !context.symbols.contains_key(&decl.name) {
+        let mut value_type = decl.value_type.clone();
+        if value_type == ValueType::ToInferType {
+            value_type = match get_value_type(&context, &inner_e) {
+                Ok(val_type) => val_type,
+                Err(error_string) => {
+                    errors.push(error_string);
+                    return errors;
+                },
+            };
+        }
+        // TODO move to init_context() ? inner contexts are not persisted in init_context
+        context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+        match value_type {
+            ValueType::ToInferType => {
+                errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", e.token.line, e.token.col, LANG_NAME, decl.name));
+                return errors;
+            },
+            ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+                match &inner_e.node_type {
+                    NodeType::FuncDef(func_def) => {
+                        // TODO move to init_context() ? inner contexts are not persisted in init_context
+                        context.funcs.insert(decl.name.clone(), func_def.clone());
+                    },
+                    _ => {
+                        errors.push(format!("{}:{} {} error: functions should have definitions", e.token.line, e.token.col, LANG_NAME));
+                        return errors;
+                    },
+                }
+            },
+            _ => {},
+        }
+    }
+    errors.append(&mut check_types(&mut context, &inner_e));
+
+    return errors
+}
+
 fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
 
@@ -2200,42 +2243,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         },
 
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
-            let inner_e = e.params.get(0).unwrap();
-            if !context.symbols.contains_key(&decl.name) {
-                let mut value_type = decl.value_type.clone();
-                if value_type == ValueType::ToInferType {
-                    value_type = match get_value_type(&context, &inner_e) {
-                        Ok(val_type) => val_type,
-                        Err(error_string) => {
-                            errors.push(error_string);
-                            return errors;
-                        },
-                    };
-                }
-                // TODO move to init_context() ? inner contexts are not persisted in init_context
-                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                match value_type {
-                    ValueType::ToInferType => {
-                        errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", e.token.line, e.token.col, LANG_NAME, decl.name));
-                        return errors;
-                    },
-                    ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
-                        match &inner_e.node_type {
-                            NodeType::FuncDef(func_def) => {
-                                // TODO move to init_context() ? inner contexts are not persisted in init_context
-                                context.funcs.insert(decl.name.clone(), func_def.clone());
-                            },
-                            _ => {
-                                errors.push(format!("{}:{} {} error: functions should have definitions", e.token.line, e.token.col, LANG_NAME));
-                                return errors;
-                            },
-                        }
-                    },
-                    _ => {},
-                }
-            }
-            errors.append(&mut check_types(&mut context, &inner_e));
+            errors.append(&mut check_declaration(&mut context, &e, decl));
         },
 
         NodeType::Assignment(var_name) => {
