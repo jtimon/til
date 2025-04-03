@@ -62,3 +62,8 @@ test(xor(true, false), "true XOR false = true")
 test(xor(false, true), "false XOR true = true")
 test(not(xor(true, true)), "true XOR true = false")
 test(not(xor(false, false)), "false XOR false = false")
+
+// Test bool.to_str()
+test(str_eq("true", bool.to_str(true)), "'true' = bool.to_str(true)")
+test(str_eq("false", bool.to_str(false)), "'false' = bool.to_str(false)")
+test(str_eq("false", bool.to_str(and(false, false))), "'false' = bool.to_str(and(false, false)))")
