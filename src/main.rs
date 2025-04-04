@@ -3178,7 +3178,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             }
         }
         _ => {
-            panic!("{}:{}: {} eval error: Not implemented, found {}.", e.line, e.col, LANG_NAME, e.token.token_str)
+            panic!("{}:{}: {} eval error: Not implemented, found {:?}.", e.line, e.col, LANG_NAME, e.node_type)
         },
     }
 }
