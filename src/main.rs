@@ -2640,32 +2640,36 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     "".to_string()
 }
 
+fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
+    return match name {
+        "and" => eval_core_func_and(&mut context, &e),
+        "or" => eval_core_func_or(&mut context, &e),
+        "not" => eval_core_func_not(&mut context, &e),
+        "eq" => eval_core_func_eq(&mut context, &e),
+        "str_eq" => eval_core_func_str_eq(&mut context, &e),
+        "concat" => eval_core_func_concat(&mut context, &e),
+        "lt" => eval_core_func_lt(&mut context, &e),
+        "lteq" => eval_core_func_lteq(&mut context, &e),
+        "gt" => eval_core_func_gt(&mut context, &e),
+        "gteq" => eval_core_func_gteq(&mut context, &e),
+        "add" => eval_core_func_add(&mut context, &e),
+        "sub" => eval_core_func_sub(&mut context, &e),
+        "mul" => eval_core_func_mul(&mut context, &e),
+        "div" => eval_core_func_div(&mut context, &e),
+        "btoi" => eval_core_func_btoi(&mut context, &e),
+        "atoi" => eval_core_func_atoi(&mut context, &e),
+        "btoa" => eval_core_func_btoa(&mut context, &e),
+        "itoa" => eval_core_func_itoa(&mut context, &e),
+        _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.token.line, e.token.col, LANG_NAME, name),
+    };
+}
+
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     if is_core_func(&name) {
-        match name {
-            "and" => eval_core_func_and(&mut context, &e),
-            "or" => eval_core_func_or(&mut context, &e),
-            "not" => eval_core_func_not(&mut context, &e),
-            "eq" => eval_core_func_eq(&mut context, &e),
-            "str_eq" => eval_core_func_str_eq(&mut context, &e),
-            "concat" => eval_core_func_concat(&mut context, &e),
-            "lt" => eval_core_func_lt(&mut context, &e),
-            "lteq" => eval_core_func_lteq(&mut context, &e),
-            "gt" => eval_core_func_gt(&mut context, &e),
-            "gteq" => eval_core_func_gteq(&mut context, &e),
-            "add" => eval_core_func_add(&mut context, &e),
-            "sub" => eval_core_func_sub(&mut context, &e),
-            "mul" => eval_core_func_mul(&mut context, &e),
-            "div" => eval_core_func_div(&mut context, &e),
-            "btoi" => eval_core_func_btoi(&mut context, &e),
-            "atoi" => eval_core_func_atoi(&mut context, &e),
-            "btoa" => eval_core_func_btoa(&mut context, &e),
-            "itoa" => eval_core_func_itoa(&mut context, &e),
-            _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", t.line, t.col, LANG_NAME, name),
-        }
+        return eval_core_func_call(&name, &mut context, &e)
     } else if is_core_proc(&name) {
-        match name {
+        return match name {
             "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
             "exit" => eval_core_exit(&e),
             "import" => "".to_string(), // Should already be imported in init_context
@@ -2677,7 +2681,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         }
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
-        eval_user_func_proc_call(func_def, &name, &context, &e)
+        return eval_user_func_proc_call(func_def, &name, &context, &e)
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
         let id_expr = e.params.get(0).unwrap();
