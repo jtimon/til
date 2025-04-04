@@ -2609,19 +2609,19 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
             ValueType::TBool => {
-                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &e.params.get(param_index).unwrap()));
+                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &e.get(param_index)));
                 function_context.bools.insert(arg.name.clone(), bool_expr_result);
             },
             ValueType::TI64 =>  {
-                let result = &eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
+                let result = &eval_expr(&mut function_context, &e.get(param_index));
                 function_context.i64s.insert(arg.name.to_string(), result.parse::<i64>().unwrap());
             },
             ValueType::TString =>  {
-                let result = eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
+                let result = eval_expr(&mut function_context, &e.get(param_index));
                 function_context.strings.insert(arg.name.to_string(), result);
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let result = eval_expr(&mut function_context, &e.params.get(param_index).unwrap());
+                let result = eval_expr(&mut function_context, &e.get(param_index));
                 let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
