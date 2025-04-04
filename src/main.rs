@@ -3343,7 +3343,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 
 fn run_file(path: &String) {
     let mut context = Context::new(DEFAULT_MODE);
-    let core_path = "src/core.cil".to_string();
+    let core_path = "src/core/core.cil".to_string();
     run_file_with_context(true, &mut context, &core_path);
     run_file_with_context(false, &mut context, &path);
 }
