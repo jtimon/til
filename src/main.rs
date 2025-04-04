@@ -2563,7 +2563,8 @@ fn eval_core_exit(e: &Expr) -> String {
             my_li64.clone()
         },
         node_type => {
-            panic!("{}:{} {} error: calling core proc exit, but found {:?} instead of exit code.", e.token.line, e.token.col, LANG_NAME, node_type);
+            panic!("{}:{} {} error: calling core proc exit, but found {:?} instead of literal int exit code.",
+                   e.token.line, e.token.col, LANG_NAME, node_type);
         },
     };
     std::process::exit(exit_code as i32);
