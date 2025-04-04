@@ -1926,11 +1926,11 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
             Some(symbol_info) => {
                 if symbol_info.value_type != ValueType::TProc {
                     errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
-                                        e.line, e.token.col, context.mode.name, value_type_to_str(&symbol_info.value_type)));
+                                        e.line, e.col, context.mode.name, value_type_to_str(&symbol_info.value_type)));
                 }
             },
             None => {
-                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", e.line, e.token.col, context.mode.name));
+                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", e.line, e.col, context.mode.name));
             },
         };
     }
@@ -1948,7 +1948,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => {
                         errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
-                                            e.line, e.token.col, custom_type_name));
+                                            e.line, e.col, custom_type_name));
                     },
                     _ => {},
                 }
@@ -2015,7 +2015,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         let symbol = match context.symbols.get(&f_name) {
             Some(_symbol) => _symbol,
             None => {
-                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", e.line, e.token.col, LANG_NAME, f_name));
+                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", e.line, e.col, LANG_NAME, f_name));
                 return errors;
             },
         };
@@ -2024,14 +2024,14 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        errors.push(format!("{}:{}: struct '{}' not found in context.", e.line, e.token.col, f_name));
+                        errors.push(format!("{}:{}: struct '{}' not found in context.", e.line, e.col, f_name));
                         return errors;
                     },
                 };
 
                 if e.params.len() == 0 {
                     errors.push(format!("{}:{}: {} error: struct '{}' cannot be instanciated. Constructors not implemented yet",
-                                        e.line, e.token.col, LANG_NAME, f_name));
+                                        e.line, e.col, LANG_NAME, f_name));
                     return errors;
                 }
 
@@ -2041,7 +2041,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                         let member_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member_value) => _member_value,
                             None => {
-                                errors.push(format!("{}:{}: struct '{}' has no member '{}' e", e.line, e.token.col, f_name, after_dot_name));
+                                errors.push(format!("{}:{}: struct '{}' has no member '{}' e", e.line, e.col, f_name, after_dot_name));
                                 return errors;
                             },
                         };
@@ -2051,21 +2051,21 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                             },
                             _ => {
                                 errors.push(format!("{}:{}: Cannot call '{}.{}', it is a '{:?}', not a function.",
-                                                    e.line, e.token.col, f_name, after_dot_name, member_value.node_type));
+                                                    e.line, e.col, f_name, after_dot_name, member_value.node_type));
                                 return errors;
                             },
                         }
                     },
                     _ => {
                         errors.push(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
-                                            e.line, e.token.col, LANG_NAME, f_name, after_dot.node_type));
+                                            e.line, e.col, LANG_NAME, f_name, after_dot.node_type));
                         return errors;
                     },
                 }
             },
             _ => {
                 errors.push(format!("{}:{}: Cannot call '{}', it is a '{:?}', not a function nor a struct.",
-                                    e.line, e.token.col, f_name, symbol.value_type));
+                                    e.line, e.col, f_name, symbol.value_type));
                 return errors;
             }
         }
@@ -2073,10 +2073,10 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
 
     let has_multi_arg = func_proc_has_multi_arg(func_def);
     if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
-        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", e.line, e.token.col, &f_name, func_def.args.len(), e.params.len()));
+        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()));
     }
     if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
-        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", e.line, e.token.col, &f_name, func_def.args.len(), e.params.len()));
+        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()));
     }
 
     let max_arg_def = func_def.args.len();
@@ -2097,10 +2097,10 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         if expected_type != &found_type {
             if expected_type == &str_to_value_type(INFER_TYPE) {
                 errors.push(format!("{}:{}: type error: calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
-                                    e.line, e.token.col, &f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
+                                    e.line, e.col, &f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type)));
             } else {
                 errors.push(format!("{}:{}: type error: calling function '{}' expects '{:?}' for arg '{}', but '{:?}' was provided.",
-                                    e.line, e.token.col, &f_name, expected_type, arg.name, found_type));
+                                    e.line, e.col, &f_name, expected_type, arg.name, found_type));
             }
         }
     }
@@ -2114,7 +2114,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     for arg in &func_def.args {
         if has_variadic {
             errors.push(format!("{}:{}: type error: Variadic argument '{}' must be the last (only one variadic argument allowed).",
-                                e.line, e.token.col, &arg.name));
+                                e.line, e.col, &arg.name));
         }
         match &arg.value_type {
             ValueType::TMulti(_) => {
@@ -2122,7 +2122,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
             }
             ValueType::TCustom(ref custom_type_name) => {
                 if !context.symbols.contains_key(custom_type_name) {
-                    errors.push(format!("{}:{}: type error: Argument '{}' is of undefined type {}.", e.line, e.token.col, &arg.name, &custom_type_name));
+                    errors.push(format!("{}:{}: type error: Argument '{}' is of undefined type {}.", e.line, e.col, &arg.name, &custom_type_name));
                 }
                 let _custom_symbol = context.symbols.get(custom_type_name).unwrap();
                 // TODO check more type stuff
@@ -2137,7 +2137,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         match &p.node_type {
             NodeType::Return => {
                 if returns_len != p.params.len() {
-                    errors.push(format!("{}:{}: type error: Returning {} values when {} were expected.", e.line, e.token.col, returns_len, p.params.len()));
+                    errors.push(format!("{}:{}: type error: Returning {} values when {} were expected.", e.line, e.col, returns_len, p.params.len()));
                 } else {
                     for i in 0..p.params.len() {
                         let expected_value_type = func_def.returns.get(i).unwrap();
@@ -2145,7 +2145,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
                                     errors.push(format!("{}:{}: type error: Return value in pos {} expected to be {:?}, but found {:?} instead",
-                                                        e.line, e.token.col, i, expected_value_type, actual_value_type));
+                                                        e.line, e.col, i, expected_value_type, actual_value_type));
                                 }
                             },
                             Err(error_string) => {
@@ -2193,7 +2193,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
         context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
         match value_type {
             ValueType::ToInferType => {
-                errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", e.line, e.token.col, LANG_NAME, decl.name));
+                errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", e.line, e.col, LANG_NAME, decl.name));
                 return errors;
             },
             ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
@@ -2203,7 +2203,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
                         context.funcs.insert(decl.name.clone(), func_def.clone());
                     },
                     _ => {
-                        errors.push(format!("{}:{} {} error: functions should have definitions", e.line, e.token.col, LANG_NAME));
+                        errors.push(format!("{}:{} {} error: functions should have definitions", e.line, e.col, LANG_NAME));
                         return errors;
                     },
                 }
@@ -2221,19 +2221,19 @@ fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<
     let mut errors : Vec<String> = Vec::new();
 
     if is_core_func(&var_name) {
-        errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", e.line, e.token.col, var_name));
+        errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", e.line, e.col, var_name));
     } else if is_core_proc(&var_name) {
-        errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", e.line, e.token.col, var_name));
+        errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", e.line, e.col, var_name));
     } else if context.funcs.contains_key(var_name)  {
-        errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", e.line, e.token.col, var_name));
+        errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", e.line, e.col, var_name));
     } else if context.symbols.contains_key(var_name) {
         let symbol_info = context.symbols.get(var_name).unwrap();
         if !symbol_info.is_mut {
-            errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.line, e.token.col, var_name));
+            errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.line, e.col, var_name));
         }
     } else {
         errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
-                            e.line, e.token.col, var_name, var_name, var_name));
+                            e.line, e.col, var_name, var_name, var_name));
     }
     errors.append(&mut check_types(&mut context, &e.params.get(0).unwrap()));
     return errors
@@ -2280,7 +2280,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Identifier(name) => {
             if !(context.funcs.contains_key(name) || context.symbols.contains_key(name)) {
-                errors.push(format!("{}:{}: type error: Undefined symbol {}", e.line, e.token.col, name));
+                errors.push(format!("{}:{}: type error: Undefined symbol {}", e.line, e.col, name));
             }
         },
 
@@ -2578,7 +2578,7 @@ fn eval_core_exit(e: &Expr) -> String {
         },
         node_type => {
             panic!("{}:{} {} error: calling core proc exit, but found {:?} instead of literal int exit code.",
-                   e.line, e.token.col, LANG_NAME, node_type);
+                   e.line, e.col, LANG_NAME, node_type);
         },
     };
     std::process::exit(exit_code as i32);
@@ -2674,7 +2674,7 @@ fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "atoi" => eval_core_func_atoi(&mut context, &e),
         "btoa" => eval_core_func_btoa(&mut context, &e),
         "itoa" => eval_core_func_itoa(&mut context, &e),
-        _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.line, e.token.col, LANG_NAME, name),
+        _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.line, e.col, LANG_NAME, name),
     };
 }
 
@@ -2687,7 +2687,7 @@ fn eval_core_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "print" => eval_core_proc_print(false, &mut context, &e),
         "println" => eval_core_proc_print(true, &mut context, &e),
         "runfile" => eval_core_proc_runfile(&mut context, &e),
-        _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", e.line, e.token.col, LANG_NAME, name),
+        _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", e.line, e.col, LANG_NAME, name),
     }
 }
 
