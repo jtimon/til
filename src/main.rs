@@ -563,8 +563,22 @@ enum NodeType {
 #[derive(Debug, Clone, PartialEq)]
 struct Expr {
     node_type: NodeType,
-    token: Token,
     params: Vec<Expr>,
+    line: usize,
+    col: usize,
+    token: Token, // TODO remove
+}
+
+impl Expr {
+    fn new(node_type: NodeType, token: Token, params: Vec<Expr>) -> Expr {
+        return Expr{
+            node_type: node_type,
+            params: params,
+            line: token.line,
+            col: token.col,
+            token: token, // TODO remove
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -683,7 +697,7 @@ fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
                                t.line, t.col, LANG_NAME, t.token_type));
         },
     };
-    let e = Expr { node_type: node_type, token: t.clone(), params: params};
+    let e = Expr::new(node_type, t.clone(), params);
     *current = *current + 1;
     Ok(e)
 }
@@ -727,7 +741,7 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         }
     }
     match list_t.token_type {
-        TokenType::RightParen => Ok(Expr { node_type: NodeType::LList, token: lexer.get_token(initial_current)?.clone(), params: params}),
+        TokenType::RightParen => Ok(Expr::new(NodeType::LList, lexer.get_token(initial_current)?.clone(), params)),
         _ => Err(format!("{}:{}: parse error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
@@ -739,7 +753,7 @@ fn parse_assignment(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> 
     *current = *current + 2; // skip identifier and equal
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_primary(&lexer, current)?);
-    Ok(Expr { node_type: NodeType::Assignment(name.to_string()), token: lexer.get_token(initial_current)?.clone(), params: params})
+    return Ok(Expr::new(NodeType::Assignment(name.to_string()), lexer.get_token(initial_current)?.clone(), params))
 }
 
 fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declaration>, String> {
@@ -924,7 +938,7 @@ fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_par
 
     let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body};
     let params : Vec<Expr> = Vec::new();
-    let e = Expr { node_type: NodeType::FuncDef(func_def), token: t.clone(), params: params};
+    let e = Expr::new(NodeType::FuncDef(func_def), t.clone(), params);
     *current = *current + 1;
     Ok(e)
 }
@@ -980,7 +994,7 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         return Err(format!("{}:{}: parse error: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
-    return Ok(Expr { node_type: NodeType::EnumDef(SEnumDef{enum_map: enum_map}), token: lexer.get_token(initial_current)?.clone(), params: params});
+    return Ok(Expr::new(NodeType::EnumDef(SEnumDef{enum_map: enum_map}), lexer.get_token(initial_current)?.clone(), params));
 }
 
 fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1016,8 +1030,8 @@ fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, S
     }
 
     *current = *current + 1;
-    return Ok(Expr{node_type: NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
-                   token: t.clone(), params: Vec::new()});
+    return Ok(Expr::new(NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
+                   t.clone(), Vec::new()));
 }
 
 fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1036,11 +1050,11 @@ fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, 
 
         current_identifier = &next2_t.token_str;
         *current = *current + 2;
-        params.push(Expr { node_type: NodeType::Identifier(current_identifier.clone()), token: t.clone(), params: Vec::new()});
+        params.push(Expr::new(NodeType::Identifier(current_identifier.clone()), t.clone(), Vec::new()));
         next_t = lexer.get_token(*current + 1)?;
     }
 
-    let e = Expr { node_type: NodeType::Identifier(t.token_str.clone()), token: lexer.get_token(initial_current)?.clone(), params: params};
+    let e = Expr::new(NodeType::Identifier(t.token_str.clone()), lexer.get_token(initial_current)?.clone(), params);
     *current = *current + 1;
 
     if TokenType::LeftParen == next_t.token_type {
@@ -1051,7 +1065,7 @@ fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, 
         let mut params : Vec<Expr> = Vec::new();
         params.push(e);
         params.append(&mut arg_list.params);
-        return Ok(Expr { node_type: NodeType::FCall, token: lexer.get_token(initial_current)?.clone(), params: params})
+        return Ok(Expr::new(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params))
     }
     return Ok(e);
 }
@@ -1136,7 +1150,7 @@ fn return_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> 
         params.push(prim2);
         t = lexer.get_token(*current)?;
     }
-    Ok(Expr { node_type: NodeType::Return, token: lexer.get_token(initial_current)?.clone(), params: params})
+    Ok(Expr::new(NodeType::Return, lexer.get_token(initial_current)?.clone(), params))
 }
 
 fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1174,7 +1188,7 @@ fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         params.push(body);
         *current = *current + 1;
     }
-    Ok(Expr { node_type: NodeType::If, token: lexer.get_token(initial_current)?.clone(), params: params})
+    Ok(Expr::new(NodeType::If, lexer.get_token(initial_current)?.clone(), params))
 }
 
 fn while_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1197,7 +1211,7 @@ fn while_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     };
     params.push(body);
     *current = *current + 1;
-    Ok(Expr { node_type: NodeType::While, token: lexer.get_token(initial_current)?.clone(), params: params})
+    Ok(Expr::new(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
 fn current_token_type<'a>(lexer: &'a Lexer, current: &'a mut usize) -> &'a TokenType {
@@ -1230,7 +1244,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
         *current = *current + 1;
         next_t = lexer.get_token(*current)?;
         if next_t.token_type == TokenType::Colon {
-            params.push(Expr{node_type: NodeType::DefaultCase, token: t.clone(), params: Vec::new()});
+            params.push(Expr::new(NodeType::DefaultCase, t.clone(), Vec::new()));
         } else {
             let prim = match parse_primary(&lexer, current) {
                 Ok(to_ret) => to_ret,
@@ -1250,13 +1264,13 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
         let mut body_params : Vec<Expr> = Vec::new();
         while *current < lexer.len() {
             if next_t.token_type == TokenType::RightBrace {
-                params.push(Expr{node_type: NodeType::Body, token: t.clone(), params: body_params});
+                params.push(Expr::new(NodeType::Body, t.clone(), body_params));
                 end_found = true;
                 *current = *current + 1;
                 break;
             }
             if next_t.token_type == TokenType::Case {
-                params.push(Expr{node_type: NodeType::Body, token: t.clone(), params: body_params});
+                params.push(Expr::new(NodeType::Body, t.clone(), body_params));
                 break;
             }
             let stmt = match parse_statement(&lexer, current) {
@@ -1272,7 +1286,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
         }
     }
     if end_found {
-        return Ok(Expr { node_type: NodeType::Switch, token: lexer.get_token(initial_current)?.clone(), params: params})
+        return Ok(Expr::new(NodeType::Switch, lexer.get_token(initial_current)?.clone(), params))
     }
     return Err(format!("parse error: Expected '}}' to end switch."));
 }
@@ -1293,7 +1307,7 @@ fn parse_declaration(lexer: &Lexer, current: &mut usize, is_mut: bool, explicit_
     params.push(prim);
     let explicit_value_type = str_to_value_type(explicit_type);
     let decl = Declaration{name: decl_name.to_string(), value_type: explicit_value_type, is_mut: is_mut};
-    Ok(Expr { node_type: NodeType::Declaration(decl), token: lexer.get_token(initial_current)?.clone(), params: params})
+    return Ok(Expr::new(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
 
 fn parse_mut_declaration(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1368,7 +1382,7 @@ fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Resul
         params.push(stmt);
     }
     if end_found {
-        return Ok(Expr{node_type: NodeType::Body, token: lexer.get_token(initial_current)?.clone(), params: params})
+        return Ok(Expr::new(NodeType::Body, lexer.get_token(initial_current)?.clone(), params))
     }
     return Err(format!("parse error: Expected {:?} to end body.", end_token));
 }
@@ -2310,11 +2324,11 @@ fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
 
     if extra_arg {
         let id_expr_name = get_func_name_in_call(&e);
-        let extr_arg_e = Expr{node_type: NodeType::Identifier(id_expr_name), token: e.token.clone(), params: Vec::new()};
+        let extr_arg_e = Expr::new(NodeType::Identifier(id_expr_name), e.token.clone(), Vec::new());
         let mut new_args = Vec::new();
         new_args.push(extr_arg_e);
         new_args.append(&mut e.params.clone());
-        let new_e = Expr{node_type: NodeType::Identifier(f_name.clone()), token: e.params.get(0).unwrap().token.clone(), params: new_args};
+        let new_e = Expr::new(NodeType::Identifier(f_name.clone()), e.params.get(0).unwrap().token.clone(), new_args);
         return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &new_e).as_str());
     }
     return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &e).as_str());
@@ -2731,11 +2745,11 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
 
         if extra_arg {
             let id_expr_name = get_func_name_in_call(&e);
-            let extr_arg_e = Expr{node_type: NodeType::Identifier(id_expr_name), token: e.token.clone(), params: Vec::new()};
+            let extr_arg_e = Expr::new(NodeType::Identifier(id_expr_name), e.token.clone(), Vec::new());
             let mut new_args = Vec::new();
             new_args.push(extr_arg_e);
             new_args.append(&mut e.params.clone());
-            let new_e = Expr{node_type: NodeType::Identifier(f_name.clone()), token: e.params.get(0).unwrap().token.clone(), params: new_args};
+            let new_e = Expr::new(NodeType::Identifier(f_name.clone()), e.params.get(0).unwrap().token.clone(), new_args);
             return eval_func_proc_call(&f_name, &mut context, &new_e);
         }
         return eval_func_proc_call(&f_name, &mut context, &e);
