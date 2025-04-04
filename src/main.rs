@@ -2664,21 +2664,25 @@ fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
     };
 }
 
+fn eval_core_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
+    return match name {
+        "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
+        "exit" => eval_core_exit(&e),
+        "import" => "".to_string(), // Should already be imported in init_context
+        "input_read_line" => eval_core_proc_input_read_line(&mut context, &e),
+        "print" => eval_core_proc_print(false, &mut context, &e),
+        "println" => eval_core_proc_print(true, &mut context, &e),
+        "runfile" => eval_core_proc_runfile(&mut context, &e),
+        _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", e.token.line, e.token.col, LANG_NAME, name),
+    }
+}
+
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
     let t = &e.token;
     if is_core_func(&name) {
         return eval_core_func_call(&name, &mut context, &e)
     } else if is_core_proc(&name) {
-        return match name {
-            "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
-            "exit" => eval_core_exit(&e),
-            "import" => "".to_string(), // Should already be imported in init_context
-            "input_read_line" => eval_core_proc_input_read_line(&mut context, &e),
-            "print" => eval_core_proc_print(false, &mut context, &e),
-            "println" => eval_core_proc_print(true, &mut context, &e),
-            "runfile" => eval_core_proc_runfile(&mut context, &e),
-            _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", t.line, t.col, LANG_NAME, name),
-        }
+        return eval_core_proc_call(&name, &mut context, &e)
     } else if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
         return eval_user_func_proc_call(func_def, &name, &context, &e)
@@ -3082,7 +3086,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
                     }
                 }
             }
-            "".to_string()
+            return "".to_string()
         },
         NodeType::LBool(bool_value) => bool_value.to_string(),
         NodeType::LI64(li64) => li64.to_string(),
