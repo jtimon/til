@@ -1516,10 +1516,10 @@ fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
-fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
+fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.returns.len() {
         0 => {
-            return Err(format!("{}:{}: {} error: func '{}' does not return anything", t.line, t.col, LANG_NAME, name))
+            return Err(format!("{}:{}: {} error: func '{}' does not return anything", e.line, e.col, LANG_NAME, name))
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
@@ -1528,11 +1528,11 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
                 ValueType::TString => Ok(ValueType::TString),
                 ValueType::TCustom(type_str) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 _ => return Err(format!("{}:{}: {} error: func '{}' returns unsupported type {}",
-                                        t.line, t.col, LANG_NAME, name, value_type_to_str(func_def.returns.get(0).unwrap()))),
+                                        e.line, e.col, LANG_NAME, name, value_type_to_str(func_def.returns.get(0).unwrap()))),
             }
         },
         _ => {
-            return Err(format!("{}:{}: {} error: func '{}' returns multiple values, but that's not implemented yet.", t.line, t.col, LANG_NAME, name));
+            return Err(format!("{}:{}: {} error: func '{}' returns multiple values, but that's not implemented yet.", e.line, e.col, LANG_NAME, name));
         },
     }
 }
@@ -1541,7 +1541,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
     let f_name = get_func_name_in_call(&e);
     if context.funcs.contains_key(&f_name) {
-        return value_type_func_proc(&e.token, &f_name, &context.funcs.get(&f_name).unwrap())
+        return value_type_func_proc(&e, &f_name, &context.funcs.get(&f_name).unwrap())
     } else if is_core_func(&f_name) {
         return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", e.line, e.col, context.mode.name, &f_name));
     } else if is_core_proc(&f_name) {
@@ -1581,7 +1581,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", f_name, after_dot_name);
-                                return value_type_func_proc(&e.token, &combined_name, &func_def);
+                                return value_type_func_proc(&e, &combined_name, &func_def);
                             },
                             _  => {
                                 return Err(format!("{}:{}: type error: Cannot call '{}.{}', it is not a function, it is '{}'",
@@ -1607,7 +1607,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
                         if context.funcs.contains_key(after_dot_name) {
-                            return value_type_func_proc(&e.token, &f_name, &context.funcs.get(after_dot_name).unwrap())
+                            return value_type_func_proc(&e, &f_name, &context.funcs.get(after_dot_name).unwrap())
                         }
                         return Err(format!("{}:{}: {} error: expected function name after '{}.' found {:?}",
                                            e.line, e.col, LANG_NAME, f_name, after_dot_name));
