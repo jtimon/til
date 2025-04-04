@@ -590,6 +590,10 @@ impl Expr {
     fn new_clone(node_type: NodeType, e: &Expr, params: Vec<Expr>) -> Expr {
         return Expr::new_explicit(node_type, params, e.line, e.col)
     }
+
+    fn get(self: &Expr, i: usize) -> &Expr {
+        return &self.params.get(i).unwrap();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1522,7 +1526,7 @@ fn is_core_proc(proc_name: &str) -> bool {
 fn get_func_name_in_call(e: &Expr) -> String {
     assert!(e.node_type == NodeType::FCall);
     assert!(e.params.len() > 0);
-    match &e.params.get(0).unwrap().node_type {
+    match &e.get(0).node_type {
         NodeType::Identifier(f_name) => return f_name.clone(),
         _ => panic!("panic calling get_func_name_in_call(), this should never happen."),
     }
