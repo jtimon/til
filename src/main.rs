@@ -2548,7 +2548,8 @@ fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> Strin
     let first_param = e.get(0);
     let read_line_error_msg = match &first_param.node_type {
         NodeType::LString(error_msg_) => error_msg_.clone(),
-        _ => format!("input_read_line() can only take literal strings as its single argument for an error String for now. The user, perhaps wisely, tried node type '{:?}' instead", first_param.node_type).to_string(),
+        _ => format!("input_read_line() can only take literal strings as its single argument for an error String for now. The user, perhaps wisely, tried node type '{:?}' instead",
+                     first_param.node_type).to_string(), // TODO review
     };
     let mut line = String::new();
     io::stdin()
