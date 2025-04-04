@@ -1992,7 +1992,7 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let first_is_condition = ValueType::TBool == value_type;
     if !first_is_condition {
         errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.",
-                            inner_e.token.line, inner_e.token.col, &inner_e.node_type));
+                            inner_e.line, inner_e.col, &inner_e.node_type));
     }
     for p in e.params.iter() {
         errors.append(&mut check_types(&mut context, &p));
@@ -3095,8 +3095,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
         NodeType::LList => {
-            let token_str = &e.token.token_str;
-            token_str.to_string()
+            return e.token.token_str.to_string()
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
