@@ -3157,10 +3157,10 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             let result_to_switch = eval_expr(&mut context, &to_switch);
             while param_it < e.params.len() {
 
-                let case = e.params.get(param_it).unwrap();
+                let case = e.get(param_it);
                 if case.node_type == NodeType::DefaultCase {
                     param_it += 1;
-                    let body = e.params.get(param_it).unwrap();
+                    let body = e.get(param_it);
                     return eval_expr(&mut context, &body);
                 }
 
@@ -3177,7 +3177,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
                 let result_case = eval_expr(&mut context, &case);
                 param_it += 1;
                 if result_to_switch == result_case {
-                    let body = e.params.get(param_it).unwrap();
+                    let body = e.get(param_it);
                     return eval_expr(&mut context, &body);
                 }
                 param_it += 1;
