@@ -25,11 +25,11 @@ const SKIP_AST: bool = true;
 // }
 
 // fn init_err(t: &Token, level: &str, error_str: &str) return RscilErr {
-//     return RscilErr(format!("{}:{}: {} error: {}", t.line, t.col, level, error_str));
+//     return RscilErr(format!("{}:{}: {} error: {}", e.line, e.col, level, error_str));
 // }
 
 // fn format_err(RscilErr: err) -> String {
-//     return format!("{}:{}: {} error: {}", err.t.line, err.t.col, err.level, err.error_str);
+//     return format!("{}:{}: {} error: {}", err.e.line, err.t.col, err.level, err.error_str);
 // }
 
 // fn print_err(RscilErr: err) {
@@ -1540,13 +1540,12 @@ fn value_type_func_proc(t: &Token, name: &str, func_def: &SFuncDef) -> Result<Va
 fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
 
     let f_name = get_func_name_in_call(&e);
-    let t = &e.token;
     if context.funcs.contains_key(&f_name) {
-        return value_type_func_proc(t, &f_name, &context.funcs.get(&f_name).unwrap())
+        return value_type_func_proc(&e.token, &f_name, &context.funcs.get(&f_name).unwrap())
     } else if is_core_func(&f_name) {
-        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", t.line, t.col, context.mode.name, &f_name));
+        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", e.line, e.col, context.mode.name, &f_name));
     } else if is_core_proc(&f_name) {
-        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", t.line, t.col, context.mode.name, &f_name));
+        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", e.line, e.col, context.mode.name, &f_name));
     } else if context.symbols.contains_key(&f_name) {
 
         let symbol = context.symbols.get(&f_name).unwrap();
@@ -1555,7 +1554,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(format!("{}:{}: {} error: struct '{}' not found in context", t.line, t.col, LANG_NAME, f_name));
+                        return Err(format!("{}:{}: {} error: struct '{}' not found in context", e.line, e.col, LANG_NAME, f_name));
                     },
                 };
                 let id_expr = e.params.get(0).unwrap();
@@ -1570,29 +1569,29 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let member_decl = match struct_def.members.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' a", t.line, t.col, f_name, after_dot_name));
+                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' a", e.line, e.col, f_name, after_dot_name));
                             },
                         };
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' b", t.line, t.col, f_name, after_dot_name));
+                                return Err(format!("{}:{}: type error: struct '{}' has no member '{}' b", e.line, e.col, f_name, after_dot_name));
                             },
                         };
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", f_name, after_dot_name);
-                                return value_type_func_proc(t, &combined_name, &func_def);
+                                return value_type_func_proc(&e.token, &combined_name, &func_def);
                             },
                             _  => {
                                 return Err(format!("{}:{}: type error: Cannot call '{}.{}', it is not a function, it is '{}'",
-                                                   t.line, t.col, f_name, after_dot_name, value_type_to_str(&member_decl.value_type)));
+                                                   e.line, e.col, f_name, after_dot_name, value_type_to_str(&member_decl.value_type)));
                             },
                         }
                     },
                     _ => {
                         return Err(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
-                                           t.line, t.col, LANG_NAME, f_name, after_dot.node_type));
+                                           e.line, e.col, LANG_NAME, f_name, after_dot.node_type));
                     },
                 }
             },
@@ -1602,32 +1601,31 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     Some(_after_dot) => _after_dot,
                     None => {
                         return Err(format!("{}:{}: type error: Cannot call '{}', it is not a function or struct, it is a {:?}",
-                                           t.line, t.col, &f_name, symbol.value_type));
+                                           e.line, e.col, &f_name, symbol.value_type));
                     },
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
                         if context.funcs.contains_key(after_dot_name) {
-                            return value_type_func_proc(t, &f_name, &context.funcs.get(after_dot_name).unwrap())
+                            return value_type_func_proc(&e.token, &f_name, &context.funcs.get(after_dot_name).unwrap())
                         }
                         return Err(format!("{}:{}: {} error: expected function name after '{}.' found {:?}",
-                                           t.line, t.col, LANG_NAME, f_name, after_dot_name));
+                                           e.line, e.col, LANG_NAME, f_name, after_dot_name));
                     },
                     _ => {
                         return Err(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
-                                           t.line, t.col, LANG_NAME, f_name, after_dot.node_type));
+                                           e.line, e.col, LANG_NAME, f_name, after_dot.node_type));
                     },
                 }
             },
         }
 
     } else {
-        return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, &f_name));
+        return Err(format!("{}:{}: type error: Undefined symbol '{}'", e.line, e.col, &f_name));
     }
 }
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
-    let t = &e.token;
     match &e.node_type {
         NodeType::LBool(_) => Ok(ValueType::TBool),
         NodeType::LI64(_) => Ok(ValueType::TI64),
@@ -1647,7 +1645,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                     symbol_info_m
                 },
                 None => {
-                    return Err(format!("{}:{}: type error: Undefined symbol '{}'", t.line, t.col, name));
+                    return Err(format!("{}:{}: type error: Undefined symbol '{}'", e.line, e.col, name));
                 }
             };
             if e.params.len() == 0 {
@@ -1656,7 +1654,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
             let member_str = match &e.params.get(0).unwrap().node_type {
                 NodeType::Identifier(member_name) => member_name,
                 node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
-                                                LANG_NAME, t.line, t.col, node_type)),
+                                                LANG_NAME, e.line, e.col, node_type)),
             };
 
             match symbol_info.value_type {
@@ -1669,16 +1667,16 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                                         return Ok(decl.value_type.clone());
                                     } else {
                                         return Err(format!("{}:{}: type error: struct '{}' has no const (static) member '{}', an instance is needed to access mutable members",
-                                                           t.line, t.col, name, member_str));
+                                                           e.line, e.col, name, member_str));
                                     }
                                 },
                                 _ => {
-                                    return Err(format!("{}:{}: type error: struct '{}' has no member '{}' d", t.line, t.col, name, member_str))
+                                    return Err(format!("{}:{}: type error: struct '{}' has no member '{}' d", e.line, e.col, name, member_str))
                                 },
                             }
                         },
                         None => {
-                            return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, t.line, t.col, name));
+                            return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, e.line, e.col, name));
                         },
                     }
                 },
@@ -1690,30 +1688,30 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                                     let extra_member_str = match &e.params.get(1).unwrap().node_type {
                                         NodeType::Identifier(member_name) => member_name,
                                         node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
-                                                                        t.line, t.col, LANG_NAME, node_type)),
+                                                                        e.line, e.col, LANG_NAME, node_type)),
                                     };
                                     return Err(format!("{}:{}: type error: Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
-                                                       t.line, t.col, extra_member_str, name, member_str, name, member_str));
+                                                       e.line, e.col, extra_member_str, name, member_str, name, member_str));
                                 }
                                 if name.to_string() == "Type" {
                                     return Ok(ValueType::TType);
                                 }
                                 return Ok(ValueType::TCustom(name.to_string()));
                             }
-                            return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", t.line, t.col, name, member_str));
+                            return Err(format!("{}:{}: type error: enum '{}' has no value '{}'", e.line, e.col, name, member_str));
                         }
                         None => {
-                            return Err(format!("{}:{}: {} error: Undefined enum '{}'", t.line, t.col, LANG_NAME, name));
+                            return Err(format!("{}:{}: {} error: Undefined enum '{}'", e.line, e.col, LANG_NAME, name));
                         }
                     }
                 },
                 _ => {
                     return Err(format!("{}:{}: type error: '{}' of type '{}' can't have members, '{}' is not a member",
-                                       t.line, t.col, value_type_to_str(&symbol_info.value_type), name, member_str))
+                                       e.line, e.col, value_type_to_str(&symbol_info.value_type), name, member_str))
                 },
             }
         },
-        node_type => return Err(format!("{}:{}: {} error: get_value_type() not implement for {:?} yet.", t.line, t.col, LANG_NAME, node_type)),
+        node_type => return Err(format!("{}:{}: {} error: get_value_type() not implement for {:?} yet.", e.line, e.col, LANG_NAME, node_type)),
     }
 }
 
@@ -1733,9 +1731,8 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
         NodeType::Declaration(decl) => {
-            let t = &e.token;
-            if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
-                errors.push(format!("{}:{}: compiler error: '{}' already declared.", t.line, t.col, decl.name));
+                    if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
+                errors.push(format!("{}:{}: compiler error: '{}' already declared.", e.line, e.col, decl.name));
             }
             assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.params.get(0).unwrap();
@@ -1748,7 +1745,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             };
             if decl.value_type != str_to_value_type(INFER_TYPE) {
                 if value_type != decl.value_type {
-                    errors.push(format!("{}:{}: type error: '{}' declared of type '{}' but initialized to type '{}'.", t.line, t.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
+                    errors.push(format!("{}:{}: type error: '{}' declared of type '{}' but initialized to type '{}'.", e.line, e.col, decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type)));
                 }
             }
             match value_type {
@@ -1759,7 +1756,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: {}s should have definitions", t.line, t.col, LANG_NAME, value_type_to_str(&value_type)));
+                            errors.push(format!("{}:{}: {} error: {}s should have definitions", e.line, e.col, LANG_NAME, value_type_to_str(&value_type)));
                             return errors;
                         },
                     }
@@ -1774,7 +1771,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: enums should have definitions.", t.line, t.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} error: enums should have definitions.", e.line, e.col, LANG_NAME));
                             return errors;
                         },
                     }
@@ -1788,7 +1785,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: enums should have definitions.", t.line, t.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} error: enums should have definitions.", e.line, e.col, LANG_NAME));
                             return errors;
                         },
                     }
@@ -1802,13 +1799,12 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         }
         _ => {
             if !context.mode.allows_base_anything {
-            let t = &e.token;
-                if context.mode.allows_base_calls {
+                        if context.mode.allows_base_calls {
                     errors.push(format!("{}:{}: mode '{}' allows only declarations and calls in the root context, found {:?}.",
-                                        t.line, t.col, context.mode.name, e.node_type));
+                                        e.line, e.col, context.mode.name, e.node_type));
                 } else {
                     errors.push(format!("{}:{}: mode '{}' allows only declarations in the root context, found {:?}.",
-                                        t.line, t.col, context.mode.name, e.node_type));
+                                        e.line, e.col, context.mode.name, e.node_type));
                 }
             }
         },
@@ -1898,20 +1894,19 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
-                let t = &p.token;
                 match &p.node_type {
 
                     NodeType::Declaration(decl) => {
                         if !context.mode.allows_base_mut && decl.is_mut {
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow mut declaration of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
-                                t.line, t.col, "mode", context.mode.name, decl.name));
+                                e.line, e.col, "mode", context.mode.name, decl.name));
                         }
                     },
                     NodeType::FCall => {
                         if !context.mode.allows_base_calls {
                             let f_name = get_func_name_in_call(&e);
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
-                                t.line, t.col, "mode", context.mode.name, f_name));
+                                e.line, e.col, "mode", context.mode.name, f_name));
                         }
                     },
                     _ => {},
@@ -1970,10 +1965,11 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
             return errors;
         },
     };
+
     let first_is_condition = ValueType::TBool == value_type;
     if !first_is_condition {
-        let next_t = &inner_e.token;
-        errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+        errors.push(format!("{}:{}: type error: 'if' can only accept a bool condition first, found {:?}.",
+                            inner_e.line, inner_e.col, &inner_e.node_type));
     }
     for p in e.params.iter() {
         errors.append(&mut check_types(&mut context, &p));
@@ -1995,8 +1991,8 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
     };
     let first_is_condition = ValueType::TBool == value_type;
     if !first_is_condition {
-        let next_t = &inner_e.token;
-        errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.", next_t.line, next_t.col, &inner_e.node_type));
+        errors.push(format!("{}:{}: type error: 'while' can only accept a bool condition first, found {:?}.",
+                            inner_e.token.line, inner_e.token.col, &inner_e.node_type));
     }
     for p in e.params.iter() {
         errors.append(&mut check_types(&mut context, &p));
@@ -2164,8 +2160,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     if func_def.function_type == FunctionType::FTFunc {
         for se in &func_def.body {
             if is_expr_calling_procs(&context, &se) {
-                let proc_t = &se.token;
-                errors.push(format!("{}:{}: type error: funcs cannot call procs.", proc_t.line, proc_t.col));
+                errors.push(format!("{}:{}: type error: funcs cannot call procs.", se.line, se.col));
             }
         }
     }
@@ -2587,7 +2582,6 @@ fn eval_core_exit(e: &Expr) -> String {
 // ---------- generic eval things
 
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, e: &Expr) -> String {
-    let t = &e.token;
 
     let mut function_context = context.clone();
     assert!(e.params.len() - 1 == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
@@ -2619,13 +2613,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
                     },
                     _ => {
                         panic!("{}:{} {} eval error: Cannot use {} of type {:?} as an argument. Only enum custom types allowed for now.",
-                               t.line, t.col, LANG_NAME, &arg.name, &arg.value_type)
+                               e.line, e.col, LANG_NAME, &arg.name, &arg.value_type)
                     },
                 }
             },
 
             _ => {
-                panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", t.line, t.col, LANG_NAME, name, arg.value_type);
+                panic!("{}:{} {} error: calling func '{}'. {:?} arguments not supported.", e.line, e.col, LANG_NAME, name, arg.value_type);
             },
         }
 
@@ -2692,7 +2686,6 @@ fn eval_core_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
 }
 
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
-    let t = &e.token;
     if is_core_func(&name) {
         return eval_core_func_call(&name, &mut context, &e)
     } else if is_core_proc(&name) {
@@ -2706,7 +2699,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         let after_dot = match id_expr.params.get(0) {
             Some(_after_dot) => _after_dot,
             None => {
-                panic!("{}:{} {} eval error: Cannot instantiate '{}'. Not implemented yet.", t.line, t.col, LANG_NAME, name);
+                panic!("{}:{} {} eval error: Cannot instantiate '{}'. Not implemented yet.", e.line, e.col, LANG_NAME, name);
             },
         };
         match &after_dot.node_type {
@@ -2714,19 +2707,19 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 let _member_decl = match struct_def.members.get(after_dot_name) {
                     Some(_member) => _member,
                     None => {
-                        panic!("{}:{}: eval error: struct '{}' has no member '{}' a", t.line, t.col, name, after_dot_name);
+                        panic!("{}:{}: eval error: struct '{}' has no member '{}' a", e.line, e.col, name, after_dot_name);
                     },
                 };
                 let combined_name = format!("{}.{}", name, after_dot_name);
                 if !context.funcs.contains_key(&combined_name) {
-                    panic!("{}:{}: eval {} error: method '{}' not found in context", t.line, t.col, LANG_NAME, combined_name);
+                    panic!("{}:{}: eval {} error: method '{}' not found in context", e.line, e.col, LANG_NAME, combined_name);
                 }
 
                 let func_def = context.funcs.get(&combined_name).unwrap();
                 return eval_user_func_proc_call(func_def, &name, &context, &e);
             },
             _ => {
-                panic!("{}:{}: eval {} error: expected identifier after '{}.' found {:?}", t.line, t.col, LANG_NAME, name, after_dot.node_type);
+                panic!("{}:{}: eval {} error: expected identifier after '{}.' found {:?}", e.line, e.col, LANG_NAME, name, after_dot.node_type);
             },
         }
     } else if context.symbols.contains_key(name) { // For UFCS
@@ -2755,12 +2748,11 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         return eval_func_proc_call(&f_name, &mut context, &e);
 
     } else {
-        panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function or struct.", t.line, t.col, LANG_NAME, name);
+        panic!("{}:{} {} eval error: Cannot call '{}'. Undefined function or struct.", e.line, e.col, LANG_NAME, name);
     }
 }
 
 fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Expr) -> String {
-    let t = &e.token;
     let inner_e = e.params.get(0).unwrap();
     let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
@@ -2770,13 +2762,13 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
     };
     if declaration.value_type != ValueType::ToInferType {
         if value_type != declaration.value_type {
-            panic!("{}:{} {} eval error: '{}' declared of type {} but initialized to type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+            panic!("{}:{} {} eval error: '{}' declared of type {} but initialized to type {:?}.", e.line, e.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         }
     }
     assert!(e.params.len() == 1, "{} error: Declarations can have only one child expression. This should never happen.", LANG_NAME);
     match value_type {
         ValueType::ToInferType => {
-            panic!("{}:{} {} eval error: '{}' declared of type {} but but still to infer type {:?}.", t.line, t.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
+            panic!("{}:{} {} eval error: '{}' declared of type {} but but still to infer type {:?}.", e.line, e.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         },
         ValueType::TBool => {
             let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, inner_e));
@@ -2804,7 +2796,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     "enum declared".to_string()
                 },
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected enum definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                            e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TStructDef => {
@@ -2819,7 +2811,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                 Some(_default_value) => _default_value,
                                 None => {
                                     panic!("{}:{} {} eval error: Struct member '{}.{}' expected to have default value.",
-                                           t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name);
+                                           e.line, e.col, LANG_NAME, &declaration.name, &member_decl.name);
                                 },
                             };
                             let member_value_type = match member_decl.value_type {
@@ -2853,18 +2845,18 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                             context.funcs.insert(combined_name.to_string(), func_def.clone());
                                         },
                                         _ => panic!("{}:{} {} eval error: Cannot declare '{}.{}' of type {:?}, expected {} definition.",
-                                                    t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type,
+                                                    e.line, e.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type,
                                                     value_type_to_str(&member_decl.value_type)),
                                     }
                                 },
                                 ValueType::ToInferType => {
                                         panic!("{}:{} {} eval error: Cannot infer type of '{}.{}', but it should be inferred already.",
-                                               t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name)
+                                               e.line, e.col, LANG_NAME, &declaration.name, &member_decl.name)
                                 },
                                 ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_)
                                     | ValueType::TCustom(_) => {
                                     panic!("{}:{} {} eval error: Cannot declare '{}.{}' of type {:?}. Not implemented yet",
-                                                t.line, t.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type)
+                                                e.line, e.col, LANG_NAME, &declaration.name, &member_decl.name, &member_decl.value_type)
                                 },
 
                             }
@@ -2876,7 +2868,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     "struct declared".to_string()
                 },
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected struct definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                            e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
         },
         ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
@@ -2887,7 +2879,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     return format!("{} declared", value_type_to_str(&value_type));
                 },
                 _ => panic!("{}:{} {} eval error: Cannot declare {} of type {:?}, expected {} definition.",
-                            t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type, value_type_to_str(&value_type))
+                            e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type, value_type_to_str(&value_type))
             }
         },
 
@@ -2899,18 +2891,17 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 context.enums.insert(declaration.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: enum_expr_result_str.to_string()});
             } else {
                 panic!("{}:{} {} eval error: Cannot declare {} of type {:?}. Only enum custom types allowed yet.",
-                       t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                       e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
             }
             return format!("{} declared", custom_type_name)
         },
         ValueType::TType | ValueType::TList | ValueType::TMulti(_) => {
-            panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", t.line, t.col, LANG_NAME, &declaration.name, &declaration.value_type)
+            panic!("{}:{} {} eval error: Cannot declare {} of type {:?}.", e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
         },
     }
 }
 
 fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> String {
-    let t = &e.token;
     let symbol_info = context.symbols.get(var_name).unwrap();
     assert!(symbol_info.is_mut, "{} eval error: Assignments can only be to mut values", LANG_NAME);
     assert!(e.params.len() == 1, "{} eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
@@ -2924,7 +2915,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
     };
     match value_type {
         ValueType::ToInferType => {
-            panic!("{}:{} {} eval error: Cannot assign {}, type should already be inferred of type '{:?}'.", t.line, t.col, LANG_NAME, &var_name, &symbol_info.value_type);
+            panic!("{}:{} {} eval error: Cannot assign {}, type should already be inferred of type '{:?}'.", e.line, e.col, LANG_NAME, &var_name, &symbol_info.value_type);
         },
 
         ValueType::TBool => {
@@ -2944,7 +2935,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         },
         ValueType::TStructDef => {
             panic!("{}:{} {} eval error: Cannot assign {} of type {:?}. Not implemented yet.",
-                   t.line, t.col, LANG_NAME, &var_name, &value_type);
+                   e.line, e.col, LANG_NAME, &var_name, &value_type);
         },
         ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
             match &inner_e.node_type {
@@ -2953,19 +2944,18 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     "func declared".to_string()
                 },
                 _ => panic!("{}:{} {} eval error: Cannot assign {} to function type {}.",
-                            t.line, t.col, LANG_NAME, &var_name, value_type_to_str(&value_type))
+                            e.line, e.col, LANG_NAME, &var_name, value_type_to_str(&value_type))
             }
         },
 
         ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) | ValueType::TCustom(_) => {
-            panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", t.line, t.col, LANG_NAME, &var_name, &value_type);
+            panic!("{}:{} {} eval error: Cannot assign {} of type {:?}.", e.line, e.col, LANG_NAME, &var_name, &value_type);
         },
     }
 }
 
 fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
-    let t = &e.token;
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
             ValueType::TBool => {
@@ -3010,7 +3000,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                                             Some(result_str) => return result_str.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
-                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                                       e.line, e.col, LANG_NAME, name, inner_name)
                                             },
                                         }
 
@@ -3020,7 +3010,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                                             Some(result) => return result.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
-                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                                       e.line, e.col, LANG_NAME, name, inner_name)
                                             },
                                         }
 
@@ -3030,20 +3020,20 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                                             Some(result) => return result.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
-                                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                                       e.line, e.col, LANG_NAME, name, inner_name)
                                             },
                                         }
 
                                     },
                                     _ => {
                                         panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}' of value type '{:?}'",
-                                               t.line, t.col, LANG_NAME, name, inner_name, member_decl.value_type)
+                                               e.line, e.col, LANG_NAME, name, inner_name, member_decl.value_type)
                                     },
                                 }
                             },
                             _ => {
                                 panic!("{}:{}: {} eval error: struct '{}' has no const (static) member '{}'",
-                                       t.line, t.col, LANG_NAME, name, inner_name)
+                                       e.line, e.col, LANG_NAME, name, inner_name)
                             },
                         }
                     },
@@ -3061,7 +3051,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                     // note: this error originates in the macro `format` (in Nightly builds, run with -Z macro-backtrace for more info)
                     // thank you, rust, format inside format for no reason I want to understand
                     panic!("{}", format!("{}:{}: {} eval error: : Argument '{}' is of undefined type {}.",
-                                         t.line, t.col, LANG_NAME, &name, &custom_type_name)
+                                         e.line, e.col, LANG_NAME, &name, &custom_type_name)
                     );
                 }
                 let custom_symbol = context.symbols.get(custom_type_name).unwrap();
@@ -3087,7 +3077,6 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 }
 
 fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
-    let t = &e.token;
     match &e.node_type {
         NodeType::Body => {
             for se in e.params.iter() {
@@ -3106,7 +3095,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
         NodeType::LList => {
-            let token_str = &t.token_str;
+            let token_str = &e.token.token_str;
             token_str.to_string()
         },
         NodeType::FCall => {
@@ -3186,11 +3175,11 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             } else if e.params.len() == 1 {
                 return eval_expr(&mut context, &e.params.get(0).unwrap())
             } else {
-                panic!("{}:{}: {} eval error: mutltiple return values not implemented yet.", t.line, t.col, LANG_NAME);
+                panic!("{}:{}: {} eval error: mutltiple return values not implemented yet.", e.line, e.col, LANG_NAME);
             }
         }
         _ => {
-            panic!("{}:{}: {} eval error: Not implemented, found {}.", t.line, t.col, LANG_NAME, t.token_str)
+            panic!("{}:{}: {} eval error: Not implemented, found {}.", e.line, e.col, LANG_NAME, e.token.token_str)
         },
     }
 }
