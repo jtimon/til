@@ -566,6 +566,7 @@ struct Expr {
     params: Vec<Expr>,
     line: usize,
     col: usize,
+    token_str: String, // TODO remove e.token_str
     token: Token, // TODO remove
 }
 
@@ -576,6 +577,7 @@ impl Expr {
             params: params,
             line: token.line,
             col: token.col,
+            token_str: token.token_str.clone(), // TODO remove
             token: token, // TODO remove
         }
     }
@@ -3095,7 +3097,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
         NodeType::LList => {
-            return e.token.token_str.to_string()
+            return e.token_str.to_string()
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
@@ -3178,7 +3180,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             }
         }
         _ => {
-            panic!("{}:{}: {} eval error: Not implemented, found {}.", e.line, e.col, LANG_NAME, e.token.token_str)
+            panic!("{}:{}: {} eval error: Not implemented, found {}.", e.line, e.col, LANG_NAME, e.token_str)
         },
     }
 }
