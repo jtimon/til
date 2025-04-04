@@ -542,7 +542,7 @@ struct SStructDef {
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     Body,
-    LList,
+    LList(String),
     LString(String),
     LI64(i64),
     LBool(bool),
@@ -741,7 +741,8 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         }
     }
     match list_t.token_type {
-        TokenType::RightParen => Ok(Expr::new(NodeType::LList, lexer.get_token(initial_current)?.clone(), params)),
+        // TODO properly parse lists besides function definition arguments
+        TokenType::RightParen => Ok(Expr::new(NodeType::LList("".to_string()), lexer.get_token(initial_current)?.clone(), params)),
         _ => Err(format!("{}:{}: parse error: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
@@ -1630,7 +1631,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::LBool(_) => Ok(ValueType::TBool),
         NodeType::LI64(_) => Ok(ValueType::TI64),
         NodeType::LString(_) => Ok(ValueType::TString),
-        NodeType::LList => Ok(ValueType::TList),
+        NodeType::LList(_) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunc),
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TProc),
@@ -1841,9 +1842,9 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::LBool(_) => false,
         NodeType::LI64(_) => false,
+        NodeType::LList(_) => false,
         NodeType::LString(_) => false,
         NodeType::DefaultCase => false,
-        NodeType::LList => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
@@ -2291,7 +2292,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
 
-        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::DefaultCase | NodeType::LList => {},
+        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList(_) | NodeType::DefaultCase => {},
     }
 
     return errors
@@ -3094,8 +3095,8 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::LBool(bool_value) => bool_value.to_string(),
         NodeType::LI64(li64) => li64.to_string(),
         NodeType::LString(lstring) => lstring.to_string(),
-        NodeType::LList => {
-            return e.token.token_str.to_string()
+        NodeType::LList(list_str_) => {
+            return list_str_.to_string()
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
@@ -3246,7 +3247,7 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("({} {})", f_name, params_to_ast_str(false, &e)));
             return ast_str;
         },
-        NodeType::LList => {
+        NodeType::LList(_) => {
             ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
             return ast_str;
         },
