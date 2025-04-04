@@ -1701,7 +1701,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                         Some(enum_def) => {
                             if enum_def.enum_map.contains_key(member_str) {
                                 if e.params.len() > 1 {
-                                    let extra_member_str = match &e.params.get(1).unwrap().node_type {
+                                    let extra_member_str = match &e.get(1).node_type {
                                         NodeType::Identifier(member_name) => member_name,
                                         node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
                                                                         e.line, e.col, LANG_NAME, node_type)),
@@ -2414,89 +2414,89 @@ fn eval_core_func_or(mut context: &mut Context, e: &Expr) -> String {
 
 fn eval_core_func_not(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
-    (!eval_to_bool(&mut context, &e.params.get(1).unwrap())).to_string()
+    (!eval_to_bool(&mut context, &e.get(1))).to_string()
 }
 
 fn eval_core_func_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
 fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap());
+    let a = &eval_expr(&mut context, e.get(1));
     let b = &eval_expr(&mut context, e.params.get(2).unwrap());
     (a == b).to_string()
 }
 
 fn eval_core_func_concat(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'concat' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = eval_expr(&mut context, e.params.get(1).unwrap());
+    let a = eval_expr(&mut context, e.get(1));
     let b = eval_expr(&mut context, e.params.get(2).unwrap());
     format!("{}{}", a, b)
 }
 
 fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
 fn eval_core_func_lteq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
 fn eval_core_func_gt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
 fn eval_core_func_gteq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
 fn eval_core_func_sub(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
 fn eval_core_func_mul(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
 fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.params.get(2).unwrap()).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
 fn eval_core_func_btoi(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &e.params.get(1).unwrap()) {
+    if eval_to_bool(&mut context, &e.get(1)) {
         "1".to_string()
     } else {
         "0".to_string()
@@ -2505,13 +2505,13 @@ fn eval_core_func_btoi(mut context: &mut Context, e: &Expr) -> String {
 
 fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, &e.params.get(1).unwrap()).parse::<i64>().unwrap();
+    let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
     return a.to_string();
 }
 
 fn eval_core_func_btoa(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &e.params.get(1).unwrap()) {
+    if eval_to_bool(&mut context, &e.get(1)) {
         "true".to_string()
     } else {
         "false".to_string()
@@ -2520,7 +2520,7 @@ fn eval_core_func_btoa(mut context: &mut Context, e: &Expr) -> String {
 
 fn eval_core_func_itoa(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    eval_expr(&mut context, e.params.get(1).unwrap())
+    eval_expr(&mut context, e.get(1))
 }
 
 // ---------- core procs implementations for eval
@@ -2562,27 +2562,27 @@ fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> String {
     // TODO properly implement
     assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
-    let str_source = format!("mode script; {}", &eval_expr(&mut context, e.params.get(1).unwrap()));
+    let str_source = format!("mode script; {}", &eval_expr(&mut context, e.get(1)));
     return main_run(false, &mut context, &path, str_source);
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_runfile expects a single parameter.");
-    let path = &eval_expr(&mut context, e.params.get(1).unwrap());
+    let path = &eval_expr(&mut context, e.get(1));
     run_file(&path);
     return "".to_string();
 }
 
 fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
-    let path = &eval_expr(&mut context, e.params.get(1).unwrap());
+    let path = &eval_expr(&mut context, e.get(1));
     run_file_with_context(true, &mut context, &path);
     return "".to_string();
 }
 
 fn eval_core_exit(e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_exit expects a single parameter.");
-    let e_exit_code = e.params.get(1).unwrap();
+    let e_exit_code = e.get(1);
     let exit_code = match &e_exit_code.node_type {
         NodeType::LI64(my_li64) => {
             my_li64.clone()
@@ -2651,7 +2651,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             NodeType::If => {
                 assert!(se.params.len() == 2 || se.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
                 if eval_to_bool(&mut function_context, &se.get(0)) {
-                    return eval_expr(&mut function_context, &se.params.get(1).unwrap())
+                    return eval_expr(&mut function_context, &se.get(1))
                 } else if se.params.len() == 3 {
                     return eval_expr(&mut function_context, &se.params.get(2).unwrap())
                 }
@@ -3129,7 +3129,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
             if eval_to_bool(&mut context, &e.get(0)) {
-                eval_expr(&mut context, &e.params.get(1).unwrap())
+                eval_expr(&mut context, &e.get(1))
             } else if e.params.len() == 3 {
                 eval_expr(&mut context, &e.params.get(2).unwrap())
             } else {
@@ -3139,7 +3139,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::While => {
             assert!(e.params.len() == 2, "{} eval error: while nodes must have exactly 2 parameters.", LANG_NAME);
             while eval_to_bool(&mut context, &e.get(0)) {
-                eval_expr(&mut context, &e.params.get(1).unwrap());
+                eval_expr(&mut context, &e.get(1));
             }
             "".to_string()
         },
