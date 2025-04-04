@@ -1431,7 +1431,7 @@ struct Context {
 }
 
 impl Context {
-    fn new(mode_name: &str) -> Self {
+    fn new(mode_name: &str) -> Context {
         return Context {
             mode: mode_from_name(mode_name).unwrap(),
             symbols: HashMap::new(),
@@ -1473,9 +1473,14 @@ fn is_core_func(proc_name: &str) -> bool {
 fn is_core_proc(proc_name: &str) -> bool {
     match proc_name {
         "exit" => true,
-        "import" => true,
         "print" => true,
-        "println" => true,
+        "println" => true, // TODO self host using print once the self escaped '\n' bug is fixed
+        // TODO parse with dots like other languages, then change the direction of the slash depending on the os
+        // TODO use imports in declarations:
+        // example_cil: my_matrix_def := import(matrix.matrix_def)
+        // example_cil: my_matrix : struct = import(matrix)
+        // example_python: from matrix import matrix_def as my_matrix_def
+        "import" => true,
         "runfile" => true,
         "input_read_line" => true,
         "eval_to_str" => true,
