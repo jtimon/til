@@ -2099,7 +2099,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
             _ => &arg.value_type,
 
         };
-        let found_type = match get_value_type(&context, e.params.get(i+1).unwrap()) {
+        let found_type = match get_value_type(&context, e.get(i+1)) {
             Ok(val_type) => val_type,
             Err(error_string) => {
                 errors.push(error_string);
@@ -2399,7 +2399,7 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
 fn eval_core_func_and(mut context: &mut Context, e: &Expr) -> String {
     let mut truthfulness = true;
     for i in 1..e.params.len() {
-        truthfulness = truthfulness && eval_to_bool(&mut context, &e.params.get(i).unwrap());
+        truthfulness = truthfulness && eval_to_bool(&mut context, &e.get(i));
     }
     truthfulness.to_string()
 }
@@ -2407,7 +2407,7 @@ fn eval_core_func_and(mut context: &mut Context, e: &Expr) -> String {
 fn eval_core_func_or(mut context: &mut Context, e: &Expr) -> String {
     let mut truthfulness = false;
     for i in 1..e.params.len() {
-        truthfulness = truthfulness || eval_to_bool(&mut context, &e.params.get(i).unwrap());
+        truthfulness = truthfulness || eval_to_bool(&mut context, &e.get(i));
     }
     truthfulness.to_string()
 }
@@ -2535,7 +2535,7 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
 
 fn eval_core_proc_print(end_line: bool, mut context: &mut Context, e: &Expr) -> String {
     for i in 1..e.params.len() {
-        print!("{}", eval_expr(&mut context, &e.params.get(i).unwrap()));
+        print!("{}", eval_expr(&mut context, &e.get(i)));
     }
     if end_line {
         print!("\n");
