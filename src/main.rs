@@ -11,6 +11,7 @@ use std::collections::HashMap;
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
 const LANG_NAME: &str = "rscil";
 const BIN_NAME: &str = "cil";
+const DEFAULT_MODE: &str = "lib";
 const INFER_TYPE: &str = "auto";
 const REPL_PATH: &str = "src/repl.cil";
 const SKIP_AST: bool = true;
@@ -1429,6 +1430,22 @@ struct Context {
     strings: HashMap<String, String>,
 }
 
+impl Context {
+    fn new(mode_name: &str) -> Self {
+        return Context {
+            mode: mode_from_name(mode_name).unwrap(),
+            symbols: HashMap::new(),
+            funcs: HashMap::new(),
+            enum_defs: HashMap::new(),
+            enums: HashMap::new(),
+            struct_defs: HashMap::new(),
+            bools: HashMap::new(),
+            i64s: HashMap::new(),
+            strings: HashMap::new(),
+        };
+    }
+}
+
 fn is_core_func(proc_name: &str) -> bool {
     match proc_name {
         "and" => true,
@@ -1469,20 +1486,6 @@ fn is_core_proc(proc_name: &str) -> bool {
         "eval_to_expr" => true,
         _ => false,
     }
-}
-
-fn start_context() -> Context {
-    return Context {
-        mode: mode_from_name("lib").unwrap(),
-        symbols: HashMap::new(),
-        funcs: HashMap::new(),
-        enum_defs: HashMap::new(),
-        enums: HashMap::new(),
-        struct_defs: HashMap::new(),
-        bools: HashMap::new(),
-        i64s: HashMap::new(),
-        strings: HashMap::new(),
-    };
 }
 
 fn get_func_name_in_call(e: &Expr) -> String {
@@ -3306,7 +3309,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 // ---------- main, usage, args, etc
 
 fn run_file(path: &String) {
-    let mut context = start_context();
+    let mut context = Context::new(DEFAULT_MODE);
     let core_path = "src/core.cil".to_string();
     run_file_with_context(true, &mut context, &core_path);
     run_file_with_context(false, &mut context, &path);
