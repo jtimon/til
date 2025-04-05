@@ -2102,10 +2102,9 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                     },
                 };
 
-                if e.params.len() == 0 {
-                    errors.push(format!("{}:{}: {} error: struct '{}' cannot be instanciated. Constructors not implemented yet",
-                                        e.line, e.col, LANG_NAME, f_name));
-                    return errors;
+                assert!(e.params.len() > 0);
+                if e.params.get(0).unwrap().params.len() == 0 {
+                    return errors; // NOTE: This is to allow struct instantiation with no arguments
                 }
 
                 let after_dot = e.get(0).get(0);
@@ -2989,9 +2988,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             if custom_symbol.value_type == ValueType::TEnumDef {
                 let enum_expr_result_str = &eval_expr(&mut context, inner_e);
                 context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
+            } else if custom_symbol.value_type == ValueType::TStructDef {
+                panic!("{}:{} {} eval error: Cannot declare '{}' of type 'struct'. Not implemented yet.",
+                       e.line, e.col, LANG_NAME, &declaration.name)
             } else {
-                panic!("{}:{} {} eval error: Cannot declare {} of type {:?}. Only enum custom types allowed yet.",
-                       e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
+                panic!("{}:{} {} eval error: Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
+                       e.line, e.col, LANG_NAME, &declaration.name, value_type_to_str(&custom_symbol.value_type))
             }
             return format!("{} declared", custom_type_name)
         },

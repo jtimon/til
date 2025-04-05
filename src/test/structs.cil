@@ -23,11 +23,14 @@ MyStruct := struct {
     }
 }
 
+EmptyStruct := struct {
+}
+
 // my_struct_type := MyStruct
-// my_struct := MyStruct()
 // trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
 
 test_structs := proc() {
     test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
+    // myEmptyStruct := EmptyStruct() // TODO allow instantiations
 }
 test_structs()
