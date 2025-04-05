@@ -1492,6 +1492,14 @@ impl Context {
             None => return None,
         }
     }
+
+    fn get_bool(self: &Context, id: &str) -> Option<&bool> {
+        return self.bools.get(id);
+    }
+
+    fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
+        return self.bools.insert(id.to_string(), lbool_in_string_to_bool(bool_str));
+    }
 }
 
 fn is_core_func(proc_name: &str) -> bool {
@@ -2371,7 +2379,7 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
         NodeType::LBool(b_value) => return *b_value,
         NodeType::FCall => return eval_call_to_bool(&mut context, &e),
         NodeType::Identifier(name) => {
-            match context.bools.get(name) {
+            match context.get_bool(name) {
                 Some(bool_) => {
                     return bool_.clone();
                 },
@@ -2394,7 +2402,7 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
                         };
 
                         let combined_name = format!("{}.{}", name, after_dot_name);
-                        match context.bools.get(&combined_name) {
+                        match context.get_bool(&combined_name) {
                             Some(bool_) => {
                                 return bool_.clone();
                             },
@@ -2650,8 +2658,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
             ValueType::TBool => {
-                let bool_expr_result = lbool_in_string_to_bool(&eval_expr(&mut function_context, &e.get(param_index)));
-                function_context.bools.insert(arg.name.clone(), bool_expr_result);
+                let result = &eval_expr(&mut function_context, &e.get(param_index));
+                function_context.insert_bool(&arg.name, result);
             },
             ValueType::TI64 =>  {
                 let result = &eval_expr(&mut function_context, &e.get(param_index));
@@ -2830,22 +2838,22 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             panic!("{}:{} {} eval error: '{}' declared of type {} but but still to infer type {:?}.", e.line, e.col, LANG_NAME, declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type));
         },
         ValueType::TBool => {
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, inner_e));
-            context.bools.insert(declaration.name.to_string(), bool_expr_result);
+            let bool_expr_result_str = eval_expr(&mut context, inner_e);
+            context.insert_bool(&declaration.name, &bool_expr_result_str);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            bool_expr_result.to_string()
+            return bool_expr_result_str
         },
         ValueType::TI64 => {
-            let i64_expr_result_str = &eval_expr(&mut context, inner_e);
-            context.insert_i64(&declaration.name, i64_expr_result_str);
+            let i64_expr_result_str = eval_expr(&mut context, inner_e);
+            context.insert_i64(&declaration.name, &i64_expr_result_str);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            i64_expr_result_str.to_string()
+            return i64_expr_result_str
         },
         ValueType::TString => {
-            let string_expr_result = &eval_expr(&mut context, inner_e);
-            context.strings.insert(declaration.name.to_string(), string_expr_result.to_string());
+            let string_expr_result = eval_expr(&mut context, inner_e);
+            context.strings.insert(declaration.name.to_string(), string_expr_result.clone());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            string_expr_result.to_string()
+            return string_expr_result
         },
         ValueType::TEnumDef => {
             match &inner_e.node_type {
@@ -2887,16 +2895,16 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
 
                             match member_value_type {
                                 ValueType::TBool => {
-                                    let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, default_value));
-                                    context.bools.insert(combined_name.to_string(), bool_expr_result);
+                                    let bool_expr_result_str = eval_expr(&mut context, default_value);
+                                    context.insert_bool(&combined_name, &bool_expr_result_str);
                                 },
                                 ValueType::TI64 => {
-                                    let i64_expr_result_str = &eval_expr(&mut context, default_value);
-                                    context.insert_i64(&combined_name, i64_expr_result_str);
+                                    let i64_expr_result_str = eval_expr(&mut context, default_value);
+                                    context.insert_i64(&combined_name, &i64_expr_result_str);
                                 },
                                 ValueType::TString => {
-                                    let string_expr_result = &eval_expr(&mut context, default_value);
-                                    context.strings.insert(combined_name.to_string(), string_expr_result.to_string());
+                                    let string_expr_result = eval_expr(&mut context, default_value);
+                                    context.strings.insert(combined_name.to_string(), string_expr_result);
                                 },
                                 ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                                     match &default_value.node_type {
@@ -2978,19 +2986,19 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         },
 
         ValueType::TBool => {
-            let bool_expr_result : bool = lbool_in_string_to_bool(&eval_expr(&mut context, inner_e));
-            context.bools.insert(var_name.to_string(), bool_expr_result);
-            bool_expr_result.to_string()
+            let bool_expr_result_str = eval_expr(&mut context, inner_e);
+            context.insert_bool(var_name, &bool_expr_result_str);
+            return bool_expr_result_str
         },
         ValueType::TI64 => {
-            let i64_expr_result_str = &eval_expr(&mut context, inner_e);
-            context.insert_i64(var_name, i64_expr_result_str);
-            i64_expr_result_str.to_string()
+            let i64_expr_result_str = eval_expr(&mut context, inner_e);
+            context.insert_i64(var_name, &i64_expr_result_str);
+            return i64_expr_result_str
         },
         ValueType::TString => {
-            let string_expr_result = &eval_expr(&mut context, inner_e);
+            let string_expr_result = eval_expr(&mut context, inner_e);
             context.strings.insert(var_name.to_string(), string_expr_result.to_string());
-            string_expr_result.to_string()
+            string_expr_result
         },
         ValueType::TStructDef => {
             panic!("{}:{} {} eval error: Cannot assign {} of type {:?}. Not implemented yet.",
@@ -3018,7 +3026,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
             ValueType::TBool => {
-                context.bools.get(name).unwrap().to_string()
+                context.get_bool(name).unwrap().to_string()
             },
             ValueType::TI64 => {
                 context.get_i64(name).unwrap().to_string()
@@ -3075,7 +3083,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
                                     },
                                     ValueType::TBool => {
-                                        match context.bools.get(&format!("{}.{}", name, inner_name)) {
+                                        match context.get_bool(&format!("{}.{}", name, inner_name)) {
                                             Some(result) => return result.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
