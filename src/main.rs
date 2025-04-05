@@ -1456,7 +1456,7 @@ struct Context {
     enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, SStructDef>,
     bools: HashMap<String, bool>,
-    i64s: HashMap<String, i64>,
+    bytes: HashMap<String, Vec<u8> >,
     strings: HashMap<String, String>,
 }
 
@@ -1470,17 +1470,27 @@ impl Context {
             enums: HashMap::new(),
             struct_defs: HashMap::new(),
             bools: HashMap::new(),
-            i64s: HashMap::new(),
+            bytes: HashMap::new(),
             strings: HashMap::new(),
         };
     }
 
-    fn get_i64(self: &Context, id: &str) -> Option<&i64> {
-        return self.i64s.get(id);
+    fn get_i64(self: &Context, id: &str) -> Option<i64> {
+        match self.bytes.get(id) {
+            Some(bytes_) => {
+                return Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap()));
+            },
+            None => return None,
+        }
     }
 
     fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
-        return self.i64s.insert(id.to_string(), i64_str.parse::<i64>().unwrap());
+        match self.bytes.insert(id.to_string(), i64_str.parse::<i64>().unwrap().to_ne_bytes().to_vec()) {
+            Some(bytes_) => {
+                return Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap()));
+            },
+            None => return None,
+        }
     }
 }
 
