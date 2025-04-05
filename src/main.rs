@@ -2371,8 +2371,11 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
         NodeType::LBool(b_value) => return *b_value,
         NodeType::FCall => return eval_call_to_bool(&mut context, &e),
         NodeType::Identifier(name) => {
-            if context.bools.contains_key(name) {
-                return context.bools.get(name).unwrap().clone();
+            match context.bools.get(name) {
+                Some(bool_) => {
+                    return bool_.clone();
+                },
+                None => {},
             }
             if context.struct_defs.contains_key(name) {
                 let struct_def = context.struct_defs.get(name).unwrap();
@@ -2391,8 +2394,11 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
                         };
 
                         let combined_name = format!("{}.{}", name, after_dot_name);
-                        if context.bools.contains_key(&combined_name) {
-                            return context.bools.get(&combined_name).unwrap().clone();
+                        match context.bools.get(&combined_name) {
+                            Some(bool_) => {
+                                return bool_.clone();
+                            },
+                            None => {},
                         }
                         panic!("{} eval error: eval_to_bool(): '{}' is not a bool, it is a '{}'",
                                LANG_NAME, combined_name, value_type_to_str(&member_decl.value_type));
