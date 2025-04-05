@@ -1455,7 +1455,6 @@ struct Context {
     enum_defs: HashMap<String, SEnumDef>,
     enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, SStructDef>,
-    bools: HashMap<String, bool>,
     bytes: HashMap<String, Vec<u8> >,
     strings: HashMap<String, String>,
 }
@@ -1469,36 +1468,52 @@ impl Context {
             enum_defs: HashMap::new(),
             enums: HashMap::new(),
             struct_defs: HashMap::new(),
-            bools: HashMap::new(),
             bytes: HashMap::new(),
             strings: HashMap::new(),
         };
     }
 
     fn get_i64(self: &Context, id: &str) -> Option<i64> {
-        match self.bytes.get(id) {
-            Some(bytes_) => {
-                return Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap()));
-            },
-            None => return None,
+        return match self.bytes.get(id) {
+            Some(bytes_) => Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap())),
+            None => None,
         }
     }
 
     fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
-        match self.bytes.insert(id.to_string(), i64_str.parse::<i64>().unwrap().to_ne_bytes().to_vec()) {
-            Some(bytes_) => {
-                return Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap()));
-            },
-            None => return None,
+        return match self.bytes.insert(id.to_string(), i64_str.parse::<i64>().unwrap().to_ne_bytes().to_vec()) {
+            Some(bytes_) => Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap())),
+            None => None,
         }
     }
 
-    fn get_bool(self: &Context, id: &str) -> Option<&bool> {
-        return self.bools.get(id);
+    fn get_bool(self: &Context, id: &str) -> Option<bool> {
+        return match self.bytes.get(id) {
+            Some(bytes_) => {
+                // println!("get bool '{}': {:?}, {}", id, bytes_, *bytes_.get(0).unwrap() != 0);
+                Some(*bytes_.get(0).unwrap() == 0)
+            },
+            None => None,
+        }
     }
 
     fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
-        return self.bools.insert(id.to_string(), lbool_in_string_to_bool(bool_str));
+        let bool_to_insert = lbool_in_string_to_bool(bool_str);
+        let mut to_insert = Vec::new();
+
+        if bool_to_insert { // TODO this shouldn't work, it should be the other way around
+            to_insert.push(0);
+        } else {
+            to_insert.push(1);
+        }
+        return match self.bytes.insert(id.to_string(), to_insert) {
+            Some(_bytes_) => {
+                // println!("insert bool '{}': {:?}, {}, {}, {}", id, bytes_, *bytes_.get(0).unwrap() != 0, bool_to_insert, bool_str);
+                Some(bool_to_insert)
+            },
+            // Some(_) => Some(bool_to_insert),
+            None => None,
+        }
     }
 }
 
