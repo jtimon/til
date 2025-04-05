@@ -1474,6 +1474,14 @@ impl Context {
             strings: HashMap::new(),
         };
     }
+
+    fn get_i64(self: &Context, id: &str) -> Option<&i64> {
+        return self.i64s.get(id);
+    }
+
+    fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
+        return self.i64s.insert(id.to_string(), i64_str.parse::<i64>().unwrap());
+    }
 }
 
 fn is_core_func(proc_name: &str) -> bool {
@@ -2631,7 +2639,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             },
             ValueType::TI64 =>  {
                 let result = &eval_expr(&mut function_context, &e.get(param_index));
-                function_context.i64s.insert(arg.name.to_string(), result.parse::<i64>().unwrap());
+                function_context.insert_i64(&arg.name, result);
             },
             ValueType::TString =>  {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
@@ -2813,7 +2821,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
         },
         ValueType::TI64 => {
             let i64_expr_result_str = &eval_expr(&mut context, inner_e);
-            context.i64s.insert(declaration.name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
+            context.insert_i64(&declaration.name, i64_expr_result_str);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             i64_expr_result_str.to_string()
         },
@@ -2868,7 +2876,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                 },
                                 ValueType::TI64 => {
                                     let i64_expr_result_str = &eval_expr(&mut context, default_value);
-                                    context.i64s.insert(combined_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
+                                    context.insert_i64(&combined_name, i64_expr_result_str);
                                 },
                                 ValueType::TString => {
                                     let string_expr_result = &eval_expr(&mut context, default_value);
@@ -2960,7 +2968,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         },
         ValueType::TI64 => {
             let i64_expr_result_str = &eval_expr(&mut context, inner_e);
-            context.i64s.insert(var_name.to_string(), i64_expr_result_str.parse::<i64>().unwrap());
+            context.insert_i64(var_name, i64_expr_result_str);
             i64_expr_result_str.to_string()
         },
         ValueType::TString => {
@@ -2997,7 +3005,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 context.bools.get(name).unwrap().to_string()
             },
             ValueType::TI64 => {
-                context.i64s.get(name).unwrap().to_string()
+                context.get_i64(name).unwrap().to_string()
             },
             ValueType::TString => {
                 context.strings.get(name).unwrap().to_string()
@@ -3041,7 +3049,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
                                     },
                                     ValueType::TI64 => {
-                                        match context.i64s.get(&format!("{}.{}", name, inner_name)) {
+                                        match context.get_i64(&format!("{}.{}", name, inner_name)) {
                                             Some(result) => return result.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
