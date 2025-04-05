@@ -1515,6 +1515,14 @@ impl Context {
             None => None,
         }
     }
+
+    fn get_string(self: &Context, id: &str) -> Option<&String> {
+        return self.strings.get(id);
+    }
+
+    fn insert_string(self: &mut Context, id: &str, value_str: String) -> Option<String> {
+        return self.strings.insert(id.to_string(), value_str);
+    }
 }
 
 fn is_core_func(proc_name: &str) -> bool {
@@ -2682,7 +2690,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             },
             ValueType::TString =>  {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
-                function_context.strings.insert(arg.name.to_string(), result);
+                function_context.insert_string(&arg.name, result);
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
@@ -2866,7 +2874,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
-            context.strings.insert(declaration.name.to_string(), string_expr_result.clone());
+            context.insert_string(&declaration.name, string_expr_result.clone());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             return string_expr_result
         },
@@ -2919,7 +2927,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                 },
                                 ValueType::TString => {
                                     let string_expr_result = eval_expr(&mut context, default_value);
-                                    context.strings.insert(combined_name.to_string(), string_expr_result);
+                                    context.insert_string(&combined_name, string_expr_result);
                                 },
                                 ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                                     match &default_value.node_type {
@@ -3012,7 +3020,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
-            context.strings.insert(var_name.to_string(), string_expr_result.to_string());
+            context.insert_string(var_name, string_expr_result.clone());
             string_expr_result
         },
         ValueType::TStructDef => {
@@ -3041,13 +3049,13 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
             ValueType::TBool => {
-                context.get_bool(name).unwrap().to_string()
+                return context.get_bool(name).unwrap().to_string()
             },
             ValueType::TI64 => {
-                context.get_i64(name).unwrap().to_string()
+                return context.get_i64(name).unwrap().to_string()
             },
             ValueType::TString => {
-                context.strings.get(name).unwrap().to_string()
+                return context.get_string(name).unwrap().to_string()
             },
             ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                 return name.to_string();
@@ -3078,7 +3086,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                             Some(member_decl) => {
                                 match member_decl.value_type {
                                     ValueType::TString => {
-                                        match context.strings.get(&format!("{}.{}", name, inner_name)) {
+                                        match context.get_string(&format!("{}.{}", name, inner_name)) {
                                             Some(result_str) => return result_str.to_string(),
                                             None => {
                                                 panic!("{}:{}: {} eval error: value not set for '{}.{}'",
