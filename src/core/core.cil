@@ -13,7 +13,6 @@ lt     := ext_func(a: i64, b: i64) returns bool;
 lteq   := ext_func(a: i64, b: i64) returns bool;
 gt     := ext_func(a: i64, b: i64) returns bool;
 gteq   := ext_func(a: i64, b: i64) returns bool;
-str_eq := ext_func(a: String, b: String) returns bool;
 
 add := ext_func(a: i64, b: i64) returns i64;
 sub := ext_func(a: i64, b: i64) returns i64;
@@ -24,7 +23,11 @@ btoi := ext_func(a: bool) returns i64;
 btoa := ext_func(a: bool) returns String;
 itoa := ext_func(a: i64) returns String;
 atoi := ext_func(a: String) returns i64;
+
+str_eq := ext_func(a: String, b: String) returns bool;
 concat := ext_func(a: String, b: String) returns String;
+str_len := ext_func(a: String) returns i64;
+str_get_substr := ext_func(a: String, start: i64, end: i64) returns String;
 
 exit    := ext_proc(code: i64);
 import  := ext_proc(path: String);
@@ -101,10 +104,9 @@ test := proc(cond: bool, msg: String) {
     assertm(cond, msg)
 }
 
-// TODO use assert_eq_str in some example
 assert_eq_str := proc(a: String, b: String) {
     if not(str_eq(a, b)) {
-        println("assert_eq_str failed: '", a, "' != '", b, "'")
+        println("assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }
 }
