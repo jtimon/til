@@ -23,14 +23,31 @@ MyStruct := struct {
     }
 }
 
-EmptyStruct := struct {
+EmptyStruct := struct {} // NOTE: empty struct instantiations are allowed
+Vec2 := struct {
+    mut x : i64 = 0
+    mut y : i64 = 0
+}
+
+Vec3 := struct {
+    mut x : i64 = 0
+    mut y : i64 = 0
+    mut z : i64 = 0
 }
 
 // my_struct_type := MyStruct
-// trying_dot_struct2 : bool = MyStruct.bool_field.ccccc
+// trying_dot_struct2 : bool = MyStruct.bool_field.ccccc // TODO implement nested structs
 
 test_structs := proc() {
     test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
-    // myEmptyStruct := EmptyStruct() // TODO allow instantiations
+    my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
+    my_vec2 := Vec2()
+    my_vec3 := Vec3()
+    // my_vec3.z = 42 // TODO assignments to struct fields
+    assert_eq(0, my_vec3.z) // access to struct fields
+    my_I64 := I64() // TODO migrate from i64 to I64
+    // my_Bool := Bool() // TODO migrate from bool to Bool
+    // my_String := String() // TODO don't migrate from string to String, just self host it after structs and pointers
+
 }
 test_structs()

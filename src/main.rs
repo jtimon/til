@@ -1589,6 +1589,57 @@ impl Context {
         }
     }
 
+    fn insert_struct_field(self: &mut Context, id: &str, struct_def: &SStructDef, decl: &Declaration) -> bool {
+        let combined_name = format!("{}.{}", id, &decl.name);
+        let default_value = match struct_def.default_values.get(&decl.name) {
+            Some(_e_) => eval_expr(self, _e_),
+            None => {
+                panic!("Cannot insert field '{}' in struct '{}' \nTODO: insert_struct_field: allow fields without default values",
+                       decl.name, id)
+            },
+        };
+        match decl.value_type {
+            ValueType::TI64 => {
+                self.insert_i64(&combined_name, &default_value);
+            },
+
+            ValueType::TBool => {
+                self.insert_bool(&combined_name, &default_value);
+            },
+
+            _ => {
+                println!("Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}':",
+                         decl.name, id, value_type_to_str(&decl.value_type));
+            },
+        }
+        return true;
+    }
+
+    fn insert_struct(self: &mut Context, id: &str, custom_type_name: &str) -> bool {
+        // Search the struct def and add all mut values as fields in order
+        let struct_def = match self.struct_defs.get(custom_type_name) {
+            Some(struct_def_) => struct_def_.clone(),
+            None => return false,
+        };
+
+        for (_member_name, decl) in struct_def.members.iter() {
+            if decl.is_mut {
+                self.insert_struct_field(&id, &struct_def, &decl);
+            }
+        }
+
+        return true;
+        // TODO insert the struct as a whole in the same buffer and access the fields with offsets
+        // This is initially incompatible with string fields, until we implement strings as an array of bytes
+        // let to_insert: Vec<u8> = Vec::new();
+        // return match self.bytes.insert(id.to_string(), to_insert) {
+        //     Some(_bytes_) => true,
+        //     // None          => false, // TODO uncoment, the following shouldn't work, or should it? :
+        //     None          => true, // support for empty struct instances? TODO: find out
+        // }
+    }
+
+    // TODO remove the following fields and use bytes to store that instead:
     fn get_string(self: &Context, id: &str) -> Option<&String> {
         return self.strings.get(id);
     }
@@ -1745,11 +1796,10 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
             }
             let member_str = match &e.get(0).node_type {
                 NodeType::Identifier(member_name) => member_name,
-                node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
-                                                LANG_NAME, e.line, e.col, node_type)),
+                node_type => return Err(e.lang_error("type", &format!("identifiers can only contain identifiers, found '{:?}'.", node_type))),
             };
 
-            match symbol_info.value_type {
+            match &symbol_info.value_type {
                 ValueType::TStructDef => {
                     match context.struct_defs.get(name) {
                         Some(struct_def) => {
@@ -1768,7 +1818,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             }
                         },
                         None => {
-                            return Err(format!("{}:{}: {} error: Undefined struct '{}'", LANG_NAME, e.line, e.col, name));
+                            return Err(e.error("type", &format!("Undefined struct '{}'", name)));
                         },
                     }
                 },
@@ -1779,8 +1829,8 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                                 if e.params.len() > 1 {
                                     let extra_member_str = match &e.get(1).node_type {
                                         NodeType::Identifier(member_name) => member_name,
-                                        node_type => return Err(format!("{}:{}: {} error: identifiers can only contain identifiers, found {:?}.",
-                                                                        e.line, e.col, LANG_NAME, node_type)),
+                                        node_type => return Err(e.error("type", &format!("identifiers can only contain identifiers, found '{:?}'",
+                                                                        node_type))),
                                     };
                                     return Err(e.error("type", &format!("Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
                                                                         extra_member_str, name, member_str, name, member_str)));
@@ -1793,13 +1843,30 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             return Err(e.error("type", &format!("enum '{}' has no value '{}'", name, member_str)));
                         }
                         None => {
-                            return Err(format!("{}:{}: {} error: Undefined enum '{}'", e.line, e.col, LANG_NAME, name));
+                            return Err(e.error("type", &format!("Undefined enum '{}'", name)));
                         }
+                    }
+                },
+                ValueType::TCustom(custom_type_name) => {
+                    match context.struct_defs.get(custom_type_name) {
+                        Some(struct_def) => {
+                            match struct_def.members.get(member_str) {
+                                Some(decl) => {
+                                    return Ok(decl.value_type.clone());
+                                },
+                                None => {
+                                    return Err(e.error("type", &format!("struct '{}' has no member '{}' d", name, member_str)))
+                                },
+                            }
+                        },
+                        None => {
+                            return Err(e.error("type", &format!("Undefined struct '{}'", name)));
+                        },
                     }
                 },
                 _ => {
                     return Err(e.error("type", &format!("'{}' of type '{}' can't have members, '{}' is not a member",
-                                       value_type_to_str(&symbol_info.value_type), name, member_str)))
+                                       name, value_type_to_str(&symbol_info.value_type), member_str)))
                 },
             }
         },
@@ -3041,7 +3108,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 let enum_expr_result_str = &eval_expr(&mut context, inner_e);
                 context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
             } else if custom_symbol.value_type == ValueType::TStructDef {
-                return e.error("eval", &format!("Cannot declare '{}' of type 'struct'. Not implemented yet.", &declaration.name))
+                if !context.insert_struct(&declaration.name, custom_type_name) {
+                    return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
+                }
             } else {
                 return e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                 &declaration.name, value_type_to_str(&custom_symbol.value_type)))
@@ -3197,7 +3266,6 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
             ValueType::ToInferType => {
                 return e.lang_error("eval", &format!("Can't infer the type of identifier '{}'.", name))
-
             },
             ValueType::TCustom(ref custom_type_name) => {
                 if !context.symbols.contains_key(custom_type_name) {
@@ -3210,8 +3278,44 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                         return enum_val.enum_name.clone();
                     },
 
+                    ValueType::TStructDef => {
+                        let struct_def = context.struct_defs.get(custom_type_name).unwrap();
+                        let inner_e = e.get(0);
+                        match &inner_e.node_type {
+                            NodeType::Identifier(inner_name) => {
+                                match struct_def.members.get(inner_name) {
+                                    Some(member_decl) => {
+                                        match member_decl.value_type {
+                                            ValueType::TI64 => {
+                                                match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                                                    Some(result) => return result.to_string(),
+                                                    None => {
+                                                        return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                    },
+                                                }
+
+                                            },
+                                            _ => {
+                                                return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of type '{}' not implemented",
+                                                                                           name, inner_name, value_type_to_str(&member_decl.value_type)))
+
+                                            },
+                                        }
+                                    },
+                                    _ => {
+                                        return e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}'", name, inner_name))
+                                    },
+                                }
+                            },
+                            _ => {
+                                return e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name))
+                            },
+                        }
+                    },
+
                     _ => {
-                        return e.todo_error("eval", &format!("Can't eval '{}' of custom type '{}'.", name, custom_type_name))
+                        return e.lang_error("eval", &format!("'{}' of type: '{}': custom types are supposed to be struct or enum, found '{}'.",
+                                                             name, custom_type_name, value_type_to_str(&custom_symbol.value_type)))
                     },
                 }
             },

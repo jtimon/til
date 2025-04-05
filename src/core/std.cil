@@ -25,6 +25,11 @@ bool := struct {
     }
 }
 
+// TODO move from bool to Bool?
+Bool := struct {
+//    mut data: bool = 0 // TODO
+}
+
 i64 := struct {
     // mut data : i64 = 0 // self host the data
 
@@ -44,6 +49,11 @@ i64 := struct {
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self.data, other.data)
     }
+}
+
+// TODO move from i64 to I64
+I64 := struct {
+    mut data: i64 = 0 // TODO
 }
 
 String := struct {
