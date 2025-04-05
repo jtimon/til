@@ -1443,6 +1443,7 @@ struct SymbolInfo {
 struct EnumVal {
     enum_type: String,
     enum_name: String,
+    // TODO implement tagged unions
     // enum_unsigned_val: String,
     // extra_Val: Option<Anything>,
 }
@@ -1453,9 +1454,10 @@ struct Context {
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>, // REM: currently funcs are not on symbols, perhaps they should?
     enum_defs: HashMap<String, SEnumDef>,
-    enums: HashMap<String, EnumVal>,
     struct_defs: HashMap<String, SStructDef>,
     bytes: HashMap<String, Vec<u8> >,
+    // TODO remove the following fields and use bytes to store that instead:
+    enums: HashMap<String, EnumVal>,
     strings: HashMap<String, String>,
 }
 
@@ -1466,9 +1468,9 @@ impl Context {
             symbols: HashMap::new(),
             funcs: HashMap::new(),
             enum_defs: HashMap::new(),
-            enums: HashMap::new(),
             struct_defs: HashMap::new(),
             bytes: HashMap::new(),
+            enums: HashMap::new(),
             strings: HashMap::new(),
         };
     }
@@ -1522,6 +1524,14 @@ impl Context {
 
     fn insert_string(self: &mut Context, id: &str, value_str: String) -> Option<String> {
         return self.strings.insert(id.to_string(), value_str);
+    }
+
+    fn get_enum(self: &Context, id: &str) -> Option<&EnumVal> {
+        return self.enums.get(id);
+    }
+
+    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, enum_name: &str) -> Option<EnumVal> {
+        return self.enums.insert(id.to_string(), EnumVal{enum_type: enum_type.to_string(), enum_name: enum_name.to_string()});
     }
 }
 
@@ -2697,7 +2707,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
                 let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
-                        function_context.enums.insert(arg.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: result});
+                        function_context.insert_enum(&arg.name, custom_type_name, &result);
                     },
                     _ => {
                         panic!("{}:{} {} eval error: Cannot use {} of type {:?} as an argument. Only enum custom types allowed for now.",
@@ -2978,7 +2988,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             let custom_symbol = context.symbols.get(custom_type_name).unwrap();
             if custom_symbol.value_type == ValueType::TEnumDef {
                 let enum_expr_result_str = &eval_expr(&mut context, inner_e);
-                context.enums.insert(declaration.name.to_string(), EnumVal{enum_type: custom_type_name.to_string(), enum_name: enum_expr_result_str.to_string()});
+                context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
             } else {
                 panic!("{}:{} {} eval error: Cannot declare {} of type {:?}. Only enum custom types allowed yet.",
                        e.line, e.col, LANG_NAME, &declaration.name, &declaration.value_type)
@@ -3147,7 +3157,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 let custom_symbol = context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
-                        let enum_val = context.enums.get(name).unwrap();
+                        let enum_val = context.get_enum(name).unwrap();
                         return enum_val.enum_name.clone();
                     },
 
