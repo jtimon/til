@@ -540,6 +540,13 @@ impl SFuncDef {
             FunctionType::FTFunc | FunctionType::FTFuncExt | FunctionType::FTMacro => false,
         }
     }
+
+    fn is_ext(self: &SFuncDef) -> bool {
+        match self.function_type {
+            FunctionType::FTFuncExt | FunctionType::FTProcExt => true,
+            FunctionType::FTFunc | FunctionType::FTProc | FunctionType::FTMacro => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1544,57 +1551,6 @@ impl Context {
     }
 }
 
-fn is_core_func(proc_name: &str) -> bool {
-    match proc_name {
-        "and" => true,
-        "or" => true,
-        "not" => true,
-        "eq" => true,
-        "lt" => true,
-        "lteq" => true,
-        "gt" => true,
-        "gteq" => true,
-        "add" => true,
-        "sub" => true,
-        "mul" => true,
-        "div" => true,
-        "itoa" => true,
-        "atoi" => true,
-        "str_eq" => true,
-        "concat" => true,
-        "str_len" => true,
-        "str_get_substr" => true,
-        // TODO implement more core funcs in rust:
-        "bin_and" => true,
-        "bin_or" => true,
-        _ => false,
-    }
-}
-
-fn is_core_proc(proc_name: &str) -> bool {
-    match proc_name {
-        "exit" => true,
-        "print" => true,
-        "println" => true, // TODO self host using print once the self escaped '\n' bug is fixed
-        // TODO parse with dots like other languages, then change the direction of the slash depending on the os
-        // TODO use imports in declarations:
-        // example_cil: my_matrix_def := import(matrix.matrix_def)
-        // example_cil: my_matrix : struct = import(matrix)
-        // example_python: from matrix import matrix_def as my_matrix_def
-        "import" => true,
-        "runfile" => true,
-        "input_read_line" => true,
-        "eval_to_str" => true,
-        // TODO implement more core procs in rust:
-        "single_print" => true,
-        "readfile" => true,
-        "writefile" => true,
-        "eval_to_ast_str" => true,
-        "eval_to_expr" => true,
-        _ => false,
-    }
-}
-
 fn get_func_name_in_call(e: &Expr) -> String {
     assert!(e.node_type == NodeType::FCall);
     assert!(e.params.len() > 0);
@@ -1630,10 +1586,6 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     let f_name = get_func_name_in_call(&e);
     if context.funcs.contains_key(&f_name) {
         return value_type_func_proc(&e, &f_name, &context.funcs.get(&f_name).unwrap())
-    } else if is_core_func(&f_name) {
-        return Err(format!("{}:{}: mode '{}' error: core func '{}' is not in this context", e.line, e.col, context.mode.name, &f_name));
-    } else if is_core_proc(&f_name) {
-        return Err(format!("{}:{}: mode '{}' error: core proc '{}' is not in this context", e.line, e.col, context.mode.name, &f_name));
     } else if context.symbols.contains_key(&f_name) {
 
         let symbol = context.symbols.get(&f_name).unwrap();
@@ -2302,16 +2254,12 @@ fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<
     assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
     let mut errors : Vec<String> = Vec::new();
 
-    if is_core_func(&var_name) {
-        errors.push(format!("{}:{}: type error: Core function '{}' cannot be assigned to.", e.line, e.col, var_name));
-    } else if is_core_proc(&var_name) {
-        errors.push(format!("{}:{}: type error: Core procedure '{}' cannot be assigned to.", e.line, e.col, var_name));
-    } else if context.funcs.contains_key(var_name)  {
-        errors.push(format!("{}:{}: type error: User defined function '{}' cannot be assigned to.", e.line, e.col, var_name));
+    if context.funcs.contains_key(var_name)  {
+        errors.push(format!("{}:{}: type error: function '{}' cannot be assigned to.", e.line, e.col, var_name));
     } else if context.symbols.contains_key(var_name) {
         let symbol_info = context.symbols.get(var_name).unwrap();
         if !symbol_info.is_mut {
-            errors.push(format!("{}:{}: compiler error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.line, e.col, var_name));
+            errors.push(format!("{}:{}: type error: Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", e.line, e.col, var_name));
         }
     } else {
         errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
@@ -2738,7 +2686,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     "".to_string()
 }
 
-fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
+fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
         "and" => eval_core_func_and(&mut context, &e),
         "or" => eval_core_func_or(&mut context, &e),
@@ -2758,12 +2706,6 @@ fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "div" => eval_core_func_div(&mut context, &e),
         "atoi" => eval_core_func_atoi(&mut context, &e),
         "itoa" => eval_core_func_itoa(&mut context, &e),
-        _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.line, e.col, LANG_NAME, name),
-    };
-}
-
-fn eval_core_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
-    return match name {
         "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
         "exit" => eval_core_exit(&e),
         "import" => "".to_string(), // Should already be imported in init_context
@@ -2771,17 +2713,23 @@ fn eval_core_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "print" => eval_core_proc_print(false, &mut context, &e),
         "println" => eval_core_proc_print(true, &mut context, &e),
         "runfile" => eval_core_proc_runfile(&mut context, &e),
-        _ => panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", e.line, e.col, LANG_NAME, name),
+        _ => {
+            if is_proc {
+                panic!("{}:{} {} eval error: Core procedure '{}' not implemented.", e.line, e.col, LANG_NAME, name);
+            } else {
+                panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.line, e.col, LANG_NAME, name);
+            }
+        },
     }
 }
 
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
-    if is_core_func(&name) {
-        return eval_core_func_call(&name, &mut context, &e)
-    } else if is_core_proc(&name) {
-        return eval_core_proc_call(&name, &mut context, &e)
-    } else if context.funcs.contains_key(name) {
+    if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
+        if func_def.is_ext() {
+            let is_proc = func_def.is_proc();
+            return eval_core_func_proc_call(&name, &mut context, &e, is_proc)
+        }
         return eval_user_func_proc_call(func_def, &name, &context, &e)
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
