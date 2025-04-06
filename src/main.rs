@@ -1924,7 +1924,7 @@ fn func_proc_has_multi_arg(func_def: &SFuncDef) -> bool {
             _ => {}
         }
     }
-    false
+    return false
 }
 
 fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
@@ -2105,12 +2105,16 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         }
     }
 
+    if func_def.args.len() == 0 && e.params.len() - 1 > 0 {
+        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects 0 args, but {} were provided.", e.line, e.col, &f_name, e.params.len()-1));
+        return errors;
+    }
     let has_multi_arg = func_proc_has_multi_arg(func_def);
     if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
-        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()));
+        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()-1));
     }
     if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
-        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()));
+        errors.push(format!("{}:{}: type error: Function/procedure '{}' expects at least {} args, but {} were provided.", e.line, e.col, &f_name, func_def.args.len(), e.params.len()-1));
     }
 
     let max_arg_def = func_def.args.len();
@@ -2584,20 +2588,24 @@ fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_eval_to_str expects a single parameter.");
     let path = "eval".to_string(); // TODO Bring the path down here
     let str_source = format!("mode script; {}", &eval_expr(&mut context, e.get(1)));
-    return main_run(false, &mut context, &path, str_source);
+    return main_run(false, &mut context, &path, str_source, Vec::new());
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "eval_core_proc_runfile expects a single parameter.");
+    assert!(e.params.len() >= 2, "eval_core_proc_runfile expects at least 1 parameter.");
     let path = &eval_expr(&mut context, e.get(1));
-    run_file(&path);
+    let mut main_args = Vec::new();
+    for i in 2..e.params.len() {
+        main_args.push(eval_expr(&mut context, e.get(i)));
+    }
+    run_file(&path, main_args);
     return "".to_string();
 }
 
 fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
     let path = &eval_expr(&mut context, e.get(1));
-    run_file_with_context(true, &mut context, &path);
+    run_file_with_context(true, &mut context, &path, Vec::new());
     return "".to_string();
 }
 
@@ -2638,7 +2646,12 @@ fn eval_core_exit(e: &Expr) -> String {
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, e: &Expr) -> String {
 
     let mut function_context = context.clone();
-    assert!(e.params.len() - 1 == func_def.args.len(), "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
+    let has_multi_arg = func_proc_has_multi_arg(func_def);
+    assert!(!(!has_multi_arg && func_def.args.len() != e.params.len() - 1),
+            "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
+            LANG_NAME, name, func_def.args.len(), e.params.len()-1);
+    assert!(!(has_multi_arg && func_def.args.len() > e.params.len() - 1),
+            "{} error: func '{}' expected at least {} args, but {} were provided. This should never happen.",
             LANG_NAME, name, func_def.args.len(), e.params.len()-1);
 
     let mut param_index = 1;
@@ -2657,6 +2670,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             ValueType::TString =>  {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
                 function_context.insert_string(&arg.name, result);
+            },
+            ValueType::TMulti(ref _multi_value_type) => {
+                // TODO support variadic arguments for user defined functions
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
@@ -3328,8 +3344,7 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String) -> String {
-    let main_args = Vec::new(); // TODO pass main_args from above
+fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> String {
 
     let lexer = match lexer_from_source(&path, source) {
         Ok(_result) => _result,
@@ -3373,9 +3388,10 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     if context.mode.needs_main_proc {
         let mut main_params = Vec::new();
         main_params.push(Expr{node_type: NodeType::Identifier("main".to_string()), line: 0, col: 0, params: Vec::new()});
-        main_params.extend(main_args);
-        let main_fcall = Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params};
-        e.params.push(main_fcall);
+        for str_arg in main_args {
+            main_params.push(Expr{node_type: NodeType::LString(str_arg), line: 0, col: 0, params: Vec::new()});
+        }
+        e.params.push(Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params});
     }
     errors.extend(check_types(&mut context, &e)); // TODO remove mut from context arg
 
@@ -3391,14 +3407,14 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 
 // ---------- main, usage, args, etc
 
-fn run_file(path: &String) {
+fn run_file(path: &String, main_args: Vec<String>) {
     let mut context = Context::new(DEFAULT_MODE);
-    run_file_with_context(true, &mut context, &"src/core/core.cil".to_string());
-    run_file_with_context(true, &mut context, &"src/core/std.cil".to_string());
-    run_file_with_context(false, &mut context, &path);
+    run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new());
+    run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new());
+    run_file_with_context(false, &mut context, &path, main_args);
 }
 
-fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String) {
+fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String, main_args: Vec<String>) {
     let previous_mode = context.mode.clone();
     if !is_import {
         println!("Running file '{}'", &path);
@@ -3414,7 +3430,7 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
             },
         },
     };
-    let run_result = main_run(!is_import, &mut context, &path, source);
+    let run_result = main_run(!is_import, &mut context, &path, source, main_args);
     if run_result != "" {
         println!("{}", run_result);
     }
@@ -3444,37 +3460,44 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     let args: Vec<String> = env::args().collect();
 
-    if args.len() > 3 {
-        usage();
-    } else if args.len() > 2 {
+
+    if args.len() > 2 {
+        let mut main_args = Vec::new();
+        let mut i = 0;
+        for arg in &args {
+            if i > 2 {
+                main_args.push(arg.clone());
+                println!("Arg {}: {}", i, arg);
+            }
+            i += 1;
+        }
         match args[1].as_str() {
             "interpret" => {
-                run_file(&args[2]);
+                run_file(&args[2], main_args);
             },
             "repl" | "build" | "run" => {
                 usage();
             },
             _ => {
+                println!("command '{}' not implemented.", &args[1]);
                 usage();
             },
         }
-        println!("subcommand '{}' not implemented yet.", &args[1]);
-        println!("callled within valid command '{}'.", &args[0]);
 
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
-                run_file(&REPL_PATH.to_string());
+                run_file(&REPL_PATH.to_string(), Vec::new());
             },
             "ast" | "interpret" | "build" | "run" |
             "help" | "-help" | "--help"=> {
                 usage();
             },
             _ => {
-                run_file(&args[1]);
+                run_file(&args[1], Vec::new());
             },
         }
     } else {
-        run_file(&REPL_PATH.to_string()) // If not arguments, then repl/interactive "mode"
+        run_file(&REPL_PATH.to_string(), Vec::new()) // If not arguments, then repl/interactive "mode"
     }
 }

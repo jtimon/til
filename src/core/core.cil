@@ -1,6 +1,8 @@
 mode lib
 
 not := ext_func(a: bool) returns bool;
+// TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
+// or  := ext_func(a: bool, args: ..bool) returns bool;
 or  := ext_func(args: ..bool) returns bool; // TODO move 'or' to std after supporting variadic arguments
 and := ext_func(args: ..bool) returns bool; // TODO move 'and' to std after supporting variadic arguments
 // TODO implement bin_and and bin_or and use them to self host 'and' and 'or'
@@ -40,7 +42,7 @@ exit    := ext_proc(code: i64);
 // example_cil: my_matrix : struct = import(matrix)
 // example_python: from matrix import matrix_def as my_matrix_def
 import  := ext_proc(path: String);
-runfile := ext_proc(path: String);
+runfile := ext_proc(args: ..String);
 
 eval_to_str     := ext_proc(a: String) returns String;
 eval_to_ast_str := ext_proc(src: String) returns String; // TODO
