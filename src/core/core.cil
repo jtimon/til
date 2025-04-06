@@ -1,8 +1,10 @@
 mode lib
 
 not := ext_func(a: bool) returns bool;
-and := ext_func(args: ..bool) returns bool;
-or  := ext_func(args: ..bool) returns bool;
+bin_and := ext_func(a: bool, b: bool) returns bool; // TODO implent
+bin_or := ext_func(a: bool, b: bool) returns bool; // TODO implent
+or  := ext_func(args: ..bool) returns bool; // TODO move 'or' to std after supporting variadic arguments
+and := ext_func(args: ..bool) returns bool; // TODO move 'and' to std after supporting variadic arguments
 
 eq     := ext_func(a: i64, b: i64) returns bool;
 lt     := ext_func(a: i64, b: i64) returns bool;
@@ -25,11 +27,13 @@ concat := ext_func(a: String, b: String) returns String;
 str_len := ext_func(a: String) returns i64;
 str_get_substr := ext_func(a: String, start: i64, end: i64) returns String;
 
+single_print := ext_proc(args: ..String); // TODO implent
+print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
+println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
+
 exit    := ext_proc(code: i64);
 import  := ext_proc(path: String);
 runfile := ext_proc(path: String);
-print   := ext_proc(args: ..String);
-println := ext_proc(args: ..String);
 
 eval_to_str     := ext_proc(a: String) returns String;
 input_read_line := ext_proc(a: String) returns String;

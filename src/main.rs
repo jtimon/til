@@ -1557,6 +1557,9 @@ fn is_core_func(proc_name: &str) -> bool {
         "concat" => true,
         "str_len" => true,
         "str_get_substr" => true,
+        // TODO implement more core funcs in rust:
+        "bin_and" => true,
+        "bin_or" => true,
         _ => false,
     }
 }
@@ -1576,6 +1579,7 @@ fn is_core_proc(proc_name: &str) -> bool {
         "input_read_line" => true,
         "eval_to_str" => true,
         // TODO implement more core procs in rust:
+        "single_print" => true,
         "readfile" => true,
         "writefile" => true,
         "eval_to_ast_str" => true,
