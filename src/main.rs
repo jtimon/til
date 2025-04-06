@@ -1944,7 +1944,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                     },
                     NodeType::FCall => {
                         if !context.mode.allows_base_calls {
-                            let f_name = get_func_name_in_call(&e);
+                            let f_name = get_func_name_in_call(&p);
                             errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
                                 e.line, e.col, "mode", context.mode.name, f_name));
                         }
@@ -1953,7 +1953,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                 }
             }
         },
-        _ => panic!("check_needs_main_proc() expects a body expression, this should never happen."),
+        _ => panic!("basic_mode_checks() expects a body expression, this should never happen."),
     }
 
     if context.mode.needs_main_proc {
@@ -3312,6 +3312,7 @@ fn to_ast_str(e: &Expr) -> String {
 // ---------- main binary
 
 fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String) -> String {
+    let main_args = Vec::new(); // TODO pass main_args from above
 
     let lexer = match lexer_from_source(&path, source) {
         Ok(_result) => _result,
@@ -3332,7 +3333,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
-    let e: Expr = match parse_tokens(lexer, &mut current) {
+    let mut e: Expr = match parse_tokens(lexer, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -3349,8 +3350,16 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         }
         return format!("Compiler errors: {} declaration errors found", errors.len());
     }
-
     errors.append(&mut basic_mode_checks(&context, &e));
+
+    // For modes that require a main proc, add an implicit call to main
+    if context.mode.needs_main_proc {
+        let mut main_params = Vec::new();
+        main_params.push(Expr{node_type: NodeType::Identifier("main".to_string()), line: 0, col: 0, params: Vec::new()});
+        main_params.extend(main_args); // TODO call extend instead of append from other places
+        let main_fcall = Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params};
+        e.params.push(main_fcall);
+    }
     errors.append(&mut check_types(&mut context, &e)); // TODO remove mut from context arg
 
     if errors.len() > 0 {
