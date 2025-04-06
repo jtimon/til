@@ -13,8 +13,12 @@ bool := struct {
         return btoa(self)
     }
 
+    // necessary for branchless arithmetics
     to_int := func(self: bool) returns i64 {
-        return btoi(self)
+        if self {
+            return 1
+        }
+        return 0
     }
 }
 

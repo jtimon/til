@@ -17,7 +17,6 @@ sub := ext_func(a: i64, b: i64) returns i64;
 mul := ext_func(a: i64, b: i64) returns i64;
 div := ext_func(a: i64, b: i64) returns i64;
 
-btoi := ext_func(a: bool) returns i64;
 btoa := ext_func(a: bool) returns String;
 itoa := ext_func(a: i64) returns String;
 atoi := ext_func(a: String) returns i64;

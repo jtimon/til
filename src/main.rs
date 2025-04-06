@@ -1549,7 +1549,6 @@ fn is_core_func(proc_name: &str) -> bool {
         "sub" => true,
         "mul" => true,
         "div" => true,
-        "btoi" => true, // necessary for branchless arithmetics
         "btoa" => true,
         "itoa" => true,
         "atoi" => true,
@@ -2578,17 +2577,8 @@ fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> String {
     (a / b).to_string()
 }
 
-fn eval_core_func_btoi(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &e.get(1)) {
-        "1".to_string()
-    } else {
-        "0".to_string()
-    }
-}
-
 fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'btoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} Error: Core func 'atoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
     return a.to_string();
 }
@@ -2767,7 +2757,6 @@ fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "sub" => eval_core_func_sub(&mut context, &e),
         "mul" => eval_core_func_mul(&mut context, &e),
         "div" => eval_core_func_div(&mut context, &e),
-        "btoi" => eval_core_func_btoi(&mut context, &e),
         "atoi" => eval_core_func_atoi(&mut context, &e),
         "btoa" => eval_core_func_btoa(&mut context, &e),
         "itoa" => eval_core_func_itoa(&mut context, &e),
