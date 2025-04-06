@@ -3,10 +3,6 @@ mode lib
 not := ext_func(a: bool) returns bool;
 and := ext_func(args: ..bool) returns bool;
 or  := ext_func(args: ..bool) returns bool;
-xor := func(a: bool, b: bool) returns bool {
-    // return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
-    return or(a.and(not(b)), b.and(not(a)))
-}
 
 eq     := ext_func(a: i64, b: i64) returns bool;
 lt     := ext_func(a: i64, b: i64) returns bool;
