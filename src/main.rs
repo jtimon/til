@@ -2602,6 +2602,23 @@ fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     return "".to_string();
 }
 
+fn eval_core_proc_readfile(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "eval_core_proc_readfile expects a single parameter.");
+    let path = &eval_expr(&mut context, e.get(1));
+    let source: String = match fs::read_to_string(path) {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => {
+                panic!("File {} not found.", path);
+            },
+            other_error => {
+                panic!("Problem opening the file: {other_error:?}");
+            },
+        },
+    };
+    return source;
+}
+
 fn eval_core_exit(e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_exit expects a single parameter.");
     let e_exit_code = e.get(1);
@@ -2712,6 +2729,7 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "input_read_line" => eval_core_proc_input_read_line(&mut context, &e),
         "print" => eval_core_proc_print(false, &mut context, &e),
         "println" => eval_core_proc_print(true, &mut context, &e),
+        "readfile" => eval_core_proc_readfile(&mut context, &e),
         "runfile" => eval_core_proc_runfile(&mut context, &e),
         _ => {
             if is_proc {

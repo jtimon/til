@@ -73,13 +73,11 @@ Token := struct {
 // scan_tokens := func(source: String) returns Array(Token) {}
 
 SELF_HOSTNG_PATH := "src/cil.cil" // Test self hosting by "dog food" method
-path := "src/cil.cil" // REM: TODO: should come from 'args' as an arg, in the main proc
 
 main := proc() {
-    # println("TODO: '", path, "'0:0: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
-    # println(path, "'0:0: TODO: REM: Implement lexer")
-
-    # println(path, ":0:0: TODO: unable to read path: '", test_path, "' because '", "readfile", "' is not implemented yet")
-    # source := readfile(test_path)  // TODO implement core proc 'readfile'
-
+    path := "src/cil.cil" // REM: TODO: should come from 'args' as an arg, in the main proc
+    source := readfile(path) // TODO implement core proc 'readfile'
+    // TODO implement get_current_line() core func to print better errors from cil
+    // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
+    // println(path, ":0:0: TODO: REM: Implement lexer")
 }

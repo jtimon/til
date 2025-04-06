@@ -48,7 +48,7 @@ eval_to_expr := ext_proc(src: String) returns Expr; // TODO
 
 input_read_line := ext_proc(a: String) returns String;
 
-readfile := ext_proc(path: String) returns String; // TODO
+readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
