@@ -533,6 +533,15 @@ struct SFuncDef {
     body: Vec<Expr>,
 }
 
+impl SFuncDef {
+    fn is_proc(self: &SFuncDef) -> bool {
+        match self.function_type {
+            FunctionType::FTProc | FunctionType::FTProcExt => true,
+            FunctionType::FTFunc | FunctionType::FTFuncExt | FunctionType::FTMacro => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct SStructDef {
     members : HashMap<String, Declaration>,
@@ -1926,7 +1935,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
-            return context.symbols.contains_key(&f_name) && context.symbols.get(&f_name).unwrap().value_type == ValueType::TProc
+            return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() == 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
