@@ -1549,7 +1549,6 @@ fn is_core_func(proc_name: &str) -> bool {
         "sub" => true,
         "mul" => true,
         "div" => true,
-        "btoa" => true,
         "itoa" => true,
         "atoi" => true,
         "str_eq" => true,
@@ -2583,17 +2582,8 @@ fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
     return a.to_string();
 }
 
-fn eval_core_func_btoa(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    if eval_to_bool(&mut context, &e.get(1)) {
-        "true".to_string()
-    } else {
-        "false".to_string()
-    }
-}
-
 fn eval_core_func_itoa(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'btoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} Error: Core func 'itoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     eval_expr(&mut context, e.get(1))
 }
 
@@ -2758,7 +2748,6 @@ fn eval_core_func_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         "mul" => eval_core_func_mul(&mut context, &e),
         "div" => eval_core_func_div(&mut context, &e),
         "atoi" => eval_core_func_atoi(&mut context, &e),
-        "btoa" => eval_core_func_btoa(&mut context, &e),
         "itoa" => eval_core_func_itoa(&mut context, &e),
         _ => panic!("{}:{} {} eval error: Core function '{}' not implemented.", e.line, e.col, LANG_NAME, name),
     };

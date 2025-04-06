@@ -10,10 +10,13 @@ xor := func(a: bool, b: bool) returns bool {
 // think of them as "half-external types" for now
 bool := struct {
     to_str := func(self: bool) returns String {
-        return btoa(self)
+        if self {
+            return "true"
+        }
+        return "false"
     }
 
-    // necessary for branchless arithmetics
+    // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
     to_int := func(self: bool) returns i64 {
         if self {
             return 1
