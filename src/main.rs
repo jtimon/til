@@ -1090,13 +1090,13 @@ fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, 
     *current = *current + 1;
 
     if TokenType::LeftParen == next_t.token_type {
-        let mut arg_list = match parse_list(&lexer, current) {
+        let arg_list = match parse_list(&lexer, current) {
             Ok(a_list) => a_list,
             Err(err_str) => return Err(err_str),
         };
         let mut params : Vec<Expr> = Vec::new();
         params.push(e);
-        params.append(&mut arg_list.params);
+        params.extend(arg_list.params);
         return Ok(Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params))
     }
     return Ok(e);
@@ -1760,8 +1760,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                let mut stmt_context_errors = init_context(context, &se);
-                errors.append(&mut stmt_context_errors);
+                errors.extend(init_context(context, &se));
             }
         },
         NodeType::FCall => {
@@ -2012,7 +2011,7 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
                             inner_e.line, inner_e.col, &inner_e.node_type));
     }
     for p in e.params.iter() {
-        errors.append(&mut check_types(&mut context, &p));
+        errors.extend(check_types(&mut context, &p));
     }
     return errors;
 }
@@ -2035,7 +2034,7 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
                             inner_e.line, inner_e.col, &inner_e.node_type));
     }
     for p in e.params.iter() {
-        errors.append(&mut check_types(&mut context, &p));
+        errors.extend(check_types(&mut context, &p));
     }
     return errors;
 }
@@ -2192,7 +2191,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
             },
             _ => {},
         }
-        errors.append(&mut check_types(&mut context, &p));
+        errors.extend(check_types(&mut context, &p));
     }
 
     // TODO should macros be allowed to call procs?
@@ -2245,7 +2244,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
             _ => {},
         }
     }
-    errors.append(&mut check_types(&mut context, &inner_e));
+    errors.extend(check_types(&mut context, &inner_e));
 
     return errors
 }
@@ -2265,7 +2264,7 @@ fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<
         errors.push(format!("{}:{}: type error: Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                             e.line, e.col, var_name, var_name, var_name));
     }
-    errors.append(&mut check_types(&mut context, &e.get(0)));
+    errors.extend(check_types(&mut context, &e.get(0)));
     return errors
 }
 
@@ -2274,22 +2273,22 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     match &e.node_type {
         NodeType::Body => {
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &p));
+                errors.extend(check_types(&mut context, &p));
             }
         },
 
         NodeType::EnumDef(enum_def) => {
-            errors.append(&mut check_enum_def(&e, enum_def));
+            errors.extend(check_enum_def(&e, enum_def));
         },
         NodeType::StructDef(_struct_def) => {
             assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
         },
 
         NodeType::If => {
-            errors.append(&mut check_if_statement(&mut context, &e));
+            errors.extend(check_if_statement(&mut context, &e));
         },
         NodeType::While => {
-            errors.append(&mut check_while_statement(&mut context, &e));
+            errors.extend(check_while_statement(&mut context, &e));
         },
         NodeType::Switch => {
             assert!(e.params.len() >= 3, "{} error: switch nodes must have at least 3 parameters.", LANG_NAME);
@@ -2297,16 +2296,16 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             // TODO check that there's a body param after each case
             // TODO check that all the cases are covered
             for p in e.params.iter() {
-                errors.append(&mut check_types(&mut context, &p));
+                errors.extend(check_types(&mut context, &p));
             }
         },
 
         NodeType::FCall => {
-            errors.append(&mut check_fcall(&context, &e));
+            errors.extend(check_fcall(&context, &e));
         },
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
-            errors.append(&mut check_func_proc_types(&func_def, &mut function_context, &e));
+            errors.extend(check_func_proc_types(&func_def, &mut function_context, &e));
         },
         NodeType::Identifier(name) => {
             if !(context.funcs.contains_key(name) || context.symbols.contains_key(name)) {
@@ -2315,14 +2314,14 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         },
 
         NodeType::Declaration(decl) => {
-            errors.append(&mut check_declaration(&mut context, &e, decl));
+            errors.extend(check_declaration(&mut context, &e, decl));
         },
         NodeType::Assignment(var_name) => {
-            errors.append(&mut check_assignment(&mut context, &e, var_name));
+            errors.extend(check_assignment(&mut context, &e, var_name));
         },
         NodeType::Return => {
             for return_val in &e.params {
-                errors.append(&mut check_types(&mut context, &return_val));
+                errors.extend(check_types(&mut context, &return_val));
             }
         },
 
@@ -2357,7 +2356,7 @@ fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
         let extr_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), &e, Vec::new());
         let mut new_args = Vec::new();
         new_args.push(extr_arg_e);
-        new_args.append(&mut e.params.clone());
+        new_args.extend(e.params.clone());
         let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
         return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &new_e).as_str());
     }
@@ -2797,7 +2796,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
             let extr_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), e, Vec::new());
             let mut new_args = Vec::new();
             new_args.push(extr_arg_e);
-            new_args.append(&mut e.params.clone());
+            new_args.extend(e.params.clone());
             let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
             return eval_func_proc_call(&f_name, &mut context, &new_e);
         }
@@ -3368,17 +3367,17 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         }
         return format!("Compiler errors: {} declaration errors found", errors.len());
     }
-    errors.append(&mut basic_mode_checks(&context, &e));
+    errors.extend(basic_mode_checks(&context, &e));
 
     // For modes that require a main proc, add an implicit call to main
     if context.mode.needs_main_proc {
         let mut main_params = Vec::new();
         main_params.push(Expr{node_type: NodeType::Identifier("main".to_string()), line: 0, col: 0, params: Vec::new()});
-        main_params.extend(main_args); // TODO call extend instead of append from other places
+        main_params.extend(main_args);
         let main_fcall = Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params};
         e.params.push(main_fcall);
     }
-    errors.append(&mut check_types(&mut context, &e)); // TODO remove mut from context arg
+    errors.extend(check_types(&mut context, &e)); // TODO remove mut from context arg
 
     if errors.len() > 0 {
         for err in &errors {
