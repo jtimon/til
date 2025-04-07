@@ -27,7 +27,8 @@ abc_proc(false, false, false)
 abc_proc := proc(a: bool, b: bool, c: bool) {
 
     abc := proc(a: bool, b: bool, c: bool) {
-	println("inside abc, three bools: ", bool.to_str(a), ", ", bool.to_str(a), ", ", bool.to_str(a))
+	    println("inside abc, three bools: ", bool.to_str(a), ", ", bool.to_str(b), ", ", bool.to_str(c))
+	    // println("inside abc, three bools: ", a.to_str(), ", ", b.to_str(), ", ", c.to_str()) // TODO improve method calls
     }
     abc(a, b, c)
 }

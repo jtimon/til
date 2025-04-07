@@ -1,0 +1,77 @@
+// editor_mode_test.cil - Test file for cil-mode.el highlighting
+
+// Keywords should be highlighted
+mode script // 'mode' (font-lock-keyword-face in emacs)
+
+if true { // 'if', 'true' (font-lock-keyword-face in emacs)
+    while false { // 'while', 'false' (font-lock-keyword-face in emacs)
+        // Do nothing
+    }
+}
+
+if true {
+      // Do nothing
+} else { // TODO support "else if" without requiring braces for the else
+    if true {
+        // Do nothing
+    } else {
+        // Do nothing
+    }
+}
+
+// Built-in types
+my_i64 : i64 = 42 // 'i64' (font-lock-type-face in emacs)
+my_bool : bool = true // 'bool' (font-lock-type-face in emacs)
+my_string : String = "test" // 'String' (font-lock-type-face in emacs)
+
+// Builtins
+result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
+printed := concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
+
+// Type declarations (enum and struct)
+MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
+    Variant1 // No type, no highlight yet (TODO)
+    Variant2 : i64 // 'i64' (font-lock-type-face in emacs)
+}
+
+MyStruct := struct { // 'MyStruct' (font-lock-type-face in emacs)
+    associated_constant : bool = false // 'bool' (font-lock-type-face in emacs)
+}
+
+// Vaariable declarations and assignments
+mut x := 10 // 'x' in variable declaration (font-lock-variable-name-face in emacs)
+// Constant declarations
+y := 20 // 'y' (font-lock-constant-face in emacs), since := works
+
+// Types in declarations and signatures
+proc_with_args := proc(arg1: i64, arg2: String) { // 'i64', 'String' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
+    return // 'return' (font-lock-keyword-face in emacs)
+}
+returns_bool := proc() returns bool { // 'bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
+    return true
+}
+
+// Mutable variables with 'mut'
+mut z : i64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-variable-name-face in emacs), 'i64' (font-lock-type-face in emacs)
+mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-name-face in emacs)
+
+// Constant arguments in function signatures
+// TODO implement mut args
+// my_proc := proc(const_arg: i64, mut mut_arg: String) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'i64', 'String' (font-lock-type-face in emacs)
+//     // Nothing here
+// }
+
+// Inferred constants with ':=' (working)
+inferred := 50 // 'inferred' (font-lock-constant-face in emacs)
+inferred_str := "string" // 'inferred_str' (font-lock-constant-face in emacs)
+
+// WIP cases that don't work yet
+spaced_const : = 60 // 'spaced_const' (no highlight, WIP)
+typed_const : i64 = 70 // 'typed_const' (no highlight, WIP), 'i64' (font-lock-type-face in emacs)
+
+// Case statement (should not be constant)
+switch x { // 'switch' (font-lock-keyword-face in emacs)
+case 4: // 'case' (font-lock-keyword-face in emacs), 'check_value' (no highlight, should not be font-lock-constant-face in emacs)
+    x = 100 // 'x' in assigment must be variable (font-lock-variable-name-face in emacs)
+case:
+}
