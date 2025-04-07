@@ -39,9 +39,12 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     // TODO core define etoa, base_enum_to_str or some equivalent
     // println("in test_switch_enum: to_switch: ", etoa(to_switch))
     switch to_switch {
-        case ExampleEnum.A: return "enum switch aaaaaa"
-        case ExampleEnum.B: return "enum switch bbbbbb"
-        case: return "enum cccccc by default"
+    case ExampleEnum.A:
+	return "enum switch aaaaaa"
+    case ExampleEnum.B:
+	return "enum switch bbbbbb"
+    case:
+	return "enum cccccc by default"
     }
     return no_return_switch_str
 }
