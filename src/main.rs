@@ -1944,8 +1944,10 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                     NodeType::FCall => {
                         if !context.mode.allows_base_calls {
                             let f_name = get_func_name_in_call(&p);
-                            errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
-                                e.line, e.col, "mode", context.mode.name, f_name));
+                            if f_name != "import" {
+                                errors.push(format!("{}:{}: {} error: mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
+                                                    e.line, e.col, "mode", context.mode.name, f_name));
+                            }
                         }
                     },
                     _ => {},
