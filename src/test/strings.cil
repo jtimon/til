@@ -19,3 +19,7 @@ test(eq(str_len("01234"), 5), "str_len('01234') = 5")
 assert_eq_str("012", str_get_substr("01234", 0, 3))
 assert_eq_str("234", str_get_substr("01234", 2, 5))
 assert_eq_str("0", str_get_substr("01234", 0, 1))
+
+assert_eq_str("\\", str_get_substr(",,\\", 2, 4))
+assert_eq_str("\"", str_get_substr(",,\"", 2, 4))
+assert_eq_str("\n", str_get_substr(",,\n", 2, 4))

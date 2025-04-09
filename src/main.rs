@@ -139,6 +139,7 @@ fn is_digit(source: &String, pos: usize) -> bool {
 }
 
 fn is_id_start(source: &String, pos: usize) -> bool {
+    // TODO why next()? is this a bug?
     match &source[pos..pos+1].chars().next().unwrap() {
         'a'..='z' | 'A'..='Z' | '_' => true,
         _ => false,
@@ -203,7 +204,7 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
 
         // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
         // The answer is probably yet, but perhaps static is not the right answer
-        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions\
+        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions
         // or do we need mut function fields too? probably yes
         "static" => TokenType::Invalid,
 
@@ -306,12 +307,16 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 "\"" => {
                     pos += 1;
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
+                        if &source[pos..pos+1] == "\\" {
+                            pos += 1; // if it's the escape character, skip the next character too
+                        }
                         pos += 1;
                     }
                     // pos = pos - 1;
-                    match &source[pos..pos+1] {
-                        "\"" => TokenType::String,
-                        _ => TokenType::UnterminatedString,
+                    if pos >= eof_pos {
+                        TokenType::UnterminatedString
+                    } else {
+                        TokenType::String
                     }
                 },
 
