@@ -50,5 +50,5 @@ runfile("src/test/test_gpt4o_mini_tests.cil")
 runfile("src/test/test_grok3_tests.cil")
 
 // WIP Work towards self hosting
-runfile("src/cil.cil", "src/cil.cil")
+runfile("src/cil.cil", "src/test/example_self_hosted.cil")
 runfile("src/test/exit.cil")

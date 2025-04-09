@@ -14,7 +14,7 @@ fib_test := proc(fib_arg: i64) {
             return n
         } else {
             return add(fibonacci_1(sub(n, 1)), fibonacci_1(sub(n, 2)))
-	}
+        }
     }
 
     fibonacci_2 := func(n: i64) returns i64 {

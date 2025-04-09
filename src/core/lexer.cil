@@ -1,0 +1,387 @@
+mode lib
+
+TokenType := enum {
+    // basic
+    Eof
+
+    // Single-character tokens.
+    Minus Plus Slash Star
+    LeftParen RightParen LeftBrace RightBrace LeftBracket RightBracket
+    Comma Colon
+
+    // One or two character tokens.
+    Dot DoubleDot
+    Not NotEqual
+    Equal EqualEqual
+    Greater GreaterEqual
+    Lesser LesserEqual
+    Semicolon DoubleSemicolon
+    // TODO implemment DoubleSemicolon
+
+    // Literals.
+    Identifier String Number
+
+    // Reserved words:
+    Mut
+
+    // bool
+    True False
+    // type definition
+    Struct Enum
+    // function definition
+    Returns Throws
+    // flow control
+    If Else
+    While For In
+    Match Switch Default
+    Return Throw
+    Try Catch
+
+    // Special in this language:
+    Func Proc Macro
+    Mode
+
+    // Errors
+    Const Var
+    Fn
+    Case
+    Invalid
+    UnterminatedString
+    // UnterminatedComment // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
+}
+
+Token := struct {
+    mut token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
+    mut token_str: String = ""
+    mut line: i64 = 0
+    mut col: i64 = 0
+}
+
+// TODO implement struct arrays and add the tokens to it, for now just print the tokens
+scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col: i64) {
+    // TODO implement enum_to_str
+    switch token_type {
+    case TokenType.Invalid:
+        println("Invalid Token (", i64.to_str(line), ", ", i64.to_str(col), "): ", token_str)
+    case:
+        println("Token (", i64.to_str(line), ", ", i64.to_str(col), "): ", token_str)
+    }
+}
+
+is_digit := func(source: String, pos: i64) returns bool {
+    current_char := str_get_substr(source, pos, add(pos, 1))
+    // TODO implement str_char_in_range
+    mut to_return := false
+    switch current_char {
+    case "0": to_return = true
+    case "1": to_return = true
+    case "2": to_return = true
+    case "3": to_return = true
+    case "4": to_return = true
+    case "5": to_return = true
+    case "6": to_return = true
+    case "7": to_return = true
+    case "8": to_return = true
+    case "9": to_return = true
+    case:
+    }
+    return to_return
+}
+
+is_id_start := func(source: String, pos: i64) returns bool {
+    current_char := str_get_substr(source, pos, add(pos, 1))
+    // TODO implement str_char_in_range
+    mut to_return := false
+    switch current_char {
+    case "a": to_return = true
+    case "b": to_return = true
+    case "c": to_return = true
+    case "d": to_return = true
+    case "e": to_return = true
+    case "f": to_return = true
+    case "g": to_return = true
+    case "h": to_return = true
+    case "i": to_return = true
+    case "j": to_return = true
+    case "k": to_return = true
+    case "l": to_return = true
+    case "m": to_return = true
+    case "n": to_return = true
+    case "o": to_return = true
+    case "p": to_return = true
+    case "q": to_return = true
+    case "r": to_return = true
+    case "s": to_return = true
+    case "t": to_return = true
+    case "u": to_return = true
+    case "v": to_return = true
+    case "w": to_return = true
+    case "x": to_return = true
+    case "y": to_return = true
+    case "z": to_return = true
+    case "A": to_return = true
+    case "B": to_return = true
+    case "C": to_return = true
+    case "D": to_return = true
+    case "E": to_return = true
+    case "F": to_return = true
+    case "G": to_return = true
+    case "H": to_return = true
+    case "I": to_return = true
+    case "J": to_return = true
+    case "K": to_return = true
+    case "L": to_return = true
+    case "M": to_return = true
+    case "N": to_return = true
+    case "O": to_return = true
+    case "P": to_return = true
+    case "Q": to_return = true
+    case "R": to_return = true
+    case "S": to_return = true
+    case "T": to_return = true
+    case "U": to_return = true
+    case "V": to_return = true
+    case "W": to_return = true
+    case "X": to_return = true
+    case "Y": to_return = true
+    case "Z": to_return = true
+    case "_": to_return = true
+    case:
+    }
+    return to_return
+}
+
+scan_reserved_words := func(identifier: String) returns TokenType {
+    mut to_return := TokenType.Identifier
+    switch identifier {
+    case "mode": to_return = TokenType.Mode
+        // declaration/arg modifiers
+    case "mut": to_return = TokenType.Mut
+        // bool literals
+    case "true": to_return = TokenType.True
+    case "false": to_return = TokenType.False
+        // core data types
+    case "enum": to_return = TokenType.Enum
+    case "struct": to_return = TokenType.Struct
+        // function declaration
+    case "returns": to_return = TokenType.Returns
+        // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
+        // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
+        // or perhaps not, for that may degenerate in an extra warning option
+        // perhaps just force the user to explicitly catch and exit any potential panic from the callee
+    case "throws": to_return = TokenType.Throws // TODO implement
+    case "func": to_return = TokenType.Func
+    case "proc": to_return = TokenType.Proc
+    case "macro": to_return = TokenType.Macro // TODO implement for real once we compile
+    case "ext_func": to_return = TokenType.FuncExt // this have to link when we compile
+    case "ext_proc": to_return = TokenType.ProcExt // this have to link when we compile
+
+        // control flow
+    case "if": to_return = TokenType.If
+    case "else": to_return = TokenType.Else
+    case "while": to_return = TokenType.While
+    case "for": to_return = TokenType.For // TODO
+    case "in": to_return = TokenType.In // TODO, or just use semicolon reserve forbid this
+    case "switch": to_return = TokenType.Switch
+    case "match": to_return = TokenType.Match // TODO like switch but special for declarations/assignments
+    case "case": to_return = TokenType.Case
+    case "default": to_return = TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
+    case "return": to_return = TokenType.Return
+    case "throw": to_return = TokenType.Throw // TODO
+        // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
+    case "catch": to_return = TokenType.Catch
+    case "try": to_return = TokenType.Try // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
+        // or should 'try:' be optional?
+
+        // Reserved forbidden/illegal words (intentionally unsupported reserved words)
+        // TODO intentionally unsupport more reserved words
+        // TODO nicer messages for forbidden words
+    case "fn": to_return = TokenType.Fn
+    case "function": to_return = TokenType.Invalid
+    case "method": to_return = TokenType.Invalid
+    case "global": to_return = TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
+        // const/vars are the most abstract types, you can't even explicitly declare them
+    case "const": to_return = TokenType.Const
+    case "var": to_return = TokenType.Var
+        // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
+        // The answer is probably yet, but perhaps static is not the right answer
+        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions\
+        // or do we need mut function fields too? probably yes
+    case "static": to_return = TokenType.Invalid
+    case:
+    }
+    return to_return
+}
+
+scan_tokens := proc(source: String) {
+    eof_pos := str_len(source)
+    mut pos := 0
+    mut line := 0
+    mut start_line_pos := 0
+
+    while lt(pos, eof_pos) {
+        start := pos
+        if is_digit(source, pos) {
+            while and(lt(pos, eof_pos), is_digit(source, pos)) {
+                pos = add(pos, 1)
+            }
+            // Look for a fractional part.
+            if and(str_eq(str_get_substr(source, pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
+                pos = add(pos, 1)
+                while and(lt(pos, eof_pos), is_digit(source, pos)) {
+                    pos = add(pos, 1)
+                }
+            }
+            scan_push_token(TokenType.Number, str_get_substr(source, start, pos), line, sub(pos, start_line_pos))
+        } else {
+
+            current_char := str_get_substr(source, pos, add(pos, 1))
+            switch current_char {
+                // chars to ignore in this language:
+            case " ":  pos = add(pos, 1)
+            case "\n": pos = add(pos, 1)
+            case "\r": pos = add(pos, 1)
+            case "\t": pos = add(pos, 1)
+
+                // open/close. left/right parentheses, craces and brackets
+            case "(":
+                scan_push_token(TokenType.LeftParen, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case ")":
+                scan_push_token(TokenType.RightParen, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "{":
+                scan_push_token(TokenType.LeftBrace, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "}":
+                scan_push_token(TokenType.RightBrace, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "[":
+                scan_push_token(TokenType.LeftBracket, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "]":
+                scan_push_token(TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+
+                // separator for optional type before the equal in declarations or args
+            case ":":
+                scan_push_token(TokenType.Colon, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+                // separator for args
+            case ",":
+                scan_push_token(TokenType.Comma, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+
+                // math
+            case "+":
+                scan_push_token(TokenType.Plus, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "-":
+                scan_push_token(TokenType.Minus, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+            case "*":
+                scan_push_token(TokenType.Star, current_char, line, sub(pos, start_line_pos))
+                pos = add(pos, 1)
+
+                // reserved for two chars in a row
+            case ".":
+                if str_eq(".", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    scan_push_token(TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
+                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Dot, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+            case "=":
+                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    scan_push_token(TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
+                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Equal, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+            case "<":
+                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    scan_push_token(TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
+                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+            case ">":
+                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    scan_push_token(TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
+                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Greater, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+            case "!":
+                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    scan_push_token(TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
+                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Not, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+
+                // comments:
+                // TODO fix end of lines, this can't work before that
+                case "#":
+                    pos = add(pos, 1)
+                    while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", str_get_substr(source, pos, add(pos, 2))))) {
+                        pos = add(pos, 1)
+                    }
+
+                case "/":
+                    // TODO allow the other type of commments '/*', allowing nesting like odin or jai
+                    if str_eq("/", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                        pos = add(pos, 2)
+                        while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", str_get_substr(source, pos, add(pos, 2))))) {
+                            pos = add(pos, 1)
+                        }
+
+                    } else {
+                        scan_push_token(TokenType.Slash, current_char, line, sub(pos, start_line_pos))
+                    }
+                    pos = add(pos, 1)
+
+                // literal strings
+            // case "\"":
+            case "\"":
+                pos = add(pos, 1)
+                while and(lt(add(pos, 1), eof_pos), not(str_eq(str_get_substr(source, pos, add(pos, 1)), "\""))) {
+                    if str_eq(str_get_substr(source, pos, add(pos, 1)), "\\") {
+                        pos = add(pos, 1) // if it's the escape character, skip the next character too
+                    }
+                    pos = add(pos, 1)
+                }
+                if gteq(pos, eof_pos) {
+                    token_str := str_get_substr(source, start, add(pos, 1))
+                    scan_push_token(TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
+                } else {
+                    token_str := str_get_substr(source, add(start, 1), pos)
+                    scan_push_token(TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
+                }
+
+                // Everything else must be reserved words, identifiers or invalid
+            case:
+                if is_id_start(source, pos) {
+                    pos = add(pos, 1)
+                    while and(lt(pos, eof_pos), or(is_digit(source, pos), is_id_start(source, pos))) {
+                        pos = add(pos, 1)
+                        // TODO fix literal strings with escape characters like in the rust implementation
+                    }
+                    pos = sub(pos, 1)
+                    id_str := str_get_substr(source, start, add(pos, 1))
+                    scan_push_token(scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
+                } else {
+                    scan_push_token(TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
+            } // switch
+        } // else
+        // println("Current char:", current_char)
+    } // while
+    scan_push_token(TokenType.Eof, "End of file", line, 0);
+}
