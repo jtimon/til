@@ -2172,10 +2172,17 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
     }
 
+    // Don't check the bodies of external functions
+    if func_def.is_ext() {
+        return errors;
+    }
+
     let returns_len = func_def.returns.len();
+    // let mut return_found = false;
     for p in func_def.body.iter() {
         match &p.node_type {
             NodeType::Return => {
+                // return_found = true;
                 if returns_len != p.params.len() {
                     errors.push(format!("{}:{}: type error: Returning {} values when {} were expected.", e.line, e.col, returns_len, p.params.len()));
                 } else {
@@ -2199,6 +2206,10 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         }
         errors.extend(check_types(&mut context, &p));
     }
+    // TODO More complete checks for return values inside if statements and the like
+    // if !return_found && returns_len > 0 {
+    //     errors.push(format!("{}:{}: type error: No return statments found in function that returns ", e.line, e.col));
+    // }
 
     // TODO should macros be allowed to call procs?
     if func_def.function_type == FunctionType::FTFunc {
@@ -3346,6 +3357,7 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
+// TODO return Result<String, String>, so that imports that fail can be treated accordingly
 fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> String {
 
     let lexer = match lexer_from_source(&path, source) {
