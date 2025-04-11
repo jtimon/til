@@ -237,7 +237,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     pos += 1;
                 }
             }
-            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, pos - start_line_pos + 1);
+            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, start - start_line_pos + 1);
         } else {
 
             let token_type = match &source[pos..pos+1] {
@@ -305,17 +305,37 @@ fn scan_tokens(source: String) -> Vec<Token> {
 
                 // literal strings
                 "\"" => {
+                    let mut lit_string = String::new();
                     pos += 1;
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
                         if &source[pos..pos+1] == "\\" {
-                            pos += 1; // if it's the escape character, skip the next character too
+                            pos += 1; // if it's the escape character, skip it
+                            if pos + 1 < eof_pos && &source[pos..pos+1] == "\"" {
+                                lit_string.push(source.chars().nth(pos).unwrap());
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "n" {
+                                lit_string.push('\n');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "r" {
+                                lit_string.push('\r');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "t" {
+                                lit_string.push('\t');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "0" {
+                                lit_string.push('\0');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "\\" {
+                                lit_string.push('\\');
+                            } else { // If it's something else, just leave it as is for now, I guess
+                                lit_string.push('\\');
+                                lit_string.push(source.chars().nth(pos).unwrap());
+                            }
+                        } else {
+                            lit_string.push(source.chars().nth(pos).unwrap());
                         }
                         pos += 1;
                     }
-                    // pos = pos - 1;
+
                     if pos >= eof_pos {
                         TokenType::UnterminatedString
                     } else {
+                        scan_push_token(&mut tokens, TokenType::String, &lit_string, line, start - start_line_pos + 1);
                         TokenType::String
                     }
                 },
@@ -334,10 +354,8 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 },
 
             }; // let match
-            if token_type == TokenType::String {
-                scan_push_token(&mut tokens, token_type, &source[start + 1..pos], line, pos - start_line_pos + 1);
-            } else {
-                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, pos - start_line_pos + 1);
+            if token_type != TokenType::String {
+                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, start - start_line_pos + 1);
             }
             pos += 1;
         } // else

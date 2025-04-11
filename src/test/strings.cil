@@ -8,8 +8,8 @@ test(eq(atoi("0"), 0), "atoi('0') = 0")
 test(str_eq(itoa(456), "456"), "itoa(456) = '456'")
 test(str_eq(itoa(0), "0"), "itoa(0) = '0'")
 
-print("TODO\n"); // TODO make this and the next line be equivalent, don't escape \n
-println("TODO");
+print("this is the same as the next line\n");
+println("this is the same as the next line");
 
 test(eq(str_len(""), 0), "str_len('') = 0")
 // test(eq(str_len("\n"), 1), "str_len('\n') = 1") // TODO fix
@@ -19,7 +19,9 @@ test(eq(str_len("01234"), 5), "str_len('01234') = 5")
 assert_eq_str("012", str_get_substr("01234", 0, 3))
 assert_eq_str("234", str_get_substr("01234", 2, 5))
 assert_eq_str("0", str_get_substr("01234", 0, 1))
-
-assert_eq_str("\\", str_get_substr(",,\\", 2, 4))
-assert_eq_str("\"", str_get_substr(",,\"", 2, 4))
-assert_eq_str("\n", str_get_substr(",,\n", 2, 4))
+assert_eq_str("\\", str_get_substr(",,\\", 2, 3))
+assert_eq_str("\"", str_get_substr(",,\"", 2, 3))
+assert_eq_str("\n", str_get_substr(",,\n", 2, 3))
+assert_eq_str("\t", str_get_substr(",,\t", 2, 3))
+assert_eq_str("\r", str_get_substr(",,\r", 2, 3))
+assert_eq_str("\0", str_get_substr(",,\0", 2, 3))
