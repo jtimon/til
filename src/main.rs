@@ -1807,7 +1807,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
         let symbol = context.symbols.get(&f_name).unwrap();
         let id_expr = e.get(0);
-        match symbol.value_type {
+        match &symbol.value_type {
             ValueType::TStructDef => {
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
@@ -1838,6 +1838,49 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", f_name, after_dot_name);
+                                return value_type_func_proc(&e, &combined_name, &func_def);
+                            },
+                            _  => {
+                                return Err(e.error("type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
+                                                                    f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
+                            },
+                        }
+                    },
+                    _ => {
+                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                    },
+                }
+            },
+            ValueType::TCustom(custom_type_name) => { // TODO handle enums too
+                let struct_def = match context.struct_defs.get(custom_type_name) {
+                    Some(_struct_def) => _struct_def,
+                    None => {
+                        return Err(e.lang_error("type", &format!("struct '{}' not found in context", f_name)));
+                    },
+                };
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        return Ok(ValueType::TCustom(f_name.clone()));
+                    },
+                };
+                match &after_dot.node_type {
+                    NodeType::Identifier(after_dot_name) => {
+                        let member_decl = match struct_def.members.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                return Err(e.error("type", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
+                            },
+                        };
+                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                return Err(e.error("type", &format!("struct '{}' has no member '{}' d", custom_type_name, after_dot_name)));
+                            },
+                        };
+                        match &member_default_value.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
                                 return value_type_func_proc(&e, &combined_name, &func_def);
                             },
                             _  => {
@@ -2608,9 +2651,9 @@ fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
 
     if extra_arg {
         let id_expr_name = get_func_name_in_call(&e);
-        let extr_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), &e, Vec::new());
+        let extra_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), &e, Vec::new());
         let mut new_args = Vec::new();
-        new_args.push(extr_arg_e);
+        new_args.push(extra_arg_e);
         new_args.extend(e.params.clone());
         let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
         return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &new_e).as_str());
@@ -3014,6 +3057,33 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
     }
 }
 
+fn eval_func_proc_call_try_ufcs(mut context: &mut Context, e: &Expr) -> String {
+    // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
+    let id_expr = e.get(0);
+    let mut extra_arg = false;
+    let f_name = if id_expr.params.len() == 0 { // TODO Do we really need this check?
+        get_func_name_in_call(&e)
+    } else {
+        extra_arg = true;
+        match &id_expr.get(0).node_type {
+            NodeType::Identifier(f_name_) => f_name_.clone(),
+            _ => return e.lang_error("eval", "panic eval_func_proc_call()"),
+        }
+    };
+
+    assert!(extra_arg); // TODO this suggests we don't need the extra check
+    if extra_arg {
+        let id_expr_name = get_func_name_in_call(&e);
+        let extra_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), e, Vec::new());
+        let mut new_args = Vec::new();
+        new_args.push(extra_arg_e);
+        new_args.extend(e.params.clone());
+        let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
+        return eval_func_proc_call(&f_name, &mut context, &new_e);
+    }
+    return eval_func_proc_call(&f_name, &mut context, &e);
+}
+
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
     if context.funcs.contains_key(name) {
         let func_def = context.funcs.get(name).unwrap();
@@ -3051,30 +3121,63 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 return e.lang_error("eval", &format!("expected identifier after '{}.' found {:?}", name, after_dot.node_type))
             },
         }
-    } else if context.symbols.contains_key(name) { // For UFCS
-        // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
-        let id_expr = e.get(0);
-        let mut extra_arg = false;
-        let f_name = if id_expr.params.len() == 0 {
-            get_func_name_in_call(&e)
-        } else {
-            extra_arg = true;
-            match &id_expr.get(0).node_type {
-                NodeType::Identifier(f_name) => f_name.clone(),
-                _ => return e.lang_error("eval", "panic eval_func_proc_call()"),
-            }
-        };
+    } else if context.symbols.contains_key(name) {
+        let symbol = context.symbols.get(name).unwrap();
+        match &symbol.value_type {
+            ValueType::TCustom(custom_type_name) => {
+                println!("a");
 
-        if extra_arg {
-            let id_expr_name = get_func_name_in_call(&e);
-            let extr_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), e, Vec::new());
-            let mut new_args = Vec::new();
-            new_args.push(extr_arg_e);
-            new_args.extend(e.params.clone());
-            let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
-            return eval_func_proc_call(&f_name, &mut context, &new_e);
+                let struct_def = match context.struct_defs.get(custom_type_name) {
+                    Some(_struct_def) => _struct_def,
+                    None => {
+                        return eval_func_proc_call_try_ufcs(&mut context, &e)
+                    },
+                };
+
+                let id_expr = e.get(0);
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        return eval_func_proc_call_try_ufcs(&mut context, &e)
+                    },
+                };
+
+                let after_dot_name = match &after_dot.node_type {
+                    NodeType::Identifier(f_name_) => f_name_.clone(),
+                    _ => return eval_func_proc_call_try_ufcs(&mut context, &e),
+                };
+
+                let member_default_value = match struct_def.default_values.get(&after_dot_name) {
+                    Some(_member) => _member,
+                    None => {
+                        return eval_func_proc_call_try_ufcs(&mut context, &e)
+                    },
+                };
+
+                // check that the function is a method in the struct, and if not try regular UFCS
+                let id_expr_name = match &member_default_value.node_type {
+                    NodeType::FuncDef(_func_def) => {
+                        format!("{}.{}", custom_type_name, after_dot_name)
+                    },
+                    _  => {
+                        return eval_func_proc_call_try_ufcs(&mut context, &e)
+                    },
+                };
+
+                let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), e.get(0), Vec::new());
+                let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
+                let mut new_args = Vec::new();
+                new_args.push(new_e);
+                new_args.push(extra_arg_e);
+                new_args.extend(e.params[1..].to_vec());
+                let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0), new_args);
+                let func_def = context.funcs.get(&id_expr_name).unwrap();
+                return eval_user_func_proc_call(func_def, &id_expr_name, &context, &new_fcall_e);
+            },
+            _ => {
+                return eval_func_proc_call_try_ufcs(&mut context, &e)
+            },
         }
-        return eval_func_proc_call(&f_name, &mut context, &e);
 
     } else {
         return e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name));
@@ -3369,6 +3472,9 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
 
         ValueType::TStructDef => {
             let struct_def = context.struct_defs.get(custom_type_name).unwrap();
+            if e.params.len() == 0 {
+                return name.to_string() // This is an ugly hack
+            }
             let inner_e = e.get(0);
             match &inner_e.node_type {
                 NodeType::Identifier(inner_name) => {

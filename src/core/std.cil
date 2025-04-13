@@ -97,7 +97,8 @@ assert_eq_str := proc(a: String, b: String) {
 }
 
 assert_eq := proc(a: i64, b: i64) {
-    if not(eq(a, b)) {
+    if not(a.eq(b)) { // TODO: remove, just to test that methods work
+    // if not(eq(a, b)) {
         println("assert_eq failed: expected '", i64.to_str(a), "', found '", i64.to_str(b), "'")
         exit(1)
     }
