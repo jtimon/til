@@ -1695,6 +1695,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     } else if context.symbols.contains_key(&f_name) {
 
         let symbol = context.symbols.get(&f_name).unwrap();
+        let id_expr = e.get(0);
         match symbol.value_type {
             ValueType::TStructDef => {
                 let struct_def = match context.struct_defs.get(&f_name) {
@@ -1703,7 +1704,6 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         return Err(e.lang_error("type", &format!("struct '{}' not found in context", f_name)));
                     },
                 };
-                let id_expr = e.get(0);
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
@@ -1736,28 +1736,28 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         }
                     },
                     _ => {
-                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found {:?}", f_name, after_dot.node_type)));
+                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
             _ => { // For UFCS
-                let id_expr = e.get(0);
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
-                        return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a {:?}",
-                                           &f_name, symbol.value_type)));
+                        return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
+                                           &f_name, value_type_to_str(&symbol.value_type))));
                     },
                 };
+
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
                         if context.funcs.contains_key(after_dot_name) {
                             return value_type_func_proc(&e, &f_name, &context.funcs.get(after_dot_name).unwrap())
                         }
-                        return Err(e.lang_error("type", &format!("expected function name after '{}.' found {:?}", f_name, after_dot_name)));
+                        return Err(e.lang_error("type", &format!("expected function name after '{}.' found '{}'", f_name, after_dot_name)));
                     },
                     _ => {
-                        return Err(e.error("type", &format!("expected identifier after '{}.' found {:?}", f_name, after_dot.node_type)));
+                        return Err(e.error("type", &format!("expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
