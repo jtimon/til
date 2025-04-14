@@ -3242,6 +3242,58 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
 
 }
 
+fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &str) -> String {
+    if !context.symbols.contains_key(custom_type_name) {
+        return e.lang_error("eval", &format!("Argument '{}' is of undefined type {}.", &name, &custom_type_name))
+    }
+    let custom_symbol = context.symbols.get(custom_type_name).unwrap();
+    match custom_symbol.value_type {
+        ValueType::TEnumDef => {
+            let enum_val = context.get_enum(name).unwrap();
+            return enum_val.enum_name.clone();
+        },
+
+        ValueType::TStructDef => {
+            let struct_def = context.struct_defs.get(custom_type_name).unwrap();
+            let inner_e = e.get(0);
+            match &inner_e.node_type {
+                NodeType::Identifier(inner_name) => {
+                    match struct_def.members.get(inner_name) {
+                        Some(member_decl) => {
+                            match member_decl.value_type {
+                                ValueType::TI64 => {
+                                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                                        Some(result) => return result.to_string(),
+                                        None => {
+                                            return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                        },
+                                    }
+
+                                },
+                                _ => {
+                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of type '{}' not implemented",
+                                                                               name, inner_name, value_type_to_str(&member_decl.value_type)))
+                                },
+                            }
+                        },
+                        _ => {
+                            return e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}'", name, inner_name))
+                        },
+                    }
+                },
+                _ => {
+                    return e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name))
+                },
+            }
+        },
+
+        _ => {
+            return e.lang_error("eval", &format!("'{}' of type: '{}': custom types are supposed to be struct or enum, found '{}'.",
+                                                 name, custom_type_name, value_type_to_str(&custom_symbol.value_type)))
+        },
+    }
+}
+
 fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
     match context.symbols.get(name) {
@@ -3282,55 +3334,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 return e.lang_error("eval", &format!("Can't infer the type of identifier '{}'.", name))
             },
             ValueType::TCustom(ref custom_type_name) => {
-                if !context.symbols.contains_key(custom_type_name) {
-                    return e.lang_error("eval", &format!("Argument '{}' is of undefined type {}.", &name, &custom_type_name))
-                }
-                let custom_symbol = context.symbols.get(custom_type_name).unwrap();
-                match custom_symbol.value_type {
-                    ValueType::TEnumDef => {
-                        let enum_val = context.get_enum(name).unwrap();
-                        return enum_val.enum_name.clone();
-                    },
-
-                    ValueType::TStructDef => {
-                        let struct_def = context.struct_defs.get(custom_type_name).unwrap();
-                        let inner_e = e.get(0);
-                        match &inner_e.node_type {
-                            NodeType::Identifier(inner_name) => {
-                                match struct_def.members.get(inner_name) {
-                                    Some(member_decl) => {
-                                        match member_decl.value_type {
-                                            ValueType::TI64 => {
-                                                match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                                                    Some(result) => return result.to_string(),
-                                                    None => {
-                                                        return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
-                                                    },
-                                                }
-
-                                            },
-                                            _ => {
-                                                return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of type '{}' not implemented",
-                                                                                           name, inner_name, value_type_to_str(&member_decl.value_type)))
-                                            },
-                                        }
-                                    },
-                                    _ => {
-                                        return e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}'", name, inner_name))
-                                    },
-                                }
-                            },
-                            _ => {
-                                return e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name))
-                            },
-                        }
-                    },
-
-                    _ => {
-                        return e.lang_error("eval", &format!("'{}' of type: '{}': custom types are supposed to be struct or enum, found '{}'.",
-                                                             name, custom_type_name, value_type_to_str(&custom_symbol.value_type)))
-                    },
-                }
+                let to_return = eval_custom_expr(&e, &context, &name, &custom_type_name);
+                return to_return
             },
             _ => {
                 return e.todo_error("eval", &format!("Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type))
