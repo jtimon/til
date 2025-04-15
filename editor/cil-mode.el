@@ -92,7 +92,12 @@
                 (when (looking-at "{")
                   (setq indent-col (+ indent-col 4))))
               (error nil))))))
-    (indent-line-to indent-col)))
+    (indent-line-to indent-col)
+    ;; Ensure that the line is indented with spaces
+    (when (and (not (zerop indent-col)) (not (looking-at-p "[ \t]*$")))
+      (let ((spaces (make-string 4 ?\s))) ; Create a string of 4 spaces
+        (delete-region (line-beginning-position) (point))
+        (insert spaces)))))
 
 (define-derived-mode cil-mode prog-mode "cil"
   "Major Mode for editing cil source code."
