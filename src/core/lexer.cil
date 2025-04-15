@@ -51,7 +51,7 @@ TokenType := enum {
 }
 
 Token := struct {
-    mut token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
+    // mut token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
     mut token_str: String = ""
     mut line: i64 = 0
     mut col: i64 = 0
@@ -59,6 +59,12 @@ Token := struct {
 
 // TODO implement struct arrays and add the tokens to it, for now just print the tokens
 scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col: i64) {
+    mut t := Token()
+    // t.token_type = token_type // TODO implement enums as struct fields
+    t.token_str = token_str
+    t.line = line
+    t.col = col
+
     // TODO implement enum_to_str
     switch token_type {
     case TokenType.Invalid:
@@ -66,151 +72,149 @@ scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col
     case:
         println("Token (", i64.to_str(line), ", ", i64.to_str(col), "): ", token_str)
     }
+    // return t
 }
 
 is_digit := func(source: String, pos: i64) returns bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
-    mut to_return := false
     switch current_char {
-    case "0": to_return = true
-    case "1": to_return = true
-    case "2": to_return = true
-    case "3": to_return = true
-    case "4": to_return = true
-    case "5": to_return = true
-    case "6": to_return = true
-    case "7": to_return = true
-    case "8": to_return = true
-    case "9": to_return = true
+    case "0": return true
+    case "1": return true
+    case "2": return true
+    case "3": return true
+    case "4": return true
+    case "5": return true
+    case "6": return true
+    case "7": return true
+    case "8": return true
+    case "9": return true
     case:
     }
-    return to_return
+    return false
 }
 
 is_id_start := func(source: String, pos: i64) returns bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
-    mut to_return := false
     switch current_char {
-    case "a": to_return = true
-    case "b": to_return = true
-    case "c": to_return = true
-    case "d": to_return = true
-    case "e": to_return = true
-    case "f": to_return = true
-    case "g": to_return = true
-    case "h": to_return = true
-    case "i": to_return = true
-    case "j": to_return = true
-    case "k": to_return = true
-    case "l": to_return = true
-    case "m": to_return = true
-    case "n": to_return = true
-    case "o": to_return = true
-    case "p": to_return = true
-    case "q": to_return = true
-    case "r": to_return = true
-    case "s": to_return = true
-    case "t": to_return = true
-    case "u": to_return = true
-    case "v": to_return = true
-    case "w": to_return = true
-    case "x": to_return = true
-    case "y": to_return = true
-    case "z": to_return = true
-    case "A": to_return = true
-    case "B": to_return = true
-    case "C": to_return = true
-    case "D": to_return = true
-    case "E": to_return = true
-    case "F": to_return = true
-    case "G": to_return = true
-    case "H": to_return = true
-    case "I": to_return = true
-    case "J": to_return = true
-    case "K": to_return = true
-    case "L": to_return = true
-    case "M": to_return = true
-    case "N": to_return = true
-    case "O": to_return = true
-    case "P": to_return = true
-    case "Q": to_return = true
-    case "R": to_return = true
-    case "S": to_return = true
-    case "T": to_return = true
-    case "U": to_return = true
-    case "V": to_return = true
-    case "W": to_return = true
-    case "X": to_return = true
-    case "Y": to_return = true
-    case "Z": to_return = true
-    case "_": to_return = true
+    case "a": return true
+    case "b": return true
+    case "c": return true
+    case "d": return true
+    case "e": return true
+    case "f": return true
+    case "g": return true
+    case "h": return true
+    case "i": return true
+    case "j": return true
+    case "k": return true
+    case "l": return true
+    case "m": return true
+    case "n": return true
+    case "o": return true
+    case "p": return true
+    case "q": return true
+    case "r": return true
+    case "s": return true
+    case "t": return true
+    case "u": return true
+    case "v": return true
+    case "w": return true
+    case "x": return true
+    case "y": return true
+    case "z": return true
+    case "A": return true
+    case "B": return true
+    case "C": return true
+    case "D": return true
+    case "E": return true
+    case "F": return true
+    case "G": return true
+    case "H": return true
+    case "I": return true
+    case "J": return true
+    case "K": return true
+    case "L": return true
+    case "M": return true
+    case "N": return true
+    case "O": return true
+    case "P": return true
+    case "Q": return true
+    case "R": return true
+    case "S": return true
+    case "T": return true
+    case "U": return true
+    case "V": return true
+    case "W": return true
+    case "X": return true
+    case "Y": return true
+    case "Z": return true
+    case "_": return true
     case:
     }
-    return to_return
+    return false
 }
 
 scan_reserved_words := func(identifier: String) returns TokenType {
-    mut to_return := TokenType.Identifier
     switch identifier {
-    case "mode": to_return = TokenType.Mode
+    case "mode": return TokenType.Mode
         // declaration/arg modifiers
-    case "mut": to_return = TokenType.Mut
+    case "mut": return TokenType.Mut
         // bool literals
-    case "true": to_return = TokenType.True
-    case "false": to_return = TokenType.False
+    case "true": return TokenType.True
+    case "false": return TokenType.False
         // core data types
-    case "enum": to_return = TokenType.Enum
-    case "struct": to_return = TokenType.Struct
+    case "enum": return TokenType.Enum
+    case "struct": return TokenType.Struct
         // function declaration
-    case "returns": to_return = TokenType.Returns
+    case "returns": return TokenType.Returns
         // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
         // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
         // or perhaps not, for that may degenerate in an extra warning option
         // perhaps just force the user to explicitly catch and exit any potential panic from the callee
-    case "throws": to_return = TokenType.Throws // TODO implement
-    case "func": to_return = TokenType.Func
-    case "proc": to_return = TokenType.Proc
-    case "macro": to_return = TokenType.Macro // TODO implement for real once we compile
-    case "ext_func": to_return = TokenType.FuncExt // this have to link when we compile
-    case "ext_proc": to_return = TokenType.ProcExt // this have to link when we compile
+    case "throws": return TokenType.Throws // TODO implement
+    case "func": return TokenType.Func
+    case "proc": return TokenType.Proc
+    case "macro": return TokenType.Macro // TODO implement for real once we compile
+    case "ext_func": return TokenType.FuncExt // this have to link when we compile
+    case "ext_proc": return TokenType.ProcExt // this have to link when we compile
 
         // control flow
-    case "if": to_return = TokenType.If
-    case "else": to_return = TokenType.Else
-    case "while": to_return = TokenType.While
-    case "for": to_return = TokenType.For // TODO
-    case "in": to_return = TokenType.In // TODO, or just use semicolon reserve forbid this
-    case "switch": to_return = TokenType.Switch
-    case "match": to_return = TokenType.Match // TODO like switch but special for declarations/assignments
-    case "case": to_return = TokenType.Case
-    case "default": to_return = TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
-    case "return": to_return = TokenType.Return
-    case "throw": to_return = TokenType.Throw // TODO
+    case "if": return TokenType.If
+    case "else": return TokenType.Else
+    case "while": return TokenType.While
+    case "for": return TokenType.For // TODO
+    case "in": return TokenType.In // TODO, or just use semicolon reserve forbid this
+    case "switch": return TokenType.Switch
+    case "match": return TokenType.Match // TODO like switch but special for declarations/assignments
+    case "case": return TokenType.Case
+    case "default": return TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
+    case "return": return TokenType.Return
+    case "throw": return TokenType.Throw // TODO
         // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
-    case "catch": to_return = TokenType.Catch
-    case "try": to_return = TokenType.Try // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
+    case "catch": return TokenType.Catch
+    case "try": return TokenType.Try // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
         // or should 'try:' be optional?
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
-    case "fn": to_return = TokenType.Fn
-    case "function": to_return = TokenType.Invalid
-    case "method": to_return = TokenType.Invalid
-    case "global": to_return = TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
+    case "fn": return TokenType.Fn
+    case "function": return TokenType.Invalid
+    case "method": return TokenType.Invalid
+    case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
-    case "const": to_return = TokenType.Const
-    case "var": to_return = TokenType.Var
+    case "const": return TokenType.Const
+    case "var": return TokenType.Var
         // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
         // The answer is probably yet, but perhaps static is not the right answer
         // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions\
         // or do we need mut function fields too? probably yes
-    case "static": to_return = TokenType.Invalid
+    case "static": return TokenType.Invalid
     case:
     }
-    return to_return
+    return TokenType.Identifier
 }
 
 scan_tokens := proc(source: String) {
