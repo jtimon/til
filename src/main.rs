@@ -2895,26 +2895,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
         param_index += 1;
     }
 
-    for se in &func_def.body {
-        match se.node_type {
-            NodeType::Return => {
-                assert!(se.params.len() != 0, "{} ERROR: return must currently always return exactly one value.", LANG_NAME);
-                return eval_expr(&mut function_context, &se.get(0));
-            },
-            NodeType::If => {
-                assert!(se.params.len() == 2 || se.params.len() == 3, "{} ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
-                if eval_to_bool(&mut function_context, &se.get(0)) {
-                    return eval_expr(&mut function_context, &se.get(1))
-                } else if se.params.len() == 3 {
-                    return eval_expr(&mut function_context, &se.get(2))
-                }
-            },
-            _ => {
-                eval_expr(&mut function_context, &se);
-            }
-        }
-    }
-    "".to_string()
+    return eval_body(&mut function_context, &func_def.body);
 }
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
@@ -3045,26 +3026,26 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             let bool_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_bool(&declaration.name, &bool_expr_result_str);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            return bool_expr_result_str
+            return "".to_string()
         },
         ValueType::TI64 => {
             let i64_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_i64(&declaration.name, &i64_expr_result_str);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            return i64_expr_result_str
+            return "".to_string()
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
             context.insert_string(&declaration.name, string_expr_result.clone());
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            return string_expr_result
+            return "".to_string()
         },
         ValueType::TEnumDef => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    "enum declared".to_string()
+                    return "".to_string()
                 },
                 _ => return e.lang_error("eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
                                                           &declaration.name, value_type_to_str(&declaration.value_type))),
@@ -3145,7 +3126,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                                    SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut});
                         }
                     }
-                    "struct declared".to_string()
+                    return "".to_string()
                 },
                 _ => return e.lang_error("eval", &format!("Cannot declare {} of type {:?}, expected struct definition.",
                                                          &declaration.name, &declaration.value_type))
@@ -3156,7 +3137,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    return format!("{} declared", value_type_to_str(&value_type));
+                    return "".to_string();
                 },
 
                 _ => e.error("eval", &format!("Cannot declare '{}' of type '{}', expected '{}' definition.",
@@ -3178,7 +3159,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 return e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                 &declaration.name, value_type_to_str(&custom_symbol.value_type)))
             }
-            return format!("{} declared", custom_type_name)
+            return "".to_string()
         },
         ValueType::TType | ValueType::TList | ValueType::TMulti(_) => {
             e.error("eval", &format!("Cannot declare '{}' of type '{}'",
@@ -3207,17 +3188,17 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         ValueType::TBool => {
             let bool_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_bool(var_name, &bool_expr_result_str);
-            return bool_expr_result_str
+            return "".to_string()
         },
         ValueType::TI64 => {
             let i64_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_i64(var_name, &i64_expr_result_str);
-            return i64_expr_result_str
+            return "".to_string()
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
             context.insert_string(var_name, string_expr_result.clone());
-            string_expr_result
+            return "".to_string()
         },
         ValueType::TStructDef => {
             return e.todo_error("eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type)))
@@ -3226,7 +3207,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(var_name.to_string(), func_def.clone());
-                    "func declared".to_string()
+                    "".to_string()
                 },
                 _ => return e.lang_error("eval", &format!("Cannot assign '{}' to function type '{}'",
                                                           &var_name, value_type_to_str(&value_type))),
@@ -3402,20 +3383,32 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
     }
 }
 
+fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> String {
+    for se in statements.iter() {
+        match &se.node_type {
+            NodeType::Return => {
+                if se.params.len() == 0 {
+                    return "".to_string() // TODO this still should handle all nested cases of empty returns
+                } else if se.params.len() > 1 {
+                    return se.todo_error("eval", "Multiple return values not implemented yet")
+                }
+                return eval_expr(&mut context, &se.get(0));
+            },
+            _ => {
+                let stmt_result = eval_expr(&mut context, &se);
+                if stmt_result != "" {
+                    return stmt_result
+                }
+            }
+        }
+    }
+    return "".to_string()
+}
+
 fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
     match &e.node_type {
         NodeType::Body => {
-            for se in e.params.iter() {
-                match &se.node_type {
-                    NodeType::Return => {
-                        return eval_expr(&mut context, &se);
-                    }
-                    _ => {
-                        eval_expr(&mut context, &se);
-                    }
-                }
-            }
-            return "".to_string()
+            return eval_body(&mut context, &e.params);
         },
         NodeType::LBool(bool_value) => bool_value.to_string(),
         NodeType::LI64(li64) => li64.to_string(),

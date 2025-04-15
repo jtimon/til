@@ -33,16 +33,21 @@ fib_test := proc(fib_arg: i64) {
         return b
     }
 
-    test_fib_alg := proc(num_alg: i64, n: i64) returns {
+    test_fib_alg := proc(num_alg: i64, n: i64) {
     	switch num_alg {
-            case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
-            case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
-            case 2: test(eq(fibonacci_2(n), fibonacci_0(n)), "fibonacci_2(n) is faulty")
-            case:
-                println("test_fib_alg: algorithm '", i64.to_str(num_alg), "' not implemented")
-                panic("TODO: another fib algorithm")
-	}
+        case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
+        case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
+        case 2: test(eq(fibonacci_2(n), fibonacci_0(n)), "fibonacci_2(n) is faulty")
+        case:
+            println("test_fib_alg: algorithm '", i64.to_str(num_alg), "' not implemented")
+            panic("TODO: another fib algorithm")
+	    }
     }
+
+    // print_results := proc(n: i64) {
+    //     println("Fibonnaci results: ", i64.to_str(fibonacci_0(n)), ", ", i64.to_str(fibonacci_1(n)), ", ", i64.to_str(fibonacci_2(n)))
+    // }
+    // print_results(fib_arg)
 
     test_fib_alg(0, fib_arg)
     test_fib_alg(1, fib_arg)
