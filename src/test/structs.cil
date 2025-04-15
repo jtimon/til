@@ -42,9 +42,9 @@ test_structs := proc() {
     test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
     my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
     my_vec2 := Vec2()
-    my_vec3 := Vec3()
-    // my_vec3.z = 42 // TODO assignments to struct fields
-    assert_eq(0, my_vec3.z) // access to struct fields
+    mut my_vec3 := Vec3()
+    my_vec3.z = 42 // TODO assignments to struct fields
+    assert_eq(42, my_vec3.z) // access to struct fields
     my_I64 := I64() // TODO migrate from i64 to I64
     // my_Bool := Bool() // TODO migrate from bool to Bool
     // my_String := String() // TODO don't migrate from string to String, just self host it after structs and pointers

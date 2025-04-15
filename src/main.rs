@@ -833,14 +833,11 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     }
 }
 
-fn parse_assignment(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let t = lexer.get_token(*current)?;
-    let name = &t.token_str;
-    let initial_current = *current;
-    *current = *current + 2; // skip identifier and equal
-    let mut params : Vec<Expr> = Vec::new();
+fn parse_assignment(lexer: &Lexer, current: &mut usize, t: &Token, name: &String) -> Result<Expr, String> {
+    *current = *current + 1; // skip equal
+    let mut params = Vec::new();
     params.push(parse_primary(&lexer, current)?);
-    return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), lexer.get_token(initial_current)?.clone(), params))
+    return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), t.clone(), params))
 }
 
 fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declaration>, String> {
@@ -1157,20 +1154,65 @@ fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, 
     return Ok(e);
 }
 
+fn get_combined_name(e: &Expr) -> Result<String, String> {
+    let mut to_return = String::new();
+    match &e.node_type {
+        NodeType::Identifier(id_str_) => {
+            to_return.push_str(&id_str_);
+            to_return.push_str(".");
+        },
+        _ => {
+            return Err(e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only"))
+        },
+    }
+    for p in &e.params {
+        match &p.node_type {
+            NodeType::Identifier(id_str_) => {
+                to_return.push_str(&id_str_);
+                to_return.push_str(".");
+            },
+            _ => {
+                return Err(e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only"))
+            },
+        }
+    }
+    to_return.pop(); // Remove the last '.'
+    return Ok(to_return)
+}
+
 fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
 
     let t = lexer.get_token(*current)?;
-    let next_t = lexer.get_token(*current + 1)?;
-    let next_token_type = &next_t.token_type;
+    let mut next_t = lexer.get_token(*current + 1)?;
+    let mut next_token_type = &next_t.token_type;
     match next_token_type {
         TokenType::LeftParen => {
             return parse_primary_identifier(&lexer, current)
         },
         TokenType::Dot => {
-            Err(format!("{}:{}: parse ERROR: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
+            let e = parse_primary_identifier(&lexer, current)?;
+            match &e.node_type {
+                NodeType::FCall => return Ok(e),
+                NodeType::Identifier(_) => {},
+                _ => {
+                    return Err(format!("{}:{}: {} parse ERROR: a series of is and dots should have been parsed as identifier or function call", t.line, t.col, LANG_NAME))
+                },
+            }
+            next_t = lexer.get_token(*current)?;
+            next_token_type = &next_t.token_type;
+            match next_token_type {
+                TokenType::Equal => {
+                    let name = get_combined_name(&e)?;
+                    return parse_assignment(&lexer, current, t, &name)
+                },
+                _ => {
+                    return Err(format!("{}:{}: {} parse ERROR: While parsing a '.', this should never happen", t.line, t.col, LANG_NAME))
+                },
+            }
         },
         TokenType::Equal => {
-            return parse_assignment(&lexer, current)
+            *current = *current + 1; // skip identifier
+            return parse_assignment(&lexer, current, t, &t.token_str)
         },
         TokenType::Colon => {
             let next_next_t = lexer.get_token(*current + 2)?;
@@ -1587,7 +1629,7 @@ impl Context {
         }
     }
 
-    fn insert_struct_field(self: &mut Context, id: &str, struct_def: &SStructDef, decl: &Declaration) -> bool {
+    fn insert_struct_field(self: &mut Context, id: &str, struct_def: &SStructDef, decl: &Declaration, is_mut: bool) -> bool {
         let combined_name = format!("{}.{}", id, &decl.name);
         let default_value = match struct_def.default_values.get(&decl.name) {
             Some(_e_) => eval_expr(self, _e_),
@@ -1614,6 +1656,7 @@ impl Context {
                          decl.name, id, value_type_to_str(&decl.value_type));
             },
         }
+        self.symbols.insert(combined_name, SymbolInfo{value_type: decl.value_type.clone(), is_mut: is_mut});
         return true;
     }
 
@@ -1624,9 +1667,13 @@ impl Context {
             None => return false,
         };
 
+        let is_mut = match self.symbols.get(id) {
+            Some(symbol_info_) => symbol_info_.is_mut,
+            None => return false,
+        };
         for (_member_name, decl) in struct_def.members.iter() {
             if decl.is_mut {
-                self.insert_struct_field(&id, &struct_def, &decl);
+                self.insert_struct_field(&id, &struct_def, &decl, is_mut);
             }
         }
 
@@ -2371,6 +2418,14 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
                 errors.push(format!("{}:{} {} ERROR: Cannot infer the declaration type of {}", e.line, e.col, LANG_NAME, decl.name));
                 return errors;
             },
+            ValueType::TCustom(custom_type) => {
+                match context.struct_defs.get(&custom_type) {
+                    Some(_struct_def) => {
+                        context.insert_struct(&decl.name, &custom_type);
+                    },
+                    _ => {}, // If it's enum, don't do anything
+                }
+            }
             ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                 match &inner_e.node_type {
                     NodeType::FuncDef(func_def) => {
