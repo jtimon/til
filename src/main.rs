@@ -1529,7 +1529,6 @@ struct Context {
     bytes: HashMap<String, Vec<u8> >,
     // TODO remove the following fields and use bytes to store that instead:
     enums: HashMap<String, EnumVal>,
-    strings: HashMap<String, String>,
 }
 
 impl Context {
@@ -1542,7 +1541,6 @@ impl Context {
             struct_defs: HashMap::new(),
             bytes: HashMap::new(),
             enums: HashMap::new(),
-            strings: HashMap::new(),
         };
     }
 
@@ -1643,15 +1641,21 @@ impl Context {
         // }
     }
 
-    // TODO remove the following fields and use bytes to store that instead:
-    fn get_string(self: &Context, id: &str) -> Option<&String> {
-        return self.strings.get(id);
+    fn get_string(self: &Context, id: &str) -> Option<String> {
+        return match self.bytes.get(id) {
+            Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
+            None => None,
+        }
     }
 
     fn insert_string(self: &mut Context, id: &str, value_str: String) -> Option<String> {
-        return self.strings.insert(id.to_string(), value_str);
+        return match self.bytes.insert(id.to_string(), value_str.into_bytes()) {
+            Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
+            None => None,
+        }
     }
 
+    // TODO remove the following fields and use bytes to store that instead:
     fn get_enum(self: &Context, id: &str) -> Option<&EnumVal> {
         return self.enums.get(id);
     }
