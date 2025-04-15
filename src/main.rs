@@ -25,11 +25,11 @@ const SKIP_AST: bool = true;
 // }
 
 // fn init_err(t: &Token, level: &str, error_str: &str) return RscilErr {
-//     return RscilErr(format!("{}:{}: {} error: {}", e.line, e.col, level, error_str));
+//     return RscilErr(format!("{}:{}: {} ERROR: {}", e.line, e.col, level, error_str));
 // }
 
 // fn format_err(RscilErr: err) -> String {
-//     return format!("{}:{}: {} error: {}", err.e.line, err.t.col, err.level, err.error_str);
+//     return format!("{}:{}: {} ERROR: {}", err.e.line, err.t.col, err.level, err.error_str);
 // }
 
 // fn print_err(RscilErr: err) {
@@ -448,9 +448,9 @@ fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String> {
 
     let lexer = Lexer::new(source);
     if lexer.len() < 1 {
-        return Err(format!("{}:{}:{} compiler error: End of file not found.", path, 1, 0));
+        return Err(format!("{}:{}:{} compiler ERROR: End of file not found.", path, 1, 0));
     } else if lexer.is_eof(0) {
-        return Err(format!("{}:{}:{} compiler error: Nothing to be done", path, 0, 0));
+        return Err(format!("{}:{}:{} compiler ERROR: Nothing to be done", path, 0, 0));
     }
 
     let mut errors_found: usize = 0;
@@ -636,11 +636,11 @@ impl Expr {
 
     fn lang_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "assert" || phase == "panic_type" || phase == "eval" {
-            println!("{}:{}: {} {} error: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
+            println!("{}:{}: {} {} ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
             std::process::exit(1);
         }
-        return format!("{}:{}: {} {} error: {}", self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
     }
 
     fn todo_error(self: &Expr, phase: &str, msg: &str) -> String {
@@ -648,11 +648,11 @@ impl Expr {
             panic!("Expr.todo_error() cannot be called for phase 'assert', use Expr.lang_error() instead")
         }
         if phase == "panic_type" || phase == "eval" {
-            println!("{}:{}: {} {} error: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+            println!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
             std::process::exit(1);
         }
-        return format!("{}:{}: {} {} error: {}", self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
     }
 
     fn error(self: &Expr, phase: &str, msg: &str) -> String {
@@ -660,10 +660,10 @@ impl Expr {
             panic!("Expr.error() cannot be called for phase 'assert', use Expr.lang_error() instead")
         }
         if phase == "panic_type" || phase == "eval" {
-            println!("{}:{}: {} error: {}", self.line, self.col, phase, msg);
+            println!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
             std::process::exit(1);
         }
-        return format!("{}:{}: {} error: {}", self.line, self.col, phase, msg)
+        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg)
     }
 }
 
@@ -779,7 +779,7 @@ fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
         TokenType::True => NodeType::LBool(true),
         TokenType::False => NodeType::LBool(false),
         _ => {
-            return Err(format!("{}:{}: {}  error: Trying to parse a token that's not a literal as a literal, found {:?}.",
+            return Err(format!("{}:{}: {}  ERROR: Trying to parse a token that's not a literal as a literal, found {:?}.",
                                t.line, t.col, LANG_NAME, t.token_type));
         },
     };
@@ -809,12 +809,12 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                     *current = *current + 1;
                     list_t = lexer.get_token(*current)?;
                 } else {
-                    return Err(format!("{}:{}: parse error: Unexpected ','.", list_t.line, list_t.col));
+                    return Err(format!("{}:{}: parse ERROR: Unexpected ','.", list_t.line, list_t.col));
                 }
             },
             _ => {
                 if expect_comma {
-                    return Err(format!("{}:{}: parse error: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ')' or ',', found {:?}.", list_t.line, list_t.col, list_t.token_type));
                 }
                 expect_comma = true;
                 let prim = match parse_primary(&lexer, current) {
@@ -829,7 +829,7 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     match list_t.token_type {
         // TODO properly parse lists besides function definition arguments
         TokenType::RightParen => Ok(Expr::new_parse(NodeType::LList("".to_string()), lexer.get_token(initial_current)?.clone(), params)),
-        _ => Err(format!("{}:{}: parse error: Expected closing parentheses.", list_t.line, list_t.col)),
+        _ => Err(format!("{}:{}: parse ERROR: Expected closing parentheses.", list_t.line, list_t.col)),
     }
 }
 
@@ -880,7 +880,7 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                         *current = *current + 1;
                         t = lexer.get_token(*current)?;
                     } else {
-                        return Err(format!("{}:{}: parse error: Expected identifier before ','.", t.line, t.col));
+                        return Err(format!("{}:{}: parse ERROR: Expected identifier before ','.", t.line, t.col));
                     }
                 }
             },
@@ -892,18 +892,18 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     *current = *current + 1;
                     t = lexer.get_token(*current)?;
                 } else {
-                    return Err(format!("{}:{}: parse error: Unexpected ':'.", t.line, t.col));
+                    return Err(format!("{}:{}: parse ERROR: Unexpected ':'.", t.line, t.col));
                 }
             },
             TokenType::DoubleDot => {
                 if expect_comma {
-                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_colon {
-                    return Err(format!("{}:{}: parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
-                    return Err(format!("{}:{}: parse error: Expected arg name, found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected arg name, found {:?}.", t.line, t.col, t.token_type));
                 }
                 is_variadic = true;
                 *current = *current + 1;
@@ -911,10 +911,10 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_colon {
-                    return Err(format!("{}:{}: parse error: Expected ':', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
                     arg_name = &t.token_str;
@@ -937,13 +937,13 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                 t = lexer.get_token(*current)?;
             },
             _ => {
-                return Err(format!("{}:{}: parse error: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
             },
         }
     }
     match t.token_type {
         TokenType::RightParen => return Ok(args),
-        _ => return Err(format!("{}:{}: parse error: Expected closing parentheses.", t.line, t.col)),
+        _ => return Err(format!("{}:{}: parse ERROR: Expected closing parentheses.", t.line, t.col)),
     }
 }
 
@@ -969,12 +969,12 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
                     *current = *current + 1;
                     t = lexer.get_token(*current)?;
                 } else {
-                    return Err(format!("{}:{}: parse error: Unexpected ','.", t.line, t.col));
+                    return Err(format!("{}:{}: parse ERROR: Unexpected ','.", t.line, t.col));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(format!("{}:{}: parse error: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
                 }
                 return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
@@ -982,14 +982,14 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
                 t = lexer.get_token(*current)?;
             },
             _ => {
-                return Err(format!("{}:{}: parse error: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
             },
         }
     }
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(format!("{}:{}: parse error: Expected '{{' or 'throws' after return values.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' or 'throws' after return values.", t.line, t.col));
     }
 }
 
@@ -998,10 +998,10 @@ fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_par
     *current = *current + 1;
     let t = lexer.get_token(*current)?;
     if lexer.is_eof(*current + 1) {
-        return Err(format!("{}:{}: parse error: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: expected '(' after 'func' or 'proc', found EOF.", t.line, t.col));
     }
     if t.token_type != TokenType::LeftParen {
-        return Err(format!("{}:{}: parse error: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
+        return Err(format!("{}:{}: parse ERROR: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
     let args = match parse_func_proc_args(&lexer, current) {
         Ok(to_ret) => to_ret,
@@ -1036,11 +1036,11 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
 
     let t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{}: parse error: Expected '{{' after 'enum'.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after 'enum'.", t.line, t.col));
     }
     if lexer.is_eof(*current + 1) {
         let t = lexer.get_token(*current)?;
-        return Err(format!("{}:{}: parse error: expected identifier after 'enum {{', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: expected identifier after 'enum {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let mut enum_map: HashMap<String, Option<ValueType>> = HashMap::new();
@@ -1062,7 +1062,7 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                     TokenType::Colon => {
                         let next2_t = lexer.get_token(*current + 2)?;
                         if next2_t.token_type != TokenType::Identifier {
-                            return Err(format!("{}:{}: parse error: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
+                            return Err(format!("{}:{}: parse ERROR: Expected type identifier after '{} :', found '{:?}'.", t.line, t.col, enum_val_name, next2_t.token_type));
                         }
                         let enum_val_type = &next2_t.token_str;
                         enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
@@ -1072,13 +1072,13 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                 }
             },
             _ => {
-                return Err(format!("{}:{}: parse error: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));
             }
         }
         *current = *current + 1;
     }
     if !end_found {
-        return Err(format!("{}:{}: parse error: Expected '}}' to end enum.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '}}' to end enum.", t.line, t.col));
     }
     let params : Vec<Expr> = Vec::new();
     return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{enum_map: enum_map}), lexer.get_token(initial_current)?.clone(), params));
@@ -1088,11 +1088,11 @@ fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, S
     *current = *current + 1;
     let t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{}: parse error: Expected '{{' after 'struct'.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after 'struct'.", t.line, t.col));
     }
     if lexer.is_eof(*current + 1) {
         let t = lexer.get_token(*current)?;
-        return Err(format!("{}:{}: parse error: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: expected 'identifier' after 'struct {{', found EOF.", t.line, t.col));
     }
     *current = *current + 1;
     let body = match parse_body(&lexer, current, TokenType::RightBrace) {
@@ -1109,10 +1109,10 @@ fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, S
                     default_values.insert(decl.name.clone(), p.params.get(0).unwrap().clone()); // TODO document what's special about this line
                 } else {
                     // TODO allow not setting default values in struct members
-                    return Err(format!("{}:{}: parse error: all declarations inside struct defitions must have a value for now", t.line, t.col));
+                    return Err(format!("{}:{}: parse ERROR: all declarations inside struct defitions must have a value for now", t.line, t.col));
                 }
             },
-            _ => return Err(format!("{}:{}: parse error: expected only declarations inside struct defition", t.line, t.col)),
+            _ => return Err(format!("{}:{}: parse ERROR: expected only declarations inside struct defition", t.line, t.col)),
         }
     }
 
@@ -1131,7 +1131,7 @@ fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, 
     while TokenType::Dot == next_t.token_type {
         let next2_t = lexer.get_token(*current + 2)?;
         if TokenType::Identifier != next2_t.token_type {
-            return Err(format!("{}:{}: parse error: expected identifier after '{}.', found {:?}.",
+            return Err(format!("{}:{}: parse ERROR: expected identifier after '{}.', found {:?}.",
                                next2_t.line, next2_t.col, current_identifier, next2_t.token_type));
         }
 
@@ -1167,7 +1167,7 @@ fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr
             return parse_primary_identifier(&lexer, current)
         },
         TokenType::Dot => {
-            Err(format!("{}:{}: parse error: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
+            Err(format!("{}:{}: parse ERROR: '.' not allowed after the first identifier in a statement yet.", t.line, t.col))
         },
         TokenType::Equal => {
             return parse_assignment(&lexer, current)
@@ -1185,13 +1185,13 @@ fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr
                     return parse_declaration(&lexer, current, false, INFER_TYPE)
                 },
                 _ => {
-                    Err(format!("{}:{}: parse error: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
+                    Err(format!("{}:{}: parse ERROR: Expected Type or '=' after '{} :' in statement, found {:?}.", t.line, t.col, identifier, next_next_token_type))
                 },
             }
 
         },
         _ => {
-            Err(format!("{}:{}: parse error: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
+            Err(format!("{}:{}: parse ERROR: Expected '(', ':' or '=' after identifier in statement, found {:?}.", t.line, t.col, next_token_type))
         },
     }
 }
@@ -1212,7 +1212,7 @@ fn parse_primary(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         TokenType::Struct => return parse_struct_definition(&lexer, current),
         TokenType::LeftParen => return parse_list(&lexer, current),
         TokenType::Identifier => return parse_primary_identifier(&lexer, current),
-        _ => return Err(format!("{}:{}: parse error: Expected primary expression, found {:?}.",
+        _ => return Err(format!("{}:{}: parse ERROR: Expected primary expression, found {:?}.",
                                 t.line, t.col, t.token_type)),
     }
 }
@@ -1251,7 +1251,7 @@ fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     params.push(prim);
     let mut t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{}: parse error: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
     }
     *current = *current + 1;
     let body = match parse_body(&lexer, current, TokenType::RightBrace) {
@@ -1265,7 +1265,7 @@ fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         *current = *current + 1;
         t = lexer.get_token(*current)?;
         if t.token_type != TokenType::LeftBrace {
-            return Err(format!("{}:{}: parse error: Expected '{{' after 'else'.", t.line, t.col));
+            return Err(format!("{}:{}: parse ERROR: Expected '{{' after 'else'.", t.line, t.col));
         }
         *current = *current + 1;
         let body = match parse_body(&lexer, current, TokenType::RightBrace) {
@@ -1289,7 +1289,7 @@ fn while_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     params.push(prim);
     let t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
-        return Err(format!("{}:{}: parse error: Expected '{{' after condition in 'while' statement.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after condition in 'while' statement.", t.line, t.col));
     }
     *current = *current + 1;
     let body = match parse_body(&lexer, current, TokenType::RightBrace) {
@@ -1317,7 +1317,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
     params.push(prim);
 
     if &TokenType::LeftBrace != current_token_type(&lexer, current) {
-        return Err(format!("{}:{}: parse error: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after primary expression in 'switch' statement.", t.line, t.col));
     }
     *current = *current + 1;
 
@@ -1325,7 +1325,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
     while *current < lexer.len() && !end_found {
         let mut next_t = lexer.get_token(*current)?;
         if next_t.token_type != TokenType::Case {
-            return Err(format!("{}:{}: parse error: Expected 'case' in switch, found {:?}", next_t.line, next_t.col, next_t.token_type));
+            return Err(format!("{}:{}: parse ERROR: Expected 'case' in switch, found {:?}", next_t.line, next_t.col, next_t.token_type));
         }
 
         *current = *current + 1;
@@ -1342,7 +1342,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
 
         next_t = lexer.get_token(*current)?;
         if next_t.token_type != TokenType::Colon {
-            return Err(format!("{}:{}: parse error: Expected ':' case <primary_expr> in switch, found {:?}",
+            return Err(format!("{}:{}: parse ERROR: Expected ':' case <primary_expr> in switch, found {:?}",
                                next_t.line, next_t.col, next_t.token_type));
         }
 
@@ -1375,7 +1375,7 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
     if end_found {
         return Ok(Expr::new_parse(NodeType::Switch, lexer.get_token(initial_current)?.clone(), params))
     }
-    return Err(format!("parse error: Expected '}}' to end switch."));
+    return Err(format!("parse ERROR: Expected '}}' to end switch."));
 }
 
 fn parse_declaration(lexer: &Lexer, current: &mut usize, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
@@ -1402,14 +1402,14 @@ fn parse_mut_declaration(lexer: &Lexer, current: &mut usize) -> Result<Expr, Str
     let mut next_t = lexer.get_token(*current + 1)?;
     let mut next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Identifier {
-        return Err(format!("{}:{}: parse error: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
+        return Err(format!("{}:{}: parse ERROR: Expected identifier after 'mut', found {:?}.", t.line, t.col, next_token_type));
     }
     let identifier = &next_t.token_str;
     *current = *current + 1;
     next_t = lexer.get_token(*current + 1)?;
     next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Colon {
-        return Err(format!("{}:{}: parse error: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
+        return Err(format!("{}:{}: parse ERROR: Expected ':' after 'mut {}', found {:?}.", t.line, t.col, identifier, next_token_type));
     }
     let next_next_t = lexer.get_token(*current + 2)?;
     let next_next_token_type = &next_next_t.token_type;
@@ -1422,7 +1422,7 @@ fn parse_mut_declaration(lexer: &Lexer, current: &mut usize) -> Result<Expr, Str
             return parse_declaration(&lexer, current, true, INFER_TYPE)
         },
         _ => {
-            Err(format!("{}:{}: parse error: Expected a type identifier or '=' after 'mut {} :' in statement, found {:?}.",
+            Err(format!("{}:{}: parse ERROR: Expected a type identifier or '=' after 'mut {} :' in statement, found {:?}.",
                         t.line, t.col, identifier, next_next_token_type))
         },
     }
@@ -1432,7 +1432,7 @@ fn parse_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     let t = lexer.get_token(*current)?;
     match &t.token_type {
         TokenType::For => {
-            return Err(format!("{}:{}: parse error: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
+            return Err(format!("{}:{}: parse ERROR: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
         TokenType::Return => return return_statement(&lexer, current),
         TokenType::If => return if_statement(&lexer, current),
@@ -1441,7 +1441,7 @@ fn parse_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         TokenType::Mut => return parse_mut_declaration(&lexer, current),
         TokenType::Identifier => return parse_statement_identifier(&lexer, current),
         _ => {
-            Err(format!("{}:{}: parse error: Expected statement, found {:?}.", t.line, t.col, t.token_type))
+            Err(format!("{}:{}: parse ERROR: Expected statement, found {:?}.", t.line, t.col, t.token_type))
         },
     }
 }
@@ -1471,7 +1471,7 @@ fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Resul
     if end_found {
         return Ok(Expr::new_parse(NodeType::Body, lexer.get_token(initial_current)?.clone(), params))
     }
-    return Err(format!("parse error: Expected {:?} to end body.", end_token));
+    return Err(format!("parse ERROR: Expected {:?} to end body.", end_token));
 }
 
 fn parse_tokens(lexer: Lexer, current: &mut usize) -> Result<Expr, String> {
@@ -1878,7 +1878,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                 },
             }
         },
-        node_type => return Err(format!("{}:{}: {} error: get_value_type() not implement for {:?} yet.", e.line, e.col, LANG_NAME, node_type)),
+        node_type => return Err(format!("{}:{}: {} ERROR: get_value_type() not implement for {:?} yet.", e.line, e.col, LANG_NAME, node_type)),
     }
 }
 
@@ -1898,9 +1898,9 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Declaration(decl) => {
                     if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
-                errors.push(format!("{}:{}: compiler error: '{}' already declared.", e.line, e.col, decl.name));
+                errors.push(format!("{}:{}: compiler ERROR: '{}' already declared.", e.line, e.col, decl.name));
             }
-            assert!(e.params.len() == 1, "{} error: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
+            assert!(e.params.len() == 1, "{} ERROR: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.get(0);
             let value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
@@ -1923,14 +1923,14 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: {}s should have definitions", e.line, e.col, LANG_NAME, value_type_to_str(&value_type)));
+                            errors.push(format!("{}:{}: {} ERROR: {}s should have definitions", e.line, e.col, LANG_NAME, value_type_to_str(&value_type)));
                             return errors;
                         },
                     }
                 },
 
                 ValueType::TEnumDef => {
-                    assert!(inner_e.params.len() == 0, "{} error: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
+                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
                             decl.name);
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
@@ -1938,13 +1938,13 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: enums should have definitions.", e.line, e.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} ERROR: enums should have definitions.", e.line, e.col, LANG_NAME));
                             return errors;
                         },
                     }
                 },
                 ValueType::TStructDef => {
-                    assert!(inner_e.params.len() == 0, "{} error: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME,
+                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME,
                             decl.name);
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
@@ -1952,7 +1952,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} error: enums should have definitions.", e.line, e.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} ERROR: enums should have definitions.", e.line, e.col, LANG_NAME));
                             return errors;
                         },
                     }
@@ -2017,11 +2017,11 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() == 1, "{} error: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
+            assert!(e.params.len() == 1, "{} ERROR: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             is_expr_calling_procs(&context, &e.get(0))
         },
         NodeType::Assignment(var_name) => {
-            assert!(e.params.len() == 1, "{} error: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
+            assert!(e.params.len() == 1, "{} ERROR: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
             is_expr_calling_procs(&context, &e.get(0))
         }
         NodeType::FuncDef(func_def) => {
@@ -2094,7 +2094,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                 }
             },
             None => {
-                errors.push(format!("{}:{}: mode error: mode {} requires 'main' to be defined as a proc.", e.line, e.col, context.mode.name));
+                errors.push(format!("{}:{}: mode ERROR: mode {} requires 'main' to be defined as a proc.", e.line, e.col, context.mode.name));
             },
         };
     }
@@ -2102,7 +2102,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
-    assert!(e.params.len() == 0, "{} error: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
+    assert!(e.params.len() == 0, "{} ERROR: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
 
     for (_enum_val_name, enum_opt) in &enum_def.enum_map {
@@ -2123,7 +2123,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
 }
 
 fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
-    assert!(e.params.len() == 2 || e.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
+    assert!(e.params.len() == 2 || e.params.len() == 3, "{} ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
 
     let inner_e = e.get(0);
@@ -2146,7 +2146,7 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
-    assert!(e.params.len() == 2, "{} error: while nodes must have exactly 2 parameters.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} ERROR: while nodes must have exactly 2 parameters.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
 
     let inner_e = e.get(0);
@@ -2178,7 +2178,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         let symbol = match context.symbols.get(&f_name) {
             Some(_symbol) => _symbol,
             None => {
-                errors.push(format!("{}:{}: {} error: Undefined function or struct '{}'", e.line, e.col, LANG_NAME, f_name));
+                errors.push(format!("{}:{}: {} ERROR: Undefined function or struct '{}'", e.line, e.col, LANG_NAME, f_name));
                 return errors;
             },
         };
@@ -2219,7 +2219,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                         }
                     },
                     _ => {
-                        errors.push(format!("{}:{}: {} error: expected identifier after '{}.' found {:?}",
+                        errors.push(format!("{}:{}: {} ERROR: expected identifier after '{}.' found {:?}",
                                             e.line, e.col, LANG_NAME, f_name, after_dot.node_type));
                         return errors;
                     },
@@ -2349,7 +2349,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
 }
 
 fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
-    assert!(e.params.len() == 1, "{} error: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
+    assert!(e.params.len() == 1, "{} ERROR: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
     let mut errors : Vec<String> = Vec::new();
 
     let inner_e = e.get(0);
@@ -2368,7 +2368,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
         context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
         match value_type {
             ValueType::ToInferType => {
-                errors.push(format!("{}:{} {} error: Cannot infer the declaration type of {}", e.line, e.col, LANG_NAME, decl.name));
+                errors.push(format!("{}:{} {} ERROR: Cannot infer the declaration type of {}", e.line, e.col, LANG_NAME, decl.name));
                 return errors;
             },
             ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
@@ -2378,7 +2378,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
                         context.funcs.insert(decl.name.clone(), func_def.clone());
                     },
                     _ => {
-                        errors.push(format!("{}:{} {} error: functions should have definitions", e.line, e.col, LANG_NAME));
+                        errors.push(format!("{}:{} {} ERROR: functions should have definitions", e.line, e.col, LANG_NAME));
                         return errors;
                     },
                 }
@@ -2392,7 +2392,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
 }
 
 fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<String> {
-    assert!(e.params.len() == 1, "{} error: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
+    assert!(e.params.len() == 1, "{} ERROR: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
     let mut errors : Vec<String> = Vec::new();
 
     if context.funcs.contains_key(var_name)  {
@@ -2423,7 +2423,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_enum_def(&e, enum_def));
         },
         NodeType::StructDef(_struct_def) => {
-            assert!(e.params.len() == 0, "{} error: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
+            assert!(e.params.len() == 0, "{} ERROR: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
         },
 
         NodeType::If => {
@@ -2433,7 +2433,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_while_statement(&mut context, &e));
         },
         NodeType::Switch => {
-            assert!(e.params.len() >= 3, "{} error: switch nodes must have at least 3 parameters.", LANG_NAME);
+            assert!(e.params.len() >= 3, "{} ERROR: switch nodes must have at least 3 parameters.", LANG_NAME);
             // TODO check that the type to be switch corresponds to each case
             // TODO check that there's a body param after each case
             // TODO check that all the cases are covered
@@ -2584,39 +2584,39 @@ fn eval_core_func_or(mut context: &mut Context, e: &Expr) -> String {
 }
 
 fn eval_core_func_not(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
     (!eval_to_bool(&mut context, &e.get(1))).to_string()
 }
 
 fn eval_core_func_eq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a == b).to_string()
 }
 
 fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1));
     let b = &eval_expr(&mut context, e.get(2));
     return (a == b).to_string()
 }
 
 fn eval_core_func_concat(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'concat' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'concat' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = eval_expr(&mut context, e.get(1));
     let b = eval_expr(&mut context, e.get(2));
     return format!("{}{}", a, b)
 }
 
 fn eval_core_func_str_len(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'concat' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'concat' takes exactly 1 argument. This should never happen.", LANG_NAME);
     let a = eval_expr(&mut context, e.get(1));
     return format!("{}", a.len())
 }
 
 fn eval_core_func_str_get_substr(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 4, "{} Error: Core func 'concat' takes exactly 3 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 4, "{} ERROR: Core func 'concat' takes exactly 3 arguments. This should never happen.", LANG_NAME);
     let a = eval_expr(&mut context, e.get(1));
     let start = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     let end = &eval_expr(&mut context, e.get(3)).parse::<i64>().unwrap();
@@ -2624,69 +2624,69 @@ fn eval_core_func_str_get_substr(mut context: &mut Context, e: &Expr) -> String 
 }
 
 fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a < b).to_string()
 }
 
 fn eval_core_func_lteq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a <= b).to_string()
 }
 
 fn eval_core_func_gt(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a > b).to_string()
 }
 
 fn eval_core_func_gteq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a + b).to_string()
 }
 
 fn eval_core_func_sub(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a - b).to_string()
 }
 
 fn eval_core_func_mul(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a * b).to_string()
 }
 
 fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} Error: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a / b).to_string()
 }
 
 fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'atoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'atoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
     return a.to_string();
 }
 
 fn eval_core_func_itoa(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} Error: Core func 'itoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'itoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
     eval_expr(&mut context, e.get(1))
 }
 
@@ -2696,7 +2696,7 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     match b {
         "true" => true,
         "false" => false,
-        _ => panic!("{} Error: expected string 'true' or 'false', found '{}'. this should never happen.", LANG_NAME, b)
+        _ => panic!("{} ERROR: expected string 'true' or 'false', found '{}'. this should never happen.", LANG_NAME, b)
     }
 }
 
@@ -2791,10 +2791,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     let mut function_context = context.clone();
     let has_multi_arg = func_proc_has_multi_arg(func_def);
     assert!(!(!has_multi_arg && func_def.args.len() != e.params.len() - 1),
-            "{} error: func '{}' expected {} args, but {} were provided. This should never happen.",
+            "{} ERROR: func '{}' expected {} args, but {} were provided. This should never happen.",
             LANG_NAME, name, func_def.args.len(), e.params.len()-1);
     assert!(!(has_multi_arg && func_def.args.len() > e.params.len() - 1),
-            "{} error: func '{}' expected at least {} args, but {} were provided. This should never happen.",
+            "{} ERROR: func '{}' expected at least {} args, but {} were provided. This should never happen.",
             LANG_NAME, name, func_def.args.len(), e.params.len()-1);
 
     let mut param_index = 1;
@@ -2843,11 +2843,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
     for se in &func_def.body {
         match se.node_type {
             NodeType::Return => {
-                assert!(se.params.len() != 0, "{} error: return must currently always return exactly one value.", LANG_NAME);
+                assert!(se.params.len() != 0, "{} ERROR: return must currently always return exactly one value.", LANG_NAME);
                 return eval_expr(&mut function_context, &se.get(0));
             },
             NodeType::If => {
-                assert!(se.params.len() == 2 || se.params.len() == 3, "{} error: if nodes must have 2 or 3 parameters.", LANG_NAME);
+                assert!(se.params.len() == 2 || se.params.len() == 3, "{} ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
                 if eval_to_bool(&mut function_context, &se.get(0)) {
                     return eval_expr(&mut function_context, &se.get(1))
                 } else if se.params.len() == 3 {
@@ -2980,7 +2980,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             return e.lang_error("eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)));
         }
     }
-    assert!(e.params.len() == 1, "{} error: Declarations can have only one child expression. This should never happen.", LANG_NAME);
+    assert!(e.params.len() == 1, "{} ERROR: Declarations can have only one child expression. This should never happen.", LANG_NAME);
     match value_type {
         ValueType::ToInferType => {
             return e.lang_error("eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
@@ -3134,8 +3134,8 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
 
 fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> String {
     let symbol_info = context.symbols.get(var_name).unwrap();
-    assert!(symbol_info.is_mut, "{} eval error: Assignments can only be to mut values", LANG_NAME);
-    assert!(e.params.len() == 1, "{} eval error: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
+    assert!(symbol_info.is_mut, "{} eval ERROR: Assignments can only be to mut values", LANG_NAME);
+    assert!(e.params.len() == 1, "{} eval ERROR: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
 
     let inner_e = e.get(0);
     let value_type = match get_value_type(&context, &inner_e) {
@@ -3185,7 +3185,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
 }
 
 fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> String {
-    assert!(e.params.len() > 0, "{} eval error: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
+    assert!(e.params.len() > 0, "{} eval ERROR: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
 
     let struct_def = context.struct_defs.get(name).unwrap();
     let inner_e = e.get(0);
@@ -3311,7 +3311,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 return name.to_string();
             },
             ValueType::TEnumDef => {
-                assert!(e.params.len() > 0, "{} eval error: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                assert!(e.params.len() > 0, "{} eval ERROR: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
                 // let enum_def = context.enum_defs.get(name).unwrap();
                 let inner_e = e.get(0);
                 match &inner_e.node_type {
@@ -3382,7 +3382,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             return eval_identifier_expr(&name, &context, &e);
         },
         NodeType::If => {
-            assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval error: if nodes must have 2 or 3 parameters.", LANG_NAME);
+            assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
             if eval_to_bool(&mut context, &e.get(0)) {
                 eval_expr(&mut context, &e.get(1))
             } else if e.params.len() == 3 {
@@ -3392,14 +3392,14 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
             }
         },
         NodeType::While => {
-            assert!(e.params.len() == 2, "{} eval error: while nodes must have exactly 2 parameters.", LANG_NAME);
+            assert!(e.params.len() == 2, "{} eval ERROR: while nodes must have exactly 2 parameters.", LANG_NAME);
             while eval_to_bool(&mut context, &e.get(0)) {
                 eval_expr(&mut context, &e.get(1));
             }
             "".to_string()
         },
         NodeType::Switch => {
-            assert!(e.params.len() >= 3, "{} eval error: switch nodes must have at least 3 parameters.", LANG_NAME);
+            assert!(e.params.len() >= 3, "{} eval ERROR: switch nodes must have at least 3 parameters.", LANG_NAME);
 
             let to_switch = e.get(0);
             let value_type = match get_value_type(&context, &to_switch) {
@@ -3534,7 +3534,7 @@ fn to_ast_str(e: &Expr) -> String {
             return ast_str;
         },
         NodeType::Return => {
-            panic!("{} AST error: Node_type::Return shouldn't be analized in to_ast_str().", LANG_NAME);
+            panic!("{} AST ERROR: Node_type::Return shouldn't be analized in to_ast_str().", LANG_NAME);
         },
     }
 }
