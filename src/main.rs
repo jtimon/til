@@ -1607,8 +1607,12 @@ impl Context {
                 self.insert_bool(&combined_name, &default_value);
             },
 
+            ValueType::TString => {
+                self.insert_string(&combined_name, default_value);
+            },
+
             _ => {
-                println!("Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}':",
+                println!("Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
                          decl.name, id, value_type_to_str(&decl.value_type));
             },
         }
