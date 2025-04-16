@@ -1630,33 +1630,86 @@ impl Context {
     }
 
     fn insert_struct_field(self: &mut Context, id: &str, struct_def: &SStructDef, decl: &Declaration, is_mut: bool) -> bool {
-        let combined_name = format!("{}.{}", id, &decl.name);
         let default_value = match struct_def.default_values.get(&decl.name) {
             Some(_e_) => eval_expr(self, _e_),
             None => {
-                panic!("Cannot insert field '{}' in struct '{}' \nTODO: insert_struct_field: allow fields without default values",
-                       decl.name, id)
+                println!("Cannot insert field '{}' in struct '{}' \nTODO: insert_struct_field: allow fields without default values",
+                         decl.name, id);
+                return false
             },
         };
+        return self.insert_struct_field_with_value(id, &decl, is_mut, &default_value);
+    }
+
+    fn insert_struct_field_with_value(self: &mut Context, id: &str, decl: &Declaration, is_mut: bool, value: &String) -> bool {
+        let combined_name = format!("{}.{}", id, &decl.name);
         match decl.value_type {
             ValueType::TI64 => {
-                self.insert_i64(&combined_name, &default_value);
+                self.insert_i64(&combined_name, value);
             },
 
             ValueType::TBool => {
-                self.insert_bool(&combined_name, &default_value);
+                self.insert_bool(&combined_name, value);
             },
 
             ValueType::TString => {
-                self.insert_string(&combined_name, default_value);
+                self.insert_string(&combined_name, value.clone()); // TODO remove this clone once insert_string uses &String
             },
 
             _ => {
-                println!("Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
+                println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
                          decl.name, id, value_type_to_str(&decl.value_type));
+                return false;
             },
         }
         self.symbols.insert(combined_name, SymbolInfo{value_type: decl.value_type.clone(), is_mut: is_mut});
+        return true;
+    }
+
+    fn get_field_value(self: &mut Context, custom_type_name: &str, id: &str, decl: &Declaration) -> Option<String> {
+        let combined_name = format!("{}.{}", id, &decl.name);
+        match decl.value_type {
+            ValueType::TI64 => {
+                return self.get_i64(&combined_name).map(|value| value.to_string())
+            },
+            ValueType::TBool => {
+                return self.get_bool(&combined_name).map(|value| value.to_string())
+            },
+            ValueType::TString => {
+                return self.get_string(&combined_name)
+            },
+            _ => {
+                println!("ERROR: Cannot get field '{}' in struct '{}'\n Context.get_struct_field: TODO: allow fields of type '{}'",
+                         decl.name, custom_type_name, value_type_to_str(&decl.value_type));
+                return None
+            },
+        }
+    }
+
+    // TODO all args should be passed as pointers/references and we wouldn't need this
+    fn copy_fields(self: &mut Context, custom_type_name: &str, src: &str, dest: &str) -> bool {
+        // Search the struct def and add all mut values as fields in order
+        let struct_def = match self.struct_defs.get(custom_type_name) {
+            Some(struct_def_) => struct_def_.clone(),
+            None => return false,
+        };
+
+        let is_mut = match self.symbols.get(dest) {
+            Some(symbol_info_) => symbol_info_.is_mut,
+            None => return false,
+        };
+        for (_member_name, decl) in struct_def.members.iter() {
+            if decl.is_mut {
+                let src_value = match self.get_field_value(custom_type_name, src, &decl) {
+                    Some(val_) => val_,
+                    None => return false,
+                };
+                if !self.insert_struct_field_with_value(dest, &decl, is_mut, &src_value) {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 
@@ -1673,7 +1726,9 @@ impl Context {
         };
         for (_member_name, decl) in struct_def.members.iter() {
             if decl.is_mut {
-                self.insert_struct_field(&id, &struct_def, &decl, is_mut);
+                if !self.insert_struct_field(&id, &struct_def, &decl, is_mut) {
+                    return false;
+                }
             }
         }
 
@@ -1695,6 +1750,7 @@ impl Context {
         }
     }
 
+    // TODO change value_str to &String
     fn insert_string(self: &mut Context, id: &str, value_str: String) -> Option<String> {
         return match self.bytes.insert(id.to_string(), value_str.into_bytes()) {
             Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
@@ -2870,25 +2926,47 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
                 function_context.insert_string(&arg.name, result);
             },
             ValueType::TMulti(ref _multi_value_type) => {
-                // TODO support variadic arguments for user defined functions
+                return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Variadic arguments for user defined functions not supported yet.",
+                                                     &arg.name, value_type_to_str(&arg.value_type)))
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
                 let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                 match custom_symbol.value_type {
                     ValueType::TEnumDef => {
-                        function_context.insert_enum(&arg.name, custom_type_name, &result);
+                        function_context.insert_enum(&arg.name, &custom_type_name, &result);
+                    },
+                    ValueType::TStructDef => {
+                        if !function_context.insert_struct(&arg.name, &custom_type_name) {
+                            return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.", &arg.name, &custom_type_name))
+                        }
+                        let current_arg = e.get(param_index);
+                        if current_arg.params.len() > 0 {
+                            return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now. ", &arg.name, &custom_type_name))
+                        }
+                        match &current_arg.node_type {
+                            NodeType::Identifier(id_) => {
+                                if !function_context.copy_fields(&custom_type_name, &id_, &arg.name) {
+                                    return e.todo_error("eval", &format!("While copying fields from '{}' to '{}' of type '{}'",
+                                                                         &id_, &arg.name, &custom_type_name))
+                                }
+                            },
+                            _ => {
+                                return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now. ",
+                                                                     &arg.name, &custom_type_name))
+                            },
+                        }
                     },
                     _ => {
-                        return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only enum custom types allowed for now.",
-                                                      &arg.name, value_type_to_str(&arg.value_type)))
+                        return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
+                                                             &arg.name, &custom_type_name))
                     },
                 }
             },
 
             _ => {
                 return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only enum custom types allowed for now.",
-                                              &arg.name, value_type_to_str(&arg.value_type)))
+                                                     &arg.name, &value_type_to_str(&arg.value_type)))
             },
         }
 
