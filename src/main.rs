@@ -1653,7 +1653,7 @@ impl Context {
             },
 
             ValueType::TString => {
-                self.insert_string(&combined_name, value.clone()); // TODO remove this clone once insert_string uses &String
+                self.insert_string(&combined_name, value);
             },
 
             _ => {
@@ -1750,9 +1750,8 @@ impl Context {
         }
     }
 
-    // TODO change value_str to &String
-    fn insert_string(self: &mut Context, id: &str, value_str: String) -> Option<String> {
-        return match self.bytes.insert(id.to_string(), value_str.into_bytes()) {
+    fn insert_string(self: &mut Context, id: &str, value_str: &String) -> Option<String> {
+        return match self.bytes.insert(id.to_string(), value_str.clone().into_bytes()) {
             Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
             None => None,
         }
@@ -2966,7 +2965,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             },
             ValueType::TString =>  {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
-                function_context.insert_string(&arg.name, result);
+                function_context.insert_string(&arg.name, &result);
             },
             ValueType::TMulti(ref _multi_value_type) => {
                 return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Variadic arguments for user defined functions not supported yet.",
@@ -3217,7 +3216,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
-            context.insert_string(&declaration.name, string_expr_result.clone());
+            context.insert_string(&declaration.name, &string_expr_result);
             context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
             return "".to_string()
         },
@@ -3270,7 +3269,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                 },
                                 ValueType::TString => {
                                     let string_expr_result = eval_expr(&mut context, default_value);
-                                    context.insert_string(&combined_name, string_expr_result);
+                                    context.insert_string(&combined_name, &string_expr_result);
                                 },
                                 ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                                     match &default_value.node_type {
@@ -3378,7 +3377,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         },
         ValueType::TString => {
             let string_expr_result = eval_expr(&mut context, inner_e);
-            context.insert_string(var_name, string_expr_result.clone());
+            context.insert_string(var_name, &string_expr_result);
             return "".to_string()
         },
         ValueType::TStructDef => {
