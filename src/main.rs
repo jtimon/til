@@ -2896,14 +2896,26 @@ fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> String {
     for i in 2..e.params.len() {
         main_args.push(eval_expr(&mut context, e.get(i)));
     }
-    run_file(&path, main_args);
+    match run_file(&path, main_args) {
+        Ok(_) => {},
+        Err(error_string) => {
+            println!("ERROR: While running file {path}");
+            return e.error("eval", &error_string);
+        },
+    };
     return "".to_string();
 }
 
 fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
     let path = &eval_expr(&mut context, e.get(1));
-    run_file_with_context(true, &mut context, &path, Vec::new());
+    match run_file_with_context(true, &mut context, &path, Vec::new()) {
+        Ok(_) => {},
+        Err(error_string) => {
+            println!("ERROR: While trying to import {path}");
+            return e.error("eval", &error_string);
+        },
+    };
     return "".to_string();
 }
 
@@ -3838,14 +3850,15 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 
 // ---------- main, usage, args, etc
 
-fn run_file(path: &String, main_args: Vec<String>) {
+fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
     let mut context = Context::new(DEFAULT_MODE);
-    run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new());
-    run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new());
-    run_file_with_context(false, &mut context, &path, main_args);
+    run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
+    run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new())?;
+    run_file_with_context(false, &mut context, &path, main_args)?;
+    return Ok(())
 }
 
-fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String, main_args: Vec<String>) {
+fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String, main_args: Vec<String>) -> Result<(), String> {
     let previous_mode = context.mode.clone();
     if !is_import {
         println!("Running file '{}'", &path);
@@ -3854,10 +3867,10 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
         Ok(file) => file,
         Err(error) => match error.kind() {
             ErrorKind::NotFound => {
-                panic!("File '{}' not found.", path);
+                return Err(format!("File '{path}' not found."))
             },
             other_error => {
-                panic!("Problem opening the file '{}': {other_error:?}", path);
+                return Err(format!("Problem opening the file '{path}': {other_error:?}"))
             },
         },
     };
@@ -3867,9 +3880,10 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
     }
 
     if is_import && !can_be_imported(&context.mode) {
-        panic!("file '{}' of mode '{}' cannot be imported", path, context.mode.name)
+        return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode.name))
     }
     context.mode = previous_mode; // restore the context mode of the calling file
+    return Ok(())
 }
 
 fn usage() {
@@ -3885,6 +3899,17 @@ fn usage() {
     // println!("build: reads a file in provided <path> and compiles it. Not implemented yet.");
     // println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet.");
     println!("help: Prints this.\n");
+}
+
+fn run_file_or_exit(path: &String, args: Vec<String>) {
+    match run_file(path, args) {
+        Ok(_) => {},
+        Err(error_string) => {
+            println!("ERROR: While running file {path}");
+            println!("{error_string}");
+            std::process::exit(1);
+        },
+    };
 }
 
 fn main() {
@@ -3904,7 +3929,7 @@ fn main() {
         }
         match args[1].as_str() {
             "interpret" => {
-                run_file(&args[2], main_args);
+                run_file_or_exit(&args[2], main_args);
             },
             "repl" | "build" | "run" => {
                 usage();
@@ -3918,17 +3943,18 @@ fn main() {
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
-                run_file(&REPL_PATH.to_string(), Vec::new());
+                run_file_or_exit(&REPL_PATH.to_string(), Vec::new());
             },
             "ast" | "interpret" | "build" | "run" |
             "help" | "-help" | "--help"=> {
                 usage();
             },
             _ => {
-                run_file(&args[1], Vec::new());
+                run_file_or_exit(&args[1], Vec::new());
             },
         }
     } else {
-        run_file(&REPL_PATH.to_string(), Vec::new()) // If not arguments, then repl/interactive "mode"
+        // If not arguments, then repl/interactive "mode"
+        run_file_or_exit(&REPL_PATH.to_string(), Vec::new());
     }
 }
