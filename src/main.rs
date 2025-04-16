@@ -2227,7 +2227,9 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                 }
             }
         },
-        _ => panic!("basic_mode_checks() expects a body expression, this should never happen."),
+        _ => {
+            errors.push(e.lang_error("mode", "basic_mode_checks() expects a body expression, this should never happen."))
+        },
     }
 
     if context.mode.needs_main_proc {
