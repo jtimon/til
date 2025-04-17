@@ -2722,27 +2722,6 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
 
 // ---------- core funcs implementations for eval
 
-fn eval_core_func_and(mut context: &mut Context, e: &Expr) -> String {
-    let mut truthfulness = true;
-    for i in 1..e.params.len() {
-        truthfulness = truthfulness && eval_to_bool(&mut context, &e.get(i));
-    }
-    truthfulness.to_string()
-}
-
-fn eval_core_func_or(mut context: &mut Context, e: &Expr) -> String {
-    let mut truthfulness = false;
-    for i in 1..e.params.len() {
-        truthfulness = truthfulness || eval_to_bool(&mut context, &e.get(i));
-    }
-    truthfulness.to_string()
-}
-
-fn eval_core_func_not(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} ERROR: Core func 'not' only takes 1 argument. This should never happen.", LANG_NAME);
-    (!eval_to_bool(&mut context, &e.get(1))).to_string()
-}
-
 fn eval_core_func_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
@@ -3034,9 +3013,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
-        "and" => eval_core_func_and(&mut context, &e),
-        "or" => eval_core_func_or(&mut context, &e),
-        "not" => eval_core_func_not(&mut context, &e),
         "eq" => eval_core_func_eq(&mut context, &e),
         "str_eq" => eval_core_func_str_eq(&mut context, &e),
         "concat" => eval_core_func_concat(&mut context, &e),

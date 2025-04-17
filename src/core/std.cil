@@ -6,6 +6,36 @@ xor := func(a: bool, b: bool) returns bool {
     return or(and(a, not(b)), and(b, not(a)))
 }
 
+// TODO fix arg names colliding when functions call other functions
+not := func(not_arg: bool) returns bool {
+    if not_arg {
+        return false
+    }
+    return true
+}
+
+// TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
+// TODO implement the variadic versions of and/or
+or := func(arg_or_a: bool, arg_or_b: bool) returns bool {
+    if arg_or_a {
+        return true
+    }
+    if arg_or_b {
+        return true
+    }
+    return false
+}
+
+and := func(arg_and_a: bool, arg_and_b: bool) returns bool {
+    if not(arg_and_a) {
+        return false
+    }
+    if not(arg_and_b) {
+        return false
+    }
+    return true
+}
+
 // Note that bool, i64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 bool := struct {
