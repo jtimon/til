@@ -34,8 +34,14 @@
     "mul" "div" "atoi" "itoa" "eval_to_str" "exit" "import"
     "input_read_line" "print" "println" "readfile" "runfile"))
 
+(defconst cil-error-words
+  '("static" "var" "const" "global" "fn" "function" "try" "catch")
+  "Words that are invalid in cil and should be highlighted as errors.")
+
 (defconst cil-highlights
-  `(;; Keywords
+  `(;; Error words
+    (,(regexp-opt cil-error-words 'symbols) . compilation-error)
+    ;; Keywords
     (,(regexp-opt cil-keywords 'symbols) . font-lock-keyword-face)
     ;; Built-in Types
     (,(regexp-opt cil-types 'symbols) . font-lock-type-face)

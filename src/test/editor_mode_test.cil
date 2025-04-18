@@ -10,7 +10,7 @@ if true { // 'if', 'true' (font-lock-keyword-face in emacs)
 }
 
 if true {
-      // Do nothing
+    // Do nothing
 } else { // TODO support "else if" without requiring braces for the else
     if true {
         // Do nothing
@@ -18,6 +18,10 @@ if true {
         // Do nothing
     }
 }
+
+// static x := 10 // Should highlight 'static' in error face
+// var y := 20    // Should highlight 'var' in error face
+// const z := 30  // Should highlight 'const' in error face
 
 // Built-in types
 my_i64 : I64 = 42 // 'I64' (font-lock-type-face in emacs)
@@ -50,7 +54,7 @@ proc_with_args := proc(arg1: I64, arg2: String) { // 'I64', 'String' (font-lock-
 returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
     return true
 }
-
+a := returns_bool()
 // Mutable variables with 'mut'
 mut z : I64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-variable-name-face in emacs), 'I64' (font-lock-type-face in emacs)
 mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-name-face in emacs)
