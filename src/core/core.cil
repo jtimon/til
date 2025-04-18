@@ -89,6 +89,8 @@ xnor := func(a: Bool, b: Bool) returns Bool {
 // Note that Bool, I64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
+    mut data: I64 = 0
+
     to_str := func(self: Bool) returns String {
         if self {
             return "true"
@@ -98,6 +100,7 @@ Bool := struct {
 
     // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
     to_int := func(self: Bool) returns I64 {
+        // TODO move to directly return self.data instead
         if self {
             return 1
         }
@@ -115,7 +118,7 @@ Bool := struct {
     eq := func(a: Bool, b: Bool) returns Bool {
         return or(and(a, b), and(not(b), not(a)))
     }
-    
+
     size := func(self: I64) returns I64 {
         return I64_SIZE
     }
@@ -176,7 +179,7 @@ I64 := struct {
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self, other)
     }
-    
+
     size := func(self: I64) returns I64 {
         return I64_SIZE
     }
