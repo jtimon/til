@@ -478,7 +478,6 @@ fn is_literal(t: &Token) -> bool {
 #[derive(Debug, Clone, PartialEq)]
 enum ValueType {
     TType,
-    TBool,
     TString,
     TI64,
     TList,
@@ -496,7 +495,6 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
         ValueType::TType => "Type".to_string(),
         ValueType::ToInferType => INFER_TYPE.to_string(),
-        ValueType::TBool => "bool".to_string(),
         ValueType::TI64 => "i64".to_string(),
         ValueType::TString =>" String".to_string(),
         ValueType::TList => "list".to_string(),
@@ -513,7 +511,6 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
 fn str_to_value_type(arg_type: &str) -> ValueType {
     match arg_type {
         INFER_TYPE => ValueType::ToInferType,
-        "bool" => ValueType::TBool,
         "String" => ValueType::TString,
         "Type" => ValueType::TType,
         "list" => ValueType::TList,
@@ -1643,18 +1640,27 @@ impl Context {
 
     fn insert_struct_field_with_value(self: &mut Context, id: &str, decl: &Declaration, is_mut: bool, value: &String) -> bool {
         let combined_name = format!("{}.{}", id, &decl.name);
-        match decl.value_type {
+        match &decl.value_type {
             ValueType::TI64 => {
                 self.insert_i64(&combined_name, value);
-            },
-
-            ValueType::TBool => {
-                self.insert_bool(&combined_name, value);
             },
 
             ValueType::TString => {
                 self.insert_string(&combined_name, value);
             },
+
+            ValueType::TCustom(type_name) => {
+                match type_name.as_str() {
+                    "bool" => {
+                        self.insert_bool(&combined_name, value);
+                    },
+                    _ => {
+                        println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of custom struct type '{}'",
+                                 decl.name, id, value_type_to_str(&decl.value_type));
+                        return false;
+                    },
+                }
+            }
 
             _ => {
                 println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
@@ -1668,16 +1674,25 @@ impl Context {
 
     fn get_field_value(self: &mut Context, custom_type_name: &str, id: &str, decl: &Declaration) -> Option<String> {
         let combined_name = format!("{}.{}", id, &decl.name);
-        match decl.value_type {
+        match &decl.value_type {
             ValueType::TI64 => {
                 return self.get_i64(&combined_name).map(|value| value.to_string())
-            },
-            ValueType::TBool => {
-                return self.get_bool(&combined_name).map(|value| value.to_string())
             },
             ValueType::TString => {
                 return self.get_string(&combined_name)
             },
+            ValueType::TCustom(type_name) => {
+                match type_name.as_str() {
+                    "bool" => {
+                        return self.get_bool(&combined_name).map(|value| value.to_string())
+                    },
+                    _ => {
+                        println!("ERROR: Cannot get field '{}' from struct '{}'\n Context.get_struct_field: TODO: allow fields of custom struct type '{}'",
+                                 decl.name, id, value_type_to_str(&decl.value_type));
+                        return None;
+                    },
+                }
+            }
             _ => {
                 println!("ERROR: Cannot get field '{}' in struct '{}'\n Context.get_struct_field: TODO: allow fields of type '{}'",
                          decl.name, custom_type_name, value_type_to_str(&decl.value_type));
@@ -1783,11 +1798,10 @@ fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<Val
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
-                ValueType::TBool => Ok(ValueType::TBool),
                 ValueType::TI64 => Ok(ValueType::TI64),
                 ValueType::TString => Ok(ValueType::TString),
                 ValueType::TCustom(type_str) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
-                _ => return Err(e.lang_error("type", &format!("func '{}' returns unsupported type {}",
+                _ => return Err(e.error("type", &format!("func '{}' returns unsupported type {}",
                                                               name, value_type_to_str(func_def.returns.get(0).unwrap())))),
             }
         },
@@ -1923,7 +1937,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
-        NodeType::LBool(_) => Ok(ValueType::TBool),
+        NodeType::LBool(_) => Ok(ValueType::TCustom("bool".to_string())),
         NodeType::LI64(_) => Ok(ValueType::TI64),
         NodeType::LString(_) => Ok(ValueType::TString),
         NodeType::LList(_) => Ok(ValueType::TList),
@@ -2103,7 +2117,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 },
 
-                ValueType::TType | ValueType::TBool | ValueType::TI64 | ValueType::TString | ValueType::TList |
+                ValueType::TType | ValueType::TI64 | ValueType::TString | ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
@@ -2249,9 +2263,12 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             None => {},
             Some(value_type) => {
                 match value_type {
-                    ValueType::TCustom(ref custom_type_name) => {
-                        errors.push(format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
-                                            e.line, e.col, custom_type_name));
+                    ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
+                        "bool" => {},
+                        _ => {
+                            errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
+                                                                      e.line, e.col, custom_type_name)));
+                        },
                     },
                     _ => {},
                 }
@@ -2274,7 +2291,13 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
         },
     };
 
-    let first_is_condition = ValueType::TBool == value_type;
+    let first_is_condition = match value_type {
+        ValueType::TCustom(type_name) => match type_name.as_str() {
+            "bool" => true,
+            _ => false,
+        },
+        _ => false,
+    };
     if !first_is_condition {
         errors.push(inner_e.error("type", &format!("'if' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
@@ -2296,7 +2319,14 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
             return errors;
         },
     };
-    let first_is_condition = ValueType::TBool == value_type;
+
+    let first_is_condition = match value_type {
+        ValueType::TCustom(type_name) => match type_name.as_str() {
+            "bool" => true,
+            _ => false,
+        },
+        _ => false,
+    };
     if !first_is_condition {
         errors.push(inner_e.error("type", &format!("'while' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
@@ -2855,10 +2885,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
-            ValueType::TBool => {
-                let result = &eval_expr(&mut function_context, &e.get(param_index));
-                function_context.insert_bool(&arg.name, result);
-            },
             ValueType::TI64 =>  {
                 let result = &eval_expr(&mut function_context, &e.get(param_index));
                 function_context.insert_i64(&arg.name, result);
@@ -2873,37 +2899,45 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
-                let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
-                match custom_symbol.value_type {
-                    ValueType::TEnumDef => {
-                        function_context.insert_enum(&arg.name, &custom_type_name, &result);
+                match custom_type_name.as_str() {
+                    "bool" => {
+                        function_context.insert_bool(&arg.name, &result);
                     },
-                    ValueType::TStructDef => {
-                        if !function_context.insert_struct(&arg.name, &custom_type_name) {
-                            return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.", &arg.name, &custom_type_name))
-                        }
-                        let current_arg = e.get(param_index);
-                        if current_arg.params.len() > 0 {
-                            return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now. ", &arg.name, &custom_type_name))
-                        }
-                        match &current_arg.node_type {
-                            NodeType::Identifier(id_) => {
-                                if !function_context.copy_fields(&custom_type_name, &id_, &arg.name) {
-                                    return e.todo_error("eval", &format!("While copying fields from '{}' to '{}' of type '{}'",
-                                                                         &id_, &arg.name, &custom_type_name))
+                    _ => {
+                        let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
+                        match custom_symbol.value_type {
+                            ValueType::TEnumDef => {
+                                function_context.insert_enum(&arg.name, &custom_type_name, &result);
+                            },
+                            ValueType::TStructDef => {
+                                if !function_context.insert_struct(&arg.name, &custom_type_name) {
+                                    return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.", &arg.name, &custom_type_name))
+                                }
+                                let current_arg = e.get(param_index);
+                                if current_arg.params.len() > 0 {
+                                    return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now. ", &arg.name, &custom_type_name))
+                                }
+                                match &current_arg.node_type {
+                                    NodeType::Identifier(id_) => {
+                                        if !function_context.copy_fields(&custom_type_name, &id_, &arg.name) {
+                                            return e.todo_error("eval", &format!("While copying fields from '{}' to '{}' of type '{}'",
+                                                                                 &id_, &arg.name, &custom_type_name))
+                                        }
+                                    },
+                                    _ => {
+                                        return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now. ",
+                                                                             &arg.name, &custom_type_name))
+                                    },
                                 }
                             },
                             _ => {
-                                return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now. ",
+                                return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
                                                                      &arg.name, &custom_type_name))
                             },
                         }
                     },
-                    _ => {
-                        return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
-                                                             &arg.name, &custom_type_name))
-                    },
                 }
+
             },
 
             _ => {
@@ -3099,12 +3133,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             return e.lang_error("eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
                                                  declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)));
         },
-        ValueType::TBool => {
-            let bool_expr_result_str = eval_expr(&mut context, inner_e);
-            context.insert_bool(&declaration.name, &bool_expr_result_str);
-            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            return "".to_string()
-        },
         ValueType::TI64 => {
             let i64_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_i64(&declaration.name, &i64_expr_result_str);
@@ -3156,10 +3184,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                             };
 
                             match member_value_type {
-                                ValueType::TBool => {
-                                    let bool_expr_result_str = eval_expr(&mut context, default_value);
-                                    context.insert_bool(&combined_name, &bool_expr_result_str);
-                                },
                                 ValueType::TI64 => {
                                     let i64_expr_result_str = eval_expr(&mut context, default_value);
                                     context.insert_i64(&combined_name, &i64_expr_result_str);
@@ -3168,18 +3192,31 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                     let string_expr_result = eval_expr(&mut context, default_value);
                                     context.insert_string(&combined_name, &string_expr_result);
                                 },
+                                ValueType::TCustom(type_name) => {
+                                    match type_name.as_str() {
+                                        "bool" => {
+                                            let bool_expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_bool(&combined_name, &bool_expr_result_str);
+                                        },
+                                        _ => {
+                                            return e.todo_error("eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
+                                                                                 &declaration.name,
+                                                                                 &member_decl.name,
+                                                                                 type_name))
+                                        },
+                                    }
+                                },
                                 ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                                     match &default_value.node_type {
                                         NodeType::FuncDef(func_def) => {
                                             context.funcs.insert(combined_name.to_string(), func_def.clone());
                                         },
                                         _ => {
-                                            let _ = e.lang_error("eval", &format!("Cannot declare '{}.{}' of type '{}', expected '{}' definition.",
-                                                                          &declaration.name,
-                                                                          &member_decl.name,
-                                                                          value_type_to_str(&member_value_type),
-                                                                          value_type_to_str(&member_decl.value_type)
-                                            ));
+                                            return e.lang_error("eval", &format!("Cannot declare '{}.{}' of type '{}', expected '{}' definition.",
+                                                                                 &declaration.name,
+                                                                                 &member_decl.name,
+                                                                                 value_type_to_str(&member_value_type),
+                                                                                 value_type_to_str(&member_decl.value_type)))
                                         },
                                     }
                                 },
@@ -3187,15 +3224,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                     return e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
                                                                          &declaration.name, &member_decl.name))
                                 },
-                                ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_)
-                                    | ValueType::TCustom(_) => {
-                                        return e.todo_error("eval",
-                                                            &format!("Cannot declare '{}.{}' of type '{}'",
-                                                                    &declaration.name,
-                                                                    &member_decl.name,
-                                                                    value_type_to_str(&member_decl.value_type)
-                                                            ))
-                                },
+                                ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_) => {
+                                        return e.todo_error("eval", &format!("Cannot declare '{}.{}' of type '{}'",
+                                                                             &declaration.name,
+                                                                             &member_decl.name,
+                                                                             value_type_to_str(&member_decl.value_type)))
+                                    },
 
                             }
 
@@ -3223,20 +3257,30 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
         },
 
         ValueType::TCustom(ref custom_type_name) => {
-            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            let custom_symbol = context.symbols.get(custom_type_name).unwrap();
-            if custom_symbol.value_type == ValueType::TEnumDef {
-                let enum_expr_result_str = &eval_expr(&mut context, inner_e);
-                context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
-            } else if custom_symbol.value_type == ValueType::TStructDef {
-                if !context.insert_struct(&declaration.name, custom_type_name) {
-                    return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
-                }
-            } else {
-                return e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
-                                                &declaration.name, value_type_to_str(&custom_symbol.value_type)))
+            match custom_type_name.as_str() {
+                "bool" => {
+                    let bool_expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_bool(&declaration.name, &bool_expr_result_str);
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    return "".to_string()
+                },
+                _ => {
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    let custom_symbol = context.symbols.get(custom_type_name).unwrap();
+                    if custom_symbol.value_type == ValueType::TEnumDef {
+                        let enum_expr_result_str = &eval_expr(&mut context, inner_e);
+                        context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
+                    } else if custom_symbol.value_type == ValueType::TStructDef {
+                        if !context.insert_struct(&declaration.name, custom_type_name) {
+                            return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
+                        }
+                    } else {
+                        return e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
+                                                        &declaration.name, value_type_to_str(&custom_symbol.value_type)))
+                    }
+                    return "".to_string()
+                },
             }
-            return "".to_string()
         },
         ValueType::TType | ValueType::TList | ValueType::TMulti(_) => {
             e.error("eval", &format!("Cannot declare '{}' of type '{}'",
@@ -3262,11 +3306,6 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             return e.lang_error("eval", &format!("Cannot assign {}, type should already be inferred of type '{:?}'.", &var_name, &symbol_info.value_type));
         },
 
-        ValueType::TBool => {
-            let bool_expr_result_str = eval_expr(&mut context, inner_e);
-            context.insert_bool(var_name, &bool_expr_result_str);
-            return "".to_string()
-        },
         ValueType::TI64 => {
             let i64_expr_result_str = eval_expr(&mut context, inner_e);
             context.insert_i64(var_name, &i64_expr_result_str);
@@ -3276,6 +3315,18 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             let string_expr_result = eval_expr(&mut context, inner_e);
             context.insert_string(var_name, &string_expr_result);
             return "".to_string()
+        },
+        ValueType::TCustom(ref custom_type_name) => {
+            match custom_type_name.as_str() {
+                "bool" => {
+                    let bool_expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_bool(var_name, &bool_expr_result_str);
+                    return "".to_string()
+                },
+                _ => {
+                    return e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
+                },
+            }
         },
         ValueType::TStructDef => {
             return e.todo_error("eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type)))
@@ -3291,7 +3342,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             }
         },
 
-        ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) | ValueType::TCustom(_) => {
+        ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) => {
             return e.lang_error("eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type)))
         },
     }
@@ -3325,11 +3376,21 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                             }
 
                         },
-                        ValueType::TBool => {
-                            match context.get_bool(&format!("{}.{}", name, inner_name)) {
-                                Some(result) => return result.to_string(),
-                                None => {
-                                    return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                        ValueType::TCustom(ref custom_type_name) => {
+                            match custom_type_name.as_str() {
+                                "bool" => {
+                                    match context.get_bool(&format!("{}.{}", name, inner_name)) {
+                                        Some(result) => return result.to_string(),
+                                        None => {
+                                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                                        },
+                                    }
+                                },
+                                _ => {
+                                    return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}' of custom type '{}'",
+                                                                               name,
+                                                                               inner_name,
+                                                                               value_type_to_str(&member_decl.value_type)))
                                 },
                             }
                         },
@@ -3337,9 +3398,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                             return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}' of value type '{}'",
                                                                        name,
                                                                        inner_name,
-                                                                       value_type_to_str(&member_decl.value_type)
-                            ))
-
+                                                                       value_type_to_str(&member_decl.value_type)))
                         },
                     }
                 },
@@ -3352,7 +3411,6 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
             return e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name))
         },
     }
-
 }
 
 fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &str) -> String {
@@ -3414,9 +3472,6 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
-            ValueType::TBool => {
-                return context.get_bool(name).unwrap().to_string()
-            },
             ValueType::TI64 => {
                 return context.get_i64(name).unwrap().to_string()
             },
@@ -3450,8 +3505,15 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 return e.lang_error("eval", &format!("Can't infer the type of identifier '{}'.", name))
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let to_return = eval_custom_expr(&e, &context, &name, &custom_type_name);
-                return to_return
+                match custom_type_name.as_str() {
+                    "bool" => {
+                        return context.get_bool(name).unwrap().to_string()
+                    },
+                    _ => {
+                        let to_return = eval_custom_expr(&e, &context, &name, &custom_type_name);
+                        return to_return
+                    },
+                }
             },
             _ => {
                 return e.todo_error("eval", &format!("Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type))
