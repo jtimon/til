@@ -71,39 +71,75 @@
 ))
 
 (defun cil-indent-line ()
-  "Indent current line as cil code."
+  "Indent current line as cil code using 4 spaces."
   (interactive)
-  (let ((indent-col 0))
+  (let ((indent 0)
+        (not-indented t))
     (save-excursion
       (beginning-of-line)
-      (let ((case-fold-search nil)) ; Enable case sensitivity
-        (cond
-         ((looking-at-p "[ \t]*}")
-          (condition-case nil
-              (progn
-                (backward-up-list 1)
-                (setq indent-col (current-indentation)))
-            (error (setq indent-col 0))))
-         ((looking-at-p "[ \t]*case\\b")
-          (condition-case nil
-              (progn
-                (backward-up-list 1)
-                (re-search-backward "switch\\b" nil t)
-                (setq indent-col (current-indentation)))
-            (error (setq indent-col 0))))
-         (t
-          (condition-case nil
-              (while t
-                (backward-up-list 1)
-                (when (looking-at "{")
-                  (setq indent-col (+ indent-col 4))))
-              (error nil))))))
-    (indent-line-to indent-col)
-    ;; Ensure that the line is indented with spaces
-    (when (and (not (zerop indent-col)) (not (looking-at-p "[ \t]*$")))
-      (let ((spaces (make-string 4 ?\s))) ; Create a string of 4 spaces
-        (delete-region (line-beginning-position) (point))
-        (insert spaces)))))
+      (skip-chars-forward " \t")
+      (cond
+       ;; Closing brace: align with opening block
+       ((looking-at "[ \t]*}")
+        (condition-case nil
+            (progn
+              (backward-up-list 1)
+              (setq indent (current-indentation))
+              (setq not-indented nil))
+          (error (setq indent 0))))
+       ;; Closing parenthesis: align with line containing opening parenthesis
+       ((looking-at "[ \t]*)")
+        (condition-case nil
+            (progn
+              (backward-up-list 1)
+              (save-excursion
+                (beginning-of-line)
+                (setq indent (current-indentation)))
+              (setq not-indented nil))
+          (error (setq indent 0))))
+       ;; Case statements: align with parent switch (case-sensitive)
+       ((let ((case-fold-search nil)) (looking-at "\\<case\\>"))
+        (condition-case nil
+            (progn
+              (backward-up-list 1)
+              (when (looking-at "{")
+                (goto-char (match-beginning 0))
+                (backward-sexp 1)
+                (if (looking-at "\\<switch\\>")
+                    (progn
+                      (message "Indent case at %d (switch)" (current-indentation))
+                      (setq indent (current-indentation)))
+                  (message "Indent case at %d (no switch)" (current-indentation))
+                  (setq indent (current-indentation))))
+              (setq not-indented nil))
+          (error
+           (message "Error in case indentation")
+           (setq indent 0))))
+       ;; Other lines: indent based on open blocks or parentheses
+       (t
+        (condition-case nil
+            (while not-indented
+              (backward-up-list 1)
+              (cond
+               ;; Inside a block: indent 4 spaces from block's indentation
+               ((looking-at "{")
+                (message "Indent block at %d" (+ (current-indentation) 4))
+                (setq indent (+ (current-indentation) 4))
+                (setq not-indented nil))
+               ;; Inside parentheses: indent 4 spaces from line's indentation
+               ((looking-at "(")
+                (save-excursion
+                  (beginning-of-line)
+                  (message "Indent paren at %d" (+ (current-indentation) 4))
+                  (setq indent (+ (current-indentation) 4)))
+                (setq not-indented nil))))
+          (error
+           (message "Error in default indentation")
+           (setq indent 0))))))
+    ;; Apply indentation
+    (beginning-of-line)
+    (delete-horizontal-space)
+    (indent-to indent)))
 
 (define-derived-mode cil-mode prog-mode "cil"
   "Major Mode for editing cil source code."

@@ -9,6 +9,10 @@ if true { // 'if', 'true' (font-lock-keyword-face in emacs)
     }
 }
 
+my_func := func(a1: bool, a2: bool, a3: bool) returns bool {
+    return true
+}
+
 if true {
     // Do nothing
 } else { // TODO support "else if" without requiring braces for the else
@@ -16,6 +20,10 @@ if true {
         // Do nothing
     } else {
         // Do nothing
+        my_val := my_func(
+            true,
+            true,
+            true)
     }
 }
 
@@ -78,4 +86,5 @@ switch x { // 'switch' (font-lock-keyword-face in emacs)
 case 4: // 'case' (font-lock-keyword-face in emacs), 'check_value' (no highlight, should not be font-lock-constant-face in emacs)
     x = 100 // 'x' in assigment must be variable (font-lock-variable-name-face in emacs)
 case:
+    x = 69
 }
