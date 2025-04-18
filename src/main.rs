@@ -2126,14 +2126,6 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 
 // ---------- Type checking
 
-fn does_func_return_bool(context: &Context, name: &str) -> bool {
-    if context.funcs.contains_key(name) {
-        let func_def = &context.funcs.get(name).unwrap();
-        return func_def.returns.len() == 1 && *func_def.returns.get(0).unwrap() == ValueType::TBool;
-    }
-    return false;
-}
-
 fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
@@ -2630,96 +2622,6 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
 
 // ---------- eval repl interpreter
 
-fn eval_call_to_bool(mut context: &mut Context, e: &Expr) -> bool {
-    // TODO refactor common code with eval_func_proc_call() to reuse
-    let id_expr = e.get(0);
-    let mut extra_arg = false;
-    let f_name = if id_expr.params.len() == 0 {
-        get_func_name_in_call(&e)
-    } else {
-        extra_arg = true;
-        match &id_expr.get(0).node_type {
-            NodeType::Identifier(f_name) => f_name.clone(),
-            _ => {
-                e.lang_error("eval", "panic eval_call_to_bool(), this should never happen.")
-            }
-        }
-    };
-
-    if !does_func_return_bool(&context, &f_name) {
-        e.lang_error("eval", &format!("eval_to_bool(): Function '{}' does not return bool", f_name));
-    }
-
-    if extra_arg {
-        let id_expr_name = get_func_name_in_call(&e);
-        let extra_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), &e, Vec::new());
-        let mut new_args = Vec::new();
-        new_args.push(extra_arg_e);
-        new_args.extend(e.params.clone());
-        let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
-        return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &new_e).as_str());
-    }
-    return lbool_in_string_to_bool(eval_func_proc_call(&f_name, &mut context, &e).as_str());
-}
-
-fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
-
-    match &e.node_type {
-        NodeType::LBool(b_value) => return *b_value,
-        NodeType::FCall => return eval_call_to_bool(&mut context, &e),
-        NodeType::Identifier(name) => {
-            match context.get_bool(name) {
-                Some(bool_) => {
-                    return bool_.clone()
-                },
-                None => {},
-            }
-            if context.struct_defs.contains_key(name) {
-                let struct_def = context.struct_defs.get(name).unwrap();
-
-                if e.params.len() == 0 {
-                    e.lang_error("eval", &format!("eval_to_bool(): struct '{}' is not a bool.", name));
-                }
-                let after_dot = e.get(0);
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.members.get(after_dot_name) {
-                            Some(_member) => _member,
-                            None => {
-                                e.lang_error("eval", &format!("eval_to_bool(): struct '{}' has no member '{}'", name, after_dot_name));
-                                return false // Just to shut up the compiler, we've already exited with 'e.lang_error("eval", )'
-                            },
-                        };
-
-                        let combined_name = format!("{}.{}", name, after_dot_name);
-                        match context.get_bool(&combined_name) {
-                            Some(bool_) => {
-                                return bool_.clone()
-                            },
-                            None => {},
-                        }
-                        e.lang_error("eval", &format!("eval_to_bool(): '{}' is not a bool, it is a '{}'",
-                                                      combined_name, value_type_to_str(&member_decl.value_type)));
-                        return false // Just to shut up the compiler, we've already exited with 'e.lang_error("eval", )'
-                    },
-
-                    _ => {
-                        e.lang_error("eval", &format!("eval_to_bool(): expected identifier after '{}.' found {:?}",
-                               name, after_dot.node_type));
-                        return false // Just to shut up the compiler, we've already exited with 'e.lang_error("eval", )'
-                    },
-                }
-            }
-            e.lang_error("eval", &format!("eval_to_bool(): Identifier '{}' is not a bool.", name));
-            return false // Just to shut up the compiler, we've already exited with 'e.lang_error("eval", )'
-        },
-        node_type => {
-            e.lang_error("eval", &format!("eval_to_bool(): The only types that can be evaluated to bool are currently 'LBool', 'FCall' and 'Identifier'. Found '{:?}'", node_type));
-            return false // Just to shut up the compiler, we've already exited with 'e.lang_error("eval", )'
-        },
-    }
-}
-
 // ---------- core funcs implementations for eval
 
 fn eval_core_func_eq(mut context: &mut Context, e: &Expr) -> String {
@@ -2832,6 +2734,11 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
         "false" => false,
         _ => panic!("{} ERROR: expected string 'true' or 'false', found '{}'. this should never happen.", LANG_NAME, b)
     }
+}
+
+fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
+    let result = &eval_expr(&mut context, &e);
+    return lbool_in_string_to_bool(result)
 }
 
 fn eval_core_proc_print(end_line: bool, mut context: &mut Context, e: &Expr) -> String {
