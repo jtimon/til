@@ -34,10 +34,10 @@ assert_eq_str := proc(a: String, b: String) {
     }
 }
 
-assert_eq := proc(a: i64, b: i64) {
+assert_eq := proc(a: I64, b: I64) {
     // if not(a.eq(b)) { // TODO: fix, remove, just to test that methods/UFCS work
     if not(eq(a, b)) {
-        println("assert_eq failed: expected '", i64.to_str(a), "', found '", i64.to_str(b), "'")
+        println("assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
         exit(1)
     }
 }
@@ -47,13 +47,13 @@ todo := proc(msg: String) {
     assertm(false, msg)
 }
 
-branchless := func(cond: Bool, a: i64, b: i64) returns i64 {
+branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
 }
 
 // TODO fix aliases
-// my_int : i64 = 1
+// my_int : I64 = 1
 
 // Note aliases can be used before declared:
-// U64 : Type = i64
+// U64 : Type = I64
 // OtherType : Type = Bool

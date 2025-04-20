@@ -1637,7 +1637,7 @@ impl Context {
         match &decl.value_type {
             ValueType::TCustom(type_name) => {
                 match type_name.as_str() {
-                    "i64" => {
+                    "I64" => {
                         self.insert_i64(&combined_name, value);
                     },
                     "Bool" => {
@@ -1668,7 +1668,7 @@ impl Context {
         match &decl.value_type {
             ValueType::TCustom(type_name) => {
                 match type_name.as_str() {
-                    "i64" => {
+                    "I64" => {
                         return self.get_i64(&combined_name).map(|value| value.to_string())
                     },
                     "Bool" => {
@@ -1926,7 +1926,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
-        NodeType::LI64(_) => Ok(ValueType::TCustom("i64".to_string())),
+        NodeType::LI64(_) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LBool(_) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LString(_) => Ok(ValueType::TCustom("String".to_string())),
         NodeType::LList(_) => Ok(ValueType::TList),
@@ -2253,7 +2253,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             Some(value_type) => {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "i64" | "Bool" | "String" => {},
+                        "I64" | "Bool" | "String" => {},
                         _ => {
                             errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                                       e.line, e.col, custom_type_name)));
@@ -2884,7 +2884,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
                 match custom_type_name.as_str() {
-                    "i64" => {
+                    "I64" => {
                         let result = &eval_expr(&mut function_context, &e.get(param_index));
                         function_context.insert_i64(&arg.name, result);
                     },
@@ -3163,7 +3163,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                             match member_value_type {
                                 ValueType::TCustom(type_name) => {
                                     match type_name.as_str() {
-                                        "i64" => {
+                                        "I64" => {
                                             let i64_expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_i64(&combined_name, &i64_expr_result_str);
                                         },
@@ -3235,7 +3235,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
-                "i64" => {
+                "I64" => {
                     let i64_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_i64(&declaration.name, &i64_expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
@@ -3297,7 +3297,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
-                "i64" => {
+                "I64" => {
                     let i64_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_i64(var_name, &i64_expr_result_str);
                     return "".to_string()
@@ -3349,7 +3349,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                     match member_decl.value_type {
                         ValueType::TCustom(ref custom_type_name) => {
                             match custom_type_name.as_str() {
-                                "i64" => {
+                                "I64" => {
                                     match context.get_i64(&format!("{}.{}", name, inner_name)) {
                                         Some(result) => return result.to_string(),
                                         None => {
@@ -3425,7 +3425,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
 
                                 ValueType::TCustom(ref custom_type_name) => {
                                     match custom_type_name.as_str() {
-                                        "i64" => {
+                                        "I64" => {
                                             match context.get_i64(&format!("{}.{}", name, inner_name)) {
                                                 Some(result) => return result.to_string(),
                                                 None => {
@@ -3512,7 +3512,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
             },
             ValueType::TCustom(ref custom_type_name) => {
                 match custom_type_name.as_str() {
-                    "i64" => {
+                    "I64" => {
                         return context.get_i64(name).unwrap().to_string()
                     },
                     "Bool" => {

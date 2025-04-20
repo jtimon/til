@@ -53,12 +53,12 @@ TokenType := enum {
 Token := struct {
     // mut token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
     mut token_str: String = ""
-    mut line: i64 = 0
-    mut col: i64 = 0
+    mut line: I64 = 0
+    mut col: I64 = 0
 }
 
 // TODO implement struct arrays and add the tokens to it, for now just print the tokens
-scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col: i64) {
+scan_push_token := proc(token_type: TokenType, token_str: String, line: I64, col: I64) {
     mut t := Token()
     // t.token_type = token_type // TODO implement enums as struct fields
     t.token_str = token_str
@@ -68,14 +68,14 @@ scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col
     // TODO implement enum_to_str
     switch token_type {
     case TokenType.Invalid:
-        println("Invalid Token (", i64.to_str(line), ", ", i64.to_str(col), "): ", token_str)
+        println("Invalid Token (", I64.to_str(line), ", ", I64.to_str(col), "): ", token_str)
     case:
-        println("Token (", i64.to_str(line), ", ", i64.to_str(col), "): ", token_str)
+        println("Token (", I64.to_str(line), ", ", I64.to_str(col), "): ", token_str)
     }
     // return t
 }
 
-is_digit := func(source: String, pos: i64) returns Bool {
+is_digit := func(source: String, pos: I64) returns Bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
@@ -94,7 +94,7 @@ is_digit := func(source: String, pos: i64) returns Bool {
     return false
 }
 
-is_id_start := func(source: String, pos: i64) returns Bool {
+is_id_start := func(source: String, pos: I64) returns Bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {

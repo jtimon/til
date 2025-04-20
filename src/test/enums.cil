@@ -60,6 +60,6 @@ ExampleEnum2 := enum {
     // CCC : CCC // TODO This fails, because CCC is not defined
     DDD
     LBool : Bool
-    LNumber : i64
+    LNumber : I64
     LString : String
 }

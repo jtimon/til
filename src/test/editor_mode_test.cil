@@ -20,7 +20,7 @@ if true {
 }
 
 // Built-in types
-my_i64 : i64 = 42 // 'i64' (font-lock-type-face in emacs)
+my_i64 : I64 = 42 // 'I64' (font-lock-type-face in emacs)
 my_Bool : Bool = true // 'Bool' (font-lock-type-face in emacs)
 my_string : String = "test" // 'String' (font-lock-type-face in emacs)
 
@@ -31,7 +31,7 @@ printed := concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
     Variant1 // No type, no highlight yet (TODO)
-    Variant2 : i64 // 'i64' (font-lock-type-face in emacs)
+    Variant2 : I64 // 'I64' (font-lock-type-face in emacs)
 }
 
 MyStruct := struct { // 'MyStruct' (font-lock-type-face in emacs)
@@ -44,7 +44,7 @@ mut x := 10 // 'x' in variable declaration (font-lock-variable-name-face in emac
 y := 20 // 'y' (font-lock-constant-face in emacs), since := works
 
 // Types in declarations and signatures
-proc_with_args := proc(arg1: i64, arg2: String) { // 'i64', 'String' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
+proc_with_args := proc(arg1: I64, arg2: String) { // 'I64', 'String' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
     return // 'return' (font-lock-keyword-face in emacs)
 }
 returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
@@ -52,12 +52,12 @@ returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 
 }
 
 // Mutable variables with 'mut'
-mut z : i64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-variable-name-face in emacs), 'i64' (font-lock-type-face in emacs)
+mut z : I64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-variable-name-face in emacs), 'I64' (font-lock-type-face in emacs)
 mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-name-face in emacs)
 
 // Constant arguments in function signatures
 // TODO implement mut args
-// my_proc := proc(const_arg: i64, mut mut_arg: String) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'i64', 'String' (font-lock-type-face in emacs)
+// my_proc := proc(const_arg: I64, mut mut_arg: String) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'String' (font-lock-type-face in emacs)
 //     // Nothing here
 // }
 
@@ -67,7 +67,7 @@ inferred_str := "string" // 'inferred_str' (font-lock-constant-face in emacs)
 
 // WIP cases that don't work yet
 spaced_const : = 60 // 'spaced_const' (no highlight, WIP)
-typed_const : i64 = 70 // 'typed_const' (no highlight, WIP), 'i64' (font-lock-type-face in emacs)
+typed_const : I64 = 70 // 'typed_const' (no highlight, WIP), 'I64' (font-lock-type-face in emacs)
 
 // Case statement (should not be constant)
 switch x { // 'switch' (font-lock-keyword-face in emacs)

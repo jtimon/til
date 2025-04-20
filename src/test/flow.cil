@@ -23,18 +23,18 @@ mut it := 0 // one has to use the 'mut' keyword for actual variables, since all 
 print("it: ")
 // while 42 { // fails, because while expects a bool first, not an int
 while lt(it, 5) {
-    print(i64.to_str(it), " ")
+    print(I64.to_str(it), " ")
     it = add(it, 1)
 }
 
 // switch statements:
 
-test_int_switch := proc (to_switch: i64) {
+test_int_switch := proc (to_switch: I64) {
     switch to_switch {
     case add(40, 2):
-        println("in test_int_switch(): ", i64.to_str(to_switch), " is the answer."); // semicolons are optional here too
+        println("in test_int_switch(): ", I64.to_str(to_switch), " is the answer."); // semicolons are optional here too
     case:
-        println("in test_int_switch(): ", i64.to_str(to_switch), " is a wrong answer.");
+        println("in test_int_switch(): ", I64.to_str(to_switch), " is a wrong answer.");
     }
 }
 test_int_switch(00);

@@ -3,13 +3,13 @@ mode test
 MyStruct := struct {
     static_bool_field : Bool = true
     mut bool_field : Bool = false
-    mut int_field : i64 = 42 // 42 is just the default, but you can set something else once in the init func
+    mut int_field : I64 = 42 // 42 is just the default, but you can set something else once in the init func
     mut string_field := ""
 
     // TODO allow assingments to struct fields, both mut or only overwrite the default once in init,
     // but then it is no longer "static", that's only for the compiler to care, not the user's problem
     // TODO static vs only_one assignment are details the interpreter should be smart enough to through errors about
-    init := func(self: MyStruct, int_const : i64, bool_field : Bool, int_field : i64, string_field) {
+    init := func(self: MyStruct, int_const : I64, bool_field : Bool, int_field : I64, string_field) {
         // self.bool_field_static = 69 // TODO think of a keyword to force this to fail
         // self.int_const = 69
         // self.bool_field = true
@@ -25,18 +25,18 @@ MyStruct := struct {
 
 EmptyStruct := struct {} // NOTE: empty struct instantiations are allowed
 Vec2 := struct {
-    mut x : i64 = 0
-    mut y : i64 = 0
+    mut x : I64 = 0
+    mut y : I64 = 0
 
-    add_all_coordinates := func(self: Vec2) returns i64 {
+    add_all_coordinates := func(self: Vec2) returns I64 {
         return add(self.x, self.y)
     }
 }
 
 Vec3 := struct {
-    mut x : i64 = 0
-    mut y : i64 = 0
-    mut z : i64 = 0
+    mut x : I64 = 0
+    mut y : I64 = 0
+    mut z : I64 = 0
 }
 
 // my_struct_type := MyStruct
@@ -53,7 +53,7 @@ test_structs := proc() {
     mut my_vec3 := Vec3()
     my_vec3.z = 42
     assert_eq(42, my_vec3.z) // access to struct fields as arguments
-    // my_i64 := i64() // TODO allow instantiations of core types
+    // my_i64 := I64() // TODO allow instantiations of core types
     // my_bool := Bool()
     // my_string := String() // TODO don't migrate from string to String, just self host it after structs and pointers
 

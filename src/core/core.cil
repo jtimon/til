@@ -1,23 +1,23 @@
 mode lib
 
-eq     := ext_func(a: i64, b: i64) returns Bool;
-lt     := ext_func(a: i64, b: i64) returns Bool;
-lteq   := ext_func(a: i64, b: i64) returns Bool;
-gt     := ext_func(a: i64, b: i64) returns Bool;
-gteq   := ext_func(a: i64, b: i64) returns Bool;
+eq     := ext_func(a: I64, b: I64) returns Bool;
+lt     := ext_func(a: I64, b: I64) returns Bool;
+lteq   := ext_func(a: I64, b: I64) returns Bool;
+gt     := ext_func(a: I64, b: I64) returns Bool;
+gteq   := ext_func(a: I64, b: I64) returns Bool;
 
-add := ext_func(a: i64, b: i64) returns i64;
-sub := ext_func(a: i64, b: i64) returns i64;
-mul := ext_func(a: i64, b: i64) returns i64;
-div := ext_func(a: i64, b: i64) returns i64;
+add := ext_func(a: I64, b: I64) returns I64;
+sub := ext_func(a: I64, b: I64) returns I64;
+mul := ext_func(a: I64, b: I64) returns I64;
+div := ext_func(a: I64, b: I64) returns I64;
 
-itoa := ext_func(a: i64) returns String;
-atoi := ext_func(a: String) returns i64;
+itoa := ext_func(a: I64) returns String;
+atoi := ext_func(a: String) returns I64;
 
 str_eq := ext_func(a: String, b: String) returns Bool;
 concat := ext_func(a: String, b: String) returns String;
-str_len := ext_func(a: String) returns i64;
-str_get_substr := ext_func(a: String, start: i64, end: i64) returns String;
+str_len := ext_func(a: String) returns I64;
+str_get_substr := ext_func(a: String, start: I64, end: I64) returns String;
 
 print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
 // TODO self host using print once the self escaped '\n' bug is fixed
@@ -25,7 +25,7 @@ println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
 // TODO implement the variadic part of print/println in std
 single_print := ext_proc(a: String); // TODO
 
-exit    := ext_proc(code: i64);
+exit    := ext_proc(code: I64);
 // TODO parse with dots like other languages, then change the direction of the slash depending on the os
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
@@ -79,7 +79,7 @@ and := func(arg_and_a: Bool, arg_and_b: Bool) returns Bool {
     return true
 }
 
-// Note that Bool, i64 and String don't have fields because the're the core types
+// Note that Bool, I64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
     to_str := func(self: Bool) returns String {
@@ -90,7 +90,7 @@ Bool := struct {
     }
 
     // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
-    to_int := func(self: Bool) returns i64 {
+    to_int := func(self: Bool) returns I64 {
         if self {
             return 1
         }
@@ -98,16 +98,16 @@ Bool := struct {
     }
 }
 
-i64 := struct {
-    // mut data : i64 = 0 // self host the data
+I64 := struct {
+    // mut data : I64 = 0 // self host the data
 
-    to_str := func(self: i64) returns String {
+    to_str := func(self: I64) returns String {
         return itoa(self)
     }
 
     // TODO instantiate structs somehow
-    __init__ := func(i: i64) returns i64 {
-        // n := i64{data: i}
+    __init__ := func(i: I64) returns I64 {
+        // n := I64{data: i}
         // n.data = i;
         // return n
         return i
@@ -120,23 +120,23 @@ i64 := struct {
 }
 
 String := struct {
-    to_int := func(self: String) returns i64 {
+    to_int := func(self: String) returns I64 {
         return atoi(self)
     }
 }
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
-# array_Bool_len := ext_func(a: ArrayBool) returns i64;
-# array_Bool_get := ext_func(a: ArrayBool, pos: i64) returns Bool;
+# array_Bool_len := ext_func(a: ArrayBool) returns I64;
+# array_Bool_get := ext_func(a: ArrayBool, pos: I64) returns Bool;
 
-# array_i64_len := ext_func(a: ArrayI64) returns i64;
-# array_i64_get := ext_func(a: ArrayI64, pos: i64) returns i64;
+# array_i64_len := ext_func(a: ArrayI64) returns I64;
+# array_i64_get := ext_func(a: ArrayI64, pos: I64) returns I64;
 
-# array_str_len := ext_func(a: ArrayString) returns i64;
-# array_str_get := ext_func(a: ArrayString, pos: i64) returns String;
+# array_str_len := ext_func(a: ArrayString) returns I64;
+# array_str_get := ext_func(a: ArrayString, pos: I64) returns String;
 
 // TODO implement macros:
-// array_struct_len := ext_func(a: ArrayStruct) returns i64;
-// array_str_get := ext_func(a: ArrayStruct, pos: i64) returns String;
-// array_generic_len := ext_func(a: Array) returns i64;
-// array_generic_get := ext_func(a: Array, pos: i64) returns String;
+// array_struct_len := ext_func(a: ArrayStruct) returns I64;
+// array_str_get := ext_func(a: ArrayStruct, pos: I64) returns String;
+// array_generic_len := ext_func(a: Array) returns I64;
+// array_generic_get := ext_func(a: Array, pos: I64) returns String;

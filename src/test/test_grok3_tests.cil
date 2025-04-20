@@ -18,16 +18,16 @@ test(eq(decrement(5), 4), "decrement(5) = 4")
 // Local functions only for testing:
 
 // Simple function with a condition
-is_zero := func(x: i64) returns Bool {
+is_zero := func(x: I64) returns Bool {
     return eq(x, 0)
 }
 
 // Simple addition function
-increment := func(x: i64) returns i64 {
+increment := func(x: I64) returns I64 {
     return add(x, 1)
 }
 
 // Simple subtraction function
-decrement := func(x: i64) returns i64 {
+decrement := func(x: I64) returns I64 {
     return sub(x, 1)
 }

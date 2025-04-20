@@ -11,18 +11,18 @@ test(is_positive(5), "is_positive(5) = true")
 
 // Local functions only for testing:
 
-add_two := func(a: i64) returns i64 {
+add_two := func(a: I64) returns I64 {
     return add(a, 2)
 }
 
-subtract_three := func(a: i64) returns i64 {
+subtract_three := func(a: I64) returns I64 {
     return sub(a, 3)
 }
 
-add_and_subtract := func(a: i64) returns i64 {
+add_and_subtract := func(a: I64) returns I64 {
     return subtract_three(add_two(a))
 }
 
-is_positive := func(a: i64) returns Bool {
+is_positive := func(a: I64) returns Bool {
     return gt(a, 0)
 }
