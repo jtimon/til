@@ -43,6 +43,82 @@ input_read_line := ext_proc(a: String) returns String;
 readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
+xor := func(a: bool, b: bool) returns bool {
+    // return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
+    // return or(a.and(not(b)), b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) again in self hostinf
+    return or(and(a, not(b)), and(b, not(a)))
+}
+
+// TODO fix arg names colliding when functions call other functions
+not := func(not_arg: bool) returns bool {
+    if not_arg {
+        return false
+    }
+    return true
+}
+
+// TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
+// TODO implement the variadic versions of and/or
+or := func(arg_or_a: bool, arg_or_b: bool) returns bool {
+    if arg_or_a {
+        return true
+    }
+    if arg_or_b {
+        return true
+    }
+    return false
+}
+
+and := func(arg_and_a: bool, arg_and_b: bool) returns bool {
+    if not(arg_and_a) {
+        return false
+    }
+    if not(arg_and_b) {
+        return false
+    }
+    return true
+}
+
+// Note that bool, i64 and String don't have fields because the're the core types
+// think of them as "half-external types" for now
+bool := struct {
+    to_str := func(self: bool) returns String {
+        if self {
+            return "true"
+        }
+        return "false"
+    }
+
+    // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
+    to_int := func(self: bool) returns i64 {
+        if self {
+            return 1
+        }
+        return 0
+    }
+}
+
+i64 := struct {
+    // mut data : i64 = 0 // self host the data
+
+    to_str := func(self: i64) returns String {
+        return itoa(self)
+    }
+
+    // TODO instantiate structs somehow
+    __init__ := func(i: i64) returns i64 {
+        // n := i64{data: i}
+        // n.data = i;
+        // return n
+        return i
+    }
+
+    // TODO implement operators and allow operator overload
+    __add__ := func(self: I64, other: I64) returns I64 {
+        return add(self.data, other.data)
+    }
+}
+
 String := struct {
     to_int := func(self: String) returns i64 {
         return atoi(self)

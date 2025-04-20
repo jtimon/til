@@ -478,7 +478,6 @@ fn is_literal(t: &Token) -> bool {
 #[derive(Debug, Clone, PartialEq)]
 enum ValueType {
     TType,
-    TI64,
     TList,
     TFunc,
     TProc,
@@ -494,7 +493,6 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
         ValueType::TType => "Type".to_string(),
         ValueType::ToInferType => INFER_TYPE.to_string(),
-        ValueType::TI64 => "i64".to_string(),
         ValueType::TList => "list".to_string(),
         ValueType::TFunc => "func".to_string(),
         ValueType::TProc => "proc".to_string(),
@@ -515,7 +513,6 @@ fn str_to_value_type(arg_type: &str) -> ValueType {
         "proc" => ValueType::TProc,
         "enum" => ValueType::TEnumDef,
         "struct" => ValueType::TStructDef,
-        "i64" => ValueType::TI64,
         type_name => ValueType::TCustom(type_name.to_string()),
     }
 }
@@ -1638,12 +1635,11 @@ impl Context {
     fn insert_struct_field_with_value(self: &mut Context, id: &str, decl: &Declaration, is_mut: bool, value: &String) -> bool {
         let combined_name = format!("{}.{}", id, &decl.name);
         match &decl.value_type {
-            ValueType::TI64 => {
-                self.insert_i64(&combined_name, value);
-            },
-
             ValueType::TCustom(type_name) => {
                 match type_name.as_str() {
+                    "i64" => {
+                        self.insert_i64(&combined_name, value);
+                    },
                     "bool" => {
                         self.insert_bool(&combined_name, value);
                     },
@@ -1656,8 +1652,7 @@ impl Context {
                         return false;
                     },
                 }
-            }
-
+            },
             _ => {
                 println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
                          decl.name, id, value_type_to_str(&decl.value_type));
@@ -1671,11 +1666,11 @@ impl Context {
     fn get_field_value(self: &mut Context, custom_type_name: &str, id: &str, decl: &Declaration) -> Option<String> {
         let combined_name = format!("{}.{}", id, &decl.name);
         match &decl.value_type {
-            ValueType::TI64 => {
-                return self.get_i64(&combined_name).map(|value| value.to_string())
-            },
             ValueType::TCustom(type_name) => {
                 match type_name.as_str() {
+                    "i64" => {
+                        return self.get_i64(&combined_name).map(|value| value.to_string())
+                    },
                     "bool" => {
                         return self.get_bool(&combined_name).map(|value| value.to_string())
                     },
@@ -1794,7 +1789,6 @@ fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<Val
         },
         1 => {
             match func_def.returns.get(0).unwrap() {
-                ValueType::TI64 => Ok(ValueType::TI64),
                 ValueType::TCustom(type_str) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 _ => return Err(e.error("type", &format!("func '{}' returns unsupported type {}",
                                                          name, value_type_to_str(func_def.returns.get(0).unwrap())))),
@@ -1932,9 +1926,9 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
+        NodeType::LI64(_) => Ok(ValueType::TCustom("i64".to_string())),
         NodeType::LBool(_) => Ok(ValueType::TCustom("bool".to_string())),
         NodeType::LString(_) => Ok(ValueType::TCustom("String".to_string())),
-        NodeType::LI64(_) => Ok(ValueType::TI64),
         NodeType::LList(_) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunc),
@@ -2112,7 +2106,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 },
 
-                ValueType::TType | ValueType::TI64 | ValueType::TList |
+                ValueType::TType | ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
@@ -2259,7 +2253,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             Some(value_type) => {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "bool" | "String" => {},
+                        "i64" | "bool" | "String" => {},
                         _ => {
                             errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                                       e.line, e.col, custom_type_name)));
@@ -2880,10 +2874,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
-            ValueType::TI64 =>  {
-                let result = &eval_expr(&mut function_context, &e.get(param_index));
-                function_context.insert_i64(&arg.name, result);
-            },
             ValueType::TMulti(ref _multi_value_type) => {
                 return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Variadic arguments for user defined functions not supported yet.",
                                                      &arg.name, value_type_to_str(&arg.value_type)))
@@ -2891,6 +2881,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
             ValueType::TCustom(ref custom_type_name) => {
                 let result = eval_expr(&mut function_context, &e.get(param_index));
                 match custom_type_name.as_str() {
+                    "i64" => {
+                        let result = &eval_expr(&mut function_context, &e.get(param_index));
+                        function_context.insert_i64(&arg.name, result);
+                    },
                     "bool" => {
                         function_context.insert_bool(&arg.name, &result);
                     },
@@ -3125,12 +3119,6 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             return e.lang_error("eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
                                                  declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)));
         },
-        ValueType::TI64 => {
-            let i64_expr_result_str = eval_expr(&mut context, inner_e);
-            context.insert_i64(&declaration.name, &i64_expr_result_str);
-            context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-            return "".to_string()
-        },
         ValueType::TEnumDef => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
@@ -3170,12 +3158,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                             };
 
                             match member_value_type {
-                                ValueType::TI64 => {
-                                    let i64_expr_result_str = eval_expr(&mut context, default_value);
-                                    context.insert_i64(&combined_name, &i64_expr_result_str);
-                                },
                                 ValueType::TCustom(type_name) => {
                                     match type_name.as_str() {
+                                        "i64" => {
+                                            let i64_expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_i64(&combined_name, &i64_expr_result_str);
+                                        },
                                         "bool" => {
                                             let bool_expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_bool(&combined_name, &bool_expr_result_str);
@@ -3244,6 +3232,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
+                "i64" => {
+                    let i64_expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_i64(&declaration.name, &i64_expr_result_str);
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    return "".to_string()
+                },
                 "bool" => {
                     let bool_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(&declaration.name, &bool_expr_result_str);
@@ -3298,13 +3292,13 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             return e.lang_error("eval", &format!("Cannot assign {}, type should already be inferred of type '{:?}'.", &var_name, &symbol_info.value_type));
         },
 
-        ValueType::TI64 => {
-            let i64_expr_result_str = eval_expr(&mut context, inner_e);
-            context.insert_i64(var_name, &i64_expr_result_str);
-            return "".to_string()
-        },
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
+                "i64" => {
+                    let i64_expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_i64(var_name, &i64_expr_result_str);
+                    return "".to_string()
+                },
                 "bool" => {
                     let bool_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(var_name, &bool_expr_result_str);
@@ -3350,17 +3344,16 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
             match struct_def.members.get(inner_name) {
                 Some(member_decl) => {
                     match member_decl.value_type {
-                        ValueType::TI64 => {
-                            match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                                Some(result) => return result.to_string(),
-                                None => {
-                                    return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
-                                },
-                            }
-
-                        },
                         ValueType::TCustom(ref custom_type_name) => {
                             match custom_type_name.as_str() {
+                                "i64" => {
+                                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                                        Some(result) => return result.to_string(),
+                                        None => {
+                                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                                        },
+                                    }
+                                },
                                 "bool" => {
                                     match context.get_bool(&format!("{}.{}", name, inner_name)) {
                                         Some(result) => return result.to_string(),
@@ -3426,15 +3419,40 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                     match struct_def.members.get(inner_name) {
                         Some(member_decl) => {
                             match member_decl.value_type {
-                                ValueType::TI64 => {
-                                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                                        Some(result) => return result.to_string(),
-                                        None => {
-                                            return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+
+                                ValueType::TCustom(ref custom_type_name) => {
+                                    match custom_type_name.as_str() {
+                                        "i64" => {
+                                            match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                                                Some(result) => return result.to_string(),
+                                                None => {
+                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                },
+                                            }
+                                        },
+                                        "bool" => {
+                                            match context.get_bool(&format!("{}.{}", name, inner_name)) {
+                                                Some(result) => return result.to_string(),
+                                                None => {
+                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                },
+                                            }
+                                        },
+                                        "String" => {
+                                            match context.get_string(&format!("{}.{}", name, inner_name)) {
+                                                Some(result) => return result.to_string(),
+                                                None => {
+                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                },
+                                            }
+                                        },
+                                        _ => {
+                                            return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom type '{}' not implemented",
+                                                                                       name, inner_name, custom_type_name))
                                         },
                                     }
-
                                 },
+
                                 _ => {
                                     return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of type '{}' not implemented",
                                                                                name, inner_name, value_type_to_str(&member_decl.value_type)))
@@ -3463,9 +3481,6 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
-            ValueType::TI64 => {
-                return context.get_i64(name).unwrap().to_string()
-            },
             ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
                 return name.to_string();
             },
@@ -3494,6 +3509,9 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
             },
             ValueType::TCustom(ref custom_type_name) => {
                 match custom_type_name.as_str() {
+                    "i64" => {
+                        return context.get_i64(name).unwrap().to_string()
+                    },
                     "bool" => {
                         return context.get_bool(name).unwrap().to_string()
                     },

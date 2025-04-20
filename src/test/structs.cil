@@ -53,7 +53,7 @@ test_structs := proc() {
     mut my_vec3 := Vec3()
     my_vec3.z = 42
     assert_eq(42, my_vec3.z) // access to struct fields as arguments
-    my_I64 := I64() // TODO migrate from i64 to I64
+    // my_I64 := i64() // TODO allow instantiations of core types
     // my_Bool := Bool() // TODO migrate from bool to Bool
     // my_String := String() // TODO don't migrate from string to String, just self host it after structs and pointers
 

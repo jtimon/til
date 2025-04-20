@@ -1,91 +1,5 @@
 mode lib
 
-xor := func(a: bool, b: bool) returns bool {
-    // return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
-    // return or(a.and(not(b)), b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) again in self hostinf
-    return or(and(a, not(b)), and(b, not(a)))
-}
-
-// TODO fix arg names colliding when functions call other functions
-not := func(not_arg: bool) returns bool {
-    if not_arg {
-        return false
-    }
-    return true
-}
-
-// TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
-// TODO implement the variadic versions of and/or
-or := func(arg_or_a: bool, arg_or_b: bool) returns bool {
-    if arg_or_a {
-        return true
-    }
-    if arg_or_b {
-        return true
-    }
-    return false
-}
-
-and := func(arg_and_a: bool, arg_and_b: bool) returns bool {
-    if not(arg_and_a) {
-        return false
-    }
-    if not(arg_and_b) {
-        return false
-    }
-    return true
-}
-
-// Note that bool, i64 and String don't have fields because the're the core types
-// think of them as "half-external types" for now
-bool := struct {
-    to_str := func(self: bool) returns String {
-        if self {
-            return "true"
-        }
-        return "false"
-    }
-
-    // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
-    to_int := func(self: bool) returns i64 {
-        if self {
-            return 1
-        }
-        return 0
-    }
-}
-
-// TODO move from bool to Bool?
-Bool := struct {
-//    mut data: bool = 0 // TODO
-}
-
-i64 := struct {
-    // mut data : i64 = 0 // self host the data
-
-    to_str := func(self: i64) returns String {
-        return itoa(self)
-    }
-
-    // TODO instantiate structs somehow
-    __init__ := func(i: i64) returns i64 {
-        // n := i64{data: i}
-        // n.data = i;
-        // return n
-        return i
-    }
-
-    // TODO implement operators and allow operator overload
-    __add__ := func(self: I64, other: I64) returns I64 {
-        return add(self.data, other.data)
-    }
-}
-
-// TODO move from i64 to I64
-I64 := struct {
-    mut data: i64 = 0 // TODO
-}
-
 panic2 := proc(msgs: ..String) {
     // TODO use variadic args in user defined functions. requires arrays
     exit(1)
@@ -121,8 +35,8 @@ assert_eq_str := proc(a: String, b: String) {
 }
 
 assert_eq := proc(a: i64, b: i64) {
-    if not(a.eq(b)) { // TODO: remove, just to test that methods work
-    // if not(eq(a, b)) {
+    // if not(a.eq(b)) { // TODO: fix, remove, just to test that methods/UFCS work
+    if not(eq(a, b)) {
         println("assert_eq failed: expected '", i64.to_str(a), "', found '", i64.to_str(b), "'")
         exit(1)
     }
