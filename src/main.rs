@@ -477,7 +477,6 @@ fn is_literal(t: &Token) -> bool {
 
 #[derive(Debug, Clone, PartialEq)]
 enum ValueType {
-    TType,
     TList,
     TFunc,
     TProc,
@@ -491,7 +490,6 @@ enum ValueType {
 
 fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
-        ValueType::TType => "Type".to_string(),
         ValueType::ToInferType => INFER_TYPE.to_string(),
         ValueType::TList => "list".to_string(),
         ValueType::TFunc => "func".to_string(),
@@ -507,7 +505,6 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
 fn str_to_value_type(arg_type: &str) -> ValueType {
     match arg_type {
         INFER_TYPE => ValueType::ToInferType,
-        "Type" => ValueType::TType,
         "list" => ValueType::TList,
         "func" => ValueType::TFunc,
         "proc" => ValueType::TProc,
@@ -1991,9 +1988,6 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                                     return Err(e.error("type", &format!("Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
                                                                         extra_member_str, name, member_str, name, member_str)));
                                 }
-                                if name.to_string() == "Type" {
-                                    return Ok(ValueType::TType);
-                                }
                                 return Ok(ValueType::TCustom(name.to_string()));
                             }
                             return Err(e.error("type", &format!("enum '{}' has no value '{}'", name, member_str)));
@@ -2106,7 +2100,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 },
 
-                ValueType::TType | ValueType::TList |
+                ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
@@ -3201,7 +3195,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                     return e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
                                                                          &declaration.name, &member_decl.name))
                                 },
-                                ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_) => {
+                                ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_) => {
                                         return e.todo_error("eval", &format!("Cannot declare '{}.{}' of type '{}'",
                                                                              &declaration.name,
                                                                              &member_decl.name,
@@ -3271,7 +3265,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 },
             }
         },
-        ValueType::TType | ValueType::TList | ValueType::TMulti(_) => {
+        ValueType::TList | ValueType::TMulti(_) => {
             e.error("eval", &format!("Cannot declare '{}' of type '{}'",
                                      &declaration.name, value_type_to_str(&declaration.value_type)))
         },
@@ -3331,7 +3325,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             }
         },
 
-        ValueType::TType | ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) => {
+        ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) => {
             return e.lang_error("eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type)))
         },
     }

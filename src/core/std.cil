@@ -9,10 +9,7 @@ panic := proc(msg: String) {
     println(msg)
     exit(1)
 }
-// panic("panic panics when uncommented") // fails, because it panics
 
-// fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// mut assertm := proc(cond: Bool, msg: String) {
 assertm := proc(cond: Bool, msg: String) {
     if not(cond) {
 	panic(concat("assert failed: ", msg))
@@ -51,9 +48,6 @@ branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
 }
 
-// TODO fix aliases
-// my_int : I64 = 1
-
+// TODO immplement aliases
 // Note aliases can be used before declared:
 // U64 : Type = I64
-// OtherType : Type = Bool
