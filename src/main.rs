@@ -3368,7 +3368,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                                     }
                                 },
                                 _ => {
-                                    return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}' of custom type '{}'",
+                                    return inner_e.lang_error("eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
                                                                                name,
                                                                                inner_name,
                                                                                value_type_to_str(&member_decl.value_type)))
@@ -3376,15 +3376,15 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                             }
                         },
                         _ => {
-                            return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}' of value type '{}'",
+                            return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member or mut (field) '{}' of value type '{}'",
                                                                        name,
                                                                        inner_name,
                                                                        value_type_to_str(&member_decl.value_type)))
                         },
                     }
                 },
-                _ => {
-                    return e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}'", name, inner_name))
+                None => {
+                    return e.lang_error("eval", &format!("struct '{}' has no member '{}'", name, inner_name))
                 },
             }
         },
