@@ -3331,6 +3331,53 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
     }
 }
 
+fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Context, inner_e: &Expr, member_decl: &Declaration) -> String {
+    match member_decl.value_type {
+        ValueType::TCustom(ref custom_type_name) => {
+
+            match custom_type_name.as_str() {
+                "I64" => {
+                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                        Some(result) => return result.to_string(),
+                        None => {
+                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                        },
+                    }
+                },
+                "Bool" => {
+                    match context.get_bool(&format!("{}.{}", name, inner_name)) {
+                        Some(result) => return result.to_string(),
+                        None => {
+                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                        },
+                    }
+                },
+                "String" => {
+                    match context.get_string(&format!("{}.{}", name, inner_name)) {
+                        Some(result_str) => return result_str.to_string(),
+                        None => {
+                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                        },
+                    }
+                },
+                _ => {
+                    return inner_e.lang_error("eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
+                                                               name,
+                                                               inner_name,
+                                                               value_type_to_str(&member_decl.value_type)))
+                },
+            }
+        },
+
+        _ => {
+            return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}' of struct value type '{}'",
+                                                       name,
+                                                       inner_name,
+                                                       value_type_to_str(&member_decl.value_type)))
+        },
+    }
+}
+
 fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> String {
     assert!(e.params.len() > 0, "{} eval ERROR: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
 
@@ -3340,48 +3387,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
         NodeType::Identifier(inner_name) => {
             match struct_def.members.get(inner_name) {
                 Some(member_decl) => {
-                    match member_decl.value_type {
-                        ValueType::TCustom(ref custom_type_name) => {
-                            match custom_type_name.as_str() {
-                                "I64" => {
-                                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                                        Some(result) => return result.to_string(),
-                                        None => {
-                                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
-                                        },
-                                    }
-                                },
-                                "Bool" => {
-                                    match context.get_bool(&format!("{}.{}", name, inner_name)) {
-                                        Some(result) => return result.to_string(),
-                                        None => {
-                                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
-                                        },
-                                    }
-                                },
-                                "String" => {
-                                    match context.get_string(&format!("{}.{}", name, inner_name)) {
-                                        Some(result_str) => return result_str.to_string(),
-                                        None => {
-                                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
-                                        },
-                                    }
-                                },
-                                _ => {
-                                    return inner_e.lang_error("eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
-                                                                               name,
-                                                                               inner_name,
-                                                                               value_type_to_str(&member_decl.value_type)))
-                                },
-                            }
-                        },
-                        _ => {
-                            return inner_e.lang_error("eval", &format!("struct '{}' has no const (static) member or mut (field) '{}' of value type '{}'",
-                                                                       name,
-                                                                       inner_name,
-                                                                       value_type_to_str(&member_decl.value_type)))
-                        },
-                    }
+                    return eval_identifier_expr_struct_member(name, inner_name, &context, &inner_e, &member_decl)
                 },
                 None => {
                     return e.lang_error("eval", &format!("struct '{}' has no member '{}'", name, inner_name))
