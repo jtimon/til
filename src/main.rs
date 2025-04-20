@@ -1640,7 +1640,7 @@ impl Context {
                     "i64" => {
                         self.insert_i64(&combined_name, value);
                     },
-                    "bool" => {
+                    "Bool" => {
                         self.insert_bool(&combined_name, value);
                     },
                     "String" => {
@@ -1671,7 +1671,7 @@ impl Context {
                     "i64" => {
                         return self.get_i64(&combined_name).map(|value| value.to_string())
                     },
-                    "bool" => {
+                    "Bool" => {
                         return self.get_bool(&combined_name).map(|value| value.to_string())
                     },
                     "String" => {
@@ -1927,7 +1927,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
         NodeType::LI64(_) => Ok(ValueType::TCustom("i64".to_string())),
-        NodeType::LBool(_) => Ok(ValueType::TCustom("bool".to_string())),
+        NodeType::LBool(_) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LString(_) => Ok(ValueType::TCustom("String".to_string())),
         NodeType::LList(_) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
@@ -2253,7 +2253,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             Some(value_type) => {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "i64" | "bool" | "String" => {},
+                        "i64" | "Bool" | "String" => {},
                         _ => {
                             errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                                       e.line, e.col, custom_type_name)));
@@ -2282,7 +2282,7 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
 
     let first_is_condition = match value_type {
         ValueType::TCustom(type_name) => match type_name.as_str() {
-            "bool" => true,
+            "Bool" => true,
             _ => false,
         },
         _ => false,
@@ -2311,7 +2311,7 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
 
     let first_is_condition = match value_type {
         ValueType::TCustom(type_name) => match type_name.as_str() {
-            "bool" => true,
+            "Bool" => true,
             _ => false,
         },
         _ => false,
@@ -2423,8 +2423,8 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                 errors.push(e.error("type", &format!("calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
                                     &f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type))));
             } else {
-                errors.push(e.error("type", &format!("calling function '{}' expects '{:?}' for arg '{}', but '{:?}' was provided.",
-                                    &f_name, expected_type, arg.name, found_type)));
+                errors.push(e.error("type", &format!("calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
+                                                     &f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type))));
             }
         }
     }
@@ -2444,10 +2444,13 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
                 has_variadic = true;
             }
             ValueType::TCustom(ref custom_type_name) => {
-                if !context.symbols.contains_key(custom_type_name) {
-                    errors.push(e.error("type", &format!("Argument '{}' is of undefined type {}.", &arg.name, &custom_type_name)));
-                }
-                let _custom_symbol = context.symbols.get(custom_type_name).unwrap();
+                let _custom_symbol = match context.symbols.get(custom_type_name) {
+                    Some(custom_symbol_) => custom_symbol_,
+                    None => {
+                        errors.push(e.error("type", &format!("Argument '{}' is of undefined type '{}'.", &arg.name, &custom_type_name)));
+                        return errors
+                    },
+                };
                 // TODO check more type stuff
             },
             _ => {},
@@ -2885,7 +2888,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
                         let result = &eval_expr(&mut function_context, &e.get(param_index));
                         function_context.insert_i64(&arg.name, result);
                     },
-                    "bool" => {
+                    "Bool" => {
                         function_context.insert_bool(&arg.name, &result);
                     },
                     "String" => {
@@ -3164,7 +3167,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                             let i64_expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_i64(&combined_name, &i64_expr_result_str);
                                         },
-                                        "bool" => {
+                                        "Bool" => {
                                             let bool_expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_bool(&combined_name, &bool_expr_result_str);
                                         },
@@ -3238,7 +3241,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     return "".to_string()
                 },
-                "bool" => {
+                "Bool" => {
                     let bool_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(&declaration.name, &bool_expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
@@ -3299,7 +3302,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     context.insert_i64(var_name, &i64_expr_result_str);
                     return "".to_string()
                 },
-                "bool" => {
+                "Bool" => {
                     let bool_expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(var_name, &bool_expr_result_str);
                     return "".to_string()
@@ -3354,7 +3357,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Strin
                                         },
                                     }
                                 },
-                                "bool" => {
+                                "Bool" => {
                                     match context.get_bool(&format!("{}.{}", name, inner_name)) {
                                         Some(result) => return result.to_string(),
                                         None => {
@@ -3430,7 +3433,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                 },
                                             }
                                         },
-                                        "bool" => {
+                                        "Bool" => {
                                             match context.get_bool(&format!("{}.{}", name, inner_name)) {
                                                 Some(result) => return result.to_string(),
                                                 None => {
@@ -3512,7 +3515,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                     "i64" => {
                         return context.get_i64(name).unwrap().to_string()
                     },
-                    "bool" => {
+                    "Bool" => {
                         return context.get_bool(name).unwrap().to_string()
                     },
                     "String" => {

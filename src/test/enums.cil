@@ -59,7 +59,7 @@ ExampleEnum2 := enum {
     // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
     // CCC : CCC // TODO This fails, because CCC is not defined
     DDD
-    LBool : bool
+    LBool : Bool
     LNumber : i64
     LString : String
 }

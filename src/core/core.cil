@@ -1,10 +1,10 @@
 mode lib
 
-eq     := ext_func(a: i64, b: i64) returns bool;
-lt     := ext_func(a: i64, b: i64) returns bool;
-lteq   := ext_func(a: i64, b: i64) returns bool;
-gt     := ext_func(a: i64, b: i64) returns bool;
-gteq   := ext_func(a: i64, b: i64) returns bool;
+eq     := ext_func(a: i64, b: i64) returns Bool;
+lt     := ext_func(a: i64, b: i64) returns Bool;
+lteq   := ext_func(a: i64, b: i64) returns Bool;
+gt     := ext_func(a: i64, b: i64) returns Bool;
+gteq   := ext_func(a: i64, b: i64) returns Bool;
 
 add := ext_func(a: i64, b: i64) returns i64;
 sub := ext_func(a: i64, b: i64) returns i64;
@@ -14,7 +14,7 @@ div := ext_func(a: i64, b: i64) returns i64;
 itoa := ext_func(a: i64) returns String;
 atoi := ext_func(a: String) returns i64;
 
-str_eq := ext_func(a: String, b: String) returns bool;
+str_eq := ext_func(a: String, b: String) returns Bool;
 concat := ext_func(a: String, b: String) returns String;
 str_len := ext_func(a: String) returns i64;
 str_get_substr := ext_func(a: String, start: i64, end: i64) returns String;
@@ -43,14 +43,14 @@ input_read_line := ext_proc(a: String) returns String;
 readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
-xor := func(a: bool, b: bool) returns bool {
+xor := func(a: Bool, b: Bool) returns Bool {
     // return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
     // return or(a.and(not(b)), b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) again in self hostinf
     return or(and(a, not(b)), and(b, not(a)))
 }
 
 // TODO fix arg names colliding when functions call other functions
-not := func(not_arg: bool) returns bool {
+not := func(not_arg: Bool) returns Bool {
     if not_arg {
         return false
     }
@@ -59,7 +59,7 @@ not := func(not_arg: bool) returns bool {
 
 // TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
 // TODO implement the variadic versions of and/or
-or := func(arg_or_a: bool, arg_or_b: bool) returns bool {
+or := func(arg_or_a: Bool, arg_or_b: Bool) returns Bool {
     if arg_or_a {
         return true
     }
@@ -69,7 +69,7 @@ or := func(arg_or_a: bool, arg_or_b: bool) returns bool {
     return false
 }
 
-and := func(arg_and_a: bool, arg_and_b: bool) returns bool {
+and := func(arg_and_a: Bool, arg_and_b: Bool) returns Bool {
     if not(arg_and_a) {
         return false
     }
@@ -79,10 +79,10 @@ and := func(arg_and_a: bool, arg_and_b: bool) returns bool {
     return true
 }
 
-// Note that bool, i64 and String don't have fields because the're the core types
+// Note that Bool, i64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
-bool := struct {
-    to_str := func(self: bool) returns String {
+Bool := struct {
+    to_str := func(self: Bool) returns String {
         if self {
             return "true"
         }
@@ -90,7 +90,7 @@ bool := struct {
     }
 
     // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
-    to_int := func(self: bool) returns i64 {
+    to_int := func(self: Bool) returns i64 {
         if self {
             return 1
         }
@@ -126,8 +126,8 @@ String := struct {
 }
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
-# array_bool_len := ext_func(a: ArrayBool) returns i64;
-# array_bool_get := ext_func(a: ArrayBool, pos: i64) returns bool;
+# array_Bool_len := ext_func(a: ArrayBool) returns i64;
+# array_Bool_get := ext_func(a: ArrayBool, pos: i64) returns Bool;
 
 # array_i64_len := ext_func(a: ArrayI64) returns i64;
 # array_i64_get := ext_func(a: ArrayI64, pos: i64) returns i64;

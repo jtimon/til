@@ -2,10 +2,10 @@ mode test
 
 // branchless conditions:
 
-// bool.to_int is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
-// bool.to_int can also be useful simply for optimizations, because branches are bad for branch prediction
-test(eq(bool.to_int(false), bool.to_int(not(true))), "false is not true")
-test(eq(bool.to_int(not(true)), bool.to_int(false)), "not true is false")
-test(eq(bool.to_int(eq(2, 2)), bool.to_int(true)), "2 and 2 are equal")
+// Bool.to_int is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
+// Bool.to_int can also be useful simply for optimizations, because branches are bad for branch prediction
+test(eq(Bool.to_int(false), Bool.to_int(not(true))), "false is not true")
+test(eq(Bool.to_int(not(true)), Bool.to_int(false)), "not true is false")
+test(eq(Bool.to_int(eq(2, 2)), Bool.to_int(true)), "2 and 2 are equal")
 test(eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
 test(eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")

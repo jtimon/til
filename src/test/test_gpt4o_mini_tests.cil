@@ -23,6 +23,6 @@ add_and_subtract := func(a: i64) returns i64 {
     return subtract_three(add_two(a))
 }
 
-is_positive := func(a: i64) returns bool {
+is_positive := func(a: i64) returns Bool {
     return gt(a, 0)
 }

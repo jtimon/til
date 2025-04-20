@@ -75,7 +75,7 @@ scan_push_token := proc(token_type: TokenType, token_str: String, line: i64, col
     // return t
 }
 
-is_digit := func(source: String, pos: i64) returns bool {
+is_digit := func(source: String, pos: i64) returns Bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
@@ -94,7 +94,7 @@ is_digit := func(source: String, pos: i64) returns bool {
     return false
 }
 
-is_id_start := func(source: String, pos: i64) returns bool {
+is_id_start := func(source: String, pos: i64) returns Bool {
     current_char := str_get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {

@@ -12,18 +12,18 @@ panic := proc(msg: String) {
 // panic("panic panics when uncommented") // fails, because it panics
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// mut assertm := proc(cond: bool, msg: String) {
-assertm := proc(cond: bool, msg: String) {
+// mut assertm := proc(cond: Bool, msg: String) {
+assertm := proc(cond: Bool, msg: String) {
     if not(cond) {
 	panic(concat("assert failed: ", msg))
     }
 }
 
-assert := proc(cond: bool) {
+assert := proc(cond: Bool) {
     assertm(cond, "")
 }
 
-test := proc(cond: bool, msg: String) {
+test := proc(cond: Bool, msg: String) {
     assertm(cond, msg)
 }
 
@@ -47,8 +47,8 @@ todo := proc(msg: String) {
     assertm(false, msg)
 }
 
-branchless := func(cond: bool, a: i64, b: i64) returns i64 {
-    return add(mul(a, bool.to_int(cond)), mul(b, bool.to_int(not(cond))))
+branchless := func(cond: Bool, a: i64, b: i64) returns i64 {
+    return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
 }
 
 // TODO fix aliases

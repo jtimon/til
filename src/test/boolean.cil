@@ -33,9 +33,9 @@ test(not(xor(true, true)), "xor(true, true) == false")
 
 // --------------- TODO remove redundancies
 
-// bool to int tests tests
-test(eq(bool.to_int(true), 1), "bool.to_int(true) = 1")
-test(eq(bool.to_int(false), 0), "bool.to_int(false) = 0")
+// Bool to int tests tests
+test(eq(Bool.to_int(true), 1), "Bool.to_int(true) = 1")
+test(eq(Bool.to_int(false), 0), "Bool.to_int(false) = 0")
 
 // Testing 'and' with all combinations
 test(and(true, true), "true AND true = true")
@@ -67,8 +67,8 @@ test(xor(false, true), "false XOR true = true")
 test(not(xor(true, true)), "true XOR true = false")
 test(not(xor(false, false)), "false XOR false = false")
 
-// Test bool.to_str()
-// test(str_eq("true", aaa.to_str()), "'true' = bool.to_str(true)") // TODO Use associated functions as methods
-test(str_eq("true", bool.to_str(true)), "'true' = bool.to_str(true)")
-test(str_eq("false", bool.to_str(false)), "'false' = bool.to_str(false)")
-test(str_eq("false", bool.to_str(and(false, false))), "'false' = bool.to_str(and(false, false)))")
+// Test Bool.to_str()
+// test(str_eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
+test(str_eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
+test(str_eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
+test(str_eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")

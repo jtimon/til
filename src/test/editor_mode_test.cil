@@ -21,7 +21,7 @@ if true {
 
 // Built-in types
 my_i64 : i64 = 42 // 'i64' (font-lock-type-face in emacs)
-my_bool : bool = true // 'bool' (font-lock-type-face in emacs)
+my_Bool : Bool = true // 'Bool' (font-lock-type-face in emacs)
 my_string : String = "test" // 'String' (font-lock-type-face in emacs)
 
 // Builtins
@@ -35,7 +35,7 @@ MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
 }
 
 MyStruct := struct { // 'MyStruct' (font-lock-type-face in emacs)
-    associated_constant : bool = false // 'bool' (font-lock-type-face in emacs)
+    associated_constant : Bool = false // 'Bool' (font-lock-type-face in emacs)
 }
 
 // Vaariable declarations and assignments
@@ -47,7 +47,7 @@ y := 20 // 'y' (font-lock-constant-face in emacs), since := works
 proc_with_args := proc(arg1: i64, arg2: String) { // 'i64', 'String' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
     return // 'return' (font-lock-keyword-face in emacs)
 }
-returns_bool := proc() returns bool { // 'bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
+returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
     return true
 }
 

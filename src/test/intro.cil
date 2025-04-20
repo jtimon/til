@@ -6,7 +6,7 @@ mode script
 
 // Declarations and assignments:
 
-AAA : bool = and(true, false); // Explicit types are allowed in declarations, but optional
+AAA : Bool = and(true, false); // Explicit types are allowed in declarations, but optional
 BBB := or(false, and(true, true)) // It is a strongly typed language, but allows type inference (not in arguments yet, never in return types)
 // AAA := true // fails, re-declaration of user constant 'AAA'
 // AAA = false // fails, assignment to a constant, all declarations are constant by default
@@ -24,26 +24,26 @@ abc_proc(true, true, true)
 abc_proc(false, false, false)
 
 // Procedures or procs can be declared and directly called in most modes including script
-abc_proc := proc(a: bool, b: bool, c: bool) {
+abc_proc := proc(a: Bool, b: Bool, c: Bool) {
 
-    abc := proc(a: bool, b: bool, c: bool) {
-	    println("inside abc, three bools: ", bool.to_str(a), ", ", bool.to_str(b), ", ", bool.to_str(c))
-	    // println("inside abc, three bools: ", a.to_str(), ", ", b.to_str(), ", ", c.to_str()) // TODO improve method calls
+    abc := proc(a: Bool, b: Bool, c: Bool) {
+	    println("inside abc, three Bools: ", Bool.to_str(a), ", ", Bool.to_str(b), ", ", Bool.to_str(c))
+	    // println("inside abc, three Bools: ", a.to_str(), ", ", b.to_str(), ", ", c.to_str()) // TODO improve method calls
     }
     abc(a, b, c)
 }
 
 // Pure functions or funcs are similar to procs, but they can't have side effects, thus they cannot call to procedures
-my_func := func(a: bool, b: bool) returns bool {
+my_func := func(a: Bool, b: Bool) returns Bool {
     // println("proc") // fails, funcs cannot call procs, println is a core proc
     // abc_proc() // fails, funcs cannot call procs, abc_proc is a custom proc
-    // return 42 // fails, because 42 is not a bool
+    // return 42 // fails, because 42 is not a Bool
     return and(a, b)
 }
 test(my_func(true, true), "my_func(true, true) didn't return true")
 
 // return can be used in functions that don't return anything to exit early
-exit_early_print := proc(a: bool, msg: String) {
+exit_early_print := proc(a: Bool, msg: String) {
     println(msg)
     if a {
         return
@@ -54,14 +54,14 @@ exit_early_print(false, "Calling: exit_early_print(false, msg)")
 exit_early_print(true, "Calling: exit_early_print(true, msg)")
 
 // Functions can return multiple values
-my_func_multi := func(a: bool, b: bool) returns bool, bool {
+my_func_multi := func(a: Bool, b: Bool) returns Bool, Bool {
     return a, b
 }
 // _a, _b := my_func_multi(true, true) // TODO multiple declarations
 // _a, _b = my_func_multi(true, true) // TODO multiple assignments
 
 // TODO treat macros differently, currently they're equivalent to procs
-my_macro := macro(a: bool, b: bool) returns bool {
+my_macro := macro(a: Bool, b: Bool) returns Bool {
     return and(a, b)
 }
 test(my_macro(true, true), "my_macro(true, true) didn't return true")
