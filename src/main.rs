@@ -3055,8 +3055,6 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
         let symbol = context.symbols.get(name).unwrap();
         match &symbol.value_type {
             ValueType::TCustom(custom_type_name) => {
-                println!("a");
-
                 let struct_def = match context.struct_defs.get(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
