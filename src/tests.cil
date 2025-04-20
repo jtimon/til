@@ -28,7 +28,7 @@ runfile("src/test/branchless.cil")
 runfile("src/test/comparisons.cil")
 runfile("src/test/editor_mode_test.cil")
 runfile("src/test/enums.cil")
-runfile("src/test/fib.cil") // recursive examples
+runfile("src/test/fibonacci.cil") // recursive examples
 runfile("src/test/flow.cil") // control flow, execution path examples
 runfile("src/test/intro.cil")
 runfile("src/test/namespaces.cil")

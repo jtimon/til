@@ -2,22 +2,22 @@ mode test
 
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: I64) {
-    fibonacci_0 := func(n: I64) returns I64 {
+    fib_0 := func(n: I64) returns I64 {
         if lt(n, 2) {
             return n
         }
-        return add(fibonacci_0(sub(n, 1)), fibonacci_0(sub(n, 2)))
+        return add(fib_0(sub(n, 1)), fib_0(sub(n, 2)))
     }
 
-    fibonacci_1 := func(n: I64) returns I64 {
+    fib_1 := func(n: I64) returns I64 {
         if lt(n, 2) {
             return n
         } else {
-            return add(fibonacci_1(sub(n, 1)), fibonacci_1(sub(n, 2)))
+            return add(fib_1(sub(n, 1)), fib_1(sub(n, 2)))
         }
     }
 
-    fibonacci_2 := func(n: I64) returns I64 {
+    fib_2 := func(n: I64) returns I64 {
         if lt(n, 2) {
             return n
         }
@@ -35,9 +35,9 @@ fib_test := proc(fib_arg: I64) {
 
     test_fib_alg := proc(num_alg: I64, n: I64) {
     	switch num_alg {
-        case 0: test(eq(fibonacci_0(n), fibonacci_1(n)), "fibonacci_0(n) or fibonacci_1(n) are faulty")
-        case 1: test(eq(fibonacci_1(n), fibonacci_0(n)), "fibonacci_1(n) is faulty")
-        case 2: test(eq(fibonacci_2(n), fibonacci_0(n)), "fibonacci_2(n) is faulty")
+        case 0: test(eq(fib_0(n), fib_1(n)), "fib_0(n) or fib_1(n) are faulty")
+        case 1: test(eq(fib_1(n), fib_0(n)), "fib_1(n) is faulty")
+        case 2: test(eq(fib_2(n), fib_0(n)), "fib_2(n) is faulty")
         case:
             println("test_fib_alg: algorithm '", I64.to_str(num_alg), "' not implemented")
             panic("TODO: another fib algorithm")
@@ -45,7 +45,7 @@ fib_test := proc(fib_arg: I64) {
     }
 
     // print_results := proc(n: I64) {
-    //     println("Fibonnaci results: ", I64.to_str(fibonacci_0(n)), ", ", I64.to_str(fibonacci_1(n)), ", ", I64.to_str(fibonacci_2(n)))
+    //     println("Fibonnaci results: ", I64.to_str(fib_0(n)), ", ", I64.to_str(fib_1(n)), ", ", I64.to_str(fib_2(n)))
     // }
     // print_results(fib_arg)
 
@@ -56,6 +56,6 @@ fib_test := proc(fib_arg: I64) {
 }
 fib_test(5)
 fib_test(10)
-// fibonacci_0(15) // fails because 'fibonacci_0' is defined locally inside fib_test
+// fib_0(15) // fails because 'fib_0' is defined locally inside fib_test
 
 // TODO make memoize, dumb iterative and cached iterative versions for when benchmarks; after self hosting
