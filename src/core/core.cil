@@ -43,6 +43,12 @@ input_read_line := ext_proc(a: String) returns String;
 readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
+String := struct {
+    to_int := func(self: String) returns i64 {
+        return atoi(self)
+    }
+}
+
 // TODO rustic interfaces with arrays, for variadic functions at least at first
 # array_bool_len := ext_func(a: ArrayBool) returns i64;
 # array_bool_get := ext_func(a: ArrayBool, pos: i64) returns bool;

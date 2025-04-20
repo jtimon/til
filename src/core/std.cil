@@ -86,12 +86,6 @@ I64 := struct {
     mut data: i64 = 0 // TODO
 }
 
-String := struct {
-    to_int := func(self: String) returns i64 {
-        return atoi(self)
-    }
-}
-
 panic2 := proc(msgs: ..String) {
     // TODO use variadic args in user defined functions. requires arrays
     exit(1)
