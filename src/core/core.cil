@@ -142,6 +142,7 @@ I64 := struct {
     // mut data := 0 // TODO Use [8]U8 for this one
 
     to_str := func(self: I64) returns String {
+        itoa := ext_func(a: I64) returns String;
         return itoa(self)
     }
 
@@ -159,6 +160,9 @@ I64 := struct {
         return I64_SIZE
     }
 }
+
+// Strigs too
+atoi := ext_func(a: String) returns I64;
 
 String := struct {
 
@@ -196,10 +200,6 @@ String := struct {
 }
 
 concat := ext_func(a: String, b: String) returns String;
-
-// Strigs too
-itoa := ext_func(a: I64) returns String;
-atoi := ext_func(a: String) returns I64;
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
 # array_Bool_len := ext_func(a: ArrayBool) returns I64;
