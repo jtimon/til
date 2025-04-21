@@ -14,7 +14,6 @@ U256_SIZE := 32
 I128_SIZE := 16
 I256_SIZE := 32
 
-i64_eq    := ext_func(a: I64, b: I64) returns Bool;
 lt        := ext_func(a: I64, b: I64) returns Bool;
 lteq      := ext_func(a: I64, b: I64) returns Bool;
 gt        := ext_func(a: I64, b: I64) returns Bool;
@@ -113,6 +112,16 @@ Bool := struct {
     size := func(self: I64) returns I64 {
         return I64_SIZE
     }
+}
+
+i64_eq := func(a: I64, b: I64) returns Bool {
+    if or(gt(a, b), gt(b, a)) {
+        return false
+    }
+    if or(lt(a, b), lt(b, a)) {
+        return false
+    }
+    return true
 }
 
 I64 := struct {
