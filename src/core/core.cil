@@ -14,11 +14,11 @@ U256_SIZE := 32
 I128_SIZE := 16
 I256_SIZE := 32
 
-eq     := ext_func(a: I64, b: I64) returns Bool;
-lt     := ext_func(a: I64, b: I64) returns Bool;
-lteq   := ext_func(a: I64, b: I64) returns Bool;
-gt     := ext_func(a: I64, b: I64) returns Bool;
-gteq   := ext_func(a: I64, b: I64) returns Bool;
+i64_eq    := ext_func(a: I64, b: I64) returns Bool;
+lt        := ext_func(a: I64, b: I64) returns Bool;
+lteq      := ext_func(a: I64, b: I64) returns Bool;
+gt        := ext_func(a: I64, b: I64) returns Bool;
+gteq      := ext_func(a: I64, b: I64) returns Bool;
 
 add := ext_func(a: I64, b: I64) returns I64;
 sub := ext_func(a: I64, b: I64) returns I64;
@@ -116,13 +116,18 @@ Bool := struct {
 }
 
 I64 := struct {
-    // mut data : I64 = 0 // self host the data
+    // mut data := 0 // TODO Use [8]U8 for this one
 
     to_str := func(self: I64) returns String {
         return itoa(self)
     }
 
-    // TODO implement operators and allow operator overload
+    // TODO this results in many errors
+    eq := func(a: I64, b: I64) returns Bool {
+        return i64_eq(a, b) // TODO this better
+    }
+
+    // todo implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self.data, other.data)
     }

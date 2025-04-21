@@ -33,7 +33,7 @@ assert_eq_str := proc(a: String, b: String) {
 
 assert_eq := proc(a: I64, b: I64) {
     // if not(a.eq(b)) { // TODO: fix, remove, just to test that methods/UFCS work
-    if not(eq(a, b)) {
+    if not(i64_eq(a, b)) {
         println("assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
         exit(1)
     }

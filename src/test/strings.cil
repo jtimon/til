@@ -2,8 +2,8 @@ mode test
 
 // String tests
 test(str_eq(concat("Hello, ", "world!"), "Hello, world!"), "concat('Hello, ', 'world!') = 'Hello, world!'")
-test(eq(atoi("123"), 123), "atoi('123') = 123")
-test(eq(atoi("0"), 0), "atoi('0') = 0")
+test(i64_eq(atoi("123"), 123), "atoi('123') = 123")
+test(i64_eq(atoi("0"), 0), "atoi('0') = 0")
 // TODO: Test with invalid strings for atoi, e.g., atoi("abc") // Expected: error or undefined behavior
 test(str_eq(itoa(456), "456"), "itoa(456) = '456'")
 test(str_eq(itoa(0), "0"), "itoa(0) = '0'")
@@ -15,10 +15,10 @@ empty_str := ""
 len3_str := "aaa"
 len5_str := "01234"
 
-test(eq(empty_str.len(), 0), "str_len('') = 0")
+test(i64_eq(empty_str.len(), 0), "str_len('') = 0")
 // test(eq(str_len("\n"), 1), "str_len('\n') = 1") // TODO fix
-test(eq(len3_str.len(), 3), "str_len('aaa') = 3")
-test(eq(len5_str.len(), 5), "str_len('01234') = 5")
+test(i64_eq(len3_str.len(), 3), "str_len('aaa') = 3")
+test(i64_eq(len5_str.len(), 5), "str_len('01234') = 5")
 
 assert_eq_str("012", str_get_substr("01234", 0, 3))
 assert_eq_str("234", str_get_substr("01234", 2, 5))

@@ -2,8 +2,8 @@ mode test
 
 // comparisons:
 
-test(eq(0, 0), "0 == 0")
-test(eq(2, 2), "2 == 2")
+test(i64_eq(0, 0), "0 == 0")
+test(i64_eq(2, 2), "2 == 2")
 test(lt(0, 1), "0 is less than 1")
 test(gt(2, 1), "2 is greater than 1")
 test(lteq(2, 2), "2 is gt-equal to 2")

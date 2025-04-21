@@ -5,21 +5,21 @@ test(is_zero(0), "is_zero(0) = true")
 test(not(is_zero(5)), "is_zero(5) = false")
 
 // More verbose tests:
-test(eq(Bool.to_int(is_zero(0)), 1), "eq(Bool.to_int(is_zero(0)), 1) = true")
-test(eq(Bool.to_int(is_zero(5)), 0), "eq(Bool.to_int(is_zero(5)), 0) = false")
+test(i64_eq(Bool.to_int(is_zero(0)), 1), "eq(Bool.to_int(is_zero(0)), 1) = true")
+test(i64_eq(Bool.to_int(is_zero(5)), 0), "eq(Bool.to_int(is_zero(5)), 0) = false")
 
 // Increment tests
-test(eq(increment(5), 6), "increment(5) = 6")
-test(eq(increment(0), 1), "increment(0) = 1")
+test(i64_eq(increment(5), 6), "increment(5) = 6")
+test(i64_eq(increment(0), 1), "increment(0) = 1")
 
 // Subtraction test
-test(eq(decrement(5), 4), "decrement(5) = 4")
+test(i64_eq(decrement(5), 4), "decrement(5) = 4")
 
 // Local functions only for testing:
 
 // Simple function with a condition
 is_zero := func(x: I64) returns Bool {
-    return eq(x, 0)
+    return i64_eq(x, 0)
 }
 
 // Simple addition function

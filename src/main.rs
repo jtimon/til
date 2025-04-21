@@ -2939,7 +2939,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
-        "eq" => eval_core_func_eq(&mut context, &e),
+        "i64_eq" => eval_core_func_eq(&mut context, &e),
         "str_eq" => eval_core_func_str_eq(&mut context, &e),
         "concat" => eval_core_func_concat(&mut context, &e),
         "str_len" => eval_core_func_str_len(&mut context, &e),
