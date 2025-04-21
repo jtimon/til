@@ -146,14 +146,18 @@ I64 := struct {
         return itoa(self)
     }
 
-    // TODO this results in many errors
+    from_str := func(str: String) returns I64 {
+        atoi := ext_func(a: String) returns I64;
+        return atoi(str) // TODO: this can fail and panic from rust
+    }
+
     eq := func(a: I64, b: I64) returns Bool {
         return i64_eq(a, b) // TODO this better
     }
 
-    // todo implement operators and allow operator overload
+    // TODO: implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
-        return add(self.data, other.data)
+        return add(self, other)
     }
     
     size := func(self: I64) returns I64 {
@@ -161,11 +165,7 @@ I64 := struct {
     }
 }
 
-// Strigs too
-atoi := ext_func(a: String) returns I64;
-
 String := struct {
-
     // TODO get rid of special cases for String besides literals
     // mut ptr = 0
     // mut cap = 0
@@ -181,7 +181,7 @@ String := struct {
     }
 
     to_int := func(self: String) returns I64 {
-        return atoi(self) // TODO this can fail
+        return I64.from_str(self)
     }
 
     get_substr := func(s: String, start: I64, end: I64) returns String {
