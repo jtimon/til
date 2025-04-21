@@ -103,6 +103,13 @@ Bool := struct {
         return 0
     }
 
+    from_i64 := func(i: I64) returns Bool {
+        if gt(i, 0) {
+            return true
+        }
+        return false
+    }
+
     size := func(self: I64) returns I64 {
         return I64_SIZE
     }
