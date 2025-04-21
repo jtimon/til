@@ -30,7 +30,6 @@ atoi := ext_func(a: String) returns I64;
 
 str_eq := ext_func(a: String, b: String) returns Bool;
 concat := ext_func(a: String, b: String) returns String;
-str_len := ext_func(a: String) returns I64;
 str_get_substr := ext_func(a: String, start: I64, end: I64) returns String;
 
 print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
@@ -134,10 +133,17 @@ I64 := struct {
 }
 
 String := struct {
+
+    len := func(self: String) returns I64 {
+        // str_len := ext_func(a: String) returns I64; // TODO encapsulate here
+        return str_len(self)
+    }
+
     to_int := func(self: String) returns I64 {
-        return atoi(self)
+        return atoi(self) // TODO this can fail
     }
 }
+str_len := ext_func(a: String) returns I64;
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
 # array_Bool_len := ext_func(a: ArrayBool) returns I64;

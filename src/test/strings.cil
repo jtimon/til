@@ -11,10 +11,14 @@ test(str_eq(itoa(0), "0"), "itoa(0) = '0'")
 print("this is the same as the next line\n");
 println("this is the same as the next line");
 
-test(eq(str_len(""), 0), "str_len('') = 0")
+empty_str := ""
+len3_str := "aaa"
+len5_str := "01234"
+
+test(eq(empty_str.len(), 0), "str_len('') = 0")
 // test(eq(str_len("\n"), 1), "str_len('\n') = 1") // TODO fix
-test(eq(str_len("aaa"), 3), "str_len('aaa') = 3")
-test(eq(str_len("01234"), 5), "str_len('01234') = 5")
+test(eq(len3_str.len(), 3), "str_len('aaa') = 3")
+test(eq(len5_str.len(), 5), "str_len('01234') = 5")
 
 assert_eq_str("012", str_get_substr("01234", 0, 3))
 assert_eq_str("234", str_get_substr("01234", 2, 5))
