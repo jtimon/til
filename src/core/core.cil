@@ -1,5 +1,19 @@
 mode lib
 
+  U8_SIZE := 1
+ U16_SIZE := 2
+ U32_SIZE := 4
+ U64_SIZE := 8
+U128_SIZE := 16
+U256_SIZE := 32
+
+  I8_SIZE := 1
+ I16_SIZE := 2
+ I32_SIZE := 4
+ I64_SIZE := 8
+I128_SIZE := 16
+I256_SIZE := 32
+
 eq     := ext_func(a: I64, b: I64) returns Bool;
 lt     := ext_func(a: I64, b: I64) returns Bool;
 lteq   := ext_func(a: I64, b: I64) returns Bool;
