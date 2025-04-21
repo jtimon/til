@@ -76,7 +76,7 @@ scan_push_token := proc(token_type: TokenType, token_str: String, line: I64, col
 }
 
 is_digit := func(source: String, pos: I64) returns Bool {
-    current_char := str_get_substr(source, pos, add(pos, 1))
+    current_char := String.get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
     case "0": return true
@@ -95,7 +95,7 @@ is_digit := func(source: String, pos: I64) returns Bool {
 }
 
 is_id_start := func(source: String, pos: I64) returns Bool {
-    current_char := str_get_substr(source, pos, add(pos, 1))
+    current_char := String.get_substr(source, pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
     case "a": return true
@@ -232,16 +232,16 @@ scan_tokens := proc(source: String) {
                 pos = add(pos, 1)
             }
             // Look for a fractional part.
-            if and(str_eq(str_get_substr(source, pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
+            if and(str_eq(String.get_substr(source, pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
                 pos = add(pos, 1)
                 while and(lt(pos, eof_pos), is_digit(source, pos)) {
                     pos = add(pos, 1)
                 }
             }
-            scan_push_token(TokenType.Number, str_get_substr(source, start, pos), line, sub(pos, start_line_pos))
+            scan_push_token(TokenType.Number, String.get_substr(source, start, pos), line, sub(pos, start_line_pos))
         } else {
 
-            current_char := str_get_substr(source, pos, add(pos, 1))
+            current_char := String.get_substr(source, pos, add(pos, 1))
             switch current_char {
                 // chars to ignore in this language:
             case " ":  pos = add(pos, 1)
@@ -291,7 +291,7 @@ scan_tokens := proc(source: String) {
 
                 // reserved for two chars in a row
             case ".":
-                if str_eq(".", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                if str_eq(".", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
                     pos = add(pos, 1)
                 } else {
@@ -299,7 +299,7 @@ scan_tokens := proc(source: String) {
                 }
                 pos = add(pos, 1)
             case "=":
-                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                if str_eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
                     pos = add(pos, 1)
                 } else {
@@ -307,7 +307,7 @@ scan_tokens := proc(source: String) {
                 }
                 pos = add(pos, 1)
             case "<":
-                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                if str_eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
                     pos = add(pos, 1)
                 } else {
@@ -315,7 +315,7 @@ scan_tokens := proc(source: String) {
                 }
                 pos = add(pos, 1)
             case ">":
-                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                if str_eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
                     pos = add(pos, 1)
                 } else {
@@ -323,7 +323,7 @@ scan_tokens := proc(source: String) {
                 }
                 pos = add(pos, 1)
             case "!":
-                if str_eq("=", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                if str_eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
                     pos = add(pos, 1)
                 } else {
@@ -335,15 +335,15 @@ scan_tokens := proc(source: String) {
                 // TODO fix end of lines, this can't work before that
                 case "#":
                     pos = add(pos, 1)
-                    while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", str_get_substr(source, pos, add(pos, 2))))) {
+                    while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
                         pos = add(pos, 1)
                     }
 
                 case "/":
                     // TODO allow the other type of commments '/*', allowing nesting like odin or jai
-                    if str_eq("/", str_get_substr(source, add(pos, 1), add(pos, 2))) {
+                    if str_eq("/", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                         pos = add(pos, 2)
-                        while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", str_get_substr(source, pos, add(pos, 2))))) {
+                        while and(lt(add(pos, 1), eof_pos), not(str_eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
                             pos = add(pos, 1)
                         }
 
@@ -356,17 +356,17 @@ scan_tokens := proc(source: String) {
             // case "\"":
             case "\"":
                 pos = add(pos, 1)
-                while and(lt(add(pos, 1), eof_pos), not(str_eq(str_get_substr(source, pos, add(pos, 1)), "\""))) {
-                    if str_eq(str_get_substr(source, pos, add(pos, 1)), "\\") {
+                while and(lt(add(pos, 1), eof_pos), not(str_eq(String.get_substr(source, pos, add(pos, 1)), "\""))) {
+                    if str_eq(String.get_substr(source, pos, add(pos, 1)), "\\") {
                         pos = add(pos, 1) // if it's the escape character, skip the next character too
                     }
                     pos = add(pos, 1)
                 }
                 if gteq(pos, eof_pos) {
-                    token_str := str_get_substr(source, start, add(pos, 1))
+                    token_str := String.get_substr(source, start, add(pos, 1))
                     scan_push_token(TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
-                    token_str := str_get_substr(source, add(start, 1), pos)
+                    token_str := String.get_substr(source, add(start, 1), pos)
                     scan_push_token(TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
                 }
 
@@ -379,7 +379,7 @@ scan_tokens := proc(source: String) {
                         // TODO fix literal strings with escape characters like in the rust implementation
                     }
                     pos = sub(pos, 1)
-                    id_str := str_get_substr(source, start, add(pos, 1))
+                    id_str := String.get_substr(source, start, add(pos, 1))
                     scan_push_token(scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     scan_push_token(TokenType.Invalid, current_char, line, sub(pos, start_line_pos))

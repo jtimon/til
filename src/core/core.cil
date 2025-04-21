@@ -184,6 +184,7 @@ String := struct {
         if gt(end, s.len()) {
             panic("get_substr: ", end, " greater than ", s.len())
         }
+        str_get_substr := ext_func(s: String, start: I64, end: I64) returns String; // TODO declare only here
         return str_get_substr(s, start, end)
     }
 
@@ -194,9 +195,7 @@ String := struct {
     }
 }
 
-// str_len := ext_func(a: String) returns I64;
 str_eq := ext_func(a: String, b: String) returns Bool;
-str_get_substr := ext_func(s: String, start: I64, end: I64) returns String;
 concat := ext_func(a: String, b: String) returns String;
 
 // Strigs too
