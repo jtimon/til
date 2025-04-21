@@ -25,8 +25,7 @@ test := proc(cond: Bool, msg: String) {
 }
 
 assert_eq_str := proc(a: String, b: String) {
-    if not(str_eq(a, b)) { // backtrack syntax  if needed
-    // if not(String.eq(a, b)) {
+    if not(String.eq(a, b)) {
         println("assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }
@@ -43,7 +42,7 @@ assert_eq := proc(a: I64, b: I64) {
 todo := proc(msg: String) {
     print("TODO: ")
     assertm(false, msg)
-}
+ }
 
 branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))

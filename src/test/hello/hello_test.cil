@@ -5,5 +5,5 @@ hello := func() returns String {
 }
 
 assert_eq_str(hello(), "Hello World!")
-test(str_eq(hello(), "Hello World!"), "hello() should return 'Hello World!'")
+test(String.eq(hello(), "Hello World!"), "hello() should return 'Hello World!'")
 test(not(i64_eq(42, 43)), "42 != 42")

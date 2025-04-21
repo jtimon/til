@@ -68,7 +68,7 @@ test(not(xor(true, true)), "true XOR true = false")
 test(not(xor(false, false)), "false XOR false = false")
 
 // Test Bool.to_str()
-// test(str_eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
-test(str_eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
-test(str_eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
-test(str_eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
+// test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
+test(String.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
+test(String.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
+test(String.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")

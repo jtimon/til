@@ -166,13 +166,13 @@ String := struct {
     // mut ptr = 0
     // mut cap = 0
 
-    eq := func(self: String, other: String) returns I64 {
+    eq := func(self: String, other: String) returns Bool {
         str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
         return str_eq(self, other)
     }
 
     len := func(self: String) returns I64 {
-        str_len := ext_func(a: String) returns I64; // TODO encapsulate here
+        str_len := ext_func(a: String) returns I64;
         return str_len(self)
     }
 
@@ -195,7 +195,6 @@ String := struct {
     }
 }
 
-str_eq := ext_func(a: String, b: String) returns Bool;
 concat := ext_func(a: String, b: String) returns String;
 
 // Strigs too
