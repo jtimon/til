@@ -1,0 +1,13 @@
+mode test
+
+my_false := false
+my_true  := true
+
+test_ufcs := proc () {
+    assert(not(my_false))
+    assert(my_true)
+    // assert(my_true.and(my_true)) // TODO FIX
+    assert(not(my_true.and(my_false)))
+    // assert(my_true.or(my_false)) // TODO FIX
+    // assert(my_false.or(my_true)) // TODO FIX
+}

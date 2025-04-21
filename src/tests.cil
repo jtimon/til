@@ -28,6 +28,7 @@ runfile("src/test/intro.cil")
 runfile("src/test/namespaces.cil")
 runfile("src/test/strings.cil")
 runfile("src/test/structs.cil")
+runfile("src/test/ufcs.cil")
 
 // next level:
 
