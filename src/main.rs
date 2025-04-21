@@ -2675,25 +2675,11 @@ fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     (a < b).to_string()
 }
 
-fn eval_core_func_lteq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
-    (a <= b).to_string()
-}
-
 fn eval_core_func_gt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
     let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
     (a > b).to_string()
-}
-
-fn eval_core_func_gteq(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
-    let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
-    let b = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
-    (a >= b).to_string()
 }
 
 fn eval_core_func_add(mut context: &mut Context, e: &Expr) -> String {
@@ -2937,9 +2923,7 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "str_len" => eval_core_func_str_len(&mut context, &e),
         "str_get_substr" => eval_core_func_str_get_substr(&mut context, &e),
         "lt" => eval_core_func_lt(&mut context, &e),
-        "lteq" => eval_core_func_lteq(&mut context, &e),
         "gt" => eval_core_func_gt(&mut context, &e),
-        "gteq" => eval_core_func_gteq(&mut context, &e),
         "add" => eval_core_func_add(&mut context, &e),
         "sub" => eval_core_func_sub(&mut context, &e),
         "mul" => eval_core_func_mul(&mut context, &e),
