@@ -14,20 +14,24 @@ U256_SIZE := 32
 I128_SIZE := 16
 I256_SIZE := 32
 
+// Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;
 gt        := ext_func(a: I64, b: I64) returns Bool;
 
-add := ext_func(a: I64, b: I64) returns I64;
-sub := ext_func(a: I64, b: I64) returns I64;
-mul := ext_func(a: I64, b: I64) returns I64;
-div := ext_func(a: I64, b: I64) returns I64;
+// Minimal arithmehics are fair and necessary
+add       := ext_func(a: I64, b: I64) returns I64;
+sub       := ext_func(a: I64, b: I64) returns I64;
+mul       := ext_func(a: I64, b: I64) returns I64;
+div       := ext_func(a: I64, b: I64) returns I64;
+mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
+// Strigs too
 itoa := ext_func(a: I64) returns String;
 atoi := ext_func(a: String) returns I64;
 
 str_eq := ext_func(a: String, b: String) returns Bool;
 concat := ext_func(a: String, b: String) returns String;
-str_get_substr := ext_func(a: String, start: I64, end: I64) returns String;
+str_get_substr := ext_func(s: String, start: I64, end: I64) returns String;
 
 print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
 // TODO self host using print once the self escaped '\n' bug is fixed
@@ -173,6 +177,19 @@ String := struct {
 
     to_int := func(self: String) returns I64 {
         return atoi(self) // TODO this can fail
+    }
+
+    get_substr := func(s: String, start: I64, end: I64) returns String {
+        if gt(end, s.len()) {
+            panic("get_substr: ", end, "greater than", s.len())
+        }
+        return str_get_substr(s, start, end)
+    }
+
+    get_char := func(s: String, pos: I64) returns String {
+        start := pos
+        end := add(pos, 1)
+        return s.get_substr(start, end)
     }
 }
 str_len := ext_func(a: String) returns I64;
