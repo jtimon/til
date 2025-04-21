@@ -105,14 +105,6 @@ I64 := struct {
         return itoa(self)
     }
 
-    // TODO instantiate structs somehow
-    __init__ := func(i: I64) returns I64 {
-        // n := I64{data: i}
-        // n.data = i;
-        // return n
-        return i
-    }
-
     // TODO implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self.data, other.data)
