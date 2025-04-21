@@ -110,6 +110,10 @@ Bool := struct {
         }
         return 0
     }
+
+    size := func(self: I64) returns I64 {
+        return I64_SIZE
+    }
 }
 
 I64 := struct {
@@ -122,6 +126,10 @@ I64 := struct {
     // TODO implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self.data, other.data)
+    }
+    
+    size := func(self: I64) returns I64 {
+        return I64_SIZE
     }
 }
 
