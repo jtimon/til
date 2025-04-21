@@ -15,9 +15,9 @@ empty_str := ""
 len3_str := "012"
 len5_str := "01234"
 
-test(i64_eq(empty_str.len(), 0), "str_len('') = 0")
-test(i64_eq(len3_str.len(), 3), "str_len('012') = 3")
-test(i64_eq(len5_str.len(), 5), "str_len('01234') = 5")
+test(i64_eq(empty_str.len(), 0), "String.len('') = 0")
+test(i64_eq(len3_str.len(), 3), "String.len('012') = 3")
+test(i64_eq(len5_str.len(), 5), "String.len('01234') = 5")
 
 assert_eq_str("0",   String.get_substr("01234", 0, 1))
 assert_eq_str("012", String.get_substr("01234", 0, 3))

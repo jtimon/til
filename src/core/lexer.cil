@@ -218,8 +218,9 @@ scan_reserved_words := func(identifier: String) returns TokenType {
 }
 
 scan_tokens := proc(source: String) {
-    eof_pos := str_len(source) // TODO fix
+    eof_pos := String.len(source) // TODO fix
     // eof_pos := source.len()
+
     mut pos := 0
     mut line := 0
     mut start_line_pos := 0

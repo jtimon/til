@@ -25,14 +25,6 @@ mul       := ext_func(a: I64, b: I64) returns I64;
 div       := ext_func(a: I64, b: I64) returns I64;
 mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
-// Strigs too
-itoa := ext_func(a: I64) returns String;
-atoi := ext_func(a: String) returns I64;
-
-str_eq := ext_func(a: String, b: String) returns Bool;
-concat := ext_func(a: String, b: String) returns String;
-str_get_substr := ext_func(s: String, start: I64, end: I64) returns String;
-
 print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
 // TODO self host using print once the self escaped '\n' bug is fixed
 println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
@@ -170,8 +162,17 @@ I64 := struct {
 
 String := struct {
 
+    // TODO get rid of special cases for String besides literals
+    // mut ptr = 0
+    // mut cap = 0
+
+    eq := func(self: String, other: String) returns I64 {
+        str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
+        return str_eq(self, other)
+    }
+
     len := func(self: String) returns I64 {
-        // str_len := ext_func(a: String) returns I64; // TODO encapsulate here
+        str_len := ext_func(a: String) returns I64; // TODO encapsulate here
         return str_len(self)
     }
 
@@ -181,7 +182,7 @@ String := struct {
 
     get_substr := func(s: String, start: I64, end: I64) returns String {
         if gt(end, s.len()) {
-            panic("get_substr: ", end, "greater than", s.len())
+            panic("get_substr: ", end, " greater than ", s.len())
         }
         return str_get_substr(s, start, end)
     }
@@ -192,7 +193,15 @@ String := struct {
         return s.get_substr(start, end)
     }
 }
-str_len := ext_func(a: String) returns I64;
+
+// str_len := ext_func(a: String) returns I64;
+str_eq := ext_func(a: String, b: String) returns Bool;
+str_get_substr := ext_func(s: String, start: I64, end: I64) returns String;
+concat := ext_func(a: String, b: String) returns String;
+
+// Strigs too
+itoa := ext_func(a: I64) returns String;
+atoi := ext_func(a: String) returns I64;
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
 # array_Bool_len := ext_func(a: ArrayBool) returns I64;

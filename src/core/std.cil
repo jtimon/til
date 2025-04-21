@@ -25,7 +25,8 @@ test := proc(cond: Bool, msg: String) {
 }
 
 assert_eq_str := proc(a: String, b: String) {
-    if not(str_eq(a, b)) {
+    if not(str_eq(a, b)) { // backtrack syntax  if needed
+    // if not(String.eq(a, b)) {
         println("assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }
