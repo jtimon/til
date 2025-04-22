@@ -4,8 +4,8 @@ mode test
 
 // Bool.to_int is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
 // Bool.to_int can also be useful simply for optimizations, because branches are bad for branch prediction
-test(i64_eq(Bool.to_int(false), Bool.to_int(not(true))), "false is not true")
-test(i64_eq(Bool.to_int(not(true)), Bool.to_int(false)), "not true is false")
-test(i64_eq(Bool.to_int(i64_eq(2, 2)), Bool.to_int(true)), "2 and 2 are equal")
-test(i64_eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
-test(i64_eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")
+test(I64.eq(Bool.to_int(false), Bool.to_int(not(true))), "false is not true")
+test(I64.eq(Bool.to_int(not(true)), Bool.to_int(false)), "not true is false")
+test(I64.eq(Bool.to_int(I64.eq(2, 2)), Bool.to_int(true)), "2 and 2 are equal")
+test(I64.eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
+test(I64.eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")

@@ -1,6 +1,6 @@
 mode test
 
-test(i64_eq(42, String.to_int("42")), "42 = String.to_int(42)")
+test(I64.eq(42, String.to_int("42")), "42 = String.to_int(42)")
 // test(String.eq("42", I64.to_str(String.to_int("42"))), "'42' = I64.to_str(String.to_int('42'))") // TODO FIX
 
 // TODO fix eval tests

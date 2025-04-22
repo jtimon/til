@@ -30,8 +30,8 @@ test(not(xor(true, true)), "xor(true, true) == false")
 // --------------- TODO remove redundancies
 
 // Bool to int tests tests
-test(i64_eq(Bool.to_int(true), 1), "Bool.to_int(true) = 1")
-test(i64_eq(Bool.to_int(false), 0), "Bool.to_int(false) = 0")
+test(I64.eq(Bool.to_int(true), 1), "Bool.to_int(true) = 1")
+test(I64.eq(Bool.to_int(false), 0), "Bool.to_int(false) = 0")
 
 // Testing 'and' with all combinations
 test(and(true, true), "true AND true = true")

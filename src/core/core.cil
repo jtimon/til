@@ -112,21 +112,11 @@ Bool := struct {
     }
 }
 
-i64_eq := func(a: I64, b: I64) returns Bool {
-    if or(gt(a, b), gt(b, a)) {
-        return false
-    }
-    if or(lt(a, b), lt(b, a)) {
-        return false
-    }
-    return true
-}
-
 lteq := func(a: I64, b: I64) returns Bool {
     if lt(a, b) {
         return true
     }
-    if i64_eq(a, b) {
+    if I64.eq(a, b) {
         return true
     }
     return false
@@ -136,10 +126,14 @@ gteq := func(a: I64, b: I64) returns Bool {
     if gt(a, b) {
         return true
     }
-    if i64_eq(a, b) {
+    if I64.eq(a, b) {
         return true
     }
     return false
+}
+
+// TODO support U8
+U8 := struct {
 }
 
 I64 := struct {
@@ -156,7 +150,13 @@ I64 := struct {
     }
 
     eq := func(a: I64, b: I64) returns Bool {
-        return i64_eq(a, b) // TODO this better
+        if or(gt(a, b), gt(b, a)) {
+            return false
+        }
+        if or(lt(a, b), lt(b, a)) {
+            return false
+        }
+        return true
     }
 
     // TODO: implement operators and allow operator overload
@@ -166,10 +166,6 @@ I64 := struct {
     
     size := func(self: I64) returns I64 {
         return I64_SIZE
-    }
-
-    eq := func(self: I64, b: I64) returns Bool {
-        return i64_eq(self, b)
     }
 }
 

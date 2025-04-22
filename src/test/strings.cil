@@ -2,8 +2,8 @@ mode test
 
 // String tests
 test(String.eq(concat("Hello, ", "world!"), "Hello, world!"), "concat('Hello, ', 'world!') = 'Hello, world!'")
-test(i64_eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")
-test(i64_eq(I64.from_str("0"), 0), "I64.from_str('0') = 0")
+test(I64.eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")
+test(I64.eq(I64.from_str("0"), 0), "I64.from_str('0') = 0")
 // TODO: Test with invalid strings for I64.from_str, e.g., I64.from_str("abc") // Expected: error or undefined behavior
 test(String.eq(I64.to_str(456), "456"), "I64.to_str(456) = '456'")
 test(String.eq(I64.to_str(0), "0"), "I64.to_str(0) = '0'")
@@ -15,9 +15,9 @@ empty_str := ""
 len3_str := "012"
 len5_str := "01234"
 
-test(i64_eq(empty_str.len(), 0), "String.len('') = 0")
-test(i64_eq(len3_str.len(), 3), "String.len('012') = 3")
-test(i64_eq(len5_str.len(), 5), "String.len('01234') = 5")
+test(I64.eq(empty_str.len(), 0), "String.len('') = 0")
+test(I64.eq(len3_str.len(), 3), "String.len('012') = 3")
+test(I64.eq(len5_str.len(), 5), "String.len('01234') = 5")
 
 assert_eq_str("0",   String.get_substr("01234", 0, 1))
 assert_eq_str("012", String.get_substr("01234", 0, 3))
