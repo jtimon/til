@@ -1797,6 +1797,28 @@ fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<Val
     }
 }
 
+fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_expr: &Expr, symbol: &SymbolInfo) -> Result<ValueType, String> {
+    let after_dot = match id_expr.params.get(0) {
+        Some(_after_dot) => _after_dot,
+        None => {
+            return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
+                                                &f_name, value_type_to_str(&symbol.value_type))));
+        },
+    };
+
+    match &after_dot.node_type {
+        NodeType::Identifier(after_dot_name) => {
+            if context.funcs.contains_key(after_dot_name) {
+                return value_type_func_proc(&e, &f_name, &context.funcs.get(after_dot_name).unwrap())
+            }
+            return Err(e.lang_error("type", &format!("expected function name after '{}.' found '{}'", f_name, after_dot_name)));
+        },
+        _ => {
+            return Err(e.error("type", &format!("expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+        },
+    }
+}
+
 fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
 
     let f_name = get_func_name_in_call(&e);
@@ -1868,7 +1890,13 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let member_decl = match struct_def.members.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error("type", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
+                                match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
+                                    Ok(ok_val) => return Ok(ok_val),
+                                    Err(error_string) => {
+                                        println!("{}", error_string);
+                                        return Err(e.error("type", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
+                                    },
+                                }
                             },
                         };
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
@@ -1893,26 +1921,8 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
                 }
             },
-            _ => { // For UFCS
-                let after_dot = match id_expr.params.get(0) {
-                    Some(_after_dot) => _after_dot,
-                    None => {
-                        return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
-                                           &f_name, value_type_to_str(&symbol.value_type))));
-                    },
-                };
-
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        if context.funcs.contains_key(after_dot_name) {
-                            return value_type_func_proc(&e, &f_name, &context.funcs.get(after_dot_name).unwrap())
-                        }
-                        return Err(e.lang_error("type", &format!("expected function name after '{}.' found '{}'", f_name, after_dot_name)));
-                    },
-                    _ => {
-                        return Err(e.error("type", &format!("expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
-                    },
-                }
+            _ => {
+                return get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol)
             },
         }
 
@@ -2147,6 +2157,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::DefaultCase => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
+            // TODO the arguments of a function call can also call procedures
             let f_name = get_func_name_in_call(&e);
             return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
@@ -2950,28 +2961,34 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
 fn eval_func_proc_call_try_ufcs(mut context: &mut Context, e: &Expr) -> String {
     // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
     let id_expr = e.get(0);
-    let mut extra_arg = false;
-    let f_name = if id_expr.params.len() == 0 { // TODO Do we really need this check?
-        get_func_name_in_call(&e)
-    } else {
-        extra_arg = true;
-        match &id_expr.get(0).node_type {
-            NodeType::Identifier(f_name_) => f_name_.clone(),
-            _ => return e.lang_error("eval", "panic eval_func_proc_call()"),
-        }
+    let name = get_func_name_in_call(&e);
+    if id_expr.params.len() == 0 { // TODO Do we really need this check?
+        return e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name));
+    }
+    let after_dot = match id_expr.params.get(0) {
+        Some(_after_dot) => _after_dot,
+        None => return e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)),
+    };
+    let after_dot_name = match &after_dot.node_type {
+        NodeType::Identifier(f_name_) => f_name_.clone(),
+        _ => return e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)),
     };
 
-    assert!(extra_arg); // TODO this suggests we don't need the extra check
-    if extra_arg {
-        let id_expr_name = get_func_name_in_call(&e);
-        let extra_arg_e = Expr::new_clone(NodeType::Identifier(id_expr_name), e, Vec::new());
-        let mut new_args = Vec::new();
-        new_args.push(extra_arg_e);
-        new_args.extend(e.params.clone());
-        let new_e = Expr::new_clone(NodeType::Identifier(f_name.clone()), e.get(0), new_args);
-        return eval_func_proc_call(&f_name, &mut context, &new_e);
-    }
-    return eval_func_proc_call(&f_name, &mut context, &e);
+    let id_expr_name = format!("{}.{}", name, after_dot_name);
+    
+
+    let new_e = Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0), Vec::new());
+    let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
+    let mut new_args = Vec::new();
+    new_args.push(new_e);
+    new_args.push(extra_arg_e);
+    new_args.extend(e.params[1..].to_vec());
+    let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0), new_args);
+    let func_def = match context.funcs.get(&after_dot_name) {
+        Some(func_def_) => func_def_.clone(),
+        None => return after_dot.lang_error("eval", &format!("Cannot call '{}'. Undefined function.", after_dot_name)),
+    };
+    return eval_user_func_proc_call(&func_def, &id_expr_name, &mut context, &new_fcall_e);
 }
 
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
