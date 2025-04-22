@@ -50,8 +50,6 @@ readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
 xor := func(a: Bool, b: Bool) returns Bool {
-    // return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
-    // return or(a.and(not(b)), b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) again in self hostinf
     return or(and(a, not(b)), and(b, not(a)))
 }
 
@@ -168,6 +166,10 @@ I64 := struct {
     
     size := func(self: I64) returns I64 {
         return I64_SIZE
+    }
+
+    eq := func(self: I64, b: I64) returns Bool {
+        return i64_eq(self, b)
     }
 }
 

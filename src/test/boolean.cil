@@ -9,10 +9,6 @@ test(not(not(true)), "not: not not true is true")
 // and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
 test(and(true, true), "and(true, true) == true")
 test(not(and(true, false)), "and(true, false) == false")
-// test(true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
-// test(and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
-aaa := true
-// test(aaa.and(true), "true.and(true) == true") // TODO FIX UFCS (Uniform Function Call Syntax)
 test(not(and(true, false)), "and(false, true) == false")
 test(not(and(false, true)), "and(false, true) == false")
 test(not(and(false, false)), "and(false, false) == false")
@@ -68,7 +64,8 @@ test(not(xor(true, true)), "true XOR true = false")
 test(not(xor(false, false)), "false XOR false = false")
 
 // Test Bool.to_str()
-// test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
+aaa := true
+test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
 test(String.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
 test(String.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
 test(String.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
