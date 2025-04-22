@@ -581,6 +581,7 @@ enum NodeType {
     EnumDef(SEnumDef),
     StructDef(SStructDef),
     Return,
+    Throw,
     If,
     While,
     Switch,
@@ -1313,6 +1314,29 @@ fn return_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> 
     Ok(Expr::new_parse(NodeType::Return, lexer.get_token(initial_current)?.clone(), params))
 }
 
+fn parse_throw_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
+    let initial_current = *current;
+    *current = *current + 1;
+    let mut params : Vec<Expr> = Vec::new();
+    match parse_primary(&lexer, current) {
+        Ok(prim) => {
+            params.push(prim);
+        },
+        Err(_err_str) => {},
+    };
+    let mut t = lexer.get_token(*current)?;
+    while t.token_type == TokenType::Comma {
+        *current = *current + 1;
+        let prim2 = match parse_primary(&lexer, current) {
+            Ok(to_ret) => to_ret,
+            Err(err_str) => return Err(err_str),
+        };
+        params.push(prim2);
+        t = lexer.get_token(*current)?;
+    }
+    Ok(Expr::new_parse(NodeType::Throw, lexer.get_token(initial_current)?.clone(), params))
+}
+
 fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     let initial_current = *current;
     *current = *current + 1;
@@ -1508,6 +1532,7 @@ fn parse_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
             return Err(format!("{}:{}: parse ERROR: Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,", t.line, t.col));
         },
         TokenType::Return => return return_statement(&lexer, current),
+        TokenType::Throw => return parse_throw_statement(&lexer, current),
         TokenType::If => return if_statement(&lexer, current),
         TokenType::While => return while_statement(&lexer, current),
         TokenType::Switch => return parse_switch_statement(&lexer, current),
@@ -2220,7 +2245,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             }
             false
         },
-        NodeType::If | NodeType::While | NodeType::Switch | NodeType::Return => {
+        NodeType::If | NodeType::While | NodeType::Switch | NodeType::Return | NodeType::Throw => {
             for it_e in &e.params {
                 if is_expr_calling_procs(&context, &it_e) {
                     return true;
@@ -2683,7 +2708,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         NodeType::Assignment(var_name) => {
             errors.extend(check_assignment(&mut context, &e, var_name));
         },
-        NodeType::Return => {
+        NodeType::Return | NodeType::Throw => {
             for return_val in &e.params {
                 errors.extend(check_types(&mut context, &return_val));
             }
@@ -3588,6 +3613,12 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> String {
                 }
                 return eval_expr(&mut context, &se.get(0));
             },
+            NodeType::Throw => {
+                if se.params.len() != 1 {
+                    return se.lang_error("eval", "Throw can only return one value. This should have been caught before")
+                }
+                return eval_expr(&mut context, &se.get(0));
+            },
             _ => {
                 let stmt_result = eval_expr(&mut context, &se);
                 if stmt_result != "" {
@@ -3684,12 +3715,17 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::Return => {
             if e.params.len() == 0 {
                 return "".to_string();
-            } else if e.params.len() == 1 {
-                return eval_expr(&mut context, &e.get(0))
-            } else {
-                return e.lang_error("eval", "mutltiple return values not implemented yet")
+            } else if e.params.len() > 1 {
+                return e.lang_error("eval", "multiple return values not implemented yet")
             }
-        }
+            return eval_expr(&mut context, &e.get(0))
+        },
+        NodeType::Throw => {
+            if e.params.len() != 1 {
+                return e.lang_error("eval", "Throw can only return one value. This should have been caught before")
+            }
+            return eval_expr(&mut context, &e.get(0))
+        },
         _ => {
             return e.lang_error("eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))
         },
@@ -3775,8 +3811,12 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("(switch {})", to_ast_str(&e.get(0))));
             return ast_str;
         },
+        // TODO why not? this whole function is out of date and untested anyway
         NodeType::Return => {
             panic!("{} AST ERROR: Node_type::Return shouldn't be analized in to_ast_str().", LANG_NAME);
+        },
+        NodeType::Throw => {
+            panic!("{} AST ERROR: Node_type::Throw shouldn't be analized in to_ast_str().", LANG_NAME);
         },
     }
 }

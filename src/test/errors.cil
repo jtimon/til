@@ -5,7 +5,7 @@ DivideByZero := struct {}
 // Functions must explicitly declare what they can throw, like in java
 safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
     if I64.eq(b, 0) {
-        // throw DivideByZero // TODO implement throw
+        throw DivideByZero // TODO properly implement throw
     }
     return div(a, b)
 }
