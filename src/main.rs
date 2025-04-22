@@ -2545,8 +2545,13 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     //     errors.push(e.error("type", &format!("No return statments found in function that returns ", e.line, e.col));
     // }
 
+    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
+        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
+            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
+        }
+    }    
     // TODO should macros be allowed to call procs?
-    if func_def.function_type == FunctionType::FTFunc {
+    if func_def.function_type == FunctionType::FTFunc {        
         for se in &func_def.body {
             if is_expr_calling_procs(&context, &se) {
                 errors.push(se.error("type", "funcs cannot call procs."));
