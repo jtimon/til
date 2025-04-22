@@ -22,7 +22,7 @@
 
 (defconst cil-keywords
   '("mode" "mut" "struct" "enum" "func" "proc"
-    "ext_func" "ext_proc" "macro" "return" "returns"
+    "ext_func" "ext_proc" "macro" "return" "returns" "throw" "throws"
     "if" "else" "while" "switch" "case" "true" "false"))
 
 (defconst cil-types

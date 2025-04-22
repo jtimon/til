@@ -167,18 +167,18 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
         // or perhaps not, for that may degenerate in an extra warning option
         // perhaps just force the user to explicitly catch and exit any potential panic from the callee
-        "throws" => TokenType::Throws, // TODO
+        "throws" => TokenType::Throws, // TODO parse
         "func" => TokenType::Func,
         "proc" => TokenType::Proc,
         "macro" => TokenType::Macro, // TODO implement for real once we compile
-        "ext_func" => TokenType::FuncExt, // this have to link when we compile
-        "ext_proc" => TokenType::ProcExt, // this have to link when we compile
+        "ext_func" => TokenType::FuncExt, // this has to link when we compile
+        "ext_proc" => TokenType::ProcExt, // this has to link when we compile
 
         // control flow
         "if" => TokenType::If,
         "else" => TokenType::Else,
         "while" => TokenType::While,
-        "for" => TokenType::For, // TODO
+        "for" => TokenType::For, // TODO parse
         "in" => TokenType::In, // TODO, or just use semicolon reserve forbid this
         "switch" => TokenType::Switch,
         "match" => TokenType::Match, // TODO like switch but special for declarations/assignments
@@ -412,7 +412,7 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             *errors_found = *errors_found + 1;
         },
         TokenType::EqualEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '==' is not supported yet\nSuggestion: use core func 'eq' or 'str_eq' instead");
+            print_lex_error(&path, &t, *errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::Lesser => {
@@ -436,7 +436,7 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             *errors_found = *errors_found + 1;
         },
         TokenType::NotEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'eq' instead");
+            print_lex_error(&path, &t, *errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead");
             *errors_found = *errors_found + 1;
         },
 
@@ -540,7 +540,7 @@ struct SFuncDef {
     function_type: FunctionType,
     args: Vec<Declaration>,
     returns: Vec<ValueType>,
-    // throws: Vec<ValueType>,
+    throws: Vec<ValueType>,
     body: Vec<Expr>,
 }
 
@@ -978,6 +978,54 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
     }
 }
 
+// TODO DRY with func_proc_returns ?
+fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>, String> {
+    let mut end_found = false;
+    let mut return_types : Vec<ValueType> = Vec::new();
+    *current = *current - 1;
+    let mut t = lexer.get_token(*current)?;
+    *current = *current + 1;
+    if t.token_type != TokenType::Throws {
+        return Ok(return_types);
+    }
+    t = lexer.get_token(*current)?;
+    let mut expect_comma = false;
+    while !(lexer.is_eof(*current) || end_found) {
+        match t.token_type {
+            TokenType::LeftBrace | TokenType::Semicolon => {
+                end_found = true;
+                *current = *current + 1;
+            },
+            TokenType::Comma => {
+                if expect_comma {
+                    expect_comma = false;
+                    *current = *current + 1;
+                    t = lexer.get_token(*current)?;
+                } else {
+                    return Err(format!("{}:{}: parse ERROR: Unexpected ','.", t.line, t.col));
+                }
+            },
+            TokenType::Identifier => {
+                if expect_comma {
+                    return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
+                }
+                return_types.push(str_to_value_type(&t.token_str));
+                expect_comma = true;
+                *current = *current + 1;
+                t = lexer.get_token(*current)?;
+            },
+            _ => {
+                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc throws.", t.line, t.col, t.token_type));
+            },
+        }
+    }
+    if end_found {
+        return Ok(return_types);
+    } else {
+        return Err(format!("{}:{}: parse ERROR: Expected '{{' after throw values.", t.line, t.col));
+    }
+}
+    
 fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_parse_body: bool, current: &mut usize) -> Result<Expr, String> {
 
     *current = *current + 1;
@@ -988,14 +1036,9 @@ fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_par
     if t.token_type != TokenType::LeftParen {
         return Err(format!("{}:{}: parse ERROR: expected '(' after 'func', found {:?}.", t.line, t.col, t.token_type));
     }
-    let args = match parse_func_proc_args(&lexer, current) {
-        Ok(to_ret) => to_ret,
-        Err(err_str) => return Err(err_str),
-    };
-    let returns = match func_proc_returns(&lexer, current) {
-        Ok(to_ret) => to_ret,
-        Err(err_str) => return Err(err_str),
-    };
+    let args = parse_func_proc_args(&lexer, current)?;
+    let returns = func_proc_returns(&lexer, current)?;
+    let throws = func_proc_throws(&lexer, current)?;
 
     let body = match do_parse_body {
         false => {
@@ -1008,7 +1051,7 @@ fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_par
         },
     };
 
-    let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body};
+    let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body, throws};
     let params : Vec<Expr> = Vec::new();
     let e = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), params);
     *current = *current + 1;

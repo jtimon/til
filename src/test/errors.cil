@@ -1,5 +1,33 @@
 mode test
 
+DivideByZero := struct {}
+
+// Functions must explicitly declare what they can throw, like in java
+safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    if I64.eq(b, 0) {
+        // throw DivideByZero // TODO implement throw
+    }
+    return div(a, b)
+}
+
+// All exceptions that are not catched must be declared in the throws section again
+// TODO: We should have a way to signal which calls can throw
+// perhaps try at the beginning of each statement that can throw or 
+example_catch := proc() {
+    a := 420
+    mut b := 10
+    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
+    // println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, 0)))
+    // catch(Err: DivideByZero) { // TODO implement catch
+    //     println(a.to_str(), " / ", b.to_str(), " = ...")
+    //     println("Trying to divide by zero")
+    // }
+    // TODO this one is not catched nor example_catch throws anything, should give error
+    // b = 0
+    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b))) 
+}
+example_catch()
+
 // TODO do beter examples with throw, including catch in the examples
 # example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {
 
