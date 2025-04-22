@@ -49,10 +49,6 @@ input_read_line := ext_proc(a: String) returns String;
 readfile := ext_proc(path: String) returns String;
 writefile := ext_proc(path: String, contents: String) returns String; // TODO
 
-xor := func(a: Bool, b: Bool) returns Bool {
-    return or(and(a, not(b)), and(b, not(a)))
-}
-
 not := func(b: Bool) returns Bool {
     if b {
         return false
@@ -82,6 +78,14 @@ and := func(a: Bool, b: Bool) returns Bool {
     return true
 }
 
+xor := func(a: Bool, b: Bool) returns Bool {
+    return not(Bool.eq(a, b))
+}
+
+xnor := func(a: Bool, b: Bool) returns Bool {
+    return Bool.eq(a, b)
+}
+
 // Note that Bool, I64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
@@ -107,6 +111,11 @@ Bool := struct {
         return false
     }
 
+    // Also known as xnor
+    eq := func(a: Bool, b: Bool) returns Bool {
+        return or(and(a, b), and(not(b), not(a)))
+    }
+    
     size := func(self: I64) returns I64 {
         return I64_SIZE
     }
@@ -134,6 +143,10 @@ gteq := func(a: I64, b: I64) returns Bool {
 
 // TODO support U8
 U8 := struct {
+
+    size := func(self: I64) returns I64 {
+        return U8_SIZE
+    }
 }
 
 I64 := struct {

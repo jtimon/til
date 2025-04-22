@@ -63,9 +63,22 @@ test(xor(false, true), "false XOR true = true")
 test(not(xor(true, true)), "true XOR true = false")
 test(not(xor(false, false)), "false XOR false = false")
 
+// Testing 'xnor' with all combinations
+test(not(xnor(true, false)), "true XNOR false = false")
+test(not(xnor(false, true)), "false XNOR true = false")
+test(xnor(true, true), "true XNOR true = true")
+test(xnor(false, false), "false XNOR false = true")
+
+// Testing 'Bool.eq' with all combinations (it is equivalent to xnor)
+test(not(Bool.eq(true, false)), "true BOOL.eq false = false")
+test(not(Bool.eq(false, true)), "false BOOL.eq true = false")
+test(Bool.eq(true, true), "true BOOL.eq true = true")
+test(Bool.eq(false, false), "false BOOL.eq false = true")
+
 // Test Bool.to_str()
 aaa := true
-test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // TODO Use associated functions as methods
+test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
+test(String.eq("true", Bool.to_str(aaa)), "'true' = Bool.to_str(true)")
 test(String.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
 test(String.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
 test(String.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
