@@ -2834,7 +2834,7 @@ fn eval_core_exit(e: &Expr) -> String {
 
 // ---------- generic eval things
 
-fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, e: &Expr) -> String {
+fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut Context, e: &Expr) -> String {
 
     let mut function_context = context.clone();
     let has_multi_arg = func_proc_has_multi_arg(func_def);
@@ -2855,11 +2855,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &Context, 
                                                      &arg.name, value_type_to_str(&arg.value_type)))
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let result = eval_expr(&mut function_context, &e.get(param_index));
+                let result = eval_expr(&mut context, &e.get(param_index));
                 match custom_type_name.as_str() {
                     "I64" => {
-                        let result = &eval_expr(&mut function_context, &e.get(param_index));
-                        function_context.insert_i64(&arg.name, result);
+                        function_context.insert_i64(&arg.name, &result);
                     },
                     "Bool" => {
                         function_context.insert_bool(&arg.name, &result);
@@ -2977,12 +2976,12 @@ fn eval_func_proc_call_try_ufcs(mut context: &mut Context, e: &Expr) -> String {
 
 fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> String {
     if context.funcs.contains_key(name) {
-        let func_def = context.funcs.get(name).unwrap();
+        let func_def = &context.funcs.get(name).unwrap().clone();
         if func_def.is_ext() {
             let is_proc = func_def.is_proc();
             return eval_core_func_proc_call(&name, &mut context, &e, is_proc)
         }
-        return eval_user_func_proc_call(func_def, &name, &context, &e)
+        return eval_user_func_proc_call(func_def, &name, &mut context, &e)
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
         let id_expr = e.get(0);
@@ -3005,8 +3004,8 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     return e.lang_error("eval", &format!("method '{}' not found in context", combined_name))
                 }
 
-                let func_def = context.funcs.get(&combined_name).unwrap();
-                return eval_user_func_proc_call(func_def, &name, &context, &e);
+                let func_def = &context.funcs.get(&combined_name).unwrap().clone();
+                return eval_user_func_proc_call(func_def, &name, &mut context, &e);
             },
             _ => {
                 return e.lang_error("eval", &format!("expected identifier after '{}.' found {:?}", name, after_dot.node_type))
@@ -3060,8 +3059,8 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 new_args.push(extra_arg_e);
                 new_args.extend(e.params[1..].to_vec());
                 let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0), new_args);
-                let func_def = context.funcs.get(&id_expr_name).unwrap();
-                return eval_user_func_proc_call(func_def, &id_expr_name, &context, &new_fcall_e);
+                let func_def = &context.funcs.get(&id_expr_name).unwrap().clone();
+                return eval_user_func_proc_call(func_def, &id_expr_name, &mut context, &new_fcall_e);
             },
             _ => {
                 return eval_func_proc_call_try_ufcs(&mut context, &e)

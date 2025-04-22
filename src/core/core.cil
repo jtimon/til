@@ -55,9 +55,8 @@ xor := func(a: Bool, b: Bool) returns Bool {
     return or(and(a, not(b)), and(b, not(a)))
 }
 
-// TODO fix arg names colliding when functions call other functions
-not := func(not_arg: Bool) returns Bool {
-    if not_arg {
+not := func(b: Bool) returns Bool {
+    if b {
         return false
     }
     return true
@@ -65,21 +64,21 @@ not := func(not_arg: Bool) returns Bool {
 
 // TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
 // TODO implement the variadic versions of and/or
-or := func(arg_or_a: Bool, arg_or_b: Bool) returns Bool {
-    if arg_or_a {
+or := func(a: Bool, b: Bool) returns Bool {
+    if a {
         return true
     }
-    if arg_or_b {
+    if b {
         return true
     }
     return false
 }
 
-and := func(arg_and_a: Bool, arg_and_b: Bool) returns Bool {
-    if not(arg_and_a) {
+and := func(a: Bool, b: Bool) returns Bool {
+    if not(a) {
         return false
     }
-    if not(arg_and_b) {
+    if not(b) {
         return false
     }
     return true
