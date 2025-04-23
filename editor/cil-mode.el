@@ -12,8 +12,8 @@
     ;; Punctuation
     (modify-syntax-entry ?: ".")
     (modify-syntax-entry ?= ".")
-    (modify-syntax-entry ?( "()")
-    (modify-syntax-entry ?) ")(")
+    (modify-syntax-entry ?\( "()")
+    (modify-syntax-entry ?\) ")(")
     (modify-syntax-entry ?{ "(}")
     (modify-syntax-entry ?} "){")
     (modify-syntax-entry ?, ".")
