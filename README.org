@@ -10,128 +10,10 @@ although the bootstrap implementation is written in rust.
 
 TODO change name, since it conflicts with https://github.com/cil-project/cil
 
-* Dependencies
+** Motivation
 
-- make (Optional, for convenience)
-- rlwrap (Optional, for the repl)
-- rustc (Temporary, needed until the language is self hosted)
-
-* Get started
-
-See /src/test to read some examples.
-
-To run the tests:
-
-#+BEGIN_SRC shell
-cargo run src/tests.cil
-#+END_SRC
-
-* Pure functions:
-
-So called "pure functional languages" do not use only pure functions,
-they all use procedures too, for side effects. At the same time,
-procedural languages can have pure functions too.
-Pure functions could be declared explicitly and the compiler could make
-sure that they are in fact pure functions.
-
-This language has different reserved words for declaring different
-types of algorithms.
-
-** func
-
-Pure functions (funcs) don't have "side effects".
-In other words, [[https://en.wikipedia.org/wiki/Memoization][memoization]] is possible for funcs.
-
-This is similar to using the keyword "pure" in [[https://dlang.org/spec/function.html#pure-functions][D-lang functions]].
-
-** proc
-
-Procedures (procs) can have side effects. Procs can call funcs, but not the
-other way around.
-In other words, memoization may not be possible because the result for
-the same input may be different each time it is called or, even if it
-was the same, some side effects may not be executed if memoization was
-used instead of executing the procedure again.
-
-** macro
-
-Macros are used for metaprogramming. Macros are executed at compile time.
-Macros can call funcs or procs and vice-versa, but after running the
-macros, the resulting program may still fail to compile.
-
-Macros have more restrictions than func/procs in some senses but less
-restrictions in others.
-
-For example, a macro can return the definition of a struct, or a body
-(a sequence of statements to be executed); whereas funcs and procs
-cannot.
-
-At the same time, all the values of for the arguments of every call of
-a macro must be guaranteed to be knowable at compile time. The values
-of the arguments for a macro call must be literals or the results of
-other macros or of other functions whose arguments are in turn also
-literals or the result of other macros, or equivalent.
-
-* Modes:
-
-Somewhat similar to [[https://www.roc-lang.org/platforms][roclang's platforms]], but they can be used per file rather
-than per executable, to impose special restrictions per file, as per
-the chosen mode.
-For example, there can be a "mode pure" that only allows pure
-functions to be defined in the file, but no procedures.
-Users should be able to define their own modes with their own extra
-restrictions and their own built-in types and core functions or
-procedures.
-A user could define a mode not allowing calls to core procedure
-"print", or replacing it with his own version, for example.
-
-Here are some "built-in" modes:
-
-** script
-
-Basically no restrictions, statements will just be run as they are,
-including if, switch or while statements in the root context of the
-file, for example.
-
-** TODO safe_script
-
-Similar to script, but any unsafe action like running a non
-whitelisted command or reading or writing to the file system will
-require confirmation from the user running the script.
-In other words, it's like script, but with internal wrappers around
-certain things
-
-This idea comes from Roc, but as far as I know Roc hasn't implemented it yet.
-
-Not implemented yet.
-
-** cli
-
-It only allows declarations in the root context of the file.
-It requires the declaration of a proc named "main", which will be run.
-
-** test
-
-Similar to script, but it only allows declarations and calls in the root context.
-It does not allow mut declarations in the root context (this may change).
-
-** lib
-
-Only allow constant declarations, not mut declarations.
-Currently it is useless, because "import" is not implemented yet.
-
-** TODO pure
-
-Like lib, but it doesn't allow proc declarations, calls or imports.
-When a mode pure file is imported, one can be sure that everything exposed
-by the file are constants or pure functions.
-
-The subset of this language that's allowed in mode pure is a truly
-purely functional language, more pure than lisp, clojure, haskell or
-erlang; in the "pure functions only" sense.
-
-Not implemented yet.
-
+ There are [[https://xkcd.com/927/][too many languages]], we need a new language that covers
+ everyone's use cases.
 
 * WARNING: Do not use this language, it is not ready.
 
@@ -140,40 +22,200 @@ anything besides testing or extending it.
 It may never be finished. The name may change in the future too.
 It may become unmaintained.
 
-* TODO reduce README
-* Motivation
-
-There are [[https://xkcd.com/927/][too many languages]], we need a new language that covers
-everyone's use cases.
-
-* Requirements
-
-- compiled and interpreted
-- self hosted and backend agnostic
-- purely functional and purely procedural
-- strongly typed and a dynamic language
-- data and algorithm oriented but with OOOPS allowed (Optional Object
-  Oriented Programming Syntax)
-
-** Secondary requirements
-
-- no errors when you forget a semicolon (like in python), also no errors when you
-  forget this language doesn't need them (like in swift)
-- less parentheses because they're not allowed in if/else, while, etc
-  conditions
-- also more parentheses like lisp, because instead of operators there are
-  just function calls so far (when self hosted we may implement
-  precedence like almost everyone else)
-- screwing up by using tabs is allowed, but braces are mandatory for
-  control flow, not allowed to get a new bug by pressing tab too much like in python
-- spaces or tabs allowed (even though using tabs sucks imo, TODO,
-  implement format subcommand after self hosting)
-
-* Contributing
+* WARNING Contributing
 
 Until src/cil.cil does everything src/main.rs does and also compiles to a
 amd64-linux binary, it is not worth it.
 
 Please, don't even try yet.
+* Get started
 
-Perhaps an emacs mode for the language, that would be nice.
+See /src (except for src/rscil.rs) to read some examples.
+
+To build the binary and run all tests (reading the Makefile may be instructive too):
+
+#+BEGIN_SRC shell
+make
+#+END_SRC
+
+The binary is currently "rscil" (built from rscil.rs), we will also
+have "cil" (built from cil.cil), which will eventually replace rscil
+once it does everything rscil does plus is also able to translate
+itself to C and compile and link itself.
+
+** Dependencies
+
+ - make (Optional, for convenience)
+ - rlwrap (Optional, for the repl)
+ - rustc (Temporary, needed until the language is self hosted)
+
+* Milestones
+
+- [X] Interpreted
+- [X] Statically typed
+- [ ] tagged unions (aka algebraic)
+- [ ] Simulate pointers
+- [ ] Self hosted arrays before being actually self hosted
+- [ ] User defined variadic arguments
+- [ ] Self hosted (initially only interpret itself, ie interpret cil.cil with cil.cil interpreted with rscil; ala pypy)
+- [ ] Compiled (initially through a C backend)
+- [ ] Can link C libraries
+- [ ] Truly self hosted, get rid of rust implementation and replace
+  with bootstrap/cil.c generated by cil.cil from itself.
+  - The binary produced by "cil interpret cil.cil compile cil.cil" must
+    be identical every time if there are no changes.
+  - It must be also identical to the one produced by "rscil interpret
+    cil.cil compile cil.cil" before getting rid of rscil
+
+- [ ] Implement basic missing features
+- [ ] User defined modes
+- [ ] mode gui (using raylib), some of the core functions are not allowed in cli and viceversa
+- [ ] Allow different compilation targets
+- [ ] Allow modes to restrict targets
+- [ ] Implement operators
+- [ ] Properly implement error handling (more like roc than like rust/zig or go/odin/jai, let alone cpp, but more like java too)
+- [ ] mode safe_script
+  side effects like reading or writing files, connecting to the
+  internet, etc. require confirmation by the final user wrappers
+  around "unsafe" functions to require input from the user or cancel
+  this will never be completely safe, but it will be safer than
+  running bash or python scripts from random people on the internet
+  for things like installations
+- [ ] mode editor
+  - [ ] Elisp backend for emacs
+  - [ ] Lua backend for neovim
+  - [ ] Vim backend for vim
+- [ ] mode web_lib
+  Compiles to js or wasm, some of the core functions are not allowed in lib and viceversa
+- [ ] mode web_gui
+  Compiles to js or wasm, some of the core functions are not allowed in gui and viceversa
+- [ ] mode web_cli
+  this can simulate a console, for example to put the repl console in a simple html + js web
+- [ ] mode server
+  kind of like a flask server in python, but as a mode
+- [ ] Introduce holyC backend
+- [ ] Support os=temple, try to do some minimal docker container server with it
+- [ ] Introduce backend MLIR (like mojo)
+- [ ]
+
+* Cil's eat your cake and have it too philosophy
+
+- Compiled and interpreted
+- Self hosted and backend agnostic
+- Purely functional and purely procedural
+- Strongly typed and a dynamic language (implement some sort of Anything type for arguments that is not checked)
+- Using UFCS and calling it OOP is allowed
+- Semicolon agnostic (currently required only for external function declarations, but allowed after any statement)
+  Because everyone hates to recompile because a meaningless semicolon was forgotten, as trivial as the fix is
+  Some times they're also introduced by accident in languages that forbid them.
+  Some people just love them for whatever reason, perhaps just muscle memory.
+  Let everyone be happy on this one, it's just [[https://en.wikipedia.org/wiki/Law_of_triviality][bikeshedding]] anyway,
+- Without "indentation-based block-level structure"
+  Because, as rare as it may be, everyone hates to introduce a subtle bug if you accidentally press tab after testing but before committing
+
+* Early documentation
+** Pure functions:
+
+ So called "pure functional languages" do not use only pure functions,
+ they all use procedures too, for side effects. At the same time,
+ procedural languages can have pure functions too.
+ Pure functions could be declared explicitly and the compiler could make
+ sure that they are in fact pure functions.
+
+ This language has different reserved words for declaring different
+ types of algorithms.
+
+*** func
+
+ Pure functions (funcs) don't have "side effects".
+ In other words, [[https://en.wikipedia.org/wiki/Memoization][memoization]] is possible for funcs.
+
+ This is similar to using the keyword "pure" in [[https://dlang.org/spec/function.html#pure-functions][D-lang functions]].
+
+*** proc
+
+ Procedures (procs) can have side effects. Procs can call funcs, but not the
+ other way around.
+ In other words, memoization may not be possible because the result for
+ the same input may be different each time it is called or, even if it
+ was the same, some side effects may not be executed if memoization was
+ used instead of executing the procedure again.
+
+*** macro
+
+ Macros are used for metaprogramming. Macros are executed at compile time.
+ Macros can call funcs or procs and vice-versa, but after running the
+ macros, the resulting program may still fail to compile.
+
+ Macros have more restrictions than func/procs in some senses but less
+ restrictions in others.
+
+ For example, a macro can return the definition of a struct, or a body
+ (a sequence of statements to be executed); whereas funcs and procs
+ cannot.
+
+ At the same time, all the values of for the arguments of every call of
+ a macro must be guaranteed to be knowable at compile time. The values
+ of the arguments for a macro call must be literals or the results of
+ other macros or of other functions whose arguments are in turn also
+ literals or the result of other macros, or equivalent.
+
+** Modes:
+
+ Somewhat similar to [[https://www.roc-lang.org/platforms][roclang's platforms]], but they can be used per file rather
+ than per executable, to impose special restrictions per file, as per
+ the chosen mode.
+ For example, there can be a "mode pure" that only allows pure
+ functions to be defined in the file, but no procedures.
+ Users should be able to define their own modes with their own extra
+ restrictions and their own built-in types and core functions or
+ procedures.
+ A user could define a mode not allowing calls to core procedure
+ "print", or replacing it with his own version, for example.
+
+ Here are some "built-in" modes:
+
+*** script
+
+ Basically no restrictions, statements will just be run as they are,
+ including if, switch or while statements in the root context of the
+ file, for example.
+
+*** TODO safe_script
+
+ Similar to script, but any unsafe action like running a non
+ whitelisted command or reading or writing to the file system will
+ require confirmation from the user running the script.
+ In other words, it's like script, but with internal wrappers around
+ certain things
+
+ This idea comes from Roc, but as far as I know Roc hasn't implemented it yet.
+
+ Not implemented yet.
+
+*** cli
+
+ It only allows declarations in the root context of the file.
+ It requires the declaration of a proc named "main", which will be run.
+
+*** test
+
+ Similar to script, but it only allows declarations and calls in the root context.
+ It does not allow mut declarations in the root context (this may change).
+
+*** lib
+
+ Only allow constant declarations, not mut declarations.
+ Currently it is useless, because "import" is not implemented yet.
+
+*** TODO pure
+
+ Like lib, but it doesn't allow proc declarations, calls or imports.
+ When a mode pure file is imported, one can be sure that everything exposed
+ by the file are constants or pure functions.
+
+ The subset of this language that's allowed in mode pure is a truly
+ purely functional language, more pure than lisp, clojure, haskell or
+ erlang; in the "pure functions only" sense.
+
+ Not implemented yet.
