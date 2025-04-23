@@ -42,8 +42,9 @@ runfile("src/test/todo.cil") // permanent TODO
 // runfile("src/test/errors.cil") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
 
 // LLM suggested tests:
-runfile("src/test/test_gpt4o_mini_tests.cil")
-runfile("src/test/test_grok3_tests.cil")
+runfile("src/test/llm/gpt4o_mini.cil") // from asking it to discover the language in repl, then test mode
+runfile("src/test/llm/grok3.cil") // from asking it to discover the language in repl, then test mode
+runfile("src/test/llm/llama3.3.cil") // TODO FIX from discussing tagged unions in rust vs algebraic types in haskell
 
 // WIP Work towards self hosting
 runfile("src/cil.cil", "src/test/example_self_hosted.cil")
