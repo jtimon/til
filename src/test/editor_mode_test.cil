@@ -9,7 +9,7 @@ if true { // 'if', 'true' (font-lock-keyword-face in emacs)
     }
 }
 
-my_func := func(a1: bool, a2: bool, a3: bool) returns bool {
+my_func := func(a1: Bool, a2: Bool, a3: Bool) returns Bool {
     return true
 }
 
@@ -23,7 +23,12 @@ if true {
         my_val := my_func(
             true,
             true,
-            true)
+            my_func(
+                true,
+                true,
+                true
+            )
+        )
     }
 }
 

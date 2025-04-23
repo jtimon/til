@@ -333,27 +333,27 @@ scan_tokens := proc(source: String) {
 
                 // comments:
                 // TODO fix end of lines, this can't work before that
-                case "#":
+            case "#":
+                pos = add(pos, 1)
+                while and(lt(add(pos, 1), eof_pos), not(String.eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
                     pos = add(pos, 1)
+                }
+
+            case "/":
+                // TODO allow the other type of commments '/*', allowing nesting like odin or jai
+                if String.eq("/", String.get_substr(source, add(pos, 1), add(pos, 2))) {
+                    pos = add(pos, 2)
                     while and(lt(add(pos, 1), eof_pos), not(String.eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
                         pos = add(pos, 1)
                     }
 
-                case "/":
-                    // TODO allow the other type of commments '/*', allowing nesting like odin or jai
-                    if String.eq("/", String.get_substr(source, add(pos, 1), add(pos, 2))) {
-                        pos = add(pos, 2)
-                        while and(lt(add(pos, 1), eof_pos), not(String.eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
-                            pos = add(pos, 1)
-                        }
-
-                    } else {
-                        scan_push_token(TokenType.Slash, current_char, line, sub(pos, start_line_pos))
-                    }
-                    pos = add(pos, 1)
+                } else {
+                    scan_push_token(TokenType.Slash, current_char, line, sub(pos, start_line_pos))
+                }
+                pos = add(pos, 1)
 
                 // literal strings
-            // case "\"":
+                // case "\"":
             case "\"":
                 pos = add(pos, 1)
                 while and(lt(add(pos, 1), eof_pos), not(String.eq(String.get_substr(source, pos, add(pos, 1)), "\""))) {

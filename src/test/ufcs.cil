@@ -12,7 +12,7 @@ test_ufcs := proc () {
     assert(not(my_int_a.int_eq(my_false)))
     assert(not(my_false))
     assert(my_true)
-    assert(my_true.and(my_true)) 
+    assert(my_true.and(my_true))
     assert(not(my_true.and(my_false)))
     assert(my_true.or(my_false))
     assert(my_false.or(my_true))
@@ -35,7 +35,7 @@ test_ufcs := proc () {
     // assert(xor3(false, true))
     // assert(not(xor3(true, true)))
     // assert(not(xor3(false, false)))
-    
+
     aaa := true
     test(aaa.and(true), "true.and(true) == true")
 }

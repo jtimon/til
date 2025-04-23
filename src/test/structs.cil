@@ -66,7 +66,7 @@ test_structs := proc() {
     // assert(my_struct.bool_field) // TODO Fix
     // assert_eq(42, my_struct.int_field) // TODO Fix
     // assert_eq_str("my field string", my_struct.string_field) // TODO Fix
-    
+
     // my_bool := Bool() // TODO allow instantiations of core types
     // my_i64 := I64() // TODO truly self host I64 with an [8]U8
     // my_string := String() // TODO don't migrate from string to String, just self host it after structs and pointers
