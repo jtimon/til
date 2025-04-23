@@ -14,7 +14,6 @@ TODO change name, since it conflicts with https://github.com/cil-project/cil
 
 - make (Optional, for convenience)
 - rlwrap (Optional, for the repl)
-- cargo (Optional, for convenience. Temporary)
 - rustc (Temporary, needed until the language is self hosted)
 
 * Get started

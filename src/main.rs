@@ -4,6 +4,7 @@ use std::io::Write; // <--- bring flush() into scope
 use std::fs;
 use std::io::ErrorKind;
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 // We may want to change it to rsbootstrap later when self hosting, if we get there
 // or just change the name of the language
@@ -1026,7 +1027,7 @@ fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>
         return Err(format!("{}:{}: parse ERROR: Expected '{{' after throw values.", t.line, t.col));
     }
 }
-    
+
 fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_parse_body: bool, current: &mut usize) -> Result<Expr, String> {
 
     *current = *current + 1;
@@ -2574,9 +2575,9 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
             errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
         }
-    }    
+    }
     // TODO should macros be allowed to call procs?
-    if func_def.function_type == FunctionType::FTFunc {        
+    if func_def.function_type == FunctionType::FTFunc {
         for se in &func_def.body {
             if is_expr_calling_procs(&context, &se) {
                 errors.push(se.error("type", "funcs cannot call procs."));
@@ -3048,7 +3049,6 @@ fn eval_func_proc_call_try_ufcs(mut context: &mut Context, e: &Expr) -> String {
     };
 
     let id_expr_name = format!("{}.{}", name, after_dot_name);
-    
 
     let new_e = Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0), Vec::new());
     let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
