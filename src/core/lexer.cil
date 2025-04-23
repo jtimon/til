@@ -2,51 +2,51 @@ mode lib
 
 TokenType := enum {
     // basic
-    Eof
+    Eof,
 
     // Single-character tokens.
-    Minus Plus Slash Star
-    LeftParen RightParen LeftBrace RightBrace LeftBracket RightBracket
-    Comma Colon
+    Minus, Plus, Slash, Star,
+    LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
+    Comma, Colon,
 
     // One or two character tokens.
-    Dot DoubleDot
-    Not NotEqual
-    Equal EqualEqual
-    Greater GreaterEqual
-    Lesser LesserEqual
-    Semicolon DoubleSemicolon
+    Dot, DoubleDot,
+    Not, NotEqual,
+    Equal, EqualEqual,
+    Greater, GreaterEqual,
+    Lesser, LesserEqual,
+    Semicolon, DoubleSemicolon,
     // TODO implemment DoubleSemicolon
 
     // Literals.
-    Identifier String Number
+    Identifier, String, Number,
 
     // Reserved words:
-    Mut
+    Mut,
 
     // bool
-    True False
+    True, False,
     // type definition
-    Struct Enum
+    Struct, Enum,
     // function definition
-    Returns Throws
+    Returns, Throws,
     // flow control
-    If Else
-    While For In
-    Match Switch Default
-    Return Throw
-    Try Catch
+    If, Else,
+    While, For, In,
+    Match, Switch, Default,
+    Return, Throw,
+    Try, Catch,
 
     // Special in this language:
-    Func Proc Macro
-    Mode
+    Func, Proc, Macro,
+    Mode,
 
     // Errors
-    Const Var
-    Fn
-    Case
-    Invalid
-    UnterminatedString
+    Const, Var,
+    Fn,
+    Case,
+    Invalid,
+    UnterminatedString,
     // UnterminatedComment // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
 }
 

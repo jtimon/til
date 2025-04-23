@@ -1083,12 +1083,9 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                 end_found = true;
             },
             TokenType::Identifier => {
-                let next_t = lexer.get_token(*current + 1)?;
                 let enum_val_name = &it_t.token_str;
+                let next_t = lexer.get_token(*current + 1)?;
                 match next_t.token_type {
-                    TokenType::Identifier | TokenType::RightBrace => {
-                        enum_map.insert(enum_val_name.to_string(), None);
-                    },
                     TokenType::Colon => {
                         let next2_t = lexer.get_token(*current + 2)?;
                         if next2_t.token_type != TokenType::Identifier {
@@ -1096,10 +1093,21 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                         }
                         let enum_val_type = &next2_t.token_str;
                         enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
-                        *current = *current + 1;
+                        *current = *current + 2;
                     },
-                    _ => {},
+                    TokenType::Comma | TokenType::RightBrace => {
+                        enum_map.insert(enum_val_name.to_string(), None);
+                        if next_t.token_type == TokenType::RightBrace {
+                            end_found = true;
+                        }
+                    },
+                    _ => {
+                        return Err(format!("{}:{}: parse ERROR: Expected ',' or ':' after '{}', found '{:?}'.", t.line, t.col, enum_val_name, next_t.token_type));
+                    }
                 }
+            },
+            TokenType::Comma => {
+                // Skip comma
             },
             _ => {
                 return Err(format!("{}:{}: parse ERROR: Expected '}}' to end enum or a new identifier, found '{:?}'.", t.line, t.col, it_t.token_type));

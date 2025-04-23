@@ -47,8 +47,8 @@ printed := concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
 
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
-    Variant1 // No type, no highlight yet (TODO)
-    Variant2 : I64 // 'I64' (font-lock-type-face in emacs)
+    Variant1, // No type, no highlight yet (TODO)
+    Variant2 : I64, // 'I64' (font-lock-type-face in emacs)
 }
 
 MyStruct := struct { // 'MyStruct' (font-lock-type-face in emacs)
