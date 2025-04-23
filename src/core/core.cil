@@ -1,18 +1,6 @@
 mode lib
 
-U8_SIZE   := 1
-U16_SIZE  := 2
-U32_SIZE  := 4
-U64_SIZE  := 8
-U128_SIZE := 16
-U256_SIZE := 32
-
-I8_SIZE   := 1
-I16_SIZE  := 2
-I32_SIZE  := 4
-I64_SIZE  := 8
-I128_SIZE := 16
-I256_SIZE := 32
+import("src/core/constants.cil")
 
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;
@@ -149,11 +137,17 @@ U8 := struct {
     mut data: I64 = 0
 
     to_i64 := func(self: U8) returns I64 {
-        return todo("U8_to_i64 not implemented yet")
+        return cast("I64", self) // TODO implement cast, start easy with U8 to I64
     }
 
-    from_i64 := func(self: I64) returns U8 {
-        return todo("i64_to_U8 not implemented yet")
+    from_i64 := func(i: I64) returns U8 {
+        if lt(0, i) {
+            return error("Negative values cannot be cast into '", "U", "8", "'")
+        }
+        if gt(i, MAX_U8) {
+            return error("U", "8", "canot be casted from a number greater than ", I64.to_str(MAX_U8), "'")
+        }
+        return todo("i64_to_u8 not implemented yet")
     }
 
     size := func() returns I64 {
