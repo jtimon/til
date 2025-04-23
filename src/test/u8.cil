@@ -1,0 +1,5 @@
+mode test
+
+assert_eq(1, U8.size()) // size of U8 is 1 in bytes
+
+// assert_eq(0, U8.to_i64(U8.from_i64(0))) // TODO Test back and forth conversion from literal nummbers

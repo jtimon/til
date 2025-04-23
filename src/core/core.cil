@@ -146,8 +146,17 @@ gteq := func(a: I64, b: I64) returns Bool {
 
 // TODO support U8
 U8 := struct {
+    mut data: I64 = 0
 
-    size := func(self: I64) returns I64 {
+    to_i64 := func(self: U8) returns I64 {
+        return todo("U8_to_i64 not implemented yet")
+    }
+
+    from_i64 := func(self: I64) returns U8 {
+        return todo("i64_to_U8 not implemented yet")
+    }
+
+    size := func() returns I64 {
         return U8_SIZE
     }
 }
