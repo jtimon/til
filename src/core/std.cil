@@ -20,10 +20,6 @@ assert := proc(cond: Bool) {
     assertm(cond, "")
 }
 
-test := proc(cond: Bool, msg: String) {
-    assertm(cond, msg)
-}
-
 assert_eq_str := proc(a: String, b: String) {
     if not(String.eq(a, b)) {
         println("assert_eq_str failed: expected '", a, "', found '", b, "'")

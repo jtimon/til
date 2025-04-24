@@ -1,5 +1,7 @@
 mode test
 
+import("src/core/modes/test")
+
 // comparisons:
 
 test(I64.eq(0, 0), "0 == 0")

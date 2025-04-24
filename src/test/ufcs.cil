@@ -1,10 +1,11 @@
 mode test
 
+import("src/core/modes/test")
+
 my_false := false
 my_true  := true
 my_int_a := 40
 my_int_b :=  2
-
 
 // Test Universal Function Call System (UFCS)
 

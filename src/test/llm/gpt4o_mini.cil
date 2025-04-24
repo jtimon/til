@@ -1,5 +1,7 @@
 mode test
 
+import("src/core/modes/test")
+
 // Function tests:
 
 test(I64.eq(add_two(5), 7), "add_two(5) = 7")

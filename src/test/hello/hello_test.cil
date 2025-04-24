@@ -1,5 +1,7 @@
 mode test
 
+import("src/core/modes/test")
+
 hello := func() returns String {
     return "Hello World!"
 }

@@ -1,0 +1,5 @@
+mode lib
+
+test := proc(cond: Bool, msg: String) {
+    assertm(cond, msg)
+}
