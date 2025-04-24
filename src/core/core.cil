@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/constants.cil")
+import("src/core/constants")
 
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;

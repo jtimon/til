@@ -10,8 +10,8 @@ use std::convert::TryInto;
 // or just change the name of the language
 // CIL stands for Compiled Interpreted Language
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
-const LANG_NAME: &str = "rscil";
-const BIN_NAME: &str = "rscil";
+const LANG_NAME: &str = "cilrs";
+const BIN_NAME: &str = "cilrs";
 const DEFAULT_MODE: &str = "lib";
 const INFER_TYPE: &str = "auto";
 const REPL_PATH: &str = "src/repl.cil";
@@ -2882,7 +2882,8 @@ fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> String {
 
 fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_proc_import expects a single parameter.");
-    let path = &eval_expr(&mut context, e.get(1));
+
+    let path = format!("{}{}", &eval_expr(&mut context, e.get(1)), ".cil");
     match run_file_with_context(true, &mut context, &path, Vec::new()) {
         Ok(_) => {},
         Err(error_string) => {
@@ -3899,6 +3900,14 @@ fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
     let mut context = Context::new(DEFAULT_MODE);
     run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
     run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new())?;
+    println!("run_file: mode: '{}', is test? '{}'", context.mode.name, context.mode.name == "test");
+
+    println!("AAAAAAA: not test name: '{}'", context.mode.name);
+    if context.mode.name == "test" {
+        run_file_with_context(true, &mut context, &"src/core/modes/test.cil".to_string(), Vec::new())?;
+    } else {
+        println!("not test name: '{}'", context.mode.name)
+    }
     run_file_with_context(false, &mut context, &path, main_args)?;
     return Ok(())
 }

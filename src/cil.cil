@@ -1,7 +1,7 @@
 // WIP: Self hosted implementation of LANG_NAME
 mode cli
 
-import("src/core/lexer.cil") // TODO improve import syntax
+import("src/core/lexer") // TODO improve import syntax
 
 LANG_NAME: String = "cil"
 

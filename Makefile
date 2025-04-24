@@ -1,15 +1,15 @@
 .PHONY: all tests repl cil
 
-all: rscil cil tests
-rscil: src/main.rs
-	rustc src/main.rs -o rscil
-tests: rscil
-	./rscil src/tests.cil
+all: cil tests cilrs
+cilrs: src/cilrs.rs
+	rustc src/cilrs.rs -o cilrs
+tests: cilrs
+	./cilrs src/tests.cil
 # TODO run src/cil.cil with cil.cil
 # TODO run src/tests.cil with cil.cil
-cil: rscil tests
-	./rscil interpret src/cil.cil src/test/example_self_hosted.cil
-	# ./rscil interpret src/cil.cil src/test/strings.cil
-	# ./rscil interpret src/cil.cil src/core/lexer.cil
+cil: cilrs tests
+	./cilrs interpret src/cil.cil src/test/example_self_hosted.cil
+	# ./cilrs interpret src/cil.cil src/test/strings.cil
+	# ./cilrs interpret src/cil.cil src/core/lexer.cil
 repl:
-	rlwrap ./rscil src/core/repl.cil
+	rlwrap ./cilrs src/core/repl.cil
