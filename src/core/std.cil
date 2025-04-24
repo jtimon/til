@@ -1,5 +1,13 @@
 mode lib
 
+xor := func(a: Bool, b: Bool) returns Bool {
+    return not(Bool.eq(a, b))
+}
+
+xnor := func(a: Bool, b: Bool) returns Bool {
+    return Bool.eq(a, b)
+}
+
 panic2 := proc(msgs: ..String) {
     // TODO use variadic args in user defined functions. requires arrays
     exit(1)

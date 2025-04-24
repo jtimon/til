@@ -66,14 +66,6 @@ and := func(a: Bool, b: Bool) returns Bool {
     return true
 }
 
-xor := func(a: Bool, b: Bool) returns Bool {
-    return not(Bool.eq(a, b))
-}
-
-xnor := func(a: Bool, b: Bool) returns Bool {
-    return Bool.eq(a, b)
-}
-
 // Note that Bool, I64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
