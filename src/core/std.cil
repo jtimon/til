@@ -42,15 +42,11 @@ assert_eq := proc(a: I64, b: I64) {
     }
 }
 
-todo := proc(msg: String) {
-    print("TODO: ")
-    assertm(false, msg)
-}
-
 branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_int(cond)), mul(b, Bool.to_int(not(cond))))
 }
 
-// TODO immplement aliases
-// Note aliases can be used before declared:
-// U64 : Type = I64
+TODO := proc(msg: String) {
+    print("TODO: ")
+    assertm(false, msg)
+}

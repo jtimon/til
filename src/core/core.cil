@@ -13,11 +13,16 @@ mul       := ext_func(a: I64, b: I64) returns I64;
 div       := ext_func(a: I64, b: I64) returns I64;
 mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
-print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
-// TODO self host using print once the self escaped '\n' bug is fixed
-println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
+concat    := ext_func(a: String, b: String) returns String; // TODO self host once we have pointers, mem alloc and free simulated
+
 // TODO implement the variadic part of print/println in std
-single_print := ext_proc(a: String); // TODO
+print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
+// TODO now that '\n' bug is fixed, we're waiting for user variadic arguments
+println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
+// TODO This should be ext, and the print and println self hosted
+single_print := proc(s: String) {
+    print(s) // TODO use some lowe level thing so tha print can depend on this instead of the other way around
+}
 
 exit    := ext_proc(code: I64);
 // TODO parse with dots like other languages, then change the direction of the slash depending on the os
@@ -27,6 +32,29 @@ exit    := ext_proc(code: I64);
 // example_python: from matrix import matrix_def as my_matrix_def
 import  := ext_proc(path: String);
 runfile := ext_proc(args: ..String);
+
+// Memory allocation
+
+alloc := ext_proc(size: I64) returns I64;
+free := ext_proc(ptr: Ptr);
+
+Ptr := struct {
+    // TODO meta-program this part after self hosting
+    mut ptr_type: String = "Null"
+    mut data: I64 = 0
+    mut cap: I64 = 0
+    mut len: I64 = 0
+
+    new := proc(ptr_type: String) returns Ptr {
+        self := Ptr()
+        self.ptr_type = ptr_type
+        return self
+    }
+
+    free := proc(self: Ptr) {
+        TODO("Ptr.free not implemented yet")
+    }
+}
 
 eval_to_str     := ext_proc(a: String) returns String;
 eval_to_ast_str := ext_proc(src: String) returns String; // TODO
@@ -69,7 +97,17 @@ and := func(a: Bool, b: Bool) returns Bool {
 // Note that Bool, I64 and String don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
+    size := U8_SIZE
+
     mut data: I64 = 0
+
+    len := func(self: Bool) returns I64 {
+        return 1
+    }
+
+    eq := func(a: Bool, b: Bool) returns Bool {
+        return or(and(a, b), and(not(b), not(a)))
+    }
 
     to_str := func(self: Bool) returns String {
         if self {
@@ -92,15 +130,6 @@ Bool := struct {
             return true
         }
         return false
-    }
-
-    // Also known as xnor
-    eq := func(a: Bool, b: Bool) returns Bool {
-        return or(and(a, b), and(not(b), not(a)))
-    }
-
-    size := func(self: I64) returns I64 {
-        return I64_SIZE
     }
 }
 
@@ -126,7 +155,15 @@ gteq := func(a: I64, b: I64) returns Bool {
 
 // TODO support U8
 U8 := struct {
-    mut data: I64 = 0
+    size: I64 = U8_SIZE
+
+    // TODO FIX can't use itself as base data, can it?
+    // TODO This is the base of data storage, not I64
+    // mut data: I8 = 0
+
+    len := func(self: I64) returns I64 {
+        return 1
+    }
 
     to_i64 := func(self: U8) returns I64 {
         return cast("I64", self) // TODO implement cast, start easy with U8 to I64
@@ -134,31 +171,21 @@ U8 := struct {
 
     from_i64 := func(i: I64) returns U8 {
         if lt(0, i) {
-            return error("Negative values cannot be cast into '", "U", "8", "'")
+            return error("Negative values cannot be cast into '", "U8", "'")
         }
         if gt(i, MAX_U8) {
-            return error("U", "8", "canot be casted from a number greater than ", I64.to_str(MAX_U8), "'")
+            return error("U8", "canot be casted from a number greater than ", I64.to_str(MAX_U8), "'")
         }
-        return todo("i64_to_u8 not implemented yet")
-    }
-
-    size := func() returns I64 {
-        return U8_SIZE
+        TODO("i64_to_u8 not implemented yet")
+        return 0
     }
 }
 
 I64 := struct {
+    size: I64 = I64_SIZE
     // mut data := 0 // TODO Use [8]U8 for this one
 
-    to_str := func(self: I64) returns String {
-        itoa := ext_func(a: I64) returns String;
-        return itoa(self)
-    }
-
-    from_str := func(str: String) returns I64 {
-        atoi := ext_func(a: String) returns I64;
-        return atoi(str) // TODO: this can fail and panic from rust
-    }
+    len := func(self: I64) returns I64 { return 1 }
 
     eq := func(a: I64, b: I64) returns Bool {
         if or(gt(a, b), gt(b, a)) {
@@ -170,29 +197,40 @@ I64 := struct {
         return true
     }
 
+    to_str := func(self: I64) returns String {
+        itoa := ext_func(a: I64) returns String;
+        return itoa(self)
+    }
+
+    from_str := func(str: String) returns I64 {
+        atoi := ext_func(a: String) returns I64;
+        return atoi(str) // TODO: this can fail and panic from rust
+    }
+
     // TODO: implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self, other)
-    }
-
-    size := func(self: I64) returns I64 {
-        return I64_SIZE
     }
 }
 
 String := struct {
     // TODO get rid of special cases for String besides literals
-    // mut ptr = 0
-    // mut cap = 0
+    // mut ptr : Ptr = Ptr()
+    mut ptr : I64 = 0
+    mut cap : I64 = 0
 
-    eq := func(self: String, other: String) returns Bool {
-        str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
-        return str_eq(self, other)
+    size := func(self: String) {
+        panic("Size of strings can't always be known at compile time, certainly not at struct declaration time.\nSuggestion: Try len() instead")
     }
 
     len := func(self: String) returns I64 {
         str_len := ext_func(a: String) returns I64;
         return str_len(self)
+    }
+
+    eq := func(self: String, other: String) returns Bool {
+        str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
+        return str_eq(self, other)
     }
 
     to_int := func(self: String) returns I64 {
@@ -213,8 +251,6 @@ String := struct {
         return s.get_substr(start, end)
     }
 }
-
-concat := ext_func(a: String, b: String) returns String;
 
 // TODO rustic interfaces with arrays, for variadic functions at least at first
 # array_Bool_len := ext_func(a: ArrayBool) returns I64;

@@ -17,4 +17,8 @@ mode script
 //   eval_example_result : String = _eval_string(example)
 //   println(eval_example_result)
 // }
-// test_fails_example("enum_func_fails := func(a: ExampleEnumAAAAAAAA) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
+// test_fails_example("enum_func_fails := func(a: ExampleEnum) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")
+
+// TODO immplement aliases
+// Note aliases can be used before declared (once implemented):
+// U64 : Type = I64
