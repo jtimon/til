@@ -1665,6 +1665,25 @@ impl Context {
         }
     }
 
+    fn get_u8(self: &Context, id: &str) -> Option<u8> {
+        return match self.bytes.get(id) {
+            Some(bytes_) => {
+                Some(*bytes_.get(0).unwrap())
+            },
+            None => None,
+        }
+    }
+
+    fn insert_u8(self: &mut Context, id: &str, u8_str: &String) -> Option<u8> {
+        match self.bytes.insert(id.to_string(), u8_str.parse::<u8>().unwrap().to_ne_bytes().to_vec()) {
+            Some(bytes_) => {
+                // bytes_[0] is our u8, so we wrap it into a one-element array for from_ne_bytes.
+                Some(u8::from_ne_bytes([bytes_[0]]))
+            },
+            None => None,
+        }
+    }
+
     fn get_bool(self: &Context, id: &str) -> Option<bool> {
         return match self.bytes.get(id) {
             Some(bytes_) => {
@@ -1711,6 +1730,9 @@ impl Context {
         match &decl.value_type {
             ValueType::TCustom(type_name) => {
                 match type_name.as_str() {
+                    "U8" => {
+                        self.insert_u8(&combined_name, value);
+                    },
                     "I64" => {
                         self.insert_i64(&combined_name, value);
                     },
@@ -1744,6 +1766,9 @@ impl Context {
                 match type_name.as_str() {
                     "I64" => {
                         return self.get_i64(&combined_name).map(|value| value.to_string())
+                    },
+                    "U8" => {
+                        return self.get_u8(&combined_name).map(|value| value.to_string())
                     },
                     "Bool" => {
                         return self.get_bool(&combined_name).map(|value| value.to_string())
@@ -2131,7 +2156,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
             assert!(e.params.len() == 1, "{} ERROR: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
             let inner_e = e.get(0);
-            let value_type = match get_value_type(&context, &inner_e) {
+            let mut value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
@@ -2139,7 +2164,9 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 },
             };
             if decl.value_type != str_to_value_type(INFER_TYPE) {
-                if value_type != decl.value_type {
+                if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+                    value_type = decl.value_type.clone();
+                } else if value_type != decl.value_type {
                     errors.push(e.error("type", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
                                                          decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
                 }
@@ -2335,7 +2362,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             Some(value_type) => {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "I64" | "Bool" | "String" => {},
+                        "I64" | "Bool" | "U8" | "String" => {},
                         _ => {
                             errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                                       e.line, e.col, custom_type_name)));
@@ -2954,6 +2981,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                     "I64" => {
                         function_context.insert_i64(&arg.name, &result);
                     },
+                    "U8" => {
+                        function_context.insert_u8(&arg.name, &result);
+                    },
                     "Bool" => {
                         function_context.insert_bool(&arg.name, &result);
                     },
@@ -3173,14 +3203,16 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
 
 fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Expr) -> String {
     let inner_e = e.get(0);
-    let value_type = match get_value_type(&context, &inner_e) {
+    let mut value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             return e.lang_error("eval", &error_string);
         },
     };
     if declaration.value_type != ValueType::ToInferType {
-        if value_type != declaration.value_type {
+        if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+            value_type = declaration.value_type.clone();
+        } else if value_type != declaration.value_type {
             return e.lang_error("eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)));
         }
     }
@@ -3232,16 +3264,20 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                 ValueType::TCustom(type_name) => {
                                     match type_name.as_str() {
                                         "I64" => {
-                                            let i64_expr_result_str = eval_expr(&mut context, default_value);
-                                            context.insert_i64(&combined_name, &i64_expr_result_str);
+                                            let expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_i64(&combined_name, &expr_result_str);
+                                        },
+                                        "U8" => {
+                                            let expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_u8(&combined_name, &expr_result_str);
                                         },
                                         "Bool" => {
-                                            let bool_expr_result_str = eval_expr(&mut context, default_value);
-                                            context.insert_bool(&combined_name, &bool_expr_result_str);
+                                            let expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_bool(&combined_name, &expr_result_str);
                                         },
                                         "String" => {
-                                            let string_expr_result = eval_expr(&mut context, default_value);
-                                            context.insert_string(&combined_name, &string_expr_result);
+                                            let expr_result_str = eval_expr(&mut context, default_value);
+                                            context.insert_string(&combined_name, &expr_result_str);
                                         },
                                         _ => {
                                             return e.todo_error("eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
@@ -3304,20 +3340,26 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let i64_expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_i64(&declaration.name, &i64_expr_result_str);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_i64(&declaration.name, &expr_result_str);
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    return "".to_string()
+                },
+                "U8" => {
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_u8(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     return "".to_string()
                 },
                 "Bool" => {
-                    let bool_expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_bool(&declaration.name, &bool_expr_result_str);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_bool(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     return "".to_string()
                 },
                 "String" => {
-                    let string_expr_result = eval_expr(&mut context, inner_e);
-                    context.insert_string(&declaration.name, &string_expr_result);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_string(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     return "".to_string()
                 },
@@ -3366,18 +3408,23 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let i64_expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_i64(var_name, &i64_expr_result_str);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_i64(var_name, &expr_result_str);
+                    return "".to_string()
+                },
+                "U8" => {
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_u8(var_name, &expr_result_str);
                     return "".to_string()
                 },
                 "Bool" => {
-                    let bool_expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_bool(var_name, &bool_expr_result_str);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_bool(var_name, &expr_result_str);
                     return "".to_string()
                 },
                 "String" => {
-                    let string_expr_result = eval_expr(&mut context, inner_e);
-                    context.insert_string(var_name, &string_expr_result);
+                    let expr_result_str = eval_expr(&mut context, inner_e);
+                    context.insert_string(var_name, &expr_result_str);
                     return "".to_string()
                 },
                 _ => {
@@ -3412,6 +3459,14 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
             match custom_type_name.as_str() {
                 "I64" => {
                     match context.get_i64(&format!("{}.{}", name, inner_name)) {
+                        Some(result) => return result.to_string(),
+                        None => {
+                            return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
+                        },
+                    }
+                },
+                "U8" => {
+                    match context.get_u8(&format!("{}.{}", name, inner_name)) {
                         Some(result) => return result.to_string(),
                         None => {
                             return inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))
@@ -3507,6 +3562,14 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                 },
                                             }
                                         },
+                                        "U8" => {
+                                            match context.get_u8(&format!("{}.{}", name, inner_name)) {
+                                                Some(result) => return result.to_string(),
+                                                None => {
+                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                },
+                                            }
+                                        },
                                         "Bool" => {
                                             match context.get_bool(&format!("{}.{}", name, inner_name)) {
                                                 Some(result) => return result.to_string(),
@@ -3588,6 +3651,9 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 match custom_type_name.as_str() {
                     "I64" => {
                         return context.get_i64(name).unwrap().to_string()
+                    },
+                    "U8" => {
+                        return context.get_u8(name).unwrap().to_string()
                     },
                     "Bool" => {
                         return context.get_bool(name).unwrap().to_string()
