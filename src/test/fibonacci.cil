@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // Here are some examples of pure functions, this time with recursion:
 fib_test := proc(fib_arg: I64) {
     fib_0 := func(n: I64) returns I64 {

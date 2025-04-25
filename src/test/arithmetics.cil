@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // arithmetics:
 
 c2      := 2

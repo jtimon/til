@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 MyStruct := struct {
     static_bool_field: Bool = true
     mut bool_field: Bool = false

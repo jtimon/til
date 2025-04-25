@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // Test is_zero:
 test(is_zero(0), "is_zero(0) = true")
 test(not(is_zero(5)), "is_zero(5) = false")

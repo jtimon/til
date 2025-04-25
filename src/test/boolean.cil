@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // boolean logic:
 
 test(true, "true is true")

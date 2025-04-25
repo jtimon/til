@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // branchless conditions:
 
 // Bool.to_i64 is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography

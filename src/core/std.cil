@@ -28,20 +28,6 @@ assert := proc(cond: Bool) {
     assertm(cond, "")
 }
 
-assert_eq_str := proc(a: String, b: String) {
-    if not(String.eq(a, b)) {
-        println("assert_eq_str failed: expected '", a, "', found '", b, "'")
-        exit(1)
-    }
-}
-
-assert_eq := proc(a: I64, b: I64) {
-    if not(a.eq(b)) {
-        println("assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
-        exit(1)
-    }
-}
-
 branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
 }

@@ -3920,6 +3920,15 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         println!("Mode: {}", context.mode.name);
     }
 
+    if context.mode.name == "test" {
+        match run_file_with_context(true, &mut context, &"src/core/modes/test.cil".to_string(), Vec::new()) {
+            Ok(_) => {},
+            Err(error_string) => {
+                return format!("{}:{}", &path, error_string);
+            },
+        }
+    }
+
     let mut e: Expr = match parse_tokens(lexer, &mut current) {
         Ok(expr) => expr,
         Err(error_string) => {
@@ -3966,14 +3975,6 @@ fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
     let mut context = Context::new(DEFAULT_MODE);
     run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
     run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new())?;
-    println!("run_file: mode: '{}', is test? '{}'", context.mode.name, context.mode.name == "test");
-
-    println!("AAAAAAA: not test name: '{}'", context.mode.name);
-    if context.mode.name == "test" {
-        run_file_with_context(true, &mut context, &"src/core/modes/test.cil".to_string(), Vec::new())?;
-    } else {
-        println!("not test name: '{}'", context.mode.name)
-    }
     run_file_with_context(false, &mut context, &path, main_args)?;
     return Ok(())
 }

@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 // String tests
 test(String.eq(concat("Hello, ", "world!"), "Hello, world!"), "concat('Hello, ', 'world!') = 'Hello, world!'")
 test(I64.eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")

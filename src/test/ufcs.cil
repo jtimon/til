@@ -1,7 +1,5 @@
 mode test
 
-import("src/core/modes/test")
-
 my_false := false
 my_true  := true
 my_int_a := 40
