@@ -7,8 +7,8 @@ test(is_zero(0), "is_zero(0) = true")
 test(not(is_zero(5)), "is_zero(5) = false")
 
 // More verbose tests:
-test(I64.eq(Bool.to_int(is_zero(0)), 1), "eq(Bool.to_int(is_zero(0)), 1) = true")
-test(I64.eq(Bool.to_int(is_zero(5)), 0), "eq(Bool.to_int(is_zero(5)), 0) = false")
+test(I64.eq(Bool.to_i64(is_zero(0)), 1), "eq(Bool.to_i64(is_zero(0)), 1) = true")
+test(I64.eq(Bool.to_i64(is_zero(5)), 0), "eq(Bool.to_i64(is_zero(5)), 0) = false")
 
 // Increment tests
 test(I64.eq(increment(5), 6), "increment(5) = 6")

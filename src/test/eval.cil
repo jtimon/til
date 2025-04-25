@@ -2,12 +2,12 @@ mode test
 
 import("src/core/modes/test")
 
-test(I64.eq(42, String.to_int("42")), "42 = String.to_int(42)")
-// test(String.eq("42", I64.to_str(String.to_int("42"))), "'42' = I64.to_str(String.to_int('42'))") // TODO FIX
+test(I64.eq(42, String.to_i64("42")), "42 = String.to_i64(42)")
+// test(String.eq("42", I64.to_str(String.to_i64("42"))), "'42' = I64.to_str(String.to_i64('42'))") // TODO FIX
 
 // TODO fix eval tests
 // test(String.eq("aaa", eval_to_str("aaa")), "eval_to_str() can't turn literal strings into identical strings")
 // println(eval_to_str("true"))
 // test(String.eq("true", eval_to_str("true")), "eval_to_str() can't turn literal bools strings into 'true'")
 // test(String.eq("false", eval_to_str("false")), "eval_to_str() can't turn literal bools strings into 'false'")
-// test(eq(42, String.to_int(eval_to_str("42"))), "eval_to_str() can't turn literal numbers strings into ints")
+// test(eq(42, String.to_i64(eval_to_str("42"))), "eval_to_str() can't turn literal numbers strings into ints")

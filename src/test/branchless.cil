@@ -4,10 +4,10 @@ import("src/core/modes/test")
 
 // branchless conditions:
 
-// Bool.to_int is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
-// Bool.to_int can also be useful simply for optimizations, because branches are bad for branch prediction
-test(I64.eq(Bool.to_int(false), Bool.to_int(not(true))), "false is not true")
-test(I64.eq(Bool.to_int(not(true)), Bool.to_int(false)), "not true is false")
-test(I64.eq(Bool.to_int(I64.eq(2, 2)), Bool.to_int(true)), "2 and 2 are equal")
+// Bool.to_i64 is required for branchless arithmetics, branchless is important for some compiled use cases like cryptography
+// Bool.to_i64 can also be useful simply for optimizations, because branches are bad for branch prediction
+test(I64.eq(Bool.to_i64(false), Bool.to_i64(not(true))), "false is not true")
+test(I64.eq(Bool.to_i64(not(true)), Bool.to_i64(false)), "not true is false")
+test(I64.eq(Bool.to_i64(I64.eq(2, 2)), Bool.to_i64(true)), "2 and 2 are equal")
 test(I64.eq(4, branchless(true, 4, 2)), " branchless(true, 4, 2) = 4")
 test(I64.eq(2, branchless(false, 4, 2)), " branchless(false, 4, 2) = 2")

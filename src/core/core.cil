@@ -99,7 +99,7 @@ and := func(a: Bool, b: Bool) returns Bool {
 Bool := struct {
     size := U8_SIZE
 
-    mut data: I64 = 0
+    mut data: U8 = 0
 
     len := func(self: Bool) returns I64 {
         return 1
@@ -117,7 +117,14 @@ Bool := struct {
     }
 
     // necessary for branchless arithmetics (but it must be implemented as a cast for it to make sense that way)
-    to_int := func(self: Bool) returns I64 {
+    to_i64 := func(self: Bool) returns I64 {
+        if self {
+            return 1
+        }
+        return 0
+    }
+
+    to_u8 := func(self: Bool) returns U8 {
         // TODO move to directly return self.data instead
         if self {
             return 1
@@ -233,7 +240,7 @@ String := struct {
         return str_eq(self, other)
     }
 
-    to_int := func(self: String) returns I64 {
+    to_i64 := func(self: String) returns I64 {
         return I64.from_str(self)
     }
 
