@@ -1,0 +1,7 @@
+mode pure
+
+import("src/core/lexer.cil")
+
+parse_lexer(lexer: Lexer) returns Parser {
+    TODO("parse_lexer")
+}
