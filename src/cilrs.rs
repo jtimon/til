@@ -4081,7 +4081,7 @@ fn main() {
                 run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
             },
             "ast" | "interpret" | "build" | "run" |
-            "help" | "-help" | "--help"=> {
+            "help" | "-help" | "--help" | "--version" | "-v" => {
                 usage();
             },
             _ => {
@@ -4089,7 +4089,6 @@ fn main() {
             },
         }
     } else {
-        // TODO Get to the...of this.
         // If not arguments, then repl/interactive "mode"
         let mut repl_temp : Vec<String> = Vec::new();
         repl_temp.push("repl".to_string());

@@ -6,7 +6,7 @@ import("src/core/parser")
 //** WIP: Self hosted implementation of LANG_NAME
 
 LANG_NAME: String = "cil"
-REPL_PATH: String = "src/repl.cil";
+REPL_PATH: String = "src/core/modes/repl.cil";
 
 // TODO rscil implement arrays
 // scan_tokens := func(source: String) returns Array(Token) {}
