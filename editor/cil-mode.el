@@ -40,14 +40,21 @@
   "Words that are invalid in cil and should be highlighted as errors.")
 
 (defconst comment-error-words
-  '("TODO" "FIX")
+  '("TODO" "FIX" "REM")
   "Words to highlight as errors in comments.")
 
-(defconst cil-highlights
-  `(;; Error words
+;; TODO FIX warnings in comments
+(defconst comment-warning-words
+  '("REM" "WARNING")
+  "Words to highlight as warning in comments.")
+
+(defconst cil-highlights `(
+    ;; Error words
     (,(regexp-opt cil-error-words 'symbols) . compilation-error)
-    ;; Error words (TODO, FIX) in comments
+    ;; Error words in comments
     (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-error-words t) "\\)\\>\\)") . (2 compilation-error t))
+    ;; Warning words in comments
+    (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-warning-words t) "\\)\\>\\)") . (2 compilation-warning t))
     ;; Keywords
     (,(regexp-opt cil-keywords 'symbols) . font-lock-keyword-face)
     ;; Built-in Types
