@@ -14,7 +14,7 @@ const LANG_NAME: &str = "cilrs";
 const BIN_NAME: &str = "cilrs";
 const DEFAULT_MODE: &str = "lib";
 const INFER_TYPE: &str = "auto";
-const REPL_PATH: &str = "src/repl.cil";
+const SELF_HOSTED_PATH: &str = "src/cil.cil";
 const SKIP_AST: bool = true;
 
 // ---------- format errors
@@ -4077,7 +4077,9 @@ fn main() {
     } else if args.len() > 1 {
         match args[1].as_str() {
             "repl" => {
-                run_file_or_exit(&REPL_PATH.to_string(), Vec::new());
+                let mut repl_temp : Vec<String> = Vec::new();
+                repl_temp.push("repl".to_string());
+                run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
             },
             "ast" | "interpret" | "build" | "run" |
             "help" | "-help" | "--help"=> {
@@ -4088,7 +4090,10 @@ fn main() {
             },
         }
     } else {
+        // TODO Get to the...of this.
         // If not arguments, then repl/interactive "mode"
-        run_file_or_exit(&REPL_PATH.to_string(), Vec::new());
+        let mut repl_temp : Vec<String> = Vec::new();
+        repl_temp.push("repl".to_string());
+        run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
     }
 }

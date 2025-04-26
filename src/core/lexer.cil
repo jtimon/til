@@ -394,11 +394,16 @@ scan_tokens := proc(source: String) {
 
 Lexer := struct {
     // TODO store tokens in lexer
-    // mut tokens: []Token = Array::new()
+    // mut tokens: []Token = Array::new() // TODO
 
-    new := func(src: String) returns Lexer {
-        l := Lexer()
-        // l.tokens = scan_tokens(src)
-        return l
+    new_by_src := func(src: String) returns Lexer {
+        self := Lexer()
+        // l.tokens = scan_tokens(src) // TODO
+        return self
+    }
+
+    new_by_path := func(path: String) returns Lexer {
+        src := readfile(path)
+        return new_by_src(src)
     }
 }

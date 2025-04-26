@@ -6,18 +6,25 @@ import("src/core/parser")
 //** WIP: Self hosted implementation of LANG_NAME
 
 LANG_NAME: String = "cil"
+REPL_PATH: String = "src/repl.cil";
 
 // TODO rscil implement arrays
-// TODO rscil allow access to individual chars inside a string
 // scan_tokens := func(source: String) returns Array(Token) {}
 
 // TODO use variadic arguments
 // TODO move the repl subcommmand here, rscil only to interpret
 main := proc(path: String) {
-    println("[INFO] Reading file '", path, "'")
+
+    if or(String.eq("", path), String.eq("repl", path)) {
+        runfile(REPL_PATH)
+        return
+    }
+
+    println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
     source := readfile(path)
     scan_tokens(source) // TODO remove later since it is  redundant with 'Lexer.new(source)'
-    lexer := Lexer.new(source)
+    // lexer := Lexer.new(source) // TODO
+    // TODO("Not self hosted yet")
 
     // TODO implement get_current_line() core func to print better errors from cil
     // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
