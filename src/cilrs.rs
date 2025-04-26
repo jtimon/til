@@ -4072,6 +4072,7 @@ fn main() {
                 usage();
             },
         }
+        return
 
     } else if args.len() > 1 {
         match args[1].as_str() {
@@ -4088,10 +4089,11 @@ fn main() {
                 run_file_or_exit(&args[1], Vec::new());
             },
         }
-    } else {
-        // If not arguments, then repl/interactive "mode"
-        let mut repl_temp : Vec<String> = Vec::new();
-        repl_temp.push("repl".to_string());
-        run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
+        return
     }
+
+    // If not arguments, then repl/interactive "mode"
+    let mut repl_temp : Vec<String> = Vec::new();
+    repl_temp.push("repl".to_string());
+    run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
 }
