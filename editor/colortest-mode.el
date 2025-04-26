@@ -17,4 +17,3 @@ Displays face names in their corresponding colors."
 (add-to-list 'auto-mode-alist '("\\.colortest\\'" . colortest-mode))
 
 (provide 'colortest-mode)
-;;; colortest.el ends here

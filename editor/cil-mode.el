@@ -39,9 +39,15 @@
   '("static" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "todo" "FIX" "fix")
   "Words that are invalid in cil and should be highlighted as errors.")
 
+(defconst comment-error-words
+  '("TODO" "FIX")
+  "Words to highlight as errors in comments.")
+
 (defconst cil-highlights
   `(;; Error words
     (,(regexp-opt cil-error-words 'symbols) . compilation-error)
+    ;; Error words (TODO, FIX) in comments
+    (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-error-words t) "\\)\\>\\)") . (2 compilation-error t))
     ;; Keywords
     (,(regexp-opt cil-keywords 'symbols) . font-lock-keyword-face)
     ;; Built-in Types
