@@ -1,0 +1,89 @@
+ExampleEnum3 := enum { A3 B3 C3 }
+// red (ExampleEnum3), blue (enum), purple (A3, B3, C3)
+
+ExampleEnum := enum {
+    AAA,
+    BBB,
+    CCC,
+}
+// red (ExampleEnum), blue (enum), purple (AAA, BBB, CCC)
+
+ExampleEnum2 := enum {
+    DDD,
+    LBool : bool,
+    LNumber : i64,
+    TCustom: MyStruct,
+    LString : String,
+    TCustom2 : MyStruct2,
+}
+// red (ExampleEnum2), blue (enum), purple (DDD, LBool, LNumber), red (bool, i64, String, MyStruct)
+
+aaa :    = 0
+bbb := 0
+ccc: = 0
+my_lit_int := 0
+my_lit_str := "aaaaa"
+my_lit_str2 : String = "aaaaa"
+my_lit_bool := true
+my_bool := blabla("bla")
+
+test_switch_enum := macro(arg1: Type, arg2: Type, arg3: Type) returns String {
+}
+test_switch_enum := proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns String {
+    // darker green (test_switch_enum), yellow (to_switch), blue (mut, returns), red (ExampleEnum, String)
+    mut to_return : String = ""
+    // yellow (to_return), red (String)
+    mut mutable_var: i64 = 42
+    // yellow (mutable_var), red (i64)
+    switch to_switch {
+        // blue (switch)
+    case ExampleEnum.A: to_return = "enum switch aaaaaa"
+        // blue (case), white (ExampleEnum.A), yellow (to_return), light green ("enum switch aaaaaa")
+    case ExampleEnum.B:
+        mut myvar2 := 43
+        to_return = "enum switch bbbbbb"
+        // blue (case), white (ExampleEnum.B), yellow (to_return), light green ("enum switch bbbbbb")
+    case: to_return = "enum cccccc by default"
+        // blue (case), yellow (to_return), light green ("enum cccccc by default")
+    case ExampleEnum.CC: mutable_var = 43
+    case ExampleEnum.DD: const_var := 43
+        // blue (case), white (ExampleEnum.CC), yellow (mutable_var)
+    case MyStruct.D: mutable_var = 43
+        // blue (case), white (MyStruct.D), yellow (mutable_var)
+    case my_const_struct_instance.field: mutable_var = 43
+        // blue (case), white (my_const_struct_instance.field), yellow (mutable_var)
+    case my_mut_struct_instance.field: mutable_var = 43
+        // blue (case), white (my_mut_struct_instance.field), yellow (mutable_var)
+    case my_struct.my_inner_field.my_field: mutable_var = 43
+        // blue (case), white (my_var), yellow (mutable_var)
+    case 42: mutable_var = 43
+        // blue (case), white (42), yellow (mutable_var)
+    case true: mutable_var = 43
+        // blue (case), blue (true), yellow (mutable_var)
+    case "my string": mutable_var = 43
+        // blue (case), light green ("my string"), yellow (mutable_var)
+    case '\n': mutable_var = 43
+        // blue (case), light green ('\n'), yellow (mutable_var)
+    case my_var2: mutable_var = 43
+    }
+}
+
+aaa :    = 0
+bbb := 0
+ccc: = 0
+my_lit_int := 0
+my_lit_str := "aaaaa"
+my_lit_bool := true
+my_bool := blabla("bla")
+
+mut aaa :    = 0
+// yellow (aaa)
+mut bbb := 0
+// yellow (bbb)
+x : i64 = 42
+// purple (x), red (i64)
+mut y : i64 = 42
+mut y: i64 = 42
+// yellow (y), red (i64)
+mut string_field := ""
+// yellow (string_field), light green ("")
