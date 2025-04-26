@@ -55,6 +55,8 @@
     ;; Types in declarations, signatures, and enum variants
     ("\\<\\(mut\\s-+\\|case\\s-+\\)?\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:\\s-*\\([a-zA-Z_][a-zA-Z0-9_]*\\)" 3 font-lock-type-face)
     ("\\<returns\\s-+\\([a-zA-Z_][a-zA-Z0-9_]*\\)" 1 font-lock-type-face)
+    ;; Enum variants without types
+    ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*[,}]" 1 font-lock-constant-face)
     ;; Function and procedure names
     ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:=\\s-*\\(func\\|proc\\|macro\\|ext_func\\|ext_proc\\)" 1 font-lock-function-name-face)
     ;; Mutable variables and arguments (anything after 'mut')
