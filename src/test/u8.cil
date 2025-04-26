@@ -1,9 +1,19 @@
 mode test
 
-// my_u8_overflow : U8 = 420 // TODO better errors for overflows, for I64 too
 my_u8 : U8 = 42
 
 assert_eq(1, U8.size) // size of U8 is 1 in bytes
-// assert_eq(42, my_u8.to_i64()) // TODO
-// assert_eq(1, my_u8.size) // TODO size of U8 is 1 in bytes
-// assert_eq(0, U8.to_i64(U8.from_i64(0))) // TODO Test back and forth conversion from literal nummbers
+
+assert_eq(0, U8.to_i64(U8.from_i64(0)))
+assert_eq(42, U8.to_i64(U8.from_i64(42)))
+assert_eq(42, my_u8.to_i64())
+
+// assert_eq_str("0", U8.to_str(U8.from_i64(0))) // TODO
+// assert_eq_str("42", U8.to_str(U8.from_i64(42))) // TODO
+// assert_eq_str("42", U8.to_str(my_u8)) // TODO
+
+// Must fail:
+
+// assert_eq(300, U8.to_i64(U8.from_i64(300))) // Fails because 300 is greater than 255
+// // TODO better errors for overflows, for I64 too
+// my_u8_overflow : U8 = 420 // Fails because 420 is greater than 255

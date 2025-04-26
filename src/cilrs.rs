@@ -2830,14 +2830,25 @@ fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> String {
     (a / b).to_string()
 }
 
-fn eval_core_func_atoi(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} ERROR: Core func 'atoi' takes exactly 1 argument. This should never happen.", LANG_NAME);
+fn eval_core_func_str_to_i64(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'str_to_i64' takes exactly 1 argument. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
     return a.to_string();
 }
 
-fn eval_core_func_itoa(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} ERROR: Core func 'itoa' takes exactly 1 argument. This should never happen.", LANG_NAME);
+fn eval_core_func_i64_to_str(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'i64_to_str' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    eval_expr(&mut context, e.get(1))
+}
+
+fn eval_core_func_u8_to_i64(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'u8_to_i64' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
+    return a.to_string();
+}
+
+fn eval_core_func_i64_to_u8(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'i64_to_u8' takes exactly 1 argument. This should never happen.", LANG_NAME);
     eval_expr(&mut context, e.get(1))
 }
 
@@ -3051,8 +3062,10 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "sub" => eval_core_func_sub(&mut context, &e),
         "mul" => eval_core_func_mul(&mut context, &e),
         "div" => eval_core_func_div(&mut context, &e),
-        "atoi" => eval_core_func_atoi(&mut context, &e),
-        "itoa" => eval_core_func_itoa(&mut context, &e),
+        "str_to_i64" => eval_core_func_str_to_i64(&mut context, &e),
+        "i64_to_str" => eval_core_func_i64_to_str(&mut context, &e),
+        "u8_to_i64" => eval_core_func_u8_to_i64(&mut context, &e),
+        "i64_to_u8" => eval_core_func_i64_to_u8(&mut context, &e),
         "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),
         "exit" => eval_core_exit(&e),
         "import" => "".to_string(), // Should already be imported in init_context

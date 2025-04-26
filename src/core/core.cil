@@ -33,6 +33,11 @@ exit    := ext_proc(code: I64);
 import  := ext_proc(path: String);
 runfile := ext_proc(args: ..String);
 
+panic := proc(msg: String) {
+    print("PANIC: ", msg, "\n")
+    exit(1)
+}
+
 // Memory allocation
 
 alloc := ext_proc(size: I64) returns I64;
@@ -173,18 +178,24 @@ U8 := struct {
     }
 
     to_i64 := func(self: U8) returns I64 {
-        return cast("I64", self) // TODO implement cast, start easy with U8 to I64
+        // return cast("I64", self) // TODO implement cast, start easy with U8 to I64
+        u8_to_i64 := ext_func(u8: U8) returns I64;
+        return u8_to_i64(self)
     }
 
-    from_i64 := func(i: I64) returns U8 {
-        if lt(0, i) {
-            return error("Negative values cannot be cast into '", "U8", "'")
+    from_i64 := func(self: I64) returns U8 {
+        if lt(self, 0) {
+            return panic("Negative values cannot be cast into 'U8'")
         }
-        if gt(i, MAX_U8) {
-            return error("U8", "canot be casted from a number greater than ", I64.to_str(MAX_U8), "'")
+        if gt(self, MAX_U8) {
+            return panic(concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
-        TODO("i64_to_u8 not implemented yet")
-        return 0
+        i64_to_u8 := ext_func(i64: I64) returns U8;
+        return i64_to_u8(self)
+    }
+
+    to_str := func(self: U8) returns String {
+        return I64.to_str(U8.to_i64(self))
     }
 }
 
@@ -205,13 +216,13 @@ I64 := struct {
     }
 
     to_str := func(self: I64) returns String {
-        itoa := ext_func(a: I64) returns String;
-        return itoa(self)
+        i64_to_str := ext_func(a: I64) returns String;
+        return i64_to_str(self)
     }
 
     from_str := func(str: String) returns I64 {
-        atoi := ext_func(a: String) returns I64;
-        return atoi(str) // TODO: this can fail and panic from rust
+        str_to_i64 := ext_func(a: String) returns I64;
+        return str_to_i64(str) // TODO: this can fail and panic from rust
     }
 
     // TODO: implement operators and allow operator overload
@@ -227,7 +238,7 @@ String := struct {
     mut cap : I64 = 0
 
     size := func(self: String) {
-        panic("Size of strings can't always be known at compile time, certainly not at struct declaration time.\nSuggestion: Try len() instead")
+        return mul(2, I64.size)
     }
 
     len := func(self: String) returns I64 {

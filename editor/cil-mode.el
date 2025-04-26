@@ -29,9 +29,10 @@
   '("I64" "Bool" "String"))
 
 (defconst cil-builtins
-  '("and" "or" "not" "eq" "str_eq" "concat" "str_len"
+  '("and" "or" "not" "str_eq" "concat" "str_len"
+    "eq" "len" "size"
     "str_get_substr" "lt" "lteq" "gt" "gteq" "add" "sub"
-    "mul" "div" "atoi" "itoa" "eval_to_str" "exit" "import"
+    "mul" "div" "i64_to_str" "str_to_i64" "i64_to_u8" "u8_to_i64" "eval_to_str" "exit" "import"
     "input_read_line" "print" "println" "readfile" "runfile"))
 
 (defconst cil-error-words

@@ -13,11 +13,6 @@ panic2 := proc(msgs: ..String) {
     exit(1)
 }
 
-panic := proc(msg: String) {
-    println(msg)
-    exit(1)
-}
-
 assertm := proc(cond: Bool, msg: String) {
     if not(cond) {
         panic(concat("assert failed: ", msg))
