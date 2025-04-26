@@ -1,7 +1,8 @@
 // WIP: Self hosted implementation of LANG_NAME
 mode cli
 
-import("src/core/lexer") // TODO improve import syntax
+import("src/core/parser")
+// parser := import("src/core/parser") // TODO accept imports as declarations of struct (as namespace)
 
 LANG_NAME: String = "cil"
 
@@ -17,7 +18,8 @@ LANG_NAME: String = "cil"
 main := proc(path: String) {
     println("[INFO] Reading file '", path, "'")
     source := readfile(path)
-    scan_tokens(source)
+    scan_tokens(source) // TODO remove later
+    lexer := Lexer.new(source)
 
     // TODO implement get_current_line() core func to print better errors from cil
     // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")

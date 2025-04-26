@@ -391,3 +391,14 @@ scan_tokens := proc(source: String) {
     } // while
     scan_push_token(TokenType.Eof, "End of file", line, 0);
 }
+
+Lexer := struct {
+    // TODO store tokens in lexer
+    // mut tokens: []Token = Array::new()
+
+    new := func(src: String) returns Lexer {
+        l := Lexer()
+        // l.tokens = scan_tokens(src)
+        return l
+    }
+}

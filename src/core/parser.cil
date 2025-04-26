@@ -1,7 +1,7 @@
-mode pure
+mode lib
 
-import("src/core/lexer.cil")
+import("src/core/lexer")
 
-parse_lexer(lexer: Lexer) returns Parser {
+parse_lexer: = proc(lexer: Lexer) returns Parser {
     TODO("parse_lexer")
 }
