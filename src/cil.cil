@@ -1,13 +1,11 @@
-// WIP: Self hosted implementation of LANG_NAME
 mode cli
 
 import("src/core/parser")
 // parser := import("src/core/parser") // TODO accept imports as declarations of struct (as namespace)
 
-LANG_NAME: String = "cil"
+//** WIP: Self hosted implementation of LANG_NAME
 
-// TODO rscil ignore commas and semicolons as optional separations inside structs and enums
-// TODO rscil ignore semicolons as optional statement separations inside bodies
+LANG_NAME: String = "cil"
 
 // TODO rscil implement arrays
 // TODO rscil allow access to individual chars inside a string
@@ -18,7 +16,7 @@ LANG_NAME: String = "cil"
 main := proc(path: String) {
     println("[INFO] Reading file '", path, "'")
     source := readfile(path)
-    scan_tokens(source) // TODO remove later
+    scan_tokens(source) // TODO remove later since it is  redundant with 'Lexer.new(source)'
     lexer := Lexer.new(source)
 
     // TODO implement get_current_line() core func to print better errors from cil
