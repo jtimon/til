@@ -11,7 +11,6 @@ use std::convert::TryInto;
 // CIL stands for Compiled Interpreted Language
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
 const LANG_NAME: &str = "cilrs";
-const BIN_NAME: &str = "cilrs";
 const DEFAULT_MODE: &str = "lib";
 const INFER_TYPE: &str = "auto";
 const SELF_HOSTED_PATH: &str = "src/cil.cil";
@@ -748,13 +747,13 @@ fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Result<M
     };
 
     if mode.name == "pure" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "lib"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "lib"));
     }
     if mode.name == "external" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "lib"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "lib"));
     }
     if mode.name == "safe_script" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, BIN_NAME, "script"));
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "script"));
     }
 
     *current = *current + 1; // Add one for the identifier mode
@@ -4021,9 +4020,9 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
 }
 
 fn usage() {
-    println!("Usage: {} [command] [path]\n", BIN_NAME);
-    println!("Entering no arguments is equavalent to: {} repl", BIN_NAME);
-    println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: {} interpret <path>\n", BIN_NAME);
+    println!("Usage: {} [command] [path]\n", LANG_NAME);
+    println!("Entering no arguments is equavalent to: {} repl", LANG_NAME);
+    println!("Entering a single argument that's not a command is interpreted as a path, equivalent to: {} interpret <path>\n", LANG_NAME);
 
     println!("Commands:\n");
 
