@@ -9,7 +9,7 @@ LANG_NAME: String = "cil"
 REPL_PATH: String = "src/core/modes/repl.cil";
 
 // TODO rscil implement arrays
-// scan_tokens := func(source: String) returns Array(Token) {}
+// scan_tokens := func(src: String) returns Array(Token) {}
 
 // TODO use variadic arguments
 // TODO move the repl subcommmand here, rscil only to interpret
@@ -21,9 +21,9 @@ main := proc(path: String) {
     }
 
     println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
-    source := readfile(path)
-    scan_tokens(source) // TODO remove later since it is  redundant with 'Lexer.new(source)'
-    // lexer := Lexer.new(source) // TODO
+    src := readfile(path)
+    scan_tokens(src) // TODO remove later since it is  redundant with 'Lexer.new(src)'
+    // lexer := Lexer.new(src) // TODO
     // TODO("Not self hosted yet")
 
     // TODO implement get_current_line() core func to print better errors from cil
