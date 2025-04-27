@@ -1,0 +1,31 @@
+mode test
+
+test_malloc := proc() {
+    mut p := malloc(16)
+    test(gt(p, 0), "malloc: pointer address should be non-zero")
+    free(p)
+}
+test_malloc()
+
+test_free := proc() {
+    mut p := malloc(8)
+    free(p)
+}
+test_free()
+
+test_memset := proc() {
+    mut p := malloc(8)
+    memset(p, U8.from_i64(0), 8)
+    free(p)
+}
+test_memset()
+
+test_memcpy := proc() {
+    mut p1 := malloc(8)
+    mut p2 := malloc(8)
+    memset(p1, U8.from_i64(42), 8)
+    memcpy(p2, p1, 8)
+    free(p1)
+    free(p2)
+}
+test_memcpy()

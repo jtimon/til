@@ -1637,9 +1637,9 @@ struct Context {
     funcs: HashMap<String, SFuncDef>, // REM: currently funcs are not on symbols, perhaps they should?
     enum_defs: HashMap<String, SEnumDef>,
     struct_defs: HashMap<String, SStructDef>,
-    bytes: HashMap<String, Vec<u8> >,
-    // TODO remove the following fields and use bytes to store that instead:
-    enums: HashMap<String, EnumVal>,
+    arena: Vec<u8>, // REM: heap/arena memory (starts at 1 to avoid NULL confusion)
+    bytes: HashMap<String, Vec<u8> >, // TODO move everything to arena
+    enums: HashMap<String, EnumVal>, // TODO to arena
 }
 
 impl Context {
@@ -1650,6 +1650,7 @@ impl Context {
             funcs: HashMap::new(),
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
+            arena: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
             bytes: HashMap::new(),
             enums: HashMap::new(),
         };
@@ -2760,9 +2761,100 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     return errors
 }
 
-// ---------- eval repl interpreter
-
 // ---------- core funcs implementations for eval
+
+// ---------- eval memory
+
+fn eval_core_func_malloc(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'malloc' takes exactly 1 argument. This should never happen.", LANG_NAME);
+
+    let size_str = eval_expr(&mut context, e.get(1));
+    let size = size_str.parse::<usize>().unwrap();
+
+    let offset = context.arena.len(); // take *current* end of arena
+
+    if size > 0 {
+        context.arena.resize(offset + size, 0); // extend safely
+    }
+
+    return offset.to_string();
+}
+
+fn eval_core_func_free(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'free' takes exactly 1 argument. This should never happen.", LANG_NAME);
+
+    let _ptr_str = eval_expr(&mut context, e.get(1));
+    // NOTE: Free does nothing in arena model (for now).
+
+    return "".to_string()
+}
+
+fn eval_core_func_memset(context: &mut Context, e: &Expr) -> String {
+    assert!(
+        e.params.len() == 4,
+        "{} ERROR: Core func 'memset' takes exactly 3 arguments. This should never happen.",
+        LANG_NAME
+    );
+
+    let dest_str = eval_expr(context, e.get(1));
+    let value_str = eval_expr(context, e.get(2));
+    let size_str = eval_expr(context, e.get(3));
+
+    let dest = match dest_str.trim().parse::<i64>() {
+        Ok(v) => v as usize,
+        Err(err) => return e.error("eval", &format!("Invalid dest (I64): '{}': {}", dest_str, err)),
+    };
+
+    let value = match value_str.trim().parse::<u8>() {
+        Ok(v) => v,
+        Err(err) => return e.error("eval", &format!("Invalid value (U8): '{}': {}", value_str, err)),
+    };
+
+    let size = match size_str.trim().parse::<i64>() {
+        Ok(v) => v as usize,
+        Err(err) => return e.error("eval", &format!("Invalid size (I64): '{}': {}", size_str, err)),
+    };
+
+    if dest + size > context.arena.len() {
+        return e.error("eval", &format!(
+            "memset out of bounds: dest={} size={} arena_len={}",
+            dest, size, context.arena.len()
+        ));
+    }
+
+    for i in 0..size {
+        context.arena[dest + i] = value;
+    }
+
+    "".to_string()
+}
+
+fn eval_core_func_memcpy(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 4, "{} ERROR: Core func 'memcpy' takes exactly 3 arguments. This should never happen.", LANG_NAME);
+
+    let dest_str = eval_expr(&mut context, e.get(1));
+    let src_str = eval_expr(&mut context, e.get(2));
+    let size_str = eval_expr(&mut context, e.get(3));
+
+    let dest = dest_str.parse::<usize>().unwrap();
+    let src = src_str.parse::<usize>().unwrap();
+    let size = size_str.parse::<usize>().unwrap();
+
+    if dest + size > context.arena.len() || src + size > context.arena.len() {
+        return e.error("eval", &format!(
+            "memcpy out of bounds: src={} dest={} size={} arena_len={}",
+            src, dest, size, context.arena.len()
+        ));
+    }
+
+    for i in 0..size {
+        context.arena[dest + i] = context.arena[src + i];
+    }
+
+    return "".to_string()
+}
+
+// ---------- eval str
 
 fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} ERROR: Core func 'str_eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
@@ -3056,6 +3148,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
+        "malloc" => eval_core_func_malloc(&mut context, &e),
+        "free" => eval_core_func_free(&mut context, &e),
+        "memset" => eval_core_func_memset(&mut context, &e),
+        "memcpy" => eval_core_func_memcpy(&mut context, &e),
         "str_eq" => eval_core_func_str_eq(&mut context, &e),
         "concat" => eval_core_func_concat(&mut context, &e),
         "str_len" => eval_core_func_str_len(&mut context, &e),

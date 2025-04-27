@@ -38,10 +38,11 @@ panic := proc(msg: String) {
     exit(1)
 }
 
-// Memory allocation
-
-alloc := ext_proc(size: I64) returns I64;
-free := ext_proc(ptr: Ptr);
+// Memory operations
+malloc := ext_proc(size: I64) returns I64;
+free := ext_proc(ptr: I64);
+memcpy := ext_proc(dest: I64, src: I64, size: I64);
+memset := ext_proc(dest: I64, value: U8, size: I64);
 
 Ptr := struct {
     // TODO meta-program this part after self hosting
@@ -63,12 +64,11 @@ Ptr := struct {
 
 eval_to_str     := ext_proc(a: String) returns String;
 eval_to_ast_str := ext_proc(src: String) returns String; // TODO
-eval_to_expr := ext_proc(src: String) returns Expr; // TODO
+eval_to_expr    := ext_proc(src: String) returns Expr; // TODO
 
 input_read_line := ext_proc(a: String) returns String;
-
-readfile := ext_proc(path: String) returns String;
-writefile := ext_proc(path: String, contents: String) returns String; // TODO
+readfile        := ext_proc(path: String) returns String;
+writefile       := ext_proc(path: String, contents: String) returns String; // TODO
 
 not := func(b: Bool) returns Bool {
     if b {
