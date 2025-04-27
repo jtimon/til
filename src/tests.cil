@@ -30,6 +30,7 @@ runfile("src/test/fibonacci.cil") // recursive examples
 runfile("src/test/flow.cil") // control flow, execution path examples
 runfile("src/test/intro.cil")
 runfile("src/test/namespaces.cil")
+runfile("src/test/pointers.cil")
 runfile("src/test/strings.cil")
 runfile("src/test/structs.cil")
 runfile("src/test/u8.cil")

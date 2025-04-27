@@ -45,20 +45,42 @@ memcpy := ext_proc(dest: I64, src: I64, size: I64);
 memset := ext_proc(dest: I64, value: U8, size: I64);
 
 Ptr := struct {
-    // TODO meta-program this part after self hosting
-    mut ptr_type: String = "Null"
-    mut data: I64 = 0
-    mut cap: I64 = 0
-    mut len: I64 = 0
+    INVALID : I64 = sub(0, 1) // Use -1 to represent an invalid/uninitialized pointer
+    mut data: I64 = Ptr.INVALID
 
-    new := proc(ptr_type: String) returns Ptr {
-        self := Ptr()
-        self.ptr_type = ptr_type
-        return self
+    new := proc(size: I64) returns Ptr {
+        mut p := Ptr()
+        p.data = malloc(size)
+        return p
     }
 
     free := proc(self: Ptr) {
-        TODO("Ptr.free not implemented yet")
+        if gt(0, self.data) {
+            panic("Ptr.free: trying to free an invalid pointer")
+        }
+        free(self.data)
+    }
+
+    offset := proc(self: Ptr, offset: I64) returns Ptr {
+        mut p := Ptr()
+        p.data = add(self.data, offset)
+        return p
+    }
+
+    cast := macro(self: Ptr, type_name: String) returns Ptr {
+        // TODO: This cast is purely cosmetic for now.
+        // Proper type-changing macros are not implemented yet.
+        return self
+    }
+
+    copy_to := proc(self: Ptr, dest: Ptr, size: I64) {
+        // TODO: 'dest' should be mut, awaiting mut args support
+        memcpy(dest.data, self.data, size)
+    }
+
+    set_zero := proc(self: Ptr, size: I64) {
+        // TODO: 'self' should be mut, awaiting mut args support
+        memset(self.data, U8.from_i64(0), size)
     }
 }
 
