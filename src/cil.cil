@@ -8,6 +8,21 @@ import("src/core/parser")
 LANG_NAME: String = "cil"
 REPL_PATH: String = "src/core/modes/repl.cil";
 
+usage := proc() {
+    println("Usage: ", LANG_NAME, " [command] [path]\n");
+    println("Entering no arguments is equavalent to: '", LANG_NAME, " repl'");
+    println("Entering a single argument that's not a command is interpreted as a path, equivalent to: '", LANG_NAME, " interpret <path>'\n");
+
+    println("Commands:\n");
+
+    println("repl: read eval print loop.");
+    println("interpret: reads a file in provided <path> and evaluates it.");
+    // println("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
+    println("build: reads a file in provided <path> and compiles it. Not implemented yet.");
+    println("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet.");
+    println("help: Prints this.\n");
+}
+
 // TODO rscil implement arrays
 // scan_tokens := func(src: String) returns Array(Token) {}
 
@@ -17,16 +32,33 @@ main := proc(path: String) {
 
     if or(String.eq("", path), String.eq("repl", path)) {
         runfile(REPL_PATH)
-        return
+        return // TODO fix empty return
+    } else {
+
+        if or(
+            // TODO recover variadic 'or'
+            // path.eq("ast"),
+            path.eq("interpret"),
+            // path.eq("build"),
+            // path.eq("run"),
+            // path.eq("help"),
+            // path.eq("-help"),
+            path.eq("--help"),
+            // path.eq("--version"),
+            // path.eq("-v")
+        ) {
+            usage()
+            return // TODO fix empty return
+        } else {
+            println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
+            src := readfile(path)
+            scan_tokens(src) // TODO remove later since it is  redundant with 'Lexer.new(src)'
+            // lexer := Lexer.new(src) // TODO
+            // TODO("Not self hosted yet")
+
+            // TODO implement get_current_line() core func to print better errors from cil
+            // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
+            // println(path, ":0:0: TODO: REM: Implement lexer")
+        }
     }
-
-    println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
-    src := readfile(path)
-    scan_tokens(src) // TODO remove later since it is  redundant with 'Lexer.new(src)'
-    // lexer := Lexer.new(src) // TODO
-    // TODO("Not self hosted yet")
-
-    // TODO implement get_current_line() core func to print better errors from cil
-    // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
-    // println(path, ":0:0: TODO: REM: Implement lexer")
 }

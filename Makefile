@@ -9,6 +9,7 @@ tests: cilrs
 # TODO run src/tests.cil with cil.cil
 cil: cilrs tests
 	./cilrs interpret src/cil.cil src/test/example_self_hosted.cil
+	# ./cilrs interpret src/cil.cil help
 	# ./cilrs interpret src/cil.cil src/test/strings.cil
 	# ./cilrs interpret src/cil.cil src/core/lexer.cil
 repl:

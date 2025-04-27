@@ -4056,7 +4056,6 @@ fn main() {
         for arg in &args {
             if i > 2 {
                 main_args.push(arg.clone());
-                println!("Arg {}: {}", i, arg);
             }
             i += 1;
         }
