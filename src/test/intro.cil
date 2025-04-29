@@ -2,6 +2,8 @@ mode script
 
 import("src/core/modes/test")
 
+assert_eq_str(loc(), "src/test/intro.cil:5:15:") // TODO fix, it should be 5:14
+
 //// Intro to the language (suggestion: uncomment lines which claim will fail and see what happens)
 // @ // fails because @ is invalid on the lexer for now
 // adsgffdgfdg sdfgfsdgsf @ dfghj dgfhj // fails because @ is invalid on the lexer, but at a different line and col

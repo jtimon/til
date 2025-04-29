@@ -1644,6 +1644,7 @@ struct EnumVal {
 
 #[derive(Clone)]
 struct Context {
+    path: String,
     mode: ModeDef,
     symbols: HashMap<String, SymbolInfo>,
     funcs: HashMap<String, SFuncDef>, // REM: currently funcs are not on symbols, perhaps they should?
@@ -1655,8 +1656,9 @@ struct Context {
 }
 
 impl Context {
-    fn new(mode_name: &str) -> Context {
+    fn new(path: &String, mode_name: &str) -> Context {
         return Context {
+            path: path.to_string(),
             mode: mode_from_name(mode_name).unwrap(),
             symbols: HashMap::new(),
             funcs: HashMap::new(),
@@ -2775,6 +2777,14 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
 
 // ---------- core funcs implementations for eval
 
+fn eval_core_func_loc(context: &mut Context, e: &Expr) -> String {
+    let file = context.path.clone();
+    let line = e.line;
+    let col = e.col;
+
+    return format!("{}:{}:{}:", file, line, col)
+}
+
 // ---------- eval memory
 
 fn eval_core_func_malloc(mut context: &mut Context, e: &Expr) -> String {
@@ -3200,6 +3210,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
+        "loc" => return eval_core_func_loc(&mut context, e),
         "malloc" => eval_core_func_malloc(&mut context, &e),
         "free" => eval_core_func_free(&mut context, &e),
         "memset" => eval_core_func_memset(&mut context, &e),
@@ -4137,7 +4148,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 // ---------- main, usage, args, etc
 
 fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
-    let mut context = Context::new(DEFAULT_MODE);
+    let mut context = Context::new(path, DEFAULT_MODE);
     run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
     run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new())?;
     run_file_with_context(false, &mut context, &path, main_args)?;
