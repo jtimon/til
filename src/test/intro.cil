@@ -2,7 +2,7 @@ mode script
 
 import("src/core/modes/test")
 
-assert_eq_str(loc(), "src/test/intro.cil:5:15:") // TODO fix, it should be 5:14
+assert_eq_str(loc(), loc(), "src/test/intro.cil:5:22:") // TODO fix, the col should be one less
 
 //// Intro to the language (suggestion: uncomment lines which claim will fail and see what happens)
 // @ // fails because @ is invalid on the lexer for now
@@ -44,7 +44,7 @@ my_func := func(a: Bool, b: Bool) returns Bool {
     // return 42 // fails, because 42 is not a Bool
     return and(a, b)
 }
-test(my_func(true, true), "my_func(true, true) didn't return true")
+test(loc(), my_func(true, true), "my_func(true, true) didn't return true")
 
 // return can be used in functions that don't return anything to exit early
 exit_early_print := proc(a: Bool, msg: String) {
@@ -68,13 +68,13 @@ my_func_multi := func(a: Bool, b: Bool) returns Bool, Bool {
 my_macro := macro(a: Bool, b: Bool) returns Bool {
     return and(a, b)
 }
-test(my_macro(true, true), "my_macro(true, true) didn't return true")
+test(loc(), my_macro(true, true), "my_macro(true, true) didn't return true")
 
 my_str_func := func(a: String) returns String {
     return a
 }
 arg_test_str := "strings can be passed as arguments and returned"
-assert_eq_str(my_str_func(arg_test_str), arg_test_str)
+assert_eq_str(loc(), my_str_func(arg_test_str), arg_test_str)
 
 main := proc() {
     mut my_bool := true

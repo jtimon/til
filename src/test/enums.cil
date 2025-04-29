@@ -27,10 +27,10 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     return to_return
 }
 
-assert_eq_str(test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
-assert_eq_str(test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
-assert_eq_str(test_switch_enum(ExampleEnum.C), "enum cccccc by default")
-assert_eq_str(test_switch_enum(ExampleEnum.D), "enum cccccc by default")
+assert_eq_str(loc(), test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+assert_eq_str(loc(), test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(loc(), test_switch_enum(ExampleEnum.C), "enum cccccc by default")
+assert_eq_str(loc(), test_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
 // TODO fix macro() not implement yet
 // test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
@@ -49,10 +49,10 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     }
     return no_return_switch_str
 }
-assert_eq_str(test_return_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
-assert_eq_str(test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
-assert_eq_str(test_return_switch_enum(ExampleEnum.C), "enum cccccc by default")
-assert_eq_str(test_return_switch_enum(ExampleEnum.D), "enum cccccc by default")
+assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
+assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
+assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.C), "enum cccccc by default")
+assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool

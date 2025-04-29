@@ -3,5 +3,5 @@ mode lib
 import("src/core/lexer")
 
 parse_lexer: = proc(lexer: Lexer) returns Parser {
-    TODO("parse_lexer")
+    TODO(loc(), "parse_lexer")
 }

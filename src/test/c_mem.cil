@@ -2,7 +2,7 @@ mode test
 
 test_malloc := proc() {
     mut p := malloc(16)
-    test(gt(p, 0), "malloc: pointer address should be non-zero")
+    test(loc(), gt(p, 0), "malloc: pointer address should be non-zero")
     free(p)
 }
 test_malloc()

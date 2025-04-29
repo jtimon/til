@@ -35,12 +35,12 @@ fib_test := proc(fib_arg: I64) {
 
     test_fib_alg := proc(num_alg: I64, n: I64) {
         switch num_alg {
-        case 0: test(I64.eq(fib_0(n), fib_1(n)), "fib_0(n) or fib_1(n) are faulty")
-        case 1: test(I64.eq(fib_1(n), fib_0(n)), "fib_1(n) is faulty")
-        case 2: test(I64.eq(fib_2(n), fib_0(n)), "fib_2(n) is faulty")
+        case 0: test(loc(), I64.eq(fib_0(n), fib_1(n)), "fib_0(n) or fib_1(n) are faulty")
+        case 1: test(loc(), I64.eq(fib_1(n), fib_0(n)), "fib_1(n) is faulty")
+        case 2: test(loc(), I64.eq(fib_2(n), fib_0(n)), "fib_2(n) is faulty")
         case:
             println("test_fib_alg: algorithm '", I64.to_str(num_alg), "' not implemented")
-            panic("TODO: another fib algorithm")
+            panic(loc(), "TODO: another fib algorithm")
         }
     }
 

@@ -51,21 +51,21 @@ Vec3 := struct {
 // trying_dot_struct2 : Bool = MyStruct.bool_field.ccccc // TODO implement nested structs
 
 test_structs := proc() {
-    test(MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
+    test(loc(), MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
     my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
     mut my_vec2 := Vec2()
     my_vec2.x = 40
     my_vec2.y =  2
-    assert_eq(42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
-    assert_eq(42, my_vec2.add_all_coordinates()) // associated functions can be used as methods (if the first argument matches the type)
+    assert_eq(loc(), 42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
+    assert_eq(loc(), 42, my_vec2.add_all_coordinates()) // associated functions can be used as methods (if the first argument matches the type)
     mut my_vec3 := Vec3()
     my_vec3.z = 42
-    assert_eq(42, my_vec3.z) // access to struct fields as arguments
+    assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
 
     my_struct := MyStruct.new(true, 42, "my field string") // TODO Fix custom constructor
     // assert(my_struct.bool_field) // TODO Fix
-    // assert_eq(42, my_struct.int_field) // TODO Fix
-    // assert_eq_str("my field string", my_struct.string_field) // TODO Fix
+    // assert_eq(loc(), 42, my_struct.int_field) // TODO Fix
+    // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
 
     // my_bool := Bool() // TODO allow instantiations of core types
     // my_i64 := I64() // TODO truly self host I64 with an [8]U8

@@ -6,44 +6,44 @@ c2      := 2
 c4      := 4
 c42     := 42
 
-test(c42.eq(add(40, 2)), "40 + 2 = 42")
-test(c42.eq(sub(44, 2)), "44 - 2 = 42")
-test(c42.eq(mul(6, 7)), " 6 * 7 = 42")
-test(c42.eq(div(420, 10)), " 420 / 10 = 42")
-test( c4.eq(add(2, 2)), "2 + 2 = 4")
-test( c4.eq(mul(2, 2)), "2 * 2 = 4")
-// TODO test(eq(exp(2, 2), 4), "exp(2, 2) == 4")
-// TODO test(eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
-// TODO test(eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
+test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
+test(loc(), c42.eq(sub(44, 2)), "44 - 2 = 42")
+test(loc(), c42.eq(mul(6, 7)), " 6 * 7 = 42")
+test(loc(), c42.eq(div(420, 10)), " 420 / 10 = 42")
+test(loc(),  c4.eq(add(2, 2)), "2 + 2 = 4")
+test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
+// TODO test(loc(), eq(exp(2, 2), 4), "exp(2, 2) == 4")
+// TODO test(loc(), eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
+// TODO test(loc(), eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
 
 // Testing inc and dec methods
 test_inc_dec := proc() {
     mut val := 41
     I64.inc(val)
     // val.inc() // TODO fix method calls
-    test(val.eq(42), "41.inc() == 42")
+    test(loc(), val.eq(42), "41.inc() == 42")
 
     I64.dec(val)
     // val.dec() // TODO fix method calls
-    test(val.eq(41), "42.dec() == 41")
+    test(loc(), val.eq(41), "42.dec() == 41")
 }
 test_inc_dec()
 
 // --------------- TODO remove redundancies
 
 // Arithmetic tests
-test(I64.eq(add(40, 2), 42), "40 + 2 = 42")
-test(I64.eq(sub(44, 2), 42), "44 - 2 = 42")
-test(I64.eq(mul(6, 7), 42), "6 * 7 = 42")
-test(I64.eq(div(420, 10), 42), "420 / 10 = 42")
-test(I64.eq(add(2, 2), 4), "2 + 2 = 4")
-test(I64.eq(mul(2, 2), 4), "2 * 2 = 4")
+test(loc(), I64.eq(add(40, 2), 42), "40 + 2 = 42")
+test(loc(), I64.eq(sub(44, 2), 42), "44 - 2 = 42")
+test(loc(), I64.eq(mul(6, 7), 42), "6 * 7 = 42")
+test(loc(), I64.eq(div(420, 10), 42), "420 / 10 = 42")
+test(loc(), I64.eq(add(2, 2), 4), "2 + 2 = 4")
+test(loc(), I64.eq(mul(2, 2), 4), "2 * 2 = 4")
 
 // Additional tests for arithmetic functions
-test(I64.eq(mul(0, 5), 0), "0 * 5 = 0")
-test(I64.eq(mul(1, 5), 5), "1 * 5 = 5")
-test(I64.eq(div(10, 2), 5), "10 / 2 = 5")
-test(I64.eq(div(9, 3), 3), "9 / 3 = 3")
-test(I64.eq(sub(5, 2), 3), "5 - 2 = 3")
-test(I64.eq(add(0, 0), 0), "0 + 0 = 0")
-test(I64.eq(add(1, 1), 2), "1 + 1 = 2")
+test(loc(), I64.eq(mul(0, 5), 0), "0 * 5 = 0")
+test(loc(), I64.eq(mul(1, 5), 5), "1 * 5 = 5")
+test(loc(), I64.eq(div(10, 2), 5), "10 / 2 = 5")
+test(loc(), I64.eq(div(9, 3), 3), "9 / 3 = 3")
+test(loc(), I64.eq(sub(5, 2), 3), "5 - 2 = 3")
+test(loc(), I64.eq(add(0, 0), 0), "0 + 0 = 0")
+test(loc(), I64.eq(add(1, 1), 2), "1 + 1 = 2")

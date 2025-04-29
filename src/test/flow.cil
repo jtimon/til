@@ -5,7 +5,7 @@ mode script
 // basic 'if' statements:
 
 if not(gt(4, 2)) {
-    panic("'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
+    panic(loc(), "'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
 }
 
 // basic 'if/else' statements:

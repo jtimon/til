@@ -2,10 +2,10 @@ mode test
 
 // comparisons:
 
-test(I64.eq(0, 0), "0 == 0")
-test(I64.eq(2, 2), "2 == 2")
-test(lt(0, 1), "0 is less than 1")
-test(gt(2, 1), "2 is greater than 1")
-test(lteq(2, 2), "2 is gt-equal to 2")
-test(gteq(2, 2), "2 is lt-equal to 2")
-test(String.eq("aa", "aa"), "String.eq('aa', 'aa') is true")
+test(loc(), I64.eq(0, 0), "0 == 0")
+test(loc(), I64.eq(2, 2), "2 == 2")
+test(loc(), lt(0, 1), "0 is less than 1")
+test(loc(), gt(2, 1), "2 is greater than 1")
+test(loc(), lteq(2, 2), "2 is gt-equal to 2")
+test(loc(), gteq(2, 2), "2 is lt-equal to 2")
+test(loc(), String.eq("aa", "aa"), "String.eq('aa', 'aa') is true")

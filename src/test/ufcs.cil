@@ -8,33 +8,33 @@ my_int_b :=  2
 // Test Universal Function Call System (UFCS)
 
 test_ufcs := proc () {
-    assert(not(my_int_a.int_eq(my_false)))
-    assert(not(my_false))
-    assert(my_true)
-    assert(my_true.and(my_true))
-    assert(not(my_true.and(my_false)))
-    assert(my_true.or(my_false))
-    assert(my_false.or(my_true))
+    assert(loc(), not(my_int_a.int_eq(my_false)))
+    assert(loc(), not(my_false))
+    assert(loc(), my_true)
+    assert(loc(), my_true.and(my_true))
+    assert(loc(), not(my_true.and(my_false)))
+    assert(loc(), my_true.or(my_false))
+    assert(loc(), my_false.or(my_true))
 
-    // test(true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
-    // test(and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
+    // test(loc(), true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
+    // test(loc(), and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
 
     xor2 := func(a: Bool, b: Bool) returns Bool {
         return or(a.and(not(b)), b.and(not(a)))
     }
-    assert(xor2(true, false))
-    assert(xor2(false, true))
-    assert(not(xor2(true, true)))
-    assert(not(xor2(false, false)))
+    assert(loc(), xor2(true, false))
+    assert(loc(), xor2(false, true))
+    assert(loc(), not(xor2(true, true)))
+    assert(loc(), not(xor2(false, false)))
 
     // xor3 := func(a: Bool, b: Bool) returns Bool {
     //     return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
     // }
-    // assert(xor3(true, false))
-    // assert(xor3(false, true))
-    // assert(not(xor3(true, true)))
-    // assert(not(xor3(false, false)))
+    // assert(loc(), xor3(true, false))
+    // assert(loc(), xor3(false, true))
+    // assert(loc(), not(xor3(true, true)))
+    // assert(loc(), not(xor3(false, false)))
 
     aaa := true
-    test(aaa.and(true), "true.and(true) == true")
+    test(loc(), aaa.and(true), "true.and(true) == true")
 }

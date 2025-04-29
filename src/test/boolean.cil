@@ -2,83 +2,83 @@ mode test
 
 // boolean logic:
 
-test(true, "true is true")
-test(not(false), "not: not false is true")
-test(not(not(true)), "not: not not true is true")
+test(loc(), true, "true is true")
+test(loc(), not(false), "not: not false is true")
+test(loc(), not(not(true)), "not: not not true is true")
 // and(true, 1111) // fails, 'and' cannot take number literals
 // and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
-test(and(true, true), "and(true, true) == true")
-test(not(and(true, false)), "and(true, false) == false")
-test(not(and(true, false)), "and(false, true) == false")
-test(not(and(false, true)), "and(false, true) == false")
-test(not(and(false, false)), "and(false, false) == false")
+test(loc(), and(true, true), "and(true, true) == true")
+test(loc(), not(and(true, false)), "and(true, false) == false")
+test(loc(), not(and(true, false)), "and(false, true) == false")
+test(loc(), not(and(false, true)), "and(false, true) == false")
+test(loc(), not(and(false, false)), "and(false, false) == false")
 
-test(or(true, true), "or(true, true) == true")
-test(or(true, false), "or(true, false) == true")
-test(or(false, true), "or(false, true) == true")
-test(not(or(false, false)), "or(false, false) == false")
+test(loc(), or(true, true), "or(true, true) == true")
+test(loc(), or(true, false), "or(true, false) == true")
+test(loc(), or(false, true), "or(false, true) == true")
+test(loc(), not(or(false, false)), "or(false, false) == false")
 
 // note that both 'and' and 'or' can take any number of bools as args, like in lisp
-// test(or(false, true, true), "or(false, false, true) == true")
-// test(not(and(false, true, true)), "and(false, false, true) == false")
+// test(loc(), or(false, true, true), "or(false, false, true) == true")
+// test(loc(), not(and(false, true, true)), "and(false, false, true) == false")
 
-test(or(true, false), "and: true or false is true")
+test(loc(), or(true, false), "and: true or false is true")
 
-test(xor(true, false), "and: true xor false is true")
-test(not(xor(true, true)), "xor(true, true) == false")
+test(loc(), xor(true, false), "and: true xor false is true")
+test(loc(), not(xor(true, true)), "xor(true, true) == false")
 
 // --------------- TODO remove redundancies
 
 // Bool to int tests tests
-test(I64.eq(Bool.to_i64(true), 1), "Bool.to_i64(true) = 1")
-test(I64.eq(Bool.to_i64(false), 0), "Bool.to_i64(false) = 0")
+test(loc(), I64.eq(Bool.to_i64(true), 1), "Bool.to_i64(true) = 1")
+test(loc(), I64.eq(Bool.to_i64(false), 0), "Bool.to_i64(false) = 0")
 
 // Testing 'and' with all combinations
-test(and(true, true), "true AND true = true")
-test(not(and(true, false)), "true AND false = false")
-test(not(and(false, true)), "false AND true = false")
-test(not(and(false, false)), "false AND false = false")
+test(loc(), and(true, true), "true AND true = true")
+test(loc(), not(and(true, false)), "true AND false = false")
+test(loc(), not(and(false, true)), "false AND true = false")
+test(loc(), not(and(false, false)), "false AND false = false")
 
 // variadic 'and'
-// test(and(true), "true AND = true")
-// test(not(and(false)), "false AND = false")
-// test(and(true, true, true), "true AND true AND true = true")
-// test(not(and(true, false, true)), "true AND false AND true = false")
+// test(loc(), and(true), "true AND = true")
+// test(loc(), not(and(false)), "false AND = false")
+// test(loc(), and(true, true, true), "true AND true AND true = true")
+// test(loc(), not(and(true, false, true)), "true AND false AND true = false")
 
 // Testing 'or' with all combinations
-test(not(or(false, false)), "false OR false = false")
-test(or(true, false), "true OR false = true")
-test(or(false, true), "false OR true = true")
-test(or(true, true), "true OR true = true")
+test(loc(), not(or(false, false)), "false OR false = false")
+test(loc(), or(true, false), "true OR false = true")
+test(loc(), or(false, true), "false OR true = true")
+test(loc(), or(true, true), "true OR true = true")
 
 // variadic 'or'
-// test(or(true), "true OR = true")
-// test(not(or(false)), "false OR = false")
-// test(or(false, false, true), "false OR false OR true = true")
-// test(not(or(false, false, false)), "false OR false OR false = false")
+// test(loc(), or(true), "true OR = true")
+// test(loc(), not(or(false)), "false OR = false")
+// test(loc(), or(false, false, true), "false OR false OR true = true")
+// test(loc(), not(or(false, false, false)), "false OR false OR false = false")
 
 // Testing 'xor' with all combinations
-test(xor(true, false), "true XOR false = true")
-test(xor(false, true), "false XOR true = true")
-test(not(xor(true, true)), "true XOR true = false")
-test(not(xor(false, false)), "false XOR false = false")
+test(loc(), xor(true, false), "true XOR false = true")
+test(loc(), xor(false, true), "false XOR true = true")
+test(loc(), not(xor(true, true)), "true XOR true = false")
+test(loc(), not(xor(false, false)), "false XOR false = false")
 
 // Testing 'xnor' with all combinations
-test(not(xnor(true, false)), "true XNOR false = false")
-test(not(xnor(false, true)), "false XNOR true = false")
-test(xnor(true, true), "true XNOR true = true")
-test(xnor(false, false), "false XNOR false = true")
+test(loc(), not(xnor(true, false)), "true XNOR false = false")
+test(loc(), not(xnor(false, true)), "false XNOR true = false")
+test(loc(), xnor(true, true), "true XNOR true = true")
+test(loc(), xnor(false, false), "false XNOR false = true")
 
 // Testing 'Bool.eq' with all combinations (it is equivalent to xnor)
-test(not(Bool.eq(true, false)), "true BOOL.eq false = false")
-test(not(Bool.eq(false, true)), "false BOOL.eq true = false")
-test(Bool.eq(true, true), "true BOOL.eq true = true")
-test(Bool.eq(false, false), "false BOOL.eq false = true")
+test(loc(), not(Bool.eq(true, false)), "true BOOL.eq false = false")
+test(loc(), not(Bool.eq(false, true)), "false BOOL.eq true = false")
+test(loc(), Bool.eq(true, true), "true BOOL.eq true = true")
+test(loc(), Bool.eq(false, false), "false BOOL.eq false = true")
 
 // Test Bool.to_str()
 aaa := true
-test(String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
-test(String.eq("true", Bool.to_str(aaa)), "'true' = Bool.to_str(true)")
-test(String.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
-test(String.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
-test(String.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
+test(loc(), String.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
+test(loc(), String.eq("true", Bool.to_str(aaa)), "'true' = Bool.to_str(true)")
+test(loc(), String.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
+test(loc(), String.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
+test(loc(), String.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
