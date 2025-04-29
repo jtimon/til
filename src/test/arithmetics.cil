@@ -19,12 +19,10 @@ test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
 // Testing inc and dec methods
 test_inc_dec := proc() {
     mut val := 41
-    I64.inc(val)
-    // val.inc() // TODO fix method calls
+    val.inc() // Equivalent to I64.inc(val)
     test(loc(), val.eq(42), "41.inc() == 42")
 
-    I64.dec(val)
-    // val.dec() // TODO fix method calls
+    val.dec()
     test(loc(), val.eq(41), "42.dec() == 41")
 }
 test_inc_dec()

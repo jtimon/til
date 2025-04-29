@@ -30,7 +30,7 @@ usage := proc() {
 // TODO move the repl subcommmand here, rscil only to interpret
 main := proc(path: String) {
 
-    if or(String.eq("", path), String.eq("repl", path)) {
+    if or(path.eq(""), path.eq("repl")) {
         runfile(REPL_PATH)
         return // TODO fix empty return
     } else {

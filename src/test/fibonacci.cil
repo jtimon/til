@@ -39,7 +39,7 @@ fib_test := proc(fib_arg: I64) {
         case 1: test(loc(), I64.eq(fib_1(n), fib_0(n)), "fib_1(n) is faulty")
         case 2: test(loc(), I64.eq(fib_2(n), fib_0(n)), "fib_2(n) is faulty")
         case:
-            println("test_fib_alg: algorithm '", I64.to_str(num_alg), "' not implemented")
+            println("test_fib_alg: algorithm '", num_alg.to_str(), "' not implemented")
             panic(loc(), "TODO: another fib algorithm")
         }
     }

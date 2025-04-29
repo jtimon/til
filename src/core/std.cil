@@ -1,11 +1,11 @@
 mode lib
 
 xor := func(a: Bool, b: Bool) returns Bool {
-    return not(Bool.eq(a, b))
+    return not(a.eq(b))
 }
 
 xnor := func(a: Bool, b: Bool) returns Bool {
-    return Bool.eq(a, b)
+    return a.eq(b)
 }
 
 panic2 := proc(loc_str: String, msgs: ..String) {

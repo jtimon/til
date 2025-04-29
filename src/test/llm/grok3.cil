@@ -19,7 +19,7 @@ test(loc(), I64.eq(decrement(5), 4), "decrement(5) = 4")
 
 // Simple function with a condition
 is_zero := func(x: I64) returns Bool {
-    return I64.eq(x, 0)
+    return x.eq(0)
 }
 
 // Simple addition function

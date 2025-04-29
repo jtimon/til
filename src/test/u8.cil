@@ -10,7 +10,7 @@ assert_eq(loc(), 42, my_u8.to_i64())
 
 // assert_eq_str(loc(), "0", U8.to_str(U8.from_i64(0))) // TODO
 // assert_eq_str(loc(), "42", U8.to_str(U8.from_i64(42))) // TODO
-// assert_eq_str(loc(), "42", U8.to_str(my_u8)) // TODO
+// assert_eq_str(loc(), "42", my_u8.to_str()) // TODO
 
 // Must fail:
 

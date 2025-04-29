@@ -172,6 +172,7 @@ lteq := func(a: I64, b: I64) returns Bool {
         return true
     }
     if I64.eq(a, b) {
+    // if a.eq(b) { // TODO FIX Doesn't work because the struct def is not in context
         return true
     }
     return false
@@ -182,6 +183,7 @@ gteq := func(a: I64, b: I64) returns Bool {
         return true
     }
     if I64.eq(a, b) {
+    // if a.eq(b) { // TODO FIX Doesn't work because the struct def is not in context
         return true
     }
     return false
