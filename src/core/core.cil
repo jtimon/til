@@ -73,13 +73,11 @@ Ptr := struct {
         return self
     }
 
-    copy_to := proc(self: Ptr, dest: Ptr, size: I64) {
-        // TODO: 'dest' should be mut, awaiting mut args support
+    copy_to := proc(self: Ptr, mut dest: Ptr, size: I64) {
         memcpy(dest.data, self.data, size)
     }
 
-    set_zero := proc(self: Ptr, size: I64) {
-        // TODO: 'self' should be mut, awaiting mut args support
+    set_zero := proc(mut self: Ptr, size: I64) {
         memset(self.data, U8.from_i64(0), size)
     }
 }
@@ -245,6 +243,14 @@ I64 := struct {
     from_str := func(str: String) returns I64 {
         str_to_i64 := ext_func(a: String) returns I64;
         return str_to_i64(str) // TODO: this can fail and panic from rust
+    }
+
+    inc := proc(mut self: I64) {
+        self = add(self, 1)
+    }
+
+    dec := proc(mut self: I64) {
+        self = sub(self, 1)
     }
 
     // TODO: implement operators and allow operator overload

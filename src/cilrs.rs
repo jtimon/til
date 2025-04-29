@@ -845,13 +845,14 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
     let mut expect_name = true;
     let mut is_variadic = false;
     let mut arg_name = "unnamed";
+    let mut is_mut = false;
     while !(lexer.is_eof(*current) || rightparent_found) {
         match t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
                 if expect_colon {
                     args.push(Declaration{
-                        name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false});
+                        name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: is_mut});
                 }
                 *current = *current + 1;
             },
@@ -860,14 +861,16 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     expect_comma = false;
                     expect_colon = false;
                     expect_name = true;
+                    is_mut = false;
                     *current = *current + 1;
                     t = lexer.get_token(*current)?;
                 } else {
                     if expect_colon {
                         expect_colon = false;
                         args.push(Declaration{
-                            name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: false});
+                            name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: is_mut});
                         expect_comma = true;
+                        is_mut = false;
                         *current = *current + 1;
                         t = lexer.get_token(*current)?;
                     } else {
@@ -915,20 +918,29 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     if is_variadic {
                         args.push(Declaration{
                             name: arg_name.to_string(),
-                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))), is_mut: false});
+                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))), is_mut: is_mut});
                         is_variadic = false;
                     } else {
                         args.push(Declaration{
                             name: arg_name.to_string(),
-                            value_type: str_to_value_type(&t.token_str), is_mut: false});
+                            value_type: str_to_value_type(&t.token_str), is_mut: is_mut});
                     }
                     expect_comma = true;
+                    is_mut = false;
                 }
                 *current = *current + 1;
                 t = lexer.get_token(*current)?;
             },
+            TokenType::Mut => {
+                if !expect_name {
+                    return Err(format!("{}:{}: parse ERROR: Unexpected 'mut' in argument list.", t.line, t.col));
+                }
+                is_mut = true;
+                *current = *current + 1;
+                t = lexer.get_token(*current)?;
+            },
             _ => {
-                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc args.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Unexpected '{:?}' in func/proc args.", t.line, t.col, t.token_type));
             },
         }
     }
@@ -973,7 +985,7 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
                 t = lexer.get_token(*current)?;
             },
             _ => {
-                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc returns.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Unexpected '{:?}' in func/proc returns.", t.line, t.col, t.token_type));
             },
         }
     }
@@ -1021,7 +1033,7 @@ fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>
                 t = lexer.get_token(*current)?;
             },
             _ => {
-                return Err(format!("{}:{}: parse ERROR: Unexpected {:?} in func/proc throws.", t.line, t.col, t.token_type));
+                return Err(format!("{}:{}: parse ERROR: Unexpected '{:?}' in func/proc throws.", t.line, t.col, t.token_type));
             },
         }
     }
@@ -2569,7 +2581,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
             },
             _ => {},
         }
-        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: false});
+        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
     }
 
     // Don't check the bodies of external functions
@@ -3074,6 +3086,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
             LANG_NAME, name, func_def.args.len(), e.params.len()-1);
 
     let mut param_index = 1;
+    let mut mut_args: Vec<(String, String, ValueType)> = Vec::new(); // (arg_name, source_name, type)
+
     for arg in &func_def.args {
 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
@@ -3083,7 +3097,20 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                                                      &arg.name, value_type_to_str(&arg.value_type)))
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let result = eval_expr(&mut context, &e.get(param_index));
+                let current_arg = e.get(param_index);
+                let result = eval_expr(&mut context, &current_arg);
+
+                if arg.is_mut {
+                    match &current_arg.node_type {
+                        NodeType::Identifier(id_) => {
+                            mut_args.push((arg.name.clone(), id_.clone(), arg.value_type.clone()));
+                        },
+                        _ => {
+                            return e.error("eval", "mut arguments must be passed as identifiers");
+                        }
+                    }
+                }
+
                 match custom_type_name.as_str() {
                     "I64" => {
                         function_context.insert_i64(&arg.name, &result);
@@ -3107,7 +3134,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                                 if !function_context.insert_struct(&arg.name, &custom_type_name) {
                                     return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.", &arg.name, &custom_type_name))
                                 }
-                                let current_arg = e.get(param_index);
                                 if current_arg.params.len() > 0 {
                                     return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now. ", &arg.name, &custom_type_name))
                                 }
@@ -3143,7 +3169,33 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
         param_index += 1;
     }
 
-    return eval_body(&mut function_context, &func_def.body);
+    let result = eval_body(&mut function_context, &func_def.body);
+
+    for (arg_name, source_name, value_type) in mut_args {
+        match value_type {
+            ValueType::TCustom(ref type_name) if type_name == "I64" => {
+                let val = function_context.get_i64(&arg_name).unwrap();
+                context.insert_i64(&source_name, &val.to_string());
+            },
+            ValueType::TCustom(ref type_name) if type_name == "U8" => {
+                let val = function_context.get_u8(&arg_name).unwrap();
+                context.insert_u8(&source_name, &val.to_string());
+            },
+            ValueType::TCustom(ref type_name) if type_name == "Bool" => {
+                let val = function_context.get_bool(&arg_name).unwrap();
+                context.insert_bool(&source_name, &val.to_string());
+            },
+            ValueType::TCustom(ref type_name) if type_name == "String" => {
+                let val = function_context.get_string(&arg_name).unwrap();
+                context.insert_string(&source_name, &val);
+            },
+            _ => {
+                // TODO: support struct mutation copying later
+            }
+        }
+    }
+
+    return result;
 }
 
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
