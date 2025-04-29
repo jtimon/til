@@ -2,6 +2,8 @@ mode test
 
 // runfile("src/repl.cil") // REM don't run this from the tests unless for debug
 
+runfile("src/test/future.cil")
+
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
 runfile("src/test/hello/hello_lib.cil")
