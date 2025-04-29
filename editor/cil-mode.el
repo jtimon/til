@@ -36,7 +36,7 @@
     "input_read_line" "print" "println" "readfile" "runfile"))
 
 (defconst cil-error-words
-  '("static" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "todo" "FIX" "fix")
+  '("static" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "todo" "FIX" "fix" "NULL")
   "Words that are invalid in cil and should be highlighted as errors.")
 
 (defconst comment-error-words
