@@ -1779,7 +1779,9 @@ impl Context {
                     },
                     _ => {
                         if self.enum_defs.contains_key(type_name) {
-                            self.insert_enum(&combined_name, type_name, &value);
+                            self.insert_enum(&combined_name, type_name, value);
+                        } else if self.struct_defs.contains_key(type_name) {
+                            self.insert_struct(&combined_name, type_name);
                         } else {
                             println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of custom struct type '{}'",
                                      decl.name, id, value_type_to_str(&decl.value_type));
@@ -1794,7 +1796,13 @@ impl Context {
                 return false;
             },
         }
-        self.symbols.insert(combined_name, SymbolInfo{value_type: decl.value_type.clone(), is_mut: is_mut});
+        self.symbols.insert(
+            combined_name,
+            SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut,
+            },
+        );
         return true;
     }
 
@@ -3459,6 +3467,16 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
         let id_expr = e.get(0);
+        if id_expr.params.len() == 0 {
+            // Case: plain instantiation like "id := StructName()" -> do struct insertion
+            let id_name = match &id_expr.node_type {
+                NodeType::Identifier(s) => s,
+                _ => return e.todo_error("eval", "Expected identifier name for struct instantiation"),
+            };
+            context.insert_struct(&id_name, &name);
+            return id_name.to_string();
+        }
+
         let after_dot = match id_expr.params.get(0) {
             Some(_after_dot) => _after_dot,
             None => {
@@ -3500,7 +3518,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
-                        return eval_func_proc_call_try_ufcs(&mut context, &e)
+                        return eval_func_proc_call_try_ufcs(&mut context, &e) // This is used for 'StructName()' kind of instantiations
                     },
                 };
 
