@@ -835,7 +835,6 @@ fn parse_assignment(lexer: &Lexer, current: &mut usize, t: &Token, name: &String
 }
 
 fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declaration>, String> {
-
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
     *current = *current + 1;
@@ -851,12 +850,17 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
             TokenType::RightParen => {
                 rightparent_found = true;
                 if expect_colon {
-                    args.push(Declaration{
-                        name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: is_mut});
+                    return Err(format!("{}:{}: parse ERROR: Expected ': Type' after arg name '{}' before ')'.", t.line, t.col, arg_name));
                 }
                 *current = *current + 1;
             },
             TokenType::Comma => {
+                if expect_colon {
+                    return Err(format!("{}:{}: parse ERROR: Expected ': Type' after arg name '{}', but found ','.", t.line, t.col, arg_name));
+                }
+                if expect_name {
+                    return Err(format!("{}:{}: parse ERROR: Expected arg name before ','.", t.line, t.col));
+                }
                 if expect_comma {
                     expect_comma = false;
                     expect_colon = false;
@@ -865,36 +869,31 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     *current = *current + 1;
                     t = lexer.get_token(*current)?;
                 } else {
-                    if expect_colon {
-                        expect_colon = false;
-                        args.push(Declaration{
-                            name: arg_name.to_string(), value_type: str_to_value_type(INFER_TYPE), is_mut: is_mut});
-                        expect_comma = true;
-                        is_mut = false;
-                        *current = *current + 1;
-                        t = lexer.get_token(*current)?;
-                    } else {
-                        return Err(format!("{}:{}: parse ERROR: Expected identifier before ','.", t.line, t.col));
-                    }
+                    return Err(format!("{}:{}: parse ERROR: Unexpected ','.", t.line, t.col));
                 }
             },
             TokenType::Colon => {
                 if expect_colon {
                     expect_colon = false;
-                    expect_name = false; // expect type name then
+                    expect_name = false;
                     expect_comma = false;
                     *current = *current + 1;
                     t = lexer.get_token(*current)?;
+                    match t.token_type {
+                        TokenType::Identifier => {},
+                        TokenType::DoubleDot => {},
+                        _ => return Err(format!("{}:{}: parse ERROR: Expected type after '{}:', but found '{}'.", t.line, t.col, arg_name, t.token_str)),
+                    }
                 } else {
                     return Err(format!("{}:{}: parse ERROR: Unexpected ':'.", t.line, t.col));
                 }
             },
             TokenType::DoubleDot => {
+                if expect_colon {
+                    return Err(format!("{}:{}: parse ERROR: Expected ': Type' after arg name '{}', but found '..'.", t.line, t.col, arg_name));
+                }
                 if expect_comma {
                     return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
-                }
-                if expect_colon {
-                    return Err(format!("{}:{}: parse ERROR: Expected ':', found {:?}.", t.line, t.col, t.token_type));
                 }
                 if expect_name {
                     return Err(format!("{}:{}: parse ERROR: Expected arg name, found {:?}.", t.line, t.col, t.token_type));
@@ -904,26 +903,30 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                 t = lexer.get_token(*current)?;
             },
             TokenType::Identifier => {
-                if expect_comma {
-                    return Err(format!("{}:{}: parse ERROR: Expected ',', found {:?}.", t.line, t.col, t.token_type));
-                }
                 if expect_colon {
-                    return Err(format!("{}:{}: parse ERROR: Expected ':', found {:?}.", t.line, t.col, t.token_type));
+                    return Err(format!("{}:{}: parse ERROR: Expected ': Type' after arg name '{}', but found '{}'.", t.line, t.col, arg_name, t.token_str));
+                }
+                if expect_comma {
+                    return Err(format!("{}:{}: parse ERROR: Expected ',', found identifier '{}'.", t.line, t.col, t.token_str));
                 }
                 if expect_name {
                     arg_name = &t.token_str;
                     expect_colon = true;
                     expect_name = false;
-                } else { // expect type name then
+                } else {
                     if is_variadic {
-                        args.push(Declaration{
+                        args.push(Declaration {
                             name: arg_name.to_string(),
-                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))), is_mut: is_mut});
+                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))),
+                            is_mut: is_mut,
+                        });
                         is_variadic = false;
                     } else {
-                        args.push(Declaration{
+                        args.push(Declaration {
                             name: arg_name.to_string(),
-                            value_type: str_to_value_type(&t.token_str), is_mut: is_mut});
+                            value_type: str_to_value_type(&t.token_str),
+                            is_mut: is_mut,
+                        });
                     }
                     expect_comma = true;
                     is_mut = false;
