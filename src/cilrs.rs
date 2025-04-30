@@ -2760,6 +2760,101 @@ fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<
     return errors
 }
 
+fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    let switch_expr_type = match get_value_type(context, e.get(0)) {
+        Ok(t) => t,
+        Err(err) => {
+            errors.push(err);
+            return errors
+        }
+    };
+
+    let mut case_found = false;
+    let mut default_found = false;
+
+    let mut i = 1;
+    while i < e.params.len() {
+        let case_expr = &e.params[i];
+
+        match &case_expr.node_type {
+            NodeType::DefaultCase => {
+                if default_found {
+                    errors.push(case_expr.error("type", "Duplicate default case in switch"));
+                }
+                default_found = true;
+                case_found = true;
+            }
+            _ => {
+                case_found = true;
+            }
+        }
+
+        i += 1;
+
+        if i >= e.params.len() {
+            errors.push(e.error("type", "Switch case missing body expression"));
+            return errors
+        }
+
+        let body_expr = &e.params[i];
+        errors.extend(check_types(context, body_expr));
+
+        i += 1;
+    }
+
+    if !case_found {
+        errors.push(e.error("type", "Switch must have at least one case"));
+    }
+
+    // Exhaustiveness check only for enums
+    if let ValueType::TCustom(enum_name) = switch_expr_type {
+        if let Some(enum_def) = context.enum_defs.get(&enum_name) {
+            let mut matched_variants: Vec<String> = Vec::new();
+
+            let mut j = 1;
+            while j < e.params.len() {
+                let case_expr = &e.params[j];
+                match &case_expr.node_type {
+                    NodeType::Identifier(name) => {
+                        if case_expr.params.is_empty() {
+                            // case A
+                            matched_variants.push(name.clone());
+                        } else {
+                            // case ExampleEnum.A
+                            let variant_expr = &case_expr.params[0];
+                            if let NodeType::Identifier(variant) = &variant_expr.node_type {
+                                if name != &enum_name {
+                                    errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", name, enum_name)));
+                                }
+                                matched_variants.push(variant.clone());
+                            } else {
+                                errors.push(case_expr.error("type", "Invalid enum case syntax"));
+                            }
+                        }
+                    }
+                    NodeType::DefaultCase => {
+                        default_found = true;
+                    }
+                    _ => {}
+                }
+                j += 2;
+            }
+
+            if !default_found {
+                for variant in enum_def.enum_map.keys() {
+                    if !matched_variants.contains(variant) {
+                        errors.push(e.error("type", &format!("Switch is missing case for variant '{}'", variant)));
+                    }
+                }
+            }
+        }
+    }
+
+    return errors
+}
+
 fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
@@ -2783,13 +2878,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_while_statement(&mut context, &e));
         },
         NodeType::Switch => {
-            assert!(e.params.len() >= 3, "{} ERROR: switch nodes must have at least 3 parameters.", LANG_NAME);
-            // TODO check that the type to be switch corresponds to each case
-            // TODO check that there's a body param after each case
-            // TODO check that all the cases are covered
-            for p in e.params.iter() {
-                errors.extend(check_types(&mut context, &p));
-            }
+            errors.extend(check_switch_statement(&mut context, &e));
         },
 
         NodeType::FCall => {

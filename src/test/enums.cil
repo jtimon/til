@@ -42,9 +42,9 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     switch to_switch {
     case ExampleEnum.A:
         return "enum switch aaaaaa"
-    case ExampleEnum.B:
+    case B:
         return "enum switch bbbbbb"
-    case:
+    case C:
         return "enum cccccc by default"
     }
     return no_return_switch_str
