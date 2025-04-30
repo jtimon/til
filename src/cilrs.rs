@@ -1778,9 +1778,13 @@ impl Context {
                         self.insert_string(&combined_name, value);
                     },
                     _ => {
-                        println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of custom struct type '{}'",
-                                 decl.name, id, value_type_to_str(&decl.value_type));
-                        return false;
+                        if self.enum_defs.contains_key(type_name) {
+                            self.insert_enum(&combined_name, type_name, &value);
+                        } else {
+                            println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of custom struct type '{}'",
+                                     decl.name, id, value_type_to_str(&decl.value_type));
+                            return false
+                        }
                     },
                 }
             },

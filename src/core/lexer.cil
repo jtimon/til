@@ -51,7 +51,7 @@ TokenType := enum {
 }
 
 Token := struct {
-    // mut token_type: TokenType = TokenType.Invalid // TODO implement enums as struct fields
+    mut token_type: TokenType = TokenType.Invalid
     mut token_str: String = ""
     mut line: I64 = 0
     mut col: I64 = 0
@@ -60,7 +60,7 @@ Token := struct {
 // TODO implement struct arrays and add the tokens to it, for now just print the tokens
 scan_push_token := proc(token_type: TokenType, token_str: String, line: I64, col: I64) {
     mut t := Token()
-    // t.token_type = token_type // TODO implement enums as struct fields
+    // t.token_type = token_type // TODO implement enum assignments
     t.token_str = token_str
     t.line = line
     t.col = col

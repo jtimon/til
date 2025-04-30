@@ -1,27 +1,24 @@
 mode test
 
+MyEnum := enum {
+    Red,
+    Green,
+    Blue,
+}
+
 MyStruct := struct {
     static_bool_field: Bool = true
     mut bool_field: Bool = false
     mut int_field: I64 = 0 // 0 is just the default, but you can set something else once in the init func
-    // TODO fix type inference in fields
-    mut string_field: String = ""
+    mut string_field: String = "" // TODO fix type inference in fields
+    mut color_field: MyEnum = MyEnum.Red
 
-    // TODO allow assingments to struct fields, both mut or only overwrite the default once in init,
-    // but then it is no longer "static", that's only for the compiler to care, not the user's problem
-    // TODO static vs only_one assignment are details the interpreter should be smart enough to through errors about
-    init := func(self: MyStruct, int_const : I64, bool_field : Bool, int_field : I64, string_field: String) {
-        // self.bool_field_static = 69 // TODO think of a keyword to force this to fail
-        // self.int_const = 69
-        // self.bool_field = true
-        // self.int_field = 1
-        // self.string_field = "true"
-    }
-    new := func(bool_field: Bool, int_field: I64, string_field: String) returns MyStruct {
+    new := func(bool_field: Bool, int_field: I64, string_field: String, color_field: MyEnum) returns MyStruct {
         self := MyStruct()
         self.bool_field = bool_field
         self.int_field = int_field
         self.string_field = string_field
+        self.color_field = color_field
         return self
     }
 
@@ -30,6 +27,17 @@ MyStruct := struct {
         return ""
     }
 }
+
+test_my_struct := proc() {
+    test(loc(), MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
+
+    my_struct := MyStruct.new(true, 42, "my field string", MyEnum.Green) // with enum field
+    // assert(loc(), my_struct.bool_field) // TODO Fix returning structs in funcs and/or implement struct literals
+    // assert_eq(loc(), 42, my_struct.int_field) // TODO Fix
+    // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
+    // assert_eq(loc(), MyEnum.Green, my_struct.color_field) // TODO Fix
+}
+test_my_struct()
 
 EmptyStruct := struct {} // NOTE: empty struct instantiations are allowed
 Vec2 := struct {
@@ -51,7 +59,6 @@ Vec3 := struct {
 // trying_dot_struct2 : Bool = MyStruct.bool_field.ccccc // TODO implement nested structs
 
 test_structs := proc() {
-    test(loc(), MyStruct.static_bool_field, "MyStruct.static_bool_field is not true")
     my_empty_struct := EmptyStruct() // NOTE: empty instantiations are allowed
     mut my_vec2 := Vec2()
     my_vec2.x = 40
@@ -61,11 +68,6 @@ test_structs := proc() {
     mut my_vec3 := Vec3()
     my_vec3.z = 42
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
-
-    my_struct := MyStruct.new(true, 42, "my field string") // TODO Fix custom constructor
-    // assert(my_struct.bool_field) // TODO Fix
-    // assert_eq(loc(), 42, my_struct.int_field) // TODO Fix
-    // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
 
     // my_bool := Bool() // TODO allow instantiations of core types
     // my_i64 := I64() // TODO truly self host I64 with an [8]U8
