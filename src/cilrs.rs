@@ -1679,7 +1679,7 @@ struct Context {
     enum_defs: HashMap<String, SEnumDef>,
     struct_defs: HashMap<String, SStructDef>,
     arena: Vec<u8>, // REM: heap/arena memory (starts at 1 to avoid NULL confusion)
-    bytes: HashMap<String, Vec<u8> >, // TODO move everything to arena
+    arena_index: HashMap<String, usize>, // stores offsets
 }
 
 impl Context {
@@ -1692,68 +1692,58 @@ impl Context {
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
-            bytes: HashMap::new(),
+            arena_index: HashMap::new(),
         };
     }
 
     fn get_i64(self: &Context, id: &str) -> Option<i64> {
-        return match self.bytes.get(id) {
-            Some(bytes_) => Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap())),
+        return match self.arena_index.get(id) {
+            Some(&offset) => Some(i64::from_ne_bytes(self.arena[offset..offset + 8].try_into().unwrap())),
             None => None,
         }
     }
 
     fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
-        return match self.bytes.insert(id.to_string(), i64_str.parse::<i64>().unwrap().to_ne_bytes().to_vec()) {
-            Some(bytes_) => Some(i64::from_ne_bytes(bytes_[0..8].try_into().unwrap())),
+        let v = i64_str.parse::<i64>().unwrap();
+        let offset = self.arena.len();
+        self.arena.extend_from_slice(&v.to_ne_bytes());
+        return match self.arena_index.insert(id.to_string(), offset) {
+            Some(old_offset) => Some(i64::from_ne_bytes(self.arena[old_offset..old_offset + 8].try_into().unwrap())),
             None => None,
         }
     }
 
     fn get_u8(self: &Context, id: &str) -> Option<u8> {
-        return match self.bytes.get(id) {
-            Some(bytes_) => {
-                Some(*bytes_.get(0).unwrap())
-            },
+        return match self.arena_index.get(id) {
+            Some(&offset) => Some(self.arena[offset]),
             None => None,
         }
     }
 
     fn insert_u8(self: &mut Context, id: &str, u8_str: &String) -> Option<u8> {
-        match self.bytes.insert(id.to_string(), u8_str.parse::<u8>().unwrap().to_ne_bytes().to_vec()) {
-            Some(bytes_) => {
-                // bytes_[0] is our u8, so we wrap it into a one-element array for from_ne_bytes.
-                Some(u8::from_ne_bytes([bytes_[0]]))
-            },
+        let v = u8_str.parse::<u8>().unwrap();
+        let offset = self.arena.len();
+        self.arena.push(v);
+        return match self.arena_index.insert(id.to_string(), offset) {
+            Some(old_offset) => Some(self.arena[old_offset]),
             None => None,
         }
     }
 
     fn get_bool(self: &Context, id: &str) -> Option<bool> {
-        return match self.bytes.get(id) {
-            Some(bytes_) => {
-                // println!("get bool '{}': {:?}, {}", id, bytes_, *bytes_.get(0).unwrap() != 0);
-                Some(*bytes_.get(0).unwrap() == 0)
-            },
+        return match self.arena_index.get(id) {
+            Some(&offset) => Some(self.arena[offset] == 0),
             None => None,
         }
     }
 
     fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
         let bool_to_insert = lbool_in_string_to_bool(bool_str);
-        let mut to_insert = Vec::new();
-
-        if bool_to_insert { // TODO this shouldn't work, it should be the other way around
-            to_insert.push(0);
-        } else {
-            to_insert.push(1);
-        }
-        return match self.bytes.insert(id.to_string(), to_insert) {
-            Some(_bytes_) => {
-                // println!("insert bool '{}': {:?}, {}, {}, {}", id, bytes_, *bytes_.get(0).unwrap() != 0, bool_to_insert, bool_str);
-                Some(bool_to_insert)
-            },
-            // Some(_) => Some(bool_to_insert),
+        let stored = if bool_to_insert { 0 } else { 1 };
+        let offset = self.arena.len();
+        self.arena.push(stored);
+        return match self.arena_index.insert(id.to_string(), offset) {
+            Some(_old_offset) => Some(bool_to_insert),
             None => None,
         }
     }
@@ -1860,7 +1850,7 @@ impl Context {
             }
         }
 
-        return true;
+        return true
     }
 
     fn insert_struct(self: &mut Context, id: &str, custom_type_name: &str) -> bool {
@@ -1882,33 +1872,42 @@ impl Context {
             }
         }
 
-        return true;
+        return true
         // TODO insert the struct as a whole in the same buffer and access the fields with offsets
-        // This is initially incompatible with string fields, until we implement strings as an array of bytes
-        // let to_insert: Vec<u8> = Vec::new();
-        // return match self.bytes.insert(id.to_string(), to_insert) {
-        //     Some(_bytes_) => true,
-        //     // None          => false, // TODO uncoment, the following shouldn't work, or should it? :
-        //     None          => true, // support for empty struct instances? TODO: find out
-        // }
     }
 
     fn get_string(self: &Context, id: &str) -> Option<String> {
-        return match self.bytes.get(id) {
-            Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
+        return match self.arena_index.get(id) {
+            Some(&offset) => {
+                let mut end = offset;
+                while end < self.arena.len() && self.arena[end] != 0 {
+                    end += 1;
+                }
+                // Include everything before null terminator
+                Some(String::from_utf8_lossy(&self.arena[offset..end]).to_string())
+            },
             None => None,
         }
     }
 
     fn insert_string(self: &mut Context, id: &str, value_str: &String) -> Option<String> {
-        return match self.bytes.insert(id.to_string(), value_str.clone().into_bytes()) {
-            Some(bytes_) => Some(String::from_utf8(bytes_.to_vec()).unwrap()),
+        let offset = self.arena.len();
+        self.arena.extend_from_slice(value_str.as_bytes());
+        self.arena.push(0); // Null terminator
+        return match self.arena_index.insert(id.to_string(), offset) {
+            Some(old_offset) => {
+                let mut end = old_offset;
+                while end < self.arena.len() && self.arena[end] != 0 {
+                    end += 1;
+                }
+                Some(String::from_utf8_lossy(&self.arena[old_offset..end]).to_string())
+            },
             None => None,
         }
     }
 
     fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
-        self.bytes.get(id).and_then(|bytes| EnumVal::from_bytes(bytes))
+        return self.arena_index.get(id).and_then(|&offset| EnumVal::from_bytes(&self.arena[offset..]));
     }
 
     fn insert_enum(self: &mut Context, id: &str, enum_type: &str, enum_name: &str) -> Option<EnumVal> {
@@ -1917,8 +1916,9 @@ impl Context {
             enum_name: enum_name.to_string(),
         };
         let serialized = enum_val.to_bytes();
-        let previous = self.bytes.insert(id.to_string(), serialized);
-        previous.and_then(|bytes| EnumVal::from_bytes(&bytes))
+        let offset = self.arena.len();
+        self.arena.extend(&serialized);
+        return self.arena_index.insert(id.to_string(), offset).and_then(|_old_offset| EnumVal::from_bytes(&self.arena[offset..]));
     }
 }
 
