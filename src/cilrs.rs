@@ -1641,8 +1641,33 @@ struct EnumVal {
     enum_type: String,
     enum_name: String,
     // TODO implement tagged unions
-    // enum_unsigned_val: String,
-    // extra_Val: Option<Anything>,
+    // payload: Option<String>,
+}
+
+impl EnumVal {
+    // Serialize EnumVal to bytes
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut result = Vec::new();
+        result.extend_from_slice(self.enum_type.as_bytes());
+        result.push(0); // null byte separator
+        result.extend_from_slice(self.enum_name.as_bytes());
+        result.push(0); // null byte separator
+        result
+    }
+
+    // Deserialize bytes back to EnumVal
+    fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        let mut parts = bytes.splitn(2, |&b| b == 0);
+        let enum_type_bytes = parts.next()?;
+        let rest = parts.next()?;
+        let mut parts2 = rest.splitn(2, |&b| b == 0);
+        let enum_name_bytes = parts2.next()?;
+
+        let enum_type = String::from_utf8(enum_type_bytes.to_vec()).ok()?;
+        let enum_name = String::from_utf8(enum_name_bytes.to_vec()).ok()?;
+
+        Some(EnumVal { enum_type, enum_name })
+    }
 }
 
 #[derive(Clone)]
@@ -1655,7 +1680,6 @@ struct Context {
     struct_defs: HashMap<String, SStructDef>,
     arena: Vec<u8>, // REM: heap/arena memory (starts at 1 to avoid NULL confusion)
     bytes: HashMap<String, Vec<u8> >, // TODO move everything to arena
-    enums: HashMap<String, EnumVal>, // TODO to arena
 }
 
 impl Context {
@@ -1669,7 +1693,6 @@ impl Context {
             struct_defs: HashMap::new(),
             arena: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
             bytes: HashMap::new(),
-            enums: HashMap::new(),
         };
     }
 
@@ -1884,13 +1907,18 @@ impl Context {
         }
     }
 
-    // TODO remove the following fields and use bytes to store that instead:
-    fn get_enum(self: &Context, id: &str) -> Option<&EnumVal> {
-        return self.enums.get(id);
+    fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
+        self.bytes.get(id).and_then(|bytes| EnumVal::from_bytes(bytes))
     }
 
     fn insert_enum(self: &mut Context, id: &str, enum_type: &str, enum_name: &str) -> Option<EnumVal> {
-        return self.enums.insert(id.to_string(), EnumVal{enum_type: enum_type.to_string(), enum_name: enum_name.to_string()});
+        let enum_val = EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name: enum_name.to_string(),
+        };
+        let serialized = enum_val.to_bytes();
+        let previous = self.bytes.insert(id.to_string(), serialized);
+        previous.and_then(|bytes| EnumVal::from_bytes(&bytes))
     }
 }
 
