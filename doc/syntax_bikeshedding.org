@@ -1,0 +1,177 @@
+* Array and Struct Literals Across Languages
+
+** CIL
+#+begin_src cil
+// Array literal
+start_fib: [2]I64 = [1, 1]
+
+// Struct definition and literal
+Vec2 := struct { x: I64, y: I64 }
+v: Vec2 = Vec2{ x = 1, y = 2 }
+#+end_src
+
+** C
+#+begin_src c
+// Array literal
+int start_fib[2] = {1, 1};
+
+// Struct definition and literals
+struct Vec2 { int x; int y; };
+
+// Positional (relies on field order)
+struct Vec2 v1 = {1, 2};
+
+// Designated (C99+)
+struct Vec2 v2 = { .x = 1, .y = 2 };
+#+end_src
+
+** C++
+#+begin_src cpp
+// Array literal
+int start_fib[2] = {1, 1};
+
+// Struct definition and literals
+struct Vec2 { int x; int y; };
+
+// Positional
+Vec2 v1 = {1, 2};
+
+// Designated (C++20)
+Vec2 v2 = Vec2{ .x = 1, .y = 2 };
+#+end_src
+
+** D
+#+begin_src d
+// Array literal
+auto start_fib = [1, 1];
+
+// Struct definition and literals
+struct Vec2 { long x; long y; }
+
+// Positional
+auto v1 = Vec2(1, 2);
+
+// Named
+auto v2 = Vec2(x: 1, y: 2);
+#+end_src
+
+** Rust
+#+begin_src rust
+// Array literal
+let start_fib = [1, 1];
+
+// Struct definition and literals
+struct Vec2 { x: i64, y: i64 }
+
+// Named
+let v = Vec2 { x: 1, y: 2 };
+#+end_src
+
+** Odin
+#+begin_src odin
+// Array literal
+start_fib := [2]i64{1, 1}
+
+// Struct definition and literals
+Vec2 :: struct {x: i64, y: i64}
+
+// Named
+v := Vec2{ x = 1, y = 2 }
+#+end_src
+
+** Jai
+#+begin_src jai
+// Array literal
+start_fib: [2]s64 = {1, 1}
+
+// Struct definition and literals
+struct Vec2 { x: s64; y: s64; }
+
+// Shorthand
+v1: Vec2 = .{ .x = 1, .y = 2 }
+
+// Explicit
+v2: Vec2 = Vec2{ .x = 1, .y = 2 }
+#+end_src
+
+** Haskell
+#+begin_src haskell
+-- Array literal
+start_fib = [1, 1]
+
+-- Struct definition and literals
+data Vec2 = Vec2 { x :: Int, y :: Int }
+
+-- Named
+v = Vec2 { x = 1, y = 2 }
+#+end_src
+
+** Erlang
+#+begin_src erlang
+% Array literal
+StartFib = [1, 1].
+
+% Struct (map) literal
+V = #{x => 1, y => 2}.
+#+end_src
+
+** Elixir
+#+begin_src elixir
+# Array literal
+start_fib = [1, 1]
+
+# Struct literal
+v = %Vec2{x: 1, y: 2}
+#+end_src
+
+** Python
+#+begin_src python
+# Array literal
+start_fib = [1, 1]
+
+# Struct (dict) literal
+v = {'x': 1, 'y': 2}
+#+end_src
+
+** Mojo
+#+begin_src python
+# Array literal
+start_fib = [1, 1]
+
+# Struct definition and literals
+struct Vec2:
+    x: Int
+    y: Int
+
+# Named
+v = Vec2(x=1, y=2)
+#+end_src
+
+** Lua
+#+begin_src lua
+-- Array literal
+start_fib = {1, 1}
+
+-- Struct (table) literal
+v = {x = 1, y = 2}
+#+end_src
+
+** Elisp
+#+begin_src elisp
+;; Array literal
+(setq start-fib [1 1])
+
+;; Struct definition and literal
+(cl-defstruct vec2 x y)
+(make-vec2 :x 1 :y 2)
+#+end_src
+
+** Common Lisp
+#+begin_src lisp
+;; Array literal
+(setf start-fib '(1 1))
+
+;; Struct definition and literal
+(defstruct vec2 x y)
+(make-vec2 :x 1 :y 2)
+#+end_src
