@@ -574,7 +574,8 @@ struct SStructDef {
 #[derive(Debug, Clone, PartialEq)]
 enum NodeType {
     Body,
-    LList(String),
+    LStruct(Vec<(String, Expr)>),
+    LList(String), // TODO we don't even support list declarations yet. Are they anything more than Array("Anything") with closer syntax and semmantics to lip?
     LString(String),
     LI64(i64),
     LBool(bool),
@@ -2303,7 +2304,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
     match &e.node_type {
         NodeType::Body => {
             for se in &e.params {
-                if is_expr_calling_procs(&context, &se) {
+                if is_expr_calling_procs(context, se) {
                     return true;
                 }
             }
@@ -2313,7 +2314,13 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             // TODO default values could try to call procs
             false
         },
-        NodeType::EnumDef(_) => {
+        NodeType::EnumDef(_) => false,
+        NodeType::LStruct(fields) => {
+            for (_field_name, field_expr) in fields {
+                if is_expr_calling_procs(context, field_expr) {
+                    return true;
+                }
+            }
             false
         },
         NodeType::LBool(_) => false,
@@ -2323,21 +2330,20 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::DefaultCase => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
-            // TODO the arguments of a function call can also call procedures
-            let f_name = get_func_name_in_call(&e);
-            return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
+            let f_name = get_func_name_in_call(e);
+            context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
         NodeType::Declaration(decl) => {
             assert!(e.params.len() == 1, "{} ERROR: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
-            is_expr_calling_procs(&context, &e.get(0))
+            is_expr_calling_procs(context, e.get(0))
         },
         NodeType::Assignment(var_name) => {
             assert!(e.params.len() == 1, "{} ERROR: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
-            is_expr_calling_procs(&context, &e.get(0))
+            is_expr_calling_procs(context, e.get(0))
         }
         NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
-                if is_expr_calling_procs(&context, &it_e) {
+                if is_expr_calling_procs(context, it_e) {
                     return true;
                 }
             }
@@ -2345,7 +2351,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::If | NodeType::While | NodeType::Switch | NodeType::Return | NodeType::Throw => {
             for it_e in &e.params {
-                if is_expr_calling_procs(&context, &it_e) {
+                if is_expr_calling_procs(context, it_e) {
                     return true;
                 }
             }
@@ -2946,7 +2952,7 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
 
-        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList(_) | NodeType::DefaultCase => {},
+        NodeType::LStruct(_) | NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList(_) | NodeType::DefaultCase => {},
     }
 
     return errors
@@ -4212,6 +4218,12 @@ fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
 fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
+        NodeType::LStruct(lstruct) => {
+            let pairs: Vec<String> = lstruct.iter()
+                .map(|(k, v)| format!("{}: {}", k, to_ast_str(v)))
+                .collect();
+            return format!("{{ {} }}", pairs.join(", "));
+        },
         NodeType::LBool(lbool) => {
             return lbool.to_string();
         },
