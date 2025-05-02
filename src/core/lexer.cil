@@ -66,7 +66,7 @@ scan_push_token := proc(token_type: TokenType, token_str: String, line: I64, col
     t.col = col
 
     // TODO implement enum_to_str
-    switch token_type {
+    switch t.token_type {
     case TokenType.Invalid:
         println("Invalid Token (", I64.to_str(line), ", ", I64.to_str(col), "): ", token_str)
     case:

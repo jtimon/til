@@ -50,20 +50,20 @@ test_my_struct := proc() {
 
     // Assert enum field is Blue using a switch
     mut is_blue := false
-    // switch my_struct.color_field { // TODO eval ERROR: Cannot access 'my_struct.color_field'. Fields of custom type 'MyEnum' not implemented
-    // case MyEnum.Blue: is_blue = true
-    // case: is_blue = false
-    // }
+    switch my_struct.color_field {
+    case MyEnum.Blue: is_blue = true
+    case: is_blue = false
+    }
     // assert(loc(), is_blue) // TODO fix
 
     // Switch statement to check runtime matching after assignment
     mut color_str := ""
-    // switch my_struct.color_field { // TODO eval ERROR: Cannot access 'my_struct.color_field'. Fields of custom type 'MyEnum' not implemented
-    // case MyEnum.Red: color_str = "red"
-    // case MyEnum.Green: color_str = "green"
-    // case MyEnum.Blue: color_str = "blue"
-    // case: color_str = "unknown"
-    // }
+    switch my_struct.color_field {
+    case MyEnum.Red: color_str = "red"
+    case MyEnum.Green: color_str = "green"
+    case MyEnum.Blue: color_str = "blue"
+    case: color_str = "unknown"
+    }
     // assert_eq_str(loc(), "blue", color_str) // TODO fix
 }
 test_my_struct()

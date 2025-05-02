@@ -3956,8 +3956,21 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                             }
                                         },
                                         _ => {
-                                            return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom type '{}' not implemented",
-                                                                                       name, inner_name, custom_type_name))
+                                            match context.symbols.get(custom_type_name).unwrap().value_type {
+                                                ValueType::TEnumDef => {
+                                                    match context.get_enum(&format!("{}.{}", name, inner_name)) {
+                                                        Some(result) => return result.enum_name.to_string(),
+                                                        None => {
+                                                            return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+                                                        },
+                                                    }
+                                                },
+                                                _ => {
+                                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom struct type '{}' not implemented",
+                                                                                               name, inner_name, custom_type_name))
+                                                },
+
+                                            }
                                         },
                                     }
                                 },
