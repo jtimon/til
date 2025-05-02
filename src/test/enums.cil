@@ -6,12 +6,11 @@ ExampleEnum := enum {
     C,
 }
 // trying_dot_enum : ExampleEnum = 0 // fails because an enum is not an int
-trying_dot_enum : ExampleEnum = ExampleEnum.A
+trying_dot_enum: ExampleEnum = ExampleEnum.A
 
 my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
     return a
 }
-my_enum_func(ExampleEnum.B)
 trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
@@ -43,9 +42,9 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     switch to_switch {
     case ExampleEnum.A:
         return "enum switch aaaaaa"
-    case B:
+    case ExampleEnum.B:
         return "enum switch bbbbbb"
-    case C:
+    case:
         return "enum cccccc by default"
     }
     return no_return_switch_str
