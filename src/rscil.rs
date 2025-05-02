@@ -3136,6 +3136,11 @@ fn eval_core_func_i64_to_str(mut context: &mut Context, e: &Expr) -> String {
     eval_expr(&mut context, e.get(1))
 }
 
+fn eval_core_func_enum_to_str(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'i64_to_str' takes exactly 1 argument. This should never happen.", LANG_NAME);
+    eval_expr(&mut context, e.get(1))
+}
+
 fn eval_core_func_u8_to_i64(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 2, "{} ERROR: Core func 'u8_to_i64' takes exactly 1 argument. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, &e.get(1)).parse::<i64>().unwrap();
@@ -3404,6 +3409,7 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "div" => eval_core_func_div(&mut context, &e),
         "str_to_i64" => eval_core_func_str_to_i64(&mut context, &e),
         "i64_to_str" => eval_core_func_i64_to_str(&mut context, &e),
+        "enum_to_str" => eval_core_func_enum_to_str(&mut context, &e),
         "u8_to_i64" => eval_core_func_u8_to_i64(&mut context, &e),
         "i64_to_u8" => eval_core_func_i64_to_u8(&mut context, &e),
         "eval_to_str" => eval_core_proc_eval_to_str(&mut context, &e),

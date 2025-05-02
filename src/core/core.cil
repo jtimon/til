@@ -84,6 +84,7 @@ Ptr := struct {
     }
 }
 
+enum_to_str     := ext_func(e: I64) returns String; // TODO not sure why this works since we're using it with enums rather than I64
 eval_to_str     := ext_proc(a: String) returns String;
 eval_to_ast_str := ext_proc(src: String) returns String; // TODO
 eval_to_expr    := ext_proc(src: String) returns Expr; // TODO

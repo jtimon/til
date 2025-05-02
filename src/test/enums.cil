@@ -32,13 +32,15 @@ assert_eq_str(loc(), test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
 assert_eq_str(loc(), test_switch_enum(ExampleEnum.C), "enum cccccc by default")
 assert_eq_str(loc(), test_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
-// TODO fix macro() not implement yet
-// test_return_switch_enum := macro(to_switch: ExampleEnum) returns String {}
+// Test enum_to_str core function
+assert_eq_str(loc(), enum_to_str(ExampleEnum.A), "ExampleEnum.A")
+assert_eq_str(loc(), enum_to_str(ExampleEnum.B), "ExampleEnum.B")
+assert_eq_str(loc(), enum_to_str(ExampleEnum.C), "ExampleEnum.C")
+assert_eq_str(loc(), enum_to_str(ExampleEnum.D), "ExampleEnum.D")
 
 no_return_switch_str := "xxxxxx because return inside switch doesn't work even for enum"
 test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
-    // TODO core define etoa, base_enum_to_str or some equivalent
-    // println("in test_switch_enum: to_switch: ", etoa(to_switch))
+    // println("in test_return_switch_enum: to_switch: ", enum_to_str(to_switch))
     switch to_switch {
     case ExampleEnum.A:
         return "enum switch aaaaaa"
