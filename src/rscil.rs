@@ -63,7 +63,7 @@ enum TokenType {
     Mut,
 
     // bool
-    True, False,
+    True,
     // type definition
     Struct, Enum,
     // function definition
@@ -155,7 +155,6 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
 
         // bool literals
         "true" => TokenType::True,
-        "false" => TokenType::False,
 
         // core data types
         "enum" => TokenType::Enum,
@@ -475,7 +474,6 @@ fn is_literal(t: &Token) -> bool {
         TokenType::String => true,
         TokenType::Number => true,
         TokenType::True => true,
-        TokenType::False => true,
         _ => false,
     }
 }
@@ -771,7 +769,6 @@ fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
         TokenType::String => NodeType::LString(t.token_str.clone()),
         TokenType::Number => NodeType::LI64(t.token_str.parse::<i64>().unwrap()),
         TokenType::True => NodeType::LBool(true),
-        TokenType::False => NodeType::LBool(false),
         _ => {
             return Err(format!("{}:{}: {}  ERROR: Trying to parse a token that's not a literal as a literal, found {:?}.",
                                t.line, t.col, LANG_NAME, t.token_type));
