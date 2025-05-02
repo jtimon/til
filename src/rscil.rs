@@ -1876,6 +1876,27 @@ impl Context {
             Some(symbol_info_) => symbol_info_.is_mut,
             None => return false,
         };
+        // TODO stop treating these types specially, except perhaps U8
+        match custom_type_name {
+            "Bool" => {
+                self.insert_bool(id, &"false".to_string());
+                return true;
+            },
+            "I64" => {
+                self.insert_i64(id, &"0".to_string());
+                return true;
+            },
+            "U8" => {
+                self.insert_u8(id, &"0".to_string());
+                return true;
+            },
+            "String" => {
+                self.insert_string(id, &"".to_string());
+                return true;
+            },
+            _ => {}
+        }
+
         for (_member_name, decl) in struct_def.members.iter() {
             if decl.is_mut {
                 if !self.insert_struct_field(&id, &struct_def, &decl, is_mut) {
@@ -3480,7 +3501,12 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 _ => return e.todo_error("eval", "Expected identifier name for struct instantiation"),
             };
             context.insert_struct(&id_name, &name);
-            return id_name.to_string();
+            return match id_name.as_str() {
+                "Bool" => "false".to_string(),
+                "U8" | "I64" => "0".to_string(),
+                "String" => "".to_string(),
+                _ => id_name.to_string(), // TODO Where is the struct being inserted in this case? Is this returned value even used?
+            }
         }
 
         let after_dot = match id_expr.params.get(0) {

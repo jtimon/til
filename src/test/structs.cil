@@ -98,9 +98,10 @@ test_structs := proc() {
     my_vec3.z = 42
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
 
-    // my_bool := Bool() // TODO allow instantiations of core types
-    // my_i64 := I64() // TODO truly self host I64 with an [8]U8
-    // my_string := String() // TODO don't migrate from string to String, just self host it after structs and pointers
+    my_i8 := U8()
+    my_bool := Bool() /// TODO truly self host Bool with an U8
+    my_i64 := I64() // TODO truly self host I64 with an [8]U8
+    my_string := String() // TODO truly self host String with a Ptr and capacity
 
 }
 test_structs()
