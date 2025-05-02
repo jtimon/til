@@ -1669,13 +1669,24 @@ impl EnumVal {
 
 #[derive(Clone)]
 struct Context {
-    path: String,
-    mode: ModeDef,
+    mode: ModeDef, // All contexts need a mode
+    // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
+    path: String, // this is needed for core func "loc"
+    // All declared symbols (types, constants, variables, and function names)
+    // This is necessary for so called "context priming" or "declaration indexing"
+    // aka declaring things in whatever order, aka not needing forward declarations
+    // in theory it should only be needed for the "type" phase after the init context phase
+    // but it can be convenient at times in eval or compile phases too, I guess.
     symbols: HashMap<String, SymbolInfo>,
-    funcs: HashMap<String, SFuncDef>, // REM: currently funcs are not on symbols, perhaps they should?
+    // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
+    funcs: HashMap<String, SFuncDef>,
+    // Enum type definitions (variants and associated data)
     enum_defs: HashMap<String, SEnumDef>,
+    // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
     struct_defs: HashMap<String, SStructDef>,
-    arena: Vec<u8>, // REM: heap/arena memory (starts at 1 to avoid NULL confusion)
+    // heap/arena memory (starts at 1 to avoid NULL confusion)
+    arena: Vec<u8>,
+    // maps variable names to their offsets in the arena
     arena_index: HashMap<String, usize>, // stores offsets
 }
 
@@ -2216,6 +2227,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     }
 }
 
+// aka "context priming" or "declaration indexing"
 fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
@@ -2279,20 +2291,38 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         },
                     }
                 },
+
                 ValueType::TStructDef => {
-                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME,
-                            decl.name);
+                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME, decl.name);
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                            // Register the struct itself
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut });
                             context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
+                            // Register associated funcs and constants (non-mut members only)
+                            for (member_name, member_decl) in &struct_def.members {
+                                if member_decl.is_mut {
+                                    continue; // Skip instance fields
+                                }
+                                // Try to find a default_value (required for funcs/consts)
+                                if let Some(member_expr) = struct_def.default_values.get(member_name) {
+                                    let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::ToInferType);
+                                    let full_name = format!("{}.{}", decl.name, member_name); // Note: using '.' not '::'
+                                    // Register in symbols
+                                    context.symbols.insert(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut });
+                                    // If it's a function, also register in funcs
+                                    if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                                        context.funcs.insert(full_name, func_def.clone());
+                                    }
+                                }
+                            }
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} ERROR: enums should have definitions.", e.line, e.col, LANG_NAME));
+                            errors.push(format!("{}:{}: {} ERROR: struct declarations should have definitions.", e.line, e.col, LANG_NAME));
                             return errors;
                         },
                     }
-                },
+                }
 
                 ValueType::TList |
                 ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
