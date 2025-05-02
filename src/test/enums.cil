@@ -16,10 +16,11 @@ trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
 test_switch_enum := proc(to_switch: ExampleEnum) returns String {
-    // mut to_switch2 := to_switch
-    // to_switch2 = ExampleEnum.B // TODO fix assignments to enums
+    mut to_switch2 := to_switch
+    to_switch2 = ExampleEnum.B
+    to_switch2 = to_switch
     mut to_return := ""
-    switch to_switch {
+    switch to_switch2 {
     case ExampleEnum.A: to_return = "enum switch aaaaaa"
     case ExampleEnum.B: to_return = "enum switch bbbbbb"
     case: to_return = "enum cccccc by default"

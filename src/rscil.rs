@@ -3773,27 +3773,33 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 "I64" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_i64(var_name, &expr_result_str);
-                    return "".to_string()
                 },
                 "U8" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_u8(var_name, &expr_result_str);
-                    return "".to_string()
                 },
                 "Bool" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(var_name, &expr_result_str);
-                    return "".to_string()
                 },
                 "String" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_string(var_name, &expr_result_str);
-                    return "".to_string()
                 },
                 _ => {
-                    return e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
+                    match context.symbols.get(custom_type_name).unwrap().value_type {
+                        ValueType::TEnumDef => {
+                            let expr_result_str = eval_expr(&mut context, inner_e);
+                            context.insert_enum(var_name, &custom_type_name, &expr_result_str);
+                        },
+                        _ => {
+                            return e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
+                        },
+
+                    }
                 },
             }
+            return "".to_string()
         },
         ValueType::TStructDef => {
             return e.todo_error("eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type)))
