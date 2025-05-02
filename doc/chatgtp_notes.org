@@ -1,0 +1,67 @@
+* CIL Language Design Notes
+
+** Mutability Rules
+- All variables and function arguments are immutable (const) by default.
+- To make a variable or argument mutable, declare it with the `mut` keyword.
+
+** Argument Passing
+- All function arguments are passed by reference by default.
+- There is no syntax noise like `&` or `*` in function calls or definitions.
+- Mutability is controlled explicitly with `mut`, not by pass mode.
+
+** Structs and Pointers
+- Structs are value types, but passed by reference by default.
+- Field access always uses the dot `.` operator, regardless of whether the struct is a reference or a pointer (like in Odin or Zig).
+
+** Allocation Model
+- Structs and arrays are stack-allocated by default when possible.
+- Heap allocation happens only when necessary (e.g., dynamic storage, escapes).
+- There is no language-level `const` keyword for optimization hints — the compiler is expected to handle this automatically.
+
+** No & or * noise
+- Unlike Rust or C++, there is no explicit reference `&` or dereference `*` syntax in regular code.
+- Users think in terms of values and mutability, not references.
+
+** Functions: `func` vs `proc`
+- `func` defines a pure function with no side effects. It must always return a value or throw an error.
+  - Similar to D's `pure`, but integrated at the language level.
+  - If it doesn’t return, it must `throw` (future feature).
+- `proc` defines a procedure that can perform side effects and may return nothing (void).
+  - Procs are allowed to return values too, but they are not pure.
+
+** Type System
+- Statically typed language: all types are known at compile time.
+- Type inference is supported in variable declarations and function returns where unambiguous.
+- Types must be explicitly declared in struct definitions and function parameters.
+
+** Error Handling Model (Planned)
+- `throws` declares the possible thrown types explicitly (like Java but works like Rust/Roc).
+- `throw` works like a return, but for the error path.
+- `catch` blocks handle thrown values without requiring `try`. `catch` blocks are placed freely but only catch earlier throws.
+- All function calls that can throw must be marked visually with `?`.
+- Both `func` and `proc` can throw errors.
+
+** Language Error Handling Comparison Table
+
+| Language          | Must Declare `throws`? | Must Handle All Errors? | `catch` Placement                | `rethrow` Syntax      | Uses Structs/Enums?           | Zero Cost (No Runtime Overhead)?   |
+|-------------------+------------------------+-------------------------+----------------------------------+-----------------------+-------------------------------+------------------------------------|
+| **CIL (Planned)** | ✅ Yes                 | ✅ Yes                  | ✅ Free-floating `catch()`       | ✅ Explicit `rethrow` | ✅ Structs + Enums            | ✅ Yes (planned explicit returns)  |
+| Java              | ✅ Yes                 | ✅ Yes                  | ❌ `try { } catch { }`           | ✅ `throw`            | ✅ Classes (heavy objects)    | ❌ No (runtime checked exceptions) |
+| C++               | ✅ No                  | ❌ No                   | ❌ `try { } catch { }`           | ✅ `throw`            | ❌ Classes (throw by typeid)  | ❌ No (zero-cost call site only)   |
+| Zig               | ✅ Yes                 | ✅ Yes                  | ❌ Must be immediately handled   | ✅ `return err`       | ✅ Error sets (like enums)    | ✅ Yes (explicit return codes)     |
+| Rust              | ❌ No                  | ❌ No                   | ❌ Must match or `?`             | ✅ `?` or match       | ✅ Enums (Result, Option)     | ✅ Yes (enums, no hidden cost)     |
+| Roc               | ❌ No                  | ✅ Yes                  | ✅ Anywhere with `when`          | ✅ Return propagation | ✅ Tag unions (enums)         | ✅ Yes (compiles away to returns)  |
+| Go                | ❌ No                  | ❌ No                   | ❌ Manual `if err != nil`        | ✅ Return err         | ❌ Error interfaces (dynamic) | ❌ No (may allocate + dynamic)     |
+| Odin              | ✅ Yes                 | ✅ Yes                  | ❌ Must handle immediately after | ✅ `return err`       | ✅ Enums + structs            | ✅ Yes (explicit return values)    |
+
+** Sources for Go Error Overhead
+- Go interfaces cause heap allocation in some cases: [Go Blog: Go Slices and Interfaces](https://go.dev/blog/slices-intro)
+- Error handling in Go allocates when error values escape: [Go FAQ: Why is my code allocating?](https://golang.org/doc/faq#allocations)
+- Interface dispatch is runtime (not zero-cost): [Go Wiki: Interface Performance](https://github.com/golang/go/wiki/InterfacePerformance)
+
+** Design Inspiration
+- Pass-by-reference simplicity from Mojo, Swift, Kotlin.
+- Efficient like C++'s `const AAA&`, but ergonomic and safe.
+- Borrowing simplicity from Odin, Zig, and Jai.
+- Error model draws inspiration from Rust, Roc, Go, and also influenced by D's `pure` functions.
+- Mode system: inspired by platform-target systems in build tools, but one mode per file rather than per-project.
