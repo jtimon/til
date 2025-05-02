@@ -26,7 +26,7 @@
     "if" "else" "while" "switch" "case" "true" "false"))
 
 (defconst cil-types
-  '("I64" "Bool" "String"))
+  '("U8" "I64" "Bool" "String"))
 
 (defconst cil-builtins
   '("and" "or" "not" "str_eq" "concat" "str_len"
