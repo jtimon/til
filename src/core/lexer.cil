@@ -52,7 +52,7 @@ TokenType := enum {
 
 Token := struct {
     mut token_type: TokenType = TokenType.Invalid
-    mut token_str: String = ""
+    // mut token_str: String = "" // TODO re-enable strings as fields
     mut line: I64 = 0
     mut col: I64 = 0
 }
@@ -61,7 +61,7 @@ Token := struct {
 scan_push_token := proc(token_type: TokenType, token_str: String, line: I64, col: I64) {
     mut t := Token()
     t.token_type = token_type
-    t.token_str = token_str
+    // t.token_str = token_str // TODO re-enable strings as fields
     t.line = line
     t.col = col
 

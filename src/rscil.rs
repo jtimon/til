@@ -1756,18 +1756,6 @@ impl Context {
         }
     }
 
-    fn insert_struct_field(self: &mut Context, id: &str, struct_def: &SStructDef, decl: &Declaration, is_mut: bool) -> bool {
-        let default_value = match struct_def.default_values.get(&decl.name) {
-            Some(_e_) => eval_expr(self, _e_),
-            None => {
-                println!("Cannot insert field '{}' in struct '{}' \nTODO: insert_struct_field: allow fields without default values",
-                         decl.name, id);
-                return false
-            },
-        };
-        return self.insert_struct_field_with_value(id, &decl, is_mut, &default_value);
-    }
-
     fn insert_struct_field_with_value(self: &mut Context, id: &str, decl: &Declaration, is_mut: bool, value: &String) -> bool {
         let combined_name = format!("{}.{}", id, &decl.name);
         match &decl.value_type {
@@ -1874,47 +1862,155 @@ impl Context {
     }
 
     fn insert_struct(self: &mut Context, id: &str, custom_type_name: &str) -> bool {
-        // Search the struct def and add all mut values as fields in order
+        // Lookup the struct definition
         let struct_def = match self.struct_defs.get(custom_type_name) {
             Some(struct_def_) => struct_def_.clone(),
             None => return false,
         };
 
+        // Determine mutability from symbols table
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
             None => return false,
         };
-        // TODO stop treating these types specially, except perhaps U8
-        match custom_type_name {
-            "Bool" => {
-                self.insert_bool(id, &"false".to_string());
-                return true;
-            },
-            "I64" => {
-                self.insert_i64(id, &"0".to_string());
-                return true;
-            },
-            "U8" => {
-                self.insert_u8(id, &"0".to_string());
-                return true;
-            },
-            "String" => {
-                self.insert_string(id, &"".to_string());
-                return true;
-            },
-            _ => {}
-        }
 
-        for (_member_name, decl) in struct_def.members.iter() {
-            if decl.is_mut {
-                if !self.insert_struct_field(&id, &struct_def, &decl, is_mut) {
+        // Early check: disallow structs with String fields
+        for (member_name, decl) in struct_def.members.iter() {
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                if type_name == "String" {
+                    println!("ERROR: Struct '{}' has unsupported String field '{}'", custom_type_name, member_name);
                     return false;
                 }
             }
         }
 
-        return true
-        // TODO insert the struct as a whole in the same buffer and access the fields with offsets
+        // Calculate total size (for now no alignment)
+        let mut total_size = 0;
+        let mut field_offsets = HashMap::new();
+
+        for (member_name, decl) in struct_def.members.iter() {
+            if !decl.is_mut {
+                continue; // skip non-mut fields
+            }
+
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(type_name) => {
+                    if self.enum_defs.contains_key(type_name) {
+                        8 // enums are stored as 8 bytes
+                    } else {
+                        match type_name.as_str() {
+                            "Bool" => 1,
+                            "U8" => 1,
+                            "I64" => 8,
+                            _ => {
+                                println!("ERROR: TODO: support nested struct field type '{}'", type_name);
+                                return false;
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    println!("ERROR: Unsupported value type in struct");
+                    return false;
+                }
+            };
+
+            field_offsets.insert(member_name.clone(), total_size);
+            total_size += field_size;
+        }
+
+        // Allocate blob in arena
+        let offset = self.arena.len();
+        self.arena.resize(offset + total_size, 0);
+        self.arena_index.insert(id.to_string(), offset);
+
+        // Store each field's default value
+        for (member_name, decl) in struct_def.members.iter() {
+            if !decl.is_mut {
+                continue;
+            }
+
+            let field_offset = field_offsets.get(member_name).unwrap();
+
+            let default_expr = struct_def.default_values.get(member_name);
+            let default_value = match default_expr {
+                Some(e) => eval_expr(self, e),
+                None => {
+                    println!("ERROR: Missing default value for field '{}'", member_name);
+                    return false;
+                }
+            };
+
+            match &decl.value_type {
+                ValueType::TCustom(type_name) => {
+                    if let Some(enum_def) = self.enum_defs.get(type_name) {
+                        // Handle enums properly
+                        let parts: Vec<&str> = default_value.split('.').collect();
+                        if parts.len() != 2 || parts[0] != type_name {
+                            println!("ERROR: Invalid enum default value '{}' for field '{}'", default_value, member_name);
+                            return false;
+                        }
+                        let variant = parts[1];
+                        let index = match enum_def.enum_map.keys().position(|v| v == variant) {
+                            Some(i) => i as i64,
+                            None => {
+                                println!("ERROR: Unknown enum variant '{}' in default value for field '{}'", variant, member_name);
+                                return false;
+                            }
+                        };
+                        let bytes = index.to_ne_bytes();
+                        self.arena[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                    } else {
+                        match type_name.as_str() {
+                            "Bool" => {
+                                let stored = if lbool_in_string_to_bool(&default_value) { 1 } else { 0 };
+                                self.arena[offset + field_offset] = stored;
+                            },
+                            "U8" => {
+                                let v = match default_value.parse::<u8>() {
+                                    Ok(val) => val,
+                                    Err(_) => {
+                                        println!("ERROR: Invalid U8 default value '{}' for field '{}'", default_value, member_name);
+                                        return false;
+                                    }
+                                };
+                                self.arena[offset + field_offset] = v;
+                            },
+                            "I64" => {
+                                let v = match default_value.parse::<i64>() {
+                                    Ok(val) => val,
+                                    Err(_) => {
+                                        println!("ERROR: Invalid I64 default value '{}' for field '{}'", default_value, member_name);
+                                        return false;
+                                    }
+                                };
+                                let bytes = v.to_ne_bytes();
+                                self.arena[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                            },
+                            _ => {
+                                println!("ERROR: TODO: support field type '{}'", type_name);
+                                return false;
+                            }
+                        }
+                    }
+                },
+                _ => {
+                    println!("ERROR: Unsupported field value type '{}'", value_type_to_str(&decl.value_type));
+                    return false;
+                }
+            }
+
+            let combined_name = format!("{}.{}", id, member_name);
+            self.symbols.insert(
+                combined_name,
+                SymbolInfo {
+                    value_type: decl.value_type.clone(),
+                    is_mut,
+                },
+            );
+        }
+
+        return true;
     }
 
     fn get_string(self: &Context, id: &str) -> Option<String> {

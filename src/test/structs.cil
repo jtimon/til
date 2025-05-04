@@ -7,12 +7,13 @@ MyEnum := enum {
 }
 
 MyStruct := struct {
+    // TODO fix type inference in fields
     static_bool_field: Bool = true
     mut bool_field: Bool = false
     mut int_field: I64 = 0 // 0 is just the default, but you can set something else once in the init func
-    mut string_field: String = "" // TODO fix type inference in fields
+    // mut string_field: String = "" // TODO re-enable strings as fields
     mut color_field: MyEnum = MyEnum.Red
-    mut vec2_field: Vec2 = Vec2()
+    // mut vec2_field: Vec2 = Vec2() // TODO allow support for structs as fields
 
     new := func(bool_field: Bool, int_field: I64, string_field: String, color_field: MyEnum, vec2_field: Vec2) returns MyStruct {
         self := MyStruct()
