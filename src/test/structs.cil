@@ -16,6 +16,7 @@ MyStruct := struct {
     // mut vec2_field: Vec2 = Vec2() // TODO allow support for structs as fields
 
     new := func(bool_field: Bool, int_field: I64, string_field: String, color_field: MyEnum, vec2_field: Vec2) returns MyStruct {
+        assertm(false, "Inside MyStruct.new()") // TODO FIX this should fail since MyStruct.new() is called afterwards
         self := MyStruct()
         self.bool_field = bool_field
         self.int_field = int_field
@@ -74,6 +75,14 @@ Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
 
+    new := func(x: I64, y: I64) returns Vec2 {
+        assertm(false, "Inside MyStruct.new()") // TODO FIX this should fail since Vec2.new() is called afterwards
+        mut v := Vec2()
+        v.x = x
+        v.y = y
+        return v
+    }
+
     add_all_coordinates := func(self: Vec2) returns I64 {
         return add(self.x, self.y)
     }
@@ -95,9 +104,15 @@ test_structs := proc() {
     my_vec2.y =  2
     assert_eq(loc(), 42, Vec2.add_all_coordinates(my_vec2)) // associated functions using fields
     assert_eq(loc(), 42, my_vec2.add_all_coordinates()) // associated functions can be used as methods (if the first argument matches the type)
+
     mut my_vec3 := Vec3()
     my_vec3.z = 42
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
+
+    another_vec2 := my_vec2 // make a copy
+    new_vec2 := Vec2.new(40, 2)
+    // assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(another_vec2)) // TODO FIX While copying fields from 'another_vec2' to 'self' of type 'Vec2'
+    // assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(new_vec2)) // TODO FIX While copying fields from 'new_vec2' to 'self' of type 'Vec2'
 
     my_i8 := U8()
     my_bool := Bool() /// TODO truly self host Bool with an U8
