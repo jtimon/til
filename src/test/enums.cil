@@ -56,6 +56,22 @@ assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb
 assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.C), "enum cccccc by default")
 assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.D), "enum cccccc by default")
 
+// Test that enum variants are valid symbols and type-check
+test_enum_variant_resolution := proc() {
+    mut my_enum_val: ExampleEnum = ExampleEnum.A
+    my_enum_val2 := ExampleEnum.B
+    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.A")
+
+    my_enum_val = ExampleEnum.B
+    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.B")
+
+    my_enum_val = ExampleEnum.C
+    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.C")
+
+    // my_enum_val = ExampleEnum.D // TODO make sure this fails at check type
+}
+test_enum_variant_resolution()
+
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
     // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
