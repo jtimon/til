@@ -65,7 +65,7 @@ test_my_struct := proc() {
     case MyEnum.Blue: color_str = "blue"
     case: color_str = "unknown"
     }
-    // assert_eq_str(loc(), "blue", color_str) // TODO fix
+    assert_eq_str(loc(), "blue", color_str)
 }
 test_my_struct()
 
