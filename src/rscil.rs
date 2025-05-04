@@ -3908,8 +3908,13 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
 
 fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> String {
     let symbol_info = context.symbols.get(var_name).unwrap();
-    assert!(symbol_info.is_mut, "{} eval ERROR: Assignments can only be to mut values", LANG_NAME);
-    assert!(e.params.len() == 1, "{} eval ERROR: in eval_assignment, while assigning to {}, assignments must take exactly one value.", LANG_NAME, var_name);
+    if !symbol_info.is_mut {
+        // TODO always print the offending expr on eval lang or todo errors internally
+        return e.lang_error("eval", &format!("in eval_assignment, while assigning to '{}': Assignments can only be to mut values. Offending expr: {:?}", var_name, e));
+    }
+    if e.params.len() != 1 {
+        return e.lang_error("eval", &format!("in eval_assignment, while assigning to '{}': assignments must take exactly one value", var_name));
+    }
 
     let inner_e = e.get(0);
     let value_type = match get_value_type(&context, &inner_e) {
