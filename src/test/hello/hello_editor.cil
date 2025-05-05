@@ -1,0 +1,19 @@
+mode editor
+
+// Define colors in the theme
+mut background_color := "darkblue"
+mut text_color := "white"
+mut button_color := "gray"
+
+// Change the theme color
+set_theme := proc(new_bg: String, new_text: String, new_button: String) {
+    background_color := new_bg
+    text_color := new_text
+    button_color := new_button
+    println("Theme updated!")
+}
+
+main := proc() {
+    // Set a new theme
+    set_theme("black", "green", "blue")
+}
