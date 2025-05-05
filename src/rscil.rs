@@ -727,7 +727,7 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
         "test" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: true,
-                    allows_base_mut: false,
+                    allows_base_mut: true,
                     allows_base_anything: false,
                     needs_main_proc: false,
         }),
