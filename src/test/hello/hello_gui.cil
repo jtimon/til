@@ -1,0 +1,106 @@
+mode gui
+
+// Define constants for colors
+BLACK := Color.from_rgb("000000")
+RED   := Color.from_rgb("FF0000")
+GREEN := Color.from_rgb("00FF00")
+BLUE  := Color.from_rgb("0000FF")
+WHITE := Color.from_rgb("FFFFFF")
+
+// Define a struct for position
+Pos := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+Cell := struct {
+    CHAR_WIDTH  := 8  // Character width (pixels)
+    LINE_HEIGHT := 16 // Character height (pixels)
+
+    add := func(p: Pos, axis: String) {
+        if axis == "x" {
+            p.x = I64.add(p.x, Cell.CHAR_WIDTH)
+        } else if axis == "y" {
+            p.y = I64.add(p.y, Cell.LINE_HEIGHT)
+        }
+    }
+
+    sub := func(p: Pos, axis: String) {
+        if axis == "x" {
+            p.x = I64.sub(p.x, Cell.CHAR_WIDTH)
+        } else if axis == "y" {
+            p.y = I64.sub(p.y, Cell.LINE_HEIGHT)
+        }
+    }
+}
+
+// State globals
+mut pos = Pos()
+mut center_pos = Pos()
+mut error_pos = Pos()
+
+gui_rand := func(min: I64, max: I64) returns I64 {
+    return I64.mod(rand(), I64.sub(I64.add(max, 1), min))
+}
+
+center := func(pos: I64, size: I64) returns I64 {
+    return I64.sub(pos, I64.div(size, 2))
+}
+
+main := proc(window_width_str: String, window_height_str: String) {
+    // Convert window dimensions from String to I64
+    window_width       := window_width_str.to_i64()
+    window_height      := window_height_str.to_i64()
+
+    background_color   := BLACK
+    error_color        := RED
+    cursor_color       := GREEN
+    intersection_color := BLUE
+    center_color       := WHITE
+
+    init_window(window_width, window_height, "Hello GUI!")
+
+    center_pos.x = I64.div(window_width, 2)
+    center_pos.y = I64.div(window_height, 2)
+
+    error_pos.x = gui_rand(0, I64.sub(window_width, Cell.CHAR_WIDTH))
+    error_pos.y = gui_rand(0, I64.sub(window_height, Cell.LINE_HEIGHT))
+
+    while !window_should_close() {
+        if is_key_pressed(KEY_ESCAPE) {
+            exit(0)
+        }
+        if is_key_pressed(KEY_A) {
+            Cell.sub(pos, "x") // Move left
+        }
+        if is_key_pressed(KEY_D) {
+            Cell.add(pos, "x") // Move right
+        }
+        if is_key_pressed(KEY_W) {
+            Cell.sub(pos, "y") // Move up
+        }
+        if is_key_pressed(KEY_S) {
+            Cell.add(pos, "y") // Move down
+        }
+
+        begin_drawing()
+        clear_background(background_color)
+
+        // Draw the intersection_color horizontal and vertical rectangles crossing the cursor at current position
+        draw_rectangle(0, center(pos.y, Cell.LINE_HEIGHT), window_width, 20, intersection_color)
+        draw_rectangle(center(pos.x, Cell.CHAR_WIDTH), 0, 20, window_height, intersection_color)
+
+        // Draw the cursor at the intersection of the crossing with cursor_color
+        draw_rectangle(center(pos.x, Cell.CHAR_WIDTH), center(pos.y, Cell.LINE_HEIGHT), Cell.CHAR_WIDTH, Cell.LINE_HEIGHT, cursor_color)
+
+        // Draw a single white "character" at the center of the window (this will be a small rectangle in the center grid)
+        draw_rectangle(center(center_pos.x, Cell.CHAR_WIDTH), center(center_pos.y, Cell.LINE_HEIGHT), Cell.CHAR_WIDTH, Cell.LINE_HEIGHT, center_color)
+
+        // Draw an error cell at random position
+        draw_rectangle(center(error_pos.x, Cell.CHAR_WIDTH), center(error_pos.y, Cell.LINE_HEIGHT), Cell.CHAR_WIDTH, Cell.LINE_HEIGHT, error_color)
+
+        end_drawing()
+    }
+
+    close_window()
+}
