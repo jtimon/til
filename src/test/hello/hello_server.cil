@@ -1,0 +1,20 @@
+mode server
+
+home_route := func() returns String {
+    return "Welcome to the Home Page!"
+}
+
+about_route := func() returns String {
+    return "This is all about mode server"
+}
+
+// Main procedure that takes the URL and port as arguments
+main := proc(url: String, port: String) {
+    // Register static routes
+    register_route("/", home_route)       // Home page route
+    register_route("/about", about_route) // About page route
+
+    // Start the server listening on the given url and port
+    println("Server started at " + url + " on port " + port + "...")
+    listen_on_port(port)
+}
