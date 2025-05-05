@@ -10,11 +10,11 @@ use std::convert::TryInto;
 // or just change the name of the language
 // CIL stands for Compiled Interpreted Language
 // Because there is no good reason for a programming language not to be both compiled and interpreted.
-const LANG_NAME: &str = "rscil";
-const DEFAULT_MODE: &str = "lib";
-const INFER_TYPE: &str = "auto";
-const SELF_HOSTED_PATH: &str = "src/cil.cil";
-const SKIP_AST: bool = true;
+const LANG_NAME            : &str = "rscil";
+const DEFAULT_MODE         : &str = "lib";
+const INFER_TYPE           : &str = "auto";
+const SELF_HOSTED_PATH     : &str = "src/cil.cil";
+const SKIP_AST             : bool = true;
 
 // ---------- format errors
 
