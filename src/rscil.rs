@@ -630,6 +630,7 @@ impl Expr {
         if phase == "assert" || phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
+            io::stdout().flush().unwrap();
             std::process::exit(1);
         }
         return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
@@ -642,6 +643,7 @@ impl Expr {
         if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
+            io::stdout().flush().unwrap();
             std::process::exit(1);
         }
         return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
@@ -653,6 +655,7 @@ impl Expr {
         }
         if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
+            io::stdout().flush().unwrap();
             std::process::exit(1);
         }
         return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg)
