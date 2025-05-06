@@ -6,14 +6,14 @@ test := proc(loc_str: String, cond: Bool, msg: String) {
 
 assert_eq_str := proc(loc_str: String, a: String, b: String) {
     if not(a.eq(b)) {
-        println(loc(), "assert_eq_str failed: expected '", a, "', found '", b, "'")
+        println(loc_str, "assert_eq_str failed: expected '", a, "', found '", b, "'")
         exit(1)
     }
 }
 
 assert_eq := proc(loc_str: String, a: I64, b: I64) {
     if not(a.eq(b)) {
-        println(loc(), "assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
+        println(loc_str, "assert_eq failed: expected '", I64.to_str(a), "', found '", I64.to_str(b), "'")
         exit(1)
     }
 }
