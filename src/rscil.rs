@@ -1670,6 +1670,33 @@ impl EnumVal {
     }
 }
 
+// Singleton struct that will hold the arena
+struct Arena {
+    memory: Vec<u8>,
+}
+
+// heap/arena memory (starts at 1 to avoid NULL confusion)
+// REM: first address 0 is reserved (invalid), malloc always >0
+// static mut ARENA: Vec<u8> = vec![0]; // Apparently we can't use a global without having to put "unsafe" everywhere
+impl Arena {
+    // This function gives access to the singleton instance of Arena
+    fn g() -> &'static mut Arena {
+        unsafe { // TODO research if we can do "safe" singletons in rust before self hosting, just out of curiosity
+            static mut INSTANCE: Option<Arena> = None;
+
+            // Lazy initialization of the singleton instance
+            if INSTANCE.is_none() {
+                INSTANCE = Some(Arena {
+                    memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
+                });
+            }
+
+            // Unwrap the instance and return a mutable reference
+            return INSTANCE.as_mut().unwrap()
+        }
+    }
+}
+
 #[derive(Clone)]
 struct Context {
     mode: ModeDef, // All contexts need a mode
@@ -1687,8 +1714,6 @@ struct Context {
     enum_defs: HashMap<String, SEnumDef>,
     // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
     struct_defs: HashMap<String, SStructDef>,
-    // heap/arena memory (starts at 1 to avoid NULL confusion)
-    arena: Vec<u8>,
     // maps variable names to their offsets in the arena
     arena_index: HashMap<String, usize>, // stores offsets
 }
@@ -1702,48 +1727,47 @@ impl Context {
             funcs: HashMap::new(),
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
-            arena: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
             arena_index: HashMap::new(),
         };
     }
 
     fn get_i64(self: &Context, id: &str) -> Option<i64> {
         return match self.arena_index.get(id) {
-            Some(&offset) => Some(i64::from_ne_bytes(self.arena[offset..offset + 8].try_into().unwrap())),
+            Some(&offset) => Some(i64::from_ne_bytes(Arena::g().memory[offset..offset + 8].try_into().unwrap())),
             None => None,
         }
     }
 
     fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
         let v = i64_str.parse::<i64>().unwrap();
-        let offset = self.arena.len();
-        self.arena.extend_from_slice(&v.to_ne_bytes());
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(&v.to_ne_bytes());
         return match self.arena_index.insert(id.to_string(), offset) {
-            Some(old_offset) => Some(i64::from_ne_bytes(self.arena[old_offset..old_offset + 8].try_into().unwrap())),
+            Some(old_offset) => Some(i64::from_ne_bytes(Arena::g().memory[old_offset..old_offset + 8].try_into().unwrap())),
             None => None,
         }
     }
 
     fn get_u8(self: &Context, id: &str) -> Option<u8> {
         return match self.arena_index.get(id) {
-            Some(&offset) => Some(self.arena[offset]),
+            Some(&offset) => Some(Arena::g().memory[offset]),
             None => None,
         }
     }
 
     fn insert_u8(self: &mut Context, id: &str, u8_str: &String) -> Option<u8> {
         let v = u8_str.parse::<u8>().unwrap();
-        let offset = self.arena.len();
-        self.arena.push(v);
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.push(v);
         return match self.arena_index.insert(id.to_string(), offset) {
-            Some(old_offset) => Some(self.arena[old_offset]),
+            Some(old_offset) => Some(Arena::g().memory[old_offset]),
             None => None,
         }
     }
 
     fn get_bool(self: &Context, id: &str) -> Option<bool> {
         return match self.arena_index.get(id) {
-            Some(&offset) => Some(self.arena[offset] == 0),
+            Some(&offset) => Some(Arena::g().memory[offset] == 0),
             None => None,
         }
     }
@@ -1751,8 +1775,8 @@ impl Context {
     fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
         let bool_to_insert = lbool_in_string_to_bool(bool_str);
         let stored = if bool_to_insert { 0 } else { 1 };
-        let offset = self.arena.len();
-        self.arena.push(stored);
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.push(stored);
         return match self.arena_index.insert(id.to_string(), offset) {
             Some(_old_offset) => Some(bool_to_insert),
             None => None,
@@ -1923,8 +1947,8 @@ impl Context {
         }
 
         // Allocate blob in arena
-        let offset = self.arena.len();
-        self.arena.resize(offset + total_size, 0);
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.resize(offset + total_size, 0);
         self.arena_index.insert(id.to_string(), offset);
 
         // Store each field's default value
@@ -1962,12 +1986,12 @@ impl Context {
                             }
                         };
                         let bytes = index.to_ne_bytes();
-                        self.arena[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                        Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
                     } else {
                         match type_name.as_str() {
                             "Bool" => {
                                 let stored = if lbool_in_string_to_bool(&default_value) { 1 } else { 0 };
-                                self.arena[offset + field_offset] = stored;
+                                Arena::g().memory[offset + field_offset] = stored;
                             },
                             "U8" => {
                                 let v = match default_value.parse::<u8>() {
@@ -1977,7 +2001,7 @@ impl Context {
                                         return false;
                                     }
                                 };
-                                self.arena[offset + field_offset] = v;
+                                Arena::g().memory[offset + field_offset] = v;
                             },
                             "I64" => {
                                 let v = match default_value.parse::<i64>() {
@@ -1988,7 +2012,7 @@ impl Context {
                                     }
                                 };
                                 let bytes = v.to_ne_bytes();
-                                self.arena[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                                Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
                             },
                             _ => {
                                 println!("ERROR: TODO: support field type '{}'", type_name);
@@ -2020,34 +2044,34 @@ impl Context {
         return match self.arena_index.get(id) {
             Some(&offset) => {
                 let mut end = offset;
-                while end < self.arena.len() && self.arena[end] != 0 {
+                while end < Arena::g().memory.len() && Arena::g().memory[end] != 0 {
                     end += 1;
                 }
                 // Include everything before null terminator
-                Some(String::from_utf8_lossy(&self.arena[offset..end]).to_string())
+                Some(String::from_utf8_lossy(&Arena::g().memory[offset..end]).to_string())
             },
             None => None,
         }
     }
 
     fn insert_string(self: &mut Context, id: &str, value_str: &String) -> Option<String> {
-        let offset = self.arena.len();
-        self.arena.extend_from_slice(value_str.as_bytes());
-        self.arena.push(0); // Null terminator
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(value_str.as_bytes());
+        Arena::g().memory.push(0); // Null terminator
         return match self.arena_index.insert(id.to_string(), offset) {
             Some(old_offset) => {
                 let mut end = old_offset;
-                while end < self.arena.len() && self.arena[end] != 0 {
+                while end < Arena::g().memory.len() && Arena::g().memory[end] != 0 {
                     end += 1;
                 }
-                Some(String::from_utf8_lossy(&self.arena[old_offset..end]).to_string())
+                Some(String::from_utf8_lossy(&Arena::g().memory[old_offset..end]).to_string())
             },
             None => None,
         }
     }
 
     fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
-        return self.arena_index.get(id).and_then(|&offset| EnumVal::from_bytes(&self.arena[offset..]));
+        return self.arena_index.get(id).and_then(|&offset| EnumVal::from_bytes(&Arena::g().memory[offset..]));
     }
 
     fn insert_enum(self: &mut Context, id: &str, enum_type: &str, enum_name: &str) -> Option<EnumVal> {
@@ -2056,9 +2080,9 @@ impl Context {
             enum_name: enum_name.to_string(),
         };
         let serialized = enum_val.to_bytes();
-        let offset = self.arena.len();
-        self.arena.extend(&serialized);
-        return self.arena_index.insert(id.to_string(), offset).and_then(|_old_offset| EnumVal::from_bytes(&self.arena[offset..]));
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend(&serialized);
+        return self.arena_index.insert(id.to_string(), offset).and_then(|_old_offset| EnumVal::from_bytes(&Arena::g().memory[offset..]));
     }
 }
 
@@ -3117,10 +3141,10 @@ fn eval_core_func_malloc(mut context: &mut Context, e: &Expr) -> String {
     let size_str = eval_expr(&mut context, e.get(1));
     let size = size_str.parse::<usize>().unwrap();
 
-    let offset = context.arena.len(); // take *current* end of arena
+    let offset = Arena::g().memory.len(); // take *current* end of arena
 
     if size > 0 {
-        context.arena.resize(offset + size, 0); // extend safely
+        Arena::g().memory.resize(offset + size, 0); // extend safely
     }
 
     return offset.to_string();
@@ -3161,15 +3185,15 @@ fn eval_core_func_memset(context: &mut Context, e: &Expr) -> String {
         Err(err) => return e.error("eval", &format!("Invalid size (I64): '{}': {}", size_str, err)),
     };
 
-    if dest + size > context.arena.len() {
+    if dest + size > Arena::g().memory.len() {
         return e.error("eval", &format!(
             "memset out of bounds: dest={} size={} arena_len={}",
-            dest, size, context.arena.len()
+            dest, size, Arena::g().memory.len()
         ));
     }
 
     for i in 0..size {
-        context.arena[dest + i] = value;
+        Arena::g().memory[dest + i] = value;
     }
 
     "".to_string()
@@ -3186,15 +3210,15 @@ fn eval_core_func_memcpy(mut context: &mut Context, e: &Expr) -> String {
     let src = src_str.parse::<usize>().unwrap();
     let size = size_str.parse::<usize>().unwrap();
 
-    if dest + size > context.arena.len() || src + size > context.arena.len() {
+    if dest + size > Arena::g().memory.len() || src + size > Arena::g().memory.len() {
         return e.error("eval", &format!(
             "memcpy out of bounds: src={} dest={} size={} arena_len={}",
-            src, dest, size, context.arena.len()
+            src, dest, size, Arena::g().memory.len()
         ));
     }
 
     for i in 0..size {
-        context.arena[dest + i] = context.arena[src + i];
+        Arena::g().memory[dest + i] = Arena::g().memory[src + i];
     }
 
     return "".to_string()
