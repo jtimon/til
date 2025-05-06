@@ -36,7 +36,7 @@ runfile := ext_proc(args: ..String);
 loc := ext_func() returns String; // Returns the current source location as "<file>:<line>:<col>:"
 
 panic := proc(loc_str: String, msg: String) {
-    print(concat(loc_str, msg, "\n"))
+    println(concat(loc_str, msg))
     exit(1)
 }
 
