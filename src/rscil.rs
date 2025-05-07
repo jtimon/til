@@ -1740,12 +1740,25 @@ impl Context {
 
     fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
         let v = i64_str.parse::<i64>().unwrap();
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(&v.to_ne_bytes());
-        return match self.arena_index.insert(id.to_string(), offset) {
-            Some(old_offset) => Some(i64::from_ne_bytes(Arena::g().memory[old_offset..old_offset + 8].try_into().unwrap())),
-            None => None,
+        let bytes = v.to_ne_bytes();
+
+        let is_field = id.contains('.');
+        if is_field {
+            if let Some(&offset) = self.arena_index.get(id) {
+                let old_value = i64::from_ne_bytes(Arena::g().memory[offset..offset + 8].try_into().unwrap());
+                Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
+                return Some(old_value);
+            } else {
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.extend_from_slice(&bytes);
+                self.arena_index.insert(id.to_string(), offset);
+                return None;
+            }
         }
+
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(&bytes);
+        return self.arena_index.insert(id.to_string(), offset).map(|old_offset| i64::from_ne_bytes(Arena::g().memory[old_offset..old_offset + 8].try_into().unwrap()));
     }
 
     fn get_u8(self: &Context, id: &str) -> Option<u8> {
