@@ -4,6 +4,7 @@ ExampleEnum := enum {
     A,
     B,
     C,
+    D,
 }
 // trying_dot_enum : ExampleEnum = 0 // fails because an enum is not an int
 trying_dot_enum: ExampleEnum = ExampleEnum.A
@@ -27,16 +28,16 @@ test_switch_enum := proc(to_switch: ExampleEnum) returns String {
     return to_return
 }
 
-assert_eq_str(loc(), test_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
-assert_eq_str(loc(), test_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
-assert_eq_str(loc(), test_switch_enum(ExampleEnum.C), "enum cccccc by default")
-assert_eq_str(loc(), test_switch_enum(ExampleEnum.D), "enum cccccc by default")
+assert_eq_str(loc(), "enum switch aaaaaa",     test_switch_enum(ExampleEnum.A))
+assert_eq_str(loc(), "enum switch bbbbbb",     test_switch_enum(ExampleEnum.B))
+assert_eq_str(loc(), "enum cccccc by default", test_switch_enum(ExampleEnum.C))
+assert_eq_str(loc(), "enum cccccc by default", test_switch_enum(ExampleEnum.D))
 
 // Test enum_to_str core function
-assert_eq_str(loc(), enum_to_str(ExampleEnum.A), "ExampleEnum.A")
-assert_eq_str(loc(), enum_to_str(ExampleEnum.B), "ExampleEnum.B")
-assert_eq_str(loc(), enum_to_str(ExampleEnum.C), "ExampleEnum.C")
-assert_eq_str(loc(), enum_to_str(ExampleEnum.D), "ExampleEnum.D")
+assert_eq_str(loc(), "ExampleEnum.A", enum_to_str(ExampleEnum.A))
+assert_eq_str(loc(), "ExampleEnum.B", enum_to_str(ExampleEnum.B))
+assert_eq_str(loc(), "ExampleEnum.C", enum_to_str(ExampleEnum.C))
+assert_eq_str(loc(), "ExampleEnum.D", enum_to_str(ExampleEnum.D))
 
 no_return_switch_str := "xxxxxx because return inside switch doesn't work even for enum"
 test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
@@ -51,22 +52,22 @@ test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
     }
     return no_return_switch_str
 }
-assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.A), "enum switch aaaaaa")
-assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.B), "enum switch bbbbbb")
-assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.C), "enum cccccc by default")
-assert_eq_str(loc(), test_return_switch_enum(ExampleEnum.D), "enum cccccc by default")
+assert_eq_str(loc(), "enum switch aaaaaa",       test_return_switch_enum(ExampleEnum.A))
+assert_eq_str(loc(), "enum switch bbbbbb",       test_return_switch_enum(ExampleEnum.B))
+assert_eq_str(loc(), "enum cccccc by default",   test_return_switch_enum(ExampleEnum.C))
+assert_eq_str(loc(), "enum cccccc by default",   test_return_switch_enum(ExampleEnum.D))
 
 // Test that enum variants are valid symbols and type-check
 test_enum_variant_resolution := proc() {
     mut my_enum_val: ExampleEnum = ExampleEnum.A
     my_enum_val2 := ExampleEnum.B
-    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.A")
+    assert_eq_str(loc(), "ExampleEnum.A", enum_to_str(my_enum_val))
 
     my_enum_val = ExampleEnum.B
-    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.B")
+    assert_eq_str(loc(), "ExampleEnum.B", enum_to_str(my_enum_val))
 
     my_enum_val = ExampleEnum.C
-    assert_eq_str(loc(), enum_to_str(my_enum_val), "ExampleEnum.C")
+    assert_eq_str(loc(), "ExampleEnum.C", enum_to_str(my_enum_val))
 
     // my_enum_val = ExampleEnum.D // TODO make sure this fails at check type
 }

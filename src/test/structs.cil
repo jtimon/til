@@ -56,7 +56,7 @@ test_my_struct := proc() {
     case MyEnum.Blue: is_blue = true
     case: is_blue = false
     }
-    // assert(loc(), is_blue) // TODO fix
+    assert(loc(), is_blue)
 
     // Switch statement to check runtime matching after assignment
     mut color_str := ""
