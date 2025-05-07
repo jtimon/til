@@ -1787,15 +1787,26 @@ impl Context {
 
     fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
         let bool_to_insert = lbool_in_string_to_bool(bool_str);
-        let stored = if bool_to_insert { 0 } else { 1 };
+        let stored = if bool_to_insert { 0 } else { 1 }; // TODO why this is backwards?
+
+        let is_field = id.contains('.');
+        if is_field {
+            if let Some(&offset) = self.arena_index.get(id) {
+                let old = Arena::g().memory[offset];
+                Arena::g().memory[offset] = stored;
+                return Some(old == 0);
+            } else {
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.push(stored);
+                self.arena_index.insert(id.to_string(), offset);
+                return None;
+            }
+        }
+
         let offset = Arena::g().memory.len();
         Arena::g().memory.push(stored);
-        return match self.arena_index.insert(id.to_string(), offset) {
-            Some(_old_offset) => Some(bool_to_insert),
-            None => None,
-        }
+        return self.arena_index.insert(id.to_string(), offset).map(|old_offset| Arena::g().memory[old_offset] == 0);
     }
-
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
     fn copy_fields(self: &mut Context, custom_type_name: &str, src: &str, dest: &str) -> bool {
