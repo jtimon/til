@@ -522,6 +522,32 @@ struct SEnumDef {
     enum_map: HashMap<String, Option<ValueType>>,
 }
 
+impl SEnumDef {
+    fn get_variant_pos(self: &SEnumDef, variant_name: &str) -> i64 {
+        return match self.enum_map.keys().position(|k| k == variant_name) {
+            Some(position) => {
+                position as i64
+            }
+            None => {
+                println!("Error: Enum variant '{}' not found in enum map.", variant_name);
+                0
+            }
+        }
+    }
+
+    fn variant_pos_to_str(self: &SEnumDef, position: i64) -> Result<String, String> {
+        let keys: Vec<String> = self.enum_map.keys().cloned().collect();
+        if position < 0 || position >= keys.len() as i64 {
+            // Return an error if the position is out of bounds
+            return Err(format!("Error: Invalid position '{}' for enum variant in '{}'.",
+                               position, self.enum_map.keys().cloned().collect::<Vec<_>>().join(", ")))
+        }
+
+        // If position is valid, return the corresponding variant name
+        return Ok(keys[position as usize].clone())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct Declaration {
     name: String,
@@ -1644,32 +1670,6 @@ struct EnumVal {
     // payload: Option<String>,
 }
 
-impl EnumVal {
-    // Serialize EnumVal to bytes
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::new();
-        result.extend_from_slice(self.enum_type.as_bytes());
-        result.push(0); // null byte separator
-        result.extend_from_slice(self.enum_name.as_bytes());
-        result.push(0); // null byte separator
-        result
-    }
-
-    // Deserialize bytes back to EnumVal
-    fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        let mut parts = bytes.splitn(2, |&b| b == 0);
-        let enum_type_bytes = parts.next()?;
-        let rest = parts.next()?;
-        let mut parts2 = rest.splitn(2, |&b| b == 0);
-        let enum_name_bytes = parts2.next()?;
-
-        let enum_type = String::from_utf8(enum_type_bytes.to_vec()).ok()?;
-        let enum_name = String::from_utf8(enum_name_bytes.to_vec()).ok()?;
-
-        Some(EnumVal { enum_type, enum_name })
-    }
-}
-
 // Singleton struct that will hold the arena
 struct Arena {
     memory: Vec<u8>,
@@ -2065,35 +2065,96 @@ impl Context {
     }
 
     fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
-        return self.arena_index.get(id).and_then(|&offset| EnumVal::from_bytes(&Arena::g().memory[offset..]));
-    }
+        // Look up the symbol information for the id
+        let symbol_info = match self.symbols.get(id) {
+            Some(symbol) => symbol,
+            None => return None, // If no symbol found, return None
+        };
 
-    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, enum_name: &str) -> Option<EnumVal> {
-        let enum_val = EnumVal {
+        // Check if the symbol corresponds to a custom type (enum type)
+        let enum_type = match &symbol_info.value_type {
+            ValueType::TCustom(custom_type_name) => custom_type_name,
+            _ => return None, // If it's not a custom type (enum), return None
+        };
+
+        // Get the offset for the enum value from the arena index
+        let offset = match self.arena_index.get(id) {
+            Some(&offset) => offset,
+            None => return None, // If no offset is found, return None
+        };
+
+        // Retrieve the i64 value (enum value) from memory
+        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into().unwrap());
+
+        // Look up the enum definition from `self.enum_defs` using the enum type
+        let enum_def = match self.enum_defs.get(enum_type) {
+            Some(def) => def,
+            None => return None, // If no enum definition is found, return None
+        };
+
+        // Use the variant_pos_to_str function to get the enum variant name based on the position
+        let enum_name = match enum_def.variant_pos_to_str(enum_value) {
+            Ok(enum_name_) => enum_name_,
+            Err(error_string) => {
+                println!("{error_string}");
+                return None;
+            }
+        };
+
+        // Return an EnumVal with the enum type and name
+        Some(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name: enum_name.to_string(),
-        };
-        let serialized = enum_val.to_bytes();
+        })
+    }
 
+    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str) -> Option<EnumVal> {
+        // Look up the enum definition from `self.enum_defs`
+        let enum_def = match self.enum_defs.get(enum_type) {
+            Some(def) => def,
+            None => return None, // If no enum definition is found, return None
+        };
+
+        // Normalize the enum_name: remove the type name prefix (e.g., "ExampleEnum." -> "")
+        let enum_name = match pre_normalized_enum_name.split('.').last() {
+            Some(name) => name,
+            None => {
+                println!("Error: Invalid enum name format '{}'", pre_normalized_enum_name);
+                return None
+            },
+        };
+
+        let enum_value = enum_def.get_variant_pos(enum_name);
+
+        // If the id represents a field (e.g., struct field), we should update it in the arena
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
-                let old = EnumVal::from_bytes(&Arena::g().memory[offset..]);
-                for (i, byte) in serialized.iter().enumerate() {
-                    Arena::g().memory[offset + i] = *byte;
-                }
-                return old;
+                // Update existing field in the arena with the new enum value
+                Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
             } else {
+                // Insert as a new field in the arena
                 let offset = Arena::g().memory.len();
-                Arena::g().memory.extend(&serialized);
+                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes()); // store the i64 enum value directly
                 self.arena_index.insert(id.to_string(), offset);
-                return None;
             }
+            return Some(EnumVal {
+                enum_type: enum_type.to_string(),
+                enum_name: enum_name.to_string(),
+            })
         }
 
+        // Insert as a new enum in the arena memory
         let offset = Arena::g().memory.len();
-        Arena::g().memory.extend(&serialized);
-        return self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| EnumVal::from_bytes(&Arena::g().memory[old_offset..]));
+        Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes()); // store the i64 enum value directly
+        self.arena_index.insert(id.to_string(), offset);
+
+        // Return the EnumVal with the enum type and enum name for reference
+        return Some(EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name: enum_name.to_string(),
+        })
     }
 }
 
@@ -3502,7 +3563,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                         let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                         match custom_symbol.value_type {
                             ValueType::TEnumDef => {
-                                function_context.insert_enum(&arg.name, &custom_type_name, &result);
+                                if function_context.insert_enum(&arg.name, &custom_type_name, &result).is_none() {
+                                    return e.lang_error("eval", &format!("Arg enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &arg.name, &custom_type_name, &result))
+                                }
                             },
                             ValueType::TStructDef => {
                                 if !function_context.insert_struct(&arg.name, &custom_type_name) {
@@ -3924,7 +3987,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     let custom_symbol = context.symbols.get(custom_type_name).unwrap();
                     if custom_symbol.value_type == ValueType::TEnumDef {
                         let enum_expr_result_str = &eval_expr(&mut context, inner_e);
-                        context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str);
+                        if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str).is_none() {
+                            return inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str))
+                        }
                     } else if custom_symbol.value_type == ValueType::TStructDef {
                         if !context.insert_struct(&declaration.name, custom_type_name) {
                             return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
@@ -3988,10 +4053,12 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     match context.symbols.get(custom_type_name).unwrap().value_type {
                         ValueType::TEnumDef => {
                             let expr_result_str = eval_expr(&mut context, inner_e);
-                            context.insert_enum(var_name, &custom_type_name, &expr_result_str);
+                            if context.insert_enum(var_name, &custom_type_name, &expr_result_str).is_none() {
+                                return inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str))
+                            }
                         },
                         _ => {
-                            return e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
+                            return inner_e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
                         },
 
                     }
@@ -4103,8 +4170,12 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     let custom_symbol = context.symbols.get(custom_type_name).unwrap();
     match custom_symbol.value_type {
         ValueType::TEnumDef => {
-            let enum_val = context.get_enum(name).unwrap();
-            return enum_val.enum_name.clone();
+            match context.get_enum(name) {
+                Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
+                None => {
+                    return e.lang_error("eval", &format!("Enum '{}' not found for custom type '{}'.", name, custom_type_name))
+                }
+            }
         },
 
         ValueType::TStructDef => {
@@ -4157,7 +4228,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                             match context.symbols.get(custom_type_name).unwrap().value_type {
                                                 ValueType::TEnumDef => {
                                                     match context.get_enum(&format!("{}.{}", name, inner_name)) {
-                                                        Some(result) => return result.enum_name.to_string(),
+                                                        Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
                                                         None => {
                                                             return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
                                                         },
