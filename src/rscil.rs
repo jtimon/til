@@ -1770,12 +1770,24 @@ impl Context {
 
     fn insert_u8(self: &mut Context, id: &str, u8_str: &String) -> Option<u8> {
         let v = u8_str.parse::<u8>().unwrap();
+
+        let is_field = id.contains('.');
+        if is_field {
+            if let Some(&offset) = self.arena_index.get(id) {
+                let old = Arena::g().memory[offset];
+                Arena::g().memory[offset] = v;
+                return Some(old);
+            } else {
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.push(v);
+                self.arena_index.insert(id.to_string(), offset);
+                return None;
+            }
+        }
+
         let offset = Arena::g().memory.len();
         Arena::g().memory.push(v);
-        return match self.arena_index.insert(id.to_string(), offset) {
-            Some(old_offset) => Some(Arena::g().memory[old_offset]),
-            None => None,
-        }
+        return self.arena_index.insert(id.to_string(), offset).map(|old_offset| Arena::g().memory[old_offset]);
     }
 
     fn get_bool(self: &Context, id: &str) -> Option<bool> {
