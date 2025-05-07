@@ -14,6 +14,7 @@ const LANG_NAME            : &str = "rscil";
 const DEFAULT_MODE         : &str = "lib";
 const INFER_TYPE           : &str = "auto";
 const SELF_HOSTED_PATH     : &str = "src/cil.cil";
+const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 const SKIP_AST             : bool = true;
 
 // ---------- format errors
@@ -1673,6 +1674,7 @@ struct EnumVal {
 // Singleton struct that will hold the arena
 struct Arena {
     memory: Vec<u8>,
+    temp_id_counter: usize,
 }
 
 // heap/arena memory (starts at 1 to avoid NULL confusion)
@@ -1688,6 +1690,7 @@ impl Arena {
             if INSTANCE.is_none() {
                 INSTANCE = Some(Arena {
                     memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
+                    temp_id_counter: 0, // A temporary ugly hack for return values
                 });
             }
 
@@ -1818,6 +1821,59 @@ impl Context {
         let offset = Arena::g().memory.len();
         Arena::g().memory.push(stored);
         return self.arena_index.insert(id.to_string(), offset).map(|old_offset| Arena::g().memory[old_offset] == 0);
+    }
+
+    pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str) -> bool {
+        let struct_def = match self.struct_defs.get(custom_type_name) {
+            Some(def) => def,
+            None => return false,
+        };
+
+        let is_mut = match self.symbols.get(instance_name) {
+            Some(symbol_info_) => symbol_info_.is_mut,
+            None => return false,
+        };
+
+        let base_offset = match self.arena_index.get(instance_name) {
+            Some(offset) => *offset,
+            None => return false,
+        };
+
+        let mut current_offset = 0;
+        for (field_name, decl) in &struct_def.members {
+            if decl.is_mut {
+                let combined_name = format!("{}.{}", instance_name, field_name);
+                self.arena_index.insert(combined_name.to_string(), base_offset + current_offset);
+                self.symbols.insert(
+                    combined_name,
+                    SymbolInfo {
+                        value_type: decl.value_type.clone(),
+                        is_mut: is_mut,
+                    },
+                );
+
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(name) if name == "I64" => 8,
+                    ValueType::TCustom(name) if name == "U8" => 1,
+                    ValueType::TCustom(name) if name == "Bool" => 1,
+                    ValueType::TCustom(name) => {
+                        if let Some(sym) = self.symbols.get(name) {
+                            match sym.value_type {
+                                ValueType::TEnumDef => 8, // enums are stored as 8 bytes
+                                _ => return false,
+                            }
+                        } else {
+                            return false; // unsupported nested types (e.g., String, other structs)
+                        }
+                    },
+                    _ => return false, // unsupported nested types (e.g., String, other structs)
+                };
+
+                current_offset += field_size;
+            }
+        }
+
+        return true
     }
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
@@ -2022,6 +2078,7 @@ impl Context {
             }
 
             let combined_name = format!("{}.{}", id, member_name);
+            self.arena_index.insert(combined_name.clone(), offset + field_offset);
             self.symbols.insert(
                 combined_name,
                 SymbolInfo {
@@ -3548,6 +3605,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 
                 match custom_type_name.as_str() {
                     "I64" => {
+                        // println!("I64 arg name '{}' result '{}' Expr '{:?}'", arg.name, result, current_arg);
                         function_context.insert_i64(&arg.name, &result);
                     },
                     "U8" => {
@@ -3628,6 +3686,45 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
             },
             _ => {
                 // TODO: support struct mutation copying later
+            }
+        }
+    }
+
+    // If function returns a user-defined struct, copy fields back to context as temp return val
+    if func_def.returns.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.returns[0] {
+            // println!("custom_type_name {}", custom_type_name);
+            // println!("func name {}", name);
+            // println!("func_def {:?}", func_def);
+            // Skip core types like I64, Bool, String, U8
+            match custom_type_name.as_str() {
+                "I64" | "U8" | "Bool" | "String" => { /* Do nothing for core types */ },
+                _ => {
+
+                    println!("custom_type_name {}, result {}", custom_type_name, &result);
+                    if let Some(custom_symbol) = function_context.symbols.get(custom_type_name) {
+                        match custom_symbol.value_type {
+                            ValueType::TStructDef => {
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
+                                Arena::g().temp_id_counter += 1;
+
+                                // Insert the temporary return variable into the symbols table (temporary solution)
+                                context.symbols.insert(return_instance.to_string(), SymbolInfo {
+                                    value_type: ValueType::TCustom(custom_type_name.to_string()),
+                                    is_mut: true,
+                                });
+
+                                context.arena_index.insert(return_instance.to_string(), *function_context.arena_index.get(&result).unwrap());
+                                context.map_instance_fields(custom_type_name, &return_instance);
+                                return return_instance
+                            },
+                            _ => {
+                                // Not a struct return, ignore
+                            }
+                        }
+                    }
+                },
+
             }
         }
     }
@@ -3991,9 +4088,28 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                             return inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str))
                         }
                     } else if custom_symbol.value_type == ValueType::TStructDef {
-                        if !context.insert_struct(&declaration.name, custom_type_name) {
-                            return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
+                        // Special case for instantiation
+                        if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
+                            match &inner_e.params.get(0).unwrap().node_type {
+                                NodeType::Identifier(potentially_struct_name) => {
+                                    match context.struct_defs.get(potentially_struct_name) {
+                                        Some(_struct_def) => {
+                                            if !context.insert_struct(&declaration.name, custom_type_name) {
+                                                return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
+                                            }
+                                            return "".to_string()
+                                        },
+                                        None => {},
+                                    }
+                                },
+                                _ => {},
+                            }
                         }
+                        // otherwise continue, it's a function that returns a struct
+                        let expr_result_str = eval_expr(&mut context, inner_e);
+                        context.arena_index.insert(declaration.name.to_string(), *context.arena_index.get(&expr_result_str).unwrap());
+                        context.map_instance_fields(custom_type_name, &declaration.name);
+
                     } else {
                         return e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                         &declaration.name, value_type_to_str(&custom_symbol.value_type)))
@@ -4058,6 +4174,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                             }
                         },
                         _ => {
+                            // TODO allow custom struct assignments
                             return inner_e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
                         },
 

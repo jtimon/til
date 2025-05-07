@@ -16,13 +16,13 @@ MyStruct := struct {
     // mut vec2_field: Vec2 = Vec2() // TODO allow support for structs as fields
 
     new := func(bool_field: Bool, int_field: I64, string_field: String, color_field: MyEnum, vec2_field: Vec2) returns MyStruct {
-        assertm(false, "Inside MyStruct.new()") // TODO FIX this should fail since MyStruct.new() is called afterwards
-        self := MyStruct()
+        mut self := MyStruct()
         self.bool_field = bool_field
         self.int_field = int_field
-        self.string_field = string_field
+        // self.string_field = string_field
         self.color_field = color_field
-        self.vec2_field = vec2_field
+        // self.vec2_field = vec2_field
+        println("Inside MyStruct.new(): self.int_field = ", I64.to_str(self.int_field))
         return self
     }
 
@@ -40,8 +40,8 @@ test_my_struct := proc() {
     v.y = 2
 
     mut my_struct := MyStruct.new(true, 42, "my field string", MyEnum.Green, v) // with enum and struct field
-    // assert(loc(), my_struct.bool_field) // TODO Fix returning structs in funcs and/or implement struct literals
-    // assert_eq(loc(), 42, my_struct.int_field) // TODO Fix
+    assert(loc(), my_struct.bool_field)
+    assert_eq(loc(), 42, my_struct.int_field) // TODO Fix returning structs in funcs and/or implement struct literals
     // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
     // assert_eq(loc(), MyEnum.Green, my_struct.color_field) // TODO Fix
     // assert_eq(loc(), 1, my_struct.vec2_field.x) // TODO Fix
@@ -76,10 +76,10 @@ Vec2 := struct {
     mut y : I64 = 0
 
     new := func(x: I64, y: I64) returns Vec2 {
-        assertm(false, "Inside MyStruct.new()") // TODO FIX this should fail since Vec2.new() is called afterwards
         mut v := Vec2()
         v.x = x
         v.y = y
+        println("Inside Vec2.new(): v.x = ", I64.to_str(v.x))
         return v
     }
 
@@ -109,10 +109,17 @@ test_structs := proc() {
     my_vec3.z = 42
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
 
-    another_vec2 := my_vec2 // make a copy
     new_vec2 := Vec2.new(40, 2)
-    // assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(another_vec2)) // TODO FIX While copying fields from 'another_vec2' to 'self' of type 'Vec2'
-    // assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(new_vec2)) // TODO FIX While copying fields from 'new_vec2' to 'self' of type 'Vec2'
+    println("Outside Vec2.new(): new_vec2.x = ", I64.to_str(new_vec2.x))
+
+    assert_eq(loc(), 40, my_vec2.x)
+    assert_eq(loc(), 40, new_vec2.x)
+    assert_eq(loc(),  2, new_vec2.y)
+    assert_eq(loc(), 42, Vec2.add_all_coordinates(new_vec2))
+    assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(new_vec2))
+
+    another_vec2 := my_vec2 // make a copy
+    assert_eq(loc(), Vec2.add_all_coordinates(my_vec2), Vec2.add_all_coordinates(another_vec2))
 
     my_i8 := U8()
     my_bool := Bool() /// TODO truly self host Bool with an U8
