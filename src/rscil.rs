@@ -2074,9 +2074,26 @@ impl Context {
             enum_name: enum_name.to_string(),
         };
         let serialized = enum_val.to_bytes();
+
+        let is_field = id.contains('.');
+        if is_field {
+            if let Some(&offset) = self.arena_index.get(id) {
+                let old = EnumVal::from_bytes(&Arena::g().memory[offset..]);
+                for (i, byte) in serialized.iter().enumerate() {
+                    Arena::g().memory[offset + i] = *byte;
+                }
+                return old;
+            } else {
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.extend(&serialized);
+                self.arena_index.insert(id.to_string(), offset);
+                return None;
+            }
+        }
+
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend(&serialized);
-        return self.arena_index.insert(id.to_string(), offset).and_then(|_old_offset| EnumVal::from_bytes(&Arena::g().memory[offset..]));
+        return self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| EnumVal::from_bytes(&Arena::g().memory[old_offset..]));
     }
 }
 
