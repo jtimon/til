@@ -1783,106 +1783,64 @@ impl Context {
         }
     }
 
-    fn insert_struct_field_with_value(self: &mut Context, id: &str, decl: &Declaration, is_mut: bool, value: &String) -> bool {
-        let combined_name = format!("{}.{}", id, &decl.name);
-        match &decl.value_type {
-            ValueType::TCustom(type_name) => {
-                match type_name.as_str() {
-                    "U8" => {
-                        self.insert_u8(&combined_name, value);
-                    },
-                    "I64" => {
-                        self.insert_i64(&combined_name, value);
-                    },
-                    "Bool" => {
-                        self.insert_bool(&combined_name, value);
-                    },
-                    "String" => {
-                        self.insert_string(&combined_name, value);
-                    },
-                    _ => {
-                        if self.enum_defs.contains_key(type_name) {
-                            self.insert_enum(&combined_name, type_name, value);
-                        } else if self.struct_defs.contains_key(type_name) {
-                            self.insert_struct(&combined_name, type_name);
-                        } else {
-                            println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of custom struct type '{}'",
-                                     decl.name, id, value_type_to_str(&decl.value_type));
-                            return false
-                        }
-                    },
-                }
-            },
-            _ => {
-                println!("ERROR: Cannot insert field '{}' in struct '{}'\n Context.insert_struct_field: TODO: allow fields of type '{}'",
-                         decl.name, id, value_type_to_str(&decl.value_type));
-                return false;
-            },
-        }
-        self.symbols.insert(
-            combined_name,
-            SymbolInfo {
-                value_type: decl.value_type.clone(),
-                is_mut,
-            },
-        );
-        return true;
-    }
-
-    fn get_field_value(self: &mut Context, custom_type_name: &str, id: &str, decl: &Declaration) -> Option<String> {
-        let combined_name = format!("{}.{}", id, &decl.name);
-        match &decl.value_type {
-            ValueType::TCustom(type_name) => {
-                match type_name.as_str() {
-                    "I64" => {
-                        return self.get_i64(&combined_name).map(|value| value.to_string())
-                    },
-                    "U8" => {
-                        return self.get_u8(&combined_name).map(|value| value.to_string())
-                    },
-                    "Bool" => {
-                        return self.get_bool(&combined_name).map(|value| value.to_string())
-                    },
-                    "String" => {
-                        return self.get_string(&combined_name)
-                    },
-                    _ => {
-                        println!("ERROR: Cannot get field '{}' from struct '{}'\n Context.get_struct_field: TODO: allow fields of custom struct type '{}'",
-                                 decl.name, id, value_type_to_str(&decl.value_type));
-                        return None;
-                    },
-                }
-            }
-            _ => {
-                println!("ERROR: Cannot get field '{}' in struct '{}'\n Context.get_struct_field: TODO: allow fields of type '{}'",
-                         decl.name, custom_type_name, value_type_to_str(&decl.value_type));
-                return None
-            },
-        }
-    }
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
     fn copy_fields(self: &mut Context, custom_type_name: &str, src: &str, dest: &str) -> bool {
-        // Search the struct def and add all mut values as fields in order
         let struct_def = match self.struct_defs.get(custom_type_name) {
-            Some(struct_def_) => struct_def_.clone(),
+            Some(def) => def,
             None => return false,
         };
 
         let is_mut = match self.symbols.get(dest) {
-            Some(symbol_info_) => symbol_info_.is_mut,
+            Some(info) => info.is_mut,
             None => return false,
         };
-        for (_member_name, decl) in struct_def.members.iter() {
-            if decl.is_mut {
-                let src_value = match self.get_field_value(custom_type_name, src, &decl) {
-                    Some(val_) => val_,
-                    None => return false,
-                };
-                if !self.insert_struct_field_with_value(dest, &decl, is_mut, &src_value) {
-                    return false;
-                }
+
+        let dest_base_offset = match self.arena_index.get(dest) {
+            Some(offset) => *offset,
+            None => return false,
+        };
+
+        let mut current_offset = 0;
+        for (field_name, decl) in &struct_def.members {
+            if !decl.is_mut {
+                continue;
             }
+
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(name) if name == "I64" => 8,
+                ValueType::TCustom(name) if name == "U8" => 1,
+                ValueType::TCustom(name) if name == "Bool" => 1,
+                ValueType::TCustom(name) => {
+                    match self.symbols.get(name) {
+                        Some(sym) if sym.value_type == ValueType::TEnumDef => 8,
+                        _ => return false,
+                    }
+                },
+                _ => return false,
+            };
+
+            let src_key = format!("{}.{}", src, field_name);
+            let dest_key = format!("{}.{}", dest, field_name);
+
+            let src_offset = match self.arena_index.get(&src_key) {
+                Some(offset) => *offset,
+                None => return false,
+            };
+
+            let dest_offset = dest_base_offset + current_offset;
+
+            // Ensure mappings for the destination field
+            self.arena_index.insert(dest_key.clone(), dest_offset);
+            self.symbols.insert(dest_key, SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut,
+            });
+
+            // Copy the actual memory bytes
+            Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
+
+            current_offset += field_size;
         }
 
         return true
