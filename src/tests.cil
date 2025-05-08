@@ -19,6 +19,7 @@ runfile("src/test/hello/hello_test.cil")
 println("\nSome basic tests/examples:\n")
 
 runfile("src/test/arithmetics.cil")
+runfile("src/test/arrays.cil")
 runfile("src/test/boolean.cil")
 runfile("src/test/branchless.cil")
 runfile("src/test/c_mem.cil")

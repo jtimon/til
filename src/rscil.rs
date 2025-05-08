@@ -3353,6 +3353,32 @@ fn eval_core_func_memcpy(mut context: &mut Context, e: &Expr) -> String {
     return "".to_string()
 }
 
+fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> String {
+    assert!(
+        e.params.len() == 2,
+        "{} ERROR: Core func 'to_ptr' takes exactly 1 argument. This should never happen.",
+        LANG_NAME
+    );
+
+    let identifier_expr = e.get(1);
+    match &identifier_expr.node_type {
+        NodeType::Identifier(id_) => {
+            let combined_name = format!("{}", id_); // TODO make it work with composed identifiers
+            match context.arena_index.get(&combined_name) {
+                Some(addr) => {
+                    return format!("{}", addr);
+                }
+                None => {
+                    return e.lang_error("eval", &format!("calling core func to_ptr, but '{}' is not a known identifier.", id_));
+                }
+            }
+        },
+        node_type => {
+            return e.lang_error("eval", &format!("calling core func to_ptr, but found '{:?}' instead of identifier.", node_type));
+        }
+    }
+}
+
 // ---------- eval str
 
 fn eval_core_func_str_eq(mut context: &mut Context, e: &Expr) -> String {
@@ -3557,8 +3583,7 @@ fn eval_core_exit(e: &Expr) -> String {
             my_li64.clone()
         },
         node_type => {
-            return e.lang_error("eval", &format!("calling core proc exit, but found {:?} instead of literal i64 exit code.",
-                   node_type));
+            return e.lang_error("eval", &format!("calling core proc exit, but found {:?} instead of literal i64 exit code.", node_type));
         },
     };
     std::process::exit(exit_code as i32);
@@ -3739,6 +3764,7 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "free" => eval_core_func_free(&mut context, &e),
         "memset" => eval_core_func_memset(&mut context, &e),
         "memcpy" => eval_core_func_memcpy(&mut context, &e),
+        "to_ptr" => eval_core_func_to_ptr(&mut context, &e),
         "str_eq" => eval_core_func_str_eq(&mut context, &e),
         "concat" => eval_core_func_concat(&mut context, &e),
         "str_len" => eval_core_func_str_len(&mut context, &e),

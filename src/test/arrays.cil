@@ -1,0 +1,39 @@
+mode test
+
+test_array_static_u8 := proc() {
+    mut stat := ArrayU8.new(3)
+    assert_eq(loc(), 3, stat.len)       // Static array len equals cap
+    assert_eq(loc(), stat.cap, stat.len) // Static array len equals cap
+    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
+    stat.set(0, U8.from_i64(10))
+    stat.set(1, U8.from_i64(20))
+    stat.set(2, U8.from_i64(30))
+    test(loc(), U8.eq(U8.from_i64(30), stat.get(2)), "Get after set at index 2") // TODO FIX
+
+    // Uncomment to test panic behavior
+    // stat.push(U8.from_i64(77)) // Should panic
+
+    stat.delete()
+}
+test_array_static_u8()
+
+test_array_dynamic_u8 := proc() {
+    mut dyn := ArrayU8.new_dyn()
+    assert_eq(loc(), 0, dyn.len)
+    // assert_eq(loc(), ArrayU8.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
+
+    dyn.push(U8.from_i64(42))
+    dyn.push(U8.from_i64(255))
+    // assert_eq(loc(), 2, dyn.len) // TODO FIX Length after two pushes
+    // test(loc(), U8.eq(dyn.get(0), U8.from_i64(42)), "Value at index 0")
+    // test(loc(), U8.eq(dyn.get(1), U8.from_i64(255)), "Value at index 1")
+
+    // dyn.set(0, U8.from_i64(99))
+    // test(loc(), U8.eq(dyn.get(0), U8.from_i64(99)), "Set and get index 0")
+
+    dyn.delete()
+    assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
+    assert_eq(loc(), 0, dyn.len) // Length reset after delete
+    assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
+}
+test_array_dynamic_u8()
