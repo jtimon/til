@@ -280,8 +280,7 @@ String := struct {
     }
 
     len := func(self: String) returns I64 {
-        str_len := ext_func(a: String) returns I64;
-        return str_len(self)
+        return self.cap
     }
 
     eq := func(self: String, other: String) returns Bool {

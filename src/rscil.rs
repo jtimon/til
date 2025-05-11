@@ -3460,12 +3460,6 @@ fn eval_core_func_concat(mut context: &mut Context, e: &Expr) -> String {
     return format!("{}{}", a, b)
 }
 
-fn eval_core_func_str_len(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 2, "{} ERROR: Core func 'concat' takes exactly 1 argument. This should never happen.", LANG_NAME);
-    let a = eval_expr(&mut context, e.get(1));
-    return format!("{}", a.len())
-}
-
 fn eval_core_func_str_get_substr(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 4, "{} ERROR: Core func 'concat' takes exactly 3 arguments. This should never happen.", LANG_NAME);
     let a = eval_expr(&mut context, e.get(1));
@@ -3828,7 +3822,6 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "to_ptr" => eval_core_func_to_ptr(&mut context, &e),
         "str_eq" => eval_core_func_str_eq(&mut context, &e),
         "concat" => eval_core_func_concat(&mut context, &e),
-        "str_len" => eval_core_func_str_len(&mut context, &e),
         "str_get_substr" => eval_core_func_str_get_substr(&mut context, &e),
         "lt" => eval_core_func_lt(&mut context, &e),
         "gt" => eval_core_func_gt(&mut context, &e),
