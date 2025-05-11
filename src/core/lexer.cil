@@ -223,13 +223,13 @@ scan_tokens := proc(source: String) {
         start := pos
         if is_digit(source, pos) {
             while and(lt(pos, eof_pos), is_digit(source, pos)) {
-                pos = add(pos, 1)
+                pos.inc()
             }
             // Look for a fractional part.
             if and(String.eq(String.get_substr(source, pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
-                pos = add(pos, 1)
+                pos.inc()
                 while and(lt(pos, eof_pos), is_digit(source, pos)) {
-                    pos = add(pos, 1)
+                    pos.inc()
                 }
             }
             scan_push_token(TokenType.Number, String.get_substr(source, start, pos), line, sub(pos, start_line_pos))
@@ -238,99 +238,99 @@ scan_tokens := proc(source: String) {
             current_char := String.get_substr(source, pos, add(pos, 1))
             switch current_char {
                 // chars to ignore in this language:
-            case " ":  pos = add(pos, 1)
-            case "\n": pos = add(pos, 1)
-            case "\r": pos = add(pos, 1)
-            case "\t": pos = add(pos, 1)
+            case " ":  pos.inc()
+            case "\n": pos.inc()
+            case "\r": pos.inc()
+            case "\t": pos.inc()
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
                 scan_push_token(TokenType.LeftParen, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case ")":
                 scan_push_token(TokenType.RightParen, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "{":
                 scan_push_token(TokenType.LeftBrace, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "}":
                 scan_push_token(TokenType.RightBrace, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "[":
                 scan_push_token(TokenType.LeftBracket, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "]":
                 scan_push_token(TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
 
                 // separator for optional type before the equal in declarations or args
             case ":":
                 scan_push_token(TokenType.Colon, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
                 // separator for args
             case ",":
                 scan_push_token(TokenType.Comma, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
 
                 // math
             case "+":
                 scan_push_token(TokenType.Plus, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "-":
                 scan_push_token(TokenType.Minus, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
             case "*":
                 scan_push_token(TokenType.Star, current_char, line, sub(pos, start_line_pos))
-                pos = add(pos, 1)
+                pos.inc()
 
                 // reserved for two chars in a row
             case ".":
                 if String.eq(".", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
-                    pos = add(pos, 1)
+                    pos.inc()
                 } else {
                     scan_push_token(TokenType.Dot, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
             case "=":
                 if String.eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
-                    pos = add(pos, 1)
+                    pos.inc()
                 } else {
                     scan_push_token(TokenType.Equal, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
             case "<":
                 if String.eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
-                    pos = add(pos, 1)
+                    pos.inc()
                 } else {
                     scan_push_token(TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
             case ">":
                 if String.eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
-                    pos = add(pos, 1)
+                    pos.inc()
                 } else {
                     scan_push_token(TokenType.Greater, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
             case "!":
                 if String.eq("=", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     scan_push_token(TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
-                    pos = add(pos, 1)
+                    pos.inc()
                 } else {
                     scan_push_token(TokenType.Not, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
 
                 // comments:
                 // TODO fix end of lines, this can't work before that
             case "#":
-                pos = add(pos, 1)
+                pos.inc()
                 while and(lt(add(pos, 1), eof_pos), not(String.eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
-                    pos = add(pos, 1)
+                    pos.inc()
                 }
 
             case "/":
@@ -338,23 +338,23 @@ scan_tokens := proc(source: String) {
                 if String.eq("/", String.get_substr(source, add(pos, 1), add(pos, 2))) {
                     pos = add(pos, 2)
                     while and(lt(add(pos, 1), eof_pos), not(String.eq("\n", String.get_substr(source, pos, add(pos, 2))))) {
-                        pos = add(pos, 1)
+                        pos.inc()
                     }
 
                 } else {
                     scan_push_token(TokenType.Slash, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
 
                 // literal strings
                 // case "\"":
             case "\"":
-                pos = add(pos, 1)
+                pos.inc()
                 while and(lt(add(pos, 1), eof_pos), not(String.eq(String.get_substr(source, pos, add(pos, 1)), "\""))) {
                     if String.eq(String.get_substr(source, pos, add(pos, 1)), "\\") {
-                        pos = add(pos, 1) // if it's the escape character, skip the next character too
+                        pos.inc() // if it's the escape character, skip the next character too
                     }
-                    pos = add(pos, 1)
+                    pos.inc()
                 }
                 if gteq(pos, eof_pos) {
                     token_str := String.get_substr(source, start, add(pos, 1))
@@ -367,18 +367,18 @@ scan_tokens := proc(source: String) {
                 // Everything else must be reserved words, identifiers or invalid
             case:
                 if is_id_start(source, pos) {
-                    pos = add(pos, 1)
+                    pos.inc()
                     while and(lt(pos, eof_pos), or(is_digit(source, pos), is_id_start(source, pos))) {
-                        pos = add(pos, 1)
+                        pos.inc()
                         // TODO fix literal strings with escape characters like in the rust implementation
                     }
-                    pos = sub(pos, 1)
+                    pos.dec()
                     id_str := String.get_substr(source, start, add(pos, 1))
                     scan_push_token(scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     scan_push_token(TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
                 }
-                pos = add(pos, 1)
+                pos.inc()
             } // switch
         } // else
         // println("Current char:", current_char)
