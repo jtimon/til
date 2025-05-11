@@ -269,11 +269,11 @@ I64 := struct {
     }
 }
 
+// TODO get rid of special cases for String besides literals
 String := struct {
-    // TODO get rid of special cases for String besides literals
-    // mut ptr : Ptr = Ptr()
-    mut ptr : I64 = 0
-    mut cap : I64 = 0
+    mut c_string : I64 = 0
+    mut cap      : I64 = 0
+    // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
 
     size := func(self: String) {
         return mul(2, I64.size)

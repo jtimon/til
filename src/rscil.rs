@@ -1948,7 +1948,10 @@ impl Context {
         // Determine mutability from symbols table
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
-            None => return false,
+            None => {
+                println!("ERROR: insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name);
+                return false
+            },
         };
 
         // Early check: disallow structs with String fields
@@ -2091,34 +2094,96 @@ impl Context {
         return true;
     }
 
-    fn get_string(self: &Context, id: &str) -> Option<String> {
-        return match self.arena_index.get(id) {
-            Some(&offset) => {
-                let mut end = offset;
-                while end < Arena::g().memory.len() && Arena::g().memory[end] != 0 {
-                    end += 1;
-                }
-                // Include everything before null terminator
-                Some(String::from_utf8_lossy(&Arena::g().memory[offset..end]).to_string())
+    fn get_string(&self, id: &str) -> Option<String> {
+        let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
+            Some(offset) => *offset,
+            None => {
+                println!("ERROR: get_string: missing field '{}.c_string'", id);
+                return None;
             },
-            None => None,
+        };
+        let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
+            Some(offset) => *offset,
+            None => {
+                println!("ERROR: get_string: missing field '{}.cap'", id);
+                return None;
+            },
+        };
+
+        // Validate memory bounds
+        if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
+            println!("ERROR: get_string: field offsets out of bounds for '{}'", id);
+            return None;
         }
+
+        let c_string_ptr_bytes = &Arena::g().memory[c_string_offset..c_string_offset + 8];
+        let c_string_ptr = i64::from_ne_bytes(c_string_ptr_bytes.try_into().unwrap()) as usize;
+
+        let cap_bytes = &Arena::g().memory[cap_offset..cap_offset + 8];
+        let length = i64::from_ne_bytes(cap_bytes.try_into().unwrap()) as usize;
+
+        if c_string_ptr + length > Arena::g().memory.len() {
+            println!("ERROR: get_string: String content out of bounds for '{}'", id);
+            return None;
+        }
+
+        let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
+        Some(String::from_utf8_lossy(bytes).to_string())
     }
 
-    fn insert_string(self: &mut Context, id: &str, value_str: &String) -> Option<String> {
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(value_str.as_bytes());
-        Arena::g().memory.push(0); // Null terminator
-        return match self.arena_index.insert(id.to_string(), offset) {
-            Some(old_offset) => {
-                let mut end = old_offset;
-                while end < Arena::g().memory.len() && Arena::g().memory[end] != 0 {
-                    end += 1;
-                }
-                Some(String::from_utf8_lossy(&Arena::g().memory[old_offset..end]).to_string())
-            },
-            None => None,
+    fn insert_string(&mut self, id: &str, value_str: &String) -> Option<String> {
+        // Insert the struct, expect it to define `.c_string` and `.cap`
+        if !self.insert_struct(id, "String") {
+            println!("ERROR: insert_string: Failed to insert struct '{}'", id);
+            return None;
         }
+
+        // Look up field offsets
+        let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
+            Some(&offset) => offset,
+            None => {
+                println!("ERROR: insert_string: missing arena_index entry for '{}.cap'", id);
+                return None;
+            }
+        };
+        let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
+            Some(&offset) => offset,
+            None => {
+                println!("ERROR: insert_string: missing arena_index entry for '{}.c_string'", id);
+                return None;
+            }
+        };
+
+        // Allocate and store string bytes at the end of the arena
+        let string_offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(value_str.as_bytes());
+        Arena::g().memory.push(0); // null terminator
+
+        // Check for overlap
+        let max_struct_field = cap_offset.max(c_string_offset) + 8;
+        if string_offset < max_struct_field {
+            println!(
+                "WARNING: insert_string: string_offset {} overlaps with struct fields ending at {}",
+                string_offset, max_struct_field
+            );
+        }
+
+        // Store string pointer and length
+        let string_offset_bytes = (string_offset as i64).to_ne_bytes();
+        let len_bytes = (value_str.len() as i64).to_ne_bytes();
+
+        if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
+            println!(
+                "ERROR: insert_string: field offset out of bounds. Memory size: {}",
+                Arena::g().memory.len()
+            );
+            return None;
+        }
+
+        Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+        Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+
+        Some(value_str.clone())
     }
 
     fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
@@ -3718,15 +3783,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
     // If function returns a user-defined struct, copy fields back to context as temp return val
     if func_def.returns.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.returns[0] {
-            // println!("custom_type_name {}", custom_type_name);
-            // println!("func name {}", name);
-            // println!("func_def {:?}", func_def);
             // Skip core types like I64, Bool, String, U8
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Bool" | "String" => { /* Do nothing for core types */ },
                 _ => {
 
-                    println!("custom_type_name {}, result {}", custom_type_name, &result);
                     if let Some(custom_symbol) = function_context.symbols.get(custom_type_name) {
                         match custom_symbol.value_type {
                             ValueType::TStructDef => {
@@ -4083,26 +4144,26 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             match custom_type_name.as_str() {
                 "I64" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_i64(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.insert_i64(&declaration.name, &expr_result_str);
                     return "".to_string()
                 },
                 "U8" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_u8(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.insert_u8(&declaration.name, &expr_result_str);
                     return "".to_string()
                 },
                 "Bool" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_bool(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.insert_bool(&declaration.name, &expr_result_str);
                     return "".to_string()
                 },
                 "String" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
-                    context.insert_string(&declaration.name, &expr_result_str);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.insert_string(&declaration.name, &expr_result_str);
                     return "".to_string()
                 },
                 _ => {
@@ -4453,7 +4514,11 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                         return context.get_bool(name).unwrap().to_string()
                     },
                     "String" => {
-                        return context.get_string(name).unwrap().to_string()
+                        if e.params.len() == 0 {
+                            return context.get_string(name).unwrap().to_string()
+                        }
+                        let to_return = eval_custom_expr(&e, &context, &name, &custom_type_name);
+                        return to_return
                     },
                     _ => {
                         let to_return = eval_custom_expr(&e, &context, &name, &custom_type_name);
