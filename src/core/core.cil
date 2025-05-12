@@ -13,8 +13,6 @@ mul       := ext_func(a: I64, b: I64) returns I64;
 div       := ext_func(a: I64, b: I64) returns I64;
 mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
-concat    := ext_func(a: String, b: String) returns String; // TODO self host once we have pointers, mem alloc and free simulated
-
 // TODO implement the variadic part of print/println in std
 print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
 // TODO now that '\n' bug is fixed, we're waiting for user variadic arguments
@@ -36,7 +34,7 @@ runfile := ext_proc(args: ..String);
 loc := ext_func() returns String; // Returns the current source location as "<file>:<line>:<col>:"
 
 panic := proc(loc_str: String, msg: String) {
-    println(concat(loc_str, msg))
+    println(loc_str.concat(msg))
     exit(1)
 }
 
@@ -218,7 +216,7 @@ U8 := struct {
             return panic("Negative values cannot be cast into 'U8'")
         }
         if gt(self, MAX_U8) {
-            return panic(concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            return panic(String.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
@@ -286,6 +284,27 @@ String := struct {
     eq := func(self: String, other: String) returns Bool {
         str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
         return str_eq(self, other)
+    }
+
+    concat := func(self: String, other: String) returns String {
+        mut result := String()
+        result.cap = add(self.cap, other.cap)
+
+        if lt(result.cap, self.cap) {
+            println("String.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
+            panic(loc(), "String.concat: integer overflow")
+        }
+
+        result.c_string = malloc(result.cap)
+        if I64.eq(result.c_string, 0) {
+            println("String.concat: malloc failed for cap = ", I64.to_str(result.cap))
+            panic(loc(), "String.concat: malloc failed")
+        }
+
+        memcpy(result.c_string, self.c_string, self.cap)
+        memcpy(add(result.c_string, self.cap), other.c_string, other.cap)
+
+        return result
     }
 
     to_i64 := func(self: String) returns I64 {

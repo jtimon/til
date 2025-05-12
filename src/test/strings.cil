@@ -1,7 +1,7 @@
 mode test
 
 // String tests
-test(loc(), String.eq(concat("Hello, ", "world!"), "Hello, world!"), "concat('Hello, ', 'world!') = 'Hello, world!'")
+test(loc(), String.eq(String.concat("Hello, ", "world!"), "Hello, world!"), "String.concat('Hello, ', 'world!') = 'Hello, world!'")
 test(loc(), I64.eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")
 test(loc(), I64.eq(I64.from_str("0"), 0), "I64.from_str('0') = 0")
 // TODO: Test with invalid strings for I64.from_str, e.g., I64.from_str("abc") // Expected: error or undefined behavior
