@@ -82,7 +82,7 @@ enum TokenType {
     FuncExt, ProcExt,
 
     // Errors
-    Const, Var, Null,
+    Const, Var,
     Fn,
     Case,
     Invalid,
@@ -201,7 +201,6 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // const/vars are the most abstract types, you can't even explicitly declare them
         "const" => TokenType::Const,
         "var" => TokenType::Var,
-        "NULL" => TokenType::Null,
 
         // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
         // The answer is probably yet, but perhaps static is not the right answer
@@ -386,10 +385,6 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         },
         TokenType::Var => {
             print_lex_error(&path, &t, *errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
-            *errors_found = *errors_found + 1;
-        },
-        TokenType::Null => {
-            print_lex_error(&path, &t, *errors_found, "Keyword 'NULL' is not supported\nSuggestion: initialize your pointers instead");
             *errors_found = *errors_found + 1;
         },
         TokenType::Fn => {

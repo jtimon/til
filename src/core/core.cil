@@ -43,14 +43,17 @@ malloc := ext_proc(size: I64) returns I64;
 free := ext_proc(ptr: I64);
 memcpy := ext_proc(dest: I64, src: I64, size: I64);
 memset := ext_proc(dest: I64, value: U8, size: I64);
+NULL := 0
 
 Ptr := struct {
-    INVALID : I64 = sub(0, 1) // Use -1 to represent an invalid/uninitialized pointer
-    mut data: I64 = Ptr.INVALID
+    mut data: I64 = NULL
 
     new := proc(size: I64) returns Ptr {
         mut p := Ptr()
         p.data = malloc(size)
+        if NULL.eq(p.data) {
+            println(loc(), "Ptr.new: failed to allocate ", size, " bytes")
+        }
         return p
     }
 
@@ -308,7 +311,7 @@ Str := struct {
         }
 
         result.c_string = malloc(result.cap)
-        if I64.eq(result.c_string, 0) {
+        if NULL.eq(result.c_string) {
             println(loc(), "Str.concat: malloc failed for cap = ", I64.to_str(result.cap))
             exit(1)
         }
@@ -349,6 +352,10 @@ Str := struct {
         mut substr := Str()
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
+        if NULL.eq(substr.c_string) {
+            println(loc(), "Str.get_substr: failed to allocate ", size, " bytes")
+        }
+
         memcpy(substr.c_string, add(s.c_string, start), substr.cap)
 
         return substr
