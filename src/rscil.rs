@@ -3285,6 +3285,39 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     return errors
 }
 
+fn check_struct_def(_context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
+    assert!(e.params.len() == 0, "{} ERROR: in check_struct_def(): struct declarations must take exactly 0 params.", LANG_NAME);
+    let mut errors : Vec<String> = Vec::new();
+
+    for (member_name, _member_decl) in &struct_def.members {
+        // TODO check types for members inside structs too
+        match struct_def.default_values.get(member_name) {
+            Some(inner_e) => {
+                // println!("inner_e {:?}", inner_e);
+                match &inner_e.node_type {
+                    // If the member's default value is a function (method), type check it
+                    NodeType::FuncDef(_func_def) => {
+                        // println!("DEBUG: Check members that are function definitions, got inner_e: {:?}", inner_e);
+                        // println!("func_def {:?}", func_def);
+                        // let mut function_context = context.clone();
+                        // errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
+                    },
+                    // For other types of members, treat them like regular declarations
+                    _ => {
+                        // println!("DEBUG: Check members that are NOT function definitions, got inner_e: {:?}", inner_e);
+                        // errors.extend(check_declaration(&mut context, &inner_e, &member_decl));
+                    }
+                }
+            },
+            None => {
+                errors.push(e.todo_error("type", &format!("Member '{}' lacks a default value. Not allowed yet.", member_name)));
+            }
+        }
+    }
+
+    return errors
+}
+
 fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
@@ -3293,14 +3326,12 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.extend(check_types(&mut context, &p));
             }
         },
-
         NodeType::EnumDef(enum_def) => {
             errors.extend(check_enum_def(&e, enum_def));
         },
-        NodeType::StructDef(_struct_def) => {
-            assert!(e.params.len() == 0, "{} ERROR: in check_types(): struct declarations must take exactly 0 params.", LANG_NAME);
+        NodeType::StructDef(struct_def) => {
+            errors.extend(check_struct_def(&mut context, &e, struct_def));
         },
-
         NodeType::If => {
             errors.extend(check_if_statement(&mut context, &e));
         },
@@ -3310,7 +3341,6 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
         NodeType::Switch => {
             errors.extend(check_switch_statement(&mut context, &e));
         },
-
         NodeType::FCall => {
             errors.extend(check_fcall(&context, &e));
         },
@@ -3323,7 +3353,6 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.push(e.error("type", &format!("Undefined symbol {}", name)));
             }
         },
-
         NodeType::Declaration(decl) => {
             errors.extend(check_declaration(&mut context, &e, decl));
         },
