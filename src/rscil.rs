@@ -1938,6 +1938,49 @@ impl Context {
         return true
     }
 
+    fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
+        match type_name {
+            "Bool" => return Ok(1),
+            "U8"   => return Ok(1),
+            "I64"  => return Ok(8),
+            "Str"  => return Ok(16),
+            _ => {},
+        }
+        if self.enum_defs.contains_key(type_name) {
+            return Ok(8);
+        }
+
+        if let Some(struct_def) = self.struct_defs.get(type_name) {
+            let mut total_size = 0;
+
+            for (field_name, decl) in &struct_def.members {
+                if !decl.is_mut {
+                    continue;
+                }
+
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(t) => {
+                        self.get_type_size(t)?
+                    }
+                    _ => {
+                        return Err(format!(
+                            "get_type_size: unsupported value type '{}' in '{}.{}'",
+                            value_type_to_str(&decl.value_type),
+                            type_name,
+                            field_name
+                        ));
+                    }
+                };
+
+                total_size += field_size;
+            }
+
+            Ok(total_size)
+        } else {
+            Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
+        }
+    }
+
     fn insert_struct(self: &mut Context, id: &str, custom_type_name: &str) -> bool {
         // Lookup the struct definition
         let struct_def = match self.struct_defs.get(custom_type_name) {
@@ -1975,18 +2018,12 @@ impl Context {
 
             let field_size = match &decl.value_type {
                 ValueType::TCustom(type_name) => {
-                    if self.enum_defs.contains_key(type_name) {
-                        8 // enums are stored as 8 bytes
-                    } else {
-                        match type_name.as_str() {
-                            "Bool" => 1,
-                            "U8" => 1,
-                            "I64" => 8,
-                            _ => {
-                                println!("ERROR: TODO: support nested struct field type '{}'", type_name);
-                                return false;
-                            }
-                        }
+                    match self.get_type_size(type_name) {
+                        Ok(type_size) => type_size,
+                        Err(msg) => {
+                            println!("ERROR: {}", msg);
+                            return false;
+                        },
                     }
                 },
                 _ => {
