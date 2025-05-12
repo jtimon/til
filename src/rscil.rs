@@ -1983,16 +1983,6 @@ impl Context {
             },
         };
 
-        // Early check: disallow structs with String fields
-        for (member_name, decl) in struct_def.members.iter() {
-            if let ValueType::TCustom(type_name) = &decl.value_type {
-                if type_name == "Str" {
-                    println!("ERROR: Struct '{}' has unsupported String field '{}'", custom_type_name, member_name);
-                    return false;
-                }
-            }
-        }
-
         // Calculate total size (for now no alignment)
         let mut total_size = 0;
         let mut field_offsets = HashMap::new();
@@ -2091,9 +2081,26 @@ impl Context {
                                 Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
                             },
                             _ => {
-                                println!("ERROR: TODO: support field type '{}'", type_name);
-                                return false;
-                            }
+                                if self.struct_defs.contains_key(type_name) {
+                                    // Nested struct: set up its fields recursively
+                                    let combined_name = format!("{}.{}", id, member_name);
+                                    self.symbols.insert(
+                                        combined_name.clone(),
+                                        SymbolInfo {
+                                            value_type: ValueType::TCustom(type_name.clone()),
+                                            is_mut: true,
+                                        },
+                                    );
+                                    self.arena_index.insert(combined_name.clone(), offset + field_offset);
+                                    if !self.insert_struct(&combined_name, type_name) {
+                                        println!("ERROR: Failed to initialize nested struct '{}.{}'", id, member_name);
+                                        return false;
+                                    }
+                                } else {
+                                    println!("ERROR: Unknown field type '{}'", type_name);
+                                    return false;
+                                }
+                            },
                         }
                     }
                 },
@@ -4242,18 +4249,23 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     context.insert_string(var_name, &expr_result_str);
                 },
                 _ => {
-                    match context.symbols.get(custom_type_name).unwrap().value_type {
+                    match &context.symbols.get(custom_type_name).unwrap().value_type {
                         ValueType::TEnumDef => {
                             let expr_result_str = eval_expr(&mut context, inner_e);
                             if context.insert_enum(var_name, &custom_type_name, &expr_result_str).is_none() {
                                 return inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str))
                             }
                         },
-                        _ => {
-                            // TODO allow custom struct assignments
-                            return inner_e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}'.", &var_name, custom_type_name))
+                        ValueType::TStructDef => {
+                            let expr_result_str = eval_expr(&mut context, inner_e);
+                            if !context.copy_fields(custom_type_name, &expr_result_str, var_name) {
+                                return inner_e.lang_error("eval", &format!("Assign struct: Failed to copy fields from '{}' to '{}'", expr_result_str, var_name));
+                            }
                         },
-
+                        other_value_type => {
+                            return inner_e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",
+                                                                       &var_name, custom_type_name, value_type_to_str(&other_value_type)))
+                        },
                     }
                 },
             }
@@ -4427,8 +4439,12 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                         },
                                                     }
                                                 },
+                                                ValueType::TStructDef => {
+                                                    // Allow field access returning the full path
+                                                    return format!("{}.{}", name, inner_name)
+                                                },
                                                 _ => {
-                                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom struct type '{}' not implemented",
+                                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom type '{}' not implemented",
                                                                                                name, inner_name, custom_type_name))
                                                 },
 

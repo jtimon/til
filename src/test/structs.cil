@@ -13,7 +13,7 @@ MyStruct := struct {
     mut int_field: I64 = 0 // 0 is just the default, but you can set something else once in the init func
     // mut string_field: Str = "" // TODO re-enable strings as fields
     mut color_field: MyEnum = MyEnum.Red
-    // mut vec2_field: Vec2 = Vec2() // TODO allow support for structs as fields
+    mut vec2_field: Vec2 = Vec2()
 
     new := func(bool_field: Bool, int_field: I64, string_field: Str, color_field: MyEnum, vec2_field: Vec2) returns MyStruct {
         mut self := MyStruct()
@@ -21,7 +21,7 @@ MyStruct := struct {
         self.int_field = int_field
         // self.string_field = string_field
         self.color_field = color_field
-        // self.vec2_field = vec2_field
+        self.vec2_field = vec2_field
         println("Inside MyStruct.new(): self.int_field = ", I64.to_str(self.int_field))
         return self
     }
@@ -41,11 +41,11 @@ test_my_struct := proc() {
 
     mut my_struct := MyStruct.new(true, 42, "my field string", MyEnum.Green, v) // with enum and struct field
     assert(loc(), my_struct.bool_field)
-    assert_eq(loc(), 42, my_struct.int_field) // TODO Fix returning structs in funcs and/or implement struct literals
+    assert_eq(loc(), 42, my_struct.int_field)
     // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
-    // assert_eq(loc(), MyEnum.Green, my_struct.color_field) // TODO Fix
-    // assert_eq(loc(), 1, my_struct.vec2_field.x) // TODO Fix
-    // assert_eq(loc(), 2, my_struct.vec2_field.y) // TODO Fix
+    res_vec2_field := my_struct.vec2_field
+    assert_eq(loc(), 1, res_vec2_field.x)
+    assert_eq(loc(), 2, res_vec2_field.y)
 
     // Test enum field reassignment
     my_struct.color_field = MyEnum.Blue
