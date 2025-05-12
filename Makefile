@@ -1,16 +1,24 @@
-.PHONY: all tests repl cil
-
+.PHONY: all tests repl cil clean
 all: cil tests rscil
+
 rscil: src/rscil.rs
-	rustc src/rscil.rs -o rscil
+	@mkdir -p bin
+	rustc src/rscil.rs -o bin/rscil
+
 tests: rscil
-	./rscil src/tests.cil
+	./bin/rscil src/tests.cil
+
 # TODO run src/cil.cil with cil.cil
 # TODO run src/tests.cil with cil.cil
 cil: rscil tests
-	./rscil interpret src/cil.cil src/test/example_self_hosted.cil
-	# ./rscil interpret src/cil.cil help
-	# ./rscil interpret src/cil.cil src/test/strings.cil
-	# ./rscil interpret src/cil.cil src/core/lexer.cil
-repl:
-	rlwrap ./rscil src/core/repl.cil
+	./bin/rscil interpret src/cil.cil src/test/example_self_hosted.cil
+	# ./bin/rscil interpret src/cil.cil help
+	# ./bin/rscil interpret src/cil.cil src/test/strings.cil
+	# ./bin/rscil interpret src/cil.cil src/core/lexer.cil
+
+# REPL = Read-Eval-Print-Loop
+repl: rscil
+	rlwrap ./bin/rscil src/core/repl.cil
+
+clean:
+	rm -rf bin/*
