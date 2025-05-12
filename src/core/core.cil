@@ -56,7 +56,7 @@ Ptr := struct {
 
     free := proc(self: Ptr) {
         if gt(0, self.data) {
-            panic("Ptr.free: trying to free an invalid pointer")
+            panic(loc(), "Ptr.free: trying to free an invalid pointer")
         }
         free(self.data)
     }
@@ -213,10 +213,10 @@ U8 := struct {
 
     from_i64 := func(self: I64) returns U8 {
         if lt(self, 0) {
-            return panic("Negative values cannot be cast into 'U8'")
+            return panic(loc(), "Negative values cannot be cast into 'U8'")
         }
         if gt(self, MAX_U8) {
-            return panic(String.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            return panic(loc(), String.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
@@ -312,14 +312,14 @@ String := struct {
         result.cap = add(self.cap, other.cap)
 
         if lt(result.cap, self.cap) {
-            println("String.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
-            panic(loc(), "String.concat: integer overflow")
+            println(loc(), "String.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
+            exit(1)
         }
 
         result.c_string = malloc(result.cap)
         if I64.eq(result.c_string, 0) {
-            println("String.concat: malloc failed for cap = ", I64.to_str(result.cap))
-            panic(loc(), "String.concat: malloc failed")
+            println(loc(), "String.concat: malloc failed for cap = ", I64.to_str(result.cap))
+            exit(1)
         }
 
         memcpy(result.c_string, self.c_string, self.cap)
@@ -334,19 +334,24 @@ String := struct {
 
     get_substr := func(s: String, start: I64, end: I64) returns String {
         if lt(start, 0) {
-            panic("String.get_substr: start index ", start, " cannot be negative")
+            println(loc(), "String.get_substr: start index ", start, " cannot be negative")
+            exit(1)
         }
         if lt(end, 0) {
-            panic("String.get_substr: end index ", end, " cannot be negative")
+            println(loc(), "String.get_substr: end index ", end, " cannot be negative")
+            exit(1)
         }
         if gt(start, end) {
-            panic("String.get_substr: start index ", start, " is greater than end index ", end)
+            println(loc(), "String.get_substr: start index ", start, " is greater than end index ", end)
+            exit(1)
         }
         if gt(end, s.len()) {
-            panic("String.get_substr: end index ", end, " is greater than string length ", s.len())
+            println(loc(), "String.get_substr: end index ", end, " is greater than string length ", s.len())
+            exit(1)
         }
         if I64.eq(start, end) {
-            panic("String.get_substr: start and end are the same (", start, "), no substring")
+            println(loc(), "String.get_substr: start and end are the same (", start, "), no substring")
+            exit(1)
         }
 
         to_ptr := ext_func(val: U8) returns I64;

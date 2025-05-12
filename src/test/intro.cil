@@ -87,7 +87,7 @@ main := proc() {
 // 'mode script' doesn't need to declare a main proc, but it can, and also call it
 main()
 
-// panic("panic panics when uncommented") // fails, because it panics
+// panic(loc(), "panic panics when uncommented") // fails, because it panics
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
 // mut assertm2 := proc(cond: Bool, msg: String) {}
