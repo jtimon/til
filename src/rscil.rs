@@ -1853,20 +1853,11 @@ impl Context {
                 );
 
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) if name == "I64" => 8,
-                    ValueType::TCustom(name) if name == "U8" => 1,
-                    ValueType::TCustom(name) if name == "Bool" => 1,
-                    ValueType::TCustom(name) => {
-                        if let Some(sym) = self.symbols.get(name) {
-                            match sym.value_type {
-                                ValueType::TEnumDef => 8, // enums are stored as 8 bytes
-                                _ => return false,
-                            }
-                        } else {
-                            return false; // unsupported nested types (e.g., String, other structs)
-                        }
+                    ValueType::TCustom(name) => match self.get_type_size(name) {
+                        Ok(size) => size,
+                        Err(_) => return false,
                     },
-                    _ => return false, // unsupported nested types (e.g., String, other structs)
+                    _ => return false,
                 };
 
                 current_offset += field_size;
@@ -1900,14 +1891,9 @@ impl Context {
             }
 
             let field_size = match &decl.value_type {
-                ValueType::TCustom(name) if name == "I64" => 8,
-                ValueType::TCustom(name) if name == "U8" => 1,
-                ValueType::TCustom(name) if name == "Bool" => 1,
-                ValueType::TCustom(name) => {
-                    match self.symbols.get(name) {
-                        Some(sym) if sym.value_type == ValueType::TEnumDef => 8,
-                        _ => return false,
-                    }
+                ValueType::TCustom(name) => match self.get_type_size(name) {
+                    Ok(size) => size,
+                    Err(_) => return false,
                 },
                 _ => return false,
             };
