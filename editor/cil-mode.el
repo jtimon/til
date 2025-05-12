@@ -29,14 +29,16 @@
   '("U8" "I64" "Bool" "Str"))
 
 (defconst cil-builtins
-  '("and" "or" "not" "str_eq" "concat" "str_len"
-    "eq" "len" "size"
-    "str_get_substr" "lt" "lteq" "gt" "gteq" "add" "sub"
-    "mul" "div" "i64_to_str" "str_to_i64" "i64_to_u8" "u8_to_i64" "eval_to_str" "exit" "import"
-    "input_read_line" "print" "println" "readfile" "runfile"))
+  '("and" "or" "not" "eq"
+    "lt" "lteq" "gt" "gteq"
+    "len" "size"
+    "add" "sub" "mul" "div"
+    "concat" "to_str" "to_i64" "to_u8"
+    "print" "println" "readfile" "runfile" "exit" "import"
+    "input_read_line" "eval_to_str"))
 
 (defconst cil-error-words
-  '("static" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "todo" "FIX" "fix" "NULL")
+  '("static" "let" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "FIX" "NULL")
   "Words that are invalid in cil and should be highlighted as errors.")
 
 (defconst comment-error-words
