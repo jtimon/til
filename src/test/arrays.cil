@@ -8,7 +8,7 @@ test_array_static_u8 := proc() {
     stat.set(0, U8.from_i64(10))
     stat.set(1, U8.from_i64(20))
     stat.set(2, U8.from_i64(30))
-    test(loc(), U8.eq(U8.from_i64(30), stat.get(2)), "Get after set at index 2") // TODO FIX
+    test(loc(), U8.eq(U8.from_i64(30), stat.get(2)), "Get after set at index 2")
 
     // Uncomment to test panic behavior
     // stat.push(U8.from_i64(77)) // Should panic
