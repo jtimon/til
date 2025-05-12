@@ -70,11 +70,11 @@ Ptr := struct {
         return p
     }
 
-    cast := macro(self: Ptr, type_name: Str) returns Ptr {
-        // TODO: This cast is purely cosmetic for now.
-        // Proper type-changing macros are not implemented yet.
-        return self
-    }
+    // cast := macro(self: Ptr, type_name: Str) returns Ptr {
+    //     // TODO: This cast is purely cosmetic for now.
+    //     // Proper type-changing macros are not implemented yet.
+    //     return self
+    // }
 
     copy_to := proc(self: Ptr, mut dest: Ptr, size: I64) {
         memcpy(dest.data, self.data, size)
