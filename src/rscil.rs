@@ -3444,14 +3444,6 @@ fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> String {
     }
 }
 
-fn eval_core_func_str_get_substr(mut context: &mut Context, e: &Expr) -> String {
-    assert!(e.params.len() == 4, "{} ERROR: Core func 'concat' takes exactly 3 arguments. This should never happen.", LANG_NAME);
-    let a = eval_expr(&mut context, e.get(1));
-    let start = &eval_expr(&mut context, e.get(2)).parse::<i64>().unwrap();
-    let end = &eval_expr(&mut context, e.get(3)).parse::<i64>().unwrap();
-    return format!("{}", &a[*start as usize..*end as usize]);
-}
-
 fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
@@ -3804,7 +3796,6 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "memset" => eval_core_func_memset(&mut context, &e),
         "memcpy" => eval_core_func_memcpy(&mut context, &e),
         "to_ptr" => eval_core_func_to_ptr(&mut context, &e),
-        "str_get_substr" => eval_core_func_str_get_substr(&mut context, &e),
         "lt" => eval_core_func_lt(&mut context, &e),
         "gt" => eval_core_func_gt(&mut context, &e),
         "add" => eval_core_func_add(&mut context, &e),

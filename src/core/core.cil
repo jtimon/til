@@ -333,17 +333,33 @@ String := struct {
     }
 
     get_substr := func(s: String, start: I64, end: I64) returns String {
-        if gt(end, s.len()) {
-            panic("get_substr: ", end, " greater than ", s.len())
+        if lt(start, 0) {
+            panic("String.get_substr: start index ", start, " cannot be negative")
         }
-        str_get_substr := ext_func(s: String, start: I64, end: I64) returns String; // TODO declare only here
-        return str_get_substr(s, start, end)
+        if lt(end, 0) {
+            panic("String.get_substr: end index ", end, " cannot be negative")
+        }
+        if gt(start, end) {
+            panic("String.get_substr: start index ", start, " is greater than end index ", end)
+        }
+        if gt(end, s.len()) {
+            panic("String.get_substr: end index ", end, " is greater than string length ", s.len())
+        }
+        if I64.eq(start, end) {
+            panic("String.get_substr: start and end are the same (", start, "), no substring")
+        }
+
+        to_ptr := ext_func(val: U8) returns I64;
+        mut substr := String()
+        substr.cap = sub(end, start)
+        substr.c_string = malloc(substr.cap)
+        memcpy(substr.c_string, add(s.c_string, start), substr.cap)
+
+        return substr
     }
 
     get_char := func(s: String, pos: I64) returns String {
-        start := pos
-        end := add(pos, 1)
-        return s.get_substr(start, end)
+        return s.get_substr(pos, add(pos, 1))
     }
 }
 
