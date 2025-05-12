@@ -404,3 +404,68 @@ Lexer := struct {
         return new_by_src(src)
     }
 }
+
+print_lex_error := proc(path: Str, t: Token, errors_found: I64, msg: Str) {
+    print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
+    // print(". Offending symbol: '", t.token_str, "'") // TODO FIX Str fields in structs
+    print("\n")
+    errors_found.inc()
+}
+
+print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
+    switch t.token_type {
+    case TokenType.Invalid:
+        print_lex_error(path, t, errors_found, "Invalid character")
+
+    case TokenType.UnterminatedString:
+        print_lex_error(path, t, errors_found, "Unterminated String\nSuggestion: add missing '\"'")
+
+    case TokenType.Const:
+        print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used")
+
+    case TokenType.Var:
+        print_lex_error(path, t, errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead")
+
+    case TokenType.Fn:
+        print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead")
+
+    case TokenType.DoubleSemicolon:
+        print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for")
+
+    case TokenType.Plus:
+        print_lex_error(path, t, errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead")
+
+    case TokenType.Minus:
+        print_lex_error(path, t, errors_found, "Operator '-' is not supported yet\nSuggestion: use core func 'sub' instead")
+
+    case TokenType.Star:
+        print_lex_error(path, t, errors_found, "Operator '*' is not supported yet\nSuggestion: use core func 'mul' instead")
+
+    case TokenType.Slash:
+        print_lex_error(path, t, errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead")
+
+    case TokenType.EqualEqual:
+        print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead")
+
+    case TokenType.Lesser:
+        print_lex_error(path, t, errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead")
+
+    case TokenType.LesserEqual:
+        print_lex_error(path, t, errors_found, "Operator '<=' is not supported yet\nSuggestion: use core func 'lteq' instead")
+
+    case TokenType.Greater:
+        print_lex_error(path, t, errors_found, "Operator '>' is not supported yet\nSuggestion: use core func 'gt' instead")
+
+    case TokenType.GreaterEqual:
+        print_lex_error(path, t, errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead")
+
+    case TokenType.Not:
+        print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead")
+
+    case TokenType.NotEqual:
+        print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead")
+
+    case:
+        // No error, do nothing
+    }
+}

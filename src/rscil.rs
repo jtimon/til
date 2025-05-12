@@ -365,82 +365,68 @@ fn scan_tokens(source: String) -> Vec<Token> {
     return tokens
 }
 
-fn print_lex_error(path: &String, t: &Token, num_error: usize, msg: &str) {
-    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'", path, t.line, t.col, num_error, msg, t.token_str);
+fn print_lex_error(path: &String, t: &Token, errors_found: &mut usize, msg: &str) {
+    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'",
+             path, t.line, t.col, *errors_found, msg, t.token_str);
+    *errors_found += 1;
 }
 
 fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
     match t.token_type {
         TokenType::Invalid => {
-            print_lex_error(&path, &t, *errors_found, "Invalid character");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Invalid character");
         },
         TokenType::UnterminatedString => {
-            print_lex_error(&path, &t, *errors_found, "Unterminated String\nSuggestion: add missing '\"'");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Unterminated String\nSuggestion: add missing '\"'");
         },
         TokenType::Const => {
-            print_lex_error(&path, &t, *errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
         },
         TokenType::Var => {
-            print_lex_error(&path, &t, *errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
         },
         TokenType::Fn => {
-            print_lex_error(&path, &t, *errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
         },
         TokenType::DoubleSemicolon => {
-            print_lex_error(&path, &t, *errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
         },
         TokenType::Plus => {
-            print_lex_error(&path, &t, *errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead");
         },
         TokenType::Minus => {
-            print_lex_error(&path, &t, *errors_found, "Operator '-' is not supported yet\nSuggestion: use core func 'sub' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '-' is not supported yet\nSuggestion: use core func 'sub' instead");
         },
         TokenType::Star => {
-            print_lex_error(&path, &t, *errors_found, "Operator '*' is not supported yet\nSuggestion: use core func 'mul' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '*' is not supported yet\nSuggestion: use core func 'mul' instead");
         },
         TokenType::Slash => {
-            print_lex_error(&path, &t, *errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead");
         },
         TokenType::EqualEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead");
         },
         TokenType::Lesser => {
-            print_lex_error(&path, &t, *errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
         },
         TokenType::LesserEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '<=' is not supported yet\nSuggestion: use core func 'lteq' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '<=' is not supported yet\nSuggestion: use core func 'lteq' instead");
         },
         TokenType::Greater => {
-            print_lex_error(&path, &t, *errors_found, "Operator '>' is not supported yet\nSuggestion: use core func 'gt' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '>' is not supported yet\nSuggestion: use core func 'gt' instead");
         },
         TokenType::GreaterEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead");
         },
         TokenType::Not => {
-            print_lex_error(&path, &t, *errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
         },
         TokenType::NotEqual => {
-            print_lex_error(&path, &t, *errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead");
-            *errors_found = *errors_found + 1;
+            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead");
         },
-
-        _ => {},
+        _ => {
+            // No error, do nothing
+        }
     }
 }
 
