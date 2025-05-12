@@ -2,8 +2,6 @@ mode test
 
 my_u8 : U8 = 42
 
-assert_eq(loc(), 1, U8.size) // size of U8 is 1 in bytes
-
 assert_eq(loc(), 0, U8.to_i64(U8.from_i64(0)))
 assert_eq(loc(), 42, U8.to_i64(U8.from_i64(42)))
 assert_eq(loc(), 42, my_u8.to_i64())

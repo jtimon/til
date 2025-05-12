@@ -123,8 +123,6 @@ and := func(a: Bool, b: Bool) returns Bool {
 // Note that Bool, I64 and Str don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
-    size := U8_SIZE
-
     mut data: U8 = 0
 
     len := func(self: Bool) returns I64 {
@@ -191,8 +189,6 @@ gteq := func(a: I64, b: I64) returns Bool {
 }
 
 U8 := struct {
-    size: I64 = U8_SIZE
-
     // TODO FIX can't use itself as base data, can it?
     // TODO This is the base of data storage, not I64
     // mut data: I8 = 0
@@ -228,7 +224,6 @@ U8 := struct {
 }
 
 I64 := struct {
-    size: I64 = I64_SIZE
     // mut data := 0 // TODO Use [8]U8 for this one
 
     len := func(self: I64) returns I64 { return 1 }
@@ -272,10 +267,6 @@ Str := struct {
     mut c_string : I64 = 0
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
-
-    size := func(self: Str) {
-        return mul(2, I64.size)
-    }
 
     len := func(self: Str) returns I64 {
         return self.cap
