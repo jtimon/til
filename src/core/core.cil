@@ -282,8 +282,29 @@ String := struct {
     }
 
     eq := func(self: String, other: String) returns Bool {
-        str_eq := ext_func(a: String, b: String) returns Bool; // TODO declare only here
-        return str_eq(self, other)
+        if not(I64.eq(self.cap, other.cap)) {
+            return false
+        }
+
+        to_ptr := ext_func(val: U8) returns I64;
+
+        mut is_eq := true
+        mut i : I64 = 0
+        while and(lt(i, self.cap), is_eq) {
+            mut self_byte  : U8 = 0
+            mut other_byte : U8 = 0
+
+            memcpy(to_ptr(self_byte), add(self.c_string, i), 1)
+            memcpy(to_ptr(other_byte), add(other.c_string, i), 1)
+
+            if not(U8.eq(self_byte, other_byte)) {
+                is_eq = false // TODO change for a return when returns inside nested blocks are fixed
+            }
+
+            i.inc()
+        }
+
+        return is_eq
     }
 
     concat := func(self: String, other: String) returns String {
