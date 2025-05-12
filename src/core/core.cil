@@ -58,8 +58,8 @@ Ptr := struct {
     }
 
     free := proc(self: Ptr) {
-        if gt(0, self.data) {
-            panic(loc(), "Ptr.free: trying to free an invalid pointer")
+        if NULL.eq(self.data) {
+            panic(loc(), "Ptr.free: trying to free a NULL pointer")
         }
         free(self.data)
     }
