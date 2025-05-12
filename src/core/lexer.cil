@@ -16,7 +16,6 @@ TokenType := enum {
     Greater, GreaterEqual,
     Lesser, LesserEqual,
     Semicolon, DoubleSemicolon,
-    // TODO implemment DoubleSemicolon
 
     // Literals.
     Identifier, String, Number,
@@ -25,11 +24,14 @@ TokenType := enum {
     Mut,
 
     // bool
-    True, False,
+    True,
+
     // type definition
     Struct, Enum,
+
     // function definition
     Returns, Throws,
+
     // flow control
     If, Else,
     While, For, In,
@@ -38,16 +40,17 @@ TokenType := enum {
     Try, Catch,
 
     // Special in this language:
-    Func, Proc, Macro,
     Mode,
+    Func, Proc, Macro,
+    FuncExt, ProcExt,
 
-    // Errors
+    // Errors (unsupported tokens)
     Const, Var,
     Fn,
     Case,
     Invalid,
     UnterminatedString,
-    // UnterminatedComment // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
+    // UnterminatedComment // TODO do nesting comments like jai and odin, shouldn't be that hard.
 }
 
 Token := struct {
