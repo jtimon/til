@@ -1,5 +1,5 @@
 mode pure
 
-hello := func() returns String {
+hello := func() returns Str {
     return "Hello World!"
 }

@@ -13,8 +13,8 @@ mode script
 // my_list := (true, 1111, "hello")
 
 // TODO undeclared custom arguments should fail at compile time
-// test_fails_example := proc(example: String, msg: String) {
-//   eval_example_result : String = _eval_string(example)
+// test_fails_example := proc(example: Str, msg: Str) {
+//   eval_example_result : Str = _eval_string(example)
 //   println(eval_example_result)
 // }
 // test_fails_example("enum_func_fails := func(a: ExampleEnum) returns ExampleEnum {}", "TODO implement test_fails_example() in the core")

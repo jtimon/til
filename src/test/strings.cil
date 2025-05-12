@@ -1,12 +1,12 @@
 mode test
 
-// String tests
-test(loc(), String.eq(String.concat("Hello, ", "world!"), "Hello, world!"), "String.concat('Hello, ', 'world!') = 'Hello, world!'")
+// Str tests
+test(loc(), Str.eq(Str.concat("Hello, ", "world!"), "Hello, world!"), "Str.concat('Hello, ', 'world!') = 'Hello, world!'")
 test(loc(), I64.eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")
 test(loc(), I64.eq(I64.from_str("0"), 0), "I64.from_str('0') = 0")
 // TODO: Test with invalid strings for I64.from_str, e.g., I64.from_str("abc") // Expected: error or undefined behavior
-test(loc(), String.eq(I64.to_str(456), "456"), "I64.to_str(456) = '456'")
-test(loc(), String.eq(I64.to_str(0), "0"), "I64.to_str(0) = '0'")
+test(loc(), Str.eq(I64.to_str(456), "456"), "I64.to_str(456) = '456'")
+test(loc(), Str.eq(I64.to_str(0), "0"), "I64.to_str(0) = '0'")
 
 print("this is the same as the next line\n");
 println("this is the same as the next line");
@@ -15,24 +15,24 @@ empty_str := ""
 len3_str := "012"
 len5_str := "01234"
 
-test(loc(), I64.eq(empty_str.len(), 0), "String.len('') = 0")
-test(loc(), I64.eq(len3_str.len(), 3), "String.len('012') = 3")
-test(loc(), I64.eq(len5_str.len(), 5), "String.len('01234') = 5")
+test(loc(), I64.eq(empty_str.len(), 0), "Str.len('') = 0")
+test(loc(), I64.eq(len3_str.len(), 3), "Str.len('012') = 3")
+test(loc(), I64.eq(len5_str.len(), 5), "Str.len('01234') = 5")
 
-assert_eq_str(loc(), "0",   String.get_substr("01234", 0, 1))
-assert_eq_str(loc(), "012", String.get_substr("01234", 0, 3))
-assert_eq_str(loc(), "234", String.get_substr("01234", 2, 5))
+assert_eq_str(loc(), "0",   Str.get_substr("01234", 0, 1))
+assert_eq_str(loc(), "012", Str.get_substr("01234", 0, 3))
+assert_eq_str(loc(), "234", Str.get_substr("01234", 2, 5))
 
-assert_eq_str(loc(), "\\",  String.get_substr(",,\\", 2, 3))
-assert_eq_str(loc(), "\"",  String.get_substr(",,\"", 2, 3))
-assert_eq_str(loc(), "\n",  String.get_substr(",,\n", 2, 3))
-assert_eq_str(loc(), "\t",  String.get_substr(",,\t", 2, 3))
-assert_eq_str(loc(), "\r",  String.get_substr(",,\r", 2, 3))
-// assert_eq_str(loc(), "\0",  String.get_substr(",,\0", 2, 3)) // TODO Decide: Do we need to handle string null termination in string literals?
+assert_eq_str(loc(), "\\",  Str.get_substr(",,\\", 2, 3))
+assert_eq_str(loc(), "\"",  Str.get_substr(",,\"", 2, 3))
+assert_eq_str(loc(), "\n",  Str.get_substr(",,\n", 2, 3))
+assert_eq_str(loc(), "\t",  Str.get_substr(",,\t", 2, 3))
+assert_eq_str(loc(), "\r",  Str.get_substr(",,\r", 2, 3))
+// assert_eq_str(loc(), "\0",  Str.get_substr(",,\0", 2, 3)) // TODO Decide: Do we need to handle string null termination in string literals?
 
-assert_eq_str(loc(), "\\",  String.get_char(",,\\", 2))
-assert_eq_str(loc(), "\"",  String.get_char(",,\"", 2))
-assert_eq_str(loc(), "\n",  String.get_char(",,\n", 2))
-assert_eq_str(loc(), "\t",  String.get_char(",,\t", 2))
-assert_eq_str(loc(), "\r",  String.get_char(",,\r", 2))
-// assert_eq_str(loc(), "\0",  String.get_char(",,\0", 2))
+assert_eq_str(loc(), "\\",  Str.get_char(",,\\", 2))
+assert_eq_str(loc(), "\"",  Str.get_char(",,\"", 2))
+assert_eq_str(loc(), "\n",  Str.get_char(",,\n", 2))
+assert_eq_str(loc(), "\t",  Str.get_char(",,\t", 2))
+assert_eq_str(loc(), "\r",  Str.get_char(",,\r", 2))
+// assert_eq_str(loc(), "\0",  Str.get_char(",,\0", 2))

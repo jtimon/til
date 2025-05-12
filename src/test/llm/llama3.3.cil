@@ -6,12 +6,12 @@ Color := enum {
     Unknown,
     Green: Bool,
     Number: I64,
-    Name: String,
+    Name: Str,
 }
 
 // TODO tagged unions
 // Test tagged unions
-// test_color := func(to_switch: Color) returns String {
+// test_color := func(to_switch: Color) returns Str {
 //     switch to_switch {
 //     case Color.Unknown: return "unknown color"
 //     case Color.Green(is_olive):
@@ -24,9 +24,9 @@ Color := enum {
 //         if gt(code, 0) {
 //             return "positive color code"
 //         } else {
-//             return String.concat("color code: ", code.to_str())
+//             return Str.concat("color code: ", code.to_str())
 //         }
-//     case Color.Name(name): return String.concat("color name: ", name)
+//     case Color.Name(name): return Str.concat("color name: ", name)
 //     }
 // }
 
@@ -54,10 +54,10 @@ point_new := func(x: I64, y: I64) returns Point {
 // TODO using struct literals in switch/match cases is indeed another grgeat reason to implement struct literals
 // llama3 says this is necessary for "nested data structures" whatever that is
 // if it's structs as fields of other structs, of curse that's on my todo, lul
-// test_point := func(p: Point) returns String {
+// test_point := func(p: Point) returns Str {
 //     switch p {
 //     case Point{x: 0, y: 0}: return "origin"
-//     case Point{x: x, y: y}: return String.concat("point (", String.concat(x.to_str(), String.concat(", ", String.concat(y.to_str(), ")"))))
+//     case Point{x: x, y: y}: return Str.concat("point (", Str.concat(x.to_str(), Str.concat(", ", Str.concat(y.to_str(), ")"))))
 //     }
 // }
 

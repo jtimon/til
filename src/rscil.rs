@@ -1957,7 +1957,7 @@ impl Context {
         // Early check: disallow structs with String fields
         for (member_name, decl) in struct_def.members.iter() {
             if let ValueType::TCustom(type_name) = &decl.value_type {
-                if type_name == "String" {
+                if type_name == "Str" {
                     println!("ERROR: Struct '{}' has unsupported String field '{}'", custom_type_name, member_name);
                     return false;
                 }
@@ -2133,7 +2133,7 @@ impl Context {
 
     fn insert_string(&mut self, id: &str, value_str: &String) -> Option<String> {
         // Insert the struct, expect it to define `.c_string` and `.cap`
-        if !self.insert_struct(id, "String") {
+        if !self.insert_struct(id, "Str") {
             println!("ERROR: insert_string: Failed to insert struct '{}'", id);
             return None;
         }
@@ -2445,7 +2445,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
         NodeType::LI64(_) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LBool(_) => Ok(ValueType::TCustom("Bool".to_string())),
-        NodeType::LString(_) => Ok(ValueType::TCustom("String".to_string())),
+        NodeType::LString(_) => Ok(ValueType::TCustom("Str".to_string())),
         NodeType::LList(_) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunc),
@@ -2789,7 +2789,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             Some(value_type) => {
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "I64" | "Bool" | "U8" | "String" => {},
+                        "I64" | "Bool" | "U8" | "Str" => {},
                         _ => {
                             errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
                                                                       e.line, e.col, custom_type_name)));
@@ -3674,7 +3674,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                     "Bool" => {
                         function_context.insert_bool(&arg.name, &result);
                     },
-                    "String" => {
+                    "Str" => {
                         function_context.insert_string(&arg.name, &result);
                     },
                     _ => {
@@ -3740,7 +3740,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                 let val = function_context.get_bool(&arg_name).unwrap();
                 context.insert_bool(&source_name, &val.to_string());
             },
-            ValueType::TCustom(ref type_name) if type_name == "String" => {
+            ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = function_context.get_string(&arg_name).unwrap();
                 context.insert_string(&source_name, &val);
             },
@@ -3755,7 +3755,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
         if let ValueType::TCustom(ref custom_type_name) = func_def.returns[0] {
             // Skip core types like I64, Bool, String, U8
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "String" => { /* Do nothing for core types */ },
+                "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
                 _ => {
 
                     if let Some(custom_symbol) = function_context.symbols.get(custom_type_name) {
@@ -3878,7 +3878,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Strin
             return match id_name.as_str() {
                 "Bool" => "false".to_string(),
                 "U8" | "I64" => "0".to_string(),
-                "String" => "".to_string(),
+                "Str" => "".to_string(),
                 _ => id_name.to_string(), // TODO Where is the struct being inserted in this case? Is this returned value even used?
             }
         }
@@ -4044,7 +4044,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                             let expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_bool(&combined_name, &expr_result_str);
                                         },
-                                        "String" => {
+                                        "Str" => {
                                             let expr_result_str = eval_expr(&mut context, default_value);
                                             context.insert_string(&combined_name, &expr_result_str);
                                         },
@@ -4126,7 +4126,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     context.insert_bool(&declaration.name, &expr_result_str);
                     return "".to_string()
                 },
-                "String" => {
+                "Str" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     context.insert_string(&declaration.name, &expr_result_str);
@@ -4214,7 +4214,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_bool(var_name, &expr_result_str);
                 },
-                "String" => {
+                "Str" => {
                     let expr_result_str = eval_expr(&mut context, inner_e);
                     context.insert_string(var_name, &expr_result_str);
                 },
@@ -4285,7 +4285,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
                         },
                     }
                 },
-                "String" => {
+                "Str" => {
                     match context.get_string(&format!("{}.{}", name, inner_name)) {
                         Some(result_str) => return result_str.to_string(),
                         None => {
@@ -4386,7 +4386,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                 },
                                             }
                                         },
-                                        "String" => {
+                                        "Str" => {
                                             match context.get_string(&format!("{}.{}", name, inner_name)) {
                                                 Some(result) => return result.to_string(),
                                                 None => {
@@ -4479,7 +4479,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                     "Bool" => {
                         return context.get_bool(name).unwrap().to_string()
                     },
-                    "String" => {
+                    "Str" => {
                         if e.params.len() == 0 {
                             return context.get_string(name).unwrap().to_string()
                         }

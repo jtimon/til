@@ -8,18 +8,18 @@ xnor := func(a: Bool, b: Bool) returns Bool {
     return a.eq(b)
 }
 
-panic2 := proc(loc_str: String, msgs: ..String) {
+panic2 := proc(loc_str: Str, msgs: ..Str) {
     // TODO use variadic args in user defined functions. requires arrays
     exit(1)
 }
 
-assertm := proc(loc_str: String, cond: Bool, msg: String) {
+assertm := proc(loc_str: Str, cond: Bool, msg: Str) {
     if not(cond) {
-        panic(loc_str, String.concat("assert failed: ", msg))
+        panic(loc_str, Str.concat("assert failed: ", msg))
     }
 }
 
-assert := proc(loc_str: String, cond: Bool) {
+assert := proc(loc_str: Str, cond: Bool) {
     assertm(loc_str, cond, "")
 }
 
@@ -27,7 +27,7 @@ branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
     return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
 }
 
-TODO := proc(loc_str: String, msg: String) {
+TODO := proc(loc_str: Str, msg: Str) {
     print("TODO: ")
     assertm(loc_str, false, msg)
 }

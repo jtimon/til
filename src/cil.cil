@@ -5,8 +5,8 @@ import("src/core/parser")
 
 //** WIP: Self hosted implementation of LANG_NAME
 
-LANG_NAME: String = "cil"
-REPL_PATH: String = "src/core/modes/repl.cil";
+LANG_NAME: Str = "cil"
+REPL_PATH: Str = "src/core/modes/repl.cil";
 
 usage := proc() {
     println("Usage: ", LANG_NAME, " [command] [path]\n");
@@ -24,11 +24,11 @@ usage := proc() {
 }
 
 // TODO rscil implement arrays
-// scan_tokens := func(src: String) returns Array(Token) {}
+// scan_tokens := func(src: Str) returns Array(Token) {}
 
 // TODO use variadic arguments
 // TODO move the repl subcommmand here, rscil only to interpret
-main := proc(path: String) {
+main := proc(path: Str) {
 
     if or(path.eq(""), path.eq("repl")) {
         runfile(REPL_PATH)

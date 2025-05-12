@@ -39,11 +39,11 @@ if true {
 // Built-in types
 my_i64 : I64 = 42 // 'I64' (font-lock-type-face in emacs)
 my_Bool : Bool = true // 'Bool' (font-lock-type-face in emacs)
-my_string : String = "test" // 'String' (font-lock-type-face in emacs)
+my_string : Str = "test" // 'Str' (font-lock-type-face in emacs)
 
 // Builtins
 result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
-printed := String.concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
+printed := Str.concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
 
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
@@ -61,7 +61,7 @@ mut x := 10 // 'x' in variable declaration (font-lock-variable-name-face in emac
 y := 20 // 'y' (font-lock-constant-face in emacs), since := works
 
 // Types in declarations and signatures
-proc_with_args := proc(arg1: I64, arg2: String) { // 'I64', 'String' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
+proc_with_args := proc(arg1: I64, arg2: Str) { // 'I64', 'Str' (font-lock-type-face in emacs), 'arg1', 'arg2' (font-lock-constant-face in emacs)
     return // 'return' (font-lock-keyword-face in emacs)
 }
 returns_bool := proc() returns Bool { // 'Bool' (font-lock-type-face in emacs), 'returns_bool' (font-lock-function-name-face in emacs)
@@ -74,7 +74,7 @@ mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-
 
 // Constant arguments in function signatures
 // TODO implement mut args
-// my_proc := proc(const_arg: I64, mut mut_arg: String) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'String' (font-lock-type-face in emacs)
+// my_proc := proc(const_arg: I64, mut mut_arg: Str) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'Str' (font-lock-type-face in emacs)
 //     // Nothing here
 // }
 

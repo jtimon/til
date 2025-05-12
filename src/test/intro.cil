@@ -46,7 +46,7 @@ my_func := func(a: Bool, b: Bool) returns Bool {
 test(loc(), my_func(true, true), "my_func(true, true) didn't return true")
 
 // return can be used in functions that don't return anything to exit early
-exit_early_print := proc(a: Bool, msg: String) {
+exit_early_print := proc(a: Bool, msg: Str) {
     println(msg)
     if a {
         return
@@ -69,7 +69,7 @@ my_macro := macro(a: Bool, b: Bool) returns Bool {
 }
 test(loc(), my_macro(true, true), "my_macro(true, true) didn't return true")
 
-my_str_func := func(a: String) returns String {
+my_str_func := func(a: Str) returns Str {
     return a
 }
 arg_test_str := "strings can be passed as arguments and returned"
@@ -90,4 +90,4 @@ main()
 // panic(loc(), "panic panics when uncommented") // fails, because it panics
 
 // fails because mut func/procs shouldn't be allowed at this context level, in this mode, or perhaps never
-// mut assertm2 := proc(cond: Bool, msg: String) {}
+// mut assertm2 := proc(cond: Bool, msg: Str) {}

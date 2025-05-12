@@ -15,7 +15,7 @@ my_enum_func := func(a: ExampleEnum) returns ExampleEnum {
 trying_dot_enum2 : ExampleEnum = my_enum_func(ExampleEnum.B)
 trying_dot_enum3 : ExampleEnum = my_enum_func(trying_dot_enum)
 
-test_switch_enum := proc(to_switch: ExampleEnum) returns String {
+test_switch_enum := proc(to_switch: ExampleEnum) returns Str {
     mut to_switch2 := to_switch
     to_switch2 = ExampleEnum.B
     to_switch2 = to_switch
@@ -40,7 +40,7 @@ assert_eq_str(loc(), "ExampleEnum.C", enum_to_str(ExampleEnum.C))
 assert_eq_str(loc(), "ExampleEnum.D", enum_to_str(ExampleEnum.D))
 
 no_return_switch_str := "xxxxxx because return inside switch doesn't work even for enum"
-test_return_switch_enum := proc(to_switch: ExampleEnum) returns String {
+test_return_switch_enum := proc(to_switch: ExampleEnum) returns Str {
     // println("in test_return_switch_enum: to_switch: ", enum_to_str(to_switch))
     switch to_switch {
     case ExampleEnum.A:
@@ -80,5 +80,5 @@ ExampleEnum2 := enum {
     DDD,
     LBool : Bool,
     LNumber : I64,
-    LString : String,
+    LString : Str,
 }

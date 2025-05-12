@@ -14,11 +14,11 @@ div       := ext_func(a: I64, b: I64) returns I64;
 mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
 // TODO implement the variadic part of print/println in std
-print   := ext_proc(args: ..String); // TODO move 'print' to std after supporting variadic arguments
+print   := ext_proc(args: ..Str); // TODO move 'print' to std after supporting variadic arguments
 // TODO now that '\n' bug is fixed, we're waiting for user variadic arguments
-println := ext_proc(args: ..String); // TODO move 'println' to std after fixing
+println := ext_proc(args: ..Str); // TODO move 'println' to std after fixing
 // TODO This should be ext, and the print and println self hosted
-single_print := proc(s: String) {
+single_print := proc(s: Str) {
     print(s) // TODO use some lowe level thing so tha print can depend on this instead of the other way around
 }
 
@@ -28,12 +28,12 @@ exit    := ext_proc(code: I64);
 // example_cil: my_matrix_def := import(matrix.matrix_def)
 // example_cil: my_matrix : struct = import(matrix)
 // example_python: from matrix import matrix_def as my_matrix_def
-import  := ext_proc(path: String);
-runfile := ext_proc(args: ..String);
+import  := ext_proc(path: Str);
+runfile := ext_proc(args: ..Str);
 
-loc := ext_func() returns String; // Returns the current source location as "<file>:<line>:<col>:"
+loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
-panic := proc(loc_str: String, msg: String) {
+panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.concat(msg))
     exit(1)
 }
@@ -67,7 +67,7 @@ Ptr := struct {
         return p
     }
 
-    cast := macro(self: Ptr, type_name: String) returns Ptr {
+    cast := macro(self: Ptr, type_name: Str) returns Ptr {
         // TODO: This cast is purely cosmetic for now.
         // Proper type-changing macros are not implemented yet.
         return self
@@ -82,14 +82,14 @@ Ptr := struct {
     }
 }
 
-enum_to_str     := ext_func(e: I64) returns String; // TODO not sure why this works since we're using it with enums rather than I64
-eval_to_str     := ext_proc(a: String) returns String;
-eval_to_ast_str := ext_proc(src: String) returns String; // TODO
-eval_to_expr    := ext_proc(src: String) returns Expr; // TODO
+enum_to_str     := ext_func(e: I64) returns Str; // TODO not sure why this works since we're using it with enums rather than I64
+eval_to_str     := ext_proc(a: Str) returns Str;
+eval_to_ast_str := ext_proc(src: Str) returns Str; // TODO
+eval_to_expr    := ext_proc(src: Str) returns Expr; // TODO
 
-input_read_line := ext_proc(a: String) returns String;
-readfile        := ext_proc(path: String) returns String;
-writefile       := ext_proc(path: String, contents: String) returns String; // TODO
+input_read_line := ext_proc(a: Str) returns Str;
+readfile        := ext_proc(path: Str) returns Str;
+writefile       := ext_proc(path: Str, contents: Str) returns Str; // TODO
 
 not := func(b: Bool) returns Bool {
     if b {
@@ -120,7 +120,7 @@ and := func(a: Bool, b: Bool) returns Bool {
     return true
 }
 
-// Note that Bool, I64 and String don't have fields because the're the core types
+// Note that Bool, I64 and Str don't have fields because the're the core types
 // think of them as "half-external types" for now
 Bool := struct {
     size := U8_SIZE
@@ -135,7 +135,7 @@ Bool := struct {
         return or(and(a, b), and(not(b), not(a)))
     }
 
-    to_str := func(self: Bool) returns String {
+    to_str := func(self: Bool) returns Str {
         if self {
             return "true"
         }
@@ -216,13 +216,13 @@ U8 := struct {
             return panic(loc(), "Negative values cannot be cast into 'U8'")
         }
         if gt(self, MAX_U8) {
-            return panic(loc(), String.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            return panic(loc(), Str.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
     }
 
-    to_str := func(self: U8) returns String {
+    to_str := func(self: U8) returns Str {
         return I64.to_str(U8.to_i64(self))
     }
 }
@@ -243,13 +243,13 @@ I64 := struct {
         return true
     }
 
-    to_str := func(self: I64) returns String {
-        i64_to_str := ext_func(a: I64) returns String;
+    to_str := func(self: I64) returns Str {
+        i64_to_str := ext_func(a: I64) returns Str;
         return i64_to_str(self)
     }
 
-    from_str := func(str: String) returns I64 {
-        str_to_i64 := ext_func(a: String) returns I64;
+    from_str := func(str: Str) returns I64 {
+        str_to_i64 := ext_func(a: Str) returns I64;
         return str_to_i64(str) // TODO: this can fail and panic from rust
     }
 
@@ -267,21 +267,21 @@ I64 := struct {
     }
 }
 
-// TODO get rid of special cases for String besides literals
-String := struct {
+// TODO get rid of special cases for Str besides literals
+Str := struct {
     mut c_string : I64 = 0
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
 
-    size := func(self: String) {
+    size := func(self: Str) {
         return mul(2, I64.size)
     }
 
-    len := func(self: String) returns I64 {
+    len := func(self: Str) returns I64 {
         return self.cap
     }
 
-    eq := func(self: String, other: String) returns Bool {
+    eq := func(self: Str, other: Str) returns Bool {
         if not(I64.eq(self.cap, other.cap)) {
             return false
         }
@@ -307,18 +307,18 @@ String := struct {
         return is_eq
     }
 
-    concat := func(self: String, other: String) returns String {
-        mut result := String()
+    concat := func(self: Str, other: Str) returns Str {
+        mut result := Str()
         result.cap = add(self.cap, other.cap)
 
         if lt(result.cap, self.cap) {
-            println(loc(), "String.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
+            println(loc(), "Str.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
             exit(1)
         }
 
         result.c_string = malloc(result.cap)
         if I64.eq(result.c_string, 0) {
-            println(loc(), "String.concat: malloc failed for cap = ", I64.to_str(result.cap))
+            println(loc(), "Str.concat: malloc failed for cap = ", I64.to_str(result.cap))
             exit(1)
         }
 
@@ -328,34 +328,34 @@ String := struct {
         return result
     }
 
-    to_i64 := func(self: String) returns I64 {
+    to_i64 := func(self: Str) returns I64 {
         return I64.from_str(self)
     }
 
-    get_substr := func(s: String, start: I64, end: I64) returns String {
+    get_substr := func(s: Str, start: I64, end: I64) returns Str {
         if lt(start, 0) {
-            println(loc(), "String.get_substr: start index ", start, " cannot be negative")
+            println(loc(), "Str.get_substr: start index ", start, " cannot be negative")
             exit(1)
         }
         if lt(end, 0) {
-            println(loc(), "String.get_substr: end index ", end, " cannot be negative")
+            println(loc(), "Str.get_substr: end index ", end, " cannot be negative")
             exit(1)
         }
         if gt(start, end) {
-            println(loc(), "String.get_substr: start index ", start, " is greater than end index ", end)
+            println(loc(), "Str.get_substr: start index ", start, " is greater than end index ", end)
             exit(1)
         }
         if gt(end, s.len()) {
-            println(loc(), "String.get_substr: end index ", end, " is greater than string length ", s.len())
+            println(loc(), "Str.get_substr: end index ", end, " is greater than string length ", s.len())
             exit(1)
         }
         if I64.eq(start, end) {
-            println(loc(), "String.get_substr: start and end are the same (", start, "), no substring")
+            println(loc(), "Str.get_substr: start and end are the same (", start, "), no substring")
             exit(1)
         }
 
         to_ptr := ext_func(val: U8) returns I64;
-        mut substr := String()
+        mut substr := Str()
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
         memcpy(substr.c_string, add(s.c_string, start), substr.cap)
@@ -363,7 +363,7 @@ String := struct {
         return substr
     }
 
-    get_char := func(s: String, pos: I64) returns String {
+    get_char := func(s: Str, pos: I64) returns Str {
         return s.get_substr(pos, add(pos, 1))
     }
 }
@@ -458,11 +458,11 @@ ArrayU8 := struct {
 # array_i64_len := ext_func(a: ArrayI64) returns I64;
 # array_i64_get := ext_func(a: ArrayI64, pos: I64) returns I64;
 
-# array_str_len := ext_func(a: ArrayString) returns I64;
-# array_str_get := ext_func(a: ArrayString, pos: I64) returns String;
+# array_str_len := ext_func(a: ArrayStr) returns I64;
+# array_str_get := ext_func(a: ArrayStr, pos: I64) returns Str;
 
 // TODO implement macros:
 // array_struct_len := ext_func(a: ArrayStruct) returns I64;
-// array_str_get := ext_func(a: ArrayStruct, pos: I64) returns String;
+// array_str_get := ext_func(a: ArrayStruct, pos: I64) returns Str;
 // array_generic_len := ext_func(a: Array) returns I64;
-// array_generic_get := ext_func(a: Array, pos: I64) returns String;
+// array_generic_get := ext_func(a: Array, pos: I64) returns Str;

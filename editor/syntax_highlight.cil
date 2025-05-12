@@ -13,26 +13,26 @@ ExampleEnum2 := enum {
     LBool : bool,
     LNumber : i64,
     TCustom: MyStruct,
-    LString : String,
+    LString : Str,
     TCustom2 : MyStruct2,
 }
-// red (ExampleEnum2), blue (enum), purple (DDD, LBool, LNumber), red (bool, i64, String, MyStruct)
+// red (ExampleEnum2), blue (enum), purple (DDD, LBool, LNumber), red (bool, i64, Str, MyStruct)
 
 aaa :    = 0
 bbb := 0
 ccc: = 0
 my_lit_int := 0
 my_lit_str := "aaaaa"
-my_lit_str2 : String = "aaaaa"
+my_lit_str2 : Str = "aaaaa"
 my_lit_bool := true
 my_bool := blabla("bla")
 
-test_switch_enum := macro(arg1: Type, arg2: Type, arg3: Type) returns String {
+test_switch_enum := macro(arg1: Type, arg2: Type, arg3: Type) returns Str {
 }
-test_switch_enum := proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns String {
-    // darker green (test_switch_enum), yellow (to_switch), blue (mut, returns), red (ExampleEnum, String)
-    mut to_return : String = ""
-    // yellow (to_return), red (String)
+test_switch_enum := proc(mut arg1: Type, mut arg2: Type, mut arg3: Type) returns Str {
+    // darker green (test_switch_enum), yellow (to_switch), blue (mut, returns), red (ExampleEnum, Str)
+    mut to_return : Str = ""
+    // yellow (to_return), red (Str)
     mut mutable_var: i64 = 42
     // yellow (mutable_var), red (i64)
     switch to_switch {

@@ -17,7 +17,7 @@ Cell := struct {
     CHAR_WIDTH  := 8  // Character width (pixels)
     LINE_HEIGHT := 16 // Character height (pixels)
 
-    add := func(p: Pos, axis: String) {
+    add := func(p: Pos, axis: Str) {
         if axis == "x" {
             p.x = I64.add(p.x, Cell.CHAR_WIDTH)
         } else if axis == "y" {
@@ -25,7 +25,7 @@ Cell := struct {
         }
     }
 
-    sub := func(p: Pos, axis: String) {
+    sub := func(p: Pos, axis: Str) {
         if axis == "x" {
             p.x = I64.sub(p.x, Cell.CHAR_WIDTH)
         } else if axis == "y" {
@@ -47,8 +47,8 @@ center := func(pos: I64, size: I64) returns I64 {
     return I64.sub(pos, I64.div(size, 2))
 }
 
-main := proc(window_width_str: String, window_height_str: String) {
-    // Convert window dimensions from String to I64
+main := proc(window_width_str: Str, window_height_str: Str) {
+    // Convert window dimensions from Str to I64
     window_width       := window_width_str.to_i64()
     window_height      := window_height_str.to_i64()
 
