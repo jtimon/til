@@ -1,0 +1,12 @@
+mode test
+
+// TODO implement variadic arguments for user functions, at least for Str, for self hosted print and println based on a simpler single_print core proc
+// concat2 := proc(args: ..Str) {
+//     mut i := 0
+//     while lt(i, args.len) {
+//         print(args.get(i))
+//     }
+// }
+// assert_eq_str("Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))
+
+// TODO implement variadic arguments for user functions, at least for Bool, to recover variadic and, or
