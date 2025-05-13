@@ -1,11 +1,8 @@
 mode cli
 
-import("src/core/parser")
-// parser := import("src/core/parser") // TODO accept imports as declarations of struct (as namespace)
+import("src/core/interpreter")
+// interpreter := import("src/core/interpreter") // TODO accept imports as declarations of struct (as namespace)
 
-//** WIP: Self hosted implementation of LANG_NAME
-
-LANG_NAME: Str = "cil"
 REPL_PATH: Str = "src/core/modes/repl.cil";
 
 usage := proc() {

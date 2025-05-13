@@ -1,5 +1,7 @@
 mode lib
 
+LANG_NAME := "cil"
+
 TokenType := enum {
     // basic
     Eof,
@@ -390,19 +392,54 @@ scan_tokens := proc(source: Str) {
 }
 
 Lexer := struct {
+    mut debug_compiler : Bool = false
+    mut path : Str = ""
+    mut src : Str = ""
     // TODO store tokens in lexer
     // mut tokens: []Token = Array::new() // TODO
+    mut current_token : I64 = 0
+    mut arr_current_token := Token() // TODO stop faking tokens array
 
-    new_by_src := func(src: Str) returns Lexer {
-        self := Lexer()
-        // l.tokens = scan_tokens(src) // TODO
-        return self
+    new_fake_path := func(fake_path: Str, src: Str) returns Lexer {
+        l := Lexer()
+        l.path = fake_path
+        // TODO lex tokens by calling scan_tokens()
+        return l
     }
 
-    new_by_path := func(path: Str) returns Lexer {
+    new := func(path: Str) returns Lexer {
         src := readfile(path)
-        return new_by_src(src)
+        return Expr.new_fake_path(path, src)
     }
+
+    peek := func(self: Lexer) returns Token {
+        return self.arr_current_token
+    }
+
+    consume := func(mut self: Lexer) returns Token {
+        return I64.inc(self.current_token)
+    }
+
+    expect := func(mut self: Lexer, expected: TokenType) returns Bool {
+        p := self.peek()
+        switch p.token_type {
+        case expected:
+            self.current_token = I64.add(self.current_token, 1)
+        case:
+            println(loc(), "Lexer.expect: the current token is not what was expected")
+            return false
+        }
+        return true
+    }
+
+    error := proc(self: Lexer, loc_str: Str, t: Token, msg: Str) {
+        println(self.path, ":", t.line, ":", t.col, ": parse ERROR: ", msg)
+        if debug_compiler {
+            println(loc_str, "parse ERROR: ", msg)
+        }
+        exit(1)
+    }
+
 }
 
 print_lex_error := proc(path: Str, t: Token, errors_found: I64, msg: Str) {

@@ -1,0 +1,8 @@
+mode lib
+
+import("src/core/parser")
+import("src/core/modes/modes")
+
+Context := struct {
+
+}

@@ -1,0 +1,57 @@
+mode lib
+
+ModeDef := struct {
+    mut name: Str = ""
+    mut allows_base_mut: Bool = false
+    mut allows_base_calls: Bool = false
+    mut allows_base_anything: Bool = false
+    mut needs_main_proc: Bool = false
+}
+
+// TODO make a func once we support throw
+mode_from_name := proc(mode_name: Str) returns ModeDef throws Str {
+    mut md := ModeDef()
+    md.name = mode_name
+
+    switch mode_name {
+    case "lib":
+        md.allows_base_calls = false
+        md.allows_base_mut = false
+        md.allows_base_anything = false
+        md.needs_main_proc = false
+
+    case "pure":
+        md.allows_base_calls = false
+        md.allows_base_mut = false
+        md.allows_base_anything = false
+        md.needs_main_proc = false
+
+    case "script":
+        md.allows_base_calls = true
+        md.allows_base_mut = true
+        md.allows_base_anything = true
+        md.needs_main_proc = false
+
+    case "safe_script":
+        md.allows_base_calls = true
+        md.allows_base_mut = true
+        md.allows_base_anything = true
+        md.needs_main_proc = false
+
+    case "cli":
+        md.allows_base_calls = false
+        md.allows_base_mut = true
+        md.allows_base_anything = false
+        md.needs_main_proc = true
+
+    case "test":
+        md.allows_base_calls = true
+        md.allows_base_mut = true
+        md.allows_base_anything = false
+        md.needs_main_proc = false
+
+    case:
+        TODO(loc(), Str.concat("properly report unsuported modes like: ", mode_name))
+    }
+    return md
+}

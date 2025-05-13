@@ -2,6 +2,84 @@ mode lib
 
 import("src/core/lexer")
 
-parse_lexer: = proc(lexer: Lexer) returns Parser {
-    TODO(loc(), "parse_lexer")
+// TODO support tagged unions
+NodeType := enum {
+    Body,
+    LList : Str,
+    LString : Str,
+    LI64 : I64,
+    LBool : Bool,
+    FCall,
+    Identifier : Str,
+    // Declaration : Declaration,
+    Assignment : Str,
+    // FuncDef : SFuncDef,
+    // EnumDef : SEnumDef,
+    // StructDef : SStructDef,
+    Return,
+    Throw,
+    If,
+    While,
+    Switch,
+    DefaultCase,
+}
+
+ExprArray := struct {
+
+    push := func(mut self: ExprArray, e: Expr) {
+        // TODO implement
+    }
+}
+
+// TODO improve error: when we forget "mut" in fields: "Cannot declare 'Expr.node_type' of custom type 'NodeType'"
+Expr := struct {
+    mut node_type: NodeType = NodeType.Identifier
+    mut params: ExprArray = ExprArray()
+
+    new_parse := func(node_type: NodeType, token: Token, params: ExprArray) returns Expr {
+        mut e := Expr()
+        e.node_type = node_type
+        e.params = params
+        e.line = token.line
+        e.col = token.col
+        return e
+    }
+}
+
+// TODO support else if
+// TODO properly support throw
+// TODO implement Str.fmt once we have variadic arguments for user functions
+
+parse_statement := func(lexer: Lexer) returns Expr throws Str {
+    e := Expr()
+    // TODO(loc(), "Implement parse_statement()") // TODO is less useful if funcs cannot call procs
+    return e
+}
+
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
+    mut params := ExprArray()
+    mut end_found := false
+    start_token := lexer.peek()
+
+    while and(
+        not(end_found),
+        lt(lexer.pos(), lexer.len()),
+    ) {
+        t := lexer.peek()
+        switch t.token_type {
+            case end_token:
+                end_found = true
+
+            case TokenType.Semicolon:
+                lexer.consume()
+
+            case:
+                stmt := parse_statement(lexer)
+                params.push(stmt)
+        }
+    }
+    if end_found {
+        return Expr.new_parse(NodeType.Body, start_token, params)
+    }
+    lexer.error(loc(), lexer.peek(), Str.concat("Expected the body to end with ", enum_to_str(end_token)))
 }
