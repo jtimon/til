@@ -366,7 +366,7 @@ Str := struct {
     }
 }
 
-ArrayU8 := struct {
+U8Array := struct {
     mut ptr      : I64  = 0     // Pointer to the data buffer
     mut len      : I64  = 0     // Current number of elements
     mut cap      : I64  = 0     // Allocated capacity
@@ -375,8 +375,8 @@ ArrayU8 := struct {
     INIT_DYN_CAP : I64  = 32
     MAX_CAP      : I64  = 1024
 
-    new := proc(capacity: I64) returns ArrayU8 {
-        mut arr := ArrayU8()
+    new := proc(capacity: I64) returns U8Array {
+        mut arr := U8Array()
         arr.ptr = malloc(capacity)
         arr.len = capacity
         arr.cap = capacity
@@ -385,25 +385,25 @@ ArrayU8 := struct {
         return arr
     }
 
-    new_dyn := proc() returns ArrayU8 {
-        mut arr := ArrayU8()
-        arr.ptr = malloc(ArrayU8.INIT_DYN_CAP)
+    new_dyn := proc() returns U8Array {
+        mut arr := U8Array()
+        arr.ptr = malloc(U8Array.INIT_DYN_CAP)
         arr.len = 0
-        arr.cap = ArrayU8.INIT_DYN_CAP
+        arr.cap = U8Array.INIT_DYN_CAP
         arr.is_dyn = true
         memset(arr.ptr, U8.from_i64(0), arr.cap) // Zeroing by default
         return arr
     }
 
-    push := proc(mut self: ArrayU8, value: U8) {
+    push := proc(mut self: U8Array, value: U8) {
         if not(self.is_dyn) {
-            panic(loc(), "ArrayU8.push: push is not allowed for static arrays")
+            panic(loc(), "U8Array.push: push is not allowed for static arrays")
         }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
-            if gt(new_cap, ArrayU8.MAX_CAP) {
-                panic(loc(), "ArrayU8.push: capacity exceeded ArrayU8.MAX_CAP")
+            if gt(new_cap, U8Array.MAX_CAP) {
+                panic(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP")
             }
 
             new_ptr := malloc(new_cap)
@@ -419,9 +419,9 @@ ArrayU8 := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: ArrayU8, index: I64) returns U8 {
+    get := func(self: U8Array, index: I64) returns U8 {
         if gteq(index, self.len) {
-            panic(loc(), "ArrayU8.get: index out of bounds")
+            panic(loc(), "U8Array.get: index out of bounds")
         }
 
         mut src := add(self.ptr, index)
@@ -431,16 +431,16 @@ ArrayU8 := struct {
         return value
     }
 
-    set := proc(mut self: ArrayU8, index: I64, value: U8) {
+    set := proc(mut self: U8Array, index: I64, value: U8) {
         if gteq(index, self.len) {
-            panic(loc(), "ArrayU8.set: index out of bounds")
+            panic(loc(), "U8Array.set: index out of bounds")
         }
         mut dest := add(self.ptr, index)
         to_ptr := ext_func(val: U8) returns I64;
         memcpy(dest, to_ptr(value), 1)
     }
 
-    delete := proc(mut self: ArrayU8) {
+    delete := proc(mut self: U8Array) {
         free(self.ptr)
         self.ptr = 0
         self.len = 0

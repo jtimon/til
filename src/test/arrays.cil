@@ -1,7 +1,7 @@
 mode test
 
 test_array_static_u8 := proc() {
-    mut stat := ArrayU8.new(3)
+    mut stat := U8Array.new(3)
     assert_eq(loc(), 3, stat.len)       // Static array len equals cap
     assert_eq(loc(), stat.cap, stat.len) // Static array len equals cap
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -18,9 +18,9 @@ test_array_static_u8 := proc() {
 test_array_static_u8()
 
 test_array_dynamic_u8 := proc() {
-    mut dyn := ArrayU8.new_dyn()
+    mut dyn := U8Array.new_dyn()
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), ArrayU8.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
+    // assert_eq(loc(), U8Array.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
 
     dyn.push(U8.from_i64(42))
     dyn.push(U8.from_i64(255))
