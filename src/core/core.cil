@@ -635,3 +635,89 @@ BoolArray := struct {
         self.is_dyn = false
     }
 }
+
+I64Array := struct {
+    mut ptr      : I64  = 0     // Pointer to the data buffer
+    mut len      : I64  = 0     // Current number of elements
+    mut cap      : I64  = 0     // Allocated capacity
+    mut is_dyn   : Bool = false // Whether this array is dynamic
+
+    INIT_DYN_CAP : I64  = 16
+    MAX_CAP      : I64  = 512
+
+    new := proc(capacity: I64) returns I64Array {
+        mut arr := I64Array()
+        size_bytes := mul(capacity, I64.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = capacity
+        arr.cap = capacity
+        arr.is_dyn = false
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    new_dyn := proc() returns I64Array {
+        mut arr := I64Array()
+        size_bytes := mul(I64Array.INIT_DYN_CAP, I64.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = 0
+        arr.cap = I64Array.INIT_DYN_CAP
+        arr.is_dyn = true
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    push := proc(mut self: I64Array, value: I64) {
+        if not(self.is_dyn) {
+            panic(loc(), "I64Array.push: push is not allowed for static arrays")
+        }
+
+        if I64.eq(self.len, self.cap) {
+            new_cap := mul(self.cap, 2)
+            if gt(new_cap, I64Array.MAX_CAP) {
+                panic(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP")
+            }
+
+            new_ptr := malloc(mul(new_cap, I64.size()))
+            memcpy(new_ptr, self.ptr, mul(self.len, I64.size()))
+            free(self.ptr)
+            self.ptr = new_ptr
+            self.cap = new_cap
+        }
+
+        dest := add(self.ptr, mul(self.len, I64.size()))
+        to_ptr := ext_func(val: I64) returns I64;
+        memcpy(dest, to_ptr(value), I64.size())
+        self.len = add(self.len, 1)
+    }
+
+    get := func(self: I64Array, index: I64) returns I64 {
+        if gteq(index, self.len) {
+            panic(loc(), "I64Array.get: index out of bounds")
+        }
+
+        src := add(self.ptr, mul(index, I64.size()))
+        mut value : I64 = 0
+        to_ptr := ext_func(val: I64) returns I64;
+        memcpy(to_ptr(value), src, I64.size())
+        return value
+    }
+
+    set := proc(mut self: I64Array, index: I64, value: I64) {
+        if gteq(index, self.len) {
+            panic(loc(), "I64Array.set: index out of bounds")
+        }
+
+        dest := add(self.ptr, mul(index, I64.size()))
+        to_ptr := ext_func(val: I64) returns I64;
+        memcpy(dest, to_ptr(value), I64.size())
+    }
+
+    delete := proc(mut self: I64Array) {
+        free(self.ptr)
+        self.ptr = 0
+        self.len = 0
+        self.cap = 0
+        self.is_dyn = false
+    }
+}
