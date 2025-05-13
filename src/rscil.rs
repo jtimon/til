@@ -697,13 +697,6 @@ fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_anything: false,
                     needs_main_proc: false,
         }),
-        "external" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: false,
-                    allows_base_mut: false,
-                    allows_base_anything: false,
-                    needs_main_proc: false,
-        }),
         "pure" => Ok(
             ModeDef{name: mode_name.to_string(),
                     allows_base_calls: false,
@@ -761,9 +754,6 @@ fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Result<M
     };
 
     if mode.name == "pure" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "lib"));
-    }
-    if mode.name == "external" {
         return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "lib"));
     }
     if mode.name == "safe_script" {
