@@ -203,7 +203,7 @@ impl Context {
         return self.arena_index.insert(id.to_string(), offset).map(|old_offset| Arena::g().memory[old_offset] == 0);
     }
 
-    pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str) -> bool {
+    fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str) -> bool {
         let struct_def = match self.struct_defs.get(custom_type_name) {
             Some(def) => def,
             None => return false,
@@ -219,18 +219,33 @@ impl Context {
             None => return false,
         };
 
+        let members: Vec<(String, Declaration)> = struct_def
+            .members
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
         let mut current_offset = 0;
-        for (field_name, decl) in &struct_def.members {
+        for (field_name, decl) in members {
             if decl.is_mut {
                 let combined_name = format!("{}.{}", instance_name, field_name);
                 self.arena_index.insert(combined_name.to_string(), base_offset + current_offset);
                 self.symbols.insert(
-                    combined_name,
+                    combined_name.clone(),
                     SymbolInfo {
                         value_type: decl.value_type.clone(),
                         is_mut: is_mut,
                     },
                 );
+
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    if self.struct_defs.contains_key(type_name) {
+                        if !self.map_instance_fields(type_name, &combined_name) {
+                            println!("ERROR: Failed to map nested struct field '{}'", combined_name);
+                            return false;
+                        }
+                    }
+                }
 
                 let field_size = match &decl.value_type {
                     ValueType::TCustom(name) => match self.get_type_size(name) {
@@ -264,14 +279,20 @@ impl Context {
             None => return false,
         };
 
+        let members: Vec<(String, Declaration)> = struct_def
+            .members
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
         let mut current_offset = 0;
-        for (field_name, decl) in &struct_def.members {
+        for (field_name, decl) in members {
             if !decl.is_mut {
                 continue;
             }
 
             let field_size = match &decl.value_type {
-                ValueType::TCustom(name) => match self.get_type_size(name) {
+                ValueType::TCustom(name) => match self.get_type_size(name.as_str()) {
                     Ok(size) => size,
                     Err(_) => return false,
                 },
@@ -290,13 +311,22 @@ impl Context {
 
             // Ensure mappings for the destination field
             self.arena_index.insert(dest_key.clone(), dest_offset);
-            self.symbols.insert(dest_key, SymbolInfo {
+            self.symbols.insert(dest_key.clone(), SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
             });
 
             // Copy the actual memory bytes
             Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
+
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                if self.struct_defs.contains_key(type_name.as_str()) {
+                    if !self.copy_fields(type_name.as_str(), &src_key, &dest_key) {
+                        println!("ERROR: Failed to recursively copy field '{}'", dest_key);
+                        return false;
+                    }
+                }
+            }
 
             current_offset += field_size;
         }
