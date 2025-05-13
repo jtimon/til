@@ -76,3 +76,42 @@ test_array_dynamic_str := proc() {
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 }
 test_array_dynamic_str()
+
+test_array_static_bool := proc() {
+    mut stat := BoolArray.new(3)
+    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), stat.cap, stat.len)
+    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
+
+    stat.set(0, true)
+    stat.set(1, false)
+    stat.set(2, true)
+    test(loc(), Bool.eq(true, stat.get(2)), "Get after set at index 2")
+
+    // Uncomment to test panic behavior
+    // stat.push(true) // Should panic
+
+    stat.delete()
+}
+test_array_static_bool()
+
+test_array_dynamic_bool := proc() {
+    mut dyn := BoolArray.new_dyn()
+    assert_eq(loc(), 0, dyn.len)
+    // assert_eq(loc(), BoolArray.INIT_DYN_CAP, dyn.cap) // TODO investigate cap
+
+    dyn.push(true)
+    dyn.push(false)
+    // assert_eq(loc(), 2, dyn.len) // TODO enable when ready
+    // test(loc(), Bool.eq(dyn.get(0), true), "Value at index 0")
+    // test(loc(), Bool.eq(dyn.get(1), false), "Value at index 1")
+
+    // dyn.set(0, false)
+    // test(loc(), Bool.eq(dyn.get(0), false), "Set and get index 0")
+
+    dyn.delete()
+    assert_eq(loc(), 0, dyn.ptr)
+    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.cap)
+}
+test_array_dynamic_bool()

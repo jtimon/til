@@ -48,6 +48,9 @@ NULL := 0
 Ptr := struct {
     mut data: I64 = NULL
 
+    // TODO generalize this from the compiler
+    size := func() returns I64 { return I64.size() }
+
     new := proc(size: I64) returns Ptr {
         mut p := Ptr()
         p.data = malloc(size)
@@ -128,6 +131,9 @@ and := func(a: Bool, b: Bool) returns Bool {
 Bool := struct {
     mut data: U8 = 0
 
+    // TODO generalize this from the compiler
+    size := func() returns I64 { return U8.size() }
+
     len := func(self: Bool) returns I64 {
         return 1
     }
@@ -195,6 +201,9 @@ U8 := struct {
     // TODO FIX can't use itself as base data, can it?
     // TODO This is the base of data storage, not I64
     // mut data: I8 = 0
+
+    // TODO generalize this from the compiler
+    size := func() returns I64 { return 1 }
 
     len := func(self: I64) returns I64 {
         return 1
@@ -541,18 +550,88 @@ StrArray := struct {
     }
 }
 
-// TODO rustic interfaces with arrays, for variadic functions at least at first
-# array_Bool_len := ext_func(a: ArrayBool) returns I64;
-# array_Bool_get := ext_func(a: ArrayBool, pos: I64) returns Bool;
+BoolArray := struct {
+    mut ptr      : I64  = 0     // Pointer to the data buffer
+    mut len      : I64  = 0     // Current number of elements
+    mut cap      : I64  = 0     // Allocated capacity
+    mut is_dyn   : Bool = false // Whether this array is dynamic
 
-# array_i64_len := ext_func(a: ArrayI64) returns I64;
-# array_i64_get := ext_func(a: ArrayI64, pos: I64) returns I64;
+    INIT_DYN_CAP : I64  = 16
+    MAX_CAP      : I64  = 512
 
-# array_str_len := ext_func(a: ArrayStr) returns I64;
-# array_str_get := ext_func(a: ArrayStr, pos: I64) returns Str;
+    new := proc(capacity: I64) returns BoolArray {
+        mut arr := BoolArray()
+        size_bytes := mul(capacity, Bool.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = capacity
+        arr.cap = capacity
+        arr.is_dyn = false
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
 
-// TODO implement macros:
-// array_struct_len := ext_func(a: ArrayStruct) returns I64;
-// array_str_get := ext_func(a: ArrayStruct, pos: I64) returns Str;
-// array_generic_len := ext_func(a: Array) returns I64;
-// array_generic_get := ext_func(a: Array, pos: I64) returns Str;
+    new_dyn := proc() returns BoolArray {
+        mut arr := BoolArray()
+        size_bytes := mul(BoolArray.INIT_DYN_CAP, Bool.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = 0
+        arr.cap = BoolArray.INIT_DYN_CAP
+        arr.is_dyn = true
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    push := proc(mut self: BoolArray, value: Bool) {
+        if not(self.is_dyn) {
+            panic(loc(), "BoolArray.push: push is not allowed for static arrays")
+        }
+
+        if I64.eq(self.len, self.cap) {
+            new_cap := mul(self.cap, 2)
+            if gt(new_cap, BoolArray.MAX_CAP) {
+                panic(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP")
+            }
+
+            new_ptr := malloc(mul(new_cap, Bool.size()))
+            memcpy(new_ptr, self.ptr, mul(self.len, Bool.size()))
+            free(self.ptr)
+            self.ptr = new_ptr
+            self.cap = new_cap
+        }
+
+        dest := add(self.ptr, mul(self.len, Bool.size()))
+        to_ptr := ext_func(val: Bool) returns I64;
+        memcpy(dest, to_ptr(value), Bool.size())
+        self.len = add(self.len, 1)
+    }
+
+    get := func(self: BoolArray, index: I64) returns Bool {
+        if gteq(index, self.len) {
+            panic(loc(), "BoolArray.get: index out of bounds")
+        }
+
+        src := add(self.ptr, mul(index, Bool.size()))
+        mut value : Bool = false
+        to_ptr := ext_func(val: Bool) returns I64;
+        memcpy(to_ptr(value), src, Bool.size())
+        return value
+    }
+
+    set := proc(mut self: BoolArray, index: I64, value: Bool) {
+        if gteq(index, self.len) {
+            panic(loc(), "BoolArray.set: index out of bounds")
+        }
+
+        dest := add(self.ptr, mul(index, Bool.size()))
+        to_ptr := ext_func(val: Bool) returns I64;
+        memcpy(dest, to_ptr(value), Bool.size())
+    }
+
+    delete := proc(mut self: BoolArray) {
+        free(self.ptr)
+        self.ptr = 0
+        self.len = 0
+        self.cap = 0
+        self.is_dyn = false
+    }
+}
