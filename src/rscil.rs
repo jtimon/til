@@ -3004,14 +3004,24 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                 return errors;
             },
         };
-        if expected_type != &found_type {
-            if expected_type == &str_to_value_type(INFER_TYPE) {
-                errors.push(e.error("type", &format!("calling func/proc '{}' declared arg {} without type, but type inference in args is not supported yet.\n Suggestion: the arg should be '{} : {},' instead of just '{},' Found type: {:?}",
-                    f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, value_type_to_str(&expected_type))));
-            } else {
-                errors.push(e.error("type", &format!("calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
-                    f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type))));
-            }
+        match expected_type {
+            ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic-typed argument
+            ValueType::TCustom(tn) if tn == INFER_TYPE => {
+                errors.push(e.error("type", &format!(
+                    "calling func/proc '{}' declared arg {} without type, but type inference in args is not supported.\n\
+                     Suggestion: the arg should be '{} : {},' instead of just '{}'.\n\
+                     Alternative option: the arg could be '{} : Dynamic,' for dynamic arguments.
+                     ",
+                    f_name, arg.name, arg.name, value_type_to_str(&found_type), arg.name, arg.name,
+                )));
+            },
+            _ if expected_type != &found_type => {
+                errors.push(e.error("type", &format!(
+                    "calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
+                    f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type)
+                )));
+            },
+            _ => {} // types match; no error
         }
     }
 

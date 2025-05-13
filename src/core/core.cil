@@ -2,6 +2,8 @@ mode lib
 
 import("src/core/constants")
 
+Dynamic := struct {} // For dynamic arguments not checked at type checking phase
+
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;
 gt        := ext_func(a: I64, b: I64) returns Bool;
@@ -39,11 +41,12 @@ panic := proc(loc_str: Str, msg: Str) {
 }
 
 // Memory operations
+NULL   := 0
 malloc := ext_proc(size: I64) returns I64;
-free := ext_proc(ptr: I64);
+free   := ext_proc(ptr: I64);
 memcpy := ext_proc(dest: I64, src: I64, size: I64);
 memset := ext_proc(dest: I64, value: U8, size: I64);
-NULL := 0
+to_ptr := ext_func(val: Dynamic) returns I64;
 
 Ptr := struct {
     mut data: I64 = NULL
@@ -295,8 +298,6 @@ Str := struct {
             return false
         }
 
-        to_ptr := ext_func(val: U8) returns I64;
-
         mut is_eq := true
         mut i : I64 = 0
         while and(lt(i, self.cap), is_eq) {
@@ -363,7 +364,6 @@ Str := struct {
             exit(1)
         }
 
-        to_ptr := ext_func(val: U8) returns I64;
         mut substr := Str()
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
@@ -429,7 +429,6 @@ U8Array := struct {
         }
 
         mut dest := add(self.ptr, self.len)
-        to_ptr := ext_func(val: U8) returns I64;
         memcpy(dest, to_ptr(value), 1)
         self.len = add(self.len, 1)
     }
@@ -441,7 +440,6 @@ U8Array := struct {
 
         mut src := add(self.ptr, index)
         mut value : U8 = 0
-        to_ptr := ext_func(val: U8) returns I64;
         memcpy(to_ptr(value), src, 1)
         return value
     }
@@ -451,7 +449,6 @@ U8Array := struct {
             panic(loc(), "U8Array.set: index out of bounds")
         }
         mut dest := add(self.ptr, index)
-        to_ptr := ext_func(val: U8) returns I64;
         memcpy(dest, to_ptr(value), 1)
     }
 
@@ -514,7 +511,6 @@ StrArray := struct {
         }
 
         dest := add(self.ptr, mul(self.len, Str.size()))
-        to_ptr := ext_func(val: Str) returns I64;
         memcpy(dest, to_ptr(value), Str.size())
         self.len = add(self.len, 1)
     }
@@ -526,7 +522,6 @@ StrArray := struct {
 
         src := add(self.ptr, mul(index, Str.size()))
         mut value : Str = ""
-        to_ptr := ext_func(val: Str) returns I64;
         memcpy(to_ptr(value), src, Str.size())
         return value
     }
@@ -537,7 +532,6 @@ StrArray := struct {
         }
 
         dest := add(self.ptr, mul(index, Str.size()))
-        to_ptr := ext_func(val: Str) returns I64;
         memcpy(dest, to_ptr(value), Str.size())
     }
 
@@ -600,7 +594,6 @@ BoolArray := struct {
         }
 
         dest := add(self.ptr, mul(self.len, Bool.size()))
-        to_ptr := ext_func(val: Bool) returns I64;
         memcpy(dest, to_ptr(value), Bool.size())
         self.len = add(self.len, 1)
     }
@@ -612,7 +605,6 @@ BoolArray := struct {
 
         src := add(self.ptr, mul(index, Bool.size()))
         mut value : Bool = false
-        to_ptr := ext_func(val: Bool) returns I64;
         memcpy(to_ptr(value), src, Bool.size())
         return value
     }
@@ -623,7 +615,6 @@ BoolArray := struct {
         }
 
         dest := add(self.ptr, mul(index, Bool.size()))
-        to_ptr := ext_func(val: Bool) returns I64;
         memcpy(dest, to_ptr(value), Bool.size())
     }
 
@@ -686,7 +677,6 @@ I64Array := struct {
         }
 
         dest := add(self.ptr, mul(self.len, I64.size()))
-        to_ptr := ext_func(val: I64) returns I64;
         memcpy(dest, to_ptr(value), I64.size())
         self.len = add(self.len, 1)
     }
@@ -698,7 +688,6 @@ I64Array := struct {
 
         src := add(self.ptr, mul(index, I64.size()))
         mut value : I64 = 0
-        to_ptr := ext_func(val: I64) returns I64;
         memcpy(to_ptr(value), src, I64.size())
         return value
     }
@@ -709,7 +698,6 @@ I64Array := struct {
         }
 
         dest := add(self.ptr, mul(index, I64.size()))
-        to_ptr := ext_func(val: I64) returns I64;
         memcpy(dest, to_ptr(value), I64.size())
     }
 
