@@ -4,6 +4,9 @@ import("src/core/constants")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 
+// FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
+loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
+
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;
 gt        := ext_func(a: I64, b: I64) returns Bool;
@@ -33,26 +36,25 @@ exit    := ext_proc(code: I64);
 import  := ext_proc(path: Str);
 runfile := ext_proc(args: ..Str);
 
-loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
+// Memory operations
+NULL   := 0
+size_of := ext_func(type: Dynamic) returns I64;
+to_ptr := ext_func(var_identifier: Dynamic) returns I64;
+malloc := ext_proc(size: I64) returns I64;
+free   := ext_proc(ptr: I64);
+memcpy := ext_proc(dest: I64, src: I64, size: I64);
+memset := ext_proc(dest: I64, value: U8, size: I64);
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.concat(msg))
     exit(1)
 }
 
-// Memory operations
-NULL   := 0
-malloc := ext_proc(size: I64) returns I64;
-free   := ext_proc(ptr: I64);
-memcpy := ext_proc(dest: I64, src: I64, size: I64);
-memset := ext_proc(dest: I64, value: U8, size: I64);
-to_ptr := ext_func(val: Dynamic) returns I64;
-
 Ptr := struct {
     mut data: I64 = NULL
 
-    // TODO generalize this from the compiler
-    size := func() returns I64 { return I64.size() }
+    // TODO FIX should type error because size is already declared
+    size_of := func() returns I64 { return size_of(I64) }
 
     new := proc(size: I64) returns Ptr {
         mut p := Ptr()
@@ -134,9 +136,6 @@ and := func(a: Bool, b: Bool) returns Bool {
 Bool := struct {
     mut data: U8 = 0
 
-    // TODO generalize this from the compiler
-    size := func() returns I64 { return U8.size() }
-
     len := func(self: Bool) returns I64 {
         return 1
     }
@@ -205,9 +204,6 @@ U8 := struct {
     // TODO This is the base of data storage, not I64
     // mut data: I8 = 0
 
-    // TODO generalize this from the compiler
-    size := func() returns I64 { return 1 }
-
     len := func(self: I64) returns I64 {
         return 1
     }
@@ -240,9 +236,6 @@ U8 := struct {
 
 I64 := struct {
     // mut data : U8Array = U8Array.new(8) // TODO Use [8]U8 for this one
-
-    // TODO generalize this from the compiler
-    size := func() returns I64 { return 8 }
 
     eq := func(a: I64, b: I64) returns Bool {
         if or(gt(a, b), gt(b, a)) {
@@ -283,11 +276,6 @@ Str := struct {
     mut c_string : I64 = 0
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
-
-    // TODO generalize this from the compiler
-    size := func() returns I64 {
-        return mul(2, I64.size())
-    }
 
     len := func(self: Str) returns I64 {
         return self.cap
@@ -472,7 +460,7 @@ StrArray := struct {
 
     new := proc(capacity: I64) returns StrArray {
         mut arr := StrArray()
-        size_bytes := mul(capacity, Str.size())
+        size_bytes := mul(capacity, size_of(Str))
         arr.ptr = malloc(size_bytes)
         arr.len = capacity
         arr.cap = capacity
@@ -483,7 +471,7 @@ StrArray := struct {
 
     new_dyn := proc() returns StrArray {
         mut arr := StrArray()
-        size_bytes := mul(StrArray.INIT_DYN_CAP, Str.size())
+        size_bytes := mul(StrArray.INIT_DYN_CAP, size_of(Str))
         arr.ptr = malloc(size_bytes)
         arr.len = 0
         arr.cap = StrArray.INIT_DYN_CAP
@@ -503,15 +491,15 @@ StrArray := struct {
                 panic(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP")
             }
 
-            new_ptr := malloc(mul(new_cap, Str.size()))
-            memcpy(new_ptr, self.ptr, mul(self.len, Str.size()))
+            new_ptr := malloc(mul(new_cap, size_of(Str)))
+            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Str)))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        dest := add(self.ptr, mul(self.len, Str.size()))
-        memcpy(dest, to_ptr(value), Str.size())
+        dest := add(self.ptr, mul(self.len, size_of(Str)))
+        memcpy(dest, to_ptr(value), size_of(Str))
         self.len = add(self.len, 1)
     }
 
@@ -520,9 +508,9 @@ StrArray := struct {
             panic(loc(), "StrArray.get: index out of bounds")
         }
 
-        src := add(self.ptr, mul(index, Str.size()))
+        src := add(self.ptr, mul(index, size_of(Str)))
         mut value : Str = ""
-        memcpy(to_ptr(value), src, Str.size())
+        memcpy(to_ptr(value), src, size_of(Str))
         return value
     }
 
@@ -531,8 +519,8 @@ StrArray := struct {
             panic(loc(), "StrArray.set: index out of bounds")
         }
 
-        dest := add(self.ptr, mul(index, Str.size()))
-        memcpy(dest, to_ptr(value), Str.size())
+        dest := add(self.ptr, mul(index, size_of(Str)))
+        memcpy(dest, to_ptr(value), size_of(Str))
     }
 
     delete := proc(mut self: StrArray) {
@@ -555,7 +543,7 @@ BoolArray := struct {
 
     new := proc(capacity: I64) returns BoolArray {
         mut arr := BoolArray()
-        size_bytes := mul(capacity, Bool.size())
+        size_bytes := mul(capacity, size_of(Bool))
         arr.ptr = malloc(size_bytes)
         arr.len = capacity
         arr.cap = capacity
@@ -566,7 +554,7 @@ BoolArray := struct {
 
     new_dyn := proc() returns BoolArray {
         mut arr := BoolArray()
-        size_bytes := mul(BoolArray.INIT_DYN_CAP, Bool.size())
+        size_bytes := mul(BoolArray.INIT_DYN_CAP, size_of(Bool))
         arr.ptr = malloc(size_bytes)
         arr.len = 0
         arr.cap = BoolArray.INIT_DYN_CAP
@@ -586,15 +574,15 @@ BoolArray := struct {
                 panic(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP")
             }
 
-            new_ptr := malloc(mul(new_cap, Bool.size()))
-            memcpy(new_ptr, self.ptr, mul(self.len, Bool.size()))
+            new_ptr := malloc(mul(new_cap, size_of(Bool)))
+            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Bool)))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        dest := add(self.ptr, mul(self.len, Bool.size()))
-        memcpy(dest, to_ptr(value), Bool.size())
+        dest := add(self.ptr, mul(self.len, size_of(Bool)))
+        memcpy(dest, to_ptr(value), size_of(Bool))
         self.len = add(self.len, 1)
     }
 
@@ -603,9 +591,9 @@ BoolArray := struct {
             panic(loc(), "BoolArray.get: index out of bounds")
         }
 
-        src := add(self.ptr, mul(index, Bool.size()))
+        src := add(self.ptr, mul(index, size_of(Bool)))
         mut value : Bool = false
-        memcpy(to_ptr(value), src, Bool.size())
+        memcpy(to_ptr(value), src, size_of(Bool))
         return value
     }
 
@@ -614,8 +602,8 @@ BoolArray := struct {
             panic(loc(), "BoolArray.set: index out of bounds")
         }
 
-        dest := add(self.ptr, mul(index, Bool.size()))
-        memcpy(dest, to_ptr(value), Bool.size())
+        dest := add(self.ptr, mul(index, size_of(Bool)))
+        memcpy(dest, to_ptr(value), size_of(Bool))
     }
 
     delete := proc(mut self: BoolArray) {
@@ -638,7 +626,7 @@ I64Array := struct {
 
     new := proc(capacity: I64) returns I64Array {
         mut arr := I64Array()
-        size_bytes := mul(capacity, I64.size())
+        size_bytes := mul(capacity, size_of(I64))
         arr.ptr = malloc(size_bytes)
         arr.len = capacity
         arr.cap = capacity
@@ -649,7 +637,7 @@ I64Array := struct {
 
     new_dyn := proc() returns I64Array {
         mut arr := I64Array()
-        size_bytes := mul(I64Array.INIT_DYN_CAP, I64.size())
+        size_bytes := mul(I64Array.INIT_DYN_CAP, size_of(I64))
         arr.ptr = malloc(size_bytes)
         arr.len = 0
         arr.cap = I64Array.INIT_DYN_CAP
@@ -669,15 +657,15 @@ I64Array := struct {
                 panic(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP")
             }
 
-            new_ptr := malloc(mul(new_cap, I64.size()))
-            memcpy(new_ptr, self.ptr, mul(self.len, I64.size()))
+            new_ptr := malloc(mul(new_cap, size_of(I64)))
+            memcpy(new_ptr, self.ptr, mul(self.len, size_of(I64)))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        dest := add(self.ptr, mul(self.len, I64.size()))
-        memcpy(dest, to_ptr(value), I64.size())
+        dest := add(self.ptr, mul(self.len, size_of(I64)))
+        memcpy(dest, to_ptr(value), size_of(I64))
         self.len = add(self.len, 1)
     }
 
@@ -686,9 +674,9 @@ I64Array := struct {
             panic(loc(), "I64Array.get: index out of bounds")
         }
 
-        src := add(self.ptr, mul(index, I64.size()))
+        src := add(self.ptr, mul(index, size_of(I64)))
         mut value : I64 = 0
-        memcpy(to_ptr(value), src, I64.size())
+        memcpy(to_ptr(value), src, size_of(I64))
         return value
     }
 
@@ -697,8 +685,8 @@ I64Array := struct {
             panic(loc(), "I64Array.set: index out of bounds")
         }
 
-        dest := add(self.ptr, mul(index, I64.size()))
-        memcpy(dest, to_ptr(value), I64.size())
+        dest := add(self.ptr, mul(index, size_of(I64)))
+        memcpy(dest, to_ptr(value), size_of(I64))
     }
 
     delete := proc(mut self: I64Array) {

@@ -3488,6 +3488,27 @@ fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> String {
     }
 }
 
+fn eval_core_func_size_of(context: &mut Context, e: &Expr) -> String {
+    assert!(
+        e.params.len() == 2,
+        "{} ERROR: Core func 'size_of' takes exactly 1 argument. This should never happen.",
+        LANG_NAME
+    );
+
+    let type_expr = e.get(1);
+    match &type_expr.node_type {
+        NodeType::Identifier(type_name) => {
+            match context.get_type_size(type_name) {
+                Ok(size) => format!("{}", size),
+                Err(msg) => e.lang_error("eval", &format!("calling core func size: {}", msg)),
+            }
+        },
+        node_type => {
+            e.lang_error("eval", &format!("calling core func size_of, but found '{:?}' instead of identifier.", node_type))
+        }
+    }
+}
+
 fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> String {
     assert!(e.params.len() == 3, "{} ERROR: Core func 'eq' takes exactly 2 arguments. This should never happen.", LANG_NAME);
     let a = &eval_expr(&mut context, e.get(1)).parse::<i64>().unwrap();
@@ -3835,11 +3856,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_proc: bool) -> String {
     return match name {
         "loc" => return eval_core_func_loc(&mut context, e),
+        "size_of" => eval_core_func_size_of(&mut context, &e),
+        "to_ptr" => eval_core_func_to_ptr(&mut context, &e),
         "malloc" => eval_core_func_malloc(&mut context, &e),
         "free" => eval_core_func_free(&mut context, &e),
         "memset" => eval_core_func_memset(&mut context, &e),
         "memcpy" => eval_core_func_memcpy(&mut context, &e),
-        "to_ptr" => eval_core_func_to_ptr(&mut context, &e),
         "lt" => eval_core_func_lt(&mut context, &e),
         "gt" => eval_core_func_gt(&mut context, &e),
         "add" => eval_core_func_add(&mut context, &e),
