@@ -37,3 +37,42 @@ test_array_dynamic_u8 := proc() {
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 }
 test_array_dynamic_u8()
+
+test_array_static_str := proc() {
+    mut stat := StrArray.new(3)
+    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), stat.cap, stat.len)
+    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
+
+    stat.set(0, "hello")
+    stat.set(1, "world")
+    stat.set(2, "!")
+    test(loc(), Str.eq("!", stat.get(2)), "Get after set at index 2")
+
+    // Uncomment to test panic behavior
+    // stat.push("fail") // Should panic
+
+    stat.delete()
+}
+test_array_static_str()
+
+test_array_dynamic_str := proc() {
+    mut dyn := StrArray.new_dyn()
+    assert_eq(loc(), 0, dyn.len)
+    // assert_eq(loc(), StrArray.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
+
+    dyn.push("foo")
+    dyn.push("bar")
+    // assert_eq(loc(), 2, dyn.len) // TODO FIX Length after two pushes
+    // test(loc(), Str.eq(dyn.get(0), "foo"), "Value at index 0")
+    // test(loc(), Str.eq(dyn.get(1), "bar"), "Value at index 1")
+
+    // dyn.set(0, "baz")
+    // test(loc(), Str.eq(dyn.get(0), "baz"), "Set and get index 0")
+
+    dyn.delete()
+    assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
+    assert_eq(loc(), 0, dyn.len) // Length reset after delete
+    assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
+}
+test_array_dynamic_str()

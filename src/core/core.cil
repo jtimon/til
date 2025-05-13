@@ -227,9 +227,10 @@ U8 := struct {
 }
 
 I64 := struct {
-    // mut data := 0 // TODO Use [8]U8 for this one
+    // mut data : U8Array = U8Array.new(8) // TODO Use [8]U8 for this one
 
-    len := func(self: I64) returns I64 { return 1 }
+    // TODO generalize this from the compiler
+    size := func() returns I64 { return 8 }
 
     eq := func(a: I64, b: I64) returns Bool {
         if or(gt(a, b), gt(b, a)) {
@@ -270,6 +271,11 @@ Str := struct {
     mut c_string : I64 = 0
     mut cap      : I64 = 0
     // mut len : I64 = 0 // TODO make sure double declarations inside the same struct give type errors
+
+    // TODO generalize this from the compiler
+    size := func() returns I64 {
+        return mul(2, I64.size())
+    }
 
     len := func(self: Str) returns I64 {
         return self.cap
@@ -441,6 +447,92 @@ U8Array := struct {
     }
 
     delete := proc(mut self: U8Array) {
+        free(self.ptr)
+        self.ptr = 0
+        self.len = 0
+        self.cap = 0
+        self.is_dyn = false
+    }
+}
+
+StrArray := struct {
+    mut ptr      : I64  = 0     // Pointer to the data buffer
+    mut len      : I64  = 0     // Current number of elements
+    mut cap      : I64  = 0     // Allocated capacity
+    mut is_dyn   : Bool = false // Whether this array is dynamic
+
+    INIT_DYN_CAP : I64  = 16
+    MAX_CAP      : I64  = 512
+
+    new := proc(capacity: I64) returns StrArray {
+        mut arr := StrArray()
+        size_bytes := mul(capacity, Str.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = capacity
+        arr.cap = capacity
+        arr.is_dyn = false
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    new_dyn := proc() returns StrArray {
+        mut arr := StrArray()
+        size_bytes := mul(StrArray.INIT_DYN_CAP, Str.size())
+        arr.ptr = malloc(size_bytes)
+        arr.len = 0
+        arr.cap = StrArray.INIT_DYN_CAP
+        arr.is_dyn = true
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    push := proc(mut self: StrArray, value: Str) {
+        if not(self.is_dyn) {
+            panic(loc(), "StrArray.push: push is not allowed for static arrays")
+        }
+
+        if I64.eq(self.len, self.cap) {
+            new_cap := mul(self.cap, 2)
+            if gt(new_cap, StrArray.MAX_CAP) {
+                panic(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP")
+            }
+
+            new_ptr := malloc(mul(new_cap, Str.size()))
+            memcpy(new_ptr, self.ptr, mul(self.len, Str.size()))
+            free(self.ptr)
+            self.ptr = new_ptr
+            self.cap = new_cap
+        }
+
+        dest := add(self.ptr, mul(self.len, Str.size()))
+        to_ptr := ext_func(val: Str) returns I64;
+        memcpy(dest, to_ptr(value), Str.size())
+        self.len = add(self.len, 1)
+    }
+
+    get := func(self: StrArray, index: I64) returns Str {
+        if gteq(index, self.len) {
+            panic(loc(), "StrArray.get: index out of bounds")
+        }
+
+        src := add(self.ptr, mul(index, Str.size()))
+        mut value : Str = ""
+        to_ptr := ext_func(val: Str) returns I64;
+        memcpy(to_ptr(value), src, Str.size())
+        return value
+    }
+
+    set := proc(mut self: StrArray, index: I64, value: Str) {
+        if gteq(index, self.len) {
+            panic(loc(), "StrArray.set: index out of bounds")
+        }
+
+        dest := add(self.ptr, mul(index, Str.size()))
+        to_ptr := ext_func(val: Str) returns I64;
+        memcpy(dest, to_ptr(value), Str.size())
+    }
+
+    delete := proc(mut self: StrArray) {
         free(self.ptr)
         self.ptr = 0
         self.len = 0
