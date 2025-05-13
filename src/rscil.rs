@@ -468,8 +468,8 @@ enum ValueType {
     TMacro,
     TEnumDef,
     TStructDef,
-    TMulti(Box<ValueType>),
     TCustom(String),
+    TMulti(String),
     ToInferType,
 }
 
@@ -482,7 +482,7 @@ fn value_type_to_str(arg_type: &ValueType) -> String {
         ValueType::TMacro => "macro".to_string(),
         ValueType::TEnumDef => "enum".to_string(),
         ValueType::TStructDef => "struct".to_string(),
-        ValueType::TMulti(val_type) => format!("[]{}", value_type_to_str(val_type)).to_string(),
+        ValueType::TMulti(type_name) => format!("{}", type_name),
         ValueType::TCustom(type_name) => format!("{}", type_name),
     }
 }
@@ -915,7 +915,7 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     if is_variadic {
                         args.push(Declaration {
                             name: arg_name.to_string(),
-                            value_type: ValueType::TMulti(Box::new(str_to_value_type(&t.token_str))),
+                            value_type: ValueType::TMulti(t.token_str.clone()),
                             is_mut: is_mut,
                         });
                         is_variadic = false;
@@ -2535,6 +2535,10 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                         },
                     }
                 },
+                ValueType::TMulti(variadic_type_name) => {
+                    return Err(e.todo_error("type", &format!("Arg: '{}': Variadic arguments of type '{}' are not supported yet",
+                                                             name, variadic_type_name)))
+                },
                 _ => {
                     return Err(e.error("type", &format!("'{}' of type '{}' can't have members, '{}' is not a member",
                                        name, value_type_to_str(&symbol_info.value_type), member_str)))
@@ -2989,9 +2993,9 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
     let max_arg_def = func_def.args.len();
     for i in 0..e.params.len() - 1 {
         let arg = func_def.args.get(std::cmp::min(i, max_arg_def - 1)).unwrap();
-        let expected_type = match &arg.value_type {
-            ValueType::TMulti(inner_type) => inner_type,
-            _ => &arg.value_type,
+        let expected_type = &match &arg.value_type {
+            ValueType::TMulti(inner_type_name) => str_to_value_type(&inner_type_name.clone()),
+            _ => arg.value_type.clone(),
         };
         let found_type = match get_value_type(&context, e.get(i + 1)) {
             Ok(val_type) => val_type,
