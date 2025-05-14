@@ -11,7 +11,7 @@ tests: rscil
 # TODO run src/cil.cil with cil.cil
 # TODO run src/tests.cil with cil.cil
 cil: rscil tests
-	./bin/rscil interpret src/cil.cil src/test/example_self_hosted.cil
+	./bin/rscil interpret src/cil.cil src/test/self/lexer/premode.cil
 	# ./bin/rscil interpret src/cil.cil help
 	# ./bin/rscil interpret src/cil.cil src/test/strings.cil
 	# ./bin/rscil interpret src/cil.cil src/core/lexer.cil
