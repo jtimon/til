@@ -1,6 +1,7 @@
 mode lib
 
 LANG_NAME := "cil"
+DEBUG_COMPILER := true
 
 TokenType := enum {
     // basic
@@ -62,8 +63,91 @@ Token := struct {
     mut col: I64 = 0
 }
 
+TokenArray := struct {
+    mut ptr      : I64  = 0     // Pointer to the data buffer
+    mut len      : I64  = 0     // Current number of elements
+    mut cap      : I64  = 0     // Allocated capacity
+    mut is_dyn   : Bool = false // Whether this array is dynamic
+
+    INIT_DYN_CAP : I64  = 16
+    MAX_CAP      : I64  = 512
+
+    new := proc(capacity: I64) returns TokenArray {
+        mut arr := TokenArray()
+        size_bytes := mul(capacity, size_of(Token))
+        arr.ptr = malloc(size_bytes)
+        arr.len = capacity
+        arr.cap = capacity
+        arr.is_dyn = false
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    new_dyn := proc() returns TokenArray {
+        mut arr := TokenArray()
+        size_bytes := mul(TokenArray.INIT_DYN_CAP, size_of(Token))
+        arr.ptr = malloc(size_bytes)
+        arr.len = 0
+        arr.cap = TokenArray.INIT_DYN_CAP
+        arr.is_dyn = true
+        memset(arr.ptr, 0, size_bytes)
+        return arr
+    }
+
+    push := proc(mut self: TokenArray, value: Token) {
+        if not(self.is_dyn) {
+            panic(loc(), "TokenArray.push: push is not allowed for static arrays")
+        }
+
+        if I64.eq(self.len, self.cap) {
+            new_cap := mul(self.cap, 2)
+            if gt(new_cap, TokenArray.MAX_CAP) {
+                panic(loc(), "TokenArray.push: capacity exceeded TokenArray.MAX_CAP")
+            }
+
+            new_ptr := malloc(mul(new_cap, size_of(Token)))
+            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Token)))
+            free(self.ptr)
+            self.ptr = new_ptr
+            self.cap = new_cap
+        }
+
+        dest := add(self.ptr, mul(self.len, size_of(Token)))
+        memcpy(dest, to_ptr(value), size_of(Token))
+        self.len = add(self.len, 1)
+    }
+
+    get := func(self: TokenArray, index: I64) returns Token {
+        if gteq(index, self.len) {
+            panic(loc(), "TokenArray.get: index out of bounds")
+        }
+
+        src := add(self.ptr, mul(index, size_of(Token)))
+        mut t := Token()
+        memcpy(to_ptr(t), src, size_of(Token))
+        return t
+    }
+
+    set := proc(mut self: TokenArray, index: I64, value: Token) {
+        if gteq(index, self.len) {
+            panic(loc(), "TokenArray.set: index out of bounds")
+        }
+
+        dest := add(self.ptr, mul(index, size_of(Token)))
+        memcpy(dest, to_ptr(value), size_of(Token))
+    }
+
+    delete := proc(mut self: TokenArray) {
+        free(self.ptr)
+        self.ptr = 0
+        self.len = 0
+        self.cap = 0
+        self.is_dyn = false
+    }
+}
+
 // TODO implement struct arrays and add the tokens to it, for now just print the tokens
-scan_push_token := proc(token_type: TokenType, token_str: Str, line: I64, col: I64) {
+scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) {
     mut t := Token()
     t.token_type = token_type
     // t.token_str = token_str // TODO re-enable strings as fields
@@ -71,7 +155,7 @@ scan_push_token := proc(token_type: TokenType, token_str: Str, line: I64, col: I
     t.col = col
 
     println("Token (", I64.to_str(line), ", ", I64.to_str(col), "): Type: ", enum_to_str(t.token_type), " str: ", token_str)
-    // return t
+    // tokens.push(t) // TODO FIX 115:9: eval ERROR: memcpy out of bounds: src=82424 dest=82477 size=24 arena_len=82493
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool {
@@ -216,7 +300,9 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_tokens := proc(source: Str) {
+scan_tokens := proc(source: Str) returns TokenArray {
+    mut tokens := TokenArray.new_dyn()
+
     eof_pos := Str.len(source) // TODO fix
     // eof_pos := source.len()
 
@@ -237,7 +323,7 @@ scan_tokens := proc(source: Str) {
                     pos.inc()
                 }
             }
-            scan_push_token(TokenType.Number, Str.get_substr(source, start, pos), line, sub(pos, start_line_pos))
+            scan_push_token(tokens, TokenType.Number, Str.get_substr(source, start, pos), line, sub(pos, start_line_pos))
         } else {
 
             current_char := Str.get_substr(source, pos, add(pos, 1))
@@ -250,83 +336,83 @@ scan_tokens := proc(source: Str) {
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
-                scan_push_token(TokenType.LeftParen, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftParen, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case ")":
-                scan_push_token(TokenType.RightParen, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightParen, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "{":
-                scan_push_token(TokenType.LeftBrace, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftBrace, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "}":
-                scan_push_token(TokenType.RightBrace, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightBrace, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "[":
-                scan_push_token(TokenType.LeftBracket, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftBracket, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "]":
-                scan_push_token(TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
 
                 // separator for optional type before the equal in declarations or args
             case ":":
-                scan_push_token(TokenType.Colon, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Colon, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
                 // separator for args
             case ",":
-                scan_push_token(TokenType.Comma, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Comma, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
 
                 // math
             case "+":
-                scan_push_token(TokenType.Plus, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Plus, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "-":
-                scan_push_token(TokenType.Minus, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Minus, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
             case "*":
-                scan_push_token(TokenType.Star, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Star, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
 
                 // reserved for two chars in a row
             case ".":
                 if Str.eq(".", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(TokenType.Dot, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Dot, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
             case "=":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(TokenType.Equal, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Equal, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
             case "<":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
             case ">":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(TokenType.Greater, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Greater, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
             case "!":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(TokenType.Not, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Not, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
 
@@ -347,7 +433,7 @@ scan_tokens := proc(source: Str) {
                     }
 
                 } else {
-                    scan_push_token(TokenType.Slash, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Slash, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
 
@@ -363,10 +449,10 @@ scan_tokens := proc(source: Str) {
                 }
                 if gteq(pos, eof_pos) {
                     token_str := Str.get_substr(source, start, add(pos, 1))
-                    scan_push_token(TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     token_str := Str.get_substr(source, add(start, 1), pos)
-                    scan_push_token(TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
                 }
 
                 // Everything else must be reserved words, identifiers or invalid
@@ -379,37 +465,32 @@ scan_tokens := proc(source: Str) {
                     }
                     pos.dec()
                     id_str := Str.get_substr(source, start, add(pos, 1))
-                    scan_push_token(scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
-                    scan_push_token(TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
                 }
                 pos.inc()
             } // switch
         } // else
         // println("Current char:", current_char)
     } // while
-    scan_push_token(TokenType.Eof, "End of file", line, 0);
+    scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
+
+    return tokens
 }
 
 Lexer := struct {
-    mut debug_compiler : Bool = false
+
     mut path : Str = ""
-    mut src : Str = ""
-    // TODO store tokens in lexer
-    // mut tokens: []Token = Array::new() // TODO
+    mut tokens : TokenArray = TokenArray.new_dyn()
     mut current_token : I64 = 0
     mut arr_current_token := Token() // TODO stop faking tokens array
 
-    new_fake_path := func(fake_path: Str, src: Str) returns Lexer {
-        l := Lexer()
-        l.path = fake_path
-        // TODO lex tokens by calling scan_tokens()
+    new := proc(path: Str) returns Lexer {
+        mut l := Lexer()
+        l.path = path
+        l.tokens = scan_tokens(readfile(path))
         return l
-    }
-
-    new := func(path: Str) returns Lexer {
-        src := readfile(path)
-        return Expr.new_fake_path(path, src)
     }
 
     peek := func(self: Lexer) returns Token {
@@ -430,6 +511,19 @@ Lexer := struct {
             return false
         }
         return true
+    }
+
+    print_lex_errors := proc(self: Lexer) returns I64 {
+        tokens := lexer.tokens
+        mut errors_found := 0
+        mut i := 0
+        while lt(i, tokens.len) {
+            t := Token()
+            tokens.get(i, t)
+            print_if_lex_error(lexer.path, t, errors_found)
+            i.inc()
+        }
+        return errors_found
     }
 
     error := proc(self: Lexer, loc_str: Str, t: Token, msg: Str) {

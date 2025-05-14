@@ -41,7 +41,7 @@ main := proc(path: Str) {
             // path.eq("help"),
             // path.eq("-help"),
             path.eq("--help"),
-            // path.eq("--version"),
+            // path.eq("--version"), // REM don't implement this option until it makes sense
             // path.eq("-v")
         ) {
             usage()
@@ -49,13 +49,11 @@ main := proc(path: Str) {
         } else {
             println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
             src := readfile(path)
-            scan_tokens(src) // TODO remove later since it is  redundant with 'Lexer.new(src)'
-            // lexer := Lexer.new(src) // TODO
-            // TODO("Not self hosted yet")
+            tokens := scan_tokens(src) // REM don't call scan_tokens from here
 
-            // TODO implement get_current_line() core func to print better errors from cil
-            // println(path, ":0:0: TODO: Eventally 'args' is going to be needed for mode 'cli', in the 'main' proc")
-            // println(path, ":0:0: TODO: REM: Implement lexer")
+            // FIX Lexer.new(path) and we stop callig scan_tokens(src)
+            // lexer := Lexer.new(path)
+            // lexer.print_lex_errors()
         }
     }
 }
