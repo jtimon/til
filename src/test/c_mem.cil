@@ -1,5 +1,44 @@
 mode test
 
+Color := enum {
+    Black,
+    White,
+    // other: I64, // TODO support tagged unions
+}
+
+test_size_of := proc() {
+    assert_eq(loc(), size_of(U8), 1)
+    assert_eq(loc(), size_of(Bool), 1)
+    assert_eq(loc(), size_of(I64), 8)
+    assert_eq(loc(), size_of(Color), 8)
+    assert_eq(loc(), size_of(Str), 16)
+}
+test_size_of()
+
+test_to_ptr := proc() {
+    mut x : I64 = 256
+    test(loc(), gt(to_ptr(x), 0), "to_ptr(I64) should return non-zero")
+
+    mut b : Bool = false
+    test(loc(), gt(to_ptr(b), 0), "to_ptr(Bool) should return non-zero")
+
+    mut s : Str = "abc"
+    test(loc(), gt(to_ptr(s), 0), "to_ptr(Str) should return non-zero")
+
+    mut u : U8 = 42
+    test(loc(), gt(to_ptr(u), 0), "to_ptr(U8) should return non-zero")
+}
+test_to_ptr()
+
+test_type_as_str := proc() {
+    assert_eq_str(loc(), "I64", type_as_str(I64))
+    assert_eq_str(loc(), "Bool", type_as_str(Bool))
+    assert_eq_str(loc(), "Str", type_as_str(Str))
+    assert_eq_str(loc(), "U8", type_as_str(U8))
+    assert_eq_str(loc(), "Color", type_as_str(Color))
+}
+test_type_as_str()
+
 test_malloc := proc() {
     mut p := malloc(16)
     test(loc(), gt(p, 0), "malloc: pointer address should be non-zero")

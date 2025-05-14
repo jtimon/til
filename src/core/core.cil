@@ -40,6 +40,7 @@ runfile := ext_proc(args: ..Str);
 NULL   := 0
 size_of := ext_func(type: Dynamic) returns I64;
 to_ptr := ext_func(var_identifier: Dynamic) returns I64;
+type_as_str := ext_func(type: Dynamic) returns Str;
 malloc := ext_proc(size: I64) returns I64;
 free   := ext_proc(ptr: I64);
 memcpy := ext_proc(dest: I64, src: I64, size: I64);
