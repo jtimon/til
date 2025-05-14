@@ -22,26 +22,6 @@ const SELF_HOSTED_PATH     : &str = "src/cil.cil";
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 const SKIP_AST             : bool = true;
 
-// ---------- format errors
-
-// struct RscilErr {
-//     error_str: &str,
-//     t: &Token,
-//     level: &str,
-// }
-
-// fn init_err(t: &Token, level: &str, error_str: &str) return RscilErr {
-//     return RscilErr(format!("{}:{}: {} ERROR: {}", e.line, e.col, level, error_str));
-// }
-
-// fn format_err(RscilErr: err) -> String {
-//     return format!("{}:{}: {} ERROR: {}", err.e.line, err.t.col, err.level, err.error_str);
-// }
-
-// fn print_err(RscilErr: err) {
-//     println(format_err(err))
-// }
-
 // ---------- parser
 
 fn is_literal(t: &Token) -> bool {
