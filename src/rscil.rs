@@ -6,8 +6,10 @@ use std::io::ErrorKind;
 use std::collections::HashMap;
 use std::convert::TryInto;
 
-mod lexer;
-use lexer::{TokenType, Token, Lexer, lexer_from_source};
+mod rs {
+    pub mod lexer;  // TODO Import parser from the rs directory
+}
+use rs::lexer::{TokenType, Token, Lexer, lexer_from_source};
 
 // We may want to change it to rsbootstrap later when self hosting, if we get there
 // or just change the name of the language
