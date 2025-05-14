@@ -76,65 +76,51 @@ TokenArray := struct {
         mut arr := TokenArray()
         size_bytes := mul(capacity, size_of(Token))
         arr.ptr = malloc(size_bytes)
+        memset(arr.ptr, 0, size_bytes)
         arr.len = capacity
         arr.cap = capacity
         arr.is_dyn = false
-        memset(arr.ptr, 0, size_bytes)
         return arr
     }
 
     new_dyn := proc() returns TokenArray {
         mut arr := TokenArray()
-        size_bytes := mul(TokenArray.INIT_DYN_CAP, size_of(Token))
+        arr.cap = TokenArray.INIT_DYN_CAP
+        size_bytes := mul(arr.cap, size_of(Token))
         arr.ptr = malloc(size_bytes)
         arr.len = 0
-        arr.cap = TokenArray.INIT_DYN_CAP
         arr.is_dyn = true
         memset(arr.ptr, 0, size_bytes)
         return arr
     }
 
-    push := proc(mut self: TokenArray, value: Token) {
+    push := proc(mut self: TokenArray, t: Token) {
         if not(self.is_dyn) {
             panic(loc(), "TokenArray.push: push is not allowed for static arrays")
         }
-
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, TokenArray.MAX_CAP) {
                 panic(loc(), "TokenArray.push: capacity exceeded TokenArray.MAX_CAP")
             }
-
             new_ptr := malloc(mul(new_cap, size_of(Token)))
             memcpy(new_ptr, self.ptr, mul(self.len, size_of(Token)))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
-
         dest := add(self.ptr, mul(self.len, size_of(Token)))
-        memcpy(dest, to_ptr(value), size_of(Token))
+        memcpy(dest, to_ptr(t), size_of(Token))
         self.len = add(self.len, 1)
     }
 
-    get := func(self: TokenArray, index: I64) returns Token {
+    get := func(self: TokenArray, index: I64, mut t: Token) {
         if gteq(index, self.len) {
             panic(loc(), "TokenArray.get: index out of bounds")
         }
-
         src := add(self.ptr, mul(index, size_of(Token)))
-        mut t := Token()
         memcpy(to_ptr(t), src, size_of(Token))
         return t
-    }
-
-    set := proc(mut self: TokenArray, index: I64, value: Token) {
-        if gteq(index, self.len) {
-            panic(loc(), "TokenArray.set: index out of bounds")
-        }
-
-        dest := add(self.ptr, mul(index, size_of(Token)))
-        memcpy(dest, to_ptr(value), size_of(Token))
     }
 
     delete := proc(mut self: TokenArray) {
@@ -513,19 +499,6 @@ Lexer := struct {
         return true
     }
 
-    print_lex_errors := proc(self: Lexer) returns I64 {
-        tokens := lexer.tokens
-        mut errors_found := 0
-        mut i := 0
-        while lt(i, tokens.len) {
-            t := Token()
-            tokens.get(i, t)
-            print_if_lex_error(lexer.path, t, errors_found)
-            i.inc()
-        }
-        return errors_found
-    }
-
     error := proc(self: Lexer, loc_str: Str, t: Token, msg: Str) {
         println(self.path, ":", t.line, ":", t.col, ": parse ERROR: ", msg)
         if debug_compiler {
@@ -599,4 +572,16 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
     case:
         // No error, do nothing
     }
+}
+
+print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
+    mut errors_found := 0
+    mut i := 0
+    while lt(i, tokens.len) {
+        t := Token()
+        tokens.get(i, t)
+        // print_if_lex_error(path, t, errors_found)
+        i.inc()
+    }
+    return errors_found
 }

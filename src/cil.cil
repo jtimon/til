@@ -50,6 +50,10 @@ main := proc(path: Str) {
             println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
             src := readfile(path)
             tokens := scan_tokens(src) // REM don't call scan_tokens from here
+            lex_errrors_found := print_lex_errors(tokens, path)
+            if gt(lex_errrors_found, 0) {
+                println("ERROR: ", lex_errrors_found.to_str(), " lexer errors found.")
+            }
 
             // FIX Lexer.new(path) and we stop callig scan_tokens(src)
             // lexer := Lexer.new(path)
