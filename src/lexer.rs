@@ -1,0 +1,410 @@
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenType {
+    // basic
+    Eof,
+
+    // Single-character tokens.
+    Minus, Plus, Slash, Star,
+    LeftParen, RightParen, LeftBrace, RightBrace, LeftBracket, RightBracket,
+    Comma, Colon,
+
+    // One or two character tokens.
+    Dot, DoubleDot,
+    Not, NotEqual,
+    Equal, EqualEqual,
+    Greater, GreaterEqual,
+    Lesser, LesserEqual,
+    Semicolon, DoubleSemicolon,
+
+    // Literals.
+    Identifier, String, Number,
+
+    // Reserved words:
+    Mut,
+
+    // bool
+    True,
+    // type definition
+    Struct, Enum,
+    // function definition
+    Returns, Throws,
+    // flow control
+    If, Else,
+    While, For, In,
+    Match, Switch, Default,
+    Return, Throw,
+    Try, Catch,
+
+    // Special in this language:
+    Mode,
+    Func, Proc, Macro,
+    FuncExt, ProcExt,
+
+    // Errors
+    Const, Var,
+    Fn,
+    Case,
+    Invalid,
+    UnterminatedString,
+    // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Token {
+    pub token_type: TokenType,
+    pub token_str: String,
+    pub line: usize,
+    pub col: usize,
+}
+
+pub struct Lexer {
+    tokens: Vec<Token>,
+}
+
+impl Lexer {
+    pub fn new(source: String) -> Self {
+        return Self{tokens: scan_tokens(source)};
+    }
+
+    pub fn len(self: &Lexer) -> usize {
+        return self.tokens.len();
+    }
+
+    pub fn is_eof(self: &Lexer, current: usize) -> bool {
+        return current >= self.tokens.len() ||
+            match self.tokens.get(current) {
+                Some(_t) => TokenType::Eof == _t.token_type,
+                None => false,
+
+            }
+    }
+
+    pub fn get_token(self: &Lexer, i: usize) -> Result<&Token, String> {
+        match self.tokens.get(i) {
+            Some(_t) => {
+                return Ok(_t);
+            },
+            None => {
+                return Err(format!(":: Token in pos {} is out of bounds", i));
+            },
+        };
+    }
+}
+
+fn is_digit(source: &String, pos: usize) -> bool {
+    match &source[pos..pos+1].chars().next().unwrap() {
+        '0'..='9' => true,
+        _ => false,
+    }
+}
+
+fn is_id_start(source: &String, pos: usize) -> bool {
+    // TODO why next()? is this a bug?
+    match &source[pos..pos+1].chars().next().unwrap() {
+        'a'..='z' | 'A'..='Z' | '_' => true,
+        _ => false,
+    }
+}
+
+fn scan_reserved_words(identifier: &str) -> TokenType {
+    match identifier {
+        "mode" => TokenType::Mode,
+
+        // declaration/arg modifiers
+        "mut" => TokenType::Mut,
+
+        // bool literals
+        "true" => TokenType::True,
+
+        // core data types
+        "enum" => TokenType::Enum,
+        "struct" => TokenType::Struct,
+
+        // function declaration
+        "returns" => TokenType::Returns,
+        // Anything that can be thrown must be explicitly declared in the function via 'throws', java style.
+        // Except perhaps PanicException or something like that which can be implicit, but still allowed to documment redundantly
+        // or perhaps not, for that may degenerate in an extra warning option
+        // perhaps just force the user to explicitly catch and exit any potential panic from the callee
+        "throws" => TokenType::Throws, // TODO parse
+        "func" => TokenType::Func,
+        "proc" => TokenType::Proc,
+        "macro" => TokenType::Macro, // TODO implement for real once we compile
+        "ext_func" => TokenType::FuncExt, // this has to link when we compile
+        "ext_proc" => TokenType::ProcExt, // this has to link when we compile
+
+        // control flow
+        "if" => TokenType::If,
+        "else" => TokenType::Else,
+        "while" => TokenType::While,
+        "for" => TokenType::For, // TODO parse
+        "in" => TokenType::In, // TODO, or just use semicolon reserve forbid this
+        "switch" => TokenType::Switch,
+        "match" => TokenType::Match, // TODO like switch but special for declarations/assignments
+        "case" => TokenType::Case,
+        "default" => TokenType::Default, // TODO currently using "case:", but "default:" is more traditional, grepable and overt
+        "return" => TokenType::Return,
+        "throw" => TokenType::Throw, // TODO
+        // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
+        "catch" => TokenType::Catch,
+        "try" => TokenType::Try, // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
+        // or should 'try:' be optional?
+
+        // Reserved forbidden/illegal words (intentionally unsupported reserved words)
+        // TODO intentionally unsupport more reserved words
+        // TODO nicer messages for forbidden words
+        "fn" => TokenType::Fn,
+        "function" => TokenType::Invalid,
+        "method" => TokenType::Invalid,
+        "global" => TokenType::Invalid, // just use mut declaration in the root of the file, but they're not allowed in all modes
+        // const/vars are the most abstract types, you can't even explicitly declare them
+        "const" => TokenType::Const,
+        "var" => TokenType::Var,
+
+        // Do we really need const fields static other than static? (ie can be different per instance, but not modified afterwards)
+        // The answer is probably yet, but perhaps static is not the right answer
+        // how about this? if it's in the struct body, it is const, if it is in impl, it is static, just like functions
+        // or do we need mut function fields too? probably yes
+        "static" => TokenType::Invalid,
+
+        _ => TokenType::Identifier,
+    }
+}
+
+fn scan_push_token(tokens: &mut Vec<Token>, token_type: TokenType, token_str: &str, line: usize, col: usize) {
+    tokens.push(Token{token_type: token_type, token_str: token_str.to_string(), line: line, col: col});
+}
+
+fn scan_tokens(source: String) -> Vec<Token> {
+    let mut tokens : Vec<Token> = Vec::new();
+    let eof_pos: usize = source.len();
+    let mut pos = 0;
+    let mut line = 1;
+    let mut start_line_pos = 0;
+
+    while pos < eof_pos {
+        let start = pos;
+
+        if is_digit(&source, pos) {
+            while pos < eof_pos && is_digit(&source, pos) {
+                pos += 1;
+            }
+            // Look for a fractional part.
+            if &source[pos..pos+1] == "." && is_digit(&source, pos+1) {
+                pos += 1;
+                while pos < eof_pos && is_digit(&source, pos) {
+                    pos += 1;
+                }
+            }
+            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, start - start_line_pos + 1);
+        } else {
+
+            let token_type = match &source[pos..pos+1] {
+                " " => { pos += 1; continue; },
+                // chars to ignore in this language:
+                "\r" => { pos += 1; continue; },
+                "\t" => { pos += 1; continue; },
+                "\n" => {
+                    pos += 1;
+                    line = line + 1;
+                    start_line_pos = pos;
+                    continue;
+                },
+                // open/close. left/right
+                "(" => TokenType::LeftParen,
+                ")" => TokenType::RightParen,
+                "{" => TokenType::LeftBrace,
+                "}" => TokenType::RightBrace,
+                "[" => TokenType::LeftBracket,
+                "]" => TokenType::RightBracket,
+
+                // separator for optional type before the equal in declarations or args
+                ":" => TokenType::Colon,
+                // separator for args
+                "," => TokenType::Comma, // args can/must? have ',', otherwise the language would be too lispy when parsing from C
+
+                // math
+                "-" => TokenType::Minus,
+                "+" => TokenType::Plus,
+                "*" => TokenType::Star,
+
+                // reserved for two chars in a row
+                "." => if &source[pos+1..pos+2] == "." { pos += 1; TokenType::DoubleDot } else { TokenType::Dot },
+                "=" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::EqualEqual } else { TokenType::Equal },
+                "<" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::LesserEqual } else { TokenType::Lesser },
+                ">" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::GreaterEqual } else { TokenType::Greater },
+                "!" => if &source[pos+1..pos+2] == "=" { pos += 1; TokenType::NotEqual } else { TokenType::Not },
+
+                // semicolon is optional between statements, but allowed. DoubleSemicolon means empty statement
+                ";" => if &source[pos+1..pos+2] == ";" { pos += 1; TokenType::DoubleSemicolon } else { TokenType::Semicolon },
+
+                // comments:
+                "#" => {
+                    pos += 1;
+                    while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
+                        pos += 1;
+                    }
+                    continue;
+                },
+                "/" => match &source[pos+1..pos+2] {
+                    "/" => {
+                        pos += 1;
+                        while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
+                            pos += 1;
+                        }
+                        continue;
+                    },
+                    // TODO allow the other type of commments, allowing nesting
+                    // "*" => {
+                    //     // /* style of comment not allowed yet
+                    //     TokenType::Invalid,
+                    // },
+                    _ => TokenType::Slash,
+                },
+
+                // literal strings
+                "\"" => {
+                    let mut lit_string = String::new();
+                    pos += 1;
+                    while pos + 1 < eof_pos && &source[pos..pos+1] != "\"" {
+                        if &source[pos..pos+1] == "\\" {
+                            pos += 1; // if it's the escape character, skip it
+                            if pos + 1 < eof_pos && &source[pos..pos+1] == "\"" {
+                                lit_string.push(source.chars().nth(pos).unwrap());
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "n" {
+                                lit_string.push('\n');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "r" {
+                                lit_string.push('\r');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "t" {
+                                lit_string.push('\t');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "0" {
+                                lit_string.push('\0');
+                            } else if pos + 1 < eof_pos && &source[pos..pos+1] == "\\" {
+                                lit_string.push('\\');
+                            } else { // If it's something else, just leave it as is for now, I guess
+                                lit_string.push('\\');
+                                lit_string.push(source.chars().nth(pos).unwrap());
+                            }
+                        } else {
+                            lit_string.push(source.chars().nth(pos).unwrap());
+                        }
+                        pos += 1;
+                    }
+
+                    if pos >= eof_pos {
+                        TokenType::UnterminatedString
+                    } else {
+                        scan_push_token(&mut tokens, TokenType::String, &lit_string, line, start - start_line_pos + 1);
+                        TokenType::String
+                    }
+                },
+
+                _ => { // Everything else must be reserved words, identifiers or invalid
+                    if is_id_start(&source, pos) {
+                        pos += 1;
+                        while pos < eof_pos && (is_digit(&source, pos) || is_id_start(&source, pos)) {
+                            pos += 1;
+                        }
+                        pos = pos - 1;
+                        scan_reserved_words(&source[start..pos+1])
+                    } else {
+                        TokenType::Invalid
+                    }
+                },
+
+            }; // let match
+            if token_type != TokenType::String {
+                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, start - start_line_pos + 1);
+            }
+            pos += 1;
+        } // else
+    } // while
+
+    scan_push_token(&mut tokens, TokenType::Eof, "End of file", line, 0);
+    return tokens
+}
+
+fn print_lex_error(path: &String, t: &Token, errors_found: &mut usize, msg: &str) {
+    println!("{}:{}:{}: Lexical error {}: {}. Offending symbol: '{}'",
+             path, t.line, t.col, *errors_found, msg, t.token_str);
+    *errors_found += 1;
+}
+
+fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
+    match t.token_type {
+        TokenType::Invalid => {
+            print_lex_error(path, t, errors_found, "Invalid character");
+        },
+        TokenType::UnterminatedString => {
+            print_lex_error(path, t, errors_found, "Unterminated String\nSuggestion: add missing '\"'");
+        },
+        TokenType::Const => {
+            print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
+        },
+        TokenType::Var => {
+            print_lex_error(path, t, errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
+        },
+        TokenType::Fn => {
+            print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
+        },
+        TokenType::DoubleSemicolon => {
+            print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
+        },
+        TokenType::Plus => {
+            print_lex_error(path, t, errors_found, "Operator '+' is not supported yet\nSuggestion: use core func 'add' instead");
+        },
+        TokenType::Minus => {
+            print_lex_error(path, t, errors_found, "Operator '-' is not supported yet\nSuggestion: use core func 'sub' instead");
+        },
+        TokenType::Star => {
+            print_lex_error(path, t, errors_found, "Operator '*' is not supported yet\nSuggestion: use core func 'mul' instead");
+        },
+        TokenType::Slash => {
+            print_lex_error(path, t, errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead");
+        },
+        TokenType::EqualEqual => {
+            print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead");
+        },
+        TokenType::Lesser => {
+            print_lex_error(path, t, errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
+        },
+        TokenType::LesserEqual => {
+            print_lex_error(path, t, errors_found, "Operator '<=' is not supported yet\nSuggestion: use core func 'lteq' instead");
+        },
+        TokenType::Greater => {
+            print_lex_error(path, t, errors_found, "Operator '>' is not supported yet\nSuggestion: use core func 'gt' instead");
+        },
+        TokenType::GreaterEqual => {
+            print_lex_error(path, t, errors_found, "Operator '>=' is not supported yet\nSuggestion: use core func 'gteq' instead");
+        },
+        TokenType::Not => {
+            print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
+        },
+        TokenType::NotEqual => {
+            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead");
+        },
+        _ => {
+            // No error, do nothing
+        }
+    }
+}
+
+pub fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String> {
+
+    let lexer = Lexer::new(source);
+    if lexer.len() < 1 {
+        return Err(format!("{}:{}:{} compiler ERROR: End of file not found.", path, 1, 0));
+    } else if lexer.is_eof(0) {
+        return Err(format!("{}:{}:{} compiler ERROR: Nothing to be done", path, 0, 0));
+    }
+
+    let mut errors_found: usize = 0;
+    for t in &lexer.tokens {
+        print_if_lex_error(&path, &t, &mut errors_found)
+    }
+    if errors_found > 0 {
+        return Err(format!("Compiler errors: {} lexical errors found", errors_found));
+    }
+    return Ok(lexer);
+}
