@@ -40,10 +40,21 @@ test(loc(), not(and(false, true)), "false AND true = false")
 test(loc(), not(and(false, false)), "false AND false = false")
 
 // variadic 'and'
-// test(loc(), and(true), "true AND = true")
-// test(loc(), not(and(false)), "false AND = false")
-// test(loc(), and(true, true, true), "true AND true AND true = true")
-// test(loc(), not(and(true, false, true)), "true AND false AND true = false")
+
+and2 := proc(args: ..Bool) returns Bool {
+    mut i := 0
+    mut result := true
+    while lt(i, args.len) {
+        result = and(result, args.get(i))
+        i.inc()
+    }
+    return result
+}
+
+test(loc(), and2(true), "true AND = true")
+test(loc(), not(and2(false)), "false AND = false")
+test(loc(), and2(true, true, true), "true AND true AND true = true")
+test(loc(), not(and2(true, false, true)), "true AND false AND true = false")
 
 // Testing 'or' with all combinations
 test(loc(), not(or(false, false)), "false OR false = false")

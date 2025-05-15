@@ -712,6 +712,92 @@ impl Context {
             enum_name: enum_name.to_string(),
         })
     }
+
+    pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>) {
+        let array_type = format!("{}Array", elem_type);
+
+        if !self.insert_struct(name, &array_type) {
+            println!("ERROR: insert_array: failed to insert struct '{}'", array_type);
+            return;
+        }
+
+        let len = values.len() as i64;
+        let elem_size = match self.get_type_size(elem_type) {
+            Ok(sz) => sz,
+            Err(msg) => {
+                println!("ERROR: {}", msg);
+                return;
+            },
+        };
+        let total_size = (len as usize) * elem_size;
+
+        // Allocate memory
+        let ptr = Arena::g().memory.len();
+        Arena::g().memory.resize(ptr + total_size, 0);
+
+        // Write values into allocated buffer
+        for (i, val) in values.iter().enumerate() {
+            let offset = ptr + i * elem_size;
+            match elem_type {
+                "Bool" => {
+                    let stored = if val.as_str() == "true" { 0 } else { 1 }; // TODO FIX Invert like insert_bool
+                    Arena::g().memory[offset] = stored;
+                },
+                "U8" => {
+                    match val.parse::<u8>() {
+                        Ok(byte) => Arena::g().memory[offset] = byte,
+                        Err(_) => {
+                            println!("ERROR: insert_array: invalid U8 '{}'", val);
+                            return;
+                        }
+                    }
+                },
+                "I64" => {
+                    match val.parse::<i64>() {
+                        Ok(n) => {
+                            let bytes = n.to_ne_bytes();
+                            Arena::g().memory[offset..offset+8].copy_from_slice(&bytes);
+                        },
+                        Err(_) => {
+                            println!("ERROR: insert_array: invalid I64 '{}'", val);
+                            return;
+                        }
+                    }
+                },
+                _ => {
+                    println!("ERROR: insert_array: unsupported element type '{}'", elem_type);
+                    return;
+                }
+            }
+        }
+
+        // Write ptr, len, cap, is_dyn using arena_index
+        let ptr_offset = match self.arena_index.get(&format!("{}.ptr", name)) {
+            Some(o) => *o,
+            None => {
+                println!("ERROR: insert_array: missing .ptr field offset");
+                return;
+            }
+        };
+        Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
+
+        let len_bytes = len.to_ne_bytes();
+        for field in &["len", "cap"] {
+            if let Some(field_offset) = self.arena_index.get(&format!("{}.{}", name, field)) {
+                Arena::g().memory[*field_offset..*field_offset+8].copy_from_slice(&len_bytes);
+            } else {
+                println!("ERROR: insert_array: missing .{} field offset", field);
+                return;
+            }
+        }
+
+        if let Some(is_dyn_offset) = self.arena_index.get(&format!("{}.is_dyn", name)) {
+            Arena::g().memory[*is_dyn_offset] = 0; // false
+        } else {
+            println!("ERROR: insert_array: missing .is_dyn field offset");
+        }
+    }
+
 }
 
 fn get_func_name_in_call(e: &Expr) -> String {
@@ -969,8 +1055,8 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                     }
                 },
                 ValueType::TMulti(variadic_type_name) => {
-                    return Err(e.todo_error("type", &format!("Arg: '{}': Variadic arguments of type '{}' are not supported yet",
-                                                             name, variadic_type_name)))
+                    return Ok(ValueType::TMulti(variadic_type_name.to_string()))
+                    // return Ok(ValueType::TCustom(format!("{}Array", variadic_type_name)))
                 },
                 _ => {
                     return Err(e.error("type", &format!("'{}' of type '{}' can't have members, '{}' is not a member",
@@ -1461,14 +1547,26 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     let mut has_variadic = false;
-    for arg in &func_def.args {
+    for (i, arg) in func_def.args.iter().enumerate() {
         if has_variadic {
             errors.push(e.error("type", &format!("Variadic argument '{}' must be the last (only one variadic argument allowed).", &arg.name)));
         }
+
         match &arg.value_type {
-            ValueType::TMulti(_) => {
+            ValueType::TMulti(multi_type) => {
+                if arg.is_mut {
+                    errors.push(e.error("type", &format!("Variadic argument '{}' cannot be 'mut'.", &arg.name)));
+                }
+                if i != func_def.args.len() - 1 {
+                    errors.push(e.error("type", &format!("Variadic argument '{}' must be the last.", &arg.name)));
+                }
                 has_variadic = true;
-            }
+
+                context.symbols.insert(arg.name.clone(), SymbolInfo {
+                    value_type: ValueType::TCustom(format!("{}Array", multi_type)),
+                    is_mut: false,
+                });
+            },
             ValueType::TCustom(ref custom_type_name) => {
                 let _custom_symbol = match context.symbols.get(custom_type_name) {
                     Some(custom_symbol_) => custom_symbol_,
@@ -1478,10 +1576,13 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
                     },
                 };
                 // TODO check more type stuff
+
+                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
             },
-            _ => {},
+            _ => {
+                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+            },
         }
-        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
     }
 
     // Don't check the bodies of external functions
@@ -2158,9 +2259,22 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 
         function_context.symbols.insert(arg.name.to_string(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
         match &arg.value_type {
-            ValueType::TMulti(ref _multi_value_type) => {
-                return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Variadic arguments for user defined functions not supported yet.",
-                                                     &arg.name, value_type_to_str(&arg.value_type)))
+            ValueType::TMulti(ref multi_value_type) => {
+                let variadic_args = &e.params[param_index..];
+                let mut values = Vec::new();
+                for expr in variadic_args {
+                    let val = eval_expr(&mut context, expr);
+                    values.push(val);
+                }
+
+                function_context.symbols.insert(arg.name.to_string(), SymbolInfo {
+                    value_type: ValueType::TCustom(format!("{}Array", &multi_value_type)),
+                    is_mut: arg.is_mut,
+                });
+                function_context.insert_array(&arg.name, &multi_value_type, &values);
+
+                // We've consumed all remaining parameters, break out of loop
+                break;
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index);
