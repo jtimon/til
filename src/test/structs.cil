@@ -11,7 +11,7 @@ MyStruct := struct {
     static_bool_field: Bool = true
     mut bool_field: Bool = false
     mut int_field: I64 = 0 // 0 is just the default, but you can set something else once in the init func
-    // mut string_field: Str = "" // TODO re-enable strings as fields
+    mut string_field: Str = ""
     mut color_field: MyEnum = MyEnum.Red
     mut vec2_field: Vec2 = Vec2()
 
@@ -19,10 +19,10 @@ MyStruct := struct {
         mut self := MyStruct()
         self.bool_field = bool_field
         self.int_field = int_field
-        // self.string_field = string_field
+        self.string_field = string_field
         self.color_field = color_field
         self.vec2_field = vec2_field
-        println("Inside MyStruct.new(): self.int_field = ", I64.to_str(self.int_field))
+        println("Inside MyStruct.new(): self.string_field = '", self.string_field, "'")
         return self
     }
 
@@ -50,7 +50,7 @@ test_my_struct := proc() {
     mut my_struct := MyStruct.new(true, 42, "my field string", MyEnum.Green, v) // with enum and struct field
     assert(loc(), my_struct.bool_field)
     assert_eq(loc(), 42, my_struct.int_field)
-    // assert_eq_str(loc(), "my field string", my_struct.string_field) // TODO Fix
+    assert_eq_str(loc(), "my field string", my_struct.string_field)
     res_vec2_field := my_struct.vec2_field
     assert_eq(loc(), 1, res_vec2_field.x)
     assert_eq(loc(), 2, res_vec2_field.y)

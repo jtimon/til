@@ -59,7 +59,7 @@ TokenType := enum {
 
 Token := struct {
     mut token_type: TokenType = TokenType.Invalid
-    // mut token_str: Str = "" // TODO re-enable strings as fields
+    mut token_str: Str = ""
     mut line: I64 = 0
     mut col: I64 = 0
 
@@ -159,7 +159,7 @@ TokenArray := struct {
 scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) {
     mut t := Token()
     t.token_type = token_type
-    // t.token_str = token_str // TODO re-enable strings as fields
+    t.token_str = token_str
     t.line = line
     t.col = col
 
@@ -762,7 +762,7 @@ print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
 
 lexer_from_source := proc(path: Str, source: Str) returns Lexer {
     mut l := Lexer()
-    // l.path = path // TODO re-enable strings as fields
+    l.path = path
     tokens := scan_tokens(source)
     // l.tokens = scan_tokens(source) // TODO fix access to fields of type array
 
