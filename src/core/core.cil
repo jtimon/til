@@ -169,10 +169,9 @@ Bool := struct {
     }
 
     from_i64 := func(i: I64) returns Bool { // TODO support regular struct returns to be able to this as a regular struct internally (except for if/while conditions)
-        b := Bool()
+        mut b := Bool()
         if gt(i, 0) {
-            return true
-            // b.data = 1 // TODO use this instead
+            b.data = 1
         }
         return b
     }
