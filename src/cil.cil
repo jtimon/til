@@ -5,6 +5,23 @@ import("src/core/interpreter")
 
 REPL_PATH: Str = "src/core/modes/repl.cil";
 
+// FIX Cannot use 'main_args' of type 'StrArray' as an argument. Only name of struct instances allowed for struct arguments for now.
+// run_file_or_exit := proc(path: Str, main_args: StrArray) {
+run_file_or_exit := proc(path: Str) {
+    println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
+    src := readfile(path)
+    tokens := scan_tokens(src) // REM don't call scan_tokens from here
+    println("Lexer: ", I64.to_str(tokens.len), " tokens scanned.")
+    lex_errrors_found := print_lex_errors(tokens, path)
+    if gt(lex_errrors_found, 0) {
+        println("ERROR: ", lex_errrors_found.to_str(), " lexer errors found.")
+    }
+
+    // FIX Lexer.new(path) and we stop callig scan_tokens(src)
+    // lexer := Lexer.new(path)
+    // lexer.print_lex_errors()
+}
+
 usage := proc() {
     println("Usage: ", LANG_NAME, " [command] [path]\n");
     println("Entering no arguments is equavalent to: '", LANG_NAME, " repl'");
@@ -20,43 +37,56 @@ usage := proc() {
     println("help: Prints this.\n");
 }
 
-// TODO rscil implement arrays
-// scan_tokens := func(src: Str) returns Array(Token) {}
+main := proc(args: ..Str) {
 
-// TODO use variadic arguments
-// TODO move the repl subcommmand here, rscil only to interpret
-main := proc(path: Str) {
+    if gt(args.len, 1) {
+        mut main_args := StrArray.new(sub(args.len, 1))
+        mut i := 1
+        while lt(i, args.len) {
+            main_args.set(add(i, 1), args.get(i))
+            i.inc()
+        }
 
-    if or(path.eq(""), path.eq("repl")) {
-        runfile(REPL_PATH)
-        return // TODO fix empty return
-    } else {
-
-        if or(
-            path.eq("ast"),
-            path.eq("interpret"),
-            path.eq("build"),
-            path.eq("run"),
-            path.eq("help"),
-            path.eq("-help"),
-            path.eq("--help"),
-            path.eq("--version"), // REM don't implement this option until it makes sense
-            path.eq("-v")
-        ) {
+        cmd := args.get(0)
+        switch cmd {
+        case "interpret":
+            // run_file_or_exit(args.get(1), main_args) // TODO FIX
+            run_file_or_exit(args.get(1))
+        case "repl":  usage()
+        case "build": usage()
+        case "run":   usage()
+        case:
             usage()
-            return // TODO fix empty return
-        } else {
-            println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
-            src := readfile(path)
-            tokens := scan_tokens(src) // REM don't call scan_tokens from here
-            lex_errrors_found := print_lex_errors(tokens, path)
-            if gt(lex_errrors_found, 0) {
-                println("ERROR: ", lex_errrors_found.to_str(), " lexer errors found.")
-            }
+            println("command '", cmd, "' not implemented.")
+        }
 
-            // FIX Lexer.new(path) and we stop callig scan_tokens(src)
-            // lexer := Lexer.new(path)
-            // lexer.print_lex_errors()
+    } else { // TODO support else if without extra {
+
+        if gt(args.len, 0) {
+            path := args.get(0)
+            if path.eq("repl") {
+                runfile(REPL_PATH)
+            } else {
+                if or(
+                    path.eq("ast"),
+                    path.eq("interpret"),
+                    path.eq("build"),
+                    path.eq("run"),
+                    path.eq("help"),
+                    path.eq("-help"),
+                    path.eq("--help"),
+                    path.eq("--version"), // REM don't implement this option until it makes sense
+                    path.eq("-v"),
+                ) {
+                    usage()
+                    return // TODO fix empty return
+                } else {
+                    run_file_or_exit(args.get(0))
+                    // run_file_or_exit(args.get(0), StrArray.new(0)) // TODO FIX
+                }
+            }
+        } else {
+            runfile(REPL_PATH)
         }
     }
 }
