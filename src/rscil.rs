@@ -168,6 +168,10 @@ impl Context {
     }
 
     fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
+        let is_mut = match self.symbols.get(id) {
+            Some(symbol_info_) => symbol_info_.is_mut,
+            None => return None,
+        };
         let bool_to_insert = lbool_in_string_to_bool(bool_str);
         let stored = if bool_to_insert { 0 } else { 1 }; // TODO why this is backwards?
 
@@ -187,6 +191,15 @@ impl Context {
 
         let offset = Arena::g().memory.len();
         Arena::g().memory.push(stored);
+
+        // Insert Bool data field too
+        let field_id = format!("{}.data", id);
+        self.symbols.insert(field_id.clone(), SymbolInfo {
+            value_type: ValueType::TCustom("U8".to_string()),
+            is_mut: is_mut,
+        });
+        self.arena_index.insert(field_id, offset);
+
         return self.arena_index.insert(id.to_string(), offset).map(|old_offset| Arena::g().memory[old_offset] == 0);
     }
 
