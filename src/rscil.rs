@@ -293,10 +293,8 @@ impl Context {
 
     fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
         match type_name {
-            "Bool" => return Ok(1),
             "U8"   => return Ok(1),
             "I64"  => return Ok(8),
-            "Str"  => return Ok(16),
             _ => {},
         }
         if self.enum_defs.contains_key(type_name) {
