@@ -433,10 +433,6 @@ impl Context {
                         Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
                     } else {
                         match type_name.as_str() {
-                            "Bool" => {
-                                let stored = if lbool_in_string_to_bool(&default_value) { 1 } else { 0 };
-                                Arena::g().memory[offset + field_offset] = stored;
-                            },
                             "U8" => {
                                 let v = match default_value.parse::<u8>() {
                                     Ok(val) => val,
