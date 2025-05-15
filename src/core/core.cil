@@ -110,26 +110,30 @@ not := func(b: Bool) returns Bool {
     return true
 }
 
-// TODO variadic arguments should allowed 0 arguments too, unlike in print, println, and, or
-// TODO implement the variadic versions of and/or
-or := func(a: Bool, b: Bool) returns Bool {
-    if a {
-        return true
+or := func(args: ..Bool) returns Bool {
+    mut i := 0
+    mut result := false
+    while lt(i, args.len) {
+        if args.get(i) {
+            result = true
+            // return true // TODO fix nested return
+        }
+        i.inc()
     }
-    if b {
-        return true
-    }
-    return false
+    return result
 }
 
-and := func(a: Bool, b: Bool) returns Bool {
-    if not(a) {
-        return false
+and := func(args: ..Bool) returns Bool {
+    mut i := 0
+    mut result := true
+    while lt(i, args.len) {
+        if not(args.get(i)) {
+            result = false
+            // return false // TODO fix nested return
+        }
+        i.inc()
     }
-    if not(b) {
-        return false
-    }
-    return true
+    return result
 }
 
 // Note that Bool, I64 and Str don't have fields because the're the core types
@@ -238,10 +242,17 @@ I64 := struct {
     // mut data : U8Array = U8Array.new(8) // TODO Use [8]U8 for this one
 
     eq := func(a: I64, b: I64) returns Bool {
-        if or(gt(a, b), gt(b, a)) {
+        // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
+        if gt(a, b) {
             return false
         }
-        if or(lt(a, b), lt(b, a)) {
+        if gt(b, a) {
+            return false
+        }
+        if lt(a, b) {
+            return false
+        }
+        if lt(b, a) {
             return false
         }
         return true

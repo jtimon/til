@@ -8,5 +8,3 @@ mode test
 //     }
 // }
 // assert_eq_str("Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))
-
-// TODO implement variadic arguments for user functions, at least for Bool, to recover variadic and, or

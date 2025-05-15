@@ -40,21 +40,10 @@ test(loc(), not(and(false, true)), "false AND true = false")
 test(loc(), not(and(false, false)), "false AND false = false")
 
 // variadic 'and'
-
-and2 := proc(args: ..Bool) returns Bool {
-    mut i := 0
-    mut result := true
-    while lt(i, args.len) {
-        result = and(result, args.get(i))
-        i.inc()
-    }
-    return result
-}
-
-test(loc(), and2(true), "true AND = true")
-test(loc(), not(and2(false)), "false AND = false")
-test(loc(), and2(true, true, true), "true AND true AND true = true")
-test(loc(), not(and2(true, false, true)), "true AND false AND true = false")
+test(loc(), and(true), "true AND = true")
+test(loc(), not(and(false)), "false AND = false")
+test(loc(), and(true, true, true), "true AND true AND true = true")
+test(loc(), not(and(true, false, true)), "true AND false AND true = false")
 
 // Testing 'or' with all combinations
 test(loc(), not(or(false, false)), "false OR false = false")
@@ -63,10 +52,10 @@ test(loc(), or(false, true), "false OR true = true")
 test(loc(), or(true, true), "true OR true = true")
 
 // variadic 'or'
-// test(loc(), or(true), "true OR = true")
-// test(loc(), not(or(false)), "false OR = false")
-// test(loc(), or(false, false, true), "false OR false OR true = true")
-// test(loc(), not(or(false, false, false)), "false OR false OR false = false")
+test(loc(), or(true), "true OR = true")
+test(loc(), not(or(false)), "false OR = false")
+test(loc(), or(false, false, true), "false OR false OR true = true")
+test(loc(), not(or(false, false, false)), "false OR false OR false = false")
 
 // Testing 'xor' with all combinations
 test(loc(), xor(true, false), "true XOR false = true")

@@ -33,16 +33,15 @@ main := proc(path: Str) {
     } else {
 
         if or(
-            // TODO recover variadic 'or'
-            // path.eq("ast"),
+            path.eq("ast"),
             path.eq("interpret"),
-            // path.eq("build"),
-            // path.eq("run"),
-            // path.eq("help"),
-            // path.eq("-help"),
+            path.eq("build"),
+            path.eq("run"),
+            path.eq("help"),
+            path.eq("-help"),
             path.eq("--help"),
-            // path.eq("--version"), // REM don't implement this option until it makes sense
-            // path.eq("-v")
+            path.eq("--version"), // REM don't implement this option until it makes sense
+            path.eq("-v")
         ) {
             usage()
             return // TODO fix empty return
