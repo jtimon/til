@@ -1189,14 +1189,11 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
             None => {},
             Some(value_type) => {
                 match value_type {
-                    ValueType::TCustom(ref custom_type_name) => match custom_type_name.as_str() {
-                        "I64" | "Bool" | "U8" | "Str" => {},
-                        _ => {
-                            errors.push(e.todo_error("type", &format!("{}:{}: 'enum' does not support custom types yet, found custom type '{}'.",
-                                                                      e.line, e.col, custom_type_name)));
-                        },
+                    ValueType::TCustom(ref _custom_type_name) => {},
+                    _ => {
+                        errors.push(e.todo_error("type", &format!("'enum' does not support payloads of value type '{}' yet",
+                                                                  value_type_to_str(&value_type))));
                     },
-                    _ => {},
                 }
             },
         }
