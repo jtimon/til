@@ -18,23 +18,17 @@ mul       := ext_func(a: I64, b: I64) returns I64;
 div       := ext_func(a: I64, b: I64) returns I64;
 mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 
-// TODO implement the variadic part of print/println in std
-print   := ext_proc(args: ..Str); // TODO move 'print' to std after supporting variadic arguments
-// TODO now that '\n' bug is fixed, we're waiting for user variadic arguments
-println := ext_proc(args: ..Str); // TODO move 'println' to std after fixing
-// TODO This should be ext, and the print and println self hosted
-single_print := proc(s: Str) {
-    print(s) // TODO use some lowe level thing so tha print can depend on this instead of the other way around
-}
-
-exit    := ext_proc(code: I64);
+single_print := ext_proc(args: ..Str);
+// TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
+print_flush  := ext_proc();
+exit         := ext_proc(code: I64);
 // TODO parse with dots like other languages, then change the direction of the slash depending on the os
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
 // example_cil: my_matrix : struct = import(matrix)
 // example_python: from matrix import matrix_def as my_matrix_def
-import  := ext_proc(path: Str);
-runfile := ext_proc(args: ..Str);
+import       := ext_proc(path: Str);
+runfile      := ext_proc(args: ..Str);
 
 // Memory operations
 NULL   := 0
@@ -45,6 +39,25 @@ malloc := ext_proc(size: I64) returns I64;
 free   := ext_proc(ptr: I64);
 memcpy := ext_proc(dest: I64, src: I64, size: I64);
 memset := ext_proc(dest: I64, value: U8, size: I64);
+
+print := proc(args: ..Str) {
+    mut i := 0
+    while lt(i, args.len) {
+        single_print(args.get(i))
+        i.inc()
+    }
+    print_flush()
+}
+
+println := proc(args: ..Str) {
+    mut i := 0
+    while lt(i, args.len) {
+        single_print(args.get(i))
+        i.inc()
+    }
+    single_print("\n")
+    print_flush()
+}
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.concat(msg))

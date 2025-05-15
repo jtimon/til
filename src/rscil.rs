@@ -2171,15 +2171,17 @@ fn eval_to_bool(mut context: &mut Context, e: &Expr) -> bool {
     return lbool_in_string_to_bool(result)
 }
 
-fn eval_core_proc_print(end_line: bool, mut context: &mut Context, e: &Expr) -> String {
-    for i in 1..e.params.len() {
-        print!("{}", eval_expr(&mut context, &e.get(i)));
-    }
-    if end_line {
-        print!("\n");
-    }
+fn eval_core_proc_single_print(mut context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 2, "{} ERROR: Core func 'single_print' takes exactly 1 argument. This should never happen.", LANG_NAME);
+
+    print!("{}", eval_expr(&mut context, &e.get(1)));
+    return "".to_string()
+}
+
+fn eval_core_proc_print_flush(mut _context: &mut Context, e: &Expr) -> String {
+    assert!(e.params.len() == 1, "{} ERROR: Core func 'print_flush' takes 0 arguments. This should never happen.", LANG_NAME);
     io::stdout().flush().unwrap();
-    "".to_string()
+    return "".to_string()
 }
 
 fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> String {
@@ -2491,8 +2493,8 @@ fn eval_core_func_proc_call(name: &str, mut context: &mut Context, e: &Expr, is_
         "exit" => eval_core_exit(&e),
         "import" => "".to_string(), // Should already be imported in init_context
         "input_read_line" => eval_core_proc_input_read_line(&mut context, &e),
-        "print" => eval_core_proc_print(false, &mut context, &e),
-        "println" => eval_core_proc_print(true, &mut context, &e),
+        "single_print" => eval_core_proc_single_print(&mut context, &e),
+        "print_flush" => eval_core_proc_print_flush(&mut context, &e),
         "readfile" => eval_core_proc_readfile(&mut context, &e),
         "runfile" => eval_core_proc_runfile(&mut context, &e),
         _ => {
