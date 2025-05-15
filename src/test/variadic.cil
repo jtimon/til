@@ -1,10 +1,13 @@
 mode test
 
 // TODO implement variadic arguments for user functions, at least for Str, for self hosted print and println based on a simpler single_print core proc
-// concat2 := proc(args: ..Str) {
-//     mut i := 0
-//     while lt(i, args.len) {
-//         print(args.get(i))
-//     }
-// }
-// assert_eq_str("Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))
+concat2 := func(args: ..Str) returns Str {
+    mut result := ""
+    mut i := 0
+    while lt(i, args.len) {
+        result = result.concat(args.get(i))
+        i.inc()
+    }
+    return result
+}
+assert_eq_str(loc(), "Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))

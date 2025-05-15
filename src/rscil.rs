@@ -764,6 +764,34 @@ impl Context {
                         }
                     }
                 },
+                "Str" => {
+                    for (i, val) in values.iter().enumerate() {
+                        let offset = ptr + i * elem_size;
+
+                        let temp_id = format!("{}.{}", name, i);
+                        self.symbols.insert(temp_id.clone(), SymbolInfo {
+                            value_type: ValueType::TCustom("Str".to_string()),
+                            is_mut: false,
+                        });
+
+                        if self.insert_string(&temp_id, val).is_none() {
+                            println!("ERROR: insert_array: insert_string failed for '{}'", temp_id);
+                            return;
+                        }
+
+                        let str_offset = match self.arena_index.get(&temp_id) {
+                            Some(&off) => off,
+                            None => {
+                                println!("ERROR: insert_array: missing arena offset for '{}'", temp_id);
+                                return;
+                            }
+                        };
+
+                        Arena::g().memory[offset..offset + elem_size]
+                            .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
+                    }
+                }
+
                 _ => {
                     println!("ERROR: insert_array: unsupported element type '{}'", elem_type);
                     return;
