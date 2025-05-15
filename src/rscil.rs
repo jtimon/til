@@ -2211,16 +2211,38 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                 let val = function_context.get_u8(&arg_name).unwrap();
                 context.insert_u8(&source_name, &val.to_string());
             },
-            ValueType::TCustom(ref type_name) if type_name == "Bool" => {
-                let val = function_context.get_bool(&arg_name).unwrap();
-                context.insert_bool(&source_name, &val.to_string());
-            },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = function_context.get_string(&arg_name).unwrap();
                 context.insert_string(&source_name, &val);
             },
+            ValueType::TCustom(ref type_name) => {
+                let symbol_info = match context.symbols.get(type_name) {
+                    Some(symbol_info_) => symbol_info_,
+                    None => {
+                        return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Undefined symbol.", arg_name, type_name))
+                    },
+                };
+                match &symbol_info.value_type {
+                    ValueType::TEnumDef => {
+                        let val = function_context.get_enum(&arg_name).unwrap();
+                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name));
+                    },
+                    ValueType::TStructDef => {
+                        // TODO this can be simplified once we pass all args by reference
+                        context.arena_index.insert(source_name.to_string(), *function_context.arena_index.get(&arg_name).unwrap());
+                        context.map_instance_fields(type_name, &source_name);
+                    },
+                    _ => {
+                        // TODO support functions and types (ie enum_defs struct_defs) as arguments
+                        return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Not an enum or struct, but a '{}'.",
+                                                             arg_name, type_name, value_type_to_str(&symbol_info.value_type)))
+                    },
+                }
+
+            },
             _ => {
-                // TODO: support struct mutation copying later
+                return e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Only structs and enums allowed for now.",
+                                                     arg_name, value_type_to_str(&value_type)))
             }
         }
     }

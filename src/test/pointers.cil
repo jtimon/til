@@ -8,7 +8,6 @@ ptr_test := proc() {
 
     q := Ptr.new(32)
 
-    // TODO: Ptr.copy_to(p, q, 32) requires 'mut dest' - re-enable when mut args are supported
     Ptr.copy_to(p, q, 32)
 
     r := Ptr.offset(p, 16)
