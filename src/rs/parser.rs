@@ -111,7 +111,7 @@ pub enum NodeType {
 pub struct Expr {
     pub node_type: NodeType,
     pub params: Vec<Expr>,
-    pub line: usize, // TODO make private
+    pub line: usize,
     pub col: usize,
 }
 

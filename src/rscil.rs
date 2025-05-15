@@ -989,7 +989,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.funcs.insert(decl.name.to_string(), func_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} ERROR: {}s should have definitions", e.line, e.col, LANG_NAME, value_type_to_str(&value_type)));
+                            errors.push(e.lang_error("type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
                             return errors;
                         },
                     }
@@ -1004,7 +1004,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} ERROR: enums should have definitions.", e.line, e.col, LANG_NAME));
+                            errors.push(e.lang_error("type", "enums should have definitions."));
                             return errors;
                         },
                     }
@@ -1036,7 +1036,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             }
                         },
                         _ => {
-                            errors.push(format!("{}:{}: {} ERROR: struct declarations should have definitions.", e.line, e.col, LANG_NAME));
+                            errors.push(e.lang_error("type", "struct declarations should have definitions."));
                             return errors;
                         },
                     }
@@ -1050,12 +1050,12 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         }
         _ => {
             if !context.mode.allows_base_anything {
-                        if context.mode.allows_base_calls {
-                    errors.push(format!("{}:{}: mode '{}' allows only declarations and calls in the root context, found {:?}.",
-                                        e.line, e.col, context.mode.name, e.node_type));
+                if context.mode.allows_base_calls {
+                    errors.push(e.error("mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
+                                        context.mode.name, e.node_type)));
                 } else {
-                    errors.push(format!("{}:{}: mode '{}' allows only declarations in the root context, found {:?}.",
-                                        e.line, e.col, context.mode.name, e.node_type));
+                    errors.push(e.error("mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
+                                        context.mode.name, e.node_type)));
                 }
             }
         },
@@ -1173,7 +1173,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                 }
             },
             None => {
-                errors.push(format!("{}:{}: mode ERROR: mode {} requires 'main' to be defined as a proc.", e.line, e.col, context.mode.name));
+                errors.push(e.error("mode", &format!("mode {} requires 'main' to be defined as a proc.", context.mode.name)));
             },
         };
     }
@@ -1523,7 +1523,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
         context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
         match value_type {
             ValueType::ToInferType => {
-                errors.push(format!("{}:{} {} ERROR: Cannot infer the declaration type of {}", e.line, e.col, LANG_NAME, decl.name));
+                errors.push(e.lang_error("type", &format!("Cannot infer the declaration type of {}", decl.name)));
                 return errors;
             },
             ValueType::TCustom(custom_type) => {
@@ -1541,7 +1541,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
                         context.funcs.insert(decl.name.clone(), func_def.clone());
                     },
                     _ => {
-                        errors.push(format!("{}:{} {} ERROR: functions should have definitions", e.line, e.col, LANG_NAME));
+                        errors.push(e.lang_error("type", "functions should have definitions"));
                         return errors;
                     },
                 }
