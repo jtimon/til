@@ -10,9 +10,9 @@ mod rs {
     pub mod lexer;
     pub mod parser;
 }
-use rs::lexer::{lexer_from_source};
+use rs::lexer::{LANG_NAME, lexer_from_source};
 use rs::parser::{
-    LANG_NAME, INFER_TYPE,
+    INFER_TYPE,
     Expr, NodeType, FunctionType, Declaration, SStructDef, ValueType, ModeDef, SFuncDef, SEnumDef,
     mode_from_name, can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens,
 };

@@ -1,3 +1,4 @@
+pub const LANG_NAME  : &str = "rscil";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -56,6 +57,22 @@ pub struct Token {
     pub token_str: String,
     pub line: usize,
     pub col: usize,
+}
+
+impl Token {
+    pub fn lang_error(self: &Token, msg: &str) -> String {
+        return format!("{}:{}: {} parse ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
+                 self.line, self.col, LANG_NAME, msg);
+    }
+
+    pub fn todo_error(self: &Token, msg: &str) -> String {
+        return format!("{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                 self.line, self.col, LANG_NAME, msg);
+    }
+
+    pub fn error(self: &Token, msg: &str) -> String {
+        return format!("{}:{}: parse ERROR: {}", self.line, self.col, msg);
+    }
 }
 
 pub struct Lexer {
