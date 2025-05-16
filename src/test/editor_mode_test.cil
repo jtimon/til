@@ -15,21 +15,19 @@ my_func := func(a1: Bool, a2: Bool, a3: Bool) returns Bool {
 
 if true {
     // Do nothing
-} else { // TODO support "else if" without requiring braces for the else
-    if true {
-        // Do nothing
-    } else {
-        // Do nothing
-        my_val := my_func(
+} else if true {
+    // Do nothing
+} else {
+    // Do nothing
+    my_val := my_func(
+        true,
+        true,
+        my_func(
             true,
             true,
-            my_func(
-                true,
-                true,
-                true
-            )
+            true
         )
-    }
+    )
 }
 
 // static x := 10 // Should highlight 'static' in error face
@@ -47,7 +45,7 @@ printed := Str.concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
 
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)
-    Variant1, // No type, no highlight yet (TODO)
+    Variant1, // No type, the variant is a constant
     Variant2 : I64, // 'I64' (font-lock-type-face in emacs)
 }
 
@@ -73,10 +71,9 @@ mut z : I64 = 30 // 'mut' (font-lock-keyword-face in emacs), 'z' (font-lock-vari
 mut w := 40 // 'mut' (font-lock-keyword-face in emacs), 'w' (font-lock-variable-name-face in emacs)
 
 // Constant arguments in function signatures
-// TODO implement mut args
-// my_proc := proc(const_arg: I64, mut mut_arg: Str) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'Str' (font-lock-type-face in emacs)
-//     // Nothing here
-// }
+my_proc := proc(const_arg: I64, mut mut_arg: Str) { // 'const_arg' (font-lock-constant-face in emacs), 'mut' (font-lock-keyword-face in emacs), 'mut_arg' (font-lock-variable-name-face in emacs), 'I64', 'Str' (font-lock-type-face in emacs)
+    // Nothing here
+}
 
 // Inferred constants with ':=' (working)
 inferred := 50 // 'inferred' (font-lock-constant-face in emacs)

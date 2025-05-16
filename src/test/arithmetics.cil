@@ -1,6 +1,6 @@
 mode test
 
-// arithmetics:
+// Arithmetic tests
 
 c2      := 2
 c4      := 4
@@ -12,9 +12,6 @@ test(loc(), c42.eq(mul(6, 7)), " 6 * 7 = 42")
 test(loc(), c42.eq(div(420, 10)), " 420 / 10 = 42")
 test(loc(),  c4.eq(add(2, 2)), "2 + 2 = 4")
 test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
-// TODO test(loc(), eq(exp(2, 2), 4), "exp(2, 2) == 4")
-// TODO test(loc(), eq(tetration(2, 2), 4), "tetration(2, 2) == 4")
-// TODO test(loc(), eq(pentation(2, 2), 4), "pentation(2, 2) == 4")
 
 // Testing inc and dec methods
 test_inc_dec := proc() {
@@ -27,9 +24,6 @@ test_inc_dec := proc() {
 }
 test_inc_dec()
 
-// --------------- TODO remove redundancies
-
-// Arithmetic tests
 test(loc(), I64.eq(add(40, 2), 42), "40 + 2 = 42")
 test(loc(), I64.eq(sub(44, 2), 42), "44 - 2 = 42")
 test(loc(), I64.eq(mul(6, 7), 42), "6 * 7 = 42")

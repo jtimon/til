@@ -1,6 +1,5 @@
 mode test
 
-// TODO implement variadic arguments for user functions, at least for Str, for self hosted print and println based on a simpler single_print core proc
 concat2 := func(args: ..Str) returns Str {
     mut result := ""
     mut i := 0

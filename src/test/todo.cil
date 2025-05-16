@@ -1,8 +1,5 @@
 mode script
 
-// TODO next:
-
-// exit(0) // TODO note the semicolon is not being ignored
 // fails because No need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
 // exit(0);;
 
