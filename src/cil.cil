@@ -60,33 +60,28 @@ main := proc(args: ..Str) {
             println("command '", cmd, "' not implemented.")
         }
 
-    } else { // TODO support else if without extra {
-
-        if gt(args.len, 0) {
-            path := args.get(0)
-            if path.eq("repl") {
-                runfile(REPL_PATH)
-            } else {
-                if or(
-                    path.eq("ast"),
-                    path.eq("interpret"),
-                    path.eq("build"),
-                    path.eq("run"),
-                    path.eq("help"),
-                    path.eq("-help"),
-                    path.eq("--help"),
-                    path.eq("--version"), // REM don't implement this option until it makes sense
-                    path.eq("-v"),
-                ) {
-                    usage()
-                    return // TODO fix empty return
-                } else {
-                    run_file_or_exit(args.get(0))
-                    // run_file_or_exit(args.get(0), StrArray.new(0)) // TODO FIX
-                }
-            }
-        } else {
+    } else if gt(args.len, 0) {
+        path := args.get(0)
+        if path.eq("repl") {
             runfile(REPL_PATH)
+        } else if or(
+                path.eq("ast"),
+                path.eq("interpret"),
+                path.eq("build"),
+                path.eq("run"),
+                path.eq("help"),
+                path.eq("-help"),
+                path.eq("--help"),
+                path.eq("--version"), // REM don't implement this option until it makes sense
+                path.eq("-v"),
+        ) {
+            usage()
+            return // TODO fix empty return
+        } else {
+            run_file_or_exit(args.get(0))
+            // run_file_or_exit(args.get(0), StrArray.new(0)) // TODO FIX
         }
+    } else {
+        runfile(REPL_PATH)
     }
 }
