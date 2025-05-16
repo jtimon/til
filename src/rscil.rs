@@ -3417,15 +3417,14 @@ fn to_ast_str(e: &Expr) -> String {
 // TODO return Result<String, String>, so that imports that fail can be treated accordingly
 fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> String {
 
-    let lexer = match lexer_from_source(&path, source) {
+    let mut lexer = match lexer_from_source(&path, source) {
         Ok(_result) => _result,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
         },
     };
 
-    let mut current: usize = 0;
-    let mode = match parse_mode(&path, &lexer, &mut current) {
+    let mode = match parse_mode(&path, &mut lexer) {
         Ok(mode_) => mode_,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);
@@ -3445,7 +3444,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         }
     }
 
-    let mut e: Expr = match parse_tokens(lexer, &mut current) {
+    let mut e: Expr = match parse_tokens(&mut lexer) {
         Ok(expr) => expr,
         Err(error_string) => {
             return format!("{}:{}", &path, error_string);

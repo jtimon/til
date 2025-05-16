@@ -292,16 +292,16 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     };
 }
 
-pub fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Result<ModeDef, String> {
-    if &TokenType::Mode != current_token_type(&lexer, &mut current) {
+pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
+    if TokenType::Mode != lexer.peek().token_type {
         return Err(format!("0:0: 'mode' is required in the beginning of the file"));
     }
-    *current = *current + 1; // Add one for mode
+    lexer.advance(1)?; // Add one for mode
 
-    if &TokenType::Identifier != current_token_type(&lexer, &mut current) {
+    if TokenType::Identifier != lexer.peek().token_type {
         return Err(format!("0:0: Expected identifier after 'mode'"));
     }
-    let t = lexer.get_token(*current)?;
+    let t = lexer.peek();
     let mode_name = &t.token_str;
     let mode = match mode_from_name(&mode_name) {
         Ok(mode_) => mode_,
@@ -315,11 +315,11 @@ pub fn parse_mode(path: &String, lexer: &Lexer, mut current: &mut usize) -> Resu
         return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "script"));
     }
 
-    *current = *current + 1; // Add one for the identifier mode
+    lexer.advance(1)?; // Add one for the identifier mode
     return Ok(mode);
 }
 
-fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
+fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
         TokenType::String => NodeType::LString(t.token_str.clone()),
@@ -330,30 +330,30 @@ fn parse_literal(t: &Token, current: &mut usize) -> Result<Expr, String> {
         },
     };
     let e = Expr::new_parse(node_type, t.clone(), params);
-    *current = *current + 1;
+    lexer.advance(1)?;
     Ok(e)
 }
 
-fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
+fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
-    let initial_current = *current;
-    *current = *current + 1;
-    let mut list_t = lexer.get_token(*current)?;
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
+    let mut list_t = lexer.peek();
     // println!("primary debug LeftParen: {} {}", initial_current, *current);
     let mut expect_comma = false;
-    while !(lexer.is_eof(*current) || rightparent_found) {
+    while !(lexer.is_eof(0) || rightparent_found) {
         // println!("primary debug LeftParen while: {} {}", current, *current);
         match list_t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
-                *current = *current + 1;
+                lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_comma {
                     expect_comma = false;
-                    *current = *current + 1;
-                    list_t = lexer.get_token(*current)?;
+                    lexer.advance(1)?;
+                    list_t = lexer.peek();
                 } else {
                     return Err(list_t.error("Unexpected ','."));
                 }
@@ -363,12 +363,12 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                     return Err(list_t.error(&format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));
                 }
                 expect_comma = true;
-                let prim = match parse_primary(&lexer, current) {
+                let prim = match parse_primary(lexer) {
                     Ok(to_ret) => to_ret,
                     Err(err_str) => return Err(err_str),
                 };
                 params.push(prim);
-                list_t = lexer.get_token(*current)?;
+                list_t = lexer.peek();
             },
         }
     }
@@ -379,32 +379,32 @@ fn parse_list(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     }
 }
 
-fn parse_assignment(lexer: &Lexer, current: &mut usize, t: &Token, name: &String) -> Result<Expr, String> {
-    *current = *current + 1; // skip equal
+fn parse_assignment(lexer: &mut Lexer, t: &Token, name: &String) -> Result<Expr, String> {
+    lexer.advance(1)?; // skip equal
     let mut params = Vec::new();
-    params.push(parse_primary(&lexer, current)?);
+    params.push(parse_primary(lexer)?);
     return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), t.clone(), params))
 }
 
-fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declaration>, String> {
+fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
-    *current = *current + 1;
-    let mut t = lexer.get_token(*current)?;
+    lexer.advance(1)?;
+    let mut t = lexer.peek();
     let mut expect_comma = false;
     let mut expect_colon = false;
     let mut expect_name = true;
     let mut is_variadic = false;
-    let mut arg_name = "unnamed";
+    let mut arg_name = "unnamed".to_string();
     let mut is_mut = false;
-    while !(lexer.is_eof(*current) || rightparent_found) {
+    while !(lexer.is_eof(0) || rightparent_found) {
         match t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
                 if expect_colon {
                     return Err(t.error(&format!("Expected ': Type' after arg name '{}' before ')'.", arg_name)));
                 }
-                *current = *current + 1;
+                lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_colon {
@@ -418,8 +418,8 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     expect_colon = false;
                     expect_name = true;
                     is_mut = false;
-                    *current = *current + 1;
-                    t = lexer.get_token(*current)?;
+                    lexer.advance(1)?;
+                    t = lexer.peek();
                 } else {
                     return Err(t.error("Unexpected ','."));
                 }
@@ -429,8 +429,8 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     expect_colon = false;
                     expect_name = false;
                     expect_comma = false;
-                    *current = *current + 1;
-                    t = lexer.get_token(*current)?;
+                    lexer.advance(1)?;
+                    t = lexer.peek();
                     match t.token_type {
                         TokenType::Identifier => {},
                         TokenType::DoubleDot => {},
@@ -451,8 +451,8 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     return Err(t.error(&format!("Expected arg name, found '{:?}'.", t.token_type)));
                 }
                 is_variadic = true;
-                *current = *current + 1;
-                t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                t = lexer.peek();
             },
             TokenType::Identifier => {
                 if expect_colon {
@@ -462,7 +462,7 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     return Err(t.error(&format!("Expected ',', found identifier '{}'.", t.token_str)));
                 }
                 if expect_name {
-                    arg_name = &t.token_str;
+                    arg_name = t.token_str.to_string();
                     expect_colon = true;
                     expect_name = false;
                 } else {
@@ -483,16 +483,16 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
                     expect_comma = true;
                     is_mut = false;
                 }
-                *current = *current + 1;
-                t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                t = lexer.peek();
             },
             TokenType::Mut => {
                 if !expect_name {
                     return Err(t.error("Unexpected 'mut' in argument list."));
                 }
                 is_mut = true;
-                *current = *current + 1;
-                t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                t = lexer.peek();
             },
             _ => {
                 return Err(t.error(&format!("Unexpected '{:?}' in func/proc args.", t.token_type)));
@@ -505,27 +505,27 @@ fn parse_func_proc_args(lexer: &Lexer, current: &mut usize) -> Result<Vec<Declar
     }
 }
 
-fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>, String> {
+fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
-    let mut t = lexer.get_token(*current)?;
-    *current = *current + 1;
+    let mut t = lexer.peek();
+    lexer.advance(1)?;
     if t.token_type != TokenType::Returns {
         return Ok(return_types);
     }
-    t = lexer.get_token(*current)?;
+    t = lexer.peek();
     let mut expect_comma = false;
-    while !(lexer.is_eof(*current) || end_found) {
+    while !(lexer.is_eof(0) || end_found) {
         match t.token_type {
             TokenType::Throws | TokenType::LeftBrace | TokenType::Semicolon => {
                 end_found = true;
-                *current = *current + 1;
+                lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_comma {
                     expect_comma = false;
-                    *current = *current + 1;
-                    t = lexer.get_token(*current)?;
+                    lexer.advance(1)?;
+                    t = lexer.peek();
                 } else {
                     return Err(t.error("Unexpected ','."));
                 }
@@ -536,8 +536,8 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
                 }
                 return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
-                *current = *current + 1;
-                t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                t = lexer.peek();
             },
             _ => {
                 return Err(t.error(&format!("Unexpected '{:?}' in func/proc returns.", t.token_type)));
@@ -552,28 +552,26 @@ fn func_proc_returns(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType
 }
 
 // TODO DRY with func_proc_returns ?
-fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>, String> {
+fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
     let mut end_found = false;
     let mut return_types : Vec<ValueType> = Vec::new();
-    *current = *current - 1;
-    let mut t = lexer.get_token(*current)?;
-    *current = *current + 1;
+    let mut t = lexer.previous()?;
     if t.token_type != TokenType::Throws {
         return Ok(return_types);
     }
-    t = lexer.get_token(*current)?;
+    t = lexer.peek();
     let mut expect_comma = false;
-    while !(lexer.is_eof(*current) || end_found) {
+    while !(lexer.is_eof(0) || end_found) {
         match t.token_type {
             TokenType::LeftBrace | TokenType::Semicolon => {
                 end_found = true;
-                *current = *current + 1;
+                lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_comma {
                     expect_comma = false;
-                    *current = *current + 1;
-                    t = lexer.get_token(*current)?;
+                    lexer.advance(1)?;
+                    t = lexer.peek();
                 } else {
                     return Err(t.error("Unexpected ','."));
                 }
@@ -584,8 +582,8 @@ fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>
                 }
                 return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
-                *current = *current + 1;
-                t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                t = lexer.peek();
             },
             _ => {
                 return Err(t.error(&format!("Unexpected '{:?}' in func/proc throws.", t.token_type)));
@@ -599,26 +597,26 @@ fn func_proc_throws(lexer: &Lexer, current: &mut usize) -> Result<Vec<ValueType>
     }
 }
 
-fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_parse_body: bool, current: &mut usize) -> Result<Expr, String> {
+fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do_parse_body: bool) -> Result<Expr, String> {
 
-    *current = *current + 1;
-    let t = lexer.get_token(*current)?;
-    if lexer.is_eof(*current + 1) {
+    lexer.advance(1)?;
+    let t = lexer.peek();
+    if lexer.is_eof(1) {
         return Err(t.error("expected '(' after 'func' or 'proc', found EOF."));
     }
     if t.token_type != TokenType::LeftParen {
         return Err(t.error(&format!("expected '(' after 'func', found '{:?}'.", t.token_type)));
     }
-    let args = parse_func_proc_args(&lexer, current)?;
-    let returns = func_proc_returns(&lexer, current)?;
-    let throws = func_proc_throws(&lexer, current)?;
+    let args = parse_func_proc_args(lexer)?;
+    let returns = func_proc_returns(lexer)?;
+    let throws = func_proc_throws(lexer)?;
 
     let body = match do_parse_body {
         false => {
-            *current = *current - 1; // Discount the closing brace we won't need
+            lexer.go_back(1)?; // Discount the closing brace we won't need
             Vec::new()
         },
-        true => match parse_body(&lexer, current, TokenType::RightBrace) {
+        true => match parse_body(lexer, TokenType::RightBrace) {
             Ok(body) => body.params,
             Err(err_str) => return Err(err_str),
         },
@@ -627,45 +625,45 @@ fn parse_func_proc_definition(lexer: &Lexer, function_type: FunctionType, do_par
     let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body, throws};
     let params : Vec<Expr> = Vec::new();
     let e = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), params);
-    *current = *current + 1;
+    lexer.advance(1)?;
     Ok(e)
 }
 
-fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let initial_current: usize = *current;
-    *current = *current + 1;
+fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current: usize = lexer.current;
+    lexer.advance(1)?;
 
-    let t = lexer.get_token(*current)?;
+    let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
         return Err(t.error("Expected '{{' after 'enum'."));
     }
-    if lexer.is_eof(*current + 1) {
-        let t = lexer.get_token(*current)?;
+    if lexer.is_eof(1) {
+        let t = lexer.peek();
         return Err(t.error("expected identifier after 'enum {{', found EOF."));
     }
-    *current = *current + 1;
+    lexer.advance(1)?;
     let mut enum_map: HashMap<String, Option<ValueType>> = HashMap::new();
 
     let mut end_found = false;
-    while *current < lexer.len() && !end_found {
-        let it_t = lexer.get_token(*current)?;
+    while lexer.current < lexer.len() && !end_found {
+        let it_t = lexer.peek();
         match it_t.token_type {
             TokenType::RightBrace => {
                 end_found = true;
             },
             TokenType::Identifier => {
                 let enum_val_name = &it_t.token_str;
-                let next_t = lexer.get_token(*current + 1)?;
+                let next_t = lexer.next()?;
                 match next_t.token_type {
                     TokenType::Colon => {
-                        let next2_t = lexer.get_token(*current + 2)?;
+                        let next2_t = lexer.peek_ahead(2)?;
                         if next2_t.token_type != TokenType::Identifier {
                             return Err(next2_t.error(&format!("Expected type identifier after '{} :', found '{:?}'.",
                                                               enum_val_name, next2_t.token_type)));
                         }
                         let enum_val_type = &next2_t.token_str;
                         enum_map.insert(enum_val_name.to_string(), Some(str_to_value_type(enum_val_type)));
-                        *current = *current + 2;
+                        lexer.advance(2)?;
                     },
                     TokenType::Comma | TokenType::RightBrace => {
                         enum_map.insert(enum_val_name.to_string(), None);
@@ -687,7 +685,7 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
                                                it_t.token_type)));
             }
         }
-        *current = *current + 1;
+        lexer.advance(1)?;
     }
     if !end_found {
         return Err(t.error("Expected '}}' to end enum."));
@@ -696,18 +694,18 @@ fn enum_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{enum_map: enum_map}), lexer.get_token(initial_current)?.clone(), params));
 }
 
-fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    *current = *current + 1;
-    let t = lexer.get_token(*current)?;
+fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
+    lexer.advance(1)?;
+    let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
         return Err(t.error("Expected '{{' after 'struct'."));
     }
-    if lexer.is_eof(*current + 1) {
-        let t = lexer.get_token(*current)?;
+    if lexer.is_eof(1) {
+        let t = lexer.peek();
         return Err(t.error("expected 'identifier' after 'struct {{', found EOF."));
     }
-    *current = *current + 1;
-    let body = match parse_body(&lexer, current, TokenType::RightBrace) {
+    lexer.advance(1)?;
+    let body = match parse_body(lexer, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
@@ -728,35 +726,35 @@ fn parse_struct_definition(lexer: &Lexer, current: &mut usize) -> Result<Expr, S
         }
     }
 
-    *current = *current + 1;
+    lexer.advance(1)?;
     return Ok(Expr::new_parse(NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
                               t.clone(), Vec::new()));
 }
 
-fn parse_primary_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
+fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
 
-    let initial_current = *current;
-    let t = lexer.get_token(*current)?;
-    let mut next_t = lexer.get_token(*current + 1)?;
-    let mut current_identifier = &t.token_str;
+    let initial_current = lexer.current;
+    let t = lexer.peek();
+    let mut next_t = lexer.next()?;
+    let mut current_identifier = t.token_str.to_string();
     let mut params : Vec<Expr> = Vec::new();
     while TokenType::Dot == next_t.token_type {
-        let next2_t = lexer.get_token(*current + 2)?;
+        let next2_t = lexer.peek_ahead(2)?;
         if TokenType::Identifier != next2_t.token_type {
             return Err(next2_t.error(&format!("expected identifier after '{}.', found '{:?}'.", current_identifier, next2_t.token_type)));
         }
 
-        current_identifier = &next2_t.token_str;
-        *current = *current + 2;
+        current_identifier = next2_t.token_str.to_string();
+        lexer.advance(2)?;
         params.push(Expr::new_parse(NodeType::Identifier(current_identifier.clone()), t.clone(), Vec::new()));
-        next_t = lexer.get_token(*current + 1)?;
+        next_t = lexer.next()?;
     }
 
     let e = Expr::new_parse(NodeType::Identifier(t.token_str.clone()), lexer.get_token(initial_current)?.clone(), params);
-    *current = *current + 1;
+    lexer.advance(1)?;
 
     if TokenType::LeftParen == next_t.token_type {
-        let arg_list = match parse_list(&lexer, current) {
+        let arg_list = match parse_list(lexer) {
             Ok(a_list) => a_list,
             Err(err_str) => return Err(err_str),
         };
@@ -794,17 +792,17 @@ fn get_combined_name(e: &Expr) -> Result<String, String> {
     return Ok(to_return)
 }
 
-fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
+fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
 
-    let t = lexer.get_token(*current)?;
-    let mut next_t = lexer.get_token(*current + 1)?;
+    let t = lexer.peek();
+    let mut next_t = lexer.next()?;
     let mut next_token_type = &next_t.token_type;
     match next_token_type {
         TokenType::LeftParen => {
-            return parse_primary_identifier(&lexer, current)
+            return parse_primary_identifier(lexer)
         },
         TokenType::Dot => {
-            let e = parse_primary_identifier(&lexer, current)?;
+            let e = parse_primary_identifier(lexer)?;
             match &e.node_type {
                 NodeType::FCall => return Ok(e),
                 NodeType::Identifier(_) => {},
@@ -812,12 +810,12 @@ fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr
                     return Err(t.lang_error("a series of identifiers and dots should have been parsed as identifier or function call"));
                 },
             }
-            next_t = lexer.get_token(*current)?;
+            next_t = lexer.peek();
             next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::Equal => {
                     let name = get_combined_name(&e)?;
-                    return parse_assignment(&lexer, current, t, &name)
+                    return parse_assignment(lexer, &t, &name)
                 },
                 _ => {
                     return Err(t.lang_error("While parsing a '.', this should never happen"));
@@ -825,20 +823,20 @@ fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr
             }
         },
         TokenType::Equal => {
-            *current = *current + 1; // skip identifier
-            return parse_assignment(&lexer, current, t, &t.token_str)
+            lexer.advance(1)?; // skip identifier
+            return parse_assignment(lexer, &t, &t.token_str)
         },
         TokenType::Colon => {
-            let next_next_t = lexer.get_token(*current + 2)?;
+            let next_next_t = lexer.peek_ahead(2)?;
             let next_next_token_type = &next_next_t.token_type;
             let identifier = &t.token_str;
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = &next_next_t.token_str;
-                    return parse_declaration(&lexer, current, false, type_name)
+                    return parse_declaration(lexer, false, type_name)
                 }
                 TokenType::Equal => {
-                    return parse_declaration(&lexer, current, false, INFER_TYPE)
+                    return parse_declaration(lexer, false, INFER_TYPE)
                 },
                 _ => {
                     Err(t.error(&format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
@@ -852,207 +850,202 @@ fn parse_statement_identifier(lexer: &Lexer, current: &mut usize) -> Result<Expr
     }
 }
 
-fn parse_primary(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
+fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
 
-    let t = lexer.get_token(*current)?;
-    if is_literal(t) {
-        return parse_literal(t, current)
+    let t = lexer.peek();
+    if is_literal(&t) {
+        return parse_literal(lexer, &t)
     }
     match &t.token_type {
-        TokenType::Func => return parse_func_proc_definition(&lexer, FunctionType::FTFunc, true, current),
-        TokenType::FuncExt => return parse_func_proc_definition(&lexer, FunctionType::FTFuncExt, false, current),
-        TokenType::Macro => return parse_func_proc_definition(&lexer, FunctionType::FTMacro, true, current),
-        TokenType::Proc => return parse_func_proc_definition(&lexer, FunctionType::FTProc, true, current),
-        TokenType::ProcExt => return parse_func_proc_definition(&lexer, FunctionType::FTProcExt, false, current),
-        TokenType::Enum => return enum_definition(&lexer, current),
-        TokenType::Struct => return parse_struct_definition(&lexer, current),
-        TokenType::LeftParen => return parse_list(&lexer, current),
-        TokenType::Identifier => return parse_primary_identifier(&lexer, current),
+        TokenType::Func => return parse_func_proc_definition(lexer, FunctionType::FTFunc, true),
+        TokenType::FuncExt => return parse_func_proc_definition(lexer, FunctionType::FTFuncExt, false),
+        TokenType::Macro => return parse_func_proc_definition(lexer, FunctionType::FTMacro, true),
+        TokenType::Proc => return parse_func_proc_definition(lexer, FunctionType::FTProc, true),
+        TokenType::ProcExt => return parse_func_proc_definition(lexer, FunctionType::FTProcExt, false),
+        TokenType::Enum => return enum_definition(lexer),
+        TokenType::Struct => return parse_struct_definition(lexer),
+        TokenType::LeftParen => return parse_list(lexer),
+        TokenType::Identifier => return parse_primary_identifier(lexer),
         _ => return Err(t.error(&format!("Expected primary expression, found '{:?}'.", t.token_type))),
     }
 }
 
-fn return_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let initial_current = *current;
-    *current = *current + 1;
+fn return_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    match parse_primary(&lexer, current) {
+    match parse_primary(lexer) {
         Ok(prim) => {
             params.push(prim);
         },
         Err(_err_str) => {},
     };
-    let mut t = lexer.get_token(*current)?;
+    let mut t = lexer.peek();
     while t.token_type == TokenType::Comma {
-        *current = *current + 1;
-        let prim2 = match parse_primary(&lexer, current) {
+        lexer.advance(1)?;
+        let prim2 = match parse_primary(lexer) {
             Ok(to_ret) => to_ret,
             Err(err_str) => return Err(err_str),
         };
         params.push(prim2);
-        t = lexer.get_token(*current)?;
+        t = lexer.peek();
     }
     Ok(Expr::new_parse(NodeType::Return, lexer.get_token(initial_current)?.clone(), params))
 }
 
-fn parse_throw_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let initial_current = *current;
-    *current = *current + 1;
+fn parse_throw_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    match parse_primary(&lexer, current) {
+    match parse_primary(lexer) {
         Ok(prim) => {
             params.push(prim);
         },
         Err(_err_str) => {},
     };
-    let mut t = lexer.get_token(*current)?;
+    let mut t = lexer.peek();
     while t.token_type == TokenType::Comma {
-        *current = *current + 1;
-        let prim2 = match parse_primary(&lexer, current) {
+        lexer.advance(1)?;
+        let prim2 = match parse_primary(lexer) {
             Ok(to_ret) => to_ret,
             Err(err_str) => return Err(err_str),
         };
         params.push(prim2);
-        t = lexer.get_token(*current)?;
+        t = lexer.peek();
     }
     Ok(Expr::new_parse(NodeType::Throw, lexer.get_token(initial_current)?.clone(), params))
 }
 
-fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let initial_current = *current;
-    *current = *current + 1;
+fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match parse_primary(&lexer, current) {
+    let prim = match parse_primary(lexer) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
     params.push(prim);
-    let t = lexer.get_token(*current)?;
+    let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
         return Err(t.error(&format!("Expected '{{' after condition in 'if' statement, found '{:?}'.", t.token_type)));
     }
-    *current = *current + 1;
-    let body = match parse_body(&lexer, current, TokenType::RightBrace) {
+    lexer.advance(1)?;
+    let body = match parse_body(lexer, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
     params.push(body);
-    *current = *current + 1;
+    lexer.advance(1)?;
 
-    if let Ok(t) = lexer.get_token(*current) {
-        if t.token_type == TokenType::Else {
-            *current = *current + 1;
-            let next = lexer.get_token(*current)?;
-            if next.token_type == TokenType::If {
-                let nested_if = if_statement(lexer, current)?;
-                params.push(nested_if);
-            } else if next.token_type == TokenType::LeftBrace {
-                *current = *current + 1;
-                let else_body = match parse_body(&lexer, current, TokenType::RightBrace) {
-                    Ok(body) => body,
-                    Err(err_str) => return Err(err_str),
-                };
-                params.push(else_body);
-                *current = *current + 1;
-            } else {
-                return Err(t.error(&format!("Expected '{{' or 'if' after 'else', found '{:?}'.", next.token_type)));
-            }
+    let t = lexer.peek();
+    if t.token_type == TokenType::Else {
+        lexer.advance(1)?;
+        let next = lexer.peek();
+        if next.token_type == TokenType::If {
+            let nested_if = if_statement(lexer)?;
+            params.push(nested_if);
+        } else if next.token_type == TokenType::LeftBrace {
+            lexer.advance(1)?;
+            let else_body = match parse_body(lexer, TokenType::RightBrace) {
+                Ok(body) => body,
+                Err(err_str) => return Err(err_str),
+            };
+            params.push(else_body);
+            lexer.advance(1)?;
+        } else {
+            return Err(t.error(&format!("Expected '{{' or 'if' after 'else', found '{:?}'.", next.token_type)));
         }
     }
 
     Ok(Expr::new_parse(NodeType::If, lexer.get_token(initial_current)?.clone(), params))
 }
 
-fn while_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let initial_current = *current;
-    *current = *current + 1;
+fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match parse_primary(&lexer, current) {
+    let prim = match parse_primary(lexer) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
     params.push(prim);
-    let t = lexer.get_token(*current)?;
+    let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
         return Err(t.error("Expected '{{' after condition in 'while' statement."));
     }
-    *current = *current + 1;
-    let body = match parse_body(&lexer, current, TokenType::RightBrace) {
+    lexer.advance(1)?;
+    let body = match parse_body(lexer, TokenType::RightBrace) {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
     params.push(body);
-    *current = *current + 1;
+    lexer.advance(1)?;
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
-fn current_token_type<'a>(lexer: &'a Lexer, current: &'a mut usize) -> &'a TokenType {
-    return &lexer.get_token(*current).unwrap().token_type;
-}
-
-fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let t = lexer.get_token(*current)?;
-    let initial_current = *current;
-    *current = *current + 1;
+fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let t = lexer.peek();
+    let initial_current = lexer.current;
+    lexer.advance(1)?;
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match parse_primary(&lexer, current) {
+    let prim = match parse_primary(lexer) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
     params.push(prim);
 
-    if &TokenType::LeftBrace != current_token_type(&lexer, current) {
+    if TokenType::LeftBrace != lexer.peek().token_type {
         return Err(t.error("Expected '{{' after primary expression in 'switch' statement."));
     }
-    *current = *current + 1;
+    lexer.advance(1)?;
 
     let mut end_found = false;
-    while *current < lexer.len() && !end_found {
-        let mut next_t = lexer.get_token(*current)?;
+    while lexer.current < lexer.len() && !end_found {
+        let mut next_t = lexer.peek();
         if next_t.token_type != TokenType::Case {
             return Err(next_t.error(&format!("Expected 'case' in switch, found '{:?}'", next_t.token_type)));
         }
 
-        *current = *current + 1;
-        next_t = lexer.get_token(*current)?;
+        lexer.advance(1)?;
+        next_t = lexer.peek();
         if next_t.token_type == TokenType::Colon {
             params.push(Expr::new_parse(NodeType::DefaultCase, t.clone(), Vec::new()));
         } else {
-            let prim = match parse_primary(&lexer, current) {
+            let prim = match parse_primary(lexer) {
                 Ok(to_ret) => to_ret,
                 Err(err_str) => return Err(err_str),
             };
             params.push(prim);
         }
 
-        next_t = lexer.get_token(*current)?;
+        next_t = lexer.peek();
         if next_t.token_type != TokenType::Colon {
             return Err(next_t.error(&format!("Expected ':' case <primary_expr> in switch, found '{:?}'", next_t.token_type)));
         }
 
-        *current = *current + 1;
-        next_t = lexer.get_token(*current)?;
+        lexer.advance(1)?;
+        next_t = lexer.peek();
         let mut body_params : Vec<Expr> = Vec::new();
-        while *current < lexer.len() {
+        while lexer.current < lexer.len() {
             if next_t.token_type == TokenType::RightBrace {
                 params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
                 end_found = true;
-                *current = *current + 1;
+                lexer.advance(1)?;
                 break;
             }
             if next_t.token_type == TokenType::Case {
                 params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
                 break;
             }
-            let stmt = match parse_statement(&lexer, current) {
+            let stmt = match parse_statement(lexer) {
                 Ok(statement) => statement,
                 Err(error_string) => return Err(error_string),
             };
             body_params.push(stmt);
-            next_t = lexer.get_token(*current)?;
+            next_t = lexer.peek();
             if next_t.token_type == TokenType::Semicolon {
-                *current = *current + 1;
-                next_t = lexer.get_token(*current)?;
+                lexer.advance(1)?;
+                next_t = lexer.peek();
             }
         }
     }
@@ -1062,16 +1055,16 @@ fn parse_switch_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, St
     return Err(t.error("Expected '}}' to end switch."));
 }
 
-fn parse_declaration(lexer: &Lexer, current: &mut usize, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
-    let t = lexer.get_token(*current)?;
+fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
+    let t = lexer.peek();
     let decl_name = &t.token_str;
-    let initial_current = *current;
-    *current = *current + 3; // skip identifier, colon and equal
+    let initial_current = lexer.current;
+    lexer.advance(3)?; // skip identifier, colon and equal
     if explicit_type != INFER_TYPE {
-        *current = *current + 1; // skip type identifier
+        lexer.advance(1)?; // skip type identifier
     }
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match parse_primary(&lexer, current) {
+    let prim = match parse_primary(lexer) {
         Ok(to_ret) => to_ret,
         Err(err_str) => return Err(err_str),
     };
@@ -1081,29 +1074,29 @@ fn parse_declaration(lexer: &Lexer, current: &mut usize, is_mut: bool, explicit_
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
 
-fn parse_mut_declaration(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let t = lexer.get_token(*current)?;
-    let mut next_t = lexer.get_token(*current + 1)?;
+fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
+    let t = lexer.peek();
+    let mut next_t = lexer.next()?;
     let mut next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Identifier {
         return Err(t.error(&format!("Expected identifier after 'mut', found '{:?}'.", next_token_type)));
     }
-    let identifier = &next_t.token_str;
-    *current = *current + 1;
-    next_t = lexer.get_token(*current + 1)?;
+    let identifier = &next_t.token_str.to_string();
+    lexer.advance(1)?;
+    next_t = lexer.next()?;
     next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Colon {
         return Err(t.error(&format!("Expected ':' after 'mut {}', found '{:?}'.", identifier, next_token_type)));
     }
-    let next_next_t = lexer.get_token(*current + 2)?;
+    let next_next_t = lexer.peek_ahead(2)?;
     let next_next_token_type = &next_next_t.token_type;
     match next_next_token_type {
         TokenType::Identifier => {
             let type_name = &next_next_t.token_str;
-            return parse_declaration(&lexer, current, true, type_name)
+            return parse_declaration(lexer, true, type_name)
         }
         TokenType::Equal => {
-            return parse_declaration(&lexer, current, true, INFER_TYPE)
+            return parse_declaration(lexer, true, INFER_TYPE)
         },
         _ => {
             Err(t.error(&format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",
@@ -1112,45 +1105,45 @@ fn parse_mut_declaration(lexer: &Lexer, current: &mut usize) -> Result<Expr, Str
     }
 }
 
-fn parse_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
-    let t = lexer.get_token(*current)?;
+fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let t = lexer.peek();
     match &t.token_type {
         TokenType::For => {
             return Err(t.todo_error("Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,"));
         },
-        TokenType::Return => return return_statement(&lexer, current),
-        TokenType::Throw => return parse_throw_statement(&lexer, current),
-        TokenType::If => return if_statement(&lexer, current),
-        TokenType::While => return while_statement(&lexer, current),
-        TokenType::Switch => return parse_switch_statement(&lexer, current),
-        TokenType::Mut => return parse_mut_declaration(&lexer, current),
-        TokenType::Identifier => return parse_statement_identifier(&lexer, current),
+        TokenType::Return => return return_statement(lexer),
+        TokenType::Throw => return parse_throw_statement(lexer),
+        TokenType::If => return if_statement(lexer),
+        TokenType::While => return while_statement(lexer),
+        TokenType::Switch => return parse_switch_statement(lexer),
+        TokenType::Mut => return parse_mut_declaration(lexer),
+        TokenType::Identifier => return parse_statement_identifier(lexer),
         _ => {
             Err(t.error(&format!("Expected statement, found {:?}.", t.token_type)))
         },
     }
 }
 
-fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Result<Expr, String> {
+fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
 
-    let initial_current: usize = *current;
+    let initial_current: usize = lexer.current;
     let mut params : Vec<Expr> = Vec::new();
     let mut end_found = false;
-    let mut t = lexer.get_token(*current)?; // track last token for error reporting
+    let mut t = lexer.peek(); // track last token for error reporting
 
-    while *current < lexer.len() && !end_found {
-        t = lexer.get_token(*current)?; // update t with the current token
+    while lexer.current < lexer.len() && !end_found {
+        t = lexer.peek(); // update t with the current token
         let token_type = &t.token_type;
         if token_type == &end_token {
             end_found = true;
             break;
         }
         if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-            *current = *current + 1;
+            lexer.advance(1)?;
             continue;
         }
 
-        let stmt = match parse_statement(&lexer, current) {
+        let stmt = match parse_statement(lexer) {
             Ok(statement) => statement,
             Err(error_string) => return Err(error_string),
         };
@@ -1162,22 +1155,22 @@ fn parse_body(lexer: &Lexer, current: &mut usize, end_token: TokenType) -> Resul
     return Err(t.error(&format!("Expected '{:?}' to end body.", end_token))); // use last valid token
 }
 
-pub fn parse_tokens(lexer: Lexer, current: &mut usize) -> Result<Expr, String> {
+pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
 
-    let e: Expr = match parse_body(&lexer, current, TokenType::Eof) {
+    let e: Expr = match parse_body(lexer, TokenType::Eof) {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
-    *current = *current + 1; // Add one for the EOF
+    lexer.advance(1)?; // Add one for the EOF
 
-    let mut i = *current;
+    let mut i = lexer.current;
     let mut unparsed_tokens = 0;
     let lexer_len = lexer.len();
     if i < lexer_len {
         unparsed_tokens = lexer_len - i;
     }
     if unparsed_tokens > 0 {
-        println!("Total tokens parsed: {}/{}", current, lexer_len);
+        println!("Total tokens parsed: {}/{}", lexer.current, lexer_len);
     }
     while i < lexer_len {
         let t = lexer.get_token(i)?;
