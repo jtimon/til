@@ -48,7 +48,7 @@ pub enum TokenType {
     Case,
     Invalid,
     UnterminatedString,
-    // UnterminatedComment, // TODO do nesting comments like jai and odin, shoulnd't be that hard. ideally in the lexer itself
+    UnterminatedComment,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -312,11 +312,32 @@ fn scan_tokens(source: String) -> Vec<Token> {
                         }
                         continue;
                     },
-                    // TODO allow the other type of commments, allowing nesting
-                    // "*" => {
-                    //     // /* style of comment not allowed yet
-                    //     TokenType::Invalid,
-                    // },
+                    "*" => {
+                        pos += 2;
+                        let mut depth = 1;
+                        while pos < eof_pos - 1 {
+                            if &source[pos..pos+2] == "/*" {
+                                depth += 1;
+                                pos += 2;
+                            } else if &source[pos..pos+2] == "*/" {
+                                depth -= 1;
+                                pos += 2;
+                                if depth == 0 {
+                                    break;
+                                }
+                            } else {
+                                if &source[pos..pos+1] == "\n" {
+                                    line += 1;
+                                    start_line_pos = pos + 1;
+                                }
+                                pos += 1;
+                            }
+                        }
+                        if depth > 0 {
+                            scan_push_token(&mut tokens, TokenType::UnterminatedComment, "/*", line, pos - start_line_pos + 1);
+                        }
+                        continue;
+                    },
                     _ => TokenType::Slash,
                 },
 
@@ -396,6 +417,9 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         TokenType::UnterminatedString => {
             print_lex_error(path, t, errors_found, "Unterminated String\nSuggestion: add missing '\"'");
         },
+        TokenType::UnterminatedComment => {
+            print_lex_error(path, t, errors_found, "Unterminated comment\nSuggestion: add missing '*/'");
+        }
         TokenType::Const => {
             print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
         },

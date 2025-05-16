@@ -2,6 +2,20 @@ mode script
 
 // Basic control flow (execution):
 
+/*
+
+multi
+line
+comments
+
+/*
+nested too
+*/
+
+doesn't break with nesting like C's
+
+*/ // TODO should it be unterminated comment when we remove this? or give errors in "doesn't break"
+
 // basic 'if' statements:
 
 if not(gt(4, 2)) {
