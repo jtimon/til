@@ -46,7 +46,6 @@ Expr := struct {
     }
 }
 
-// TODO support else if
 // TODO properly support throw
 // TODO implement Str.fmt once we have variadic arguments for user functions
 

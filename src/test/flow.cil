@@ -12,9 +12,11 @@ if not(gt(4, 2)) {
 
 // if 42 { // fails because ints are not allowed for conditions, only bool
 if gt(2, 4) {
-    println("'if' within  if/else not acepting  2 is lesser than 4")
+    println("'if' within if/else not acepting 2 is lesser than 4")
+} else if gt(3, 4) {
+    println("'if' within elif not acepting 3 is lesser than 4")
 } else {
-    print("else: 'else' is allowed and functional")
+    println("else: 'else' is allowed and functional")
 }
 
 // while loops:
@@ -26,6 +28,7 @@ while lt(it, 5) {
     print(it.to_str(), " ")
     it = add(it, 1)
 }
+print("\n")
 
 // switch statements:
 

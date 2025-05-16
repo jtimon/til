@@ -928,7 +928,7 @@ fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
         Err(err_str) => return Err(err_str),
     };
     params.push(prim);
-    let mut t = lexer.get_token(*current)?;
+    let t = lexer.get_token(*current)?;
     if t.token_type != TokenType::LeftBrace {
         return Err(format!("{}:{}: parse ERROR: Expected '{{' after condition in 'if' statement, found {:?}.", t.line, t.col, t.token_type));
     }
@@ -939,21 +939,28 @@ fn if_statement(lexer: &Lexer, current: &mut usize) -> Result<Expr, String> {
     };
     params.push(body);
     *current = *current + 1;
-    t = lexer.get_token(*current)?;
-    if t.token_type == TokenType::Else {
-        *current = *current + 1;
-        t = lexer.get_token(*current)?;
-        if t.token_type != TokenType::LeftBrace {
-            return Err(format!("{}:{}: parse ERROR: Expected '{{' after 'else'.", t.line, t.col));
+
+    if let Ok(t) = lexer.get_token(*current) {
+        if t.token_type == TokenType::Else {
+            *current = *current + 1;
+            let next = lexer.get_token(*current)?;
+            if next.token_type == TokenType::If {
+                let nested_if = if_statement(lexer, current)?;
+                params.push(nested_if);
+            } else if next.token_type == TokenType::LeftBrace {
+                *current = *current + 1;
+                let else_body = match parse_body(&lexer, current, TokenType::RightBrace) {
+                    Ok(body) => body,
+                    Err(err_str) => return Err(err_str),
+                };
+                params.push(else_body);
+                *current = *current + 1;
+            } else {
+                return Err(format!("{}:{}: parse ERROR: Expected '{{' or 'if' after 'else', found {:?}", t.line, t.col, next.token_type));
+            }
         }
-        *current = *current + 1;
-        let body = match parse_body(&lexer, current, TokenType::RightBrace) {
-            Ok(body) => body,
-            Err(err_str) => return Err(err_str),
-        };
-        params.push(body);
-        *current = *current + 1;
     }
+
     Ok(Expr::new_parse(NodeType::If, lexer.get_token(initial_current)?.clone(), params))
 }
 
