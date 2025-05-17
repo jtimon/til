@@ -440,7 +440,7 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             print_lex_error(path, t, errors_found, "Invalid character");
         },
         TokenType::UnterminatedString => {
-            print_lex_error(path, t, errors_found, "Unterminated String\nSuggestion: add missing '\"'");
+            print_lex_error(path, t, errors_found, "Unterminated Str\nSuggestion: add missing '\"'");
         },
         TokenType::UnterminatedComment => {
             print_lex_error(path, t, errors_found, "Unterminated comment\nSuggestion: add missing '*/'");
@@ -470,7 +470,7 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             print_lex_error(path, t, errors_found, "Operator '/' is not supported yet\nSuggestion: use core func 'div' instead");
         },
         TokenType::EqualEqual => {
-            print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'String.eq' instead");
+            print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'Str.eq' instead");
         },
         TokenType::Lesser => {
             print_lex_error(path, t, errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
@@ -488,7 +488,7 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
         },
         TokenType::NotEqual => {
-            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'String.eq' instead");
+            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'Str.eq' instead");
         },
         _ => {
             // No error, do nothing

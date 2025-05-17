@@ -456,7 +456,8 @@ impl Context {
                 Some(e) => match eval_expr(self, e) {
                     Ok(res) => res.value,
                     Err(err) => {
-                        println!("ERROR: Failed to evaluate default value for field '{}': {}", member_name, err);
+                        println!("ERROR: Failed to evaluate default value for field '{}':", member_name);
+                        println!("ERROR:{}", err);
                         return false;
                     }
                 },
