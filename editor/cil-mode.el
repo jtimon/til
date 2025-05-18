@@ -3,8 +3,9 @@
 
 (defconst cil-mode-syntax-table
   (with-syntax-table (copy-syntax-table)
-    ;; Comments: // and #
+    ;; Line comments: // and #
     (modify-syntax-entry ?/ ". 124b")
+    (modify-syntax-entry ?* ". 23")
     (modify-syntax-entry ?# "< b")
     (modify-syntax-entry ?\n "> b")
     ;; Strings
@@ -21,28 +22,36 @@
   "Syntax table for `cil-mode'.")
 
 (defconst cil-keywords
-  '("mode" "mut" "struct" "enum" "func" "proc"
-    "ext_func" "ext_proc" "macro" "return" "returns" "throw" "throws"
-    "if" "else" "while" "switch" "case" "true" "false"))
+  '("mode" "mut" "struct" "enum" "main"
+    "func" "proc" "ext_func" "ext_proc" "macro"
+    "returns" "return" "throws"
+    "if" "else" "while" "switch" "case" "true" "false"
+    ))
 
 (defconst cil-types
   '("U8" "I64" "Bool" "Str"))
 
 (defconst cil-builtins
-  '("and" "or" "not" "eq"
+  '("and" "or" "not" "eq" "branchless"
     "lt" "lteq" "gt" "gteq"
-    "len" "size"
-    "add" "sub" "mul" "div"
-    "concat" "to_str" "to_i64" "to_u8"
-    "print" "println" "readfile" "runfile" "exit" "import"
-    "input_read_line" "eval_to_str"))
+    "add" "sub" "mul" "div" "mod"
+    "concat" "fmt" "to_str" "to_i64" "to_u8"
+    "len" "size_of"
+    "malloc" "memcpy" "memset" "free"
+    "print" "println" "readfile" "runfile" "exit" "import" "loc"
+    "assert" "assertm" "assert_eq" "assert_eq_str"
+    "input_read_line" "eval_to_str"
+    "lib" "pure" "script" "safe_script" "cli" "test"
+    ))
 
 (defconst cil-error-words
-  '("static" "let" "var" "const" "global" "fn" "function" "try" "catch" "TODO" "FIX" "NULL")
+  '("throw" "catch" "panic" "exit" "TODO" "NULL"
+    "static" "let" "var" "const" "global" "fn" "function" "try"
+    )
   "Words that are invalid in cil and should be highlighted as errors.")
 
 (defconst comment-error-words
-  '("TODO" "FIX" "REM")
+  '("TODO" "FIX" "FIXME" "WIP")
   "Words to highlight as errors in comments.")
 
 ;; TODO FIX warnings in comments
@@ -51,18 +60,22 @@
   "Words to highlight as warning in comments.")
 
 (defconst cil-highlights `(
+    ;; Doc comments /** ... */
+    ("/\\*\\*\\([^*]\\|\\*[^/]\\)*\\*/" . font-lock-doc-face)
     ;; Error words
     (,(regexp-opt cil-error-words 'symbols) . compilation-error)
     ;; Error words in comments
     (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-error-words t) "\\)\\>\\)") . (2 compilation-error t))
     ;; Warning words in comments
-    (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-warning-words t) "\\)\\>\\)") . (2 compilation-warning t))
+    (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-warning-words t) "\\)\\>\\)") . (2 font-lock-warning-face t))
     ;; Keywords
     (,(regexp-opt cil-keywords 'symbols) . font-lock-keyword-face)
     ;; Built-in Types
     (,(regexp-opt cil-types 'symbols) . font-lock-type-face)
     ;; Builtins
     (,(regexp-opt cil-builtins 'symbols) . font-lock-builtin-face)
+    ;; Numeric literals (not part of identifiers)
+    ("\\(?:^\\|[^a-zA-Z0-9_]\\)\\([0-9]+\\(?:\\.[0-9]+\\)?\\)\\_>" 1 font-lock-preprocessor-face)
     ;; Type declarations: 'enum' and 'struct'
     ("\\<\\([a-zA-Z_][a-zA-Z0-9_]*\\)\\s-*:=\\s-*\\(enum\\|struct\\)" 1 font-lock-type-face)
     ;; Assignments (mutable variables)
@@ -169,7 +182,23 @@
   (setq-local comment-start "// ")           ; Default comment prefix for region commenting
   (setq-local comment-start-skip "//+\\s-*") ; Only recognize // for highlighting and commenting
   (setq-local comment-end "")                ; Single-line comments, no end delimiter
-  (setq-local comment-multi-line nil))       ; Enforce single-line comment style
+  (setq-local comment-multi-line nil)        ; Enforce single-line comment style
+  ;; Enable nested multi-line comments
+  ;; NOTE: While CIL supports nested /* ... */ comments,
+  ;; Emacs syntax highlighting does not. This mode will only highlight up to the first '*/' matching.
+  (setq-local font-lock-syntactic-face-function
+	      (lambda (state)
+		(cond
+		 ((nth 4 state)
+		  (save-excursion
+		    (goto-char (nth 8 state))
+		    (if (looking-at "/\\*\\*")
+			'font-lock-doc-face
+		      'font-lock-comment-face)))
+		 ((nth 3 state)
+		  'font-lock-string-face)
+		 (t nil))))
+  )
 
 (add-to-list 'auto-mode-alist '("\\.cil\\'" . cil-mode))
 
