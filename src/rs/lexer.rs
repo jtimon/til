@@ -94,14 +94,17 @@ impl Lexer {
         return current >= self.tokens.len() ||
             match self.tokens.get(current) {
                 Some(_t) => TokenType::Eof == _t.token_type,
-                None => false,
+                None => false, // TODO shouldn't this be true instead of false?
             }
     }
 
     pub fn get_token(&self, i: usize) -> Result<&Token, String> {
         match self.tokens.get(i) {
             Some(t) => Ok(t),
-            None => Err(format!(":: Token in pos {} is out of bounds", i)),
+            None => {
+                let t = self.peek();
+                return Err(t.lang_error(&format!("Token in pos {} is out of bounds", i)))
+            },
         }
     }
 
@@ -111,18 +114,21 @@ impl Lexer {
 
     pub fn previous(&self) -> Result<Token, String> {
         if self.current == 0 {
-            return Err(":: No previous token (at position 0)".to_string());
+            let t = self.peek();
+            return Err(t.lang_error("No previous token (at position 0)"));
         }
         if self.current - 1 >= self.tokens.len() {
-            return Err(":: Previous token is out of bounds".to_string());
+            let t = self.peek();
+            return Err(t.lang_error("Previous token is out of bounds"));
         }
         return Ok(self.tokens[self.current - 1].clone());
     }
 
     pub fn advance(&mut self, count: usize) -> Result<(), String> {
         if self.current + count > self.tokens.len() {
-            return Err(format!(":: Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
-                               count, self.current, self.tokens.len()));
+            let t = self.peek();
+            return Err(t.lang_error(&format!("Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
+                                             count, self.current, self.tokens.len())));
         }
         self.current += count;
         return Ok(());
@@ -130,7 +136,8 @@ impl Lexer {
 
     pub fn go_back(&mut self, count: usize) -> Result<(), String> {
         if count > self.current {
-            return Err(format!(":: Attempt to go back by {} from {} would underflow", count, self.current));
+            let t = self.peek();
+            return Err(t.lang_error(&format!("Attempt to go back by {} from {} would underflow", count, self.current)));
         }
         self.current -= count;
         Ok(())
@@ -139,13 +146,14 @@ impl Lexer {
     pub fn peek_ahead(&self, offset: usize) -> Result<Token, String> {
         let i = self.current + offset;
         if i >= self.tokens.len() {
-            return Err(format!(":: Peek ahead by {} from {} is out of bounds", offset, self.current));
+            let t = self.peek();
+            return Err(t.lang_error(&format!("Peek ahead by {} from {} is out of bounds", offset, self.current)));
         }
         return Ok(self.tokens[i].clone());
     }
 
     pub fn next(&self) -> Result<Token, String> {
-        self.peek_ahead(1)
+        return self.peek_ahead(1)
     }
 }
 
