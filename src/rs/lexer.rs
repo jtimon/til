@@ -368,6 +368,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                             } else if pos + 1 < eof_pos && &source[pos..pos+1] == "\\" {
                                 lit_string.push('\\');
                             } else { // If it's something else, just leave it as is for now, I guess
+                                // TODO print some warning with unkown escaped characters?
                                 lit_string.push('\\');
                                 lit_string.push(source.chars().nth(pos).unwrap());
                             }
