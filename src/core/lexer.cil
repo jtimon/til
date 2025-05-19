@@ -53,7 +53,7 @@ TokenType := enum {
     Case,
     Invalid,
     UnterminatedString,
-    // UnterminatedComment // TODO do nesting comments like jai and odin, shouldn't be that hard.
+    UnterminatedComment,
 }
 
 Token := struct {
@@ -411,20 +411,50 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 }
 
             case "/":
-                // TODO allow the other type of commments '/*', allowing nesting like odin or jai
-                if Str.eq("/", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
+                if Str.eq(Str.get_substr(source, add(pos, 1), add(pos, 2)), "/") {
+                    // Single-line comment
                     pos = add(pos, 2)
                     while and(lt(add(pos, 1), eof_pos), not(Str.eq("\n", Str.get_substr(source, pos, add(pos, 2))))) {
                         pos.inc()
                     }
+                    pos.inc()
+                } else if Str.eq(Str.get_substr(source, add(pos, 1), add(pos, 2)), "*") {
+                    // Nested block comment
+                    pos = add(pos, 2)
+                    depth := 1
+                    mut done := false
+
+                    while and(lt(pos, sub(eof_pos, 1)), not(done)) {
+                        next_two := Str.get_substr(source, pos, add(pos, 2))
+
+                        if Str.eq(next_two, "/*") {
+                            depth.inc()
+                            pos = add(pos, 2)
+                        } else if Str.eq(next_two, "*/") {
+                            depth.dec()
+                            pos = add(pos, 2)
+                            if depth.eq(0) {
+                                done = true
+                            }
+                        } else {
+                            if Str.eq(Str.get_substr(source, pos, add(pos, 1)), "\n") {
+                                line.inc()
+                                start_line_pos = add(pos, 1)
+                            }
+                            pos.inc()
+                        }
+                    }
+
+                    if not(done) {
+                        scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, sub(pos, start_line_pos))
+                    }
 
                 } else {
                     scan_push_token(tokens, TokenType.Slash, current_char, line, sub(pos, start_line_pos))
+                    pos.inc()
                 }
-                pos.inc()
 
                 // literal strings
-                // case "\"":
             case "\"":
                 pos.inc()
                 mut done := false
