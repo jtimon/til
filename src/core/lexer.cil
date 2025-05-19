@@ -427,18 +427,41 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 // case "\"":
             case "\"":
                 pos.inc()
-                while and(lt(add(pos, 1), eof_pos), not(Str.eq(Str.get_substr(source, pos, add(pos, 1)), "\""))) {
-                    if Str.eq(Str.get_substr(source, pos, add(pos, 1)), "\\") {
-                        pos.inc() // if it's the escape character, skip the next character too
+                mut done := false
+
+                while and(lt(add(pos, 1), eof_pos), not(done)) {
+                    current := Str.get_substr(source, pos, add(pos, 1))
+
+                    if Str.eq(current, "\"") {
+                        done = true
+                    } else if Str.eq(current, "\\") {
+                        pos.inc() // move past '\'
+                        if lt(add(pos, 1), eof_pos) {
+                            esc := Str.get_substr(source, pos, add(pos, 1))
+                            // accept known escapes
+                            switch esc {
+                            case "\"":
+                            case "\\":
+                            case "n":
+                            case "r":
+                            case "t":
+                            case "0":
+                                // valid escape, skip over it
+                            case:
+                                // unknown escape, still skip the character
+                            }
+                        }
                     }
                     pos.inc()
                 }
-                if gteq(pos, eof_pos) {
+
+                if not(done) {
                     token_str := Str.get_substr(source, start, add(pos, 1))
                     scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     token_str := Str.get_substr(source, add(start, 1), pos)
                     scan_push_token(tokens, TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
+                    pos.inc()
                 }
 
                 // Everything else must be reserved words, identifiers or invalid
