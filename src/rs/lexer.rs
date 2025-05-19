@@ -89,13 +89,12 @@ impl Lexer {
         return self.tokens.len();
     }
 
-    pub fn is_eof(self: &Lexer, offset: usize) -> bool {
-        let current = self.current + offset;
-        return current >= self.tokens.len() ||
-            match self.tokens.get(current) {
-                Some(_t) => TokenType::Eof == _t.token_type,
-                None => false, // TODO shouldn't this be true instead of false?
-            }
+    pub fn is_eof(&self, offset: usize) -> bool {
+        let index = self.current + offset;
+        if index >= self.tokens.len() {
+            return true;
+        }
+        return self.tokens[index].token_type == TokenType::Eof
     }
 
     pub fn get_token(&self, i: usize) -> Result<&Token, String> {
