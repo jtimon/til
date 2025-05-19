@@ -2825,19 +2825,15 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                     } else if custom_symbol.value_type == ValueType::TStructDef {
                         // Special case for instantiation
                         if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
-                            match &inner_e.params.get(0).unwrap().node_type {
-                                NodeType::Identifier(potentially_struct_name) => {
-                                    match context.struct_defs.get(potentially_struct_name) {
-                                        Some(_struct_def) => {
-                                            if !context.insert_struct(&declaration.name, custom_type_name) {
-                                                return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name))
-                                            }
-                                            return "".to_string()
-                                        },
-                                        None => {},
+                            if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
+                                if inner_e.params[0].params.is_empty() {
+                                    if context.struct_defs.contains_key(potentially_struct_name) {
+                                        if !context.insert_struct(&declaration.name, custom_type_name) {
+                                            return e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name));
+                                        }
+                                        return "".to_string();
                                     }
-                                },
-                                _ => {},
+                                }
                             }
                         }
                         // otherwise continue, it's a function that returns a struct

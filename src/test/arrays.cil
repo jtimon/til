@@ -20,7 +20,7 @@ test_array_static_u8()
 test_array_dynamic_u8 := proc() {
     mut dyn := U8Array.new_dyn()
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), U8Array.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
+    assert_eq(loc(), U8Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(U8.from_i64(42))
     dyn.push(U8.from_i64(255))
@@ -56,16 +56,16 @@ test_array_static_str()
 test_array_dynamic_str := proc() {
     mut dyn := StrArray.new_dyn()
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), StrArray.INIT_DYN_CAP, dyn.cap) // TODO FIX this is strange af
+    assert_eq(loc(), StrArray.INIT_DYN_CAP, dyn.cap)
 
     dyn.push("foo")
     dyn.push("bar")
-    // assert_eq(loc(), 2, dyn.len) // TODO FIX dynamic StrArray
-    // test(loc(), Str.eq(dyn.get(0), "foo"), "Value at index 0")
-    // test(loc(), Str.eq(dyn.get(1), "bar"), "Value at index 1")
+    assert_eq(loc(), 2, dyn.len)
+    test(loc(), Str.eq(dyn.get(0), "foo"), "Value at index 0")
+    test(loc(), Str.eq(dyn.get(1), "bar"), "Value at index 1")
 
-    // dyn.set(0, "baz")
-    // test(loc(), Str.eq(dyn.get(0), "baz"), "Set and get index 0")
+    dyn.set(0, "baz")
+    test(loc(), Str.eq(dyn.get(0), "baz"), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
@@ -92,7 +92,7 @@ test_array_static_bool()
 test_array_dynamic_bool := proc() {
     mut dyn := BoolArray.new_dyn()
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), BoolArray.INIT_DYN_CAP, dyn.cap) // TODO investigate cap
+    assert_eq(loc(), BoolArray.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(true)
     dyn.push(false)
@@ -128,11 +128,11 @@ test_array_static_i64()
 test_array_dynamic_i64 := proc() {
     mut dyn := I64Array.new_dyn()
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), I64Array.INIT_DYN_CAP, dyn.cap) // TODO verify cap logic
+    assert_eq(loc(), I64Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(42)
     dyn.push(84)
-    assert_eq(loc(), 2, dyn.len) // TODO check after dynamic push
+    assert_eq(loc(), 2, dyn.len)
     test(loc(), I64.eq(dyn.get(0), 42), "Value at index 0")
     test(loc(), I64.eq(dyn.get(1), 84), "Value at index 1")
 
