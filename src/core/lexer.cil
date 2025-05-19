@@ -371,7 +371,7 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 pos.inc()
             case "=":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(tokens, TokenType.EqualEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.EqualEqual, "==", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
                     scan_push_token(tokens, TokenType.Equal, current_char, line, sub(pos, start_line_pos))
@@ -379,7 +379,7 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 pos.inc()
             case "<":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(tokens, TokenType.LesserEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.LesserEqual, "<=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
                     scan_push_token(tokens, TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
@@ -387,7 +387,7 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 pos.inc()
             case ">":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(tokens, TokenType.GreaterEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
                     scan_push_token(tokens, TokenType.Greater, current_char, line, sub(pos, start_line_pos))
@@ -395,7 +395,7 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 pos.inc()
             case "!":
                 if Str.eq("=", Str.get_substr(source, add(pos, 1), add(pos, 2))) {
-                    scan_push_token(tokens, TokenType.NotEqual, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.NotEqual, "!=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
                     scan_push_token(tokens, TokenType.Not, current_char, line, sub(pos, start_line_pos))
