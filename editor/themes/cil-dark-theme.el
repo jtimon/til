@@ -42,8 +42,14 @@
       (type "#81a2be")      ; blue
       (function "#00994c")  ; dark-green instead of purple b294bb
       (variable "#d08770")  ; Soft orange
+      (builtin "#b0c4de")   ; LightSteelBlue
+      (preprocessor "#b294bb") ; Muted magenta
       (warning "#de935f")   ; orange
       (error "#c66"))
+
+  ;; font-lock-builtin-face LightSteelBlue "#b0c4de"
+  ;; #b294bb Muted magenta
+  ;; Soft red-orange like #e78c45
 
 ;; (let ((class '((class color) (min-colors 89)))
 ;;       ;; Color palette based on sanityinc-tomorrow-night
@@ -64,6 +70,8 @@
 ;;       (warning "#de935f")
 ;;       (error "#c66"))
 
+
+
   (custom-theme-set-faces
    'cil-dark
    `(default ((,class (:background ,background :foreground ,foreground))))
@@ -79,6 +87,8 @@
    `(font-lock-type-face ((,class (:foreground ,type))))         ; Changed to teal
    `(font-lock-function-name-face ((,class (:foreground ,function))))
    `(font-lock-variable-name-face ((,class (:foreground ,variable))))
+   `(font-lock-builtin-face ((,class (:foreground ,builtin))))
+   `(font-lock-preprocessor-face ((,class (:foreground ,preprocessor))))
    `(font-lock-warning-face ((,class (:foreground ,warning))))
    `(error ((,class (:foreground ,error))))
    `(fringe ((,class (:background ,background :foreground ,foreground))))
