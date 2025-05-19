@@ -340,6 +340,14 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 scan_push_token(tokens, TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
                 pos.inc()
 
+            case ";":
+                if Str.eq(Str.get_substr(source, add(pos, 1), add(pos, 2)), ";") {
+                    scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, sub(pos, start_line_pos))
+                    pos = add(pos, 2)
+                } else {
+                    scan_push_token(tokens, TokenType.Semicolon, ";", line, sub(pos, start_line_pos))
+                    pos.inc()
+                }
                 // separator for optional type before the equal in declarations or args
             case ":":
                 scan_push_token(tokens, TokenType.Colon, current_char, line, sub(pos, start_line_pos))
