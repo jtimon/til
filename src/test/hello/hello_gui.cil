@@ -17,7 +17,7 @@ Cell := struct {
     CHAR_WIDTH  := 8  // Character width (pixels)
     LINE_HEIGHT := 16 // Character height (pixels)
 
-    add := func(p: Pos, axis: Str) {
+    add := func(mut p: Pos, axis: Str) {
         if axis == "x" {
             p.x = I64.add(p.x, Cell.CHAR_WIDTH)
         } else if axis == "y" {
@@ -25,7 +25,7 @@ Cell := struct {
         }
     }
 
-    sub := func(p: Pos, axis: Str) {
+    sub := func(mut p: Pos, axis: Str) {
         if axis == "x" {
             p.x = I64.sub(p.x, Cell.CHAR_WIDTH)
         } else if axis == "y" {
@@ -40,11 +40,11 @@ mut center_pos = Pos()
 mut error_pos = Pos()
 
 gui_rand := func(min: I64, max: I64) returns I64 {
-    return I64.mod(rand(), I64.sub(I64.add(max, 1), min))
+    return I64.mod(rand(), I64.sub(max.add(1), min))
 }
 
 center := func(pos: I64, size: I64) returns I64 {
-    return I64.sub(pos, I64.div(size, 2))
+    return I64.sub(pos, size.div(2))
 }
 
 main := proc(window_width_str: Str, window_height_str: Str) {
