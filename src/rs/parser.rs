@@ -148,12 +148,15 @@ impl Expr {
             io::stdout().flush().unwrap();
             std::process::exit(1);
         }
-        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
+        if phase == "warning" {
+            return format!("{}:{}: {} WARNING: {}", self.line, self.col, LANG_NAME, msg);
+        }
+        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg);
     }
 
     pub fn todo_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "assert" {
-            panic!("Expr.todo_error() cannot be called for phase 'assert', use Expr.lang_error() instead")
+            panic!("Expr.todo_error() cannot be called for phase 'assert', use Expr.lang_error() instead");
         }
         if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
@@ -161,19 +164,25 @@ impl Expr {
             io::stdout().flush().unwrap();
             std::process::exit(1);
         }
-        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg)
+        if phase == "warning" {
+            return format!("{}:{}: {} WARNING: {}", self.line, self.col, LANG_NAME, msg);
+        }
+        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg);
     }
 
     pub fn error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "assert" {
-            panic!("Expr.error() cannot be called for phase 'assert', use Expr.lang_error() instead")
+            panic!("Expr.error() cannot be called for phase 'assert', use Expr.lang_error() instead");
         }
         if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
             io::stdout().flush().unwrap();
             std::process::exit(1);
         }
-        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg)
+        if phase == "warning" {
+            return format!("{}:{}: WARNING: {}", self.line, self.col, msg);
+        }
+        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
     }
 }
 
