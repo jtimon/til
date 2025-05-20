@@ -5,7 +5,7 @@ DivideByZero := struct {}
 // Functions must explicitly declare what they can throw, like in java
 safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
     if I64.eq(b, 0) {
-        throw DivideByZero // TODO properly implement throw
+        throw DivideByZero() // TODO properly implement throw
     }
     return div(a, b)
 }
@@ -27,6 +27,35 @@ example_catch := proc() {
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
 }
 example_catch()
+
+ErrorUndeclaredInFunc := struct {}
+
+another_func := func() throws ErrorUndeclaredInFunc {
+    throw ErrorUndeclaredInFunc()
+}
+
+SomeStruct := struct {
+    some_method := func() throws ErrorUndeclaredInFunc {
+        throw ErrorUndeclaredInFunc()
+    }
+}
+
+// undeclared_throws := proc() throws ErrorUndeclaredInFunc, Str, I64 { // this is how it should be
+undeclared_throws := proc() throws ErrorUndeclaredInFunc {
+    if false { // TODO if bodies are not cheked for return or throw
+        another_func()
+        return 69 // TODO remove once the type check works
+    } else { // TODO else bodies are not cheked for return or throw
+        throw "We can throw Str, but we have to declare it in throws"
+        return 69 // TODO remove once the type check works
+    }
+    while false { // TODO while bodies are not cheked for return or throw
+        throw 32
+        return 69 // TODO remove once the type check works
+    }
+    SomeStruct.some_method()
+}
+undeclared_throws() // TODO Uncomment to test type check errors
 
 // TODO do beter examples with throw, including catch in the examples
 # example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {

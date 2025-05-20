@@ -1,10 +1,11 @@
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::convert::TryInto;
 use std::env;
-use std::io;
-use std::io::Write; // <--- bring flush() into scope
 use std::fs;
 use std::io::ErrorKind;
-use std::collections::HashMap;
-use std::convert::TryInto;
+use std::io::Write; // <--- bring flush() into scope
+use std::io;
 
 mod rs {
     pub mod lexer;
@@ -1599,6 +1600,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     }
 
     let returns_len = func_def.returns.len();
+    let mut thrown_types = HashSet::new();
     // let mut return_found = false;
     for p in func_def.body.iter() {
         match &p.node_type {
@@ -1623,6 +1625,29 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
                     }
                 }
             },
+            NodeType::Throw => {
+                // Ensure there is exactly one throw parameter
+                if p.params.len() != 1 {
+                    errors.push(p.error("type", "Throw statement must have exactly one parameter."));
+                } else {
+                    let throw_param = &p.params[0];
+                    match get_value_type(&context, throw_param) {
+                        Ok(thrown_type) => {
+                            // Track the thrown type as a string
+                            thrown_types.insert(value_type_to_str(&thrown_type));
+
+                            // Check if the thrown type is declared in the throws section
+                            if !func_def.throws.contains(&thrown_type) {
+                                errors.push(throw_param.error("type", &format!("Type '{}' thrown but not declared in throws section", value_type_to_str(&thrown_type))));
+                            }
+                        },
+                        Err(err) => {
+                            errors.push(err);
+                        }
+                    }
+                }
+            },
+
             _ => {},
         }
         errors.extend(check_types(&mut context, &p));
@@ -1631,6 +1656,14 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     // if !return_found && returns_len > 0 {
     //     errors.push(e.error("type", &format!("No return statments found in function that returns ", e.line, e.col));
     // }
+
+    for declared_throw in &func_def.throws {
+        let declared_str = value_type_to_str(declared_throw);
+        if !thrown_types.contains(&declared_str) {
+            errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.", declared_str)));
+
+        }
+    }
 
     if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
         if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
