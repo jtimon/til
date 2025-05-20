@@ -46,6 +46,8 @@ test_my_struct := proc() {
     res_vec2_field := my_struct.vec2_field
     assert_eq(loc(), 1, res_vec2_field.x)
     assert_eq(loc(), 2, res_vec2_field.y)
+    assert_eq(loc(), 1, my_struct.vec2_field.x) // multiple dots for accessing fields
+    assert_eq(loc(), 2, my_struct.vec2_field.y)
 
     // Test enum field reassignment
     my_struct.color_field = MyEnum.Blue

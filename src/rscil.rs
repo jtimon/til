@@ -1002,97 +1002,77 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef(_) => Ok(ValueType::TStructDef),
-        NodeType::FCall => get_fcall_value_type(&context, &e),
+        NodeType::FCall => get_fcall_value_type(context, e),
+
         NodeType::Identifier(name) => {
-            let symbol_info = match context.symbols.get(name) {
+            let mut current_type = match context.symbols.get(name) {
                 Some(symbol_info_m) => {
-                    symbol_info_m
+                    symbol_info_m.value_type.clone()
                 },
-                None => {
-                    return Err(e.error("type", &format!("Undefined symbol '{}'", &name)));
-                }
-            };
-            if e.params.len() == 0 {
-                return Ok(symbol_info.value_type.clone());
-            }
-            let member_str = match &e.get(0).node_type {
-                NodeType::Identifier(member_name) => member_name,
-                node_type => return Err(e.lang_error("type", &format!("identifiers can only contain identifiers, found '{:?}'.", node_type))),
+                None => return Err(e.error("type", &format!("Undefined symbol '{}'", name))),
             };
 
-            match &symbol_info.value_type {
-                ValueType::TStructDef => {
-                    match context.struct_defs.get(name) {
-                        Some(struct_def) => {
-                            match struct_def.members.get(member_str) {
-                                Some(decl) => {
-                                    if !decl.is_mut {
-                                        return Ok(decl.value_type.clone());
-                                    } else {
-                                        return Err(e.error("type", &format!("struct '{}' has no const (static) member '{}', an instance is needed to access mutable members",
-                                                                            name, member_str)));
-                                    }
-                                },
-                                _ => {
-                                    return Err(e.error("type", &format!("struct '{}' has no member '{}' d", name, member_str)))
-                                },
-                            }
-                        },
-                        None => {
-                            return Err(e.error("type", &format!("Undefined struct '{}'", name)));
-                        },
-                    }
-                },
-                ValueType::TEnumDef => {
-                    match context.enum_defs.get(name) {
-                        Some(enum_def) => {
-                            if enum_def.enum_map.contains_key(member_str) {
-                                if e.params.len() > 1 {
-                                    let extra_member_str = match &e.get(1).node_type {
-                                        NodeType::Identifier(member_name) => member_name,
-                                        node_type => return Err(e.error("type", &format!("identifiers can only contain identifiers, found '{:?}'",
-                                                                        node_type))),
-                                    };
-                                    return Err(e.error("type", &format!("Suggestion: remove '.{}' after '{}.{}'\nExplanation: enum value '{}.{}' cannot have members",
-                                                                        extra_member_str, name, member_str, name, member_str)));
-                                }
-                                return Ok(ValueType::TCustom(name.to_string()));
-                            }
-                            return Err(e.error("type", &format!("enum '{}' has no value '{}'", name, member_str)));
-                        }
-                        None => {
-                            return Err(e.error("type", &format!("Undefined enum '{}'", name)));
-                        }
-                    }
-                },
-                ValueType::TCustom(custom_type_name) => {
-                    match context.struct_defs.get(custom_type_name) {
-                        Some(struct_def) => {
-                            match struct_def.members.get(member_str) {
-                                Some(decl) => {
-                                    return Ok(decl.value_type.clone());
-                                },
-                                None => {
-                                    return Err(e.error("type", &format!("struct '{}' has no member '{}' d", name, member_str)))
-                                },
-                            }
-                        },
-                        None => {
-                            return Err(e.error("type", &format!("Undefined struct '{}'", name)));
-                        },
-                    }
-                },
-                ValueType::TMulti(variadic_type_name) => {
-                    return Ok(ValueType::TMulti(variadic_type_name.to_string()))
-                    // return Ok(ValueType::TCustom(format!("{}Array", variadic_type_name)))
-                },
-                _ => {
-                    return Err(e.error("type", &format!("'{}' of type '{}' can't have members, '{}' is not a member",
-                                       name, value_type_to_str(&symbol_info.value_type), member_str)))
-                },
+            // If there are no parameters, just return the type of the first identifier
+            if e.params.is_empty() {
+                return Ok(current_type);
             }
+
+            // Now, process each nested member.
+            for cursor in &e.params {
+                let member_name = match &cursor.node_type {
+                    NodeType::Identifier(n) => n,
+                    node_type => return Err(e.lang_error("type", &format!("Identifiers can only contain identifiers, found '{:?}'", node_type))),
+                };
+
+                match &current_type {
+                    ValueType::TStructDef => {
+                        // If it's a struct, resolve its member
+                        let struct_def = context.struct_defs.get(name)
+                            .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", name)))?;
+
+                        match struct_def.members.get(member_name) {
+                            Some(decl) => {
+                                current_type = decl.value_type.clone();
+                            },
+                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}'", name, member_name))),
+                        }
+                    },
+                    ValueType::TEnumDef => {
+                        // If it's an enum, resolve the variant
+                        let enum_def = context.enum_defs.get(name)
+                            .ok_or_else(|| e.error("type", &format!("Enum '{}' not found", name)))?;
+
+                        if enum_def.enum_map.contains_key(member_name) {
+                            return Ok(ValueType::TCustom(name.to_string()));
+                        } else {
+                            return Err(e.error("type", &format!("Enum '{}' has no value '{}'", name, member_name)));
+                        }
+                    },
+                    ValueType::TCustom(custom_type_name) => {
+                        // If it's a custom type (a struct), resolve the member
+                        let struct_def = context.struct_defs.get(custom_type_name)
+                            .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", custom_type_name)))?;
+
+                        match struct_def.members.get(member_name) {
+                            Some(decl) => {
+                                current_type = decl.value_type.clone();
+                            },
+                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}'", custom_type_name, member_name))),
+                        }
+                    },
+                    ValueType::TMulti(variadic_type_name) => {
+                        return Ok(ValueType::TMulti(variadic_type_name.to_string()))
+                    },
+                    _ => {
+                        return Err(e.error("type", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&current_type))));
+                    }
+                }
+            }
+
+            Ok(current_type) // Return the type of the last field (x)
         },
-        node_type => return Err(e.error("type", &format!("get_value_type() not implement for {:?} yet.", node_type))),
+
+        node_type => return Err(e.error("type", &format!("get_value_type() not implemented for {:?} yet.", node_type))),
     }
 }
 
@@ -3032,89 +3012,126 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
         },
 
         ValueType::TStructDef => {
-            let struct_def = context.struct_defs.get(custom_type_name).unwrap();
+            // let mut struct_def = context.struct_defs.get(custom_type_name).unwrap();
+
             if e.params.len() == 0 {
-                return name.to_string() // This is an ugly hack
+                return name.to_string() // If no params, return the name
             }
-            let inner_e = e.get(0);
-            match &inner_e.node_type {
-                NodeType::Identifier(inner_name) => {
-                    match struct_def.members.get(inner_name) {
-                        Some(member_decl) => {
-                            match member_decl.value_type {
 
-                                ValueType::TCustom(ref custom_type_name) => {
-                                    match custom_type_name.as_str() {
-                                        "I64" => {
-                                            match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                                                Some(result) => return result.to_string(),
-                                                None => {
-                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
+            let mut current_name = name.to_string();
+            let mut current_type = ValueType::TCustom(custom_type_name.to_string());
+
+            for inner_e in &e.params {
+                match &inner_e.node_type {
+                    NodeType::Identifier(inner_name) => {
+                        // Track the current field in the chain
+                        match current_type {
+                            // If we encounter a TStructDef, return an error since it's unexpected here
+                            ValueType::TStructDef => {
+                                return inner_e.todo_error("eval", &format!("'{}': StructDef cannot be a field yet", current_name));
+                            },
+                            // If it's a custom type (struct or enum), handle it here
+                            ValueType::TCustom(ref custom_type_name) => {
+                                // Resolve the member based on the current custom type
+                                if let Some(custom_symbol) = context.symbols.get(custom_type_name) {
+                                    match custom_symbol.value_type {
+                                        // If the current type is a struct, look up the member
+                                        ValueType::TStructDef => {
+                                            let struct_def = context.struct_defs.get(custom_type_name).unwrap();
+                                            match struct_def.members.get(inner_name) {
+                                                Some(member_decl) => {
+                                                    // Update current_type with the type of the member
+                                                    current_type = member_decl.value_type.clone();
+                                                    current_name = format!("{}.{}", current_name, inner_name);
                                                 },
+                                                None => {
+                                                    return inner_e.lang_error("eval", &format!("Struct '{}' has no member '{}'", value_type_to_str(&current_type), inner_name));
+                                                }
                                             }
                                         },
-                                        "U8" => {
-                                            match context.get_u8(&format!("{}.{}", name, inner_name)) {
-                                                Some(result) => return result.to_string(),
-                                                None => {
-                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
-                                                },
-                                            }
+                                        // If it's an enum, handle the error as enums don't support nested fields
+                                        ValueType::TEnumDef => {
+                                            return inner_e.lang_error("eval", &format!("Enum '{}' does not support nested members", current_name));
                                         },
-                                        "Bool" => {
-                                            match context.get_bool(&format!("{}.{}", name, inner_name)) {
-                                                Some(result) => return result.to_string(),
-                                                None => {
-                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
-                                                },
-                                            }
-                                        },
-                                        "Str" => {
-                                            match context.get_string(&format!("{}.{}", name, inner_name)) {
-                                                Some(result) => return result.to_string(),
-                                                None => {
-                                                    return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
-                                                },
-                                            }
-                                        },
+                                        // Other custom types can't have nested members
                                         _ => {
-                                            match context.symbols.get(custom_type_name).unwrap().value_type {
-                                                ValueType::TEnumDef => {
-                                                    match context.get_enum(&format!("{}.{}", name, inner_name)) {
-                                                        Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
-                                                        None => {
-                                                            return inner_e.lang_error("eval", &format!("value not set for field '{}.{}'", name, inner_name))
-                                                        },
-                                                    }
-                                                },
-                                                ValueType::TStructDef => {
-                                                    // Allow field access returning the full path
-                                                    return format!("{}.{}", name, inner_name)
-                                                },
-                                                _ => {
-                                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of custom type '{}' not implemented",
-                                                                                               name, inner_name, custom_type_name))
-                                                },
-
-                                            }
+                                            return inner_e.lang_error("eval", &format!("Custom types cannot have nested members"));
                                         },
                                     }
-                                },
+                                } else {
+                                    return inner_e.lang_error("eval", &format!("Custom type '{}' not found in symbols", custom_type_name));
+                                }
+                            },
+                            ValueType::TEnumDef => {
+                                return inner_e.lang_error("eval", &format!("Enum '{}' does not support nested members", current_name));
+                            },
+                            // If it doesn't match any expected type, return an error
+                            _ => {
+                                return inner_e.lang_error("eval", &format!("Unexpected type for '{}', cannot access member '{}'", current_name, inner_name));
+                            }
+                        }
+                    },
+                    _ => {
+                        return inner_e.lang_error("eval", &format!("Expected identifier, found {:?}", inner_e.node_type));
+                    }
+                }
+            }
 
-                                _ => {
-                                    return inner_e.todo_error("eval", &format!("Cannot access '{}.{}'. Fields of type '{}' not implemented",
-                                                                               name, inner_name, value_type_to_str(&member_decl.value_type)))
-                                },
+            let inner_e = e.params.last().unwrap(); // Get the last parameter after the loop
+            // At the end, handle primitive types differently
+            match current_type {
+                ValueType::TCustom(ref custom_type_name) => {
+                    match custom_type_name.as_str() {
+                        "I64" => {
+                            match context.get_i64(&current_name) {
+                                Some(result) => return result.to_string(),
+                                None => return e.lang_error("eval", &format!("Value not set for '{}'", current_name)),
+                            }
+                        },
+                        "U8" => {
+                            match context.get_u8(&current_name) {
+                                Some(result) => return result.to_string(),
+                                None => return e.lang_error("eval", &format!("Value not set for '{}'", current_name)),
+                            }
+                        },
+                        "Bool" => {
+                            match context.get_bool(&current_name) {
+                                Some(result) => return result.to_string(),
+                                None => return e.lang_error("eval", &format!("Value not set for '{}'", current_name)),
+                            }
+                        },
+                        "Str" => {
+                            match context.get_string(&current_name) {
+                                Some(result) => return result.to_string(),
+                                None => return e.lang_error("eval", &format!("Value not set for '{}'", current_name)),
                             }
                         },
                         _ => {
-                            return e.lang_error("eval", &format!("struct '{}' has no const (static) member '{}'", name, inner_name))
+                            match context.symbols.get(&value_type_to_str(&current_type)).unwrap().value_type {
+                                ValueType::TEnumDef => {
+                                    match context.get_enum(&current_name) {
+                                        Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
+                                        None => {
+                                            return inner_e.lang_error("eval", &format!("Value not set for field '{}'", current_name))
+                                        },
+                                    }
+                                },
+                                ValueType::TStructDef => {
+                                    // Allow field access returning the full path
+                                    println!("custom struct value: '{}'", current_name);
+                                    return current_name
+                                },
+                                _ => {
+                                    return inner_e.todo_error("eval", &format!("Cannot access '{}'. Fields of custom type '{}' not implemented",
+                                                                               current_name, custom_type_name))
+                                },
+                            }
                         },
                     }
                 },
                 _ => {
-                    return e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name))
-                },
+                    return e.lang_error("eval", &format!("Invalid type for '{}'.", current_name));
+                }
             }
         },
 
