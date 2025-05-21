@@ -1016,9 +1016,9 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::LString(_) => Ok(ValueType::TCustom("Str".to_string())),
         NodeType::LList(_) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
-            FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunc),
-            FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TProc),
-            FunctionType::FTMacro => Ok(ValueType::TMacro),
+            FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunction(FunctionType::FTFunc)),
+            FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
+            FunctionType::FTMacro => Ok(ValueType::TFunction(FunctionType::FTMacro)),
         },
         NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
         NodeType::StructDef(_) => Ok(ValueType::TStructDef),
@@ -1133,16 +1133,20 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 }
             }
             match value_type {
-                ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
-                    match &inner_e.node_type {
-                        NodeType::FuncDef(func_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
-                            context.funcs.insert(decl.name.to_string(), func_def.clone());
-                        },
-                        _ => {
-                            errors.push(e.lang_error("type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
-                            return errors;
-                        },
+                ValueType::TFunction(ref ftype) => match ftype {
+                    FunctionType::FTFunc | FunctionType::FTFuncExt |
+                    FunctionType::FTProc | FunctionType::FTProcExt |
+                    FunctionType::FTMacro => {
+                        match &inner_e.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+                                context.funcs.insert(decl.name.to_string(), func_def.clone());
+                            },
+                            _ => {
+                                errors.push(e.lang_error("type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
+                                return errors;
+                            },
+                        }
                     }
                 },
 
@@ -1318,7 +1322,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     if context.mode.needs_main_proc {
         match context.symbols.get("main") {
             Some(symbol_info) => {
-                if symbol_info.value_type != ValueType::TProc {
+                if symbol_info.value_type != ValueType::TFunction(FunctionType::FTProc) {
                     errors.push(e.error("mode", &format!("mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
                                                          context.mode.name, value_type_to_str(&symbol_info.value_type))));
                 }
@@ -1755,7 +1759,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
                     _ => {}, // If it's enum, don't do anything
                 }
             }
-            ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+            ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
                 match &inner_e.node_type {
                     NodeType::FuncDef(func_def) => {
                         // TODO move to init_context() ? inner contexts are not persisted in init_context
@@ -2793,7 +2797,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                         },
                                     }
                                 },
-                                ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+                                ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) |
+                                ValueType::TFunction(FunctionType::FTMacro) |
+                                ValueType::TFunction(FunctionType::FTFuncExt) | ValueType::TFunction(FunctionType::FTProcExt) => {
                                     match &default_value.node_type {
                                         NodeType::FuncDef(func_def) => {
                                             context.funcs.insert(combined_name.to_string(), func_def.clone());
@@ -2830,7 +2836,9 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                                          &declaration.name, &declaration.value_type))
             }
         },
-        ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+        ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) |
+        ValueType::TFunction(FunctionType::FTMacro) |
+        ValueType::TFunction(FunctionType::FTFuncExt) | ValueType::TFunction(FunctionType::FTProcExt) => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
@@ -2977,7 +2985,9 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
         ValueType::TStructDef => {
             return e.todo_error("eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type)))
         },
-        ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+        ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) |
+        ValueType::TFunction(FunctionType::FTMacro) |
+        ValueType::TFunction(FunctionType::FTFuncExt) | ValueType::TFunction(FunctionType::FTProcExt) => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(var_name.to_string(), func_def.clone());
@@ -3221,7 +3231,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
 
     match context.symbols.get(name) {
         Some(symbol_info) => match symbol_info.value_type {
-            ValueType::TFunc | ValueType::TProc | ValueType::TMacro => {
+            ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
                 return name.to_string();
             },
             ValueType::TEnumDef => {

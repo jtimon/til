@@ -198,9 +198,7 @@ fn is_literal(t: &Token) -> bool {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ValueType {
     TList,
-    TFunc,
-    TProc,
-    TMacro,
+    TFunction(FunctionType),
     TEnumDef,
     TStructDef,
     TCustom(String),
@@ -212,11 +210,13 @@ pub fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
         ValueType::ToInferType => INFER_TYPE.to_string(),
         ValueType::TList => "list".to_string(),
-        ValueType::TFunc => "func".to_string(),
-        ValueType::TProc => "proc".to_string(),
-        ValueType::TMacro => "macro".to_string(),
         ValueType::TEnumDef => "enum".to_string(),
         ValueType::TStructDef => "struct".to_string(),
+        ValueType::TFunction(ftype) => match ftype {
+            FunctionType::FTFunc | FunctionType::FTFuncExt => "func".to_string(),
+            FunctionType::FTProc | FunctionType::FTProcExt => "proc".to_string(),
+            FunctionType::FTMacro => "macro".to_string(),
+        },
         ValueType::TMulti(type_name) => format!("{}", type_name),
         ValueType::TCustom(type_name) => format!("{}", type_name),
     }
@@ -226,8 +226,9 @@ pub fn str_to_value_type(arg_type: &str) -> ValueType {
     match arg_type {
         INFER_TYPE => ValueType::ToInferType,
         "list" => ValueType::TList,
-        "func" => ValueType::TFunc,
-        "proc" => ValueType::TProc,
+        "func" => ValueType::TFunction(FunctionType::FTFunc),
+        "proc" => ValueType::TFunction(FunctionType::FTProc),
+        "macro" => ValueType::TFunction(FunctionType::FTMacro),
         "enum" => ValueType::TEnumDef,
         "struct" => ValueType::TStructDef,
         type_name => ValueType::TCustom(type_name.to_string()),
