@@ -14,7 +14,7 @@ mod rs {
 use rs::lexer::{LANG_NAME, lexer_from_source};
 use rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, Declaration, SStructDef, ValueType, ModeDef, SFuncDef, SEnumDef,
+    Expr, NodeType, FunctionType, Declaration, SStructDef, ValueType, ModeDef, SFuncDef, SEnumDef, TTypeDef,
     mode_from_name, can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens,
 };
 
@@ -906,7 +906,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
         let symbol = context.symbols.get(&f_name).unwrap();
         let id_expr = e.get(0);
         match &symbol.value_type {
-            ValueType::TStructDef => {
+            ValueType::TType(TTypeDef::TStructDef) => {
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
@@ -1020,8 +1020,8 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
             FunctionType::FTMacro => Ok(ValueType::TFunction(FunctionType::FTMacro)),
         },
-        NodeType::EnumDef(_) => Ok(ValueType::TEnumDef),
-        NodeType::StructDef(_) => Ok(ValueType::TStructDef),
+        NodeType::EnumDef(_) => Ok(ValueType::TType(TTypeDef::TEnumDef)),
+        NodeType::StructDef(_) => Ok(ValueType::TType(TTypeDef::TStructDef)),
         NodeType::FCall => get_fcall_value_type(context, e),
 
         NodeType::Identifier(name) => {
@@ -1045,7 +1045,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                 };
 
                 match &current_type {
-                    ValueType::TStructDef => {
+                    ValueType::TType(TTypeDef::TStructDef) => {
                         // If it's a struct, resolve its member
                         let struct_def = context.struct_defs.get(name)
                             .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", name)))?;
@@ -1057,7 +1057,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             None => return Err(e.error("type", &format!("Struct '{}' has no member '{}'", name, member_name))),
                         }
                     },
-                    ValueType::TEnumDef => {
+                    ValueType::TType(TTypeDef::TEnumDef) => {
                         // If it's an enum, resolve the variant
                         let enum_def = context.enum_defs.get(name)
                             .ok_or_else(|| e.error("type", &format!("Enum '{}' not found", name)))?;
@@ -1150,7 +1150,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 },
 
-                ValueType::TEnumDef => {
+                ValueType::TType(TTypeDef::TEnumDef) => {
                     assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
                             decl.name);
                     match &inner_e.node_type {
@@ -1165,7 +1165,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 },
 
-                ValueType::TStructDef => {
+                ValueType::TType(TTypeDef::TStructDef) => {
                     assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME, decl.name);
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
@@ -1423,7 +1423,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         func_def = context.funcs.get(&f_name).unwrap();
     } else if let Some(symbol) = context.symbols.get(&f_name) {
         match &symbol.value_type {
-            ValueType::TStructDef => {
+            ValueType::TType(TTypeDef::TStructDef) => {
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(def) => def,
                     None => {
@@ -2397,12 +2397,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                     _ => {
                         let custom_symbol = function_context.symbols.get(custom_type_name).unwrap();
                         match custom_symbol.value_type {
-                            ValueType::TEnumDef => {
+                            ValueType::TType(TTypeDef::TEnumDef) => {
                                 if function_context.insert_enum(&arg.name, &custom_type_name, &result).is_none() {
                                     return e.lang_error("eval", &format!("Arg enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &arg.name, &custom_type_name, &result))
                                 }
                             },
-                            ValueType::TStructDef => {
+                            ValueType::TType(TTypeDef::TStructDef) => {
                                 if !function_context.insert_struct(&arg.name, &custom_type_name) {
                                     return e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.", &arg.name, &custom_type_name))
                                 }
@@ -2465,11 +2465,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                     },
                 };
                 match &symbol_info.value_type {
-                    ValueType::TEnumDef => {
+                    ValueType::TType(TTypeDef::TEnumDef) => {
                         let val = function_context.get_enum(&arg_name).unwrap();
                         context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name));
                     },
-                    ValueType::TStructDef => {
+                    ValueType::TType(TTypeDef::TStructDef) => {
                         // TODO this can be simplified once we pass all args by reference
                         context.arena_index.insert(source_name.to_string(), *function_context.arena_index.get(&arg_name).unwrap());
                         context.map_instance_fields(type_name, &source_name);
@@ -2499,7 +2499,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
 
                     if let Some(custom_symbol) = function_context.symbols.get(custom_type_name) {
                         match custom_symbol.value_type {
-                            ValueType::TStructDef => {
+                            ValueType::TType(TTypeDef::TStructDef) => {
                                 let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
                                 Arena::g().temp_id_counter += 1;
 
@@ -2732,7 +2732,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
             return e.lang_error("eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
                                                  declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)));
         },
-        ValueType::TEnumDef => {
+        ValueType::TType(TTypeDef::TEnumDef) => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
@@ -2743,7 +2743,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                                           &declaration.name, value_type_to_str(&declaration.value_type))),
             }
         },
-        ValueType::TStructDef => {
+        ValueType::TType(TTypeDef::TStructDef) => {
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
                     context.struct_defs.insert(declaration.name.to_string(), struct_def.clone());
@@ -2817,7 +2817,7 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                                     return e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
                                                                          &declaration.name, &member_decl.name))
                                 },
-                                ValueType::TList | ValueType::TEnumDef | ValueType::TStructDef | ValueType::TMulti(_) => {
+                                ValueType::TList | ValueType::TType(TTypeDef::TEnumDef) | ValueType::TType(TTypeDef::TStructDef) | ValueType::TMulti(_) => {
                                         return e.todo_error("eval", &format!("Cannot declare '{}.{}' of type '{}'",
                                                                              &declaration.name,
                                                                              &member_decl.name,
@@ -2880,12 +2880,12 @@ fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Ex
                 _ => {
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     let custom_symbol = context.symbols.get(custom_type_name).unwrap();
-                    if custom_symbol.value_type == ValueType::TEnumDef {
+                    if custom_symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                         let enum_expr_result_str = &eval_expr(&mut context, inner_e);
                         if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str).is_none() {
                             return inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str))
                         }
-                    } else if custom_symbol.value_type == ValueType::TStructDef {
+                    } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
                         if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
@@ -2961,13 +2961,13 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
                 },
                 _ => {
                     match &context.symbols.get(custom_type_name).unwrap().value_type {
-                        ValueType::TEnumDef => {
+                        ValueType::TType(TTypeDef::TEnumDef) => {
                             let expr_result_str = eval_expr(&mut context, inner_e);
                             if context.insert_enum(var_name, &custom_type_name, &expr_result_str).is_none() {
                                 return inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str))
                             }
                         },
-                        ValueType::TStructDef => {
+                        ValueType::TType(TTypeDef::TStructDef) => {
                             let expr_result_str = eval_expr(&mut context, inner_e);
                             if !context.copy_fields(custom_type_name, &expr_result_str, var_name) {
                                 return inner_e.lang_error("eval", &format!("Assign struct: Failed to copy fields from '{}' to '{}'", expr_result_str, var_name));
@@ -2982,7 +2982,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             }
             return "".to_string()
         },
-        ValueType::TStructDef => {
+        ValueType::TType(TTypeDef::TStructDef) => {
             return e.todo_error("eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type)))
         },
         ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) |
@@ -2998,7 +2998,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Strin
             }
         },
 
-        ValueType::TList | ValueType::TEnumDef | ValueType::TMulti(_) => {
+        ValueType::TList | ValueType::TType(TTypeDef::TEnumDef) | ValueType::TMulti(_) => {
             return e.lang_error("eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type)))
         },
     }
@@ -3087,7 +3087,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     }
     let custom_symbol = context.symbols.get(custom_type_name).unwrap();
     match custom_symbol.value_type {
-        ValueType::TEnumDef => {
+        ValueType::TType(TTypeDef::TEnumDef) => {
             match context.get_enum(name) {
                 Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
                 None => {
@@ -3096,7 +3096,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
             }
         },
 
-        ValueType::TStructDef => {
+        ValueType::TType(TTypeDef::TStructDef) => {
             // let mut struct_def = context.struct_defs.get(custom_type_name).unwrap();
 
             if e.params.len() == 0 {
@@ -3112,7 +3112,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                         // Track the current field in the chain
                         match current_type {
                             // If we encounter a TStructDef, return an error since it's unexpected here
-                            ValueType::TStructDef => {
+                            ValueType::TType(TTypeDef::TStructDef) => {
                                 return inner_e.todo_error("eval", &format!("'{}': StructDef cannot be a field yet", current_name));
                             },
                             // If it's a custom type (struct or enum), handle it here
@@ -3121,7 +3121,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                 if let Some(custom_symbol) = context.symbols.get(custom_type_name) {
                                     match custom_symbol.value_type {
                                         // If the current type is a struct, look up the member
-                                        ValueType::TStructDef => {
+                                        ValueType::TType(TTypeDef::TStructDef) => {
                                             let struct_def = context.struct_defs.get(custom_type_name).unwrap();
                                             match struct_def.members.get(inner_name) {
                                                 Some(member_decl) => {
@@ -3135,7 +3135,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                             }
                                         },
                                         // If it's an enum, handle the error as enums don't support nested fields
-                                        ValueType::TEnumDef => {
+                                        ValueType::TType(TTypeDef::TEnumDef) => {
                                             return inner_e.lang_error("eval", &format!("Enum '{}' does not support nested members", current_name));
                                         },
                                         // Other custom types can't have nested members
@@ -3147,7 +3147,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                     return inner_e.lang_error("eval", &format!("Custom type '{}' not found in symbols", custom_type_name));
                                 }
                             },
-                            ValueType::TEnumDef => {
+                            ValueType::TType(TTypeDef::TEnumDef) => {
                                 return inner_e.lang_error("eval", &format!("Enum '{}' does not support nested members", current_name));
                             },
                             // If it doesn't match any expected type, return an error
@@ -3193,7 +3193,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                         },
                         _ => {
                             match context.symbols.get(&value_type_to_str(&current_type)).unwrap().value_type {
-                                ValueType::TEnumDef => {
+                                ValueType::TType(TTypeDef::TEnumDef) => {
                                     match context.get_enum(&current_name) {
                                         Some(enum_val) => return format!("{}.{}", custom_type_name, enum_val.enum_name),
                                         None => {
@@ -3201,7 +3201,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                         },
                                     }
                                 },
-                                ValueType::TStructDef => {
+                                ValueType::TType(TTypeDef::TStructDef) => {
                                     // Allow field access returning the full path
                                     println!("custom struct value: '{}'", current_name);
                                     return current_name
@@ -3234,7 +3234,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
                 return name.to_string();
             },
-            ValueType::TEnumDef => {
+            ValueType::TType(TTypeDef::TEnumDef) => {
                 assert!(e.params.len() > 0, "{} eval ERROR: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
                 // let enum_def = context.enum_defs.get(name).unwrap();
                 let inner_e = e.get(0);
@@ -3250,7 +3250,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> String {
                 }
             },
 
-            ValueType::TStructDef => {
+            ValueType::TType(TTypeDef::TStructDef) => {
                 return eval_identifier_expr_struct(name, context, e)
             }
 
