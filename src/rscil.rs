@@ -838,6 +838,24 @@ fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
+fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option<SFuncDef>, String> {
+    if fcall_expr.node_type != NodeType::FCall {
+        return Err(fcall_expr.error("type", "Expected FCall node type"));
+    }
+
+    let func_expr = match fcall_expr.params.first() {
+        Some(expr) => expr,
+        None => return Ok(None),
+    };
+
+    match &func_expr.node_type {
+        NodeType::Identifier(func_name) => {
+            Ok(context.funcs.get(func_name).cloned())
+        },
+        _ => Ok(None), // Preserve old behavior: silently skip unsupported expressions
+    }
+}
+
 fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.returns.len() {
         0 => {
@@ -975,6 +993,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             },
                         }
                     },
+
                     _ => {
                         return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
@@ -1647,6 +1666,29 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
                     }
                 }
             },
+            NodeType::FCall => {
+                match get_func_def_for_fcall(&context, p) {
+                    Ok(Some(called_func_def)) => {
+                        for called_throw in &called_func_def.throws {
+                            let called_throw_str = value_type_to_str(called_throw);
+                            if func_def.throws.contains(called_throw) {
+                                thrown_types.insert(called_throw_str);
+                            } else {
+                                errors.push(p.error("type", &format!(
+                                    "Function throws '{}', but it is not declared in this function's throws section.",
+                                    called_throw_str
+                                )));
+                            }
+                        }
+                    },
+                    Ok(None) => {
+                        // Do nothing — unsupported expression or no function target
+                    },
+                    Err(reason) => {
+                        errors.push(p.error("type", &reason));
+                    }
+                }
+            }
 
             _ => {},
         }
