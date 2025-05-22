@@ -12,16 +12,19 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
 
 // All exceptions that are not catched must be declared in the throws section again
 // TODO: We should have a way to signal which calls can throw
-// perhaps try at the beginning of each statement that can throw or
+// perhaps try at the beginning of each statement that can throw or ? at the end
 example_catch := proc() {
     a := 420
     mut b := 10
+    // TODO the compiler should be asking for example_catch to throws DivideByZero already
+    // It doesn't because the fcall that throws is an arg of another fcall
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
-    // println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, 0)))
-    // catch(Err: DivideByZero) { // TODO implement catch
-    //     println(a.to_str(), " / ", b.to_str(), " = ...")
-    //     println("Trying to divide by zero")
-    // }
+    // b := 0 // TODO uncomment when catch is implemented
+    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
+    catch (err: DivideByZero) { // TODO implement catch
+        println(a.to_str(), " / ", b.to_str(), " = ...")
+        println("Trying to divide by zero")
+    }
     // TODO this one is not catched nor example_catch throws anything, should give error
     // b = 0
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))

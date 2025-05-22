@@ -1272,6 +1272,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             }
             false
         },
+        NodeType::Catch => todo!(),
     }
 }
 
@@ -1781,6 +1782,52 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
     return errors
 }
 
+fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    if e.params.len() != 3 {
+        errors.push(e.error("type", "Catch node must have three parameters: variable, type, and body."));
+        return errors;
+    }
+
+    let err_var_expr = &e.params[0];
+    let err_type_expr = &e.params[1];
+    let body_expr = &e.params[2];
+
+    let var_name = match &err_var_expr.node_type {
+        NodeType::Identifier(name) => name.clone(),
+        _ => {
+            errors.push(err_var_expr.error("type", "First catch param must be an identifier"));
+            return errors;
+        }
+    };
+
+    let type_name = match &err_type_expr.node_type {
+        NodeType::Identifier(name) => name.clone(),
+        _ => {
+            errors.push(err_type_expr.error("type", "Second catch param must be a type identifier"));
+            return errors;
+        }
+    };
+
+    // Confirm that the type exists in the context (as done for function args)
+    if context.symbols.get(&type_name).is_none() {
+        errors.push(e.error("type", &format!("Catch refers to undefined type '{}'", &type_name)));
+        return errors;
+    }
+
+    // Create scoped context for catch body
+    let mut temp_context = context.clone();
+    temp_context.symbols.insert(var_name.clone(), SymbolInfo {
+        value_type: ValueType::TCustom(type_name),
+        is_mut: false,
+    });
+
+    errors.extend(check_types(&mut temp_context, body_expr));
+
+    errors
+}
+
 fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
     assert!(e.params.len() == 1, "{} ERROR: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
     let mut errors : Vec<String> = Vec::new();
@@ -2025,6 +2072,9 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.extend(check_types(&mut context, &return_val));
             }
         },
+        NodeType::Catch => {
+            errors.extend(check_catch_statement(&mut context, &e));
+        }
 
         NodeType::LLiteral(Literal::Number(_)) | NodeType::LLiteral(Literal::List(_)) |
         NodeType::LLiteral(Literal::Bool(_)) | NodeType::LLiteral(Literal::Str(_)) | NodeType::DefaultCase => {},
@@ -3452,6 +3502,9 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 let result = eval_expr(&mut context, &e.get(0))?;
                 Ok(EvalResult::new_throw(&result.value))
             }
+        },
+        NodeType::Catch => {
+            Ok(EvalResult::new("")) // TODO eval_expr for catch
         },
         _ => Err(e.lang_error("eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))),
     }

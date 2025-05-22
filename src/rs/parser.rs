@@ -105,6 +105,7 @@ pub enum NodeType {
     StructDef(SStructDef),
     Return,
     Throw,
+    Catch,
     If,
     While,
     Switch,
@@ -936,6 +937,44 @@ fn parse_throw_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::Throw, lexer.get_token(initial_current)?.clone(), params))
 }
 
+fn parse_catch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_current = lexer.current;
+    lexer.advance(1)?; // consume 'catch'
+
+    lexer.expect(TokenType::LeftParen)?; // expect '('
+
+    // Parse the error variable name
+    let name_token = lexer.expect(TokenType::Identifier)?;
+    let name = name_token.token_str.clone();
+    let name_expr = Expr::new_parse(
+        NodeType::Identifier(name.clone()),
+        name_token.clone(),
+        vec![],
+    );
+
+    lexer.expect(TokenType::Colon)?; // expect ':'
+
+    // Parse the exception type
+    let type_token = lexer.expect(TokenType::Identifier)?;
+    let type_expr = Expr::new_parse(
+        NodeType::Identifier(type_token.token_str.clone()),
+        type_token.clone(),
+        vec![],
+    );
+
+    lexer.expect(TokenType::RightParen)?; // expect ')'
+
+    lexer.expect(TokenType::LeftBrace)?; // expect '{'
+    let body_expr = parse_body(lexer, TokenType::RightBrace)?;
+    lexer.expect(TokenType::RightBrace)?; // expect '}'
+
+    Ok(Expr::new_parse(
+        NodeType::Catch,
+        lexer.get_token(initial_current)?.clone(),
+        vec![name_expr, type_expr, body_expr],
+    ))
+}
+
 fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let initial_current = lexer.current;
     lexer.advance(1)?;
@@ -1138,6 +1177,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Switch => return parse_switch_statement(lexer),
         TokenType::Mut => return parse_mut_declaration(lexer),
         TokenType::Identifier => return parse_statement_identifier(lexer),
+        TokenType::Catch => return parse_catch_statement(lexer),
         _ => {
             Err(t.error(&format!("Expected statement, found {:?}.", t.token_type)))
         },
