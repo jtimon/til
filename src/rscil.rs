@@ -2330,11 +2330,6 @@ fn lbool_in_string_to_bool(b: &str) -> bool {
     }
 }
 
-fn eval_to_bool(mut context: &mut Context, e: &Expr) -> Result<bool, String> {
-    let result = &eval_expr(&mut context, &e)?.value;
-    return Ok(lbool_in_string_to_bool(result))
-}
-
 fn eval_core_proc_single_print(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'single_print' takes exactly 1 argument"));
@@ -3368,17 +3363,19 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             eval_func_proc_call(&f_name, &mut context, &e)
         },
         NodeType::Declaration(declaration) => {
-            let _ = eval_declaration(&declaration, &mut context, &e)?;
-            Ok(EvalResult::new(""))
+            eval_declaration(&declaration, &mut context, &e)
         },
         NodeType::Assignment(var_name) => {
-            let _ = eval_assignment(&var_name, &mut context, &e)?;
-            Ok(EvalResult::new(""))
+            eval_assignment(&var_name, &mut context, &e)
         },
         NodeType::Identifier(name) => eval_identifier_expr(&name, &context, &e),
         NodeType::If => {
             assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
-            if eval_to_bool(&mut context, &e.get(0))? {
+            let result_cond = eval_expr(&mut context, &e.get(0))?;
+            if result_cond.is_throw {
+                return Ok(result_cond)
+            }
+            if lbool_in_string_to_bool(&result_cond.value) {
                 eval_expr(&mut context, &e.get(1))
             } else if e.params.len() == 3 {
                 eval_expr(&mut context, &e.get(2))
@@ -3388,8 +3385,19 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         NodeType::While => {
             assert!(e.params.len() == 2, "{} eval ERROR: while nodes must have exactly 2 parameters.", LANG_NAME);
-            while eval_to_bool(&mut context, &e.get(0))? {
-                let _ = eval_expr(&mut context, &e.get(1))?;
+            let mut result_cond = eval_expr(&mut context, &e.get(0))?;
+            if result_cond.is_throw {
+                return Ok(result_cond.clone())
+            }
+            while lbool_in_string_to_bool(&result_cond.value) {
+                let result = eval_expr(&mut context, &e.get(1))?;
+                if result.is_return || result.is_throw {
+                    return Ok(result)
+                }
+                result_cond = eval_expr(&mut context, &e.get(0))?;
+                if result_cond.is_throw {
+                    return Ok(result_cond)
+                }
             }
             Ok(EvalResult::new(""))
         },
@@ -3397,7 +3405,10 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             assert!(e.params.len() >= 3, "{} eval ERROR: switch nodes must have at least 3 parameters.", LANG_NAME);
             let to_switch = e.get(0);
             let value_type = get_value_type(&context, &to_switch)?;
-            let result_to_switch = eval_expr(&mut context, &to_switch)?.value;
+            let result_to_switch = eval_expr(&mut context, &to_switch)?;
+            if result_to_switch.is_throw {
+                return Ok(result_to_switch)
+            }
             let mut param_it = 1;
             while param_it < e.params.len() {
                 let case = e.get(param_it);
@@ -3409,9 +3420,12 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 if value_type != case_type {
                     return Err(e.lang_error("eval", &format!("switch value type {:?}, case value type {:?}", value_type, case_type)));
                 }
-                let result_case = eval_expr(&mut context, &case)?.value;
+                let result_case = eval_expr(&mut context, &case)?;
+                if result_case.is_throw {
+                    return Ok(result_case)
+                }
                 param_it += 1;
-                if result_to_switch == result_case {
+                if result_to_switch.value == result_case.value {
                     return eval_expr(&mut context, &e.get(param_it));
                 }
                 param_it += 1;
@@ -3425,6 +3439,9 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 Err(e.lang_error("eval", "multiple return values not implemented yet"))
             } else {
                 let result = eval_expr(&mut context, &e.get(0))?;
+                if result.is_throw {
+                    return Ok(result)
+                }
                 Ok(EvalResult::new_return(&result.value))
             }
         },

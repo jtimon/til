@@ -125,28 +125,24 @@ not := func(b: Bool) returns Bool {
 
 or := func(args: ..Bool) returns Bool {
     mut i := 0
-    mut result := false
     while lt(i, args.len) {
         if args.get(i) {
-            result = true
-            // return true // TODO fix nested return
+            return true
         }
         i.inc()
     }
-    return result
+    return false
 }
 
 and := func(args: ..Bool) returns Bool {
     mut i := 0
-    mut result := true
     while lt(i, args.len) {
         if not(args.get(i)) {
-            result = false
-            // return false // TODO fix nested return
+            return false
         }
         i.inc()
     }
-    return result
+    return true
 }
 
 // Note that Bool, I64 and Str don't have fields because the're the core types
@@ -310,23 +306,20 @@ Str := struct {
             return false
         }
 
-        mut is_eq := true
         mut i : I64 = 0
-        while and(lt(i, self.cap), is_eq) {
+        while lt(i, self.cap) {
             mut self_byte  : U8 = 0
             mut other_byte : U8 = 0
-
             memcpy(to_ptr(self_byte), add(self.c_string, i), 1)
             memcpy(to_ptr(other_byte), add(other.c_string, i), 1)
 
             if not(U8.eq(self_byte, other_byte)) {
-                is_eq = false // TODO change for a return when returns inside nested blocks are fixed
+                return false
             }
-
             i.inc()
         }
 
-        return is_eq
+        return true
     }
 
     concat := func(self: Str, other: Str) returns Str {
