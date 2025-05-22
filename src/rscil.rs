@@ -3274,7 +3274,6 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                 }
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                println!("custom struct value: '{}'", current_name);
                                 Ok(EvalResult::new(&current_name))
                             },
                             _ => Err(inner_e.todo_error("eval", &format!("Cannot access '{}'. Fields of custom type '{}' not implemented", current_name, custom_type_name))),
@@ -3349,30 +3348,12 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
 
 fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalResult, String> {
     for se in statements.iter() {
-        match &se.node_type {
-            NodeType::Return => {
-                if se.params.len() == 0 {
-                    return Ok(EvalResult::new_return(""))
-                } else if se.params.len() > 1 {
-                    return Err(se.todo_error("eval", "Multiple return values not implemented yet"));
-                }
-                return Ok(EvalResult::new_return(&eval_expr(&mut context, &se.get(0))?.value));
-            },
-            NodeType::Throw => {
-                if se.params.len() != 1 {
-                    return Err(se.lang_error("eval", "Throw can only return one value. This should have been caught before"));
-                }
-                return Ok(EvalResult::new_throw(&eval_expr(&mut context, &se.get(0))?.value));
-            },
-            _ => {
-                let stmt_result = eval_expr(&mut context, &se)?;
-                if stmt_result.value != "" {
-                    return Ok(stmt_result);
-                }
-            }
+        let stmt_result = eval_expr(&mut context, &se)?;
+        if stmt_result.is_return || stmt_result.is_throw {
+            return Ok(stmt_result);
         }
     }
-    Ok(EvalResult::new(""))
+    return Ok(EvalResult::new(""))
 }
 
 fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

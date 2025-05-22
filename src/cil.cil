@@ -76,7 +76,6 @@ main := proc(args: ..Str) {
                 path.eq("-v"),
         ) {
             usage()
-            return // TODO fix empty return
         } else {
             run_file_or_exit(args.get(0))
             // run_file_or_exit(args.get(0), StrArray.new(0)) // TODO FIX
