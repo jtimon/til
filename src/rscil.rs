@@ -1622,13 +1622,48 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         return errors;
     }
 
-    let returns_len = func_def.returns.len();
+    let mut return_found = false;
     let mut thrown_types = HashSet::new();
-    // let mut return_found = false;
-    for p in func_def.body.iter() {
+    errors.extend(check_body_returns_throws(&mut context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found));
+    // TODO More complete checks for return values inside if statements and the like
+    // if !return_found && returns_len > 0 {
+    //     errors.push(e.error("type", &format!("No return statments found in function that returns ", e.line, e.col));
+    // }
+
+    for declared_throw in &func_def.throws {
+        let declared_str = value_type_to_str(declared_throw);
+        if !thrown_types.contains(&declared_str) {
+            errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.", declared_str)));
+
+        }
+    }
+
+    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
+        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
+            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
+        }
+    }
+    // TODO should macros be allowed to call procs?
+    if func_def.function_type == FunctionType::FTFunc {
+        for se in &func_def.body {
+            if is_expr_calling_procs(&context, &se) {
+                errors.push(se.error("type", "funcs cannot call procs."));
+            }
+        }
+    }
+
+    return errors
+}
+
+fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_types: &mut HashSet<String>, return_found: &mut bool) -> Vec<String> {
+
+    let mut errors = vec![];
+    let returns_len = func_def.returns.len();
+
+    for p in body.iter() {
         match &p.node_type {
             NodeType::Return => {
-                // return_found = true;
+                *return_found = true;
                 if returns_len != p.params.len() {
                     errors.push(e.error("type", &format!("Returning {} values when {} were expected.", returns_len, p.params.len())));
                 } else {
@@ -1696,33 +1731,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
 
             _ => {},
         }
-        errors.extend(check_types(&mut context, &p));
-    }
-    // TODO More complete checks for return values inside if statements and the like
-    // if !return_found && returns_len > 0 {
-    //     errors.push(e.error("type", &format!("No return statments found in function that returns ", e.line, e.col));
-    // }
-
-    for declared_throw in &func_def.throws {
-        let declared_str = value_type_to_str(declared_throw);
-        if !thrown_types.contains(&declared_str) {
-            errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.", declared_str)));
-
-        }
-    }
-
-    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
-        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
-            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
-        }
-    }
-    // TODO should macros be allowed to call procs?
-    if func_def.function_type == FunctionType::FTFunc {
-        for se in &func_def.body {
-            if is_expr_calling_procs(&context, &se) {
-                errors.push(se.error("type", "funcs cannot call procs."));
-            }
-        }
+        errors.extend(check_types(context, &p));
     }
 
     return errors
