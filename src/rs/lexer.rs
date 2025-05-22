@@ -154,6 +154,18 @@ impl Lexer {
     pub fn next(&self) -> Result<Token, String> {
         return self.peek_ahead(1)
     }
+
+    pub fn expect(&mut self, expected: TokenType) -> Result<Token, String> {
+        let token = self.peek();
+        if token.token_type == expected {
+            self.advance(1)?; // consume the token
+            Ok(token)
+        } else {
+            // TODO use token.token_str and implement a token_type_to_str function
+            Err(token.lang_error(&format!("Expected token '{:?}', but found '{:?}'", expected, token.token_type)))
+        }
+    }
+
 }
 
 fn is_digit(source: &String, pos: usize) -> bool {

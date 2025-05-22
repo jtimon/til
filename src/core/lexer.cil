@@ -527,11 +527,9 @@ scan_tokens := proc(source: Str) returns TokenArray {
 
 /** An interface for the Lexer */
 Lexer := struct {
-
-    mut path : Str = ""
-    mut tokens : TokenArray = TokenArray.new_dyn()
-    mut current_token : I64 = 0
-    mut arr_current_token := Token() // TODO stop faking tokens array
+    mut path: Str = ""
+    mut tokens: TokenArray = TokenArray.new_dyn()
+    mut current_token: I64 = 0
 
     new := proc(path: Str) returns Lexer {
         mut l := Lexer()
@@ -541,23 +539,77 @@ Lexer := struct {
     }
 
     peek := func(self: Lexer) returns Token {
-        return self.arr_current_token
+        return self.tokens.get(self.current_token)
     }
 
-    consume := func(mut self: Lexer) returns Token {
-        return I64.inc(self.current_token)
-    }
-
-    expect := func(mut self: Lexer, expected: TokenType) returns Bool {
-        p := self.peek()
-        switch p.token_type {
-        case expected:
-            self.current_token = I64.add(self.current_token, 1)
-        case:
-            println(loc(), "Lexer.expect: the current token is not what was expected")
-            return false
+    peek_ahead := func(self: Lexer, offset: I64) returns Token {
+        index := I64.add(self.current_token, offset)
+        if I64.gteq(index, self.tokens.len()) {
+            t := self.peek()
+            self.error(loc(), t, Str.fmt("Peek ahead by ", offset.to_str(), " is out of bounds"))
         }
-        return true
+        return self.tokens.get(index)
+    }
+
+    next := func(self: Lexer) returns Token {
+        return self.peek_ahead(1)
+    }
+
+    previous := func(self: Lexer) returns Token {
+        if I64.eq(self.current_token, 0) {
+            t := self.peek()
+            self.error(loc(), t, "No previous token (at position 0)")
+        }
+        index := I64.sub(self.current_token, 1)
+        if I64.gteq(index, self.tokens.len()) {
+            t := self.peek()
+            self.error(loc(), t, "Previous token is out of bounds")
+        }
+        return self.tokens.get(index)
+    }
+
+    advance := func(mut self: Lexer, count: I64) {
+        next_index := I64.add(self.current_token, count)
+        if I64.gt(next_index, self.tokens.len()) {
+            t := self.peek()
+            self.error(
+                loc(),
+                t,
+                Str.fmt("Advance by ", count.to_str(), " from ", self.current_token.to_str(),
+                    " would exceed bounds (", I64.to_str(self.tokens.len()), " tokens total)")
+            )
+        }
+        self.current_token = next_index
+    }
+
+    go_back := func(mut self: Lexer, count: I64) {
+        if I64.gt(count, self.current_token) {
+            t := self.peek()
+            self.error(loc(), t,
+                Str.fmt("Go back by ", count.to_str(), " from ", self.current_token.to_str(), " would underflow")
+            )
+        }
+        self.current_token = I64.sub(self.current_token, count)
+    }
+
+    peek_ahead := func(self: Lexer, offset: I64) returns Token {
+        index := I64.add(self.current_token, offset)
+        if I64.gteq(index, self.tokens.len()) {
+            t := self.peek()
+            self.error(loc(), t, Str.fmt("Peek ahead by ", offset.to_str(), " is out of bounds"))
+        }
+        return self.tokens.get(index)
+    }
+
+    expect := func(mut self: Lexer, expected: TokenType) returns Token {
+        p := self.peek()
+        if TokenType.eq(p.token_type, expected) {
+            self.advance(1)
+            return p
+        }
+        self.error(loc(), p, Str.fmt(
+            "Expected token '", token_type_to_str(expected), "', but found '", token_type_to_str(p.token_type), "'"))
+        return Token() // unreachable
     }
 
     error := proc(self: Lexer, loc_str: Str, t: Token, msg: Str) {

@@ -70,7 +70,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
                 end_found = true
 
             case TokenType.Semicolon:
-                lexer.consume()
+                lexer.advance(1)
 
             case:
                 stmt := parse_statement(lexer)
