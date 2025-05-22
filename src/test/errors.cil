@@ -2,18 +2,37 @@ mode test
 
 DivideByZero := struct {}
 
-// Functions must explicitly declare what they can throw, like in java
+// Functions must explicitly declare what they can throw, like in Java
 safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
     if I64.eq(b, 0) {
-        throw DivideByZero() // TODO properly implement throw
+        throw DivideByZero()
     }
     return div(a, b)
 }
+// TODO This call is expected to panic at evaluation time if uncommented
+safe_div(42, 0)
+
+unsafe_div := func(a: I64, b: I64) returns I64 {
+    return safe_div(a, b)
+    catch (err: DivideByZero) {
+        return 0 // REM Just return 0, why not? not expected to happen
+    }
+}
+// This call is valid, the exception is caught locally
+unsafe_div(42, 0)
+
+// Only the selecter error can be thrown
+// REM Remove 'throws DivideByZero' to trigger a static type error
+missing_throws := proc() throws DivideByZero {
+    safe_div(42, 0)
+}
+missing_throws()
 
 // All exceptions that are not catched must be declared in the throws section again
-// TODO: We should have a way to signal which calls can throw
+// TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
 // perhaps try at the beginning of each statement that can throw or ? at the end
 example_catch := proc() {
+// example_catch := proc() { // TODO don't throws anything in example_catch, but if we remove it, the catch doesn't work
     a := 420
     mut b := 10
     // TODO the compiler should be asking for example_catch to throws DivideByZero already
@@ -21,13 +40,16 @@ example_catch := proc() {
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
     // b := 0 // TODO uncomment when catch is implemented
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
+    result := I64.to_str(safe_div(a, b))
+    println(a.to_str(), " / ", b.to_str(), " = ", result)
+    // safe_div(a, b) // FIXME this is supposed to be catched in the next line!
+    // throw DivideByZero // TODO seriously?
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
         println("Trying to divide by zero")
     }
-    // TODO this one is not catched nor example_catch throws anything, should give error
-    // b = 0
-    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
+
+    // safe_div(a, b) // REM this one is not catched nor example_catch throws anything, should give error
 }
 example_catch()
 
@@ -49,19 +71,23 @@ SomeStruct := struct {
 }
 
 // Remove things from the throws section to test the errors
-undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInFunc, ErrorUndeclaredInAssoc {
+undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc {
     if false {
         another_func()
-        return
+        catch (err: ErrorUndeclaredInFunc) {
+            // Do nothing
+        }
     } else {
         throw "We can throw Str, but we have to declare it in throws"
     }
     while false {
-        throw 32
+        throw 69
     }
     SomeStruct.some_assoc()
     ss := SomeStruct()
     ss.some_method() // TODO FIX check for errors thrown from method calls
+
+    // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
 undeclared_throws()
 
