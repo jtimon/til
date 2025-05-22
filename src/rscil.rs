@@ -14,7 +14,7 @@ mod rs {
 use rs::lexer::{LANG_NAME, lexer_from_source};
 use rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, Declaration, SStructDef, ValueType, ModeDef, SFuncDef, SEnumDef, TTypeDef,
+    Expr, NodeType, FunctionType, Declaration, SStructDef, ValueType, ModeDef, SFuncDef, SEnumDef, TTypeDef, Literal,
     mode_from_name, can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens,
 };
 
@@ -1011,10 +1011,10 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
-        NodeType::LI64(_) => Ok(ValueType::TCustom("I64".to_string())),
-        NodeType::LBool(_) => Ok(ValueType::TCustom("Bool".to_string())),
-        NodeType::LString(_) => Ok(ValueType::TCustom("Str".to_string())),
-        NodeType::LList(_) => Ok(ValueType::TList),
+        NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
+        NodeType::LLiteral(Literal::Bool(_)) => Ok(ValueType::TCustom("Bool".to_string())),
+        NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
+        NodeType::LLiteral(Literal::List(_)) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunction(FunctionType::FTFunc)),
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
@@ -1237,10 +1237,10 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::EnumDef(_) => {
             false
         },
-        NodeType::LBool(_) => false,
-        NodeType::LI64(_) => false,
-        NodeType::LList(_) => false,
-        NodeType::LString(_) => false,
+        NodeType::LLiteral(Literal::Bool(_)) => false,
+        NodeType::LLiteral(Literal::Number(_)) => false,
+        NodeType::LLiteral(Literal::List(_)) => false,
+        NodeType::LLiteral(Literal::Str(_)) => false,
         NodeType::DefaultCase => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
@@ -1973,7 +1973,8 @@ fn check_types(mut context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
 
-        NodeType::LI64(_) | NodeType::LString(_) | NodeType::LBool(_) | NodeType::LList(_) | NodeType::DefaultCase => {},
+        NodeType::LLiteral(Literal::Number(_)) | NodeType::LLiteral(Literal::List(_)) |
+        NodeType::LLiteral(Literal::Bool(_)) | NodeType::LLiteral(Literal::Str(_)) | NodeType::DefaultCase => {},
     }
 
     return errors
@@ -2246,9 +2247,9 @@ fn eval_core_proc_print_flush(mut _context: &mut Context, e: &Expr) -> String {
 fn eval_core_proc_input_read_line(mut _context: &mut Context, e: &Expr) -> String {
     let first_param = e.get(0);
     let read_line_error_msg = match &first_param.node_type {
-        NodeType::LString(error_msg_) => error_msg_.clone(),
-        _ => format!("input_read_line() can only take literal strings as its single argument for an error String for now. The user, perhaps wisely, tried node type '{:?}' instead",
-                     first_param.node_type).to_string(), // TODO review
+        NodeType::LLiteral(Literal::Str(error_msg_)) => error_msg_.clone(),
+        _ => e.lang_error("eval", &format!("input_read_line() can only take literal strings as its single argument for an error Str. Found '{:?}' instead",
+                                           first_param.node_type)),
     };
     let mut line = String::new();
     io::stdin()
@@ -2318,7 +2319,7 @@ fn eval_core_exit(e: &Expr) -> String {
     assert!(e.params.len() == 2, "eval_core_exit expects a single parameter.");
     let e_exit_code = e.get(1);
     let exit_code = match &e_exit_code.node_type {
-        NodeType::LI64(my_li64) => {
+        NodeType::LLiteral(Literal::Number(my_li64)) => {
             my_li64.clone()
         },
         node_type => {
@@ -3324,10 +3325,10 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> String {
         NodeType::Body => {
             return eval_body(&mut context, &e.params);
         },
-        NodeType::LBool(bool_value) => bool_value.to_string(),
-        NodeType::LI64(li64) => li64.to_string(),
-        NodeType::LString(lstring) => lstring.to_string(),
-        NodeType::LList(list_str_) => {
+        NodeType::LLiteral(Literal::Bool(bool_value)) => bool_value.to_string(),
+        NodeType::LLiteral(Literal::Number(li64)) => li64.to_string(),
+        NodeType::LLiteral(Literal::Str(lstring)) => lstring.to_string(),
+        NodeType::LLiteral(Literal::List(list_str_)) => {
             return list_str_.to_string()
         },
         NodeType::FCall => {
@@ -3438,13 +3439,13 @@ fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
 fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
-        NodeType::LBool(lbool) => {
+        NodeType::LLiteral(Literal::Bool(lbool)) => {
             return lbool.to_string();
         },
-        NodeType::LI64(li64) => {
+        NodeType::LLiteral(Literal::Number(li64)) => {
             return li64.to_string();
         },
-        NodeType::LString(lstring) => {
+        NodeType::LLiteral(Literal::Str(lstring)) => {
             return lstring.to_string();
         },
         NodeType::DefaultCase => {
@@ -3484,7 +3485,7 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("({} {})", f_name, params_to_ast_str(false, &e)));
             return ast_str;
         },
-        NodeType::LList(_) => {
+        NodeType::LLiteral(Literal::List(_)) => {
             ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
             return ast_str;
         },
@@ -3566,7 +3567,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         let mut main_params = Vec::new();
         main_params.push(Expr{node_type: NodeType::Identifier("main".to_string()), line: 0, col: 0, params: Vec::new()});
         for str_arg in main_args {
-            main_params.push(Expr{node_type: NodeType::LString(str_arg), line: 0, col: 0, params: Vec::new()});
+            main_params.push(Expr{node_type: NodeType::LLiteral(Literal::Str(str_arg)), line: 0, col: 0, params: Vec::new()});
         }
         e.params.push(Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params});
     }

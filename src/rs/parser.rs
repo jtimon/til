@@ -85,12 +85,17 @@ pub struct SStructDef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Literal {
+    Number(i64), // TODO support more kinds of numbers
+    Str(String),
+    Bool(bool),
+    List(String), // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum NodeType {
     Body,
-    LList(String),
-    LString(String),
-    LI64(i64),
-    LBool(bool),
+    LLiteral(Literal),
     FCall,
     Identifier(String),
     Declaration(Declaration),
@@ -337,9 +342,9 @@ pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
 fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
-        TokenType::String => NodeType::LString(t.token_str.clone()),
-        TokenType::Number => NodeType::LI64(t.token_str.parse::<i64>().unwrap()),
-        TokenType::True => NodeType::LBool(true),
+        TokenType::String => NodeType::LLiteral(Literal::Str(t.token_str.clone())),
+        TokenType::Number => NodeType::LLiteral(Literal::Number(t.token_str.parse::<i64>().unwrap())),
+        TokenType::True => NodeType::LLiteral(Literal::Bool(true)),
         _ => {
             return Err(t.lang_error(&format!("Trying to parse a token that's not a literal as a literal, found '{:?}'.", t.token_type)));
         },
@@ -389,7 +394,7 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
     }
     match list_t.token_type {
         // TODO properly parse lists besides function definition arguments
-        TokenType::RightParen => Ok(Expr::new_parse(NodeType::LList("".to_string()), lexer.get_token(initial_current)?.clone(), params)),
+        TokenType::RightParen => Ok(Expr::new_parse(NodeType::LLiteral(Literal::List("".to_string())), lexer.get_token(initial_current)?.clone(), params)),
         _ => Err(list_t.error("Expected closing parentheses.")),
     }
 }
