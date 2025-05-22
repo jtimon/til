@@ -3471,6 +3471,7 @@ fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
     return ast_str;
 }
 
+// TODO test this function again and maintain it, but in the self hosting side directly, perhaps
 fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
@@ -3536,13 +3537,7 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("(switch {})", to_ast_str(&e.get(0))));
             return ast_str;
         },
-        // TODO why not? this whole function is out of date and untested anyway
-        NodeType::Return => {
-            panic!("{} AST ERROR: Node_type::Return shouldn't be analized in to_ast_str().", LANG_NAME);
-        },
-        NodeType::Throw => {
-            panic!("{} AST ERROR: Node_type::Throw shouldn't be analized in to_ast_str().", LANG_NAME);
-        },
+        _ => todo!(),
     }
 }
 
