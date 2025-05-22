@@ -1625,10 +1625,10 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
     let mut return_found = false;
     let mut thrown_types = HashSet::new();
     errors.extend(check_body_returns_throws(&mut context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found));
-    // TODO More complete checks for return values inside if statements and the like
-    // if !return_found && returns_len > 0 {
-    //     errors.push(e.error("type", &format!("No return statments found in function that returns ", e.line, e.col));
-    // }
+
+    if !return_found && func_def.returns.len() > 0 {
+        errors.push(e.error("type", "No return statments found in function that returns "));
+    }
 
     for declared_throw in &func_def.throws {
         let declared_str = value_type_to_str(declared_throw);
@@ -1665,15 +1665,18 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
             NodeType::Return => {
                 *return_found = true;
                 if returns_len != p.params.len() {
-                    errors.push(e.error("type", &format!("Returning {} values when {} were expected.", returns_len, p.params.len())));
+                    errors.push(p.error("type", &format!("Returning {} values when {} were expected.", p.params.len(), returns_len)));
+                    errors.push(e.error("type", "Suggestion: Update returns section here"));
                 } else {
                     for i in 0..p.params.len() {
                         let expected_value_type = func_def.returns.get(i).unwrap();
-                        match get_value_type(&context, p.params.get(i).unwrap()) {
+                        let return_val_e = p.params.get(i).unwrap();
+                        match get_value_type(&context, return_val_e) {
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
-                                    errors.push(e.error("type", &format!("Return value in pos {} expected to be {:?}, but found {:?} instead",
-                                                                         i, expected_value_type, actual_value_type)));
+                                    errors.push(return_val_e.error("type", &format!("Return value in pos {} expected to be {:?}, but found {:?} instead",
+                                                                                    i, expected_value_type, actual_value_type)));
+                                    errors.push(e.error("type", "Suggestion: Update returns section here"));
                                 }
                             },
                             Err(error_string) => {
@@ -1697,6 +1700,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                             // Check if the thrown type is declared in the throws section
                             if !func_def.throws.contains(&thrown_type) {
                                 errors.push(throw_param.error("type", &format!("Type '{}' thrown but not declared in throws section", value_type_to_str(&thrown_type))));
+                                errors.push(e.error("type", "Suggestion: Update throws section here"));
                             }
                         },
                         Err(err) => {
@@ -1717,15 +1721,55 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                     "Function throws '{}', but it is not declared in this function's throws section.",
                                     called_throw_str
                                 )));
+                                errors.push(e.error("type", "Suggestion: Update throws section here"));
                             }
                         }
                     },
                     Ok(None) => {
+                        // TODO throw error from here?
                         // Do nothing — unsupported expression or no function target
                     },
                     Err(reason) => {
                         errors.push(p.error("type", &reason));
                     }
+                }
+            }
+
+            NodeType::While => {
+                if let Some(cond_expr) = p.params.get(0) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), thrown_types, return_found));
+                }
+                if let Some(body_expr) = p.params.get(1) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, thrown_types, return_found));
+                }
+            }
+            NodeType::If => {
+                if let Some(cond_expr) = p.params.get(0) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), thrown_types, return_found));
+                }
+                if let Some(then_block) = p.params.get(1) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, &then_block.params, thrown_types, return_found));
+                }
+                if let Some(else_block) = p.params.get(2) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, &else_block.params, thrown_types, return_found));
+                }
+            }
+            NodeType::Switch => {
+                // Analyze the switch expression itself (could throw)
+                if let Some(switch_expr) = p.params.get(0) {
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(switch_expr), thrown_types, return_found));
+                }
+
+                let mut i = 1;
+                while i + 1 < p.params.len() {
+                    let case_expr = &p.params[i];
+                    let body_expr = &p.params[i + 1];
+
+                    // Check case expression and the body block
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(case_expr), thrown_types, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, thrown_types, return_found));
+
+                    i += 2;
                 }
             }
 

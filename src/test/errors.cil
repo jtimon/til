@@ -29,33 +29,32 @@ example_catch := proc() {
 example_catch()
 
 ErrorUndeclaredInFunc := struct {}
+ErrorUndeclaredInMethod := struct {}
 
 another_func := func() throws ErrorUndeclaredInFunc {
     throw ErrorUndeclaredInFunc()
 }
 
 SomeStruct := struct {
-    some_method := func() throws ErrorUndeclaredInFunc {
+    some_method := func() throws ErrorUndeclaredInMethod {
         throw ErrorUndeclaredInFunc()
     }
 }
 
-// undeclared_throws := proc() throws ErrorUndeclaredInFunc, Str, I64 { // this is how it should be
-undeclared_throws := proc() throws ErrorUndeclaredInFunc {
-    if false { // TODO if bodies are not cheked for return or throw
+// Remove things from the throws section to test the errors
+undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInFunc {
+    if false {
         another_func()
-        return 69 // TODO remove once the type check works
-    } else { // TODO else bodies are not cheked for return or throw
+        return
+    } else {
         throw "We can throw Str, but we have to declare it in throws"
-        return 69 // TODO remove once the type check works
     }
-    while false { // TODO while bodies are not cheked for return or throw
+    while false {
         throw 32
-        return 69 // TODO remove once the type check works
     }
     SomeStruct.some_method()
 }
-undeclared_throws() // TODO Uncomment to test type check errors
+undeclared_throws()
 
 // TODO do beter examples with throw, including catch in the examples
 # example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {

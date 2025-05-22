@@ -8,8 +8,7 @@ ModeDef := struct {
     mut needs_main_proc: Bool = false
 }
 
-// TODO make a func once we support throw
-mode_from_name := proc(mode_name: Str) returns ModeDef throws Str {
+mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
     mut md := ModeDef()
     md.name = mode_name
 
@@ -51,7 +50,8 @@ mode_from_name := proc(mode_name: Str) returns ModeDef throws Str {
         md.needs_main_proc = false
 
     case:
-        TODO(loc(), Str.concat("properly report unsuported modes like: ", mode_name))
+        // TODO(loc(), "Properly support throw")
+        throw Str.fmt(loc(), LANG_NAME, " implementation doesn't support mode ", mode_name)
     }
     return md
 }

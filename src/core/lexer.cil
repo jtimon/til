@@ -232,7 +232,6 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "mut": return TokenType.Mut
         // bool literals
     case "true": return TokenType.True
-    case "false": return TokenType.False
         // core data types
     case "enum": return TokenType.Enum
     case "struct": return TokenType.Struct
