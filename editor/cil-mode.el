@@ -24,7 +24,7 @@
 (defconst cil-keywords
   '("mode" "mut" "struct" "enum" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
-    "returns" "return" "throws"
+    "returns" "return" "throws" "catch"
     "if" "else" "while" "switch" "case" "true" "false"
     ))
 
@@ -41,12 +41,23 @@
     "print" "println" "readfile" "runfile" "exit" "import" "loc"
     "assert" "assertm" "assert_eq" "assert_eq_str"
     "input_read_line" "eval_to_str"
-    "lib" "pure" "script" "safe_script" "cli" "test"
+    ;; Implemented modes
+    "lib" "script" "safe_script" "cli" "test"
+    ;; TODO modes to immplement
+    "pure" "gui" "server" "arduino"
     ))
 
 (defconst cil-error-words
-  '("throw" "catch" "panic" "exit" "TODO" "NULL"
+  '(;; Because they're kind of "dangerous" and it's nice to see them in red
+    "throw" "panic" "exit" "TODO" "NULL"
+    ;; Because they are planned, but not implemented yet
+    "defer"
+    "priv" "private" ;; decide on one once implemmented
+    "when" ;; should we replace switch with this or reserve it for other possible uses (not the odin use case, just use if, but there are more)
+    "with" ;; do we really need this?
+    ;; Because they don't belong in this language and can help learning the syntax by trying to compile them
     "static" "let" "var" "const" "global" "fn" "function" "try"
+    "public" "pub" ;; TODO add to lexer errors
     )
   "Words that are invalid in cil and should be highlighted as errors.")
 
