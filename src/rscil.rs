@@ -1579,6 +1579,9 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
 
 fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
+    if !context.mode.allows_procs && func_def.is_proc() {
+        errors.push(e.error("type", "Procs not allowed in pure modes"));
+    }
     let mut has_variadic = false;
     for (i, arg) in func_def.args.iter().enumerate() {
         if has_variadic {

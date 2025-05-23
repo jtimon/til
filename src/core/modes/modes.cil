@@ -1,11 +1,12 @@
 mode lib
 
 ModeDef := struct {
-    mut name: Str = ""
-    mut allows_base_mut: Bool = false
-    mut allows_base_calls: Bool = false
-    mut allows_base_anything: Bool = false
-    mut needs_main_proc: Bool = false
+    mut name                 : Str  = ""
+    mut allows_procs         : Bool = false
+    mut allows_base_mut      : Bool = false
+    mut allows_base_calls    : Bool = false
+    mut allows_base_anything : Bool = false
+    mut needs_main_proc      : Bool = false
 }
 
 // TODO implement debug_format to call from funcs, also implement modes pure and pura
@@ -15,40 +16,46 @@ mode_from_name := proc(mode_name: Str) returns ModeDef throws Str {
 
     switch mode_name {
     case "lib":
-        md.allows_base_calls = false
-        md.allows_base_mut = false
+        md.allows_procs         = true
+        md.allows_base_calls    = false
+        md.allows_base_mut      = false
         md.allows_base_anything = false
-        md.needs_main_proc = false
+        md.needs_main_proc      = false
 
     case "pure":
-        md.allows_base_calls = false
-        md.allows_base_mut = false
+        md.allows_procs         = false
+        md.allows_base_calls    = false
+        md.allows_base_mut      = false
         md.allows_base_anything = false
-        md.needs_main_proc = false
+        md.needs_main_proc      = false
 
     case "script":
-        md.allows_base_calls = true
-        md.allows_base_mut = true
+        md.allows_procs         = true
+        md.allows_base_calls    = true
+        md.allows_base_mut      = true
         md.allows_base_anything = true
-        md.needs_main_proc = false
+        md.needs_main_proc      = false
 
     case "safe_script":
-        md.allows_base_calls = true
-        md.allows_base_mut = true
+        md.allows_procs         = true
+        md.allows_base_calls    = true
+        md.allows_base_mut      = true
         md.allows_base_anything = true
-        md.needs_main_proc = false
+        md.needs_main_proc      = false
 
     case "cli":
-        md.allows_base_calls = false
-        md.allows_base_mut = true
+        md.allows_procs         = true
+        md.allows_base_calls    = false
+        md.allows_base_mut      = true
         md.allows_base_anything = false
-        md.needs_main_proc = true
+        md.needs_main_proc      = true
 
     case "test":
-        md.allows_base_calls = true
-        md.allows_base_mut = true
+        md.allows_procs         = true
+        md.allows_base_calls    = true
+        md.allows_base_mut      = true
         md.allows_base_anything = false
-        md.needs_main_proc = false
+        md.needs_main_proc      = false
 
     case:
         // TODO(loc(), "Properly support throw")

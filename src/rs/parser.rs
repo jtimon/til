@@ -249,6 +249,7 @@ pub fn str_to_value_type(arg_type: &str) -> ValueType {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModeDef {
     pub name: String,
+    pub allows_procs: bool,
     pub allows_base_mut: bool,
     pub allows_base_calls: bool,
     pub allows_base_anything: bool,
@@ -267,46 +268,52 @@ pub fn can_be_imported(mode: &ModeDef) -> bool {
 pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
     return match mode_name {
         "lib" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: false,
-                    allows_base_mut: false,
-                    allows_base_anything: false,
-                    needs_main_proc: false,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : true,
+                    allows_base_calls    : false,
+                    allows_base_mut      : false,
+                    allows_base_anything : false,
+                    needs_main_proc      : false,
         }),
         "pure" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: false,
-                    allows_base_mut: false,
-                    allows_base_anything: false,
-                    needs_main_proc: false,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : false,
+                    allows_base_calls    : false,
+                    allows_base_mut      : false,
+                    allows_base_anything : false,
+                    needs_main_proc      : false,
         }),
         "script" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: true,
-                    allows_base_mut: true,
-                    allows_base_anything: true,
-                    needs_main_proc: false,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : true,
+                    allows_base_calls    : true,
+                    allows_base_mut      : true,
+                    allows_base_anything : true,
+                    needs_main_proc      : false,
         }),
         "safe_script" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: true,
-                    allows_base_mut: true,
-                    allows_base_anything: true,
-                    needs_main_proc: false,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : true,
+                    allows_base_calls    : true,
+                    allows_base_mut      : true,
+                    allows_base_anything : true,
+                    needs_main_proc      : false,
         }),
         "cli" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: false,
-                    allows_base_mut: true,
-                    allows_base_anything: false,
-                    needs_main_proc: true,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : true,
+                    allows_base_calls    : false,
+                    allows_base_mut      : true,
+                    allows_base_anything : false,
+                    needs_main_proc      : true,
         }),
         "test" => Ok(
-            ModeDef{name: mode_name.to_string(),
-                    allows_base_calls: true,
-                    allows_base_mut: true,
-                    allows_base_anything: false,
-                    needs_main_proc: false,
+            ModeDef{name                 : mode_name.to_string(),
+                    allows_procs         : true,
+                    allows_base_calls    : true,
+                    allows_base_mut      : true,
+                    allows_base_anything : false,
+                    needs_main_proc      : false,
         }),
 
         _  => return Err(format!("0:0: {} interpreter implementation doesn't support mode '{}'", LANG_NAME, mode_name)),
@@ -329,9 +336,6 @@ pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
         Err(err_) => return Err(err_),
     };
 
-    if mode.name == "pure" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "lib"));
-    }
     if mode.name == "safe_script" {
         return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "script"));
     }

@@ -6,9 +6,9 @@ runfile("src/test/future.cil")
 
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
-runfile("src/test/hello/hello_lib.cil")
-// runfile("src/test/hello/hello_pure.cil") // TODO can't call procs
 runfile("src/test/hello/hello_cli.cil")
+runfile("src/test/hello/hello_lib.cil")
+runfile("src/test/hello/hello_pure.cil")
 runfile("src/test/hello/hello_script.cil")
 // test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
 // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
