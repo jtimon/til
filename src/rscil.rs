@@ -3677,7 +3677,6 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
 fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
     let mut context = Context::new(path, DEFAULT_MODE);
     run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
-    run_file_with_context(true, &mut context, &"src/core/std.cil".to_string(), Vec::new())?;
     run_file_with_context(false, &mut context, &path, main_args)?;
     return Ok(())
 }

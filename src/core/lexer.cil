@@ -1,5 +1,7 @@
 mode lib
 
+import("src/core/std")
+
 LANG_NAME := "cil"
 DEBUG_COMPILER := true
 
