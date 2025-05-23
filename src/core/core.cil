@@ -28,7 +28,6 @@ exit         := ext_proc(code: I64);
 // example_cil: my_matrix : struct = import(matrix)
 // example_python: from matrix import matrix_def as my_matrix_def
 import       := ext_proc(path: Str);
-runfile      := ext_proc(args: ..Str);
 
 // Memory operations
 NULL   := 0
@@ -107,15 +106,6 @@ Ptr := struct {
     }
 }
 
-enum_to_str     := ext_func(e: I64) returns Str; // TODO not sure why this works since we're using it with enums rather than I64
-eval_to_str     := ext_proc(a: Str) returns Str;
-eval_to_ast_str := ext_proc(src: Str) returns Str; // TODO
-eval_to_expr    := ext_proc(src: Str) returns Expr; // TODO
-
-input_read_line := ext_proc(a: Str) returns Str;
-readfile        := ext_proc(path: Str) returns Str;
-writefile       := ext_proc(path: Str, contents: Str) returns Str; // TODO
-
 not := func(b: Bool) returns Bool {
     if b {
         return false
@@ -145,8 +135,6 @@ and := func(args: ..Bool) returns Bool {
     return true
 }
 
-// Note that Bool, I64 and Str don't have fields because the're the core types
-// think of them as "half-external types" for now
 Bool := struct {
     mut data: U8 = 0
 
@@ -212,6 +200,8 @@ gteq := func(a: I64, b: I64) returns Bool {
     return false
 }
 
+// Note that I64 and U8 don't have fields because the're the "real core types"
+// think of them as "half-external types" for now
 U8 := struct {
     // TODO FIX can't use itself as base data, can it?
     // TODO This is the base of data storage, not I64
