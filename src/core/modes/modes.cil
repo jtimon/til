@@ -8,7 +8,8 @@ ModeDef := struct {
     mut needs_main_proc: Bool = false
 }
 
-mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
+// TODO implement debug_format to call from funcs, also implement modes pure and pura
+mode_from_name := proc(mode_name: Str) returns ModeDef throws Str {
     mut md := ModeDef()
     md.name = mode_name
 
@@ -51,7 +52,7 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
 
     case:
         // TODO(loc(), "Properly support throw")
-        throw Str.fmt(loc(), LANG_NAME, " implementation doesn't support mode ", mode_name)
+        throw format(loc(), LANG_NAME, " implementation doesn't support mode ", mode_name)
     }
     return md
 }

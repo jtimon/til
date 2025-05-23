@@ -41,7 +41,7 @@ my_string : Str = "test" // 'Str' (font-lock-type-face in emacs)
 
 // Builtins
 result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
-printed := Str.concat("He", "llo") // 'concat' (font-lock-builtin-face in emacs)
+printed := format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
 
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)

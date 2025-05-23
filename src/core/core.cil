@@ -60,7 +60,7 @@ println := proc(args: ..Str) {
 }
 
 panic := proc(loc_str: Str, msg: Str) {
-    println(loc_str.concat(msg))
+    println(loc_str.format(msg))
     exit(1)
 }
 
@@ -233,10 +233,10 @@ U8 := struct {
 
     from_i64 := func(self: I64) returns U8 {
         if lt(self, 0) {
-            return panic(loc(), "Negative values cannot be cast into 'U8'")
+            panic(loc(), "Negative values cannot be cast into 'U8'")
         }
         if gt(self, MAX_U8) {
-            return panic(loc(), Str.concat("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            panic(loc(), format("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
@@ -322,60 +322,6 @@ Str := struct {
         return true
     }
 
-    concat := func(self: Str, other: Str) returns Str {
-        mut result := Str()
-        result.cap = add(self.cap, other.cap)
-
-        if lt(result.cap, self.cap) {
-            println(loc(), "Str.concat: integer overflow: self.cap = ", I64.to_str(self.cap), " other.cap = ", I64.to_str(other.cap))
-            exit(1)
-        }
-
-        result.c_string = malloc(result.cap)
-        if NULL.eq(result.c_string) {
-            println(loc(), "Str.concat: malloc failed for cap = ", I64.to_str(result.cap))
-            exit(1)
-        }
-
-        memcpy(result.c_string, self.c_string, self.cap)
-        memcpy(add(result.c_string, self.cap), other.c_string, other.cap)
-
-        return result
-    }
-
-    fmt := func(args: ..Str) returns Str {
-        mut result := Str()
-        result.cap = 0
-
-        mut i := 0
-        while lt(i, args.len) {
-            arg := args.get(i)
-            result.cap = add(result.cap, arg.cap)
-            if lt(result.cap, arg.cap) {
-                println(loc(), "Str.fmt: integer overflow while summing cap for arg ", I64.to_str(i))
-                exit(1)
-            }
-            i.inc()
-        }
-
-        result.c_string = malloc(result.cap)
-        if NULL.eq(result.c_string) {
-            println(loc(), "Str.fmt: malloc failed for cap = ", I64.to_str(result.cap))
-            exit(1)
-        }
-
-        mut offset := 0
-        i = 0
-        while lt(i, args.len) {
-            mut s := args.get(i)
-            memcpy(add(result.c_string, offset), s.c_string, s.cap)
-            offset = add(offset, s.cap)
-            i.inc()
-        }
-
-        return result
-    }
-
     to_i64 := func(self: Str) returns I64 {
         return I64.from_str(self)
     }
@@ -417,6 +363,44 @@ Str := struct {
     get_char := func(s: Str, pos: I64) returns Str {
         return s.get_substr(pos, add(pos, 1))
     }
+}
+
+// TODO this should be a func, after it throws isntead of printing inside
+// But there isn't a proper catch yet, unfortunately
+format := proc(prefix: Str, args: ..Str) returns Str {
+    mut result := Str()
+    result.cap = prefix.cap
+
+    mut i := 0
+    while lt(i, args.len) {
+        arg := args.get(i)
+        result.cap = add(result.cap, arg.cap)
+        if lt(result.cap, arg.cap) {
+            println(loc(), "format: integer overflow while summing cap for arg ", I64.to_str(i))
+            exit(1)
+        }
+        i.inc()
+    }
+
+    result.c_string = malloc(result.cap)
+    if NULL.eq(result.c_string) {
+        println(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap))
+        exit(1)
+    }
+
+    mut offset := 0
+    memcpy(result.c_string, prefix.c_string, prefix.cap)
+    offset = prefix.cap
+
+    i = 0
+    while lt(i, args.len) {
+        mut s := args.get(i)
+        memcpy(add(result.c_string, offset), s.c_string, s.cap)
+        offset = add(offset, s.cap)
+        i.inc()
+    }
+
+    return result
 }
 
 U8Array := struct {

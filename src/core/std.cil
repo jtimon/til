@@ -15,7 +15,7 @@ panic2 := proc(loc_str: Str, msgs: ..Str) {
 
 assertm := proc(loc_str: Str, cond: Bool, msg: Str) {
     if not(cond) {
-        panic(loc_str, Str.concat("assert failed: ", msg))
+        panic(loc_str, format("assert failed: ", msg))
     }
 }
 

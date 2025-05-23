@@ -80,5 +80,5 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
     if end_found {
         return Expr.new_parse(NodeType.Body, start_token, params)
     }
-    lexer.error(loc(), lexer.peek(), Str.concat("Expected the body to end with ", enum_to_str(end_token)))
+    lexer.error(loc(), lexer.peek(), format("Expected the body to end with ", enum_to_str(end_token)))
 }

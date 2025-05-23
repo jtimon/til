@@ -35,7 +35,7 @@
   '("and" "or" "not" "eq" "branchless"
     "lt" "lteq" "gt" "gteq"
     "add" "sub" "mul" "div" "mod"
-    "concat" "fmt" "to_str" "to_i64" "to_u8"
+    "format" "to_str" "to_i64" "to_u8"
     "len" "size_of"
     "malloc" "memcpy" "memset" "free"
     "print" "println" "readfile" "runfile" "exit" "import" "loc"

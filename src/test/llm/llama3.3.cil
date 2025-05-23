@@ -24,9 +24,9 @@ Color := enum {
 //         if gt(code, 0) {
 //             return "positive color code"
 //         } else {
-//             return Str.concat("color code: ", code.to_str())
+//             return format("color code: ", code.to_str())
 //         }
-//     case Color.Name(name): return Str.concat("color name: ", name)
+//     case Color.Name(name): return format("color name: ", name)
 //     }
 // }
 
@@ -57,7 +57,7 @@ point_new := func(x: I64, y: I64) returns Point {
 // test_point := func(p: Point) returns Str {
 //     switch p {
 //     case Point{x: 0, y: 0}: return "origin"
-//     case Point{x: x, y: y}: return Str.concat("point (", Str.concat(x.to_str(), Str.concat(", ", Str.concat(y.to_str(), ")"))))
+//     case Point{x: x, y: y}: return format("point (", format(x.to_str(), format(", ", format(y.to_str(), ")"))))
 //     }
 // }
 
