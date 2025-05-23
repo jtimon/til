@@ -1,12 +1,6 @@
 mode lib
 
-xor := func(a: Bool, b: Bool) returns Bool {
-    return not(a.eq(b))
-}
-
-xnor := func(a: Bool, b: Bool) returns Bool {
-    return a.eq(b)
-}
+import("src/core/pure_std")
 
 panic2 := proc(loc_str: Str, msgs: ..Str) {
     // TODO use variadic args in user defined functions. requires arrays
@@ -21,10 +15,6 @@ assertm := proc(loc_str: Str, cond: Bool, msg: Str) {
 
 assert := proc(loc_str: Str, cond: Bool) {
     assertm(loc_str, cond, "")
-}
-
-branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
-    return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
 }
 
 TODO := proc(loc_str: Str, msg: Str) {

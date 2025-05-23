@@ -1,0 +1,13 @@
+mode pure
+
+xor := func(a: Bool, b: Bool) returns Bool {
+    return not(a.eq(b))
+}
+
+xnor := func(a: Bool, b: Bool) returns Bool {
+    return a.eq(b)
+}
+
+branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
+    return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
+}
