@@ -849,6 +849,7 @@ fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option
     };
 
     match &func_expr.node_type {
+        // TODO support identifiers with dots (ie method or UFCS calls)
         NodeType::Identifier(func_name) => {
             Ok(context.funcs.get(func_name).cloned())
         },
@@ -1054,7 +1055,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             Some(decl) => {
                                 current_type = decl.value_type.clone();
                             },
-                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}'", name, member_name))),
+                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' e", name, member_name))),
                         }
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
@@ -1077,7 +1078,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             Some(decl) => {
                                 current_type = decl.value_type.clone();
                             },
-                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}'", custom_type_name, member_name))),
+                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' f", custom_type_name, member_name))),
                         }
                     },
                     ValueType::TMulti(variadic_type_name) => {
@@ -1444,7 +1445,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                         let member_value = match struct_def.default_values.get(after_dot_name) {
                             Some(val) => val,
                             None => {
-                                errors.push(e.error("type", &format!("struct '{}' has no member '{}'", f_name, after_dot_name)));
+                                errors.push(e.error("type", &format!("struct '{}' has no member '{}' g", f_name, after_dot_name)));
                                 return errors;
                             },
                         };
@@ -1480,7 +1481,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                         let member_value = match struct_def.default_values.get(after_dot_name) {
                             Some(val) => val,
                             None => {
-                                errors.push(e.error("type", &format!("struct '{}' has no member '{}'", type_name, after_dot_name)));
+                                errors.push(e.error("type", &format!("struct '{}' has no member '{}' h", type_name, after_dot_name)));
                                 return errors;
                             },
                         };
@@ -2812,7 +2813,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Resul
                 let _member_decl = match struct_def.members.get(after_dot_name) {
                     Some(_member) => _member,
                     None => {
-                        return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}'", name, after_dot_name)))
+                        return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}' i", name, after_dot_name)))
                     },
                 };
                 let combined_name = format!("{}.{}", name, after_dot_name);
@@ -3225,7 +3226,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Resul
                     return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, member_decl);
                 },
                 None => {
-                    return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}'", name, inner_name)));
+                    return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}' j", name, inner_name)));
                 },
             }
         },
@@ -3272,7 +3273,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                     current_type = member_decl.value_type.clone();
                                                     current_name = format!("{}.{}", current_name, inner_name);
                                                 },
-                                                None => return Err(inner_e.lang_error("eval", &format!("Struct '{}' has no member '{}'", value_type_to_str(&current_type), inner_name))),
+                                                None => return Err(inner_e.lang_error("eval", &format!("Struct '{}' has no member '{}' k", value_type_to_str(&current_type), inner_name))),
                                             }
                                         },
                                         ValueType::TType(TTypeDef::TEnumDef) => {
