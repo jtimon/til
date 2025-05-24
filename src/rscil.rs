@@ -2227,7 +2227,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     return errors
 }
 
-fn check_struct_def(_context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
+fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
         errors.push(e.exit_error("type", "in check_struct_def(): struct declarations must take exactly 0 params."));
@@ -2242,9 +2242,8 @@ fn check_struct_def(_context: &mut Context, e: &Expr, struct_def: &SStructDef) -
                 match &inner_e.node_type {
                     // If the member's default value is a function (method), type check it
                     NodeType::FuncDef(_func_def) => {
-                        // println!("DEBUG: Check members that are function definitions, got inner_e: {:?}", inner_e);
-                        // println!("func_def {:?}", func_def);
-                        // let mut function_context = context.clone();
+                        let mut _function_context = context.clone();
+                        // TODO FIX Uncomment to test functions inside structs
                         // errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
                     },
                     // For other types of members, treat them like regular declarations
