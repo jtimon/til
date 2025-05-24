@@ -1,5 +1,17 @@
 mode test
 
+AAAError := struct {}
+simplest_catch := proc () {
+    catched := false
+    throw AAAError()
+    assert(loc(), false) // This line should be unreachable
+    catch (err: AAAError) {
+        catched := true
+    }
+    assert(loc(), catched)
+}
+simplest_catch()
+
 DivideByZero := struct {}
 
 // Functions must explicitly declare what they can throw, like in Java
@@ -12,14 +24,27 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
 // TODO This call is expected to panic at evaluation time if uncommented
 safe_div(42, 0)
 
-unsafe_div := func(a: I64, b: I64) returns I64 {
+unsafe_div := proc(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
     catch (err: DivideByZero) {
+        println("unsafe_div: Correctly catched thrown DivideByZero") // TODO FIX DivideByZero should have been catched
         return 0 // REM Just return 0, why not? not expected to happen
     }
 }
 // This call is valid, the exception is caught locally
 unsafe_div(42, 0)
+
+unsafe_div2 := proc(a: I64, b: I64) returns I64 {
+    result := safe_div(a, b)
+    assertm(loc(), false, "DivideByZero should have been thrown")
+    catch (err: DivideByZero) {
+        println("unsafe_div2: Correctly catched thrown DivideByZero") // TODO FIX DivideByZero should have been catched
+        return 0 // REM Just return 0, why not? not expected to happen
+    }
+    return 0
+    // return result // TODO FIX It seemms the exception is not being caught or thrown, perhaps
+}
+unsafe_div2(42, 0)
 
 // Only the selecter error can be thrown
 // REM Remove 'throws DivideByZero' to trigger a static type error
@@ -35,14 +60,14 @@ example_catch := proc() {
     a := 420
     mut b := 10
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b))) // test fcalls as args
-    // b = 0 // TODO uncomment when catch is implemented
+    b = 0 // TODO FIX eval ERROR: Identifier 'self' not found as I64.
     result := I64.to_str(a.safe_div(b)) // test declaration
     mut result2 := "0"
     result2 = I64.to_str(a.safe_div(b)) // test assignment
     println(a.to_str(), " / ", b.to_str(), " = ", result)
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
-        println("Trying to divide by zero")
+        println("Trying to divide by zero") // TODO FIX DivideByZero should have been catched
     }
 
     // safe_div(a, b) // REM this one is not catched nor example_catch throws anything, should give error
@@ -68,10 +93,10 @@ SomeStruct := struct {
 
 // Remove things from the throws section to test the errors
 undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInMethod {
-    if false {
+    if true {
         another_func()
         catch (err: ErrorUndeclaredInFunc) {
-            // Do nothing
+            println("Correctly catched thrown ErrorUndeclaredInFunc")
         }
     } else {
         throw "We can throw Str, but we have to declare it in throws"

@@ -2180,11 +2180,13 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                 continue;
                             },
                         };
-                        match id_expr.params.get(0) {
-                            Some(_after_dot) => {},
-                            None => continue, // This is used for 'StructName()' kind of instantiations
+                        if let NodeType::Identifier(name) = &id_expr.node_type {
+                            if let Some(symbol) = context.symbols.get(name) {
+                                if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                                    continue; // Skip default constructor calls, for instantiations like 'StructName()'
+                                }
+                            }
                         }
-
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(called_func_def)) => {
                                 for called_throw in &called_func_def.throws {
@@ -2562,19 +2564,20 @@ struct EvalResult {
     value: String,
     is_return: bool,
     is_throw: bool,
+    thrown_type: Option<String>,
 }
 
 impl EvalResult {
     fn new(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: false}
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, thrown_type: None}
     }
 
     fn new_return(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: true, is_throw: false}
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, thrown_type: None}
     }
 
-    fn new_throw(value: &str) -> EvalResult {
-        return EvalResult{value: value.to_string(), is_return: false, is_throw: true}
+    fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, thrown_type: Some(value_type_to_str(&thrown_type))}
     }
 }
 
@@ -3123,7 +3126,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         param_index += 1;
     }
 
-    let result = eval_body(&mut function_context, &func_def.body)?.value;
+    let result = eval_body(&mut function_context, &func_def.body)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let result_str = result.value;
 
     for (arg_name, source_name, value_type) in mut_args {
         match value_type {
@@ -3207,10 +3214,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     is_mut: true,
                                 });
 
-                                if let Some(offset) = function_context.arena_index.get(&result) {
+                                if let Some(offset) = function_context.arena_index.get(&result_str) {
                                     context.arena_index.insert(return_instance.to_string(), *offset);
                                 } else {
-                                    return Err(e.lang_error("eval", &format!("Missing arena index for return value '{}'", result)));
+                                    return Err(e.lang_error("eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
                                 context.map_instance_fields(custom_type_name, &return_instance);
                                 return Ok(EvalResult::new_return(&return_instance))
@@ -3226,7 +3233,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         }
     }
 
-    return Ok(EvalResult::new(&result))
+    return Ok(EvalResult::new(&result_str))
 }
 
 fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
@@ -3990,14 +3997,56 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
     }
 }
 
-fn eval_body(context: &mut Context, statements: &Vec<Expr>) -> Result<EvalResult, String> {
-    for se in statements.iter() {
-        let stmt_result = eval_expr(context, &se)?;
-        if stmt_result.is_return || stmt_result.is_throw {
-            return Ok(stmt_result);
+fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalResult, String> {
+    let mut i = 0;
+    let mut pending_throw: Option<EvalResult> = None;
+
+    while i < statements.len() {
+        let stmt = &statements[i];
+
+        if let Some(throw_result) = &pending_throw {
+            if let NodeType::Catch = stmt.node_type {
+                if stmt.params.len() == 3 {
+                    let type_expr = &stmt.params[1];
+                    let type_name = match &type_expr.node_type {
+                        NodeType::Identifier(name) => name,
+                        _ => return Err(stmt.lang_error("eval", "Catch type must be an identifier")),
+                    };
+                    if let Some(thrown_type) = &throw_result.thrown_type {
+                        if type_name == thrown_type {
+                            let body_expr = &stmt.params[2];
+                            let result = eval_body(&mut context, &body_expr.params)?;
+                            if result.is_return {
+                                return Ok(result);
+                            } else if result.is_throw {
+                                pending_throw = Some(result);
+                            } else {
+                                pending_throw = None;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // If no pending throw, ignore catch statements
+            if NodeType::Catch != stmt.node_type {
+                let result = eval_expr(&mut context, stmt)?;
+                if result.is_return {
+                    return Ok(result);
+                } else if result.is_throw {
+                    pending_throw = Some(result);
+                }
+            }
         }
+
+        i += 1;
     }
-    return Ok(EvalResult::new(""))
+
+    if let Some(final_throw) = pending_throw {
+        return Ok(final_throw);
+    }
+
+    Ok(EvalResult::new(""))
 }
 
 fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -4109,12 +4158,14 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
             if e.params.len() != 1 {
                 Err(e.lang_error("eval", "Throw can only return one value. This should have been caught before"))
             } else {
-                let result = eval_expr(context, e.get(0)?)?;
-                Ok(EvalResult::new_throw(&result.value))
+                let param_expr = e.get(0)?;
+                let result = eval_expr(context, param_expr)?;
+                let thrown_type = get_value_type(context, param_expr)?;
+                return Ok(EvalResult::new_throw(&result.value, thrown_type))
             }
         },
         NodeType::Catch => {
-            Ok(EvalResult::new("")) // TODO eval_expr for catch
+            return Err(e.lang_error("eval", "Catch statements should always be evaluated within bodies."))
         },
         _ => Err(e.lang_error("eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))),
     }
