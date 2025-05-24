@@ -1648,7 +1648,7 @@ fn check_func_proc_types(func_def: &SFuncDef, mut context: &mut Context, e: &Exp
         }
     }
     // TODO should macros be allowed to call procs?
-    if func_def.function_type == FunctionType::FTFunc {
+    if !func_def.is_proc() {
         for se in &func_def.body {
             if is_expr_calling_procs(&context, &se) {
                 errors.push(se.error("type", "funcs cannot call procs."));
