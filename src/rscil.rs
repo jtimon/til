@@ -872,11 +872,15 @@ fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option
     };
 
     match &func_expr.node_type {
-        // TODO support identifiers with dots (ie method or UFCS calls)
-        NodeType::Identifier(func_name) => {
-            Ok(context.funcs.get(func_name).cloned())
+        NodeType::Identifier(_) => {
+            let combined_name = get_combined_name(func_expr)?;
+            if let Some(func_def) = context.funcs.get(&combined_name) {
+                Ok(Some(func_def.clone()))
+            } else {
+                Ok(None) // Incomplete for now; additional lookup logic could go here
+            }
         },
-        _ => Ok(None), // Preserve old behavior: silently skip unsupported expressions
+        _ => Ok(None), // Silently ignore unsupported expressions
     }
 }
 
