@@ -3366,17 +3366,33 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
             ValueType::TCustom(ref custom_type_name) => {
                 match custom_type_name.as_str() {
                     "I64" => {
-                        return Ok(EvalResult::new(&context.get_i64(name).unwrap().to_string()));
+                        if let Some(val) = context.get_i64(name) {
+                            return Ok(EvalResult::new(&val.to_string()));
+                        } else {
+                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as I64.", name)));
+                        }
                     },
                     "U8" => {
-                        return Ok(EvalResult::new(&context.get_u8(name).unwrap().to_string()));
+                        if let Some(val) = context.get_u8(name) {
+                            return Ok(EvalResult::new(&val.to_string()));
+                        } else {
+                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as U8.", name)));
+                        }
                     },
                     "Bool" => {
-                        return Ok(EvalResult::new(&context.get_bool(name).unwrap().to_string()));
+                        if let Some(val) = context.get_bool(name) {
+                            return Ok(EvalResult::new(&val.to_string()));
+                        } else {
+                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as Bool.", name)));
+                        }
                     },
                     "Str" => {
                         if e.params.len() == 0 {
-                            return Ok(EvalResult::new(&context.get_string(name).unwrap()));
+                            if let Some(val) = context.get_string(name) {
+                                return Ok(EvalResult::new(&val));
+                            } else {
+                                return Err(e.lang_error("eval", &format!("Identifier '{}' not found as Str.", name)));
+                            }
                         }
                         return eval_custom_expr(e, context, name, custom_type_name);
                     },
