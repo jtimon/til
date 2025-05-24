@@ -838,6 +838,29 @@ fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
+fn get_combined_name(expr: &Expr) -> Result<String, String> {
+    let mut parts = Vec::new();
+
+    match &expr.node_type {
+        NodeType::Identifier(s) => parts.push(s.clone()),
+        _ => return Err(expr.lang_error("type", "Expected Identifier node_type at root")),
+    }
+
+    for param in &expr.params {
+        match &param.node_type {
+            NodeType::Identifier(s) => {
+                if !param.params.is_empty() {
+                    return Err(param.lang_error("type", "Nested parameters in identifier chain not supported"));
+                }
+                parts.push(s.clone());
+            },
+            _ => return Err(param.lang_error("type", "Expected Identifier node_type in params")),
+        }
+    }
+
+    Ok(parts.join("."))
+}
+
 fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option<SFuncDef>, String> {
     if fcall_expr.node_type != NodeType::FCall {
         return Err(fcall_expr.error("type", "Expected FCall node type"));
@@ -2233,17 +2256,10 @@ fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, 
     }
 
     let identifier_expr = e.get(1);
-    match &identifier_expr.node_type {
-        NodeType::Identifier(id_) => {
-            let combined_name = format!("{}", id_); // TODO make it work with composed identifiers
-            match context.arena_index.get(&combined_name) {
-                Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
-                None => Err(e.lang_error("eval", &format!("calling core func to_ptr, but '{}' is not a known identifier.",
-                                                          id_))),
-            }
-        }
-        node_type => Err(e.lang_error("eval", &format!("calling core func to_ptr, but found '{:?}' instead of identifier.",
-                                                       node_type))),
+    let combined_name = get_combined_name(identifier_expr)?;
+    match context.arena_index.get(&combined_name) {
+        Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
+        None => Err(e.lang_error("eval", &format!("calling core func to_ptr, but '{}' is not a known identifier.", combined_name))),
     }
 }
 
