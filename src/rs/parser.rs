@@ -143,9 +143,12 @@ impl Expr {
         return Expr::new_explicit(node_type, params, e.line, e.col)
     }
 
-    pub fn get(self: &Expr, i: usize) -> &Expr {
-        return &self.params.get(i).unwrap();
-    }
+    pub fn get(self: &Expr, i: usize) -> Result<&Expr, String> {
+        match self.params.get(i) {
+            Some(expr) => Ok(expr),
+            None => Err(self.lang_error("assert", &format!("Expr index {} out of bounds (len: {}).", i, self.params.len()))),
+        }
+     }
 
     pub fn exit_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "warning" {

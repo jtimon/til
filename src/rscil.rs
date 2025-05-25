@@ -835,10 +835,15 @@ fn get_func_name_in_call(e: &Expr) -> String {
     if e.params.len() == 0 {
         return e.exit_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
     }
-    match &e.get(0).node_type {
-        NodeType::Identifier(f_name) => return f_name.clone(),
-        node_type => return e.exit_error(
-            "type", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
+    match &e.get(0) {
+        Ok(param) => {
+            match &param.node_type {
+                NodeType::Identifier(f_name) => return f_name.clone(),
+                node_type => return e.exit_error(
+                    "type", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
+            }
+        },
+        Err(error_str) => return error_str.to_string(),
     }
 }
 
@@ -936,7 +941,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     } else if context.symbols.contains_key(&f_name) {
 
         let symbol = context.symbols.get(&f_name).unwrap();
-        let id_expr = e.get(0);
+        let id_expr = e.get(0)?;
         match &symbol.value_type {
             ValueType::TType(TTypeDef::TStructDef) => {
                 let struct_def = match context.struct_defs.get(&f_name) {
@@ -1151,7 +1156,13 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.push(e.exit_error("type", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
                 return errors
             }
-            let inner_e = e.get(0);
+            let inner_e = match e.get(0) {
+                Ok(inner_e_) => inner_e_,
+                Err(error_str) => {
+                    errors.push(error_str);
+                    return errors
+                },
+            };
             let mut value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
@@ -1291,18 +1302,22 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
         NodeType::Declaration(decl) => {
-            if e.params.len() != 1 {
-                e.exit_error("type", &format!("while declaring {}, declarations must take exactly one value.", decl.name));
-                return true
+            match e.params.get(0) {
+                Some(inner_e) => is_expr_calling_procs(&context, inner_e),
+                None => {
+                    e.exit_error("type", &format!("while declaring '{}', parameter is unexpectedly missing.", decl.name));
+                    true
+                }
             }
-            is_expr_calling_procs(&context, &e.get(0))
         },
         NodeType::Assignment(var_name) => {
-            if e.params.len() != 1 {
-                e.exit_error("type", &format!("while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len()));
-                return true
+            match e.params.get(0) {
+                Some(inner_e) => is_expr_calling_procs(&context, inner_e),
+                None => {
+                    e.exit_error("type", &format!("while assigning {}, parameter is unexpectedly missing.", var_name));
+                    true
+                }
             }
-            is_expr_calling_procs(&context, &e.get(0))
         }
         NodeType::FuncDef(func_def) => {
             for it_e in &func_def.body {
@@ -1423,7 +1438,13 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
         return errors
     }
 
-    let inner_e = e.get(0);
+    let inner_e = match e.get(0) {
+        Ok(inner_e_) => inner_e_,
+        Err(error_str) => {
+            errors.push(error_str);
+            return errors
+        },
+    };
     let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -1455,7 +1476,13 @@ fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
         return errors
     }
 
-    let inner_e = e.get(0);
+    let inner_e = match e.get(0) {
+        Ok(inner_e_) => inner_e_,
+        Err(error_str) => {
+            errors.push(error_str);
+            return errors
+        },
+    };
     let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -1506,7 +1533,20 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                     return errors; // NOTE: This is to allow struct instantiation with no arguments
                 }
 
-                let after_dot = e.get(0).get(0);
+                let id_expr = match e.get(0) {
+                    Ok(id_expr_) => id_expr_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors;
+                    }
+                };
+                let after_dot = match id_expr.get(0) {
+                    Ok(after_dot_) => after_dot_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors;
+                    }
+                };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
                         let member_value = match struct_def.default_values.get(after_dot_name) {
@@ -1542,7 +1582,20 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                     },
                 };
 
-                let after_dot = e.get(0).get(0);
+                let id_expr = match e.get(0) {
+                    Ok(id_expr_) => id_expr_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors;
+                    }
+                };
+                let after_dot = match id_expr.get(0) {
+                    Ok(after_dot_) => after_dot_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors;
+                    }
+                };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
                         let member_value = match struct_def.default_values.get(after_dot_name) {
@@ -1557,7 +1610,14 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                                 let full_name = format!("{}.{}", type_name, after_dot_name);
                                 match context.funcs.get(&full_name) {
                                     Some(_func_def_) => {
-                                        let id_expr = Expr::new_clone(NodeType::Identifier(full_name.clone()), e.get(0), vec![]);
+                                        let id_expr_source = match e.get(0) {
+                                            Ok(expr) => expr,
+                                            Err(err) => {
+                                                errors.push(err);
+                                                return errors;
+                                            }
+                                        };
+                                        let id_expr = Expr::new_clone(NodeType::Identifier(full_name.clone()), id_expr_source, vec![]);
                                         let mut new_params = vec![Expr::new_clone(NodeType::Identifier(f_name.clone()), e, vec![])];
                                         new_params.extend(e.params[1..].iter().cloned());
                                         let mut new_e = Expr::new_clone(NodeType::FCall, e, new_params);
@@ -1614,7 +1674,14 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
             ValueType::TMulti(inner_type_name) => str_to_value_type(&inner_type_name.clone()),
             _ => arg.value_type.clone(),
         };
-        let found_type = match get_value_type(&context, e.get(i + 1)) {
+        let arg_expr = match e.get(i + 1) {
+            Ok(expr) => expr,
+            Err(err) => {
+                errors.push(err);
+                return errors;
+            }
+        };
+        let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
             Err(error_string) => {
                 errors.push(error_string);
@@ -1940,7 +2007,13 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
     }
 
 
-    let inner_e = e.get(0);
+    let inner_e = match e.get(0) {
+        Ok(inner_e_) => inner_e_,
+        Err(error_str) => {
+            errors.push(error_str);
+            return errors
+        },
+    };
     if !context.symbols.contains_key(&decl.name) {
         let mut value_type = decl.value_type.clone();
         if value_type == ValueType::ToInferType {
@@ -2006,18 +2079,28 @@ fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<
         errors.push(e.error("type", &format!("Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                                              var_name, var_name, var_name)));
     }
-    errors.extend(check_types(&mut context, &e.get(0)));
-    return errors
+
+    match e.get(0) {
+        Ok(inner_e) => errors.extend(check_types(&mut context, inner_e)),
+        Err(err) => errors.push(err),
+    }
+    return errors;
 }
 
 fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
-    let switch_expr_type = match get_value_type(context, e.get(0)) {
-        Ok(t) => t,
+    let switch_expr_type = match e.get(0) {
+        Ok(expr) => match get_value_type(context, expr) {
+            Ok(t) => t,
+            Err(err) => {
+                errors.push(err);
+                return errors;
+            }
+        },
         Err(err) => {
             errors.push(err);
-            return errors
+            return errors;
         }
     };
 
@@ -2241,7 +2324,7 @@ fn eval_core_func_malloc(mut context: &mut Context, e: &Expr) -> Result<EvalResu
         return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
     }
 
-    let size_str = eval_expr(&mut context, e.get(1))?.value;
+    let size_str = eval_expr(&mut context, e.get(1)?)?.value;
     let size = size_str.parse::<usize>().unwrap();
 
     let offset = Arena::g().memory.len(); // take *current* end of arena
@@ -2258,7 +2341,7 @@ fn eval_core_func_free(mut context: &mut Context, e: &Expr) -> Result<EvalResult
         return Err(e.lang_error("eval", "Core func 'free' takes exactly 1 argument"))
     }
 
-    let _ptr_str = eval_expr(&mut context, e.get(1))?.value;
+    let _ptr_str = eval_expr(&mut context, e.get(1)?)?.value;
     // REM: Free does nothing in arena model (for now).
 
     return Ok(EvalResult::new(""))
@@ -2269,9 +2352,9 @@ fn eval_core_func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core func 'memset' takes exactly 3 arguments"))
     }
 
-    let dest_str = eval_expr(context, e.get(1))?.value;
-    let value_str = eval_expr(context, e.get(2))?.value;
-    let size_str = eval_expr(context, e.get(3))?.value;
+    let dest_str = eval_expr(context, e.get(1)?)?.value;
+    let value_str = eval_expr(context, e.get(2)?)?.value;
+    let size_str = eval_expr(context, e.get(3)?)?.value;
 
     let dest = match dest_str.trim().parse::<i64>() {
         Ok(v) => v as usize,
@@ -2307,9 +2390,9 @@ fn eval_core_func_memcpy(mut context: &mut Context, e: &Expr) -> Result<EvalResu
         return Err(e.lang_error("eval", "Core func 'memcpy' takes exactly 3 arguments"))
     }
 
-    let dest_str = eval_expr(&mut context, e.get(1))?.value;
-    let src_str = eval_expr(&mut context, e.get(2))?.value;
-    let size_str = eval_expr(&mut context, e.get(3))?.value;
+    let dest_str = eval_expr(&mut context, e.get(1)?)?.value;
+    let src_str = eval_expr(&mut context, e.get(2)?)?.value;
+    let size_str = eval_expr(&mut context, e.get(3)?)?.value;
 
     let dest = match dest_str.parse::<usize>() {
         Ok(v) => v,
@@ -2343,7 +2426,7 @@ fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core func 'to_ptr' takes exactly 1 argument"))
     }
 
-    let identifier_expr = e.get(1);
+    let identifier_expr = e.get(1)?;
     let combined_name = get_combined_name(identifier_expr)?;
     match context.arena_index.get(&combined_name) {
         Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
@@ -2356,7 +2439,7 @@ fn eval_core_func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult,
         return Err(e.lang_error("eval", "Core func 'size_of' takes exactly 1 argument"))
     }
 
-    let type_expr = e.get(1);
+    let type_expr = e.get(1)?;
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             match context.get_type_size(type_name) {
@@ -2374,7 +2457,7 @@ fn eval_core_func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalRe
         return Err(e.lang_error("eval", "Core func 'type_as_str' takes exactly 1 argument"))
     }
 
-    let type_expr = e.get(1);
+    let type_expr = e.get(1)?;
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             Ok(EvalResult::new(&format!("{}", type_name)))
@@ -2388,8 +2471,8 @@ fn eval_core_func_lt(mut context: &mut Context, e: &Expr) -> Result<EvalResult, 
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'lt' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a < b).to_string()))
 }
 
@@ -2397,8 +2480,8 @@ fn eval_core_func_gt(mut context: &mut Context, e: &Expr) -> Result<EvalResult, 
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'gt' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a > b).to_string()))
 }
 
@@ -2406,8 +2489,8 @@ fn eval_core_func_add(mut context: &mut Context, e: &Expr) -> Result<EvalResult,
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a + b).to_string()))
 }
 
@@ -2415,8 +2498,8 @@ fn eval_core_func_sub(mut context: &mut Context, e: &Expr) -> Result<EvalResult,
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'sub' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a - b).to_string()))
 }
 
@@ -2424,8 +2507,8 @@ fn eval_core_func_mul(mut context: &mut Context, e: &Expr) -> Result<EvalResult,
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'mul' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a * b).to_string()))
 }
 
@@ -2433,8 +2516,8 @@ fn eval_core_func_div(mut context: &mut Context, e: &Expr) -> Result<EvalResult,
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'div' takes exactly 2 arguments"))
     }
-    let a = eval_expr(&mut context, e.get(1))?.value.parse::<i64>().unwrap();
-    let b = eval_expr(&mut context, e.get(2))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
+    let b = eval_expr(&mut context, e.get(2)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&(a / b).to_string()))
 }
 
@@ -2442,7 +2525,7 @@ fn eval_core_func_str_to_i64(mut context: &mut Context, e: &Expr) -> Result<Eval
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'str_to_i64' takes exactly 1 argument"))
     }
-    let a = eval_expr(&mut context, &e.get(1))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&a.to_string()))
 }
 
@@ -2450,7 +2533,7 @@ fn eval_core_func_i64_to_str(mut context: &mut Context, e: &Expr) -> Result<Eval
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_str' takes exactly 1 argument"))
     }
-    let val = eval_expr(&mut context, e.get(1))?.value;
+    let val = eval_expr(&mut context, e.get(1)?)?.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2458,7 +2541,7 @@ fn eval_core_func_enum_to_str(mut context: &mut Context, e: &Expr) -> Result<Eva
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'enum_to_str' takes exactly 1 argument"))
     }
-    let val = eval_expr(&mut context, e.get(1))?.value;
+    let val = eval_expr(&mut context, e.get(1)?)?.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2466,7 +2549,7 @@ fn eval_core_func_u8_to_i64(mut context: &mut Context, e: &Expr) -> Result<EvalR
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
     }
-    let a = eval_expr(&mut context, &e.get(1))?.value.parse::<i64>().unwrap();
+    let a = eval_expr(&mut context, e.get(1)?)?.value.parse::<i64>().unwrap();
     Ok(EvalResult::new(&a.to_string()))
 }
 
@@ -2474,7 +2557,7 @@ fn eval_core_func_i64_to_u8(mut context: &mut Context, e: &Expr) -> Result<EvalR
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_u8' takes exactly 1 argument"))
     }
-    let val = eval_expr(&mut context, e.get(1))?.value;
+    let val = eval_expr(&mut context, e.get(1)?)?.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2485,7 +2568,7 @@ fn eval_core_proc_single_print(mut context: &mut Context, e: &Expr) -> Result<Ev
         return Err(e.lang_error("eval", "Core proc 'single_print' takes exactly 1 argument"));
     }
 
-    let result = eval_expr(&mut context, &e.get(1))?;
+    let result = eval_expr(&mut context, e.get(1)?)?;
     print!("{}", result.value);
     Ok(EvalResult::new(""))
 }
@@ -2504,7 +2587,7 @@ fn eval_core_proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<Ev
         return Err(e.lang_error("eval", "Core proc 'input_read_line' takes exactly 1 argument"));
     }
 
-    let first_param = e.get(0);
+    let first_param = e.get(0)?;
     let read_line_error_msg = match &first_param.node_type {
         NodeType::LLiteral(Literal::Str(error_msg_)) => error_msg_.clone(),
         _ => return Err(e.lang_error("eval", &format!("input_read_line() expects a literal string error message. Found '{:?}' instead.",
@@ -2525,7 +2608,7 @@ fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> Result<Eva
     }
 
     let path = "eval".to_string(); // Placeholder path
-    let source_expr = eval_expr(&mut context, e.get(1))?;
+    let source_expr = eval_expr(&mut context, e.get(1)?)?;
     let str_source = format!("mode script; {}", source_expr.value);
 
     let result = main_run(false, &mut context, &path, str_source, Vec::new());
@@ -2538,10 +2621,10 @@ fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> Result<EvalRes
         return Err(e.lang_error("eval", "Core proc 'runfile' expects at least 1 parameter"));
     }
 
-    let path = eval_expr(&mut context, e.get(1))?.value;
+    let path = eval_expr(&mut context, e.get(1)?)?.value;
     let mut main_args = Vec::new();
     for i in 2..e.params.len() {
-        main_args.push(eval_expr(&mut context, e.get(i))?.value);
+        main_args.push(eval_expr(&mut context, e.get(i)?)?.value);
     }
 
     match run_file(&path, main_args) {
@@ -2555,7 +2638,7 @@ fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> Result<EvalResu
         return Err(e.lang_error("eval", "Core proc 'import' expects a single parameter"));
     }
 
-    let path = format!("{}{}", eval_expr(&mut context, e.get(1))?.value, ".cil");
+    let path = format!("{}{}", eval_expr(&mut context, e.get(1)?)?.value, ".cil");
 
     match run_file_with_context(true, &mut context, &path, Vec::new()) {
         Ok(_) => Ok(EvalResult::new("")),
@@ -2568,7 +2651,7 @@ fn eval_core_proc_readfile(mut context: &mut Context, e: &Expr) -> Result<EvalRe
         return Err(e.lang_error("eval", "Core proc 'readfile' expects a single parameter"));
     }
 
-    let path = eval_expr(&mut context, e.get(1))?.value;
+    let path = eval_expr(&mut context, e.get(1)?)?.value;
     let source = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
@@ -2585,7 +2668,7 @@ fn eval_core_exit(e: &Expr) -> Result<EvalResult, String> {
         return Err(e.lang_error("eval", "Core proc 'exit' expects a single parameter"));
     }
 
-    let e_exit_code = e.get(1);
+    let e_exit_code = e.get(1)?;
     let exit_code = match &e_exit_code.node_type {
         NodeType::LLiteral(Literal::Number(my_li64)) => *my_li64,
         node_type => return Err(e.lang_error("eval", &format!("calling core proc 'exit', but found {:?} instead of literal i64 exit code.", node_type))),
@@ -2633,7 +2716,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, mut context: &mut C
                 break;
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let current_arg = e.get(param_index);
+                let current_arg = e.get(param_index)?;
                 let result = eval_expr(&mut context, &current_arg)?.value;
 
                 if arg.is_mut {
@@ -2839,7 +2922,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
 
 fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
-    let id_expr = e.get(0);
+    let id_expr = e.get(0)?;
     let name = get_func_name_in_call(&e);
     if id_expr.params.len() == 0 { // TODO Do we really need this check?
         return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)));
@@ -2857,13 +2940,13 @@ fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalR
 
     let id_expr_name = format!("{}.{}", name, after_dot_name);
 
-    let new_e = Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0), Vec::new());
+    let new_e = Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0)?, Vec::new());
     let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
 
     let mut new_args = vec![new_e, extra_arg_e];
     new_args.extend_from_slice(&e.params[1..]);
 
-    let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0), new_args);
+    let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0)?, new_args);
 
     let func_def = match context.funcs.get(&after_dot_name) {
         Some(func_def_) => func_def_.clone(),
@@ -2883,7 +2966,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Resul
         return eval_user_func_proc_call(func_def, &name, &mut context, &e)
     } else if context.struct_defs.contains_key(name) {
         let struct_def = context.struct_defs.get(name).unwrap();
-        let id_expr = e.get(0);
+        let id_expr = e.get(0)?;
         if id_expr.params.len() == 0 {
             let id_name = match &id_expr.node_type {
                 NodeType::Identifier(s) => s,
@@ -2935,7 +3018,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Resul
                     },
                 };
 
-                let id_expr = e.get(0);
+                let id_expr = e.get(0)?;
                 let after_dot = match id_expr.params.get(0) {
                     Some(_after_dot) => _after_dot,
                     None => {
@@ -2965,13 +3048,13 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Resul
                     },
                 };
 
-                let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), e.get(0), Vec::new());
+                let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), e.get(0)?, Vec::new());
                 let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
                 let mut new_args = Vec::new();
                 new_args.push(new_e);
                 new_args.push(extra_arg_e);
                 new_args.extend(e.params[1..].to_vec());
-                let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0), new_args);
+                let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0)?, new_args);
                 let func_def = &context.funcs.get(&id_expr_name).unwrap().clone();
                 return eval_user_func_proc_call(func_def, &id_expr_name, &mut context, &new_fcall_e)
             },
@@ -2986,7 +3069,7 @@ fn eval_func_proc_call(name: &str, mut context: &mut Context, e: &Expr) -> Resul
 }
 
 fn eval_declaration(declaration: &Declaration, mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    let inner_e = e.get(0);
+    let inner_e = e.get(0)?;
     let mut value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -3200,7 +3283,7 @@ fn eval_assignment(var_name: &str, mut context: &mut Context, e: &Expr) -> Resul
         return Err(e.lang_error("eval", &format!("in eval_assignment, while assigning to '{}': assignments must take exactly one value", var_name)));
     }
 
-    let inner_e = e.get(0);
+    let inner_e = e.get(0)?;
     let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
@@ -3316,7 +3399,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Resul
     }
 
     let struct_def = context.struct_defs.get(name).unwrap();
-    let inner_e = e.get(0);
+    let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
             match struct_def.members.get(inner_name) {
@@ -3445,7 +3528,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                     return Err(e.lang_error("eval", &format!("enum type '{}' can't be used as a primary expression.", name)))
                 }
                 // let enum_def = context.enum_defs.get(name).unwrap();
-                let inner_e = e.get(0);
+                let inner_e = e.get(0)?;
                 match &inner_e.node_type {
                     NodeType::Identifier(inner_name) => {
                         // TODO check that inner_name is in enum_def
@@ -3543,14 +3626,14 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if e.params.len() != 2 && e.params.len() != 3 {
                 return Err(e.lang_error("eval", "if nodes must have 2 or 3 parameters."))
             }
-            let result_cond = eval_expr(&mut context, &e.get(0))?;
+            let result_cond = eval_expr(&mut context, e.get(0)?)?;
             if result_cond.is_throw {
                 return Ok(result_cond)
             }
             if result_cond.value.parse::<bool>().unwrap() {
-                eval_expr(&mut context, &e.get(1))
+                eval_expr(&mut context, e.get(1)?)
             } else if e.params.len() == 3 {
-                eval_expr(&mut context, &e.get(2))
+                eval_expr(&mut context, e.get(2)?)
             } else {
                 Ok(EvalResult::new(""))
             }
@@ -3559,16 +3642,16 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if e.params.len() != 2 {
                 return Err(e.lang_error("eval", "while nodes must have exactly 2 parameters."))
             }
-            let mut result_cond = eval_expr(&mut context, &e.get(0))?;
+            let mut result_cond = eval_expr(&mut context, e.get(0)?)?;
             if result_cond.is_throw {
                 return Ok(result_cond.clone())
             }
             while result_cond.value.parse::<bool>().unwrap() {
-                let result = eval_expr(&mut context, &e.get(1))?;
+                let result = eval_expr(&mut context, e.get(1)?)?;
                 if result.is_return || result.is_throw {
                     return Ok(result)
                 }
-                result_cond = eval_expr(&mut context, &e.get(0))?;
+                result_cond = eval_expr(&mut context, e.get(0)?)?;
                 if result_cond.is_throw {
                     return Ok(result_cond)
                 }
@@ -3579,7 +3662,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if e.params.len() < 3 {
                 return Err(e.lang_error("eval", "switch nodes must have at least 3 parameters."))
             }
-            let to_switch = e.get(0);
+            let to_switch = e.get(0)?;
             let value_type = get_value_type(&context, &to_switch)?;
             let result_to_switch = eval_expr(&mut context, &to_switch)?;
             if result_to_switch.is_throw {
@@ -3587,10 +3670,10 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             }
             let mut param_it = 1;
             while param_it < e.params.len() {
-                let case = e.get(param_it);
+                let case = e.get(param_it)?;
                 if case.node_type == NodeType::DefaultCase {
                     param_it += 1;
-                    return eval_expr(&mut context, &e.get(param_it));
+                    return eval_expr(&mut context, e.get(param_it)?);
                 }
                 let case_type = get_value_type(&context, &case)?;
                 if value_type != case_type {
@@ -3602,7 +3685,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 }
                 param_it += 1;
                 if result_to_switch.value == result_case.value {
-                    return eval_expr(&mut context, &e.get(param_it));
+                    return eval_expr(&mut context, e.get(param_it)?);
                 }
                 param_it += 1;
             }
@@ -3614,7 +3697,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             } else if e.params.len() > 1 {
                 Err(e.lang_error("eval", "multiple return values not implemented yet"))
             } else {
-                let result = eval_expr(&mut context, &e.get(0))?;
+                let result = eval_expr(&mut context, e.get(0)?)?;
                 if result.is_throw {
                     return Ok(result)
                 }
@@ -3625,7 +3708,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if e.params.len() != 1 {
                 Err(e.lang_error("eval", "Throw can only return one value. This should have been caught before"))
             } else {
-                let result = eval_expr(&mut context, &e.get(0))?;
+                let result = eval_expr(&mut context, e.get(0)?)?;
                 Ok(EvalResult::new_throw(&result.value))
             }
         },
@@ -3669,14 +3752,14 @@ fn to_ast_str(e: &Expr) -> String {
         NodeType::Body => {
             return params_to_ast_str(true, &e)
         },
-        NodeType::Declaration(decl) => {
-            ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.get(0))));
-            return ast_str;
-        },
-        NodeType::Assignment(var_name) => {
-            ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.get(0))));
-            return ast_str;
-        },
+        // NodeType::Declaration(decl) => {
+        //     ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::Assignment(var_name) => {
+        //     ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
         NodeType::FuncDef(func_def) => {
             match func_def.function_type {
                 FunctionType::FTFunc => return "(func)".to_string(),
@@ -3704,18 +3787,18 @@ fn to_ast_str(e: &Expr) -> String {
             ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
             return ast_str;
         },
-        NodeType::If => {
-            ast_str.push_str(&format!("(if {})", to_ast_str(&e.get(0))));
-            return ast_str;
-        },
-        NodeType::While => {
-            ast_str.push_str(&format!("(while {})", to_ast_str(&e.get(0))));
-            return ast_str;
-        },
-        NodeType::Switch => {
-            ast_str.push_str(&format!("(switch {})", to_ast_str(&e.get(0))));
-            return ast_str;
-        },
+        // NodeType::If => {
+        //     ast_str.push_str(&format!("(if {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::While => {
+        //     ast_str.push_str(&format!("(while {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::Switch => {
+        //     ast_str.push_str(&format!("(switch {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
         _ => todo!(),
     }
 }
