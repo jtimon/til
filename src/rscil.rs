@@ -829,11 +829,16 @@ impl Context {
 }
 
 fn get_func_name_in_call(e: &Expr) -> String {
-    assert!(e.node_type == NodeType::FCall);
-    assert!(e.params.len() > 0);
+    if e.node_type != NodeType::FCall {
+        return e.lang_error("assert", "get_func_name_in_call(): expected fcall node.")
+    }
+    if e.params.len() == 0 {
+        return e.lang_error("assert", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
+    }
     match &e.get(0).node_type {
         NodeType::Identifier(f_name) => return f_name.clone(),
-        _ => return e.lang_error("assert", &format!("panic calling get_func_name_in_call(), this should never happen.")),
+        node_type => return e.lang_error(
+            "assert", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
     }
 }
 
@@ -1142,7 +1147,10 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
                 errors.push(e.error("type", &format!("'{}' already declared.", decl.name)));
             }
-            assert!(e.params.len() == 1, "{} ERROR: in init_context, while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
+            if e.params.len() != 1 {
+                errors.push(e.lang_error("assert", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
+                return errors
+            }
             let inner_e = e.get(0);
             let mut value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
@@ -1178,8 +1186,11 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 },
 
                 ValueType::TType(TTypeDef::TEnumDef) => {
-                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}: enum declarations don't have any parameters in the tree.", LANG_NAME,
-                            decl.name);
+                    if inner_e.params.len() != 0 {
+                        errors.push(e.lang_error("assert", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
+                                                               decl.name)));
+                        return errors
+                    }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
                             context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
@@ -1193,7 +1204,11 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 },
 
                 ValueType::TType(TTypeDef::TStructDef) => {
-                    assert!(inner_e.params.len() == 0, "{} ERROR: while declaring {}, struct declarations must have exactly 0 params.", LANG_NAME, decl.name);
+                    if inner_e.params.len() != 0 {
+                        errors.push(e.lang_error("assert", &format!("while declaring {}, struct declarations must have exactly 0 params.",
+                                                               decl.name)));
+                        return errors
+                    }
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
                             // Register the struct itself
@@ -1276,11 +1291,17 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             return context.funcs.contains_key(&f_name) && context.funcs.get(&f_name).unwrap().is_proc()
         },
         NodeType::Declaration(decl) => {
-            assert!(e.params.len() == 1, "{} ERROR: while declaring {}, declarations must take exactly one value.", LANG_NAME, decl.name);
+            if e.params.len() != 1 {
+                e.lang_error("assert", &format!("while declaring {}, declarations must take exactly one value.", decl.name));
+                return true
+            }
             is_expr_calling_procs(&context, &e.get(0))
         },
         NodeType::Assignment(var_name) => {
-            assert!(e.params.len() == 1, "{} ERROR: while assigning {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
+            if e.params.len() != 1 {
+                e.lang_error("assert", &format!("while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len()));
+                return true
+            }
             is_expr_calling_procs(&context, &e.get(0))
         }
         NodeType::FuncDef(func_def) => {
@@ -1372,8 +1393,11 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
-    assert!(e.params.len() == 0, "{} ERROR: in check_types(): enum declarations don't have any parameters in the tree.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 0 {
+        errors.push(e.lang_error("assert", "in check_enum_def(): enum declarations don't have any parameters in the tree."));
+        return errors
+    }
 
     for (_enum_val_name, enum_opt) in &enum_def.enum_map {
         match &enum_opt {
@@ -1393,8 +1417,11 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
 }
 
 fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
-    assert!(e.params.len() == 2 || e.params.len() == 3, "{} ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 2 && e.params.len() != 3 {
+        errors.push(e.lang_error("assert", "if nodes must have 2 or 3 parameters."));
+        return errors
+    }
 
     let inner_e = e.get(0);
     let value_type = match get_value_type(&context, &inner_e) {
@@ -1422,8 +1449,11 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
-    assert!(e.params.len() == 2, "{} ERROR: while nodes must have exactly 2 parameters.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 2 {
+        errors.push(e.lang_error("assert", "while nodes must have exactly 2 parameters."));
+        return errors
+    }
 
     let inner_e = e.get(0);
     let value_type = match get_value_type(&context, &inner_e) {
@@ -1468,7 +1498,10 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                     },
                 };
 
-                assert!(e.params.len() > 0);
+                if e.params.len() == 0 {
+                    errors.push(e.lang_error("assert", "in check_fcall(): fcall nodes must have at least 1 parameter."));
+                    return errors
+                }
                 if e.params.get(0).unwrap().params.len() == 0 {
                     return errors; // NOTE: This is to allow struct instantiation with no arguments
                 }
@@ -1899,8 +1932,13 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
-    assert!(e.params.len() == 1, "{} ERROR: in declaration of {} declaration nodes must exactly 1 parameter.", LANG_NAME, decl.name);
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 1 {
+        errors.push(e.lang_error("assert", &format!("in declaration of {}, declaration nodes must take exactly 1 parameter.",
+                                               decl.name)));
+        return errors
+    }
+
 
     let inner_e = e.get(0);
     if !context.symbols.contains_key(&decl.name) {
@@ -1950,8 +1988,12 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
 }
 
 fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<String> {
-    assert!(e.params.len() == 1, "{} ERROR: in assignment to {}, assignments must take exactly one value, not {}.", LANG_NAME, var_name, e.params.len());
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 1 {
+        errors.push(e.lang_error("assert", &format!("in assignment to {}, assignments must take exactly one value, not {}.",
+                                               var_name, e.params.len())));
+        return errors
+    }
 
     if context.funcs.contains_key(var_name)  {
         errors.push(e.error("type", &format!("function '{}' cannot be assigned to.", var_name)));
@@ -2064,8 +2106,11 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_struct_def(_context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
-    assert!(e.params.len() == 0, "{} ERROR: in check_struct_def(): struct declarations must take exactly 0 params.", LANG_NAME);
     let mut errors : Vec<String> = Vec::new();
+    if e.params.len() != 0 {
+        errors.push(e.lang_error("assert", "in check_struct_def(): struct declarations must take exactly 0 params."));
+        return errors
+    }
 
     for (member_name, _member_decl) in &struct_def.members {
         // TODO check types for members inside structs too
@@ -3266,7 +3311,9 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
 }
 
 fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Result<EvalResult, String> {
-    assert!(e.params.len() > 0, "{} eval ERROR: struct type '{}' can't be used as a primary expression.", LANG_NAME, name);
+    if e.params.len() == 0 {
+        return Err(e.lang_error("eval", &format!("struct type '{}' can't be used as a primary expression.", name)))
+    }
 
     let struct_def = context.struct_defs.get(name).unwrap();
     let inner_e = e.get(0);
@@ -3394,7 +3441,9 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                 return Ok(EvalResult::new(name));
             },
             ValueType::TType(TTypeDef::TEnumDef) => {
-                assert!(e.params.len() > 0, "{} eval ERROR: enum type '{}' can't be used as a primary expression.", LANG_NAME, name);
+                if e.params.len() == 0 {
+                    return Err(e.lang_error("eval", &format!("enum type '{}' can't be used as a primary expression.", name)))
+                }
                 // let enum_def = context.enum_defs.get(name).unwrap();
                 let inner_e = e.get(0);
                 match &inner_e.node_type {
@@ -3491,7 +3540,9 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         NodeType::Identifier(name) => eval_identifier_expr(&name, &context, &e),
         NodeType::If => {
-            assert!(e.params.len() == 2 || e.params.len() == 3, "{} eval ERROR: if nodes must have 2 or 3 parameters.", LANG_NAME);
+            if e.params.len() != 2 && e.params.len() != 3 {
+                return Err(e.lang_error("eval", "if nodes must have 2 or 3 parameters."))
+            }
             let result_cond = eval_expr(&mut context, &e.get(0))?;
             if result_cond.is_throw {
                 return Ok(result_cond)
@@ -3505,7 +3556,9 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             }
         },
         NodeType::While => {
-            assert!(e.params.len() == 2, "{} eval ERROR: while nodes must have exactly 2 parameters.", LANG_NAME);
+            if e.params.len() != 2 {
+                return Err(e.lang_error("eval", "while nodes must have exactly 2 parameters."))
+            }
             let mut result_cond = eval_expr(&mut context, &e.get(0))?;
             if result_cond.is_throw {
                 return Ok(result_cond.clone())
@@ -3523,7 +3576,9 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             Ok(EvalResult::new(""))
         },
         NodeType::Switch => {
-            assert!(e.params.len() >= 3, "{} eval ERROR: switch nodes must have at least 3 parameters.", LANG_NAME);
+            if e.params.len() < 3 {
+                return Err(e.lang_error("eval", "switch nodes must have at least 3 parameters."))
+            }
             let to_switch = e.get(0);
             let value_type = get_value_type(&context, &to_switch)?;
             let result_to_switch = eval_expr(&mut context, &to_switch)?;
