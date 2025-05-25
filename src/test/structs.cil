@@ -30,6 +30,14 @@ MyStruct := struct {
         todo("implement MyStruct.to_string()")
         return ""
     }
+
+    unchecked_associated := func() returns I64 {
+        return my_undefined_symbol // FIXME this should be caught at type checking phase, undefined symbol
+    }
+
+    unchecked_method := func(ms: MyStruct) returns I64 {
+        return my_undefined_symbol // FIXME this should be caught at type checking phase, undefined symbol
+    }
 }
 
 test_my_struct := proc() {
@@ -69,6 +77,9 @@ test_my_struct := proc() {
     case: color_str = "unknown"
     }
     assert_eq_str(loc(), "blue", color_str)
+
+    // MyStruct.unchecked_associated() // FIXME uncomment to test if associated functions are being checked
+    // my_struct.unchecked_method() // FIXME uncomment to test if methods are being checked
 }
 test_my_struct()
 
