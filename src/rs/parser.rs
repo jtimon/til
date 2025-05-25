@@ -158,7 +158,7 @@ impl Expr {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
         }
-        io::stdout().flush().unwrap();
+        let _ = io::stdout().flush(); // Disregard flush errors, don't unwrap
         std::process::exit(1);
     }
 
@@ -342,7 +342,11 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
     let params : Vec<Expr> = Vec::new();
     let node_type = match t.token_type {
         TokenType::String => NodeType::LLiteral(Literal::Str(t.token_str.clone())),
-        TokenType::Number => NodeType::LLiteral(Literal::Number(t.token_str.parse::<i64>().unwrap())),
+        TokenType::Number => {
+            let number = t.token_str.parse::<i64>()
+                .map_err(|e| t.lang_error(&format!("Invalid number literal '{}': {}", t.token_str, e)))?;
+            NodeType::LLiteral(Literal::Number(number))
+        },
         TokenType::True => NodeType::LLiteral(Literal::Bool(true)),
         _ => {
             return Err(t.lang_error(&format!("Trying to parse a token that's not a literal as a literal, found '{:?}'.", t.token_type)));
@@ -735,7 +739,12 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
             NodeType::Declaration(decl) => {
                 members.insert(decl.name.clone(), decl.clone());
                 if p.params.len() == 1 {
-                    default_values.insert(decl.name.clone(), p.params.get(0).unwrap().clone()); // TODO document what's special about this line
+                    match p.params.get(0) {
+                        Some(val) => {
+                            default_values.insert(decl.name.clone(), val.clone());
+                        },
+                        None => return Err(t.error("expected value in struct member declaration")),
+                    }
                 } else {
                     // TODO allow not setting default values in struct members
                     return Err(t.error("all declarations inside struct definitions must have a value for now"));
