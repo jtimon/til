@@ -147,13 +147,19 @@ impl Expr {
         return &self.params.get(i).unwrap();
     }
 
-    pub fn lang_error(self: &Expr, phase: &str, msg: &str) -> String {
-        if phase == "assert" {
+    pub fn exit_error(self: &Expr, phase: &str, msg: &str) -> String {
+        if phase == "warning" {
+            println!("{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.",
+                     self.line, self.col, LANG_NAME, msg);
+        } else {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
-            io::stdout().flush().unwrap();
-            std::process::exit(1);
         }
+        io::stdout().flush().unwrap();
+        std::process::exit(1);
+    }
+
+    pub fn lang_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "warning" {
             return format!("{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", self.line, self.col, LANG_NAME, msg);
         }
@@ -162,12 +168,6 @@ impl Expr {
     }
 
     pub fn todo_error(self: &Expr, phase: &str, msg: &str) -> String {
-        if phase == "assert" {
-            println!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-                     self.line, self.col, LANG_NAME, phase, msg);
-            io::stdout().flush().unwrap();
-            std::process::exit(1);
-        }
         if phase == "warning" {
             return format!("{}:{}: {} WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", self.line, self.col, LANG_NAME, msg);
         }
@@ -176,11 +176,6 @@ impl Expr {
     }
 
     pub fn error(self: &Expr, phase: &str, msg: &str) -> String {
-        if phase == "assert" {
-            println!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
-            io::stdout().flush().unwrap();
-            std::process::exit(1);
-        }
         if phase == "warning" {
             return format!("{}:{}: WARNING: {}", self.line, self.col, msg);
         }

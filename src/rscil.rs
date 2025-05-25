@@ -830,15 +830,15 @@ impl Context {
 
 fn get_func_name_in_call(e: &Expr) -> String {
     if e.node_type != NodeType::FCall {
-        return e.lang_error("assert", "get_func_name_in_call(): expected fcall node.")
+        return e.exit_error("type", "get_func_name_in_call(): expected fcall node.")
     }
     if e.params.len() == 0 {
-        return e.lang_error("assert", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
+        return e.exit_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
     }
     match &e.get(0).node_type {
         NodeType::Identifier(f_name) => return f_name.clone(),
-        node_type => return e.lang_error(
-            "assert", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
+        node_type => return e.exit_error(
+            "type", &format!("in get_func_name_in_call(): Identifiers can only contain identifiers, found '{:?}'", node_type)),
     }
 }
 
@@ -1148,7 +1148,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 errors.push(e.error("type", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
-                errors.push(e.lang_error("assert", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
+                errors.push(e.exit_error("type", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
                 return errors
             }
             let inner_e = e.get(0);
@@ -1187,7 +1187,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 
                 ValueType::TType(TTypeDef::TEnumDef) => {
                     if inner_e.params.len() != 0 {
-                        errors.push(e.lang_error("assert", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
+                        errors.push(e.exit_error("type", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
                                                                decl.name)));
                         return errors
                     }
@@ -1205,7 +1205,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 
                 ValueType::TType(TTypeDef::TStructDef) => {
                     if inner_e.params.len() != 0 {
-                        errors.push(e.lang_error("assert", &format!("while declaring {}, struct declarations must have exactly 0 params.",
+                        errors.push(e.exit_error("type", &format!("while declaring {}, struct declarations must have exactly 0 params.",
                                                                decl.name)));
                         return errors
                     }
@@ -1292,14 +1292,14 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::Declaration(decl) => {
             if e.params.len() != 1 {
-                e.lang_error("assert", &format!("while declaring {}, declarations must take exactly one value.", decl.name));
+                e.exit_error("type", &format!("while declaring {}, declarations must take exactly one value.", decl.name));
                 return true
             }
             is_expr_calling_procs(&context, &e.get(0))
         },
         NodeType::Assignment(var_name) => {
             if e.params.len() != 1 {
-                e.lang_error("assert", &format!("while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len()));
+                e.exit_error("type", &format!("while assigning {}, assignments must take exactly one value, not {}.", var_name, e.params.len()));
                 return true
             }
             is_expr_calling_procs(&context, &e.get(0))
@@ -1395,7 +1395,7 @@ fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
 fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
-        errors.push(e.lang_error("assert", "in check_enum_def(): enum declarations don't have any parameters in the tree."));
+        errors.push(e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree."));
         return errors
     }
 
@@ -1419,7 +1419,7 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
 fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 2 && e.params.len() != 3 {
-        errors.push(e.lang_error("assert", "if nodes must have 2 or 3 parameters."));
+        errors.push(e.exit_error("type", "if nodes must have 2 or 3 parameters."));
         return errors
     }
 
@@ -1451,7 +1451,7 @@ fn check_if_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
 fn check_while_statement(mut context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 2 {
-        errors.push(e.lang_error("assert", "while nodes must have exactly 2 parameters."));
+        errors.push(e.exit_error("type", "while nodes must have exactly 2 parameters."));
         return errors
     }
 
@@ -1499,7 +1499,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                 };
 
                 if e.params.len() == 0 {
-                    errors.push(e.lang_error("assert", "in check_fcall(): fcall nodes must have at least 1 parameter."));
+                    errors.push(e.exit_error("type", "in check_fcall(): fcall nodes must have at least 1 parameter."));
                     return errors
                 }
                 if e.params.get(0).unwrap().params.len() == 0 {
@@ -1934,8 +1934,8 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 1 {
-        errors.push(e.lang_error("assert", &format!("in declaration of {}, declaration nodes must take exactly 1 parameter.",
-                                               decl.name)));
+        errors.push(e.exit_error("type", &format!("in declaration of {}, declaration nodes must take exactly 1 parameter.",
+                                                  decl.name)));
         return errors
     }
 
@@ -1990,7 +1990,7 @@ fn check_declaration(mut context: &mut Context, e: &Expr, decl: &Declaration) ->
 fn check_assignment(mut context: &mut Context, e: &Expr, var_name: &str) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 1 {
-        errors.push(e.lang_error("assert", &format!("in assignment to {}, assignments must take exactly one value, not {}.",
+        errors.push(e.exit_error("type", &format!("in assignment to {}, assignments must take exactly one value, not {}.",
                                                var_name, e.params.len())));
         return errors
     }
@@ -2108,7 +2108,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 fn check_struct_def(_context: &mut Context, e: &Expr, struct_def: &SStructDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
-        errors.push(e.lang_error("assert", "in check_struct_def(): struct declarations must take exactly 0 params."));
+        errors.push(e.exit_error("type", "in check_struct_def(): struct declarations must take exactly 0 params."));
         return errors
     }
 
