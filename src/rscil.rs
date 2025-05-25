@@ -834,7 +834,7 @@ fn get_func_name_in_call(e: &Expr) -> String {
     assert!(e.params.len() > 0);
     match &e.get(0).node_type {
         NodeType::Identifier(f_name) => return f_name.clone(),
-        _ => return e.lang_error("panic_type", &format!("panic calling get_func_name_in_call(), this should never happen.")),
+        _ => return e.lang_error("assert", &format!("panic calling get_func_name_in_call(), this should never happen.")),
     }
 }
 

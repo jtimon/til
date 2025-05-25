@@ -148,39 +148,35 @@ impl Expr {
     }
 
     pub fn lang_error(self: &Expr, phase: &str, msg: &str) -> String {
-        if phase == "assert" || phase == "panic_type" || phase == "eval" {
-            println!("{}:{}: {} {} ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
+        if phase == "assert" {
+            println!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
             io::stdout().flush().unwrap();
             std::process::exit(1);
         }
         if phase == "warning" {
-            return format!("{}:{}: {} WARNING: {}", self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", self.line, self.col, LANG_NAME, msg);
         }
-        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg);
+        return format!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
+                       self.line, self.col, LANG_NAME, phase, msg)
     }
 
     pub fn todo_error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "assert" {
-            panic!("Expr.todo_error() cannot be called for phase 'assert', use Expr.lang_error() instead");
-        }
-        if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
                      self.line, self.col, LANG_NAME, phase, msg);
             io::stdout().flush().unwrap();
             std::process::exit(1);
         }
         if phase == "warning" {
-            return format!("{}:{}: {} WARNING: {}", self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}: {} WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", self.line, self.col, LANG_NAME, msg);
         }
-        return format!("{}:{}: {} {} ERROR: {}", self.line, self.col, LANG_NAME, phase, msg);
+        return format!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                       self.line, self.col, LANG_NAME, phase, msg)
     }
 
     pub fn error(self: &Expr, phase: &str, msg: &str) -> String {
         if phase == "assert" {
-            panic!("Expr.error() cannot be called for phase 'assert', use Expr.lang_error() instead");
-        }
-        if phase == "panic_type" || phase == "eval" {
             println!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
             io::stdout().flush().unwrap();
             std::process::exit(1);
@@ -188,7 +184,7 @@ impl Expr {
         if phase == "warning" {
             return format!("{}:{}: WARNING: {}", self.line, self.col, msg);
         }
-        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg);
+        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg)
     }
 }
 
