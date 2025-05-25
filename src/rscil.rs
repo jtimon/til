@@ -173,7 +173,7 @@ impl Context {
             Some(symbol_info_) => symbol_info_.is_mut,
             None => return None,
         };
-        let bool_to_insert = lbool_in_string_to_bool(bool_str);
+        let bool_to_insert = bool_str.parse::<bool>().unwrap();
         let stored = if bool_to_insert { 0 } else { 1 }; // TODO why this is backwards?
 
         let is_field = id.contains('.');
@@ -2376,14 +2376,6 @@ fn eval_core_func_i64_to_u8(mut context: &mut Context, e: &Expr) -> Result<EvalR
 
 // ---------- core procs implementations for eval
 
-fn lbool_in_string_to_bool(b: &str) -> bool {
-    match b {
-        "true" => true,
-        "false" => false,
-        _ => panic!("{} ERROR: expected string 'true' or 'false', found '{}'. this should never happen.", LANG_NAME, b)
-    }
-}
-
 fn eval_core_proc_single_print(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'single_print' takes exactly 1 argument"));
@@ -3445,7 +3437,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if result_cond.is_throw {
                 return Ok(result_cond)
             }
-            if lbool_in_string_to_bool(&result_cond.value) {
+            if result_cond.value.parse::<bool>().unwrap() {
                 eval_expr(&mut context, &e.get(1))
             } else if e.params.len() == 3 {
                 eval_expr(&mut context, &e.get(2))
@@ -3459,7 +3451,7 @@ fn eval_expr(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if result_cond.is_throw {
                 return Ok(result_cond.clone())
             }
-            while lbool_in_string_to_bool(&result_cond.value) {
+            while result_cond.value.parse::<bool>().unwrap() {
                 let result = eval_expr(&mut context, &e.get(1))?;
                 if result.is_return || result.is_throw {
                     return Ok(result)
