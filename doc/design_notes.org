@@ -1,0 +1,99 @@
+* CIL Language Design Notes
+
+** Mutability Rules
+- All variables and function arguments are immutable (const) by default.
+- To make a variable or argument mutable, declare it with the 'mut' keyword.
+
+** Argument Passing
+- All function arguments are passed by reference by default.
+- There is no syntax noise like '&' or '*' in function calls or definitions.
+- Mutability is controlled explicitly with 'mut'.
+
+** Structs and Pointers
+- Structs are value types, but passed by reference by default.
+- Field access always uses the dot '.' operator, regardless of whether the struct is a reference or a pointer (like in Odin or Zig).
+- Enums are the other data type, like rust enums (aka algebraic datatypes, aka tagged unions)
+- Actually, there are also definitions of functions, structs and enums, but definitions cannot be reasigned (aliases) or passed as arguments yet.
+
+** Allocation Model
+- Structs and arrays are stack-allocated by default when possible.
+- Heap allocation happens only when necessary (e.g., dynamic storage, escapes).
+- There is no language-level 'const' keyword for optimization hints — the compiler is expected to handle this automatically.
+
+** No & or * noise
+- Unlike Rust or C++, there is no explicit reference '&' or dereference '*' syntax in regular code.
+- Users think in terms of values and mutability, not pointers/references/by_values.
+
+** Functions: 'func' vs 'proc'
+- 'func' defines a pure function with no side effects. It must always return a value or throw an error.
+  - Similar to D's 'pure', but integrated at the language level.
+  - If it doesn’t return, it must 'throw' (future feature).
+- 'proc' defines a procedure that can perform side effects and may return nothing (void).
+  - Procs are allowed to return values too, but they are not pure.
+
+** Type System
+- Statically typed language: all types are known at compile time.
+- Type inference is supported in declarations, but never for function definition returns or throws.
+- Types must be explicitly declared in struct definitions and function definition arguments? // TODO decide, this is important
+
+** Error Handling Model (Planned)
+- 'throws' declares the possible thrown types explicitly (like Java but works like Rust/Roc).
+- 'throw' works like a return, but for the error path.
+- 'catch' blocks handle thrown values without requiring 'try'. 'catch' blocks are placed freely but only catch earlier throws.
+- All function calls that can throw must be marked visually with '?'.
+- Both 'func' and 'proc' can throw errors.
+
+** Language error handling comparison table
+
+| Lang | Zero Cost (No Runtime Overhead)?                | Must Declare 'throws'?    | Must Handle All Errors? | 'catch' Placement                | Extra readability mark                              |
+|------+-------------------------------------------------+---------------------------+-------------------------+----------------------------------+-----------------------------------------------------|
+| CIL  | ✅ Yes                                          | ✅ Yes (explicit)         | ✅ Yes                  | ✅ Free-floating 'catch()'       | ✅ Yes (extra '?' after call that can throw)        |
+| C++  | ❌ No (zero-cost only if no errors, many costs) | ❌ No                     | ❌ No                   | ❌ 'try { } catch { }'           | ❌ No                                               |
+| Java | ❌ No (runtime checked exceptions, afaik)       | ✅ Yes (explicit)         | ✅ Yes                  | ❌ 'try { } catch { }'           | ❌ No                                               |
+| Rust | ✅ Yes                                          | ✅ Yes (templated return) | ✅ Yes                  | ❌ Must match or '?'             | ❌ No                                               |
+| Roc  | ✅ Yes (compiles away to returns)               | ❌ No                     | ✅ Yes*/No              | ✅ Anywhere with 'when'          | ❌ No                                               |
+| Go   | ✅ Yes (explicit multiple return values)*       | ✅ Yes (multiple returns) | ❌ Yes/*No              | ❌ Manual 'if err != nil'        | ❌ No                                               |
+| Odin | ✅ Yes (explicit multiple return values)        | ✅ Yes (multiple returns) | ❌ Yes/*No              | ❌ Manual 'if err != nil'        | ❌ No                                               |
+| Zig  | ✅ Yes (explicit multiple return codes?)        | ❌ No                     | ✅ Yes*/No              | ❌ Must handle immediately after | ✅ Yes (extra 'try' before statment that can throw) |
+
+Remember that even C can do quite well because it has mutable arguments (aka pointer arguments) and thus you can always return your
+ real return like that and reserve the return value for errors.
+By convention, the errors of each function are enumerated and documented as negative values to be returned.
+But most "pure functional" languages can't have mutable argumments.
+C is not included in the table though, perhaps it should.
+
+Likewise, CIL has "mmultiple return values" planned too, so eventually users can use the Go/Odin syntax if they preffer it.
+Same for rust style once CIL has templates.
+
+The "extra" column is about readability, pure syntax bikesheeding, no
+functionality at all, besides the type checking for the syntax
+bikeshed itself.
+
+As far as I understand, instead of using try blocks, zig mandates to preclude with "try" any statement that may throw something.
+This is not necessary, but it is good for readability, for identifying faster where the errors may be thrown from.
+
+But that's limited to "per-line" (per-statemment).
+But serveral calls may throw within the same statemnt (for example, the arguments of a function call may be other function calls)
+Similarly, rust uses the '!' convention for macros and roc uses it for procs (aka almost pure functions with managed effects in their fff language).
+Similarly, CIL could adopt a convention for ending proc names with !, why not, we can even check that depending on the mode.
+
+I personally preffer the rust syntax for the zig intent, if I understood it correctly, which is a "?" right after the call.
+In rust, you only use that to rethrow automatically. In cil it will be always, even if you catch right after the call.
+
+NOTE: My understanding of other languages is not complete. Not even of my own since it is a work in progress (WIP).
+
+** Sources for Go Error Overhead
+- Go interfaces cause heap allocation in some cases: [Go Blog: Go Slices and Interfaces](https://go.dev/blog/slices-intro)
+- Error handling in Go allocates when error values escape: [Go FAQ: Why is my code allocating?](https://golang.org/doc/faq#allocations)
+- Interface dispatch is runtime (not zero-cost): [Go Wiki: Interface Performance](https://github.com/golang/go/wiki/InterfacePerformance)
+
+** Design Inspiration
+- D's has 'pure' functions, I think the way I would like it, but I didn't know.
+- Mode system: inspired by platform-target systems in build tools, but one mode per file rather than per-project.
+- Error model draws inspiration from...see table
+- Pass-by-reference simplicity from Java, Swift, Kotlin, Mojo
+- Efficient like C++'s 'const AAA&', but ergonomic and safe* (memory safety is to be decided, probably user configurable by mode).
+- mut syntax inspired in rust
+- enums inspired in rust, roc, haskell...aka algebraic types, aka tagged unions
+- Borrowing syntax simplicity from Pascal, Odin, Zig, and Jai, and more.
+- And much more, just trying to give some credit, but being exhaistive on this is a task in itself.
