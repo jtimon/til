@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::env;
 use std::fs;
@@ -80,6 +81,10 @@ struct Context {
     struct_defs: HashMap<String, SStructDef>,
     // maps variable names to their offsets in the arena
     arena_index: HashMap<String, usize>, // stores offsets
+    // A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
+    // TODO change the cached type to support import as returning a struct_def
+    imports_done: HashMap<String, Result<EvalResult, String> >, // finalized imports
+    imports_wip: HashSet<String>, // wip imports
 }
 
 impl Context {
@@ -92,6 +97,8 @@ impl Context {
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
+            imports_done: HashMap::new(),
+            imports_wip: HashSet::new(),
         });
     }
 
@@ -1182,8 +1189,38 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
+            // let _ = eval_core_proc_import(context, &e);
             if f_name == "import" {
-                let _ = eval_core_proc_import(context, &e);
+                match eval_core_proc_import(context, &e) {
+                    Ok(_) => {},
+                    Err(err) => {
+                        let import_path_expr = match e.get(1) {
+                            Ok(import_path_expr_) => import_path_expr_,
+                            Err(err) => {
+                                errors.push(e.exit_error("import", &format!("{}:{}", context.path, err)));
+                                return errors
+                            },
+                        };
+                        let import_path = match &import_path_expr.node_type {
+                            NodeType::LLiteral(import_path_str_lit_expr) => match import_path_str_lit_expr {
+                                Literal::Str(import_path_) => import_path_,
+                                literal_type => {
+                                    errors.push(import_path_expr.exit_error("import", &format!("Expected literal 'Str' for import, found literal '{:?}'",
+                                                                                               literal_type)));
+                                    return errors
+                                },
+
+                            },
+                            import_node_type => {
+                                errors.push(import_path_expr.exit_error("import", &format!("Expected literal Str for import, found '{:?}'",
+                                                                                           import_node_type)));
+                                return errors
+                            },
+                        };
+                        println!("{}.cil:{}", import_path, err);
+                        println!("{}:{}", context.path, err);
+                    },
+                }
             }
         },
         NodeType::Declaration(decl) => {
@@ -2711,10 +2748,7 @@ fn eval_core_proc_eval_to_str(mut context: &mut Context, e: &Expr) -> Result<Eva
     let path = "eval".to_string(); // Placeholder path
     let source_expr = eval_expr(&mut context, e.get(1)?)?;
     let str_source = format!("mode script; {}", source_expr.value);
-
-    let result = main_run(false, &mut context, &path, str_source, Vec::new());
-
-    Ok(EvalResult::new(&result))
+    return main_run(false, &mut context, &path, str_source, Vec::new())
 }
 
 fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -2730,7 +2764,7 @@ fn eval_core_proc_runfile(mut context: &mut Context, e: &Expr) -> Result<EvalRes
 
     match run_file(&path, main_args) {
         Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error("eval", &format!("While running file {path}: {error_string}"))),
+        Err(error_string) => Err(e.error("eval", &format!("While running file {path}\n{error_string}"))),
     }
 }
 
@@ -2739,12 +2773,40 @@ fn eval_core_proc_import(mut context: &mut Context, e: &Expr) -> Result<EvalResu
         return Err(e.lang_error("eval", "Core proc 'import' expects a single parameter"));
     }
 
+    let original_path = context.path.clone();
     let path = format!("{}{}", eval_expr(&mut context, e.get(1)?)?.value, ".cil");
-
-    match run_file_with_context(true, &mut context, &path, Vec::new()) {
-        Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error("eval", &format!("While trying to import {path}: {error_string}"))),
+    // If immported already, use the cache
+    match context.imports_done.get(&path) {
+        Some(import_result) => return import_result.clone(),
+        None => match context.imports_wip.contains(&path) {
+            true => {
+                // TODO do a more detailed message with backtraces or storing a graph of the dependencies or something
+                return Err(e.error("eval", &format!("While trying to import {} from {}: Circular import dependency",
+                                                    path, original_path)))
+            },
+            false => {
+                if !context.imports_wip.insert(path.clone()) {
+                    return Err(e.lang_error("eval", &format!("While trying to import {} from {}: Can't insert in imports_wip",
+                                                        path, original_path)))
+                }
+            },
+        },
     }
+    context.path = path.clone();
+
+    let result = match run_file_with_context(true, &mut context, &path, Vec::new()) {
+        Ok(_) => Ok(EvalResult::new("")),
+        Err(error_string) => {
+            context.path = original_path.clone();
+            return Err(e.error("eval", &format!("While trying to import {} from {}:\n{}",
+                                                path, original_path, error_string)))
+        },
+    };
+
+    context.imports_wip.remove(&path);
+    context.imports_done.insert(path, result.clone());
+    context.path = original_path;
+    return result
 }
 
 fn eval_core_proc_readfile(mut context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -3979,20 +4041,19 @@ fn to_ast_str(e: &Expr) -> String {
 
 // ---------- main binary
 
-// TODO return Result<String, String>, so that imports that fail can be treated accordingly
-fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> String {
+fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
     let mut lexer = match lexer_from_source(&path, source) {
         Ok(_result) => _result,
         Err(error_string) => {
-            return format!("{}:{}", &path, error_string);
+            return Err(format!("{}:{}", &path, error_string));
         },
     };
 
     let mode = match parse_mode(&path, &mut lexer) {
         Ok(mode_) => mode_,
         Err(error_string) => {
-            return format!("{}:{}", &path, error_string);
+            return Err(format!("{}:{}", &path, error_string));
         },
     };
     context.mode = mode;
@@ -4001,10 +4062,13 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     }
 
     if context.mode.name == "test" {
-        match run_file_with_context(true, &mut context, &"src/core/modes/test.cil".to_string(), Vec::new()) {
+        let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
+        let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/modes/test".to_string())), params: Vec::new(), line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        match eval_core_proc_import(&mut context, &import_fcall_expr) {
             Ok(_) => {},
             Err(error_string) => {
-                return format!("{}:{}", &path, error_string);
+                return Err(format!("{}:{}", &path, error_string));
             },
         }
     }
@@ -4012,7 +4076,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
     let mut e: Expr = match parse_tokens(&mut lexer) {
         Ok(expr) => expr,
         Err(error_string) => {
-            return format!("{}:{}", &path, error_string);
+            return Err(format!("{}:{}", &path, error_string));
         },
     };
     if !SKIP_AST {
@@ -4024,7 +4088,7 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         for err in &errors {
             println!("{}:{}", path, err);
         }
-        return format!("Compiler errors: {} declaration errors found", errors.len());
+        return Err(format!("Compiler errors: {} declaration errors found", errors.len()));
     }
     errors.extend(basic_mode_checks(&context, &e));
 
@@ -4043,25 +4107,29 @@ fn main_run(print_extra: bool, mut context: &mut Context, path: &String, source:
         for err in &errors {
             println!("{}:{}", path, err);
         }
-        return format!("Compiler errors: {} type errors found", errors.len());
+        return Err(format!("Compiler errors: {} type errors found", errors.len()));
     }
 
     return match eval_expr(&mut context, &e) {
-        Ok(eval_result) => eval_result.value,
-        Err(err) => format!("{}:{}", path, err),
+        Ok(eval_result) => Ok(eval_result),
+        Err(err) => Err(format!("{}:{}", path, err)),
     }
 }
 
 // ---------- main, usage, args, etc
 
-fn run_file(path: &String, main_args: Vec<String>) -> Result<(), String> {
+fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let mut context = Context::new(path, DEFAULT_MODE)?;
-    run_file_with_context(true, &mut context, &"src/core/core.cil".to_string(), Vec::new())?;
-    run_file_with_context(false, &mut context, &path, main_args)?;
-    return Ok(())
+    if path != "src/core/core.cil" {
+        let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
+        let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/core".to_string())), params: Vec::new(), line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+        eval_core_proc_import(&mut context, &import_fcall_expr)?;
+    }
+    return run_file_with_context(false, &mut context, &path, main_args)
 }
 
-fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String, main_args: Vec<String>) -> Result<(), String> {
+fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let previous_mode = context.mode.clone();
     if !is_import {
         println!("Running file '{}'", &path);
@@ -4077,16 +4145,13 @@ fn run_file_with_context(is_import: bool, mut context: &mut Context, path: &Stri
             },
         },
     };
-    let run_result = main_run(!is_import, &mut context, &path, source, main_args);
-    if run_result != "" {
-        println!("{}", run_result);
-    }
+    let run_result = main_run(!is_import, &mut context, &path, source, main_args)?;
 
     if is_import && !can_be_imported(&context.mode) {
         return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode.name))
     }
     context.mode = previous_mode; // restore the context mode of the calling file
-    return Ok(())
+    return Ok(run_result)
 }
 
 fn usage() {
@@ -4108,8 +4173,7 @@ fn run_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
         Ok(_) => {},
         Err(error_string) => {
-            println!("ERROR: While running file {path}");
-            println!("{error_string}");
+            println!("ERROR: While running file {path}\n{error_string}");
             std::process::exit(1);
         },
     };
