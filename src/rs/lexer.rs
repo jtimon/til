@@ -168,17 +168,16 @@ impl Lexer {
 
 }
 
-fn is_digit(source: &String, pos: usize) -> bool {
-    match &source[pos..pos+1].chars().next().unwrap() {
-        '0'..='9' => true,
+fn is_digit(source: &str, pos: usize) -> bool {
+    match source.as_bytes().get(pos).copied() {
+        Some(b'0'..=b'9') => true,
         _ => false,
     }
 }
 
-fn is_id_start(source: &String, pos: usize) -> bool {
-    // TODO why next()? is this a bug?
-    match &source[pos..pos+1].chars().next().unwrap() {
-        'a'..='z' | 'A'..='Z' | '_' => true,
+fn is_id_start(source: &str, pos: usize) -> bool {
+    match source.as_bytes().get(pos).copied() {
+        Some(b'a'..=b'z') | Some(b'A'..=b'Z') | Some(b'_') => true,
         _ => false,
     }
 }
@@ -368,7 +367,9 @@ fn scan_tokens(source: String) -> Vec<Token> {
                         if &source[pos..pos+1] == "\\" {
                             pos += 1; // if it's the escape character, skip it
                             if pos + 1 < eof_pos && &source[pos..pos+1] == "\"" {
-                                lit_string.push(source.chars().nth(pos).unwrap());
+                                if let Some(ch) = source.as_bytes().get(pos).copied() {
+                                    lit_string.push(ch as char);
+                                }
                             } else if pos + 1 < eof_pos && &source[pos..pos+1] == "n" {
                                 lit_string.push('\n');
                             } else if pos + 1 < eof_pos && &source[pos..pos+1] == "r" {
@@ -382,10 +383,14 @@ fn scan_tokens(source: String) -> Vec<Token> {
                             } else { // If it's something else, just leave it as is for now, I guess
                                 // TODO print some warning with unkown escaped characters?
                                 lit_string.push('\\');
-                                lit_string.push(source.chars().nth(pos).unwrap());
+                                if let Some(ch) = source.as_bytes().get(pos).copied() {
+                                    lit_string.push(ch as char);
+                                }
                             }
                         } else {
-                            lit_string.push(source.chars().nth(pos).unwrap());
+                            if let Some(ch) = source.as_bytes().get(pos).copied() {
+                                lit_string.push(ch as char);
+                            }
                         }
                         pos += 1;
                     }
