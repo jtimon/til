@@ -67,6 +67,18 @@ test_array_dynamic_str := proc() {
     dyn.set(0, "baz")
     test(loc(), Str.eq(dyn.get(0), "baz"), "Set and get index 0")
 
+    mut combined_str := ""
+    // for s in dyn { // TODO support for loops for Arrays
+    // for i in 0..dyn.len { // TODO support for loops with ranges
+    mut i := 0
+    // while i.lt(dyn.len) { // TODO Fix more UFCS cases
+    while lt(i, dyn.len) {
+        s := dyn.get(i)
+        combined_str = format(combined_str, s)
+        i.inc()
+    }
+    assert_eq_str(loc(), "bazbar", combined_str)
+
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
     assert_eq(loc(), 0, dyn.len) // Length reset after delete
