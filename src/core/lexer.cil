@@ -155,7 +155,6 @@ TokenArray := struct {
     }
 }
 
-// TODO implement struct arrays and add the tokens to it, for now just print the tokens
 scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) {
     mut t := Token()
     t.token_type = token_type
@@ -282,10 +281,9 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "case": return TokenType.Case
     case "default": return TokenType.Default // TODO currently using "case:", but "default:" is more traditional, grepable and overt
     case "return": return TokenType.Return
-    case "throw": return TokenType.Throw // TODO
+    case "throw": return TokenType.Throw
         // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
     case "catch": return TokenType.Catch
-    case "try": return TokenType.Try // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
         // or should 'try:' be optional?
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
@@ -293,7 +291,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
         // TODO nicer messages for forbidden words
     case "fn": return TokenType.Fn
     case "function": return TokenType.Invalid
-    case "method": return TokenType.Invalid
+    case "try": return TokenType.Try
     case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
     case "const": return TokenType.Const
@@ -311,9 +309,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
 scan_tokens := proc(source: Str) returns TokenArray {
     mut tokens := TokenArray.new_dyn()
 
-    eof_pos := Str.len(source) // TODO fix
-    // eof_pos := source.len()
-
+    eof_pos := source.len()
     mut pos := 0
     mut line := 0
     mut start_line_pos := 0
@@ -433,13 +429,11 @@ scan_tokens := proc(source: Str) returns TokenArray {
                 pos.inc()
 
                 // comments:
-                // TODO fix end of lines, this can't work before that
             case "#":
                 pos.inc()
                 while and(lt(add(pos, 1), eof_pos), not(Str.eq("\n", Str.get_substr(source, pos, add(pos, 2))))) {
                     pos.inc()
                 }
-
             case "/":
                 if Str.eq(Str.get_substr(source, add(pos, 1), add(pos, 2)), "/") {
                     // Single-line comment
@@ -685,7 +679,7 @@ Lexer := struct {
 
 print_lex_error := proc(path: Str, t: Token, errors_found: I64, msg: Str) {
     print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
-    // print(". Offending symbol: '", t.token_str, "'") // TODO FIX Str fields in structs
+    print(". Offending symbol: '", t.token_str, "'")
     print("\n")
     errors_found.inc()
 }
