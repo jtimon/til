@@ -231,7 +231,6 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // TODO nicer messages for forbidden words
         "fn" => TokenType::Fn,
         "function" => TokenType::Invalid,
-        "method" => TokenType::Invalid,
         "global" => TokenType::Invalid, // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
         "const" => TokenType::Const,
