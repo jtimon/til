@@ -7,7 +7,8 @@ my_int_b :=  2
 // Test Universal Function Call System (UFCS)
 
 test_ufcs := proc () {
-    assert(loc(), not(my_int_a.int_eq(0)))
+    // assert(loc(), not(my_int_a.int_eq(0))) // TODO FIX this should be caught at typer pahse
+    assert(loc(), not(my_int_a.eq(0)))
     assert(loc(), not(false))
     assert(loc(), false.not())
     assert(loc(), false.or(true))
@@ -17,6 +18,7 @@ test_ufcs := proc () {
     assert(loc(), not(my_true.and(false)))
     assert(loc(), my_true.or(false))
     assert(loc(), false.or(true))
+    // assert(loc(), true.or(false)) // TODO Make true a constant like false, rather than a literal
 
     // test(loc(), true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
     // test(loc(), and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results
@@ -24,6 +26,7 @@ test_ufcs := proc () {
     xor2 := func(a: Bool, b: Bool) returns Bool {
         return or(a.and(not(b)), b.and(not(a)))
     }
+    // my_true.xor2(false) // TODO FIX
     assert(loc(), xor2(true, false))
     assert(loc(), my_true.xor2(false))
     assert(loc(), xor2(false, true))
@@ -41,3 +44,4 @@ test_ufcs := proc () {
     aaa := true
     test(loc(), aaa.and(true), "true.and(true) == true")
 }
+test_ufcs()
