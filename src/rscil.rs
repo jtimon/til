@@ -2029,10 +2029,14 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                     let throw_param = &p.params[0];
                     match get_value_type(&context, throw_param) {
                         Ok(thrown_type) => {
-                            // Track the thrown type as a string and another string with its error
-                            let thrown_type_str = value_type_to_str(&thrown_type);
-                            thrown_types.push((thrown_type_str.clone(), throw_param.error("type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str))));
-                            thrown_types.push((thrown_type_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                            if thrown_type == ValueType::TType(TTypeDef::TStructDef) {
+                                errors.push(throw_param.error("type", "Cannot throw a struct definition.\nSuggestion: Create an instance by adding parentheses at the end."));
+                            } else {
+                                // Track the thrown type as a string and another string with its error
+                                let thrown_type_str = value_type_to_str(&thrown_type);
+                                thrown_types.push((thrown_type_str.clone(), throw_param.error("type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str))));
+                                thrown_types.push((thrown_type_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                            }
                         },
                         Err(err) => {
                             errors.push(err);
@@ -2083,6 +2087,8 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                             thrown_types.push((called_throw_str.clone(), p.error("type", &error_msg)));
                             thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Update throws section here")));
                         }
+
+                        // TODO the args can be Fcalls too
                     },
                     Ok(None) => {
                         // TODO throw error from here?
