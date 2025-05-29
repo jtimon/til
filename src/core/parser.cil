@@ -62,7 +62,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
 
     while and(
         not(end_found),
-        lt(lexer.pos(), lexer.len()),
+        lt(lexer.pos, lexer.len()),
     ) {
         t := lexer.peek()
         switch t.token_type {
