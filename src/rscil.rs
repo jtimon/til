@@ -1929,9 +1929,27 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         }
     }
 
+    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
+        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
+            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
+        }
+    }
+
     // Don't check the bodies of external functions
     if func_def.is_ext() {
         return errors;
+    }
+
+    // TODO should macros be allowed to call procs?
+    if !func_def.is_proc() {
+        for se in &func_def.body {
+            if is_expr_calling_procs(&context, &se) {
+                errors.push(se.error("type", "funcs cannot call procs."));
+            }
+        }
+    }
+    for p in &func_def.body {
+        errors.extend(check_types(context, &p));
     }
 
     let mut return_found = false;
@@ -1954,20 +1972,6 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         if !thrown_types.iter().any(|(t, _)| t == &declared_str) {
             errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
                                                     declared_str)));
-        }
-    }
-
-    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
-        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
-            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
-        }
-    }
-    // TODO should macros be allowed to call procs?
-    if !func_def.is_proc() {
-        for se in &func_def.body {
-            if is_expr_calling_procs(&context, &se) {
-                errors.push(se.error("type", "funcs cannot call procs."));
-            }
         }
     }
 
