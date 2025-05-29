@@ -1675,14 +1675,14 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     return errors;
 }
 
-fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
+fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
     let f_name = get_func_name_in_call(e);
     let func_def;
 
     if context.funcs.contains_key(&f_name) {
         func_def = match context.funcs.get(&f_name) {
-            Some(def) => def,
+            Some(def) => def.clone(),
             None => {
                 errors.push(e.lang_error("type", &format!("Unexpected error: function '{}' exists but couldn't be retrieved", f_name)));
                 return errors;
@@ -1732,7 +1732,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                         };
                         match &member_value.node_type {
                             NodeType::FuncDef(f) => {
-                                func_def = f;
+                                func_def = f.clone();
                             },
                             _ => {
                                 errors.push(e.error("type", &format!("Cannot call '{}.{}', it is a '{:?}', not a function.",
@@ -1831,7 +1831,7 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, e.params.len() - 1)));
         return errors;
     }
-    let has_multi_arg = func_proc_has_multi_arg(func_def);
+    let has_multi_arg = func_proc_has_multi_arg(&func_def);
     if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
             f_name, func_def.args.len(), e.params.len() - 1)));
@@ -1861,6 +1861,8 @@ fn check_fcall(context: &Context, e: &Expr) -> Vec<String> {
                 return errors;
             }
         };
+        // errors.extend(check_types(context, &arg_expr)); // TODO uncomment
+
         let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
             Err(error_string) => {
@@ -2532,7 +2534,7 @@ fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_switch_statement(context, &e));
         },
         NodeType::FCall => {
-            errors.extend(check_fcall(&context, &e));
+            errors.extend(check_fcall(context, &e));
         },
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
