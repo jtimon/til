@@ -1412,8 +1412,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 }
 
-                ValueType::TList |
-                ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
+                ValueType::TList | ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
             }
@@ -1452,10 +1451,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::EnumDef(_) => {
             false
         },
-        NodeType::LLiteral(Literal::Bool(_)) => false,
-        NodeType::LLiteral(Literal::Number(_)) => false,
-        NodeType::LLiteral(Literal::List(_)) => false,
-        NodeType::LLiteral(Literal::Str(_)) => false,
+        NodeType::LLiteral(_) => false,
         NodeType::DefaultCase => false,
         NodeType::Identifier(_) => false,
         NodeType::FCall => {
@@ -2480,8 +2476,7 @@ fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_catch_statement(context, &e));
         }
 
-        NodeType::LLiteral(Literal::Number(_)) | NodeType::LLiteral(Literal::List(_)) |
-        NodeType::LLiteral(Literal::Bool(_)) | NodeType::LLiteral(Literal::Str(_)) | NodeType::DefaultCase => {},
+        NodeType::LLiteral(_) | NodeType::DefaultCase => {},
     }
 
     return errors
