@@ -38,12 +38,11 @@ example_catch := proc() {
     // TODO the compiler should be asking for example_catch to throws DivideByZero already
     // It doesn't because the fcall that throws is an arg of another fcall
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
-    // b := 0 // TODO uncomment when catch is implemented
-    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
-    result := I64.to_str(safe_div(a, b))
+    // b = 0 // TODO uncomment when catch is implemented
+    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(a.safe_div(b)))
+    result := I64.to_str(a.safe_div(b))
     println(a.to_str(), " / ", b.to_str(), " = ", result)
-    // safe_div(a, b) // FIXME this is supposed to be catched in the next line!
-    // throw DivideByZero // TODO seriously?
+    // throw DivideByZero // TODO print warning when catching things that aren't thrown
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
         println("Trying to divide by zero")
@@ -71,7 +70,7 @@ SomeStruct := struct {
 }
 
 // Remove things from the throws section to test the errors
-undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc {
+undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInMethod {
     if false {
         another_func()
         catch (err: ErrorUndeclaredInFunc) {
@@ -85,7 +84,7 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc {
     }
     SomeStruct.some_assoc()
     ss := SomeStruct()
-    ss.some_method() // TODO FIX check for errors thrown from method calls
+    ss.some_method()
 
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }

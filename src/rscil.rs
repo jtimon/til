@@ -979,7 +979,7 @@ fn get_combined_name(expr: &Expr) -> Result<String, String> {
 
 fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option<SFuncDef>, String> {
     if fcall_expr.node_type != NodeType::FCall {
-        return Err(fcall_expr.error("type", "Expected FCall node type"));
+        return Err(fcall_expr.lang_error("type", "Expected FCall node type"));
     }
 
     let func_expr = match fcall_expr.params.first() {
@@ -989,14 +989,40 @@ fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option
 
     match &func_expr.node_type {
         NodeType::Identifier(_) => {
+            // Regular functions and associated functions used directly
             let combined_name = get_combined_name(func_expr)?;
             if let Some(func_def) = context.funcs.get(&combined_name) {
-                Ok(Some(func_def.clone()))
-            } else {
-                Ok(None) // Incomplete for now; additional lookup logic could go here
+                return Ok(Some(func_def.clone()))
             }
+            if let Some(func_name_expr) = func_expr.params.last() {
+                if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
+                    // Regular functions used with UFCS
+                    if let Some(func_def) = context.funcs.get(&ufcs_func_name.to_string()) {
+                        return Ok(Some(func_def.clone()))
+                    }
+
+                    // Associated functions used with UFCS (aka methods)
+                    let mut parts: Vec<&str> = combined_name.split('.').collect();
+                    parts.pop(); // Remove the last element
+                    let new_combined_name = parts.join(".");
+                    if let Some(symbol_info) = context.symbols.get(&new_combined_name) {
+                        match &symbol_info.value_type {
+                            ValueType::TCustom(ref custom_type_name) => {
+                                let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
+                                if let Some(func_def) = context.funcs.get(&id_expr_name) {
+                                    return Ok(Some(func_def.clone()))
+                                }
+                            },
+                            found_value_type => return Err(func_expr.error("type", &format!(
+                                "'{}' is of type '{}' and thus can't have a '{}' associated function",
+                                new_combined_name, value_type_to_str(&found_value_type), ufcs_func_name)))
+                        }
+                    }
+                }
+            }
+            return Err(func_expr.lang_error("type", "Could not find function defintion"))
         },
-        _ => Ok(None), // Silently ignore unsupported expressions
+        _ => return Err(func_expr.lang_error("type", "Expected Identifier node type"))
     }
 }
 
