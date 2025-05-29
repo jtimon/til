@@ -1710,154 +1710,17 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
     let f_name = get_func_name_in_call(e);
-    let func_def;
-
-    if context.funcs.contains_key(&f_name) {
-        func_def = match context.funcs.get(&f_name) {
-            Some(def) => def.clone(),
-            None => {
-                errors.push(e.lang_error("type", &format!("Unexpected error: function '{}' exists but couldn't be retrieved", f_name)));
-                return errors;
-            },
-        };
-    } else if let Some(symbol) = context.symbols.get(&f_name) {
-        match &symbol.value_type {
-            ValueType::TType(TTypeDef::TStructDef) => {
-                let struct_def = match context.struct_defs.get(&f_name) {
-                    Some(def) => def,
-                    None => {
-                        errors.push(e.error("type", &format!("struct '{}' not found in context", f_name)));
-                        return errors;
-                    },
-                };
-
-                match e.params.get(0) {
-                    Some(p) if p.params.len() == 0 => return errors, // REM: This is to allow struct instantiation with no arguments
-                    None => {
-                        errors.push(e.exit_error("type", "in check_fcall(): fcall nodes must have at least 1 parameter."));
-                        return errors;
-                    },
-                    _ => {}
-                }
-                let id_expr = match e.get(0) {
-                    Ok(id_expr_) => id_expr_,
-                    Err(err) => {
-                        errors.push(err);
-                        return errors;
-                    }
-                };
-                let after_dot = match id_expr.get(0) {
-                    Ok(after_dot_) => after_dot_,
-                    Err(err) => {
-                        errors.push(err);
-                        return errors;
-                    }
-                };
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        let member_value = match struct_def.default_values.get(after_dot_name) {
-                            Some(val) => val,
-                            None => {
-                                errors.push(e.error("type", &format!("struct '{}' has no member '{}' g", f_name, after_dot_name)));
-                                return errors;
-                            },
-                        };
-                        match &member_value.node_type {
-                            NodeType::FuncDef(f) => {
-                                func_def = f.clone();
-                            },
-                            _ => {
-                                errors.push(e.error("type", &format!("Cannot call '{}.{}', it is a '{:?}', not a function.",
-                                    f_name, after_dot_name, member_value.node_type)));
-                                return errors;
-                            },
-                        }
-                    },
-                    _ => {
-                        errors.push(e.error("type", &format!("expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
-                        return errors;
-                    },
-                }
-            },
-            ValueType::TCustom(type_name) => {
-                let struct_def = match context.struct_defs.get(type_name) {
-                    Some(def) => def,
-                    None => {
-                        errors.push(e.error("type", &format!("type '{}' not found in context", type_name)));
-                        return errors;
-                    },
-                };
-
-                let id_expr = match e.get(0) {
-                    Ok(id_expr_) => id_expr_,
-                    Err(err) => {
-                        errors.push(err);
-                        return errors;
-                    }
-                };
-                let after_dot = match id_expr.get(0) {
-                    Ok(after_dot_) => after_dot_,
-                    Err(err) => {
-                        errors.push(err);
-                        return errors;
-                    }
-                };
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        let member_value = match struct_def.default_values.get(after_dot_name) {
-                            Some(val) => val,
-                            None => {
-                                errors.push(e.error("type", &format!("struct '{}' has no member '{}' h", type_name, after_dot_name)));
-                                return errors;
-                            },
-                        };
-                        match &member_value.node_type {
-                            NodeType::FuncDef(_) => {
-                                let full_name = format!("{}.{}", type_name, after_dot_name);
-                                match context.funcs.get(&full_name) {
-                                    Some(_func_def_) => {
-                                        let id_expr_source = match e.get(0) {
-                                            Ok(expr) => expr,
-                                            Err(err) => {
-                                                errors.push(err);
-                                                return errors;
-                                            }
-                                        };
-                                        let id_expr = Expr::new_clone(NodeType::Identifier(full_name.clone()), id_expr_source, vec![]);
-                                        let mut new_params = vec![Expr::new_clone(NodeType::Identifier(f_name.clone()), e, vec![])];
-                                        new_params.extend(e.params[1..].iter().cloned());
-                                        let mut new_e = Expr::new_clone(NodeType::FCall, e, new_params);
-                                        new_e.params.insert(0, id_expr);
-                                        return check_fcall(context, &new_e);
-                                    },
-                                    None => {
-                                        errors.push(e.error("type", &format!("method '{}' not found in context", full_name)));
-                                        return errors;
-                                    },
-                                }
-                            },
-                            _ => {
-                                errors.push(e.error("type", &format!("Cannot call '{}.{}', it is a '{:?}', not a function.",
-                                    type_name, after_dot_name, member_value.node_type)));
-                                return errors;
-                            },
-                        }
-                    },
-                    _ => {
-                        errors.push(e.error("type", &format!("expected identifier after '{}.' found {:?}", f_name, after_dot.node_type)));
-                        return errors;
-                    },
-                }
-            },
-            _ => {
-                errors.push(e.error("type", &format!("Cannot call '{}', it is a '{:?}', not a function nor a struct.", f_name, symbol.value_type)));
-                return errors;
-            },
-        }
-    } else {
-        errors.push(e.error("type", &format!("Undefined function or struct '{}'", f_name)));
-        return errors;
-    }
+    let mut e = e.clone();
+    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut e) {
+        Ok(func_def_) => match func_def_ {
+            Some(func_def_) => func_def_,
+            None => return errors, // REM: This is to allow struct instantiation
+        },
+        Err(err) => {
+            errors.push(err);
+            return errors
+        },
+    };
 
     if func_def.args.len() == 0 && e.params.len() - 1 > 0 {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, e.params.len() - 1)));
@@ -1893,7 +1756,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                 return errors;
             }
         };
-        // errors.extend(check_types(context, &arg_expr)); // TODO uncomment
+        errors.extend(check_types(context, &arg_expr));
 
         let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
