@@ -14,6 +14,7 @@ safe_div(42, 0)
 
 unsafe_div := func(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
+    throw DivideByZero() // TODO Remove this throw since it shouldn't be needed
     catch (err: DivideByZero) {
         return 0 // REM Just return 0, why not? not expected to happen
     }
@@ -42,7 +43,7 @@ example_catch := proc() {
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(a.safe_div(b)))
     result := I64.to_str(a.safe_div(b))
     println(a.to_str(), " / ", b.to_str(), " = ", result)
-    // throw DivideByZero // TODO print warning when catching things that aren't thrown
+    throw DivideByZero() // TODO Remove this throw since it shouldn't be needed
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
         println("Trying to divide by zero")

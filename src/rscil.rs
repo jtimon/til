@@ -2057,7 +2057,11 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                     };
 
                     // Remove first, before descending into body
-                    thrown_types.retain(|(t, _)| t != &caught_type);
+                    if thrown_types.iter().any(|(t, _)| t == &caught_type) {
+                        thrown_types.retain(|(t, _)| t != &caught_type);
+                    } else {
+                        errors.push(p.error("warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
+                    }
 
                     // Then check body for other thrown exceptions
                     let mut temp_thrown_types = Vec::new();
