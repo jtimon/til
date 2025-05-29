@@ -14,7 +14,6 @@ safe_div(42, 0)
 
 unsafe_div := func(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
-    throw DivideByZero() // TODO Remove this throw since it shouldn't be needed
     catch (err: DivideByZero) {
         return 0 // REM Just return 0, why not? not expected to happen
     }

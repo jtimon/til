@@ -2006,6 +2006,11 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                 continue;
                             }
                         };
+
+                        // Recursively check this return expression for throws
+                        errors.extend(
+                            check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_types, return_found));
+
                         match get_value_type(&context, return_val_e) {
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
@@ -2027,6 +2032,11 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                     errors.push(p.error("type", "Throw statement must have exactly one parameter."));
                 } else {
                     let throw_param = &p.params[0];
+                    // Recursively check this throw expression for throws (just in case, although users should avoid this)
+                    // TODO fix this, not a priority
+                    // errors.extend(
+                    //     check_body_returns_throws(context, throw_param, func_def, std::slice::from_ref(throw_param), thrown_types, return_found));
+
                     match get_value_type(&context, throw_param) {
                         Ok(thrown_type) => {
                             if thrown_type == ValueType::TType(TTypeDef::TStructDef) {
