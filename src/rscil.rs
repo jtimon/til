@@ -2088,11 +2088,26 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                             thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Update throws section here")));
                         }
 
-                        // TODO the args can be Fcalls too
+                        for arg in p.params.iter().skip(1) {
+                            if let NodeType::FCall = arg.node_type {
+                                match get_func_def_for_fcall(&context, arg) {
+                                    Ok(Some(nested_func_def)) => {
+                                        let mut temp_thrown_types = Vec::new();
+                                        errors.extend(check_body_returns_throws(context, arg, &nested_func_def, &arg.params, &mut temp_thrown_types, return_found));
+                                        thrown_types.extend(temp_thrown_types);
+                                    },
+                                    Ok(None) => {
+                                        errors.push(arg.error("type", "Could not resolve function definition for nested call."));
+                                    },
+                                    Err(reason) => {
+                                        errors.push(arg.error("type", &format!("Failed to resolve nested function call: {}", reason)));
+                                    }
+                                }
+                            }
+                        }
                     },
                     Ok(None) => {
-                        // TODO throw error from here?
-                        // Do nothing — unsupported expression or no function target
+                        errors.push(p.error("type", "Could not resolve function definition for call."));
                     },
                     Err(reason) => {
                         errors.push(p.error("type", &reason));
@@ -2146,7 +2161,6 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
 
             _ => {},
         }
-        errors.extend(check_types(context, &p));
     }
 
     return errors

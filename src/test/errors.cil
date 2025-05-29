@@ -36,14 +36,10 @@ example_catch := proc() {
 // example_catch := proc() { // TODO don't throws anything in example_catch, but if we remove it, the catch doesn't work
     a := 420
     mut b := 10
-    // TODO the compiler should be asking for example_catch to throws DivideByZero already
-    // It doesn't because the fcall that throws is an arg of another fcall
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
     // b = 0 // TODO uncomment when catch is implemented
-    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(a.safe_div(b)))
-    result := I64.to_str(a.safe_div(b))
+    result := I64.to_str(a.safe_div(b)) // TODO not throwing inside declarations
     println(a.to_str(), " / ", b.to_str(), " = ", result)
-    throw DivideByZero() // TODO Remove this throw since it shouldn't be needed
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
         println("Trying to divide by zero")
