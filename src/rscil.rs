@@ -2159,6 +2159,51 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                 thrown_types.extend(temp_thrown_types);
             }
 
+            NodeType::Declaration(_) | NodeType::Assignment(_) => {
+                if let Some(initializer) = p.params.get(0) {
+                    if let NodeType::FCall = initializer.node_type {
+
+                        let id_expr = match initializer.get(0) {
+                            Ok(id_expr_) => id_expr_,
+                            Err(err) => {
+                                errors.push(err);
+                                continue;
+                            },
+                        };
+                        match id_expr.params.get(0) {
+                            Some(_after_dot) => {},
+                            None => continue, // This is used for 'StructName()' kind of instantiations
+                        }
+
+                        match get_func_def_for_fcall(&context, initializer) {
+                            Ok(Some(called_func_def)) => {
+                                for called_throw in &called_func_def.throws {
+                                    let called_throw_str = value_type_to_str(called_throw);
+                                    let error_msg = format!(
+                                        "Function throws '{}', but it is not declared in this function's throws section.",
+                                        called_throw_str
+                                    );
+
+                                    thrown_types.push((called_throw_str.clone(), initializer.error("type", &error_msg)));
+                                    thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                                }
+
+                                let mut temp_thrown_types = Vec::new();
+                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_types, return_found));
+                                thrown_types.extend(temp_thrown_types);
+                            },
+                            Ok(None) => {
+                                errors.push(initializer.error("type", "Could not resolve function definition in declaration initializer."));
+                            },
+                            Err(reason) => {
+                                errors.push(initializer.error("type", &format!("Failed to resolve function in declaration initializer: {}", reason)));
+                            }
+                        }
+                    }
+                }
+            }
+
+
             _ => {},
         }
     }

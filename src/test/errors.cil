@@ -33,12 +33,13 @@ missing_throws()
 // TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
 // perhaps try at the beginning of each statement that can throw or ? at the end
 example_catch := proc() {
-// example_catch := proc() { // TODO don't throws anything in example_catch, but if we remove it, the catch doesn't work
     a := 420
     mut b := 10
-    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b)))
+    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b))) // test fcalls as args
     // b = 0 // TODO uncomment when catch is implemented
-    result := I64.to_str(a.safe_div(b)) // TODO not throwing inside declarations
+    result := I64.to_str(a.safe_div(b)) // test declaration
+    mut result2 := "0"
+    result2 = I64.to_str(a.safe_div(b)) // test assignment
     println(a.to_str(), " / ", b.to_str(), " = ", result)
     catch (err: DivideByZero) { // TODO implement catch
         println(a.to_str(), " / ", b.to_str(), " = ...")
