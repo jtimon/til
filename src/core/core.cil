@@ -73,7 +73,7 @@ Ptr := struct {
         mut p := Ptr()
         p.data = malloc(size)
         if NULL.eq(p.data) {
-            println(loc(), "Ptr.new: failed to allocate ", size, " bytes")
+            println(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes")
         }
         return p
     }
@@ -164,9 +164,9 @@ Bool := struct {
     to_u8 := func(self: Bool) returns U8 {
         // TODO move to directly return self.data instead
         if self {
-            return 1
+            return U8.from_i64(1)
         }
-        return 0
+        return U8.from_i64(0)
     }
 
     from_i64 := func(i: I64) returns Bool { // TODO support regular struct returns to be able to this as a regular struct internally (except for if/while conditions)
@@ -318,23 +318,23 @@ Str := struct {
 
     get_substr := func(s: Str, start: I64, end: I64) returns Str {
         if lt(start, 0) {
-            println(loc(), "Str.get_substr: start index ", start, " cannot be negative")
+            println(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative")
             exit(1)
         }
         if lt(end, 0) {
-            println(loc(), "Str.get_substr: end index ", end, " cannot be negative")
+            println(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative")
             exit(1)
         }
         if gt(start, end) {
-            println(loc(), "Str.get_substr: start index ", start, " is greater than end index ", end)
+            println(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str())
             exit(1)
         }
         if gt(end, s.len()) {
-            println(loc(), "Str.get_substr: end index ", end, " is greater than string length ", s.len())
+            println(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len()))
             exit(1)
         }
         if I64.eq(start, end) {
-            println(loc(), "Str.get_substr: start and end are the same (", start, "), no substring")
+            println(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring")
             exit(1)
         }
 
@@ -342,7 +342,7 @@ Str := struct {
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
         if NULL.eq(substr.c_string) {
-            println(loc(), "Str.get_substr: failed to allocate ", size, " bytes")
+            println(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes")
         }
 
         memcpy(substr.c_string, add(s.c_string, start), substr.cap)
@@ -489,7 +489,7 @@ StrArray := struct {
         arr.len = capacity
         arr.cap = capacity
         arr.is_dyn = false
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
@@ -500,7 +500,7 @@ StrArray := struct {
         arr.len = 0
         arr.cap = StrArray.INIT_DYN_CAP
         arr.is_dyn = true
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
@@ -572,7 +572,7 @@ BoolArray := struct {
         arr.len = capacity
         arr.cap = capacity
         arr.is_dyn = false
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
@@ -583,7 +583,7 @@ BoolArray := struct {
         arr.len = 0
         arr.cap = BoolArray.INIT_DYN_CAP
         arr.is_dyn = true
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
@@ -655,7 +655,7 @@ I64Array := struct {
         arr.len = capacity
         arr.cap = capacity
         arr.is_dyn = false
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
@@ -666,7 +666,7 @@ I64Array := struct {
         arr.len = 0
         arr.cap = I64Array.INIT_DYN_CAP
         arr.is_dyn = true
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         return arr
     }
 
