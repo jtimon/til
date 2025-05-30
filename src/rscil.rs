@@ -4574,7 +4574,14 @@ fn usage() {
 
 fn run_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
-        Ok(_) => {},
+        Ok(result) => {
+            if result.is_throw {
+                let e = Expr{node_type: NodeType::Body, params: Vec::new(), line: 0, col: 0};
+                println!("{}", e.lang_error("eval", &format!("Unhandled error '{}' while running file '{}'\n",
+                                                             result.thrown_type.unwrap_or_else(|| "".to_string()), path)));
+                std::process::exit(1);
+            }
+        },
         Err(error_string) => {
             println!("ERROR: While running file {path}\n{error_string}");
             std::process::exit(1);
