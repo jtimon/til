@@ -461,7 +461,14 @@ impl Context {
             let default_expr = struct_def.default_values.get(member_name);
             let default_value = match default_expr {
                 Some(e) => match eval_expr(self, e) {
-                    Ok(res) => res.value,
+                    Ok(res) => {
+                        if res.is_throw {
+                            println!("ERROR: Failed to evaluate default value for field '{}':", member_name);
+                            println!("ERROR: Thrown '{}'", res.thrown_type.unwrap_or_else(|| "".to_string()));
+                            return false;
+                        }
+                        res.value
+                    },
                     Err(err) => {
                         println!("ERROR: Failed to evaluate default value for field '{}':", member_name);
                         println!("ERROR:{}", err);
@@ -2601,7 +2608,11 @@ fn eval_core_func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
     }
 
-    let size_str = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let size_str = result.value;
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error("eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
@@ -2619,7 +2630,11 @@ fn eval_core_func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, St
         return Err(e.lang_error("eval", "Core func 'free' takes exactly 1 argument"))
     }
 
-    let _ptr_str = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let _ptr_str = result.value;
     // REM: Free does nothing in arena model (for now).
 
     return Ok(EvalResult::new(""))
@@ -2630,9 +2645,24 @@ fn eval_core_func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core func 'memset' takes exactly 3 arguments"))
     }
 
-    let dest_str = eval_expr(context, e.get(1)?)?.value;
-    let value_str = eval_expr(context, e.get(2)?)?.value;
-    let size_str = eval_expr(context, e.get(3)?)?.value;
+    let dest_result = eval_expr(context, e.get(1)?)?;
+    if dest_result.is_throw {
+        return Ok(dest_result); // Propagate throw
+    }
+
+    let value_result = eval_expr(context, e.get(2)?)?;
+    if value_result.is_throw {
+        return Ok(value_result); // Propagate throw
+    }
+
+    let size_result = eval_expr(context, e.get(3)?)?;
+    if size_result.is_throw {
+        return Ok(size_result); // Propagate throw
+    }
+
+    let dest_str = dest_result.value;
+    let value_str = value_result.value;
+    let size_str = size_result.value;
 
     let dest = match dest_str.trim().parse::<i64>() {
         Ok(v) => v as usize,
@@ -2668,9 +2698,22 @@ fn eval_core_func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core func 'memcpy' takes exactly 3 arguments"))
     }
 
-    let dest_str = eval_expr(context, e.get(1)?)?.value;
-    let src_str = eval_expr(context, e.get(2)?)?.value;
-    let size_str = eval_expr(context, e.get(3)?)?.value;
+    let dest_result = eval_expr(context, e.get(1)?)?;
+    if dest_result.is_throw {
+        return Ok(dest_result); // Propagate throw
+    }
+    let src_result = eval_expr(context, e.get(2)?)?;
+    if src_result.is_throw {
+        return Ok(src_result); // Propagate throw
+    }
+    let size_result = eval_expr(context, e.get(3)?)?;
+    if size_result.is_throw {
+        return Ok(size_result); // Propagate throw
+    }
+
+    let dest_str = dest_result.value;
+    let src_str = src_result.value;
+    let size_str = size_result.value;
 
     let dest = match dest_str.parse::<usize>() {
         Ok(v) => v,
@@ -2749,11 +2792,17 @@ fn eval_core_func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'lt' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'lt': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'lt': {}", err)))?;
     Ok(EvalResult::new(&(a < b).to_string()))
 }
@@ -2762,11 +2811,17 @@ fn eval_core_func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'gt' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'gt': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'gt': {}", err)))?;
     Ok(EvalResult::new(&(a > b).to_string()))
 }
@@ -2775,11 +2830,17 @@ fn eval_core_func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'add': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'add': {}", err)))?;
     Ok(EvalResult::new(&(a + b).to_string()))
 }
@@ -2788,11 +2849,17 @@ fn eval_core_func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'sub' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'sub': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'sub': {}", err)))?;
     Ok(EvalResult::new(&(a - b).to_string()))
 }
@@ -2801,11 +2868,17 @@ fn eval_core_func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'mul' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mul': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mul': {}", err)))?;
     Ok(EvalResult::new(&(a * b).to_string()))
 }
@@ -2814,11 +2887,17 @@ fn eval_core_func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'div' takes exactly 2 arguments"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
-        .parse::<i64>()
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'div': {}", err)))?;
-    let b = eval_expr(context, e.get(2)?)?.value
-        .parse::<i64>()
+    let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'div': {}", err)))?;
     Ok(EvalResult::new(&(a / b).to_string()))
 }
@@ -2827,7 +2906,11 @@ fn eval_core_func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResu
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'str_to_i64' takes exactly 1 argument"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let a = result.value
         .parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid input for 'str_to_i64': {}", err)))?;
     Ok(EvalResult::new(&a.to_string()))
@@ -2837,7 +2920,11 @@ fn eval_core_func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResu
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_str' takes exactly 1 argument"))
     }
-    let val = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let val = result.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2845,7 +2932,11 @@ fn eval_core_func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'enum_to_str' takes exactly 1 argument"))
     }
-    let val = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let val = result.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2853,7 +2944,11 @@ fn eval_core_func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResul
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
     }
-    let a = eval_expr(context, e.get(1)?)?.value
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let a = result.value
         .parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid input for 'u8_to_i64': {}", err)))?;
     Ok(EvalResult::new(&a.to_string()))
@@ -2863,7 +2958,11 @@ fn eval_core_func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResul
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_u8' takes exactly 1 argument"))
     }
-    let val = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let val = result.value;
     Ok(EvalResult::new(&val))
 }
 
@@ -2875,6 +2974,10 @@ fn eval_core_proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalRe
     }
 
     let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+
     print!("{}", result.value);
     Ok(EvalResult::new(""))
 }
@@ -2915,6 +3018,10 @@ fn eval_core_proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
 
     let path = "eval".to_string(); // Placeholder path
     let source_expr = eval_expr(context, e.get(1)?)?;
+    if source_expr.is_throw {
+        return Ok(source_expr); // Propagate throw
+    }
+
     let str_source = format!("mode script; {}", source_expr.value);
     return main_run(false, context, &path, str_source, Vec::new())
 }
@@ -2924,10 +3031,19 @@ fn eval_core_proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult,
         return Err(e.lang_error("eval", "Core proc 'runfile' expects at least 1 parameter"));
     }
 
-    let path = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let path = result.value;
+
     let mut main_args = Vec::new();
     for i in 2..e.params.len() {
-        main_args.push(eval_expr(context, e.get(i)?)?.value);
+        let arg_result = eval_expr(context, e.get(i)?)?;
+        if arg_result.is_throw {
+            return Ok(arg_result); // Propagate throw
+        }
+        main_args.push(arg_result.value);
     }
 
     match run_file(&path, main_args) {
@@ -2941,9 +3057,15 @@ fn eval_core_proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         return Err(e.lang_error("eval", "Core proc 'import' expects a single parameter"));
     }
 
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+
     let original_path = context.path.clone();
-    let path = format!("{}{}", eval_expr(context, e.get(1)?)?.value, ".cil");
-    // If immported already, use the cache
+    let path = format!("{}{}", result.value, ".cil");
+
+    // If imported already, use the cache
     match context.imports_done.get(&path) {
         Some(import_result) => return import_result.clone(),
         None => match context.imports_wip.contains(&path) {
@@ -2982,7 +3104,12 @@ fn eval_core_proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult
         return Err(e.lang_error("eval", "Core proc 'readfile' expects a single parameter"));
     }
 
-    let path = eval_expr(context, e.get(1)?)?.value;
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let path = result.value;
+
     let source = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
@@ -3033,7 +3160,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 let variadic_args = &e.params[param_index..];
                 let mut values = Vec::new();
                 for expr in variadic_args {
-                    let val = eval_expr(context, expr)?.value;
+                    let result = eval_expr(context, expr)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let val = result.value;
                     values.push(val);
                 }
 
@@ -3048,7 +3179,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
-                let result = eval_expr(context, &current_arg)?.value;
+                let result = eval_expr(context, &current_arg)?;
+                if result.is_throw {
+                    return Ok(result); // Propagate throw
+                }
+                let result_str = result.value;
 
                 if arg.is_mut {
                     match &current_arg.node_type {
@@ -3063,16 +3198,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 match custom_type_name.as_str() {
                     "I64" => {
-                        function_context.insert_i64(&arg.name, &result);
+                        function_context.insert_i64(&arg.name, &result_str);
                     },
                     "U8" => {
-                        function_context.insert_u8(&arg.name, &result);
+                        function_context.insert_u8(&arg.name, &result_str);
                     },
                     "Bool" => {
-                        function_context.insert_bool(&arg.name, &result);
+                        function_context.insert_bool(&arg.name, &result_str);
                     },
                     "Str" => {
-                        function_context.insert_string(&arg.name, &result);
+                        function_context.insert_string(&arg.name, &result_str);
                     },
                     _ => {
                         let custom_symbol = function_context.symbols.get(custom_type_name).ok_or_else(|| {
@@ -3080,9 +3215,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         })?;
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
-                                if function_context.insert_enum(&arg.name, &custom_type_name, &result).is_none() {
+                                if function_context.insert_enum(&arg.name, &custom_type_name, &result_str).is_none() {
                                     return Err(e.lang_error("eval", &format!("Arg enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.",
-                                                                             &arg.name, &custom_type_name, &result)))
+                                                                             &arg.name, &custom_type_name, &result_str)))
                                 }
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
@@ -3503,21 +3638,22 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 
                             match member_value_type {
                                 ValueType::TCustom(type_name) => {
+                                    let result = eval_expr(context, default_value)?;
+                                    if result.is_throw {
+                                        return Ok(result); // Propagate throw
+                                    }
+                                    let expr_result_str = result.value;
                                     match type_name.as_str() {
                                         "I64" => {
-                                            let expr_result_str = eval_expr(context, default_value)?.value;
                                             context.insert_i64(&combined_name, &expr_result_str);
                                         },
                                         "U8" => {
-                                            let expr_result_str = eval_expr(context, default_value)?.value;
                                             context.insert_u8(&combined_name, &expr_result_str);
                                         },
                                         "Bool" => {
-                                            let expr_result_str = eval_expr(context, default_value)?.value;
                                             context.insert_bool(&combined_name, &expr_result_str);
                                         },
                                         "Str" => {
-                                            let expr_result_str = eval_expr(context, default_value)?.value;
                                             context.insert_string(&combined_name, &expr_result_str);
                                         },
                                         _ => {
@@ -3580,25 +3716,41 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     context.insert_i64(&declaration.name, &expr_result_str);
                     return Ok(EvalResult::new(""))
                 },
                 "U8" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     context.insert_u8(&declaration.name, &expr_result_str);
                     return Ok(EvalResult::new(""))
                 },
                 "Bool" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     context.insert_bool(&declaration.name, &expr_result_str);
                     return Ok(EvalResult::new(""))
                 },
                 "Str" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
                     context.insert_string(&declaration.name, &expr_result_str);
                     return Ok(EvalResult::new(""))
@@ -3610,7 +3762,11 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         None => return Err(e.lang_error("eval", &format!("Symbol '{}' not found in context", custom_type_name))),
                     };
                     if custom_symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
-                        let enum_expr_result_str = &eval_expr(context, inner_e)?.value;
+                        let result = eval_expr(context, inner_e)?;
+                        if result.is_throw {
+                            return Ok(result); // Propagate throw
+                        }
+                        let enum_expr_result_str = &result.value;
                         if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str).is_none() {
                             return Err(inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str)))
                         }
@@ -3629,7 +3785,11 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             }
                         }
                         // otherwise continue, it's a function that returns a struct
-                        let expr_result_str = eval_expr(context, inner_e)?.value;
+                        let result = eval_expr(context, inner_e)?;
+                        if result.is_throw {
+                            return Ok(result); // Propagate throw
+                        }
+                        let expr_result_str = result.value;
                         if let Some(offset) = context.arena_index.get(&expr_result_str) {
                             context.arena_index.insert(declaration.name.to_string(), *offset);
                         } else {
@@ -3678,19 +3838,35 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.insert_i64(var_name, &expr_result_str);
                 },
                 "U8" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.insert_u8(var_name, &expr_result_str);
                 },
                 "Bool" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.insert_bool(var_name, &expr_result_str);
                 },
                 "Str" => {
-                    let expr_result_str = eval_expr(context, inner_e)?.value;
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
                     context.insert_string(var_name, &expr_result_str);
                 },
                 _ => {
@@ -3700,13 +3876,21 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     };
                     match &custom_symbol_info.value_type {
                         ValueType::TType(TTypeDef::TEnumDef) => {
-                            let expr_result_str = eval_expr(context, inner_e)?.value;
+                            let result = eval_expr(context, inner_e)?;
+                            if result.is_throw {
+                                return Ok(result); // Propagate throw
+                            }
+                            let expr_result_str = result.value;
                             if context.insert_enum(var_name, &custom_type_name, &expr_result_str).is_none() {
                                 return Err(inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str)))
                             }
                         },
                         ValueType::TType(TTypeDef::TStructDef) => {
-                            let expr_result_str = eval_expr(context, inner_e)?.value;
+                            let result = eval_expr(context, inner_e)?;
+                            if result.is_throw {
+                                return Ok(result); // Propagate throw
+                            }
+                            let expr_result_str = result.value;
                             if !context.copy_fields(custom_type_name, &expr_result_str, var_name) {
                                 return Err(inner_e.lang_error("eval", &format!("Assign struct: Failed to copy fields from '{}' to '{}'", expr_result_str, var_name)));
                             }
@@ -4078,11 +4262,11 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
             }
             if result_cond.value.parse::<bool>().map_err(
                 |err| cond_expr.lang_error("eval", &format!("Expected bool, got '{}': {}", result_cond.value, err)))? {
-                eval_expr(context, e.get(1)?)
+                return eval_expr(context, e.get(1)?)
             } else if e.params.len() == 3 {
-                eval_expr(context, e.get(2)?)
+                return eval_expr(context, e.get(2)?)
             } else {
-                Ok(EvalResult::new(""))
+                return Ok(EvalResult::new(""))
             }
         },
         NodeType::While => {
@@ -4123,7 +4307,7 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
                 let case = e.get(param_it)?;
                 if case.node_type == NodeType::DefaultCase {
                     param_it += 1;
-                    return eval_expr(context, e.get(param_it)?);
+                    return eval_expr(context, e.get(param_it)?)
                 }
                 let case_type = get_value_type(&context, &case)?;
                 if value_type != case_type {
@@ -4135,31 +4319,34 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
                 }
                 param_it += 1;
                 if result_to_switch.value == result_case.value {
-                    return eval_expr(context, e.get(param_it)?);
+                    return eval_expr(context, e.get(param_it)?)
                 }
                 param_it += 1;
             }
-            Ok(EvalResult::new(""))
+            return Ok(EvalResult::new(""))
         },
         NodeType::Return => {
             if e.params.len() == 0 {
-                Ok(EvalResult::new_return(""))
+                return Ok(EvalResult::new_return(""))
             } else if e.params.len() > 1 {
-                Err(e.lang_error("eval", "multiple return values not implemented yet"))
+                return Err(e.lang_error("eval", "multiple return values not implemented yet"))
             } else {
                 let result = eval_expr(context, e.get(0)?)?;
                 if result.is_throw {
                     return Ok(result)
                 }
-                Ok(EvalResult::new_return(&result.value))
+                return Ok(EvalResult::new_return(&result.value))
             }
         },
         NodeType::Throw => {
             if e.params.len() != 1 {
-                Err(e.lang_error("eval", "Throw can only return one value. This should have been caught before"))
+                return Err(e.lang_error("eval", "Throw can only return one value. This should have been caught before"))
             } else {
                 let param_expr = e.get(0)?;
                 let result = eval_expr(context, param_expr)?;
+                if result.is_throw {
+                    return Ok(result)
+                }
                 let thrown_type = get_value_type(context, param_expr)?;
                 return Ok(EvalResult::new_throw(&result.value, thrown_type))
             }
