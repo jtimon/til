@@ -162,7 +162,7 @@ impl Context {
         self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| {
             Arena::g().memory.get(old_offset..old_offset + 8).and_then(
                 |slice| slice.try_into().ok().map(i64::from_ne_bytes))
-            })
+        })
     }
 
     fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
@@ -592,53 +592,38 @@ impl Context {
         return true;
     }
 
-    fn get_string(&self, id: &str) -> Option<String> {
+    fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
         let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
             Some(offset) => *offset,
-            None => {
-                println!("ERROR: get_string: missing field '{}.c_string'", id);
-                return None;
-            },
+            None => return Err(e.lang_error("context", &format!("missing field '{}.c_string'", id))),
         };
         let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
             Some(offset) => *offset,
-            None => {
-                println!("ERROR: get_string: missing field '{}.cap'", id);
-                return None;
-            },
+            None => return Err(e.lang_error("context", &format!("missing field '{}.cap'", id))),
         };
 
-        // Validate memory bounds
         if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
-            println!("ERROR: get_string: field offsets out of bounds for '{}'", id);
-            return None;
+            return Err(e.lang_error("context", &format!("field offsets out of bounds for '{}'", id)));
         }
 
         let c_string_ptr_bytes = &Arena::g().memory[c_string_offset..c_string_offset + 8];
         let c_string_ptr = match c_string_ptr_bytes.try_into() {
             Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => {
-                println!("ERROR: get_string: Failed to read c_string pointer for '{}'", id);
-                return None
-            }
+            Err(_) => return Err(e.lang_error("context", &format!("failed to read c_string pointer for '{}'", id))),
         };
 
         let cap_bytes = &Arena::g().memory[cap_offset..cap_offset + 8];
         let length = match cap_bytes.try_into() {
             Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => {
-                println!("ERROR: get_string: Failed to read cap value for '{}'", id);
-                return None
-            }
+            Err(_) => return Err(e.lang_error("context", &format!("failed to read cap value for '{}'", id))),
         };
 
         if c_string_ptr + length > Arena::g().memory.len() {
-            println!("ERROR: get_string: String content out of bounds for '{}'", id);
-            return None;
+            return Err(e.lang_error("context", &format!("string content out of bounds for '{}'", id)));
         }
 
         let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
-        Some(String::from_utf8_lossy(bytes).to_string())
+        return Ok(String::from_utf8_lossy(bytes).to_string());
     }
 
     fn insert_string(&mut self, id: &str, value_str: &String) -> Option<String> {
@@ -1431,7 +1416,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 ValueType::TType(TTypeDef::TEnumDef) => {
                     if inner_e.params.len() != 0 {
                         errors.push(e.exit_error("type", &format!("while declaring {}: enum declarations don't have any parameters in the tree.",
-                                                               decl.name)));
+                                                                  decl.name)));
                         return errors
                     }
                     match &inner_e.node_type {
@@ -1449,7 +1434,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 ValueType::TType(TTypeDef::TStructDef) => {
                     if inner_e.params.len() != 0 {
                         errors.push(e.exit_error("type", &format!("while declaring {}, struct declarations must have exactly 0 params.",
-                                                               decl.name)));
+                                                                  decl.name)));
                         return errors
                     }
                     match &inner_e.node_type {
@@ -1491,10 +1476,10 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             if !context.mode.allows_base_anything {
                 if context.mode.allows_base_calls {
                     errors.push(e.error("mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
-                                        context.mode.name, e.node_type)));
+                                                         context.mode.name, e.node_type)));
                 } else {
                     errors.push(e.error("mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
-                                        context.mode.name, e.node_type)));
+                                                         context.mode.name, e.node_type)));
                 }
             }
         },
@@ -1760,11 +1745,11 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let has_multi_arg = func_proc_has_multi_arg(&func_def);
     if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
-            f_name, func_def.args.len(), e.params.len() - 1)));
+                                             f_name, func_def.args.len(), e.params.len() - 1)));
     }
     if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
-            f_name, func_def.args.len(), e.params.len() - 1)));
+                                             f_name, func_def.args.len(), e.params.len() - 1)));
     }
 
     let max_arg_def = func_def.args.len();
@@ -2270,7 +2255,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 1 {
         errors.push(e.exit_error("type", &format!("in assignment to {}, assignments must take exactly one value, not {}.",
-                                               var_name, e.params.len())));
+                                                  var_name, e.params.len())));
         return errors
     }
 
@@ -3005,7 +2990,7 @@ fn eval_core_proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, 
             false => {
                 if !context.imports_wip.insert(path.clone()) {
                     return Err(e.lang_error("eval", &format!("While trying to import {} from {}: Can't insert in imports_wip",
-                                                        path, original_path)))
+                                                             path, original_path)))
                 }
             },
         },
@@ -3211,11 +3196,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.insert_u8(&source_name, &val.to_string());
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
-                if let Some(val) = function_context.get_string(&arg_name) {
-                    context.insert_string(&source_name, &val);
-                } else {
-                    return Err(e.lang_error("eval", &format!("Missing string value for argument '{}'", arg_name)));
-                }
+                let val = function_context.get_string(&arg_name, e)?;
+                context.insert_string(&source_name, &val.to_string());
             },
             ValueType::TCustom(ref type_name) => {
                 let symbol_info = match context.symbols.get(type_name) {
@@ -3631,7 +3613,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error("eval", &format!("Cannot declare {} of type {:?}, expected struct definition.",
-                                                             &declaration.name, &declaration.value_type))),
+                                                              &declaration.name, &declaration.value_type))),
             }
         },
         ValueType::TFunction(_) => {
@@ -3875,10 +3857,8 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Str" => {
-                    match context.get_string(&format!("{}.{}", name, inner_name)) {
-                        Some(result_str) => Ok(EvalResult::new(&result_str)),
-                        None => Err(inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))),
-                    }
+                    let result = context.get_string(&format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
                 },
                 _ => Err(inner_e.lang_error("eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
                                                              name, inner_name, value_type_to_str(&member_decl.value_type)))),
@@ -3990,9 +3970,8 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                         "Bool" => match context.get_bool(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "Str" => match context.get_string(&current_name) {
-                            Some(result) => Ok(EvalResult::new(&result)),
-                            None => Err(e.lang_error("eval", &format!("Value not set for '{}'", current_name))),
+                        "Str" => match context.get_string(&current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
                         },
                         _ => {
                             let custom_type_name = &value_type_to_str(&current_type);
@@ -4067,11 +4046,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                     },
                     "Str" => {
                         if e.params.len() == 0 {
-                            if let Some(val) = context.get_string(name) {
-                                return Ok(EvalResult::new(&val));
-                            } else {
-                                return Err(e.lang_error("eval", &format!("Identifier '{}' not found as Str.", name)));
-                            }
+                            let val = context.get_string(name, e)?;
+                            return Ok(EvalResult::new(&val.to_string()));
                         }
                         return eval_custom_expr(e, context, name, custom_type_name);
                     },
