@@ -984,14 +984,13 @@ fn get_combined_name(expr: &Expr) -> Result<String, String> {
     Ok(parts.join("."))
 }
 
-fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option<SFuncDef>, String> {
+fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
     if fcall_expr.node_type != NodeType::FCall {
         return Err(fcall_expr.lang_error("type", "Expected FCall node type"));
     }
-
     let func_expr = match fcall_expr.params.first() {
         Some(expr) => expr,
-        None => return Ok(None),
+        None => return Err(fcall_expr.lang_error("type", "get_func_def_for_fcall_with_expr: Fcalls must have a name")),
     };
 
     match &func_expr.node_type {
@@ -1001,22 +1000,50 @@ fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option
             if let Some(func_def) = context.funcs.get(&combined_name) {
                 return Ok(Some(func_def.clone()))
             }
+
+            if let Some(_struct_def) = context.struct_defs.get(&combined_name) {
+                return Ok(None) // REM: This is to allow struct instantiation
+            }
+
+            // Using UFCS
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
+                    let mut parts: Vec<&str> = combined_name.split('.').collect();
+                    parts.pop(); // Remove the last element
+
                     // Regular functions used with UFCS
                     if let Some(func_def) = context.funcs.get(&ufcs_func_name.to_string()) {
+
+                        let name = parts[0]; // TODO use new_combined_name to generalize to more than one dot
+                        let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), fcall_expr.get(0)?, Vec::new());
+                        let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), fcall_expr, Vec::new());
+                        let mut new_args = Vec::new();
+                        new_args.push(new_e);
+                        new_args.push(extra_arg_e);
+                        new_args.extend(fcall_expr.params[1..].to_vec());
+
+                        *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
                         return Ok(Some(func_def.clone()))
                     }
 
                     // Associated functions used with UFCS (aka methods)
-                    let mut parts: Vec<&str> = combined_name.split('.').collect();
-                    parts.pop(); // Remove the last element
                     let new_combined_name = parts.join(".");
                     if let Some(symbol_info) = context.symbols.get(&new_combined_name) {
+
                         match &symbol_info.value_type {
                             ValueType::TCustom(ref custom_type_name) => {
                                 let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
                                 if let Some(func_def) = context.funcs.get(&id_expr_name) {
+
+                                    let name = parts[0]; // TODO use new_combined_name to generalize to more than one dot
+                                    let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), fcall_expr.get(0)?, Vec::new());
+                                    let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), fcall_expr, Vec::new());
+                                    let mut new_args = Vec::new();
+                                    new_args.push(new_e);
+                                    new_args.push(extra_arg_e);
+                                    new_args.extend(fcall_expr.params[1..].to_vec());
+
+                                    *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
                                     return Ok(Some(func_def.clone()))
                                 }
                             },
@@ -1031,6 +1058,11 @@ fn get_func_def_for_fcall(context: &Context, fcall_expr: &Expr) -> Result<Option
         },
         _ => return Err(func_expr.lang_error("type", "Expected Identifier node type"))
     }
+}
+
+fn get_func_def_for_fcall(context: &Context, fcall_expr_: &Expr) -> Result<Option<SFuncDef>, String> {
+    let mut fcall_expr = fcall_expr_.clone();
+    return get_func_def_for_fcall_with_expr(&context, &mut fcall_expr);
 }
 
 fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
