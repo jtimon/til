@@ -123,13 +123,13 @@ impl Context {
         return Ok(keys[position as usize].clone())
     }
 
-    fn get_i64(self: &Context, id: &str) -> Option<i64> {
+    fn get_i64(self: &Context, id: &str, e: &Expr) -> Result<i64, String> {
         match self.arena_index.get(id) {
             Some(&offset) => match Arena::g().memory[offset..offset + 8].try_into() {
-                Ok(bytes) => Some(i64::from_ne_bytes(bytes)),
-                Err(_) => None,
+                Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
+                Err(_) => Err(e.lang_error("context", &format!("Invalid i64 read for id '{}'", id))),
             },
-            None => None,
+            None => Err(e.lang_error("context", &format!("i64 not found for id '{}'", id))),
         }
     }
 
@@ -3199,11 +3199,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     for (arg_name, source_name, value_type) in mut_args {
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
-                if let Some(val) = function_context.get_i64(&arg_name) {
-                    context.insert_i64(&source_name, &val.to_string());
-                } else {
-                    return Err(e.lang_error("eval", &format!("Missing I64 value for argument '{}'", arg_name)));
-                }
+                let val = function_context.get_i64(&arg_name, e)?;
+                context.insert_i64(&source_name, &val.to_string());
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
                 if let Some(val) = function_context.get_u8(&arg_name) {
@@ -3865,10 +3862,8 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    match context.get_i64(&format!("{}.{}", name, inner_name)) {
-                        Some(result) => Ok(EvalResult::new(&result.to_string())),
-                        None => Err(inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))),
-                    }
+                    let result = context.get_i64(&format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
                 },
                 "U8" => {
                     match context.get_u8(&format!("{}.{}", name, inner_name)) {
@@ -3989,9 +3984,8 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
             match current_type {
                 ValueType::TCustom(ref custom_type_name) => {
                     match custom_type_name.as_str() {
-                        "I64" => match context.get_i64(&current_name) {
-                            Some(result) => Ok(EvalResult::new(&result.to_string())),
-                            None => Err(e.lang_error("eval", &format!("Value not set for '{}'", current_name))),
+                        "I64" => match context.get_i64(&current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
                         },
                         "U8" => match context.get_u8(&current_name) {
                             Some(result) => Ok(EvalResult::new(&result.to_string())),
@@ -4065,11 +4059,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
             ValueType::TCustom(ref custom_type_name) => {
                 match custom_type_name.as_str() {
                     "I64" => {
-                        if let Some(val) = context.get_i64(name) {
-                            return Ok(EvalResult::new(&val.to_string()));
-                        } else {
-                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as I64.", name)));
-                        }
+                        let val = context.get_i64(name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()))
                     },
                     "U8" => {
                         if let Some(val) = context.get_u8(name) {
