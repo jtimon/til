@@ -1,5 +1,5 @@
 .PHONY: all tests repl cil clean
-all: cil tests rscil
+all: tests rscil
 
 rscil: src/rscil.rs
 	@mkdir -p bin
