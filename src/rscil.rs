@@ -199,33 +199,32 @@ impl Context {
         }
     }
 
-    fn insert_bool(self: &mut Context, id: &str, bool_str: &String) -> Option<bool> {
+    fn insert_bool(self: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
-            None => return None,
+            None => return Err(e.lang_error("context", &format!("Symbol '{}' not found", id))),
         };
-        let bool_to_insert = match bool_str.parse::<bool>() {
-            Ok(v) => v,
-            Err(_) => return None,
-        };
+
+        let bool_to_insert = bool_str.parse::<bool>()
+            .map_err(|_| e.lang_error("context", &format!("Invalid bool literal '{}'", bool_str)))?;
         let stored = if bool_to_insert { 0 } else { 1 }; // TODO why this is backwards?
+        let bytes = [stored];
 
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
-                let old = Arena::g().memory[offset];
                 Arena::g().memory[offset] = stored;
-                return Some(old == 0);
+                return Ok(())
             } else {
                 let offset = Arena::g().memory.len();
-                Arena::g().memory.push(stored);
+                Arena::g().memory.extend_from_slice(&bytes);
                 self.arena_index.insert(id.to_string(), offset);
-                return None;
+                return Ok(())
             }
         }
 
         let offset = Arena::g().memory.len();
-        Arena::g().memory.push(stored);
+        Arena::g().memory.extend_from_slice(&bytes);
 
         // Insert Bool data field too
         let field_id = format!("{}.data", id);
@@ -235,8 +234,8 @@ impl Context {
         });
         self.arena_index.insert(field_id, offset);
 
-        return self.arena_index.insert(id.to_string(), offset)
-            .and_then(|old_offset| Arena::g().memory.get(old_offset).copied().map(|v| v == 0));
+        self.arena_index.insert(id.to_string(), offset);
+        return Ok(())
     }
 
     fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str) -> bool {
@@ -3112,7 +3111,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_u8(&arg.name, &result_str, e)?;
                     },
                     "Bool" => {
-                        function_context.insert_bool(&arg.name, &result_str);
+                        function_context.insert_bool(&arg.name, &result_str, e)?;
                     },
                     "Str" => {
                         function_context.insert_string(&arg.name, &result_str);
@@ -3557,7 +3556,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                             context.insert_u8(&combined_name, &expr_result_str, e)?;
                                         },
                                         "Bool" => {
-                                            context.insert_bool(&combined_name, &expr_result_str);
+                                            context.insert_bool(&combined_name, &expr_result_str, e)?;
                                         },
                                         "Str" => {
                                             context.insert_string(&combined_name, &expr_result_str);
@@ -3648,7 +3647,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     }
                     let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_bool(&declaration.name, &expr_result_str);
+                    context.insert_bool(&declaration.name, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 "Str" => {
@@ -3765,7 +3764,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_bool(var_name, &expr_result_str);
+                    context.insert_bool(var_name, &expr_result_str, e)?;
                 },
                 "Str" => {
                     let result = eval_expr(context, inner_e)?;
