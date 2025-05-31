@@ -198,10 +198,13 @@ impl Context {
         return self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| Arena::g().memory.get(old_offset).copied());
     }
 
-    fn get_bool(self: &Context, id: &str) -> Option<bool> {
+    fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
         match self.arena_index.get(id) {
-            Some(&offset) => Arena::g().memory.get(offset).map(|&v| v == 0),
-            None => None,
+            Some(&offset) => match Arena::g().memory.get(offset) {
+                Some(&byte) => Ok(byte == 0), // <- Fix: restore original behavior
+                None => Err(e.lang_error("context", &format!("Invalid bool read for id '{}'", id))),
+            },
+            None => Err(e.lang_error("context", &format!("bool not found for id '{}'", id))),
         }
     }
 
@@ -3868,10 +3871,8 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Bool" => {
-                    match context.get_bool(&format!("{}.{}", name, inner_name)) {
-                        Some(result) => Ok(EvalResult::new(&result.to_string())),
-                        None => Err(inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))),
-                    }
+                    let result = context.get_bool(&format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Str" => {
                     match context.get_string(&format!("{}.{}", name, inner_name)) {
@@ -3986,9 +3987,8 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                         "U8" => match context.get_u8(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "Bool" => match context.get_bool(&current_name) {
-                            Some(result) => Ok(EvalResult::new(&result.to_string())),
-                            None => Err(e.lang_error("eval", &format!("Value not set for '{}'", current_name))),
+                        "Bool" => match context.get_bool(&current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
                         },
                         "Str" => match context.get_string(&current_name) {
                             Some(result) => Ok(EvalResult::new(&result)),
@@ -4062,11 +4062,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Bool" => {
-                        if let Some(val) = context.get_bool(name) {
-                            return Ok(EvalResult::new(&val.to_string()));
-                        } else {
-                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as Bool.", name)));
-                        }
+                        let val = context.get_bool(name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Str" => {
                         if e.params.len() == 0 {
