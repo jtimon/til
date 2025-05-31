@@ -133,36 +133,28 @@ impl Context {
         }
     }
 
-    fn insert_i64(self: &mut Context, id: &str, i64_str: &String) -> Option<i64> {
-        let v = match i64_str.parse::<i64>() {
-            Ok(v) => v,
-            Err(_) => return None, // or handle error differently if needed
-        };
+    fn insert_i64(self: &mut Context, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
+        let v = i64_str.parse::<i64>()
+            .map_err(|_| e.lang_error("context", &format!("Invalid i64 literal '{}'", i64_str)))?;
         let bytes = v.to_ne_bytes();
 
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
-                let old_value = match Arena::g().memory.get(offset..offset + 8) {
-                    Some(slice) => i64::from_ne_bytes(slice.try_into().ok()?),
-                    None => return None,
-                };
                 Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
-                return Some(old_value);
+                return Ok(())
             } else {
                 let offset = Arena::g().memory.len();
                 Arena::g().memory.extend_from_slice(&bytes);
                 self.arena_index.insert(id.to_string(), offset);
-                return None;
+                return Ok(())
             }
         }
 
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
-        self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| {
-            Arena::g().memory.get(old_offset..old_offset + 8).and_then(
-                |slice| slice.try_into().ok().map(i64::from_ne_bytes))
-        })
+        self.arena_index.insert(id.to_string(), offset);
+        return Ok(())
     }
 
     fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
@@ -1331,7 +1323,6 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
-            // let _ = eval_core_proc_import(context, &e);
             if f_name == "import" {
                 match eval_core_proc_import(context, &e) {
                     Ok(_) => {},
@@ -3116,7 +3107,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 match custom_type_name.as_str() {
                     "I64" => {
-                        function_context.insert_i64(&arg.name, &result_str);
+                        function_context.insert_i64(&arg.name, &result_str, e)?;
                     },
                     "U8" => {
                         function_context.insert_u8(&arg.name, &result_str);
@@ -3189,7 +3180,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
                 let val = function_context.get_i64(&arg_name, e)?;
-                context.insert_i64(&source_name, &val.to_string());
+                context.insert_i64(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
                 let val = function_context.get_u8(&arg_name, e)?;
@@ -3561,7 +3552,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                     let expr_result_str = result.value;
                                     match type_name.as_str() {
                                         "I64" => {
-                                            context.insert_i64(&combined_name, &expr_result_str);
+                                            context.insert_i64(&combined_name, &expr_result_str, e)?;
                                         },
                                         "U8" => {
                                             context.insert_u8(&combined_name, &expr_result_str);
@@ -3638,7 +3629,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     }
                     let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_i64(&declaration.name, &expr_result_str);
+                    context.insert_i64(&declaration.name, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 "U8" => {
@@ -3759,7 +3750,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_i64(var_name, &expr_result_str);
+                    context.insert_i64(var_name, &expr_result_str, e)?;
                 },
                 "U8" => {
                     let result = eval_expr(context, inner_e)?;
