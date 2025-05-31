@@ -11,32 +11,6 @@ pub struct SEnumDef {
     pub enum_map: HashMap<String, Option<ValueType>>,
 }
 
-impl SEnumDef {
-    pub fn get_variant_pos(self: &SEnumDef, variant_name: &str) -> i64 {
-        return match self.enum_map.keys().position(|k| k == variant_name) {
-            Some(position) => {
-                position as i64
-            }
-            None => {
-                println!("Error: Enum variant '{}' not found in enum map.", variant_name);
-                0
-            }
-        }
-    }
-
-    pub fn variant_pos_to_str(self: &SEnumDef, position: i64) -> Result<String, String> {
-        let keys: Vec<String> = self.enum_map.keys().cloned().collect();
-        if position < 0 || position >= keys.len() as i64 {
-            // Return an error if the position is out of bounds
-            return Err(format!("Error: Invalid position '{}' for enum variant in '{}'.",
-                               position, self.enum_map.keys().cloned().collect::<Vec<_>>().join(", ")))
-        }
-
-        // If position is valid, return the corresponding variant name
-        return Ok(keys[position as usize].clone())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub name: String,

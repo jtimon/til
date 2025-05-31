@@ -102,6 +102,27 @@ impl Context {
         });
     }
 
+    fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, e: &Expr) -> Result<i64, String> {
+        match selfi.enum_map.keys().position(|k| k == variant_name) {
+            Some(position) => Ok(position as i64),
+            None => {
+                return Err(e.lang_error("context", &format!("Error: Enum variant '{}' not found in enum map.", variant_name)))
+            },
+        }
+    }
+
+    fn variant_pos_to_str(selfi: &SEnumDef, position: i64, e: &Expr) -> Result<String, String> {
+        let keys: Vec<String> = selfi.enum_map.keys().cloned().collect();
+        if position < 0 || position >= keys.len() as i64 {
+            // Return an error if the position is out of bounds
+            return Err(e.lang_error("context", &format!("Error: Invalid position '{}' for enum variant in '{}'.",
+                                                        position, selfi.enum_map.keys().cloned().collect::<Vec<_>>().join(", "))));
+        }
+
+        // If position is valid, return the corresponding variant name
+        return Ok(keys[position as usize].clone())
+    }
+
     fn get_i64(self: &Context, id: &str) -> Option<i64> {
         match self.arena_index.get(id) {
             Some(&offset) => match Arena::g().memory[offset..offset + 8].try_into() {
@@ -732,7 +753,7 @@ impl Context {
         return Some(value_str.clone());
     }
 
-    fn get_enum(self: &Context, id: &str) -> Option<EnumVal> {
+    fn get_enum(self: &Context, id: &str, e: &Expr) -> Option<EnumVal> {
         // Look up the symbol information for the id
         let symbol_info = match self.symbols.get(id) {
             Some(symbol) => symbol,
@@ -764,7 +785,7 @@ impl Context {
         };
 
         // Use the variant_pos_to_str function to get the enum variant name based on the position
-        let enum_name = match enum_def.variant_pos_to_str(enum_value) {
+        let enum_name = match Context::variant_pos_to_str(enum_def, enum_value, &e) {
             Ok(enum_name_) => enum_name_,
             Err(error_string) => {
                 println!("{error_string}");
@@ -778,8 +799,8 @@ impl Context {
             enum_name: enum_name.to_string(),
         })
     }
-
-    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str) -> Option<EnumVal> {
+    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
+    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Option<EnumVal> {
         // Look up the enum definition from `self.enum_defs`
         let enum_def = match self.enum_defs.get(enum_type) {
             Some(def) => def,
@@ -790,12 +811,18 @@ impl Context {
         let enum_name = match pre_normalized_enum_name.split('.').last() {
             Some(name) => name,
             None => {
-                println!("Error: Invalid enum name format '{}'", pre_normalized_enum_name);
-                return None
+                println!("{}", e.lang_error("context", &format!("Invalid enum name format '{}'", pre_normalized_enum_name)));
+                return None;
             },
         };
 
-        let enum_value = enum_def.get_variant_pos(enum_name);
+        let enum_value = match Context::get_variant_pos(enum_def, enum_name, e) {
+            Ok(v) => v,
+            Err(msg) => {
+                println!("{}", msg);
+                return None;
+            }
+        };
 
         // If the id represents a field (e.g., struct field), we should update it in the arena
         let is_field = id.contains('.');
@@ -3117,7 +3144,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         })?;
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
-                                if function_context.insert_enum(&arg.name, &custom_type_name, &result_str).is_none() {
+                                if function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e).is_none() {
                                     return Err(e.lang_error("eval", &format!("Arg enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.",
                                                                              &arg.name, &custom_type_name, &result_str)))
                                 }
@@ -3201,8 +3228,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        if let Some(val) = function_context.get_enum(&arg_name) {
-                            context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name));
+                        if let Some(val) = function_context.get_enum(&arg_name, e) {
+                            context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e);
                         } else {
                             return Err(e.lang_error("eval", &format!("Missing enum value for argument '{}'", arg_name)));
                         }
@@ -3676,7 +3703,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             return Ok(result); // Propagate throw
                         }
                         let enum_expr_result_str = &result.value;
-                        if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str).is_none() {
+                        if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str, e).is_none() {
                             return Err(inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str)))
                         }
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
@@ -3790,7 +3817,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            if context.insert_enum(var_name, &custom_type_name, &expr_result_str).is_none() {
+                            if context.insert_enum(var_name, &custom_type_name, &expr_result_str, e).is_none() {
                                 return Err(inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str)))
                             }
                         },
@@ -3900,7 +3927,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     };
     match custom_symbol.value_type {
         ValueType::TType(TTypeDef::TEnumDef) => {
-            match context.get_enum(name) {
+            match context.get_enum(name, e) {
                 Some(enum_val) => Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name))),
                 None => Err(e.lang_error("eval", &format!("Enum '{}' not found for custom type '{}'.", name, custom_type_name))),
             }
@@ -3986,7 +4013,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                             };
                             match &custom_symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) => {
-                                    match context.get_enum(&current_name) {
+                                    match context.get_enum(&current_name, inner_e) {
                                         Some(enum_val) => Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name))),
                                         None => Err(inner_e.lang_error("eval", &format!("Value not set for field '{}'", current_name))),
                                     }
