@@ -3345,17 +3345,28 @@ fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalR
 }
 
 fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if context.funcs.contains_key(name) {
-        let func_def = match context.funcs.get(name) {
+    if e.node_type != NodeType::FCall {
+        return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall node type"));
+    }
+    let func_expr = match e.params.first() {
+        Some(expr) => expr,
+        None => return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
+    };
+    let combined_name = &get_combined_name(func_expr)?;
+    // Regular functions and associated functions used directly
+    if context.funcs.contains_key(combined_name) {
+        let func_def = match context.funcs.get(combined_name) {
             Some(def) => def.clone(),
-            None => return Err(e.lang_error("eval", &format!("function '{}' not found a", name))),
+            None => return Err(e.lang_error("eval", &format!("function '{}' not found a", combined_name))),
         };
         if func_def.is_ext() {
             let is_proc = func_def.is_proc();
-            return eval_core_func_proc_call(&name, context, &e, is_proc)
+            return eval_core_func_proc_call(&combined_name, context, &e, is_proc)
         }
-        return eval_user_func_proc_call(&func_def, &name, context, &e)
-    } else if context.struct_defs.contains_key(name) {
+        return eval_user_func_proc_call(&func_def, &combined_name, context, &e)
+    }
+
+    if context.struct_defs.contains_key(name) {
         let struct_def = match context.struct_defs.get(name) {
             Some(def) => def,
             None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", name))),
