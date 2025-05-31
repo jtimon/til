@@ -3419,10 +3419,6 @@ fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalR
     // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
     let id_expr = e.get(0)?;
     let name = get_func_name_in_call(&e);
-    if id_expr.params.len() == 0 { // TODO Do we really need this check?
-        return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)));
-    }
-
     let after_dot = match id_expr.params.get(0) {
         Some(ad) => ad,
         None => return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name))),
