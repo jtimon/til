@@ -165,10 +165,11 @@ impl Context {
             })
     }
 
-    fn get_u8(self: &Context, id: &str) -> Option<u8> {
-        return match self.arena_index.get(id) {
-            Some(&offset) => Some(Arena::g().memory[offset]),
-            None => None,
+    fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
+        match self.arena_index.get(id) {
+            Some(&offset) => Arena::g().memory.get(offset).copied()
+                .ok_or_else(|| e.lang_error("context", &format!("Invalid u8 read for id '{}'", id))),
+            None => Err(e.lang_error("context", &format!("u8 not found for id '{}'", id))),
         }
     }
 
@@ -3203,11 +3204,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.insert_i64(&source_name, &val.to_string());
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
-                if let Some(val) = function_context.get_u8(&arg_name) {
-                    context.insert_u8(&source_name, &val.to_string());
-                } else {
-                    return Err(e.lang_error("eval", &format!("Missing U8 value for argument '{}'", arg_name)));
-                }
+                let val = function_context.get_u8(&arg_name, e)?;
+                context.insert_u8(&source_name, &val.to_string());
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 if let Some(val) = function_context.get_string(&arg_name) {
@@ -3866,10 +3864,8 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "U8" => {
-                    match context.get_u8(&format!("{}.{}", name, inner_name)) {
-                        Some(result) => Ok(EvalResult::new(&result.to_string())),
-                        None => Err(inner_e.lang_error("eval", &format!("value not set for '{}.{}'", name, inner_name))),
-                    }
+                    let result = context.get_u8(&format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Bool" => {
                     match context.get_bool(&format!("{}.{}", name, inner_name)) {
@@ -3987,9 +3983,8 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                         "I64" => match context.get_i64(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "U8" => match context.get_u8(&current_name) {
-                            Some(result) => Ok(EvalResult::new(&result.to_string())),
-                            None => Err(e.lang_error("eval", &format!("Value not set for '{}'", current_name))),
+                        "U8" => match context.get_u8(&current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
                         },
                         "Bool" => match context.get_bool(&current_name) {
                             Some(result) => Ok(EvalResult::new(&result.to_string())),
@@ -4063,11 +4058,8 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                         return Ok(EvalResult::new(&val.to_string()))
                     },
                     "U8" => {
-                        if let Some(val) = context.get_u8(name) {
-                            return Ok(EvalResult::new(&val.to_string()));
-                        } else {
-                            return Err(e.lang_error("eval", &format!("Identifier '{}' not found as U8.", name)));
-                        }
+                        let val = context.get_u8(name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Bool" => {
                         if let Some(val) = context.get_bool(name) {
