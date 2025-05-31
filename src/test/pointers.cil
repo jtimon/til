@@ -13,6 +13,8 @@ ptr_test := proc() {
     r := Ptr.offset(p, 16)
     println("Offset pointer address: ", I64.to_str(r.data))
 
+    // s := Ptr.new2(I64) // TODO FIX
+
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
     Ptr.free(p)
     Ptr.free(q)

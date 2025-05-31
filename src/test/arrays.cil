@@ -157,3 +157,71 @@ test_array_dynamic_i64 := proc() {
     assert_eq(loc(), 0, dyn.cap)
 }
 test_array_dynamic_i64()
+
+Vec2 := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+    new := func(x: I64, y: I64) returns Vec2 {
+        mut v := Vec2()
+        v.x = x
+        v.y = y
+        return v
+    }
+}
+
+test_array_static_vec2 := proc() {
+    mut stat := Array.new("Vec2", size_of(Vec2), 3) // TODO More ergonomic constructor
+    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), stat.cap, stat.len)
+    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
+
+    // v1 = Vec2.new(1, 2) // TODO FIX
+    // v2 = Vec2.new(3, 4) // TODO FIX
+    // v3 = Vec2.new(5, 6) // TODO FIX
+    v1 := Vec2.new(1, 2)
+    v2 := Vec2.new(3, 4)
+    v3 := Vec2.new(5, 6)
+    stat.set(0, v1)
+    stat.set(0, v2)
+    stat.set(0, v3)
+
+    mut v := Vec2()
+    stat.get(2, v)
+    // assert_eq(loc(), 5, v.x) // TODO FIX
+    // assert_eq(loc(), 6, v.y) // TODO FIX
+
+    // stat.push(Vec2.new(7, 8)) // Should panic if uncommented
+
+    stat.delete()
+}
+test_array_static_vec2()
+
+test_array_dynamic_vec2 := proc() {
+    mut dyn := Array.new_dyn("Vec2", size_of(Vec2)) // TODO More ergonomic constructor
+    assert_eq(loc(), 0, dyn.len)
+    // assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap) // Optional: verify cap
+
+    // dyn.push(Vec2.new(10, 20)) // TODO FIX
+    // dyn.push(Vec2.new(30, 40)) // TODO FIX
+    v1 := Vec2.new(10, 20)
+    dyn.push(v1)
+    v2 := Vec2.new(30, 40)
+    dyn.push(v2)
+
+    // assert_eq(loc(), 2, dyn.len) // Optional
+    // mut v0 := dyn.get(0)
+    // test(loc(), I64.eq(v0.x, 10), "v0.x should be 10")
+    // test(loc(), I64.eq(v0.y, 20), "v0.y should be 20")
+
+    // dyn.set(0, Vec2.new(50, 60))
+    // mut v1 := dyn.get(0)
+    // test(loc(), I64.eq(v1.x, 50), "v1.x should be 50")
+    // test(loc(), I64.eq(v1.y, 60), "v1.y should be 60")
+
+    dyn.delete()
+    assert_eq(loc(), 0, dyn.ptr)
+    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.cap)
+}
+test_array_dynamic_vec2()

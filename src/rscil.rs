@@ -3196,6 +3196,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     }
                 }
 
+                let custom_type_name = &match custom_type_name.as_str() {
+                    "Dynamic" => value_type_to_str(&get_value_type(context, &current_arg)?),
+                    _ => custom_type_name.clone(),
+                };
+
                 match custom_type_name.as_str() {
                     "I64" => {
                         function_context.insert_i64(&arg.name, &result_str);
@@ -3962,10 +3967,6 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
 }
 
 fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() == 0 {
-        return Err(e.lang_error("eval", &format!("struct type '{}' can't be used as a primary expression.", name)))
-    }
-
     let struct_def = match context.struct_defs.get(name) {
         Some(def) => def,
         None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", name))),
@@ -4108,9 +4109,6 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                 return Ok(EvalResult::new(name));
             },
             ValueType::TType(TTypeDef::TEnumDef) => {
-                if e.params.len() == 0 {
-                    return Err(e.lang_error("eval", &format!("enum type '{}' can't be used as a primary expression.", name)))
-                }
                 // let enum_def = match context.enum_defs.get(name) {
                 //     Some(def) => def,
                 //     None => return Err(e.lang_error("eval", &format!("Enum '{}' not found in context", name))),
