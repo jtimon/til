@@ -165,29 +165,28 @@ impl Context {
         }
     }
 
-    fn insert_u8(self: &mut Context, id: &str, u8_str: &String) -> Option<u8> {
-        let v = match u8_str.parse::<u8>() {
-            Ok(val) => val,
-            Err(_) => return None,
-        };
+    fn insert_u8(self: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
+        let v = u8_str.parse::<u8>()
+            .map_err(|_| e.lang_error("context", &format!("Invalid u8 literal '{}'", u8_str)))?;
+        let bytes = [v];
 
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
-                let old = *Arena::g().memory.get(offset)?;
                 Arena::g().memory[offset] = v;
-                return Some(old);
+                return Ok(())
             } else {
                 let offset = Arena::g().memory.len();
-                Arena::g().memory.push(v);
+                Arena::g().memory.extend_from_slice(&bytes);
                 self.arena_index.insert(id.to_string(), offset);
-                return None;
+                return Ok(())
             }
         }
 
         let offset = Arena::g().memory.len();
-        Arena::g().memory.push(v);
-        return self.arena_index.insert(id.to_string(), offset).and_then(|old_offset| Arena::g().memory.get(old_offset).copied());
+        Arena::g().memory.extend_from_slice(&bytes);
+        self.arena_index.insert(id.to_string(), offset);
+        return Ok(())
     }
 
     fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
@@ -3110,7 +3109,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_i64(&arg.name, &result_str, e)?;
                     },
                     "U8" => {
-                        function_context.insert_u8(&arg.name, &result_str);
+                        function_context.insert_u8(&arg.name, &result_str, e)?;
                     },
                     "Bool" => {
                         function_context.insert_bool(&arg.name, &result_str);
@@ -3184,7 +3183,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
                 let val = function_context.get_u8(&arg_name, e)?;
-                context.insert_u8(&source_name, &val.to_string());
+                context.insert_u8(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = function_context.get_string(&arg_name, e)?;
@@ -3555,7 +3554,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                             context.insert_i64(&combined_name, &expr_result_str, e)?;
                                         },
                                         "U8" => {
-                                            context.insert_u8(&combined_name, &expr_result_str);
+                                            context.insert_u8(&combined_name, &expr_result_str, e)?;
                                         },
                                         "Bool" => {
                                             context.insert_bool(&combined_name, &expr_result_str);
@@ -3639,7 +3638,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     }
                     let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_u8(&declaration.name, &expr_result_str);
+                    context.insert_u8(&declaration.name, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 "Bool" => {
@@ -3758,7 +3757,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_u8(var_name, &expr_result_str);
+                    context.insert_u8(var_name, &expr_result_str, e)?;
                 },
                 "Bool" => {
                     let result = eval_expr(context, inner_e)?;
