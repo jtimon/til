@@ -3149,36 +3149,6 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
     }
 }
 
-fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-
-    let id_expr = e.get(0)?;
-    let name = get_func_name_in_call(e);
-    let after_dot = id_expr.params.get(0)
-        .ok_or_else(|| e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)))?;
-
-    let after_dot_name = if let NodeType::Identifier(f_name_) = &after_dot.node_type {
-        f_name_.clone()
-    } else {
-        return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)));
-    };
-
-    let id_expr_name = format!("{}.{}", name, after_dot_name);
-
-    let mut new_args = vec![
-        Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0)?, Vec::new()),
-        Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new()),
-    ];
-    new_args.extend_from_slice(&e.params[1..]);
-
-    let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0)?, new_args);
-
-    let func_def = context.funcs.get(&after_dot_name)
-        .cloned()
-        .ok_or_else(|| after_dot.lang_error("eval", &format!("Cannot call '{}'. Undefined function.", after_dot_name)))?;
-
-    eval_user_func_proc_call(&func_def, &id_expr_name, context, &new_fcall_e)
-}
-
 fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.node_type != NodeType::FCall {
         return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall node type"));
@@ -3187,25 +3157,9 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         Some(expr) => expr,
         None => return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
     };
-    let combined_name = &get_combined_name(func_expr)?;
-    // Regular functions and associated functions used directly
-    if context.funcs.contains_key(combined_name) {
-        let func_def = match context.funcs.get(combined_name) {
-            Some(def) => def.clone(),
-            None => return Err(e.lang_error("eval", &format!("function '{}' not found a", combined_name))),
-        };
-        if func_def.is_ext() {
-            let is_proc = func_def.is_proc();
-            return eval_core_func_proc_call(&combined_name, context, &e, is_proc)
-        }
-        return eval_user_func_proc_call(&func_def, &combined_name, context, &e)
-    }
 
     if context.struct_defs.contains_key(name) {
-        let struct_def = match context.struct_defs.get(name) {
-            Some(def) => def,
-            None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", name))),
-        };
+        // TODO allow instantiations with arguments
         let id_expr = e.get(0)?;
         if id_expr.params.len() == 0 {
             let id_name = match &id_expr.node_type {
@@ -3220,101 +3174,22 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
             }))
         }
-
-        let after_dot = match id_expr.params.get(0) {
-            Some(_after_dot) => _after_dot,
-            None => {
-                return Err(e.todo_error("eval", &format!("Cannot instantiate '{}'. Not implemented yet.", name)))
-            },
-        };
-        match &after_dot.node_type {
-            NodeType::Identifier(after_dot_name) => {
-                let _member_decl = match struct_def.members.get(after_dot_name) {
-                    Some(_member) => _member,
-                    None => {
-                        return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}' i", name, after_dot_name)))
-                    },
-                };
-                let combined_name = format!("{}.{}", name, after_dot_name);
-                if !context.funcs.contains_key(&combined_name) {
-                    return Err(e.lang_error("eval", &format!("method '{}' not found in context", combined_name)))
-                }
-
-                let func_def = match context.funcs.get(&combined_name) {
-                    Some(def) => def.clone(),
-                    None => return Err(e.lang_error("eval", &format!("function '{}' not found b", combined_name))),
-                };
-                return eval_user_func_proc_call(&func_def, &name, context, &e)
-            },
-            _ => {
-                return Err(e.lang_error("eval", &format!("expected identifier after '{}.' found {:?}", name, after_dot.node_type)))
-            },
-        }
-    } else if context.symbols.contains_key(name) {
-        let symbol = match context.symbols.get(name) {
-            Some(sym) => sym,
-            None => return Err(e.lang_error("eval", &format!("Symbol '{}' not found in context", name))),
-        };
-        match &symbol.value_type {
-            ValueType::TCustom(custom_type_name) => {
-                let struct_def = match context.struct_defs.get(custom_type_name) {
-                    Some(_struct_def) => _struct_def,
-                    None => {
-                        return eval_func_proc_call_try_ufcs(context, &e);
-                    },
-                };
-
-                let id_expr = e.get(0)?;
-                let after_dot = match id_expr.params.get(0) {
-                    Some(_after_dot) => _after_dot,
-                    None => {
-                        return eval_func_proc_call_try_ufcs(context, &e) // This is used for 'StructName()' kind of instantiations
-                    },
-                };
-
-                let after_dot_name = match &after_dot.node_type {
-                    NodeType::Identifier(f_name_) => f_name_.clone(),
-                    _ => return eval_func_proc_call_try_ufcs(context, &e),
-                };
-
-                let member_default_value = match struct_def.default_values.get(&after_dot_name) {
-                    Some(_member) => _member,
-                    None => {
-                        return eval_func_proc_call_try_ufcs(context, &e)
-                    },
-                };
-
-                // check that the function is a method in the struct, and if not try regular UFCS
-                let id_expr_name = match &member_default_value.node_type {
-                    NodeType::FuncDef(_func_def) => {
-                        format!("{}.{}", custom_type_name, after_dot_name)
-                    },
-                    _  => {
-                        return eval_func_proc_call_try_ufcs(context, &e)
-                    },
-                };
-
-                let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), e.get(0)?, Vec::new());
-                let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
-                let mut new_args = Vec::new();
-                new_args.push(new_e);
-                new_args.push(extra_arg_e);
-                new_args.extend(e.params[1..].to_vec());
-                let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0)?, new_args);
-                let func_def = match context.funcs.get(&id_expr_name) {
-                    Some(def) => def.clone(),
-                    None => return Err(e.lang_error("eval", &format!("function '{}' not found c", id_expr_name))),
-                };
-                return eval_user_func_proc_call(&func_def, &id_expr_name, context, &new_fcall_e)
-            },
-            _ => {
-                return eval_func_proc_call_try_ufcs(context, &e)
-            },
-        }
-
-    } else {
-        return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)))
     }
+
+    let combined_name = &get_combined_name(func_expr)?;
+    let mut new_fcall_e = e.clone();
+    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
+        Some(func_def_) => func_def_,
+        None  => {
+            return Err(e.lang_error("eval", "eval_func_proc_call: Instantiations should be handled already"))
+        },
+    };
+    if func_def.is_ext() {
+        // External/core functions are treated specially
+        let is_proc = func_def.is_proc();
+        return eval_core_func_proc_call(&combined_name, context, &e, is_proc)
+    }
+    return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }
 
 fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
