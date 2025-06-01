@@ -668,55 +668,31 @@ impl Context {
     }
 
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
-    fn insert_enum(self: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Option<EnumVal> {
-        // Look up the enum definition from `self.enum_defs`
-        let enum_def = match self.enum_defs.get(enum_type) {
-            Some(def) => def,
-            None => return None, // If no enum definition is found, return None
-        };
+    fn insert_enum(&mut self, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
+        let enum_def = self.enum_defs.get(enum_type)
+            .ok_or_else(|| e.lang_error("context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
 
-        // Normalize the enum_name: remove the type name prefix (e.g., "ExampleEnum." -> "")
-        let enum_name = match pre_normalized_enum_name.split('.').last() {
-            Some(name) => name,
-            None => {
-                println!("{}", e.lang_error("context", &format!("Invalid enum name format '{}'", pre_normalized_enum_name)));
-                return None;
-            },
-        };
+        let enum_name = pre_normalized_enum_name.split('.').last()
+            .ok_or_else(|| e.lang_error("context", &format!("insert_enum: Invalid enum name format '{}'", pre_normalized_enum_name)))?;
 
-        let enum_value = match Context::get_variant_pos(enum_def, enum_name, e) {
-            Ok(v) => v,
-            Err(msg) => {
-                println!("{}", msg);
-                return None;
-            }
-        };
+        let enum_value = Context::get_variant_pos(enum_def, enum_name, e)?;
 
-        // If the id represents a field (e.g., struct field), we should update it in the arena
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
-                // Update existing field in the arena with the new enum value
                 Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
             } else {
-                // Insert as a new field in the arena
                 let offset = Arena::g().memory.len();
-                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes()); // store the i64 enum value directly
+                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
                 self.arena_index.insert(id.to_string(), offset);
             }
-            return Some(EnumVal {
-                enum_type: enum_type.to_string(),
-                enum_name: enum_name.to_string(),
-            })
+        } else {
+            let offset = Arena::g().memory.len();
+            Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+            self.arena_index.insert(id.to_string(), offset);
         }
 
-        // Insert as a new enum in the arena memory
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes()); // store the i64 enum value directly
-        self.arena_index.insert(id.to_string(), offset);
-
-        // Return the EnumVal with the enum type and enum name for reference
-        return Some(EnumVal {
+        Ok(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name: enum_name.to_string(),
         })
@@ -2995,10 +2971,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         })?;
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
-                                if function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e).is_none() {
-                                    return Err(e.lang_error("eval", &format!("Arg enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.",
-                                                                             &arg.name, &custom_type_name, &result_str)))
-                                }
+                                function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
                                 function_context.insert_struct(&arg.name, &custom_type_name, e)?;
@@ -3065,7 +3038,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         let val = function_context.get_enum(&arg_name, e)?;
-                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e);
+                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // TODO this can be simplified once we pass all args by reference
@@ -3536,9 +3509,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             return Ok(result); // Propagate throw
                         }
                         let enum_expr_result_str = &result.value;
-                        if context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str, e).is_none() {
-                            return Err(inner_e.lang_error("eval", &format!("Declare enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", &declaration.name, custom_type_name, enum_expr_result_str)))
-                        }
+                        context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str, e)?;
+
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
                         if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
@@ -3648,9 +3620,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            if context.insert_enum(var_name, &custom_type_name, &expr_result_str, e).is_none() {
-                                return Err(inner_e.lang_error("eval", &format!("Assign enum: Unable to insert enum '{}' of custom type '{}' with value '{}'.", var_name, &custom_type_name, &expr_result_str)))
-                            }
+                            context.insert_enum(var_name, &custom_type_name, &expr_result_str, e)?;
                         },
                         ValueType::TType(TTypeDef::TStructDef) => {
                             let result = eval_expr(context, inner_e)?;
