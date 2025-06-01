@@ -334,9 +334,12 @@ scan_tokens := proc(source: Str) returns TokenArray {
             switch current_char {
                 // chars to ignore in this language:
             case " ":  pos.inc()
-            case "\n": pos.inc()
             case "\r": pos.inc()
             case "\t": pos.inc()
+            case "\n":
+                pos.inc()
+                line.inc()
+                start_line_pos = pos
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
