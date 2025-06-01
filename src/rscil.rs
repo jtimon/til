@@ -616,7 +616,7 @@ impl Context {
         return Ok(String::from_utf8_lossy(bytes).to_string());
     }
 
-    fn insert_string(&mut self, id: &str, value_str: &String) -> Option<String> {
+    fn insert_string(self: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         let is_field = id.contains('.');
 
         // Allocate string data
@@ -636,14 +636,7 @@ impl Context {
                             continue;
                         }
 
-                        let type_size = match self.get_type_size(&value_type_to_str(&decl.value_type)) {
-                            Ok(size) => size,
-                            Err(msg) => {
-                                println!("ERROR: {}", msg);
-                                return None;
-                            }
-                        };
-
+                        let type_size = self.get_type_size(&value_type_to_str(&decl.value_type))?;
                         let absolute_offset = base_offset + current_offset;
                         let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
 
@@ -656,12 +649,9 @@ impl Context {
                         self.arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
                         current_offset += type_size;
                     }
-
-                    return Some(value_str.clone());
-                } else {
-                    println!("ERROR: 'Str' struct definition not found");
-                    return None;
+                    return Ok(())
                 }
+                return Err(e.lang_error("context", "ERROR: 'Str' struct definition not found"))
             }
 
             // Not yet inserted — insert fresh inlined Str
@@ -674,14 +664,7 @@ impl Context {
                         continue;
                     }
 
-                    let type_size = match self.get_type_size(&value_type_to_str(&decl.value_type)) {
-                        Ok(size) => size,
-                        Err(msg) => {
-                            println!("ERROR: {}", msg);
-                            return None;
-                        }
-                    };
-
+                    let type_size = self.get_type_size(&value_type_to_str(&decl.value_type))?;
                     if Arena::g().memory.len() < struct_offset + current_offset + type_size {
                         Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
                     }
@@ -698,38 +681,33 @@ impl Context {
                 }
 
                 self.arena_index.insert(id.to_string(), struct_offset);
-                return None;
-            } else {
-                println!("ERROR: 'Str' struct definition not found");
-                return None;
+                return Ok(())
             }
+            return Err(e.lang_error("context", "'Str' struct definition not found"))
         }
 
         // Not a field: call insert_struct first
         if !self.insert_struct(id, "Str") {
-            println!("ERROR: insert_string: Failed to insert struct '{}'", id);
-            return None;
+            return Err(e.lang_error("context", &format!("insert_string: Failed to insert struct '{}'", id)))
         }
 
         let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
             Some(&offset) => offset,
             None => {
-                println!("ERROR: insert_string: missing '{}.c_string'", id);
-                return None;
+                return Err(e.lang_error("context", &format!("insert_string: missing '{}.c_string'", id)))
             }
         };
         let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
             Some(&offset) => offset,
             None => {
-                println!("ERROR: insert_string: missing '{}.cap'", id);
-                return None;
+                return Err(e.lang_error("context", &format!("insert_string: missing '{}.cap'", id)))
             }
         };
 
         Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
         Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
 
-        return Some(value_str.clone());
+        return Ok(())
     }
 
     fn get_enum(self: &Context, id: &str, e: &Expr) -> Option<EnumVal> {
@@ -833,21 +811,17 @@ impl Context {
         })
     }
 
-    pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>) {
+    pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
         let array_type = format!("{}Array", elem_type);
 
         if !self.insert_struct(name, &array_type) {
-            println!("ERROR: insert_array: failed to insert struct '{}'", array_type);
-            return;
+            return Err(e.lang_error("context", &format!("ERROR: insert_array: failed to insert struct '{}'", array_type)))
         }
 
         let len = values.len() as i64;
         let elem_size = match self.get_type_size(elem_type) {
             Ok(sz) => sz,
-            Err(msg) => {
-                println!("ERROR: {}", msg);
-                return;
-            },
+            Err(err) => return Err(e.lang_error("context", &err)),
         };
         let total_size = (len as usize) * elem_size;
 
@@ -866,10 +840,7 @@ impl Context {
                 "U8" => {
                     match val.parse::<u8>() {
                         Ok(byte) => Arena::g().memory[offset] = byte,
-                        Err(_) => {
-                            println!("ERROR: insert_array: invalid U8 '{}'", val);
-                            return;
-                        }
+                        Err(err) => return Err(e.lang_error("context", &format!("ERROR: insert_array: invalid U8 '{}'", &err)))
                     }
                 },
                 "I64" => {
@@ -878,10 +849,7 @@ impl Context {
                             let bytes = n.to_ne_bytes();
                             Arena::g().memory[offset..offset+8].copy_from_slice(&bytes);
                         },
-                        Err(_) => {
-                            println!("ERROR: insert_array: invalid I64 '{}'", val);
-                            return;
-                        }
+                        Err(err) => return Err(e.lang_error("context", &format!("ERROR: insert_array: invalid I64 '{}'", &err)))
                     }
                 },
                 "Str" => {
@@ -894,27 +862,19 @@ impl Context {
                             is_mut: false,
                         });
 
-                        if self.insert_string(&temp_id, val).is_none() {
-                            println!("ERROR: insert_array: insert_string failed for '{}'", temp_id);
-                            return;
-                        }
+                        self.insert_string(&temp_id, val, e)?;
 
                         let str_offset = match self.arena_index.get(&temp_id) {
                             Some(&off) => off,
-                            None => {
-                                println!("ERROR: insert_array: missing arena offset for '{}'", temp_id);
-                                return;
-                            }
+                            None => return Err(e.lang_error("context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
                         };
-
                         Arena::g().memory[offset..offset + elem_size]
                             .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
                     }
                 }
 
                 _ => {
-                    println!("ERROR: insert_array: unsupported element type '{}'", elem_type);
-                    return;
+                    return Err(e.lang_error("context", &format!("insert_array: unsupported element type '{}'", elem_type)))
                 }
             }
         }
@@ -923,8 +883,7 @@ impl Context {
         let ptr_offset = match self.arena_index.get(&format!("{}.ptr", name)) {
             Some(o) => *o,
             None => {
-                println!("ERROR: insert_array: missing .ptr field offset");
-                return;
+                return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .ptr field offset")))
             }
         };
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
@@ -934,16 +893,15 @@ impl Context {
             if let Some(field_offset) = self.arena_index.get(&format!("{}.{}", name, field)) {
                 Arena::g().memory[*field_offset..*field_offset+8].copy_from_slice(&len_bytes);
             } else {
-                println!("ERROR: insert_array: missing .{} field offset", field);
-                return;
+                return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .{} field offset", field)))
             }
         }
 
         if let Some(is_dyn_offset) = self.arena_index.get(&format!("{}.is_dyn", name)) {
             Arena::g().memory[*is_dyn_offset] = 0; // false
-        } else {
-            println!("ERROR: insert_array: missing .is_dyn field offset");
+            return Ok(())
         }
+        return Err(e.lang_error("context", "insert_array: missing .is_dyn field offset"))
     }
 
 }
@@ -3074,7 +3032,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     value_type: ValueType::TCustom(format!("{}Array", &multi_value_type)),
                     is_mut: arg.is_mut,
                 });
-                function_context.insert_array(&arg.name, &multi_value_type, &values);
+                function_context.insert_array(&arg.name, &multi_value_type, &values, e)?;
 
                 // We've consumed all remaining parameters, break out of loop
                 break;
@@ -3114,7 +3072,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_bool(&arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        function_context.insert_string(&arg.name, &result_str);
+                        function_context.insert_string(&arg.name, &result_str, e)?;
                     },
                     _ => {
                         let custom_symbol = function_context.symbols.get(custom_type_name).ok_or_else(|| {
@@ -3186,7 +3144,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = function_context.get_string(&arg_name, e)?;
-                context.insert_string(&source_name, &val.to_string());
+                context.insert_string(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) => {
                 let symbol_info = match context.symbols.get(type_name) {
@@ -3559,7 +3517,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                             context.insert_bool(&combined_name, &expr_result_str, e)?;
                                         },
                                         "Str" => {
-                                            context.insert_string(&combined_name, &expr_result_str);
+                                            context.insert_string(&combined_name, &expr_result_str, e)?;
                                         },
                                         _ => {
                                             return Err(e.todo_error("eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
@@ -3657,7 +3615,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     }
                     let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_string(&declaration.name, &expr_result_str);
+                    context.insert_string(&declaration.name, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
@@ -3772,7 +3730,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_string(var_name, &expr_result_str);
+                    context.insert_string(var_name, &expr_result_str, e)?;
                 },
                 _ => {
                     let custom_symbol_info = match context.symbols.get(custom_type_name) {
