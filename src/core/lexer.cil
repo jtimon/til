@@ -138,7 +138,7 @@ TokenArray := struct {
     }
 
     get := func(self: TokenArray, index: I64, mut t: Token) {
-        if gteq(index, self.len) {
+        if index.gteq(self.len) {
             panic(loc(), "TokenArray.get: index out of bounds")
         }
         src := add(self.ptr, mul(index, size_of(Token)))
@@ -167,7 +167,7 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool {
-    current_char := Str.get_substr(source, pos, add(pos, 1))
+    current_char := source.get_substr(pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
     case "0": return true
@@ -316,14 +316,14 @@ scan_tokens := proc(source: Str) returns TokenArray {
 
     while lt(pos, eof_pos) {
         start := pos
-        if is_digit(source, pos) {
-            while and(lt(pos, eof_pos), is_digit(source, pos)) {
+        if source.is_digit(pos) {
+            while and(lt(pos, eof_pos), source.is_digit(pos)) {
                 pos.inc()
             }
             // Look for a fractional part.
             if and(Str.eq(Str.get_substr(source, pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
                 pos.inc()
-                while and(lt(pos, eof_pos), is_digit(source, pos)) {
+                while and(lt(pos, eof_pos), source.is_digit(pos)) {
                     pos.inc()
                 }
             }
@@ -525,7 +525,7 @@ scan_tokens := proc(source: Str) returns TokenArray {
             case:
                 if is_id_start(source, pos) {
                     pos.inc()
-                    while and(lt(pos, eof_pos), or(is_digit(source, pos), is_id_start(source, pos))) {
+                    while and(lt(pos, eof_pos), or(source.is_digit(pos), is_id_start(source, pos))) {
                         pos.inc()
                         // TODO fix literal strings with escape characters like in the rust implementation
                     }
