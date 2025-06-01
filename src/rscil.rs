@@ -238,21 +238,16 @@ impl Context {
         return Ok(())
     }
 
-    fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str) -> bool {
-        let struct_def = match self.struct_defs.get(custom_type_name) {
-            Some(def) => def,
-            None => return false,
-        };
+    fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
+        let struct_def = self.struct_defs.get(custom_type_name)
+            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
 
-        let is_mut = match self.symbols.get(instance_name) {
-            Some(symbol_info_) => symbol_info_.is_mut,
-            None => return false,
-        };
+        let is_mut = self.symbols.get(instance_name)
+            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
+            .is_mut;
 
-        let base_offset = match self.arena_index.get(instance_name) {
-            Some(offset) => *offset,
-            None => return false,
-        };
+        let base_offset = *self.arena_index.get(instance_name)
+            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
             .members
@@ -264,37 +259,34 @@ impl Context {
         for (field_name, decl) in members {
             if decl.is_mut {
                 let combined_name = format!("{}.{}", instance_name, field_name);
-                self.arena_index.insert(combined_name.to_string(), base_offset + current_offset);
+                self.arena_index.insert(combined_name.clone(), base_offset + current_offset);
                 self.symbols.insert(
                     combined_name.clone(),
                     SymbolInfo {
                         value_type: decl.value_type.clone(),
-                        is_mut: is_mut,
+                        is_mut,
                     },
                 );
 
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     if self.struct_defs.contains_key(type_name) {
-                        if !self.map_instance_fields(type_name, &combined_name) {
-                            println!("ERROR: Failed to map nested struct field '{}'", combined_name);
-                            return false;
-                        }
+                        self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
+                            e.lang_error("context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
+                        })?;
                     }
                 }
 
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => match self.get_type_size(name) {
-                        Ok(size) => size,
-                        Err(_) => return false,
-                    },
-                    _ => return false,
+                    ValueType::TCustom(name) => self.get_type_size(name)?,
+                    _ => return Err(e.lang_error("context", &format!(
+                        "map_instance_fields: Unsupported value type '{}'", value_type_to_str(&decl.value_type)
+                    ))),
                 };
 
                 current_offset += field_size;
             }
         }
-
-        return true
+        return Ok(())
     }
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
@@ -3117,7 +3109,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // TODO this can be simplified once we pass all args by reference
                         if let Some(offset) = function_context.arena_index.get(&arg_name) {
                             context.arena_index.insert(source_name.to_string(), *offset);
-                            context.map_instance_fields(type_name, &source_name);
+                            context.map_instance_fields(type_name, &source_name, e)?;
                         } else {
                             return Err(e.lang_error("eval", &format!("Missing struct arena index for argument '{}'", arg_name)));
                         }
@@ -3162,7 +3154,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 } else {
                                     return Err(e.lang_error("eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
-                                context.map_instance_fields(custom_type_name, &return_instance);
+                                context.map_instance_fields(custom_type_name, &return_instance, e)?;
                                 return Ok(EvalResult::new_return(&return_instance))
                             },
                             _ => {
@@ -3608,7 +3600,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         } else {
                             return Err(e.lang_error("eval", &format!("Could not find arena index for '{}'", expr_result_str)));
                         }
-                        context.map_instance_fields(custom_type_name, &declaration.name);
+                        context.map_instance_fields(custom_type_name, &declaration.name, e)?;
                     } else {
                         return Err(e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                             &declaration.name, value_type_to_str(&custom_symbol.value_type))))
