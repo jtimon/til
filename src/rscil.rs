@@ -410,20 +410,17 @@ impl Context {
         }
     }
 
-    fn insert_struct(self: &mut Context, id: &str, custom_type_name: &str) -> bool {
+    fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
         // Lookup the struct definition
         let struct_def = match self.struct_defs.get(custom_type_name) {
             Some(struct_def_) => struct_def_.clone(),
-            None => return false,
+            None => return Err(e.lang_error("context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
         };
 
         // Determine mutability from symbols table
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
-            None => {
-                println!("ERROR: insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name);
-                return false
-            },
+            None => return Err(e.lang_error("context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
         };
 
         // Calculate total size (for now no alignment)
@@ -432,23 +429,12 @@ impl Context {
 
         for (member_name, decl) in struct_def.members.iter() {
             if !decl.is_mut {
-                continue; // skip non-mut fields
+                continue;
             }
 
             let field_size = match &decl.value_type {
-                ValueType::TCustom(type_name) => {
-                    match self.get_type_size(type_name) {
-                        Ok(type_size) => type_size,
-                        Err(msg) => {
-                            println!("ERROR: {}", msg);
-                            return false;
-                        },
-                    }
-                },
-                _ => {
-                    println!("ERROR: Unsupported value type in struct");
-                    return false;
-                }
+                ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
+                _ => return Err(e.lang_error("context", "insert_struct: Unsupported value type in struct")),
             };
 
             field_offsets.insert(member_name.clone(), total_size);
@@ -468,79 +454,52 @@ impl Context {
 
             let field_offset = match field_offsets.get(member_name) {
                 Some(offset) => offset,
-                None => {
-                    println!("ERROR: Missing field offset for '{}'", member_name);
-                    return false;
-                }
+                None => return Err(e.lang_error("context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
             };
+
             let default_expr = struct_def.default_values.get(member_name);
             let default_value = match default_expr {
-                Some(e) => match eval_expr(self, e) {
-                    Ok(res) => {
-                        if res.is_throw {
-                            println!("ERROR: Failed to evaluate default value for field '{}':", member_name);
-                            println!("ERROR: Thrown '{}'", res.thrown_type.unwrap_or_else(|| "".to_string()));
-                            return false;
-                        }
-                        res.value
-                    },
-                    Err(err) => {
-                        println!("ERROR: Failed to evaluate default value for field '{}':", member_name);
-                        println!("ERROR:{}", err);
-                        return false;
+                Some(e2) => {
+                    let res = eval_expr(self, e2)?;
+                    if res.is_throw {
+                        return Err(e.lang_error("context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
                     }
+                    res.value
                 },
-                None => {
-                    println!("ERROR: Missing default value for field '{}'", member_name);
-                    return false;
-                }
+                None => return Err(e.lang_error("context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
             };
 
             match &decl.value_type {
                 ValueType::TCustom(type_name) => {
                     if let Some(enum_def) = self.enum_defs.get(type_name) {
-                        // Handle enums properly
                         let parts: Vec<&str> = default_value.split('.').collect();
                         if parts.len() != 2 || parts[0] != type_name {
-                            println!("ERROR: Invalid enum default value '{}' for field '{}'", default_value, member_name);
-                            return false;
+                            return Err(e.lang_error("context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
                         }
                         let variant = parts[1];
                         let index = match enum_def.enum_map.keys().position(|v| v == variant) {
                             Some(i) => i as i64,
-                            None => {
-                                println!("ERROR: Unknown enum variant '{}' in default value for field '{}'", variant, member_name);
-                                return false;
-                            }
+                            None => return Err(e.lang_error("context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
                         };
-                        let bytes = index.to_ne_bytes();
-                        Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                        Arena::g().memory[offset + field_offset..offset + field_offset + 8]
+                            .copy_from_slice(&index.to_ne_bytes());
                     } else {
                         match type_name.as_str() {
                             "U8" => {
-                                let v = match default_value.parse::<u8>() {
-                                    Ok(val) => val,
-                                    Err(_) => {
-                                        println!("ERROR: Invalid U8 default value '{}' for field '{}'", default_value, member_name);
-                                        return false;
-                                    }
-                                };
+                                let v = default_value.parse::<u8>().map_err(|_| {
+                                    e.lang_error("context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
+                                })?;
                                 Arena::g().memory[offset + field_offset] = v;
                             },
                             "I64" => {
-                                let v = match default_value.parse::<i64>() {
-                                    Ok(val) => val,
-                                    Err(_) => {
-                                        println!("ERROR: Invalid I64 default value '{}' for field '{}'", default_value, member_name);
-                                        return false;
-                                    }
-                                };
-                                let bytes = v.to_ne_bytes();
-                                Arena::g().memory[offset + field_offset..offset + field_offset + 8].copy_from_slice(&bytes);
+                                let v = default_value.parse::<i64>().map_err(|_| {
+                                    e.lang_error("context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
+                                })?;
+                                Arena::g().memory[offset + field_offset..offset + field_offset + 8]
+                                    .copy_from_slice(&v.to_ne_bytes());
                             },
                             _ => {
                                 if self.struct_defs.contains_key(type_name) {
-                                    // Nested struct: set up its fields recursively
                                     let combined_name = format!("{}.{}", id, member_name);
                                     self.symbols.insert(
                                         combined_name.clone(),
@@ -550,21 +509,17 @@ impl Context {
                                         },
                                     );
                                     self.arena_index.insert(combined_name.clone(), offset + field_offset);
-                                    if !self.insert_struct(&combined_name, type_name) {
-                                        println!("ERROR: Failed to initialize nested struct '{}.{}'", id, member_name);
-                                        return false;
-                                    }
+                                    self.insert_struct(&combined_name, type_name, e)
+                                        .map_err(|_| e.lang_error("context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
                                 } else {
-                                    println!("ERROR: Unknown field type '{}'", type_name);
-                                    return false;
+                                    return Err(e.lang_error("context", &format!("insert_struct: Unknown field type '{}'", type_name)));
                                 }
                             },
                         }
                     }
                 },
                 _ => {
-                    println!("ERROR: Unsupported field value type '{}'", value_type_to_str(&decl.value_type));
-                    return false;
+                    return Err(e.lang_error("context", &format!("insert_struct: Unsupported field value type '{}'", value_type_to_str(&decl.value_type))));
                 }
             }
 
@@ -579,7 +534,7 @@ impl Context {
             );
         }
 
-        return true;
+        Ok(())
     }
 
     fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
@@ -686,11 +641,7 @@ impl Context {
             return Err(e.lang_error("context", "'Str' struct definition not found"))
         }
 
-        // Not a field: call insert_struct first
-        if !self.insert_struct(id, "Str") {
-            return Err(e.lang_error("context", &format!("insert_string: Failed to insert struct '{}'", id)))
-        }
-
+        self.insert_struct(id, "Str", e)?;
         let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
             Some(&offset) => offset,
             None => {
@@ -814,9 +765,7 @@ impl Context {
     pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
         let array_type = format!("{}Array", elem_type);
 
-        if !self.insert_struct(name, &array_type) {
-            return Err(e.lang_error("context", &format!("ERROR: insert_array: failed to insert struct '{}'", array_type)))
-        }
+        self.insert_struct(name, &array_type, e)?;
 
         let len = values.len() as i64;
         let elem_size = match self.get_type_size(elem_type) {
@@ -2173,7 +2122,13 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             ValueType::TCustom(custom_type) => {
                 match context.struct_defs.get(&custom_type) {
                     Some(_struct_def) => {
-                        context.insert_struct(&decl.name, &custom_type);
+                        match context.insert_struct(&decl.name, &custom_type, e) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        }
                     },
                     _ => {}, // If it's enum, don't do anything
                 }
@@ -3086,10 +3041,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 }
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                if !function_context.insert_struct(&arg.name, &custom_type_name) {
-                                    return Err(e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument.",
-                                                                             &arg.name, &custom_type_name)))
-                                }
+                                function_context.insert_struct(&arg.name, &custom_type_name, e)?;
                                 if current_arg.params.len() > 0 {
                                     return Err(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now.",
                                                                              &arg.name, &custom_type_name)))
@@ -3331,7 +3283,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 NodeType::Identifier(s) => s,
                 _ => return Err(e.todo_error("eval", "Expected identifier name for struct instantiation")),
             };
-            context.insert_struct(&id_name, &name);
+            context.insert_struct(&id_name, &name, e)?;
             return Ok(EvalResult::new(match id_name.as_str() {
                 "Bool" => "false",
                 "U8" | "I64" => "0",
@@ -3639,9 +3591,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
                                     if context.struct_defs.contains_key(potentially_struct_name) {
-                                        if !context.insert_struct(&declaration.name, custom_type_name) {
-                                            return Err(e.error("eval", &format!("Failure trying to declare '{}' of struct type '{}'", &declaration.name, custom_type_name)));
-                                        }
+                                        context.insert_struct(&declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
                                 }
