@@ -1071,7 +1071,6 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LLiteral(Literal::Bool(_)) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
-        NodeType::LLiteral(Literal::List(_)) => Ok(ValueType::TList),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunction(FunctionType::FTFunc)),
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
@@ -1299,7 +1298,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 }
 
-                ValueType::TList | ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
+                ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
             }
@@ -3541,7 +3540,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                 },
             }
         },
-        ValueType::TList | ValueType::TMulti(_) => {
+        ValueType::TMulti(_) => {
             return Err(e.error("eval", &format!("Cannot declare '{}' of type '{}'",
                                                 &declaration.name, value_type_to_str(&declaration.value_type))))
         },
@@ -3651,7 +3650,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
             }
         },
 
-        ValueType::TList | ValueType::TType(TTypeDef::TEnumDef) | ValueType::TMulti(_) => {
+        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TMulti(_) => {
             Err(e.lang_error("eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type))))
         },
     }
