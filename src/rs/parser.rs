@@ -181,12 +181,10 @@ pub enum ValueType {
     TType(TTypeDef),
     TCustom(String),
     TMulti(String),
-    ToInferType,
 }
 
 pub fn value_type_to_str(arg_type: &ValueType) -> String {
     match arg_type {
-        ValueType::ToInferType => INFER_TYPE.to_string(),
         ValueType::TType(TTypeDef::TEnumDef) => "enum".to_string(),
         ValueType::TType(TTypeDef::TStructDef) => "struct".to_string(),
         ValueType::TFunction(ftype) => match ftype {
@@ -201,7 +199,6 @@ pub fn value_type_to_str(arg_type: &ValueType) -> String {
 
 pub fn str_to_value_type(arg_type: &str) -> ValueType {
     match arg_type {
-        INFER_TYPE => ValueType::ToInferType,
         "func" => ValueType::TFunction(FunctionType::FTFunc),
         "proc" => ValueType::TFunction(FunctionType::FTProc),
         "macro" => ValueType::TFunction(FunctionType::FTMacro),

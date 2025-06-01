@@ -1280,7 +1280,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                 }
                                 // Try to find a default_value (required for funcs/consts)
                                 if let Some(member_expr) = struct_def.default_values.get(member_name) {
-                                    let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::ToInferType);
+                                    let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
                                     let full_name = format!("{}.{}", decl.name, member_name); // Note: using '.' not '::'
                                     // Register in symbols
                                     context.symbols.insert(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut });
@@ -1298,7 +1298,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                 }
 
-                ValueType::TMulti(_) | ValueType::TCustom(_) | ValueType::ToInferType => {
+                ValueType::TMulti(_) | ValueType::TCustom(_) => {
                     context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
                 },
             }
@@ -2038,7 +2038,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
     };
     if !context.symbols.contains_key(&decl.name) {
         let mut value_type = decl.value_type.clone();
-        if value_type == ValueType::ToInferType {
+        if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
             value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
@@ -2050,11 +2050,11 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
         // TODO move to init_context() ? inner contexts are not persisted in init_context
         context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
         match value_type {
-            ValueType::ToInferType => {
-                errors.push(e.lang_error("type", &format!("Cannot infer the declaration type of {}", decl.name)));
-                return errors;
-            },
             ValueType::TCustom(custom_type) => {
+                if custom_type == INFER_TYPE {
+                    errors.push(e.lang_error("type", &format!("Cannot infer the declaration type of {}", decl.name)));
+                    return errors;
+                }
                 match context.struct_defs.get(&custom_type) {
                     Some(_struct_def) => {
                         match context.insert_struct(&decl.name, &custom_type, e) {
@@ -3320,7 +3320,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             return Err(e.lang_error("eval", &error_string));
         },
     };
-    if declaration.value_type != ValueType::ToInferType {
+    if declaration.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
         if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
             value_type = declaration.value_type.clone();
         } else if value_type != declaration.value_type {
@@ -3333,9 +3333,9 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
     }
 
     match value_type {
-        ValueType::ToInferType => {
+        ValueType::TCustom(s) if s == INFER_TYPE => {
             return Err(e.lang_error("eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
-                                                     declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
+                                                     declaration.name, value_type_to_str(&declaration.value_type), &s)));
         },
         ValueType::TType(TTypeDef::TEnumDef) => {
             match &inner_e.node_type {
@@ -3363,8 +3363,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                                                              &declaration.name, &member_decl.name)));
                                 },
                             };
-                            let member_value_type = match member_decl.value_type {
-                                ValueType::ToInferType => {
+                            let member_value_type = match &member_decl.value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
                                     match get_value_type(&context, &default_value) {
                                         Ok(val_type) => val_type,
                                         Err(error_string) => {
@@ -3376,6 +3376,10 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             };
 
                             match member_value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
+                                    return Err(e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
+                                                                             &declaration.name, &member_decl.name)));
+                                },
                                 ValueType::TCustom(type_name) => {
                                     let result = eval_expr(context, default_value)?;
                                     if result.is_throw {
@@ -3417,11 +3421,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                         },
                                     }
                                 },
-                                ValueType::ToInferType => {
-                                    return Err(e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
-                                                                             &declaration.name, &member_decl.name)));
-                                },
-                                _ => {
+                               _ => {
                                     return Err(e.todo_error("eval", &format!("Cannot declare '{}.{}' of type '{}'",
                                                                              &declaration.name,
                                                                              &member_decl.name,
@@ -3567,7 +3567,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         },
     };
     match value_type {
-        ValueType::ToInferType => {
+        ValueType::TCustom(s) if s == INFER_TYPE => {
             return Err(e.lang_error("eval", &format!("Cannot assign {}, type should already be inferred of type '{:?}'.", &var_name, &symbol_info.value_type)));
         },
 
@@ -3815,7 +3815,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
 
 fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalResult, String> {
     match context.symbols.get(name) {
-        Some(symbol_info) => match symbol_info.value_type {
+        Some(symbol_info) => match &symbol_info.value_type {
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
                 return Ok(EvalResult::new(name));
             },
@@ -3839,7 +3839,7 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
             ValueType::TType(TTypeDef::TStructDef) => {
                 return eval_identifier_expr_struct(name, context, e)
             }
-            ValueType::ToInferType => {
+            ValueType::TCustom(s) if s == INFER_TYPE => {
                 return Err(e.lang_error("eval", &format!("Can't infer the type of identifier '{}'.", name)));
             },
             ValueType::TCustom(ref custom_type_name) => {
