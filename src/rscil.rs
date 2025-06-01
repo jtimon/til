@@ -290,21 +290,16 @@ impl Context {
     }
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
-    fn copy_fields(self: &mut Context, custom_type_name: &str, src: &str, dest: &str) -> bool {
-        let struct_def = match self.struct_defs.get(custom_type_name) {
-            Some(def) => def,
-            None => return false,
-        };
+    fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
+        let struct_def = self.struct_defs.get(custom_type_name)
+            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
-        let is_mut = match self.symbols.get(dest) {
-            Some(info) => info.is_mut,
-            None => return false,
-        };
+        let is_mut = self.symbols.get(dest)
+            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
+            .is_mut;
 
-        let dest_base_offset = match self.arena_index.get(dest) {
-            Some(offset) => *offset,
-            None => return false,
-        };
+        let dest_base_offset = *self.arena_index.get(dest)
+            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
             .members
@@ -319,46 +314,38 @@ impl Context {
             }
 
             let field_size = match &decl.value_type {
-                ValueType::TCustom(name) => match self.get_type_size(name.as_str()) {
-                    Ok(size) => size,
-                    Err(_) => return false,
-                },
-                _ => return false,
+                ValueType::TCustom(name) => self.get_type_size(name)?,
+                _ => return Err(e.lang_error("context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
             };
 
             let src_key = format!("{}.{}", src, field_name);
             let dest_key = format!("{}.{}", dest, field_name);
 
-            let src_offset = match self.arena_index.get(&src_key) {
-                Some(offset) => *offset,
-                None => return false,
-            };
+            let src_offset = *self.arena_index.get(&src_key)
+                .ok_or_else(|| e.lang_error("context", &format!("copy_fields: source offset for '{}' not found", src_key)))?;
 
             let dest_offset = dest_base_offset + current_offset;
 
-            // Ensure mappings for the destination field
             self.arena_index.insert(dest_key.clone(), dest_offset);
             self.symbols.insert(dest_key.clone(), SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
             });
 
-            // Copy the actual memory bytes
             Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
 
             if let ValueType::TCustom(type_name) = &decl.value_type {
-                if self.struct_defs.contains_key(type_name.as_str()) {
-                    if !self.copy_fields(type_name.as_str(), &src_key, &dest_key) {
-                        println!("ERROR: Failed to recursively copy field '{}'", dest_key);
-                        return false;
-                    }
+                if self.struct_defs.contains_key(type_name) {
+                    self.copy_fields(type_name, &src_key, &dest_key, e).map_err(|_| {
+                        e.lang_error("context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
+                    })?;
                 }
             }
 
             current_offset += field_size;
         }
 
-        return true
+        Ok(())
     }
 
     fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
@@ -3040,10 +3027,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 }
                                 match &current_arg.node_type {
                                     NodeType::Identifier(id_) => {
-                                        if !function_context.copy_fields(&custom_type_name, &id_, &arg.name) {
-                                            return Err(e.todo_error("eval", &format!("While copying fields from '{}' to '{}' of type '{}'",
-                                                                                     &id_, &arg.name, &custom_type_name)))
-                                        }
+                                        function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
                                     },
                                     _ => {
                                         return Err(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now.",
@@ -3696,9 +3680,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            if !context.copy_fields(custom_type_name, &expr_result_str, var_name) {
-                                return Err(inner_e.lang_error("eval", &format!("Assign struct: Failed to copy fields from '{}' to '{}'", expr_result_str, var_name)));
-                            }
+                            context.copy_fields(custom_type_name, &expr_result_str, var_name, inner_e)?;
                         },
                         other_value_type => {
                             return Err(inner_e.lang_error("eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",
