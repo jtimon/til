@@ -3146,33 +3146,31 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
 }
 
 fn eval_func_proc_call_try_ufcs(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    // TODO Handle UFCS in check_types instead of waiting for invalid types to be discovered during evaluation
-    let id_expr = e.get(0)?;
-    let name = get_func_name_in_call(&e);
-    let after_dot = match id_expr.params.get(0) {
-        Some(ad) => ad,
-        None => return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name))),
-    };
 
-    let after_dot_name = match &after_dot.node_type {
-        NodeType::Identifier(f_name_) => f_name_.clone(),
-        _ => return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name))),
+    let id_expr = e.get(0)?;
+    let name = get_func_name_in_call(e);
+    let after_dot = id_expr.params.get(0)
+        .ok_or_else(|| e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)))?;
+
+    let after_dot_name = if let NodeType::Identifier(f_name_) = &after_dot.node_type {
+        f_name_.clone()
+    } else {
+        return Err(e.lang_error("eval", &format!("Cannot call '{}'. Undefined function or struct.", name)));
     };
 
     let id_expr_name = format!("{}.{}", name, after_dot_name);
 
-    let new_e = Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0)?, Vec::new());
-    let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new());
-
-    let mut new_args = vec![new_e, extra_arg_e];
+    let mut new_args = vec![
+        Expr::new_clone(NodeType::Identifier(after_dot_name.clone()), e.get(0)?, Vec::new()),
+        Expr::new_clone(NodeType::Identifier(name.to_string()), e, Vec::new()),
+    ];
     new_args.extend_from_slice(&e.params[1..]);
 
     let new_fcall_e = Expr::new_clone(NodeType::FCall, e.get(0)?, new_args);
 
-    let func_def = match context.funcs.get(&after_dot_name) {
-        Some(func_def_) => func_def_.clone(),
-        None => return Err(after_dot.lang_error("eval", &format!("Cannot call '{}'. Undefined function.", after_dot_name))),
-    };
+    let func_def = context.funcs.get(&after_dot_name)
+        .cloned()
+        .ok_or_else(|| after_dot.lang_error("eval", &format!("Cannot call '{}'. Undefined function.", after_dot_name)))?;
 
     eval_user_func_proc_call(&func_def, &id_expr_name, context, &new_fcall_e)
 }
