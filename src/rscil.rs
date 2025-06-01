@@ -640,52 +640,33 @@ impl Context {
         return Ok(())
     }
 
-    fn get_enum(self: &Context, id: &str, e: &Expr) -> Option<EnumVal> {
-        // Look up the symbol information for the id
-        let symbol_info = match self.symbols.get(id) {
-            Some(symbol) => symbol,
-            None => return None, // If no symbol found, return None
-        };
+    fn get_enum(&self, id: &str, e: &Expr) -> Result<EnumVal, String> {
+        let symbol_info = self.symbols.get(id)
+            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Symbol '{}' not found", id)))?;
 
-        // Check if the symbol corresponds to a custom type (enum type)
         let enum_type = match &symbol_info.value_type {
             ValueType::TCustom(custom_type_name) => custom_type_name,
-            _ => return None, // If it's not a custom type (enum), return None
+            _ => return Err(e.lang_error("context", &format!("get_enum: '{}' is not a custom enum type", id))),
         };
 
-        // Get the offset for the enum value from the arena index
-        let offset = match self.arena_index.get(id) {
-            Some(&offset) => offset,
-            None => return None, // If no offset is found, return None
-        };
+        let offset = *self.arena_index.get(id)
+            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Arena index for '{}' not found", id)))?;
 
-        // Retrieve the i64 value (enum value) from memory
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
-        let enum_value = match enum_value_bytes.try_into() {
-            Ok(bytes_arr) => i64::from_le_bytes(bytes_arr),
-            Err(_) => return None,
-        };
-        // Look up the enum definition from `self.enum_defs` using the enum type
-        let enum_def = match self.enum_defs.get(enum_type) {
-            Some(def) => def,
-            None => return None, // If no enum definition is found, return None
-        };
+        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
+                                            .map_err(|_| e.lang_error("context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
 
-        // Use the variant_pos_to_str function to get the enum variant name based on the position
-        let enum_name = match Context::variant_pos_to_str(enum_def, enum_value, &e) {
-            Ok(enum_name_) => enum_name_,
-            Err(error_string) => {
-                println!("{error_string}");
-                return None;
-            }
-        };
+        let enum_def = self.enum_defs.get(enum_type)
+            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
 
-        // Return an EnumVal with the enum type and name
-        Some(EnumVal {
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, e)?;
+
+        Ok(EnumVal {
             enum_type: enum_type.to_string(),
-            enum_name: enum_name.to_string(),
+            enum_name,
         })
     }
+
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
     fn insert_enum(self: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Option<EnumVal> {
         // Look up the enum definition from `self.enum_defs`
@@ -3083,11 +3064,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        if let Some(val) = function_context.get_enum(&arg_name, e) {
-                            context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e);
-                        } else {
-                            return Err(e.lang_error("eval", &format!("Missing enum value for argument '{}'", arg_name)));
-                        }
+                        let val = function_context.get_enum(&arg_name, e)?;
+                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e);
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // TODO this can be simplified once we pass all args by reference
@@ -3770,10 +3748,8 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     };
     match custom_symbol.value_type {
         ValueType::TType(TTypeDef::TEnumDef) => {
-            match context.get_enum(name, e) {
-                Some(enum_val) => Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name))),
-                None => Err(e.lang_error("eval", &format!("Enum '{}' not found for custom type '{}'.", name, custom_type_name))),
-            }
+            let enum_val = context.get_enum(name, e)?;
+            return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
         },
         ValueType::TType(TTypeDef::TStructDef) => {
             if e.params.len() == 0 {
@@ -3852,13 +3828,11 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                             };
                             match &custom_symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) => {
-                                    match context.get_enum(&current_name, inner_e) {
-                                        Some(enum_val) => Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name))),
-                                        None => Err(inner_e.lang_error("eval", &format!("Value not set for field '{}'", current_name))),
-                                    }
+                                    let enum_val = context.get_enum(&current_name, inner_e)?;
+                                    return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
                                 },
                                 ValueType::TType(TTypeDef::TStructDef) => {
-                                    Ok(EvalResult::new(&current_name))
+                                    return Ok(EvalResult::new(&current_name))
                                 },
                                 _ => Err(inner_e.todo_error("eval", &format!("Cannot access '{}'. Fields of custom type '{}' not implemented", current_name, custom_type_name))),
                             }
