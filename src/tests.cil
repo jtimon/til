@@ -29,6 +29,7 @@ runfile("src/test/enums.cil")
 runfile("src/test/errors.cil")
 runfile("src/test/fibonacci.cil") // recursive examples
 runfile("src/test/flow.cil") // control flow, execution path examples
+runfile("src/test/function_pointers.cil")
 runfile("src/test/intro.cil")
 runfile("src/test/namespaces.cil")
 runfile("src/test/pointers.cil")
