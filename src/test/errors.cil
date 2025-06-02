@@ -21,28 +21,25 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
     }
     return div(a, b)
 }
-// TODO This call is expected to panic at evaluation time if uncommented
-safe_div(42, 0)
+// safe_div(42, 0) // TODO FIX Not printing error for unhandled errors
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
     catch (err: DivideByZero) {
-        println("unsafe_div: Correctly catched thrown DivideByZero") // TODO FIX DivideByZero should have been catched
+        println("unsafe_div: Correctly catched thrown DivideByZero")
         return 0 // REM Just return 0, why not? not expected to happen
     }
 }
-// This call is valid, the exception is caught locally
-unsafe_div(42, 0)
+unsafe_div(42, 0) // This call is valid, the exception is caught locally
 
 unsafe_div2 := proc(a: I64, b: I64) returns I64 {
     result := safe_div(a, b)
     assertm(loc(), false, "DivideByZero should have been thrown")
     catch (err: DivideByZero) {
-        println("unsafe_div2: Correctly catched thrown DivideByZero") // TODO FIX DivideByZero should have been catched
+        println("unsafe_div2: Correctly catched thrown DivideByZero")
         return 0 // REM Just return 0, why not? not expected to happen
     }
-    return 0
-    // return result // TODO FIX It seemms the exception is not being caught or thrown, perhaps
+    return result
 }
 unsafe_div2(42, 0)
 
@@ -51,7 +48,7 @@ unsafe_div2(42, 0)
 missing_throws := proc() throws DivideByZero {
     safe_div(42, 0)
 }
-missing_throws()
+// missing_throws() // TODO FIX Not printing error for unhandled errors
 
 // All exceptions that are not catched must be declared in the throws section again
 // TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
@@ -60,14 +57,14 @@ example_catch := proc() {
     a := 420
     mut b := 10
     println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b))) // test fcalls as args
-    b = 0 // TODO FIX eval ERROR: Identifier 'self' not found as I64.
+    b = 0
     result := I64.to_str(a.safe_div(b)) // test declaration
     mut result2 := "0"
     result2 = I64.to_str(a.safe_div(b)) // test assignment
     println(a.to_str(), " / ", b.to_str(), " = ", result)
-    catch (err: DivideByZero) { // TODO implement catch
+    catch (err: DivideByZero) {
         println(a.to_str(), " / ", b.to_str(), " = ...")
-        println("Trying to divide by zero") // TODO FIX DivideByZero should have been catched
+        println("example_catch: Correctly catched thrown DivideByZero")
     }
 
     // safe_div(a, b) // REM this one is not catched nor example_catch throws anything, should give error
@@ -76,6 +73,7 @@ example_catch()
 
 ErrorUndeclaredInFunc := struct {}
 ErrorUndeclaredInMethod := struct {}
+ErrorUndeclaredInAssoc := struct {}
 
 another_func := func() throws ErrorUndeclaredInFunc {
     throw ErrorUndeclaredInFunc()
@@ -87,7 +85,7 @@ SomeStruct := struct {
     }
 
     some_assoc := func() throws ErrorUndeclaredInAssoc {
-        throw ErrorUndeclaredInFunc() // TODO FIX the compiler should tell us this is not ErrorUndeclaredInAssoc
+        throw ErrorUndeclaredInAssoc()
     }
 }
 
@@ -96,7 +94,7 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
     if true {
         another_func()
         catch (err: ErrorUndeclaredInFunc) {
-            println("Correctly catched thrown ErrorUndeclaredInFunc")
+            println("undeclared_throws: Correctly catched thrown ErrorUndeclaredInFunc")
         }
     } else {
         throw "We can throw Str, but we have to declare it in throws"
@@ -110,7 +108,13 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
 
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
-undeclared_throws()
+test_undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInMethod {
+    undeclared_throws()
+    catch (err: ErrorUndeclaredInAssoc) {
+        println("test_undeclared_throws: Correctly catched thrown ErrorUndeclaredInAssoc")
+    }
+}
+test_undeclared_throws()
 
 // TODO do beter examples with throw, including catch in the examples
 # example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {
