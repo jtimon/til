@@ -1641,6 +1641,8 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
+
+    let mut function_context = context.clone();
     let mut errors : Vec<String> = Vec::new();
     if !context.mode.allows_procs && func_def.is_proc() {
         errors.push(e.error("type", "Procs not allowed in pure modes"));
@@ -1675,9 +1677,135 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                     },
                 };
                 // TODO check more type stuff
+                let current_arg = match e.get(i) {
+                    Ok(result_) => result_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors
+                    },
+                };
+                let result = match eval_expr(context, &current_arg) {
+                    Ok(result_) => result_,
+                    Err(err) => {
+                        errors.push(err);
+                        return errors
+                    },
+                };
+                let result_str = result.value;
 
                 context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                // TODO Insert struct fields
+                let custom_type_name = &match custom_type_name.as_str() {
+                    "Dynamic" => {
+                        let val_type = match get_value_type(context, &current_arg) {
+                            Ok(result_) => result_,
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        };
+                        value_type_to_str(&val_type)
+                    },
+                    _ => custom_type_name.clone(),
+                };
+
+                match custom_type_name.as_str() {
+                    "I64" => {
+                        match function_context.insert_i64(&arg.name, &result_str, e) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        }
+                    },
+                    "U8" => {
+                        match function_context.insert_u8(&arg.name, &result_str, e) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        }
+                    },
+                    "Bool" => {
+                        match function_context.insert_bool(&arg.name, &result_str, e) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        }
+                    },
+                    "Str" => {
+                        match function_context.insert_string(&arg.name, &result_str, e) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        }
+                    },
+                    _ => {
+                        let custom_symbol = match function_context.symbols.get(custom_type_name).ok_or_else(|| {
+                            return e.lang_error("eval", &format!( "Undefined symbol for custom type '{}'", custom_type_name))
+                        }) {
+                            Ok(result_) => result_,
+                            Err(err) => {
+                                errors.push(err);
+                                return errors
+                            },
+                        };
+                        match custom_symbol.value_type {
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                match function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e) {
+                                    Ok(_) => {},
+                                    Err(err) => {
+                                        errors.push(err);
+                                        return errors
+                                    },
+                                }
+                            },
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                match function_context.insert_struct(&arg.name, &custom_type_name, e) {
+                                    Ok(_) => {},
+                                    Err(err) => {
+                                        errors.push(err);
+                                        return errors
+                                    },
+                                }
+                                if current_arg.params.len() > 0 {
+                                    errors.push(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now.",
+                                                                              &arg.name, &custom_type_name)));
+                                    return errors
+                                }
+                                match &current_arg.node_type {
+                                    NodeType::Identifier(id_) => {
+                                        match function_context.copy_fields(&custom_type_name, &id_, &arg.name, e) {
+                                            Ok(_) => {},
+                                            Err(err) => {
+                                                errors.push(err);
+                                                return errors
+                                            },
+                                        }
+                                    },
+                                    _ => {
+                                        errors.push(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now.",
+                                                                                  &arg.name, &custom_type_name)));
+                                        return errors
+                                    },
+                                }
+                            },
+                            _ => {
+                                errors.push(e.lang_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
+                                                                          &arg.name, &custom_type_name)));
+                                return errors
+                            },
+                        }
+                    },
+                }
             },
+
             _ => {
                 context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
             },
