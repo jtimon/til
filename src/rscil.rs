@@ -1680,11 +1680,12 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         }
     }
 
-    if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
-        if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
-            errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
-        }
-    }
+    // TODO re-enable test when it is decided what to do with free, memcpy and memset
+    // if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
+    //     if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
+    //         errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
+    //     }
+    // }
 
     // Don't check the bodies of external functions
     if func_def.is_ext() {

@@ -34,10 +34,11 @@ NULL   := 0
 size_of := ext_func(type: Dynamic) returns I64;
 to_ptr := ext_func(var_identifier: Dynamic) returns I64;
 type_as_str := ext_func(type: Dynamic) returns Str;
-malloc := ext_proc(size: I64) returns I64;
-free   := ext_proc(ptr: I64);
-memcpy := ext_proc(dest: I64, src: I64, size: I64);
-memset := ext_proc(dest: I64, value: U8, size: I64);
+// TODO Use throws for memory operations, don't return 0 from malloc
+malloc := ext_func(size: I64) returns I64;
+free   := ext_func(ptr: I64);
+memcpy := ext_func(dest: I64, src: I64, size: I64);
+memset := ext_func(dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
     mut i := 0
@@ -69,23 +70,23 @@ Ptr := struct {
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
 
-    new := proc(size: I64) returns Ptr {
+    new := proc(size: I64) returns Ptr throws Str {
         mut p := Ptr()
         p.data = malloc(size)
         if NULL.eq(p.data) {
-            println(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes")
+            throw format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes")
         }
         return p
     }
 
-    new2 := proc(T: Dynamic) returns Ptr {
+    new2 := proc(T: Dynamic) returns Ptr throws Str {
         size := size_of(T)
         return Ptr.new(size)
     }
 
-    free := proc(self: Ptr) {
+    free := proc(self: Ptr) throws Str {
         if NULL.eq(self.data) {
-            panic(loc(), "Ptr.free: trying to free a NULL pointer")
+            throw format(loc(), "Ptr.free: trying to free a NULL pointer")
         }
         free(self.data)
     }
@@ -127,6 +128,9 @@ or := func(args: ..Bool) returns Bool {
         i.inc()
     }
     return false
+    catch(err: Str) {
+        // This should never happen anyway
+    }
 }
 
 and := func(args: ..Bool) returns Bool {
@@ -166,7 +170,7 @@ Bool := struct {
         return 0
     }
 
-    to_u8 := func(self: Bool) returns U8 {
+    to_u8 := func(self: Bool) returns U8 throws Str {
         // TODO move to directly return self.data instead
         if self {
             return U8.from_i64(1)
@@ -226,12 +230,12 @@ U8 := struct {
         return u8_to_i64(self)
     }
 
-    from_i64 := func(self: I64) returns U8 {
+    from_i64 := func(self: I64) returns U8 throws Str {
         if lt(self, 0) {
-            panic(loc(), "Negative values cannot be cast into 'U8'")
+            throw format(loc(), "Negative values cannot be cast into 'U8'")
         }
         if gt(self, MAX_U8) {
-            panic(loc(), format("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            throw format(loc(), format("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
@@ -321,33 +325,28 @@ Str := struct {
         return I64.from_str(self)
     }
 
-    get_substr := func(s: Str, start: I64, end: I64) returns Str {
+    get_substr := func(s: Str, start: I64, end: I64) returns Str throws Str {
         if lt(start, 0) {
-            println(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative")
-            exit(1)
+            throw format(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative")
         }
         if lt(end, 0) {
-            println(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative")
-            exit(1)
+            throw format(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative")
         }
         if gt(start, end) {
-            println(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str())
-            exit(1)
+            throw format(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str())
         }
         if gt(end, s.len()) {
-            println(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len()))
-            exit(1)
+            throw format(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len()))
         }
         if I64.eq(start, end) {
-            println(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring")
-            exit(1)
+            throw format(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring")
         }
 
         mut substr := Str()
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
         if NULL.eq(substr.c_string) {
-            println(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes")
+            throw format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes")
         }
 
         memcpy(substr.c_string, add(s.c_string, start), substr.cap)
@@ -355,14 +354,12 @@ Str := struct {
         return substr
     }
 
-    get_char := func(s: Str, pos: I64) returns Str {
+    get_char := func(s: Str, pos: I64) returns Str throws Str {
         return s.get_substr(pos, add(pos, 1))
     }
 }
 
-// TODO this should be a func, after it throws isntead of printing inside
-// But there isn't a proper catch yet, unfortunately
-format := proc(prefix: Str, args: ..Str) returns Str {
+format := func(prefix: Str, args: ..Str) returns Str throws Str {
     mut result := Str()
     result.cap = prefix.cap
 
@@ -371,16 +368,14 @@ format := proc(prefix: Str, args: ..Str) returns Str {
         arg := args.get(i)
         result.cap = add(result.cap, arg.cap)
         if lt(result.cap, arg.cap) {
-            println(loc(), "format: integer overflow while summing cap for arg ", I64.to_str(i))
-            exit(1)
+            throw format(loc(), "format: integer overflow while summing cap for arg ", i.to_str())
         }
         i.inc()
     }
 
     result.c_string = malloc(result.cap)
     if NULL.eq(result.c_string) {
-        println(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap))
-        exit(1)
+        throw format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap))
     }
 
     mut offset := 0
@@ -427,15 +422,15 @@ U8Array := struct {
         return arr
     }
 
-    push := proc(mut self: U8Array, value: U8) {
+    push := proc(mut self: U8Array, value: U8) throws Str {
         if not(self.is_dyn) {
-            panic(loc(), "U8Array.push: push is not allowed for static arrays")
+            throw format(loc(), "U8Array.push: push is not allowed for static arrays")
         }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, U8Array.MAX_CAP) {
-                panic(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP")
+                throw format(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP")
             }
 
             new_ptr := malloc(new_cap)
@@ -450,9 +445,9 @@ U8Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: U8Array, index: I64) returns U8 {
+    get := func(self: U8Array, index: I64) returns U8 throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "U8Array.get: index out of bounds")
+            throw format(loc(), "U8Array.get: index out of bounds")
         }
 
         mut src := add(self.ptr, index)
@@ -461,9 +456,9 @@ U8Array := struct {
         return value
     }
 
-    set := proc(mut self: U8Array, index: I64, value: U8) {
+    set := proc(mut self: U8Array, index: I64, value: U8) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "U8Array.set: index out of bounds")
+            throw format(loc(), "U8Array.set: index out of bounds")
         }
         mut dest := add(self.ptr, index)
         memcpy(dest, to_ptr(value), 1)
@@ -509,15 +504,15 @@ StrArray := struct {
         return arr
     }
 
-    push := proc(mut self: StrArray, value: Str) {
+    push := proc(mut self: StrArray, value: Str) throws Str {
         if not(self.is_dyn) {
-            panic(loc(), "StrArray.push: push is not allowed for static arrays")
+            throw format(loc(), "StrArray.push: push is not allowed for static arrays")
         }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, StrArray.MAX_CAP) {
-                panic(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP")
+                throw format(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP")
             }
 
             new_ptr := malloc(mul(new_cap, size_of(Str)))
@@ -532,9 +527,9 @@ StrArray := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: StrArray, index: I64) returns Str {
+    get := func(self: StrArray, index: I64) returns Str throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "StrArray.get: index out of bounds")
+            throw format(loc(), "StrArray.get: index out of bounds")
         }
 
         src := add(self.ptr, mul(index, size_of(Str)))
@@ -543,9 +538,9 @@ StrArray := struct {
         return value
     }
 
-    set := proc(mut self: StrArray, index: I64, value: Str) {
+    set := proc(mut self: StrArray, index: I64, value: Str) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "StrArray.set: index out of bounds")
+            throw format(loc(), "StrArray.set: index out of bounds")
         }
 
         dest := add(self.ptr, mul(index, size_of(Str)))
@@ -592,15 +587,15 @@ BoolArray := struct {
         return arr
     }
 
-    push := proc(mut self: BoolArray, value: Bool) {
+    push := proc(mut self: BoolArray, value: Bool) throws Str {
         if not(self.is_dyn) {
-            panic(loc(), "BoolArray.push: push is not allowed for static arrays")
+            throw format(loc(), "BoolArray.push: push is not allowed for static arrays")
         }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, BoolArray.MAX_CAP) {
-                panic(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP")
+                throw format(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP")
             }
 
             new_ptr := malloc(mul(new_cap, size_of(Bool)))
@@ -615,9 +610,9 @@ BoolArray := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: BoolArray, index: I64) returns Bool {
+    get := func(self: BoolArray, index: I64) returns Bool throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "BoolArray.get: index out of bounds")
+            throw format(loc(), "BoolArray.get: index out of bounds")
         }
 
         src := add(self.ptr, mul(index, size_of(Bool)))
@@ -626,9 +621,9 @@ BoolArray := struct {
         return value
     }
 
-    set := proc(mut self: BoolArray, index: I64, value: Bool) {
+    set := proc(mut self: BoolArray, index: I64, value: Bool) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "BoolArray.set: index out of bounds")
+            throw format(loc(), "BoolArray.set: index out of bounds")
         }
 
         dest := add(self.ptr, mul(index, size_of(Bool)))
@@ -675,15 +670,15 @@ I64Array := struct {
         return arr
     }
 
-    push := proc(mut self: I64Array, value: I64) {
+    push := proc(mut self: I64Array, value: I64) throws Str {
         if not(self.is_dyn) {
-            panic(loc(), "I64Array.push: push is not allowed for static arrays")
+            throw format(loc(), "I64Array.push: push is not allowed for static arrays")
         }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, I64Array.MAX_CAP) {
-                panic(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP")
+                throw format(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP")
             }
 
             new_ptr := malloc(mul(new_cap, size_of(I64)))
@@ -698,9 +693,9 @@ I64Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: I64Array, index: I64) returns I64 {
+    get := func(self: I64Array, index: I64) returns I64 throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "I64Array.get: index out of bounds")
+            throw format(loc(), "I64Array.get: index out of bounds")
         }
 
         src := add(self.ptr, mul(index, size_of(I64)))
@@ -709,9 +704,9 @@ I64Array := struct {
         return value
     }
 
-    set := proc(mut self: I64Array, index: I64, value: I64) {
+    set := proc(mut self: I64Array, index: I64, value: I64) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "I64Array.set: index out of bounds")
+            throw format(loc(), "I64Array.set: index out of bounds")
         }
 
         dest := add(self.ptr, mul(index, size_of(I64)))
@@ -765,19 +760,19 @@ Array := struct {
         return arr
     }
 
-    push := proc(mut self: Array, value: Dynamic) {
+    push := proc(mut self: Array, value: Dynamic) throws Str {
         if not(self.is_dyn) {
-            panic(loc(), "Array.push: push is not allowed for static arrays")
+            throw format(loc(), "Array.push: push is not allowed for static arrays")
         }
 
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     panic(loc(), "Array.push: value type mismatch")
+        //     throw format(loc(), "Array.push: value type mismatch")
         // }
 
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Array.MAX_CAP) {
-                panic(loc(), "Array.push: capacity exceeded Array.MAX_CAP")
+                throw format(loc(), "Array.push: capacity exceeded Array.MAX_CAP")
             }
 
             new_ptr := malloc(mul(new_cap, self.type_size))
@@ -792,26 +787,26 @@ Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := proc(self: Array, index: I64, mut T: Dynamic) {
+    get := proc(self: Array, index: I64, mut T: Dynamic) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "Array.get: index out of bounds")
+            throw format(loc(), "Array.get: index out of bounds")
         }
 
         // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
-        //     panic(loc(), format("Array.get: destination type mismatch: expected '", self.type_name, "' found '", type_as_str(T), "'"))
+        //     throw format(loc(), format("Array.get: destination type mismatch: expected '", self.type_name, "' found '", type_as_str(T), "'"))
         // }
 
         src := add(self.ptr, mul(index, self.type_size))
         memcpy(to_ptr(T), src, self.type_size)
     }
 
-    set := proc(mut self: Array, index: I64, value: Dynamic) {
+    set := proc(mut self: Array, index: I64, value: Dynamic) throws Str {
         if gteq(index, self.len) {
-            panic(loc(), "Array.set: index out of bounds")
+            throw format(loc(), "Array.set: index out of bounds")
         }
 
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     panic(loc(), "Array.set: value type mismatch")
+        //     throw format(loc(), "Array.set: value type mismatch")
         // }
 
         dest := add(self.ptr, mul(index, self.type_size))

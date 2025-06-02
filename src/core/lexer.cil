@@ -166,7 +166,7 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
     // tokens.push(t) // TODO FIX 115:9: eval ERROR: memcpy out of bounds: src=82424 dest=82477 size=24 arena_len=82493
 }
 
-is_digit := func(source: Str, pos: I64) returns Bool {
+is_digit := func(source: Str, pos: I64) returns Bool throws Str {
     current_char := source.get_substr(pos, add(pos, 1))
     // TODO implement str_char_in_range
     switch current_char {
@@ -542,6 +542,10 @@ scan_tokens := proc(source: Str) returns TokenArray {
     } // while
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
+    catch(err: Str) {
+        println(loc(), "test_array_dynamic_str: error thrown:")
+        println(err)
+    }
     return tokens
 }
 

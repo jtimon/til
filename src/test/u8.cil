@@ -2,16 +2,23 @@ mode test
 
 my_u8 : U8 = 42
 
-assert_eq(loc(), 0, U8.to_i64(U8.from_i64(0)))
-assert_eq(loc(), 42, U8.to_i64(U8.from_i64(42)))
-assert_eq(loc(), 42, my_u8.to_i64())
+test_u8 := proc() {
+    assert_eq(loc(), 0, U8.to_i64(U8.from_i64(0)))
+    assert_eq(loc(), 42, U8.to_i64(U8.from_i64(42)))
+    assert_eq(loc(), 42, my_u8.to_i64())
 
-// assert_eq_str(loc(), "0", U8.to_str(U8.from_i64(0))) // TODO
-// assert_eq_str(loc(), "42", U8.to_str(U8.from_i64(42))) // TODO
-// assert_eq_str(loc(), "42", my_u8.to_str()) // TODO
+    // assert_eq_str(loc(), "0", U8.to_str(U8.from_i64(0))) // TODO
+    // assert_eq_str(loc(), "42", U8.to_str(U8.from_i64(42))) // TODO
+    // assert_eq_str(loc(), "42", my_u8.to_str()) // TODO
 
-// Must fail:
+    // Must fail:
 
-// assert_eq(loc(), 300, U8.to_i64(U8.from_i64(300))) // Fails because 300 is greater than 255
-// // TODO better errors for overflows, for I64 too
-// my_u8_overflow : U8 = 420 // Fails because 420 is greater than 255
+    // assert_eq(loc(), 300, U8.to_i64(U8.from_i64(300))) // Fails because 300 is greater than 255
+    // // TODO better errors for overflows, for I64 too
+    // my_u8_overflow : U8 = 420 // Fails because 420 is greater than 255
+
+    catch(err: Str) {
+        println(loc(), "test_u8: error thrown:")
+        println(err)
+    }
+}

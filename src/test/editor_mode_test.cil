@@ -41,7 +41,11 @@ my_string : Str = "test" // 'Str' (font-lock-type-face in emacs)
 
 // Builtins
 result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
-printed := format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
+return_printed := func() returns Str {
+    return format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
+    catch (err: Str) {}
+}
+printed := return_printed()
 
 // Type declarations (enum and struct)
 MyEnum := enum { // 'MyEnum' (font-lock-type-face in emacs)

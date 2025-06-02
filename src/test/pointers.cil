@@ -1,6 +1,6 @@
 mode test
 
-ptr_test := proc() {
+test_pointers := proc() {
     p := Ptr.new(32) // allocate 32 bytes
     println("Pointer address: ", I64.to_str(p.data))
 
@@ -19,5 +19,10 @@ ptr_test := proc() {
     Ptr.free(p)
     Ptr.free(q)
     // No need to free 'r', it shares memory with 'p'
+
+    catch(err: Str) {
+        println(loc(), "test_pointers: error thrown:")
+        println(err)
+    }
 }
-ptr_test()
+test_pointers()

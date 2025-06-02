@@ -83,4 +83,9 @@ main := proc(args: ..Str) {
     } else {
         runfile(REPL_PATH)
     }
+
+    catch(err: Str) {
+        println(loc(), "Unhandled error:")
+        println(err)
+    }
 }

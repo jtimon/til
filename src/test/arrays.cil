@@ -14,6 +14,11 @@ test_array_static_u8 := proc() {
     // stat.push(U8.from_i64(77)) // Should panic
 
     stat.delete()
+
+    catch(err: Str) {
+        println(loc(), "test_array_static_u8: error thrown:")
+        println(err)
+    }
 }
 test_array_static_u8()
 
@@ -35,6 +40,11 @@ test_array_dynamic_u8 := proc() {
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
     assert_eq(loc(), 0, dyn.len) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
+
+    catch(err: Str) {
+        println(loc(), "test_array_dynamic_u8: error thrown:")
+        println(err)
+    }
 }
 test_array_dynamic_u8()
 
@@ -50,6 +60,10 @@ test_array_static_str := proc() {
     test(loc(), Str.eq("!", stat.get(2)), "Get after set at index 2")
 
     stat.delete()
+    catch(err: Str) {
+        println(loc(), "test_array_static_str: error thrown:")
+        println(err)
+    }
 }
 test_array_static_str()
 
@@ -83,6 +97,11 @@ test_array_dynamic_str := proc() {
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
     assert_eq(loc(), 0, dyn.len) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
+
+    catch(err: Str) {
+        println(loc(), "scan_tokens: error thrown:")
+        println(err)
+    }
 }
 test_array_dynamic_str()
 
@@ -98,6 +117,10 @@ test_array_static_bool := proc() {
     test(loc(), Bool.eq(true, stat.get(2)), "Get after set at index 2")
 
     stat.delete()
+    catch(err: Str) {
+        println(loc(), "test_array_static_bool: error thrown:")
+        println(err)
+    }
 }
 test_array_static_bool()
 
@@ -119,6 +142,11 @@ test_array_dynamic_bool := proc() {
     assert_eq(loc(), 0, dyn.ptr)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
+
+    catch(err: Str) {
+        println(loc(), "test_array_dynamic_bool: error thrown:")
+        println(err)
+    }
 }
 test_array_dynamic_bool()
 
@@ -134,6 +162,10 @@ test_array_static_i64 := proc() {
     test(loc(), I64.eq(300, stat.get(2)), "Get after set at index 2")
 
     stat.delete()
+    catch(err: Str) {
+        println(loc(), "test_array_static_i64: error thrown:")
+        println(err)
+    }
 }
 test_array_static_i64()
 
@@ -155,6 +187,11 @@ test_array_dynamic_i64 := proc() {
     assert_eq(loc(), 0, dyn.ptr)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
+
+    catch(err: Str) {
+        println(loc(), "test_array_dynamic_i64: error thrown:")
+        println(err)
+    }
 }
 test_array_dynamic_i64()
 
@@ -194,6 +231,10 @@ test_array_static_vec2 := proc() {
     // stat.push(Vec2.new(7, 8)) // Should panic if uncommented
 
     stat.delete()
+    catch(err: Str) {
+        println(loc(), "test_array_static_vec2: error thrown:")
+        println(err)
+    }
 }
 test_array_static_vec2()
 
@@ -223,5 +264,10 @@ test_array_dynamic_vec2 := proc() {
     assert_eq(loc(), 0, dyn.ptr)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
+
+    catch(err: Str) {
+        println(loc(), "test_array_dynamic_vec2: error thrown:")
+        println(err)
+    }
 }
 test_array_dynamic_vec2()

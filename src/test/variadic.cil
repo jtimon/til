@@ -1,12 +1,17 @@
 mode test
 
-concat2 := func(args: ..Str) returns Str {
+concat2 := proc(args: ..Str) returns Str {
     mut result := ""
     mut i := 0
     while lt(i, args.len) {
-        result = args.get(i)
+        result = format(result, args.get(i))
         i.inc()
     }
     return result
+
+    catch(err: Str) {
+        println(loc(), "concat2: error thrown:")
+        println(err)
+    }
 }
-// assert_eq_str(loc(), "Variadic hello world!", concat2("Variadic ", "hello ", "world", "!")) // TODO FIXME variadic test
+assert_eq_str(loc(), "Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))
