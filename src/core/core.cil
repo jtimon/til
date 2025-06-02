@@ -16,6 +16,16 @@ I64_OverflowError := struct {
     }
 }
 
+U8_OverflowError := struct {
+    msg: Str = ""
+
+    new := func(msg: Str) returns U8_OverflowError {
+        err := U8_OverflowError()
+        err.msg = msg
+        return err
+    }
+}
+
 IndexOutOfBoundsError := struct {
     msg: Str = ""
 
@@ -252,12 +262,19 @@ U8 := struct {
         return u8_to_i64(self)
     }
 
-    from_i64 := func(self: I64) returns U8 throws Str {
+    // TODO do the rest of the operations, first fake them with i64, until real compilation
+    // TODO rename add into i64_add or something
+    // TODO rename add into I64.add directly in the rust/interpreter side, afterwards
+    u8_add := func(a: U8, b: U8) returns U8 {
+        return U8.from_i64(add(a.to_i64(), b.to_i64()))
+    }
+
+    from_i64 := func(self: I64) returns U8 throws U8_OverflowError {
         if lt(self, 0) {
-            throw format(loc(), "Negative values cannot be cast into 'U8'")
+            throw U8_OverflowError.new(format(loc(), "Negative values cannot be cast into 'U8'"))
         }
         if gt(self, MAX_U8) {
-            throw format(loc(), format("U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
+            throw U8_OverflowError.new(format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
         }
         i64_to_u8 := ext_func(i64: I64) returns U8;
         return i64_to_u8(self)
@@ -480,7 +497,7 @@ U8Array := struct {
 
     set := proc(mut self: U8Array, index: I64, value: U8) throws Str {
         if gteq(index, self.len) {
-            throw format(loc(), "U8Array.set: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "U8Array.set: index out of bounds"))
         }
         mut dest := add(self.ptr, index)
         memcpy(dest, to_ptr(value), 1)

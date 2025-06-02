@@ -39,3 +39,19 @@ var_i64_add := proc(args: ..I64) returns I64 {
     }
 }
 assert_eq(loc(), add(34, 35), var_i64_add(34, 35))
+
+var_u8_add := proc(args: ..U8) returns U8 {
+    mut result : U8 = 0
+    mut i := 0
+    while lt(i, args.len) {
+        result = result.u8_add(args.get(i))
+        i.inc()
+    }
+    return result
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+}
+assert_eq(loc(), add(34, 35), U8.to_i64(var_u8_add(U8.from_i64(34), U8.from_i64(35))))
