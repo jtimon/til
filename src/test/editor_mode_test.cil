@@ -44,6 +44,7 @@ result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
 return_printed := func() returns Str {
     return format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
     catch (err: Str) {}
+    catch (err: IndexOutOfBoundsError) {}
     catch (err: I64_OverflowError) {}
 }
 printed := return_printed()

@@ -17,5 +17,25 @@ concat2 := proc(args: ..Str) returns Str {
         println(loc(), "concat2: error thrown:")
         println(err.msg)
     }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "concat2: IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
 }
-assert_eq_str(loc(), "Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))
+assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", "baz"))
+
+var_i64_add := proc(args: ..I64) returns I64 {
+    mut result := 0
+    mut i := 0
+    while lt(i, args.len) {
+        result = add(result, args.get(i))
+        i.inc()
+    }
+    return result
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+}
+assert_eq(loc(), add(34, 35), var_i64_add(34, 35))

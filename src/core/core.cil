@@ -16,6 +16,16 @@ I64_OverflowError := struct {
     }
 }
 
+IndexOutOfBoundsError := struct {
+    msg: Str = ""
+
+    new := func(msg: Str) returns IndexOutOfBoundsError {
+        err := IndexOutOfBoundsError()
+        err.msg = msg
+        return err
+    }
+}
+
 // FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
@@ -371,7 +381,7 @@ Str := struct {
     }
 }
 
-format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, Str {
+format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, Str {
     mut result := Str()
     result.cap = prefix.cap
 
@@ -457,9 +467,9 @@ U8Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: U8Array, index: I64) returns U8 throws Str {
+    get := func(self: U8Array, index: I64) returns U8 throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "U8Array.get: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "U8Array.get: index out of bounds"))
         }
 
         mut src := add(self.ptr, index)
@@ -539,9 +549,9 @@ StrArray := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: StrArray, index: I64) returns Str throws Str {
+    get := func(self: StrArray, index: I64) returns Str throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "StrArray.get: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "StrArray.get: index out of bounds"))
         }
 
         src := add(self.ptr, mul(index, size_of(Str)))
@@ -550,9 +560,9 @@ StrArray := struct {
         return value
     }
 
-    set := proc(mut self: StrArray, index: I64, value: Str) throws Str {
+    set := proc(mut self: StrArray, index: I64, value: Str) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "StrArray.set: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "StrArray.set: index out of bounds"))
         }
 
         dest := add(self.ptr, mul(index, size_of(Str)))
@@ -705,9 +715,9 @@ I64Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := func(self: I64Array, index: I64) returns I64 throws Str {
+    get := func(self: I64Array, index: I64) returns I64 throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "I64Array.get: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "I64Array.get: index out of bounds"))
         }
 
         src := add(self.ptr, mul(index, size_of(I64)))
@@ -716,9 +726,9 @@ I64Array := struct {
         return value
     }
 
-    set := proc(mut self: I64Array, index: I64, value: I64) throws Str {
+    set := proc(mut self: I64Array, index: I64, value: I64) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "I64Array.set: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "I64Array.set: index out of bounds"))
         }
 
         dest := add(self.ptr, mul(index, size_of(I64)))
@@ -814,7 +824,7 @@ Array := struct {
 
     set := proc(mut self: Array, index: I64, value: Dynamic) throws Str {
         if gteq(index, self.len) {
-            throw format(loc(), "Array.set: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX

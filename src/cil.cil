@@ -43,11 +43,17 @@ main := proc(args: ..Str) {
         mut main_args := StrArray.new(sub(args.len, 1))
         mut i := 1
         while lt(i, args.len) {
-            main_args.set(add(i, 1), args.get(i))
+            main_args.set(add(i, 0), args.get(i))
+            catch(err: IndexOutOfBoundsError) {
+                // REM: It is fine to args.set(0) here, we just checked
+            }
             i.inc()
         }
 
         cmd := args.get(0)
+        catch(err: IndexOutOfBoundsError) {
+            // REM: It is fine to args.get(0) here, we just checked
+        }
         switch cmd {
         case "interpret":
             // run_file_or_exit(args.get(1), main_args) // TODO FIX
@@ -62,6 +68,9 @@ main := proc(args: ..Str) {
 
     } else if gt(args.len, 0) {
         path := args.get(0)
+        catch(err: IndexOutOfBoundsError) {
+            // REM: It is fine to args.get(0) here, we just checked
+        }
         if path.eq("repl") {
             runfile(REPL_PATH)
         } else if or(
@@ -82,10 +91,5 @@ main := proc(args: ..Str) {
         }
     } else {
         runfile(REPL_PATH)
-    }
-
-    catch(err: Str) {
-        println(loc(), "Unhandled error:")
-        println(err)
     }
 }

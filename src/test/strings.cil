@@ -45,5 +45,9 @@ test_strings := proc() {
         println(loc(), "test_strings: error thrown:")
         println(err.msg)
     }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_strings: IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
 }
 test_strings()
