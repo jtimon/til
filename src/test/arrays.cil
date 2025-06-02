@@ -99,8 +99,12 @@ test_array_dynamic_str := proc() {
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
     catch(err: Str) {
-        println(loc(), "scan_tokens: error thrown:")
+        println(loc(), "test_array_dynamic_str: error thrown:")
         println(err)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), "test_array_dynamic_str: error thrown:")
+        println(err.msg)
     }
 }
 test_array_dynamic_str()

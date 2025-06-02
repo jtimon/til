@@ -13,5 +13,9 @@ concat2 := proc(args: ..Str) returns Str {
         println(loc(), "concat2: error thrown:")
         println(err)
     }
+    catch(err: I64_OverflowError) {
+        println(loc(), "concat2: error thrown:")
+        println(err.msg)
+    }
 }
 assert_eq_str(loc(), "Variadic hello world!", concat2("Variadic ", "hello ", "world", "!"))

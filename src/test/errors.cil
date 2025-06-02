@@ -12,7 +12,7 @@ simplest_catch := proc () {
 }
 simplest_catch()
 
-DivideByZero := struct {}
+DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
 
 // Functions must explicitly declare what they can throw, like in Java
 safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
