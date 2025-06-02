@@ -16,18 +16,17 @@ panic2 := proc(loc_str: Str, msgs: ..Str) {
     exit(1)
 }
 
-assertm := proc(loc_str: Str, cond: Bool, msg: Str) {
+assertm := func(loc_str: Str, cond: Bool, msg: Str) {
     // if not(1) { // Uncomment to test import error messages
     if not(cond) {
         panic(loc_str, format("assert failed: ", msg))
     }
 }
 
-assert := proc(loc_str: Str, cond: Bool) {
+assert := func(loc_str: Str, cond: Bool) {
     assertm(loc_str, cond, "")
 }
 
-TODO := proc(loc_str: Str, msg: Str) {
-    print("TODO: ")
-    assertm(loc_str, false, msg)
+TODO := func(loc_str: Str, msg: Str) {
+    assertm(loc_str, false, format("TODO: ", msg))
 }

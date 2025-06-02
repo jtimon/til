@@ -31,7 +31,7 @@ NodeType := enum {
 ExprArray := struct {
 
     push := func(mut self: ExprArray, e: Expr) {
-        // TODO implement
+        TODO(loc(), "Implement ExprArray.push")
     }
 }
 
@@ -50,12 +50,9 @@ Expr := struct {
     }
 }
 
-// TODO properly support throw
-// TODO implement Str.fmt once we have variadic arguments for user functions
-
 parse_statement := func(lexer: Lexer) returns Expr {
     e := Expr()
-    // TODO(loc(), "Implement parse_statement()") // TODO is less useful if funcs cannot call procs
+    TODO(loc(), "Implement parse_statement")
     return e
 }
 

@@ -1343,6 +1343,10 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::FCall => {
             // TODO the arguments of a function call can also call procedures
             let f_name = get_func_name_in_call(e);
+            // TODO Temp: In the future, implement a special PanicError that's potentially  thrown implicitly everywhere
+            if f_name == "panic" {
+                return false
+            }
             match context.funcs.get(&f_name) {
                 Some(func) => func.is_proc(),
                 None => false,
