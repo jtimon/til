@@ -21,7 +21,6 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
     }
     return div(a, b)
 }
-// safe_div(42, 0) // TODO FIX Not printing error for unhandled errors
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
@@ -48,7 +47,7 @@ unsafe_div2(42, 0)
 missing_throws := proc() throws DivideByZero {
     safe_div(42, 0)
 }
-// missing_throws() // TODO FIX Not printing error for unhandled errors
+// missing_throws() // REM Gives an error if uncommented
 
 // All exceptions that are not catched must be declared in the throws section again
 // TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
@@ -108,10 +107,16 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
 
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
-test_undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInMethod {
+test_undeclared_throws := proc() {
     undeclared_throws()
     catch (err: ErrorUndeclaredInAssoc) {
         println("test_undeclared_throws: Correctly catched thrown ErrorUndeclaredInAssoc")
+    }
+    catch (err: Str) {
+    }
+    catch (err: I64) {
+    }
+    catch (err: ErrorUndeclaredInMethod) {
     }
 }
 test_undeclared_throws()

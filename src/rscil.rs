@@ -4201,7 +4201,20 @@ fn main_run(print_extra: bool, context: &mut Context, path: &String, source: Str
         }
         e.params.push(Expr{node_type: NodeType::FCall, line: 0, col: 0, params: main_params});
     }
-    errors.extend(check_types(context, &e)); // TODO remove mut from context arg
+    errors.extend(check_types(context, &e));
+
+    // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
+    let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, returns: vec![], throws: vec![]};
+    let mut thrown_types = vec![];
+    let mut return_found = false;
+    errors.extend(check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_types, &mut return_found));
+
+    if return_found {
+        errors.push(e.error("type", "Cannot return from the root of the file"));
+    }
+    for (_thrown_type, error_msg) in &thrown_types {
+        errors.push(error_msg.to_string());
+    }
 
     if errors.len() > 0 {
         for err in &errors {
@@ -4271,16 +4284,9 @@ fn usage() {
 
 fn run_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
-        Ok(result) => {
-            if result.is_throw {
-                let e = Expr{node_type: NodeType::Body, params: Vec::new(), line: 0, col: 0};
-                println!("{}", e.lang_error("eval", &format!("Unhandled error '{}' while running file '{}'\n",
-                                                             result.thrown_type.unwrap_or_else(|| "".to_string()), path)));
-                std::process::exit(1);
-            }
-        },
-        Err(error_string) => {
-            println!("ERROR: While running file {path}\n{error_string}");
+        Ok(_) => {},
+        Err(err) => {
+            println!("ERROR: While running file {path}:\n{path}:{err}");
             std::process::exit(1);
         },
     };
