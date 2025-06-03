@@ -117,14 +117,14 @@ TokenArray := struct {
         return arr
     }
 
-    push := proc(mut self: TokenArray, t: Token) {
+    push := proc(mut self: TokenArray, t: Token) throws FullError {
         if not(self.is_dyn) {
             panic(loc(), "TokenArray.push: push is not allowed for static arrays")
         }
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, TokenArray.MAX_CAP) {
-                panic(loc(), "TokenArray.push: capacity exceeded TokenArray.MAX_CAP")
+                throw FullError.new(format(loc(), "TokenArray.push: capacity exceeded TokenArray.MAX_CAP"))
             }
             new_ptr := malloc(mul(new_cap, size_of(Token)))
             memcpy(new_ptr, self.ptr, mul(self.len, size_of(Token)))

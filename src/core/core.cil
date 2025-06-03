@@ -36,6 +36,16 @@ IndexOutOfBoundsError := struct {
     }
 }
 
+FullError := struct {
+    msg: Str = ""
+
+    new := func(msg: Str) returns FullError {
+        err := FullError()
+        err.msg = msg
+        return err
+    }
+}
+
 // FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
@@ -461,7 +471,7 @@ U8Array := struct {
         return arr
     }
 
-    push := proc(mut self: U8Array, value: U8) throws Str {
+    push := proc(mut self: U8Array, value: U8) throws FullError, Str {
         if not(self.is_dyn) {
             throw format(loc(), "U8Array.push: push is not allowed for static arrays")
         }
@@ -469,7 +479,7 @@ U8Array := struct {
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, U8Array.MAX_CAP) {
-                throw format(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP")
+                throw FullError.new(format(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP"))
             }
 
             new_ptr := malloc(new_cap)
@@ -551,7 +561,7 @@ StrArray := struct {
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, StrArray.MAX_CAP) {
-                throw format(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP")
+                throw FullError.new(format(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP"))
             }
 
             new_ptr := malloc(mul(new_cap, size_of(Str)))
@@ -634,7 +644,7 @@ BoolArray := struct {
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, BoolArray.MAX_CAP) {
-                throw format(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP")
+                throw FullError.new(format(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP"))
             }
 
             new_ptr := malloc(mul(new_cap, size_of(Bool)))
@@ -709,7 +719,7 @@ I64Array := struct {
         return arr
     }
 
-    push := proc(mut self: I64Array, value: I64) throws Str {
+    push := proc(mut self: I64Array, value: I64) throws FullError, Str {
         if not(self.is_dyn) {
             throw format(loc(), "I64Array.push: push is not allowed for static arrays")
         }
@@ -717,7 +727,7 @@ I64Array := struct {
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, I64Array.MAX_CAP) {
-                throw format(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP")
+                throw FullError.new(format(loc(), "I64Array.push: capacity exceeded I64Array.MAX_CAP"))
             }
 
             new_ptr := malloc(mul(new_cap, size_of(I64)))
@@ -799,7 +809,7 @@ Array := struct {
         return arr
     }
 
-    push := proc(mut self: Array, value: Dynamic) throws Str {
+    push := proc(mut self: Array, value: Dynamic) throws FullError, Str {
         if not(self.is_dyn) {
             throw format(loc(), "Array.push: push is not allowed for static arrays")
         }
@@ -811,7 +821,7 @@ Array := struct {
         if I64.eq(self.len, self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Array.MAX_CAP) {
-                throw format(loc(), "Array.push: capacity exceeded Array.MAX_CAP")
+                throw FullError.new(format(loc(), "Array.push: capacity exceeded Array.MAX_CAP"))
             }
 
             new_ptr := malloc(mul(new_cap, self.type_size))

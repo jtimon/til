@@ -61,6 +61,10 @@ test_array_dynamic_u8 := proc() {
         println(loc(), "test_array_static_u8: U8_OverflowError thrown:")
         println(err.msg)
     }
+    catch(err: FullError) {
+        println(loc(), "test_array_static_u8: FullError thrown:")
+        println(err.msg)
+    }
 }
 test_array_dynamic_u8()
 
@@ -220,6 +224,10 @@ test_array_dynamic_i64 := proc() {
         println(loc(), "test_array_dynamic_i64: IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
+    catch(err: FullError) {
+        println(loc(), "test_array_dynamic_i64: FullError thrown:")
+        println(err.msg)
+    }
 }
 test_array_dynamic_i64()
 
@@ -296,6 +304,10 @@ test_array_dynamic_vec2 := proc() {
     catch(err: Str) {
         println(loc(), "test_array_dynamic_vec2: error thrown:")
         println(err)
+    }
+    catch(err: FullError) {
+        println(loc(), "test_array_static_u8: FullError thrown:")
+        println(err.msg)
     }
 }
 test_array_dynamic_vec2()
