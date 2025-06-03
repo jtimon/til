@@ -374,21 +374,21 @@ Str := struct {
         return I64.from_str(self)
     }
 
-    get_substr := func(s: Str, start: I64, end: I64) returns Str throws Str {
+    get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, Str {
         if lt(start, 0) {
-            throw format(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative")
+            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative"))
         }
         if lt(end, 0) {
-            throw format(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative")
+            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative"))
         }
         if gt(start, end) {
-            throw format(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str())
+            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
         }
         if gt(end, s.len()) {
-            throw format(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len()))
+            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
         }
         if I64.eq(start, end) {
-            throw format(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring")
+            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring"))
         }
 
         mut substr := Str()
