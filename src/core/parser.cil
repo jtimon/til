@@ -2,14 +2,18 @@ mode lib
 
 import("src/core/lexer")
 
+LiteralNodeType := enum {
+    List: Str,
+    String: Str,
+    I64: I64,
+    Bool: Bool,
+}
+
 // TODO support tagged unions
 NodeType := enum {
     Body,
-    LList : Str,
-    LString : Str,
-    LI64 : I64,
-    LBool : Bool,
     FCall,
+    Literal    : LiteralNodeType
     Identifier : Str,
     // Declaration : Declaration,
     Assignment : Str,

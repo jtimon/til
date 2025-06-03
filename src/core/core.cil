@@ -46,6 +46,17 @@ FullError := struct {
     }
 }
 
+// TODO check for undefined types in catch
+AllocError := struct {
+    msg: Str = ""
+
+    new := func(msg: Str) returns AllocError {
+        err := FullError()
+        err.msg = msg
+        return err
+    }
+}
+
 // FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
@@ -212,7 +223,7 @@ Bool := struct {
         return 0
     }
 
-    to_u8 := func(self: Bool) returns U8 throws Str {
+    to_u8 := func(self: Bool) returns U8 throws U8_OverflowError {
         // TODO move to directly return self.data instead
         if self {
             return U8.from_i64(1)
@@ -275,7 +286,7 @@ U8 := struct {
     // TODO do the rest of the operations, first fake them with i64, until real compilation
     // TODO rename add into i64_add or something
     // TODO rename add into I64.add directly in the rust/interpreter side, afterwards
-    u8_add := func(a: U8, b: U8) returns U8 {
+    u8_add := func(a: U8, b: U8) returns U8 throws U8_OverflowError {
         return U8.from_i64(add(a.to_i64(), b.to_i64()))
     }
 
@@ -374,7 +385,7 @@ Str := struct {
         return I64.from_str(self)
     }
 
-    get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, Str {
+    get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
         if lt(start, 0) {
             throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative"))
         }
@@ -395,15 +406,14 @@ Str := struct {
         substr.cap = sub(end, start)
         substr.c_string = malloc(substr.cap)
         if NULL.eq(substr.c_string) {
-            throw format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes")
+            throw AllocError.new(format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes"))
         }
-
         memcpy(substr.c_string, add(s.c_string, start), substr.cap)
 
         return substr
     }
 
-    get_char := func(s: Str, pos: I64) returns Str throws Str {
+    get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, AllocError {
         return s.get_substr(pos, add(pos, 1))
     }
 }
@@ -505,7 +515,7 @@ U8Array := struct {
         return value
     }
 
-    set := proc(mut self: U8Array, index: I64, value: U8) throws Str {
+    set := proc(mut self: U8Array, index: I64, value: U8) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
             throw IndexOutOfBoundsError.new(format(loc(), "U8Array.set: index out of bounds"))
         }
@@ -553,7 +563,7 @@ StrArray := struct {
         return arr
     }
 
-    push := proc(mut self: StrArray, value: Str) throws Str {
+    push := proc(mut self: StrArray, value: Str) throws FullError, Str {
         if not(self.is_dyn) {
             throw format(loc(), "StrArray.push: push is not allowed for static arrays")
         }
@@ -636,7 +646,7 @@ BoolArray := struct {
         return arr
     }
 
-    push := proc(mut self: BoolArray, value: Bool) throws Str {
+    push := proc(mut self: BoolArray, value: Bool) throws FullError, Str {
         if not(self.is_dyn) {
             throw format(loc(), "BoolArray.push: push is not allowed for static arrays")
         }
@@ -836,9 +846,9 @@ Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := proc(self: Array, index: I64, mut T: Dynamic) throws Str {
+    get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
-            throw format(loc(), "Array.get: index out of bounds")
+            throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
         }
 
         // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
@@ -849,7 +859,7 @@ Array := struct {
         memcpy(to_ptr(T), src, self.type_size)
     }
 
-    set := proc(mut self: Array, index: I64, value: Dynamic) throws Str {
+    set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
         }

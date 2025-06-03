@@ -53,5 +53,9 @@ var_u8_add := proc(args: ..U8) returns U8 {
         println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
+    catch(err: U8_OverflowError) {
+        println(loc(), "var_i64_add: U8_OverflowError thrown:")
+        println(err.msg)
+    }
 }
 assert_eq(loc(), add(34, 35), U8.to_i64(var_u8_add(U8.from_i64(34), U8.from_i64(35))))

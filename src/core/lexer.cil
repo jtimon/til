@@ -166,13 +166,8 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
     // tokens.push(t) // TODO FIX 115:9: eval ERROR: memcpy out of bounds: src=82424 dest=82477 size=24 arena_len=82493
 }
 
-is_digit := func(source: Str, pos: I64) returns Bool throws Str {
+is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
     current_char := source.get_substr(pos, add(pos, 1))
-    catch (err: IndexOutOfBoundsError) {
-        // TODO Something?
-        exit(1)
-    }
-    // TODO implement str_char_in_range
     switch current_char {
     case "0": return true
     case "1": return true
@@ -184,14 +179,15 @@ is_digit := func(source: Str, pos: I64) returns Bool throws Str {
     case "7": return true
     case "8": return true
     case "9": return true
+    // case "0".."9": return true // TODO Immplement ranges
     case:
     }
     return false
 }
 
-is_id_start := func(source: Str, pos: I64) returns Bool {
-    current_char := Str.get_substr(source, pos, add(pos, 1))
-    // TODO implement str_char_in_range
+is_id_start := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
+    // current_char := Str.get_substr(source, pos, add(pos, 1)) // TODO FIX throws check doesn't propagate for associated functions (unless called as methods)
+    current_char := source.get_substr(pos, add(pos, 1))
     switch current_char {
     case "a": return true
     case "b": return true
@@ -219,6 +215,7 @@ is_id_start := func(source: Str, pos: I64) returns Bool {
     case "x": return true
     case "y": return true
     case "z": return true
+    // case "a".."z": return true // TODO Immplement ranges
     case "A": return true
     case "B": return true
     case "C": return true
@@ -245,6 +242,7 @@ is_id_start := func(source: Str, pos: I64) returns Bool {
     case "X": return true
     case "Y": return true
     case "Z": return true
+    // case "A".."Z": return true // TODO Immplement ranges
     case "_": return true
     case:
     }
@@ -546,13 +544,13 @@ scan_tokens := proc(source: Str) returns TokenArray {
     } // while
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
-    catch(err: Str) {
-        println(loc(), "scan_tokens: Str error thrown:")
-        println(err)
-    }
     catch (err: IndexOutOfBoundsError) {
-        // TODO Something?
         println(loc(), "scan_tokens: IndexOutOfBoundsError error thrown:")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println(loc(), "scan_tokens: AllocError error thrown:")
         println(err.msg)
         exit(1)
     }

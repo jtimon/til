@@ -15,10 +15,6 @@ test_array_static_u8 := proc() {
 
     stat.delete()
 
-    catch(err: Str) {
-        println(loc(), "test_array_static_u8: error thrown:")
-        println(err)
-    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_array_static_u8: IndexOutOfBoundsError thrown:")
         println(err.msg)
@@ -127,7 +123,11 @@ test_array_dynamic_str := proc() {
         println(err.msg)
     }
     catch(err: I64_OverflowError) {
-        println(loc(), "test_array_dynamic_str: error thrown:")
+        println(loc(), "test_array_dynamic_str: I64_OverflowError thrown:")
+        println(err.msg)
+    }
+    catch(err: FullError) {
+        println(loc(), "test_array_static_u8: FullError thrown:")
         println(err.msg)
     }
 }
@@ -171,6 +171,10 @@ test_array_dynamic_bool := proc() {
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
 
+    catch(err: FullError) {
+        println(loc(), "test_array_dynamic_bool: FullError thrown:")
+        println(err.msg)
+    }
     catch(err: Str) {
         println(loc(), "test_array_dynamic_bool: error thrown:")
         println(err)
@@ -267,9 +271,9 @@ test_array_static_vec2 := proc() {
     // stat.push(Vec2.new(7, 8)) // Should panic if uncommented
 
     stat.delete()
-    catch(err: Str) {
-        println(loc(), "test_array_static_vec2: error thrown:")
-        println(err)
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_array_static_vec2: IndexOutOfBoundsError thrown:")
+        println(err.msg)
     }
 }
 test_array_static_vec2()
