@@ -21,7 +21,7 @@ mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
 single_print := ext_proc(args: ..Str);
 // TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
 print_flush  := ext_proc();
-exit         := ext_proc(code: I64);
+exit         := ext_func(code: I64);
 // TODO parse with dots like other languages, then change the direction of the slash depending on the os
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
