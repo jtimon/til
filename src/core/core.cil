@@ -223,12 +223,8 @@ Bool := struct {
         return 0
     }
 
-    to_u8 := func(self: Bool) returns U8 throws U8_OverflowError {
-        // TODO move to directly return self.data instead
-        if self {
-            return U8.from_i64(1)
-        }
-        return U8.from_i64(0)
+    to_u8 := func(self: Bool) returns U8 {
+        return self.data
     }
 
     from_i64 := func(i: I64) returns Bool { // TODO support regular struct returns to be able to this as a regular struct internally (except for if/while conditions)
