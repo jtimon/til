@@ -156,6 +156,7 @@ TokenArray := struct {
 }
 
 scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) {
+// scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
     mut t := Token()
     t.token_type = token_type
     t.token_str = token_str
@@ -163,7 +164,11 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
     t.col = col
 
     println("Token (", I64.to_str(line), ", ", I64.to_str(col), "): Type: ", enum_to_str(t.token_type), " str: ", token_str)
+
     // tokens.push(t) // TODO FIX 115:9: eval ERROR: memcpy out of bounds: src=82424 dest=82477 size=24 arena_len=82493
+    // catch (err: FullError) {
+    //     throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
+    // }
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
@@ -309,7 +314,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_tokens := proc(source: Str) returns TokenArray {
+scan_tokens := proc(source: Str) returns TokenArray throws Str {
     mut tokens := TokenArray.new_dyn()
 
     eof_pos := source.len()
@@ -546,14 +551,10 @@ scan_tokens := proc(source: Str) returns TokenArray {
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
     catch (err: IndexOutOfBoundsError) {
-        println(loc(), "scan_tokens: IndexOutOfBoundsError error thrown:")
-        println(err.msg)
-        exit(1)
+        throw format(loc(), "scan_tokens: IndexOutOfBoundsError error thrown:\n", err.msg)
     }
     catch (err: AllocError) {
-        println(loc(), "scan_tokens: AllocError error thrown:")
-        println(err.msg)
-        exit(1)
+        throw format(loc(), "scan_tokens: AllocError error thrown:\n", err.msg)
     }
     return tokens
 }
@@ -770,23 +771,21 @@ print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
     return errors_found
 }
 
-lexer_from_source := proc(path: Str, source: Str) returns Lexer {
+lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str {
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)
     // l.tokens = scan_tokens(source) // TODO fix access to fields of type array
 
     if I64.eq(tokens.len, 0) {
-        println(path, ":1:0: compiler ERROR: End of file not found.")
-        exit(1)
+        throw format(path, ":1:0: compiler ERROR: End of file not found.")
     }
 
     mut first := Token()
     tokens.get(0, first)
     switch first.token_type {
     case TokenType.Eof:
-        println(path, ":0:0: compiler ERROR: Nothing to be done")
-        exit(1)
+        throw format(path, ":0:0: compiler ERROR: Nothing to be done")
     case:
     }
 
@@ -798,10 +797,8 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer {
         print_if_lex_error(path, t, errors)
         i.inc()
     }
-
     if gt(errors, 0) {
-        println("Compiler errors: ", I64.to_str(errors), " lexical errors found")
-        exit(1)
+        throw format("Compiler errors: ", I64.to_str(errors), " lexical errors found")
     }
 
     return l
