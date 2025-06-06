@@ -4,6 +4,10 @@ mode test
 
 runfile("src/test/future.cil")
 
+// self hosting:
+runfile("src/cil.cil", "src/test/self/lexer/premode.cil")
+// runfile("src/cil.cil", "src/test/self/lexer/error.cil") // REM: uncomment to test lexer tests
+
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
 runfile("src/test/hello/hello_cli.cil")
@@ -51,10 +55,6 @@ runfile("src/test/todo.cil") // permanent TODO
 
 // LLM suggested tests:
 runfile("src/test/llm/llama3.3.cil") // TODO FIX from discussing tagged unions in rust vs algebraic types in haskell
-
-// self hosting:
-runfile("src/cil.cil", "src/test/self/lexer/premode.cil")
-// runfile("src/cil.cil", "src/test/self/lexer/error.cil") // REM: uncomment to test lexer tests
 
 // REM test exit.cil only at the end
 runfile("src/test/exit.cil")
