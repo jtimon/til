@@ -20,9 +20,9 @@ test_pointers := proc() {
     Ptr.free(q)
     // No need to free 'r', it shares memory with 'p'
 
-    catch(err: Str) {
-        println(loc(), "test_pointers: error thrown:")
-        println(err)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
     }
 }
 test_pointers()
