@@ -4,11 +4,21 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
+ValueType := enum {
+    Dynamic,
+}
+
 LiteralNodeType := enum {
     List: Str,
     String: Str,
     I64: I64,
     Bool: Bool,
+}
+
+Declaration := struct {
+    mut name       : Str  = ""
+    mut value_type : Str  = ""
+    mut is_mut     : Bool = false
 }
 
 // TODO support tagged unions
@@ -17,7 +27,7 @@ NodeType := enum {
     FCall,
     Literal    : LiteralNodeType
     Identifier : Str,
-    // Declaration : Declaration,
+    Declaration : Declaration,
     Assignment : Str,
     // FuncDef : SFuncDef,
     // EnumDef : SEnumDef,
@@ -52,6 +62,18 @@ Expr := struct {
     }
 }
 
+str_to_value_type := func(type_name: Str) returns ValueType {
+    // Temporary placeholder
+    return ValueType.Dynamic
+}
+
+parse_primary := func(lexer: Lexer) returns Expr throws Str {
+    t := lexer.peek()
+    e := Expr()
+    return e
+    throw t.todo_error("parse_primary not implemented yet")
+}
+
 parse_primary_identifier := func(lexer: Lexer) returns Expr throws Str {
     t := lexer.peek()
     e := Expr()
@@ -71,11 +93,26 @@ parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws 
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := func(lexer: Lexer, mut_: Bool, type_name: Str) returns Expr throws Str {
+parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr {
     t := lexer.peek()
-    e := Expr()
-    return e
-    throw t.todo_error("parse_declaration not implemented yet")
+    decl_name := t.token_str
+    initial_index := lexer.current_token
+
+    lexer.advance(3) // identifier, colon, equal
+    if not(explicit_type.eq(INFER_TYPE)) {
+        lexer.advance(1) // skip type identifier
+    }
+
+    mut params := ExprArray()
+    params.push(parse_primary(lexer))
+
+    mut decl := Declaration()
+    decl.name = decl_name
+    decl.value_type = str_to_value_type(explicit_type)
+    decl.is_mut = is_mut
+
+    return Expr.new_parse(NodeType.Declaration, lexer.get_token(initial_index), params)
+    // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
 parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str {

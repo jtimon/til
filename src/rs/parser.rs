@@ -1093,18 +1093,17 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str) -> Re
     let t = lexer.peek();
     let decl_name = &t.token_str;
     let initial_current = lexer.current;
+
     lexer.advance(3)?; // skip identifier, colon and equal
     if explicit_type != INFER_TYPE {
         lexer.advance(1)?; // skip type identifier
     }
+
     let mut params : Vec<Expr> = Vec::new();
-    let prim = match parse_primary(lexer) {
-        Ok(to_ret) => to_ret,
-        Err(err_str) => return Err(err_str),
-    };
-    params.push(prim);
-    let explicit_value_type = str_to_value_type(explicit_type);
-    let decl = Declaration{name: decl_name.to_string(), value_type: explicit_value_type, is_mut: is_mut};
+    params.push(parse_primary(lexer)?);
+
+    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut};
+
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
 
