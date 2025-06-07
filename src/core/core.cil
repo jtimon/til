@@ -118,13 +118,18 @@ panic := proc(loc_str: Str, msg: Str) {
 }
 
 Ptr := struct {
-    mut data: I64 = NULL
+    mut c_ptr: I64 = NULL // Raw pointer, any type, ie '*void' in C, 'Dynamic' in cil
+    mut type_size: I64 = 0
+    mut ptr_type: Str = "Dynamic"
 
     // TODO FIX should type error because size is already declared
-    size_of := func() returns I64 { return size_of(I64) }
+    size_of := func(p: Ptr) returns I64 { return p.type_size }
 
-    new := proc(size: I64) returns Ptr throws AllocError {
+    new := proc(T: Dynamic) returns Ptr throws Str {
         mut p := Ptr()
+        p.type_size = size_of(T)
+        p.ptr_type = "Dynamic"
+        size := count.mul(size_of(T))
         p.data = malloc(size)
         if NULL.eq(p.data) {
             throw AllocError.new(format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes"))
@@ -132,8 +137,9 @@ Ptr := struct {
         return p
     }
 
-    new2 := proc(T: Dynamic) returns Ptr throws Str {
+    new_arr := proc(T: Dynamic, count: I64) returns Ptr throws Str {
         size := size_of(T)
+        p.ptr_type = type_to_str(T)
         return Ptr.new(size)
     }
 

@@ -1,19 +1,17 @@
 mode test
 
-test_pointers := proc() {
-    p := Ptr.new(32) // allocate 32 bytes
-    println("Pointer address: ", I64.to_str(p.data))
+test_pointers_i64 := proc() {
+    p := Ptr.new(I64) // allocate 32 bytes
+    println("Pointer address: ", I64.to_str(p.c_ptr))
 
     Ptr.set_zero(p, 32)
 
-    q := Ptr.new(32)
+    q := Ptr.new(I64)
 
     Ptr.copy_to(p, q, 32)
 
     r := Ptr.offset(p, 16)
-    println("Offset pointer address: ", I64.to_str(r.data))
-
-    // s := Ptr.new2(I64) // TODO FIX
+    println("Offset pointer address: ", I64.to_str(r.c_ptr))
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
     Ptr.delete(p)
@@ -25,4 +23,4 @@ test_pointers := proc() {
         println(err.msg)
     }
 }
-test_pointers()
+test_pointers_i64()
