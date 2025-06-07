@@ -123,23 +123,23 @@ Ptr := struct {
     // TODO FIX should type error because size is already declared
     size_of := func() returns I64 { return size_of(I64) }
 
-    new := proc(size: I64) returns Ptr throws Str {
+    new := proc(size: I64) returns Ptr throws AllocError {
         mut p := Ptr()
         p.data = malloc(size)
         if NULL.eq(p.data) {
-            throw format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes")
+            throw AllocError.new(format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes"))
         }
         return p
     }
 
-    new2 := proc(T: Dynamic) returns Ptr throws Str {
+    new2 := proc(T: Dynamic) returns Ptr throws AllocError {
         size := size_of(T)
         return Ptr.new(size)
     }
 
-    free := proc(self: Ptr) throws Str {
+    free := proc(self: Ptr) throws AllocError {
         if NULL.eq(self.data) {
-            throw format(loc(), "Ptr.free: trying to free a NULL pointer")
+            throw AllocError.new(format(loc(), "Ptr.free: trying to free a NULL pointer"))
         }
         free(self.data)
     }
@@ -383,6 +383,7 @@ Str := struct {
 }
 
 get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
+
     if start.lt(0) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
     }
@@ -414,7 +415,7 @@ get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, All
     return s.get_substr(pos, add(pos, 1))
 }
 
-format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, Str {
+format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
     mut result := Str()
     result.cap = prefix.cap
 
@@ -430,7 +431,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
 
     result.c_string = malloc(result.cap)
     if NULL.eq(result.c_string) {
-        throw format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap))
+        throw AllocError.new(format(loc(), "format: malloc failed for cap = ", I64.to_str(result.cap)))
     }
 
     mut offset := 0
