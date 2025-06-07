@@ -50,13 +50,37 @@ Expr := struct {
     }
 }
 
-parse_statement := func(lexer: Lexer) returns Expr {
+parse_statement := func(lexer: Lexer) returns Expr throws Str {
+    t := lexer.peek()
+
+    switch t.token_type {
+    case TokenType.For:
+        throw t.todo_error("Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,")
+    case TokenType.Return:
+        throw t.todo_error("parse return_statement not implemented yet")
+    case TokenType.Throw:
+        throw t.todo_error("parse throw_statement not implemented yet")
+    case TokenType.If:
+        throw t.todo_error("parse if_statement not implemented yet")
+    case TokenType.While:
+        throw t.todo_error("parse while_statement not implemented yet")
+    case TokenType.Switch:
+        throw t.todo_error("parse switch_statement not implemented yet")
+    case TokenType.Mut:
+        throw t.todo_error("parse mut_declaration not implemented yet")
+    case TokenType.Identifier:
+        throw t.todo_error("parse statement_identifier not implemented yet")
+    case TokenType.Catch:
+        throw t.todo_error("parse catch_statement not implemented yet")
+    case:
+        throw t.error(format("Expected statement, found ", enum_to_str(t.token_type)))
+    }
+
     e := Expr()
-    TODO(loc(), "Implement parse_statement")
     return e
 }
 
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str {
     mut params := ExprArray()
     mut end_found := false
     start_token := lexer.peek()
