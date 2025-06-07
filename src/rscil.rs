@@ -2241,10 +2241,9 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 // println!("inner_e {:?}", inner_e);
                 match &inner_e.node_type {
                     // If the member's default value is a function (method), type check it
-                    NodeType::FuncDef(_func_def) => {
-                        let mut _function_context = context.clone();
-                        // TODO FIX Uncomment to test functions inside structs
-                        // errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
+                    NodeType::FuncDef(func_def) => {
+                        let mut function_context = context.clone();
+                        errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
                     },
                     // For other types of members, treat them like regular declarations
                     _ => {
