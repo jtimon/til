@@ -95,7 +95,7 @@ memset := ext_func(dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
     mut i := 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         single_print(args.get(i))
         i.inc()
     }
@@ -104,7 +104,7 @@ print := proc(args: ..Str) {
 
 println := proc(args: ..Str) {
     mut i := 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         single_print(args.get(i))
         i.inc()
     }
@@ -174,7 +174,7 @@ not := func(b: Bool) returns Bool {
 
 or := func(args: ..Bool) returns Bool {
     mut i := 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         if args.get(i) {
             return true
         }
@@ -188,7 +188,7 @@ or := func(args: ..Bool) returns Bool {
 
 and := func(args: ..Bool) returns Bool {
     mut i := 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         if not(args.get(i)) {
             return false
         }
@@ -362,7 +362,7 @@ Str := struct {
         }
 
         mut i : I64 = 0
-        while lt(i, self.cap) {
+        while i.lt(self.cap) {
             mut self_byte  : U8 = 0
             mut other_byte : U8 = 0
             memcpy(to_ptr(self_byte), add(self.c_string, i), 1)
@@ -419,7 +419,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     result.cap = prefix.cap
 
     mut i := 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         arg := args.get(i)
         result.cap = add(result.cap, arg.cap)
         if lt(result.cap, arg.cap) {
@@ -438,7 +438,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     offset = prefix.cap
 
     i = 0
-    while lt(i, args.len) {
+    while i.lt(args.len) {
         mut s := args.get(i)
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
         offset = add(offset, s.cap)

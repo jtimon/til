@@ -42,7 +42,7 @@ main := proc(args: ..Str) {
     if gt(args.len, 1) {
         mut main_args := StrArray.new(sub(args.len, 1))
         mut i := 1
-        while lt(i, args.len) {
+        while i.lt(args.len) {
             main_args.set(add(i, 0), args.get(i))
             catch(err: IndexOutOfBoundsError) {
                 // REM: It is fine to args.set(0) here, we just checked

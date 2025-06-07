@@ -102,7 +102,7 @@ test_array_dynamic_str := proc() {
     // for i in 0..dyn.len { // TODO support for loops with ranges
     mut i := 0
     // while i.lt(dyn.len) { // TODO Fix more UFCS cases
-    while lt(i, dyn.len) {
+    while i.lt(dyn.len) {
         s := dyn.get(i)
         combined_str = format(combined_str, s)
         i.inc()
