@@ -51,7 +51,7 @@ AllocError := struct {
     msg: Str = ""
 
     new := func(msg: Str) returns AllocError {
-        err := FullError()
+        err := AllocError()
         err.msg = msg
         return err
     }
