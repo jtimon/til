@@ -334,7 +334,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                     pos.inc()
                 }
             }
-            scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, sub(pos, start_line_pos))
+            scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, pos.sub(start_line_pos))
         } else {
 
             current_char := source.get_substr(pos, pos.add(1))
@@ -350,91 +350,91 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
-                scan_push_token(tokens, TokenType.LeftParen, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftParen, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case ")":
-                scan_push_token(tokens, TokenType.RightParen, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightParen, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "{":
-                scan_push_token(tokens, TokenType.LeftBrace, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftBrace, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "}":
-                scan_push_token(tokens, TokenType.RightBrace, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightBrace, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "[":
-                scan_push_token(tokens, TokenType.LeftBracket, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.LeftBracket, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "]":
-                scan_push_token(tokens, TokenType.RightBracket, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.RightBracket, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
 
             case ";":
                 if Str.eq(";", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, pos.sub(start_line_pos))
                     pos = pos.add(2)
                 } else {
-                    scan_push_token(tokens, TokenType.Semicolon, ";", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Semicolon, ";", line, pos.sub(start_line_pos))
                     pos.inc()
                 }
                 // separator for optional type before the equal in declarations or args
             case ":":
-                scan_push_token(tokens, TokenType.Colon, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Colon, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
                 // separator for args
             case ",":
-                scan_push_token(tokens, TokenType.Comma, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Comma, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
 
                 // math
             case "+":
-                scan_push_token(tokens, TokenType.Plus, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Plus, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "-":
-                scan_push_token(tokens, TokenType.Minus, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Minus, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
             case "*":
-                scan_push_token(tokens, TokenType.Star, current_char, line, sub(pos, start_line_pos))
+                scan_push_token(tokens, TokenType.Star, current_char, line, pos.sub(start_line_pos))
                 pos.inc()
 
                 // reserved for two chars in a row
             case ".":
                 if Str.eq(".", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.DoubleDot, "..", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(tokens, TokenType.Dot, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Dot, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
             case "=":
                 if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.EqualEqual, "==", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.EqualEqual, "==", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(tokens, TokenType.Equal, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Equal, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
             case "<":
                 if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.LesserEqual, "<=", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.LesserEqual, "<=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(tokens, TokenType.Lesser, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Lesser, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
             case ">":
                 if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(tokens, TokenType.Greater, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Greater, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
             case "!":
                 if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
-                    scan_push_token(tokens, TokenType.NotEqual, "!=", line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.NotEqual, "!=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
-                    scan_push_token(tokens, TokenType.Not, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Not, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
 
@@ -480,11 +480,11 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                     }
 
                     if not(done) {
-                        scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, sub(pos, start_line_pos))
+                        scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, pos.sub(start_line_pos))
                     }
 
                 } else {
-                    scan_push_token(tokens, TokenType.Slash, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Slash, current_char, line, pos.sub(start_line_pos))
                     pos.inc()
                 }
 
@@ -521,10 +521,10 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
 
                 if not(done) {
                     token_str := source.get_substr(start, pos.add(1))
-                    scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, pos.sub(add(start_line_pos, 1)))
                 } else {
                     token_str := source.get_substr(add(start, 1), pos)
-                    scan_push_token(tokens, TokenType.String, token_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, TokenType.String, token_str, line, pos.sub(add(start_line_pos, 1)))
                     pos.inc()
                 }
 
@@ -538,9 +538,9 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                     }
                     pos.dec()
                     id_str := source.get_substr(start, pos.add(1))
-                    scan_push_token(tokens, scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
+                    scan_push_token(tokens, scan_reserved_words(id_str), id_str, line, pos.sub(add(start_line_pos, 1)))
                 } else {
-                    scan_push_token(tokens, TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
+                    scan_push_token(tokens, TokenType.Invalid, current_char, line, pos.sub(start_line_pos))
                 }
                 pos.inc()
             } // switch
