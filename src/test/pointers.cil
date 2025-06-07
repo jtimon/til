@@ -16,8 +16,8 @@ test_pointers := proc() {
     // s := Ptr.new2(I64) // TODO FIX
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
-    Ptr.free(p)
-    Ptr.free(q)
+    Ptr.delete(p)
+    q.delete()
     // No need to free 'r', it shares memory with 'p'
 
     catch (err: AllocError) {
