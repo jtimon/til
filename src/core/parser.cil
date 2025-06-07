@@ -67,15 +67,15 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr {
     ) {
         t := lexer.peek()
         switch t.token_type {
-            case end_token:
-                end_found = true
+        case end_token:
+            end_found = true
 
-            case TokenType.Semicolon:
-                lexer.advance(1)
+        case TokenType.Semicolon:
+            lexer.advance(1)
 
-            case:
-                stmt := parse_statement(lexer)
-                params.push(stmt)
+        case:
+            stmt := parse_statement(lexer)
+            params.push(stmt)
         }
     }
     if end_found {
