@@ -2,6 +2,8 @@ mode lib
 
 import("src/core/lexer")
 
+INFER_TYPE := "auto"
+
 LiteralNodeType := enum {
     List: Str,
     String: Str,
@@ -47,6 +49,86 @@ Expr := struct {
         e.line = token.line
         e.col = token.col
         return e
+    }
+}
+
+parse_primary_identifier := func(lexer: Lexer) returns Expr throws Str {
+    t := lexer.peek()
+    e := Expr()
+    return e
+    throw t.todo_error("parse_primary_identifier not implemented yet")
+}
+
+get_combined_name := func(e: Expr) returns Str throws Str {
+    t := Token() // dummy token to call .todo_error()
+    return ""
+    throw t.todo_error("get_combined_name not implemented yet")
+}
+
+parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws Str {
+    e := Expr()
+    return e
+    throw t.todo_error("parse_assignment not implemented yet")
+}
+
+parse_declaration := func(lexer: Lexer, mut_: Bool, type_name: Str) returns Expr throws Str {
+    t := lexer.peek()
+    e := Expr()
+    return e
+    throw t.todo_error("parse_declaration not implemented yet")
+}
+
+parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str {
+    t := lexer.peek()
+    mut next_t := lexer.next()
+    mut next_token_type := next_t.token_type
+
+    switch next_token_type {
+    case TokenType.LeftParen:
+        return parse_primary_identifier(lexer)
+    case TokenType.Dot:
+        e := parse_primary_identifier(lexer)
+        switch e.node_type {
+        case NodeType.FCall:
+            return e
+        case NodeType.Identifier:
+            // continue
+        case:
+            throw t.todo_error("a series of identifiers and dots should have been parsed as identifier or function call")
+        }
+
+        next_t = lexer.peek()
+        next_token_type = next_t.token_type
+
+        switch next_token_type {
+        case TokenType.Equal:
+            name := get_combined_name(e)
+            return parse_assignment(lexer, t, name)
+        case:
+            throw t.error("While parsing a '.', this should never happen")
+        }
+
+    case TokenType.Equal:
+        lexer.advance(1)
+        return parse_assignment(lexer, t, t.token_str)
+
+    case TokenType.Colon:
+        next_next_t := lexer.peek_ahead(2)
+        next_next_token_type := next_next_t.token_type
+        identifier := t.token_str
+
+        switch next_next_token_type {
+        case TokenType.Identifier:
+            type_name := next_next_t.token_str
+            return parse_declaration(lexer, false, type_name)
+        case TokenType.Equal:
+            return parse_declaration(lexer, false, INFER_TYPE)
+        case:
+            throw t.error(format("Expected Type or '=' after '", identifier, " :' in statement, found '", enum_to_str(next_next_token_type), "'."))
+        }
+
+    case:
+        throw t.error(format("Expected '(', ':' or '=' after identifier in statement, found '", enum_to_str(next_token_type), "'."))
     }
 }
 
