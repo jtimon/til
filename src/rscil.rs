@@ -3187,7 +3187,14 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     if func_def.is_ext() {
         // External/core functions are treated specially
         let is_proc = func_def.is_proc();
-        return eval_core_func_proc_call(&combined_name, context, &e, is_proc)
+        let parts: Vec<&str> = combined_name.split('.').collect();
+        let last_name = match parts.last() {
+            Some(last_name_) => last_name_,
+            None => {
+                return Err(e.lang_error("eval", "Somehow function without name"))
+            }
+        };
+        return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
     }
     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }

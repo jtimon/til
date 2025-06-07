@@ -322,7 +322,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
     mut line := 0
     mut start_line_pos := 0
 
-    while lt(pos, eof_pos) {
+    while pos.lt(eof_pos) {
         start := pos
         if source.is_digit(pos) {
             while and(lt(pos, eof_pos), source.is_digit(pos)) {
