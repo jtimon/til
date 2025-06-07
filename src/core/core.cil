@@ -137,7 +137,7 @@ Ptr := struct {
         return Ptr.new(size)
     }
 
-    free := proc(self: Ptr) throws AllocError {
+    delete := proc(self: Ptr) throws AllocError {
         if NULL.eq(self.data) {
             throw AllocError.new(format(loc(), "Ptr.free: trying to free a NULL pointer"))
         }
