@@ -172,8 +172,7 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
-    // current_char := source.get_substr(pos, pos.add(1)) // TODO FIX rscil context ERROR: Invalid i64 literal ''
-    current_char := source.get_substr(pos, add(pos, 1))
+    current_char := source.get_substr(pos, pos.add(1))
     switch current_char {
     case "0": return true
     case "1": return true
@@ -193,7 +192,7 @@ is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsErro
 
 is_id_start := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
     // current_char := Str.get_substr(source, pos, add(pos, 1)) // TODO FIX throws check doesn't propagate for associated functions (unless called as methods)
-    current_char := source.get_substr(pos, add(pos, 1))
+    current_char := source.get_substr(pos, pos.add(1))
     switch current_char {
     case "a": return true
     case "b": return true
@@ -325,20 +324,20 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
     while pos.lt(eof_pos) {
         start := pos
         if source.is_digit(pos) {
-            while and(lt(pos, eof_pos), source.is_digit(pos)) {
+            while and(pos.lt(eof_pos), source.is_digit(pos)) {
                 pos.inc()
             }
             // Look for a fractional part.
-            if and(Str.eq(source.get_substr(pos, add(pos, 1)), "."), is_digit(source, add(pos, 1))) {
+            if and(Str.eq(source.get_substr(pos, pos.add(1)), "."), source.is_digit(pos.add(1))) {
                 pos.inc()
-                while and(lt(pos, eof_pos), source.is_digit(pos)) {
+                while and(pos.lt(eof_pos), source.is_digit(pos)) {
                     pos.inc()
                 }
             }
             scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, sub(pos, start_line_pos))
         } else {
 
-            current_char := source.get_substr(pos, add(pos, 1))
+            current_char := source.get_substr(pos, pos.add(1))
             switch current_char {
                 // chars to ignore in this language:
             case " ":  pos.inc()
@@ -370,9 +369,9 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 pos.inc()
 
             case ";":
-                if Str.eq(source.get_substr(add(pos, 1), add(pos, 2)), ";") {
+                if Str.eq(";", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, sub(pos, start_line_pos))
-                    pos = add(pos, 2)
+                    pos = pos.add(2)
                 } else {
                     scan_push_token(tokens, TokenType.Semicolon, ";", line, sub(pos, start_line_pos))
                     pos.inc()
@@ -399,7 +398,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
 
                 // reserved for two chars in a row
             case ".":
-                if Str.eq(".", source.get_substr(add(pos, 1), add(pos, 2))) {
+                if Str.eq(".", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.DoubleDot, "..", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
@@ -407,7 +406,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 }
                 pos.inc()
             case "=":
-                if Str.eq("=", source.get_substr(add(pos, 1), add(pos, 2))) {
+                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.EqualEqual, "==", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
@@ -415,7 +414,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 }
                 pos.inc()
             case "<":
-                if Str.eq("=", source.get_substr(add(pos, 1), add(pos, 2))) {
+                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.LesserEqual, "<=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
@@ -423,7 +422,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 }
                 pos.inc()
             case ">":
-                if Str.eq("=", source.get_substr(add(pos, 1), add(pos, 2))) {
+                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
@@ -431,7 +430,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 }
                 pos.inc()
             case "!":
-                if Str.eq("=", source.get_substr(add(pos, 1), add(pos, 2))) {
+                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
                     scan_push_token(tokens, TokenType.NotEqual, "!=", line, sub(pos, start_line_pos))
                     pos.inc()
                 } else {
@@ -442,39 +441,39 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 // comments:
             case "#":
                 pos.inc()
-                while and(lt(add(pos, 1), eof_pos), not(Str.eq("\n", source.get_substr(pos, add(pos, 2))))) {
+                while and(lt(pos.add(1), eof_pos), not(Str.eq("\n", source.get_substr(pos, pos.add(2))))) {
                     pos.inc()
                 }
             case "/":
-                if Str.eq(source.get_substr(add(pos, 1), add(pos, 2)), "/") {
+                if Str.eq("/", source.get_substr(pos.add(1), pos.add(2))) {
                     // Single-line comment
-                    pos = add(pos, 2)
-                    while and(lt(add(pos, 1), eof_pos), not(Str.eq("\n", source.get_substr(pos, add(pos, 2))))) {
+                    pos = pos.add(2)
+                    while and(lt(pos.add(1), eof_pos), not(Str.eq("\n", source.get_substr(pos, pos.add(2))))) {
                         pos.inc()
                     }
                     pos.inc()
-                } else if Str.eq(source.get_substr(add(pos, 1), add(pos, 2)), "*") {
+                } else if Str.eq("*", source.get_substr(pos.add(1), pos.add(2))) {
                     // Nested block comment
-                    pos = add(pos, 2)
+                    pos = pos.add(2)
                     depth := 1
                     mut done := false
 
-                    while and(lt(pos, sub(eof_pos, 1)), not(done)) {
+                    while and(pos.lt(sub(eof_pos, 1)), not(done)) {
                         next_two := source.get_substr(pos, add(pos, 2))
 
                         if Str.eq(next_two, "/*") {
                             depth.inc()
-                            pos = add(pos, 2)
-                        } else if Str.eq(next_two, "*/") {
+                            pos = pos.add(2)
+                        } else if next_two.eq("*/") {
                             depth.dec()
-                            pos = add(pos, 2)
+                            pos = pos.add(2)
                             if depth.eq(0) {
                                 done = true
                             }
                         } else {
-                            if Str.eq(source.get_substr(pos, add(pos, 1)), "\n") {
+                            if Str.eq("\n", source.get_substr(pos, pos.add(1))) {
                                 line.inc()
-                                start_line_pos = add(pos, 1)
+                                start_line_pos = pos.add(1)
                             }
                             pos.inc()
                         }
@@ -494,15 +493,15 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 pos.inc()
                 mut done := false
 
-                while and(lt(add(pos, 1), eof_pos), not(done)) {
-                    current := source.get_substr(pos, add(pos, 1))
+                while and(lt(pos.add(1), eof_pos), not(done)) {
+                    current := source.get_substr(pos, pos.add(1))
 
-                    if Str.eq(current, "\"") {
+                    if current.eq("\"") {
                         done = true
-                    } else if Str.eq(current, "\\") {
+                    } else if current.eq("\\") {
                         pos.inc() // move past '\'
-                        if lt(add(pos, 1), eof_pos) {
-                            esc := source.get_substr(pos, add(pos, 1))
+                        if lt(pos.add(1), eof_pos) {
+                            esc := source.get_substr(pos, pos.add(1))
                             // accept known escapes
                             switch esc {
                             case "\"":
@@ -521,7 +520,7 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
                 }
 
                 if not(done) {
-                    token_str := source.get_substr(start, add(pos, 1))
+                    token_str := source.get_substr(start, pos.add(1))
                     scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     token_str := source.get_substr(add(start, 1), pos)
@@ -533,12 +532,12 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
             case:
                 if source.is_id_start(pos) {
                     pos.inc()
-                    while and(lt(pos, eof_pos), or(source.is_digit(pos), source.is_id_start(pos))) {
+                    while and(pos.lt(eof_pos), or(source.is_digit(pos), source.is_id_start(pos))) {
                         pos.inc()
                         // TODO fix literal strings with escape characters like in the rust implementation
                     }
                     pos.dec()
-                    id_str := source.get_substr(start, add(pos, 1))
+                    id_str := source.get_substr(start, pos.add(1))
                     scan_push_token(tokens, scan_reserved_words(id_str), id_str, line, sub(pos, add(start_line_pos, 1)))
                 } else {
                     scan_push_token(tokens, TokenType.Invalid, current_char, line, sub(pos, start_line_pos))
@@ -762,7 +761,7 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
 print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
     mut errors_found := 0
     mut i := 0
-    while lt(i, tokens.len) {
+    while i.lt(tokens.len) {
         t := Token()
         tokens.get(i, t)
         // print_if_lex_error(path, t, errors_found)
@@ -778,20 +777,20 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str {
     // l.tokens = scan_tokens(source) // TODO fix access to fields of type array
 
     if I64.eq(tokens.len, 0) {
-        throw format(path, ":1:0: compiler ERROR: End of file not found.")
+        throw path.format(":1:0: compiler ERROR: End of file not found.")
     }
 
     mut first := Token()
     tokens.get(0, first)
     switch first.token_type {
     case TokenType.Eof:
-        throw format(path, ":0:0: compiler ERROR: Nothing to be done")
+        throw path.format(":0:0: compiler ERROR: Nothing to be done")
     case:
     }
 
     mut errors := 0
     mut i := 0
-    while lt(i, tokens.len) {
+    while i.lt(tokens.len) {
         mut t := Token()
         tokens.get(i, t)
         print_if_lex_error(path, t, errors)
