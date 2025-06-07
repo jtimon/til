@@ -19,23 +19,23 @@ test_strings := proc() {
     test(loc(), I64.eq(len3_str.len(), 3), "Str.len('012') = 3")
     test(loc(), I64.eq(len5_str.len(), 5), "Str.len('01234') = 5")
 
-    assert_eq_str(loc(), "0",   Str.get_substr("01234", 0, 1))
-    assert_eq_str(loc(), "012", Str.get_substr("01234", 0, 3))
-    assert_eq_str(loc(), "234", Str.get_substr("01234", 2, 5))
+    assert_eq_str(loc(), "0",   get_substr("01234", 0, 1))
+    assert_eq_str(loc(), "012", get_substr("01234", 0, 3))
+    assert_eq_str(loc(), "234", get_substr("01234", 2, 5))
 
-    assert_eq_str(loc(), "\\",  Str.get_substr(",,\\", 2, 3))
-    assert_eq_str(loc(), "\"",  Str.get_substr(",,\"", 2, 3))
-    assert_eq_str(loc(), "\n",  Str.get_substr(",,\n", 2, 3))
-    assert_eq_str(loc(), "\t",  Str.get_substr(",,\t", 2, 3))
-    assert_eq_str(loc(), "\r",  Str.get_substr(",,\r", 2, 3))
-    // assert_eq_str(loc(), "\0",  Str.get_substr(",,\0", 2, 3)) // TODO Decide: Do we need to handle string null termination in string literals?
+    assert_eq_str(loc(), "\\",  get_substr(",,\\", 2, 3))
+    assert_eq_str(loc(), "\"",  get_substr(",,\"", 2, 3))
+    assert_eq_str(loc(), "\n",  get_substr(",,\n", 2, 3))
+    assert_eq_str(loc(), "\t",  get_substr(",,\t", 2, 3))
+    assert_eq_str(loc(), "\r",  get_substr(",,\r", 2, 3))
+    // assert_eq_str(loc(), "\0",  get_substr(",,\0", 2, 3)) // TODO Decide: Do we need to handle string null termination in string literals?
 
-    assert_eq_str(loc(), "\\",  Str.get_char(",,\\", 2))
-    assert_eq_str(loc(), "\"",  Str.get_char(",,\"", 2))
-    assert_eq_str(loc(), "\n",  Str.get_char(",,\n", 2))
-    assert_eq_str(loc(), "\t",  Str.get_char(",,\t", 2))
-    assert_eq_str(loc(), "\r",  Str.get_char(",,\r", 2))
-    // assert_eq_str(loc(), "\0",  Str.get_char(",,\0", 2))
+    assert_eq_str(loc(), "\\",  get_char(",,\\", 2))
+    assert_eq_str(loc(), "\"",  get_char(",,\"", 2))
+    assert_eq_str(loc(), "\n",  get_char(",,\n", 2))
+    assert_eq_str(loc(), "\t",  get_char(",,\t", 2))
+    assert_eq_str(loc(), "\r",  get_char(",,\r", 2))
+    // assert_eq_str(loc(), "\0",  get_char(",,\0", 2))
 
     catch(err: Str) {
         println(loc(), "test_strings: error thrown:")

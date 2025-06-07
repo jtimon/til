@@ -380,38 +380,38 @@ Str := struct {
     to_i64 := func(self: Str) returns I64 {
         return I64.from_str(self)
     }
+}
 
-    get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
-        if lt(start, 0) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start index ", start.to_str(), " cannot be negative"))
-        }
-        if lt(end, 0) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: end index ", end.to_str(), " cannot be negative"))
-        }
-        if gt(start, end) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
-        }
-        if gt(end, s.len()) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
-        }
-        if I64.eq(start, end) {
-            throw IndexOutOfBoundsError.new(format(loc(), "Str.get_substr: start and end are the same (", start.to_str(), "), no substring"))
-        }
-
-        mut substr := Str()
-        substr.cap = sub(end, start)
-        substr.c_string = malloc(substr.cap)
-        if NULL.eq(substr.c_string) {
-            throw AllocError.new(format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes"))
-        }
-        memcpy(substr.c_string, add(s.c_string, start), substr.cap)
-
-        return substr
+get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
+    if lt(start, 0) {
+        throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
+    }
+    if lt(end, 0) {
+        throw IndexOutOfBoundsError.new(format(loc(), "get_substr: end index ", end.to_str(), " cannot be negative"))
+    }
+    if gt(start, end) {
+        throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
+    }
+    if gt(end, s.len()) {
+        throw IndexOutOfBoundsError.new(format(loc(), "get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
+    }
+    if I64.eq(start, end) {
+        throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start and end are the same (", start.to_str(), "), no substring"))
     }
 
-    get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, AllocError {
-        return s.get_substr(pos, add(pos, 1))
+    mut substr := Str()
+    substr.cap = sub(end, start)
+    substr.c_string = malloc(substr.cap)
+    if NULL.eq(substr.c_string) {
+        throw AllocError.new(format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes"))
     }
+    memcpy(substr.c_string, add(s.c_string, start), substr.cap)
+
+    return substr
+}
+
+get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, AllocError {
+    return s.get_substr(pos, add(pos, 1))
 }
 
 format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, Str {
