@@ -383,24 +383,24 @@ Str := struct {
 }
 
 get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
-    if lt(start, 0) {
+    if start.lt(0) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start index ", start.to_str(), " cannot be negative"))
     }
-    if lt(end, 0) {
+    if end.lt(0) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: end index ", end.to_str(), " cannot be negative"))
     }
-    if gt(start, end) {
+    if start.gt(end) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start index ", start.to_str(), " is greater than end index ", end.to_str()))
     }
-    if gt(end, s.len()) {
+    if end.gt(s.len()) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: end index ", end.to_str(), " is greater than string length ", I64.to_str(s.len())))
     }
-    if I64.eq(start, end) {
+    if start.eq(end) {
         throw IndexOutOfBoundsError.new(format(loc(), "get_substr: start and end are the same (", start.to_str(), "), no substring"))
     }
 
     mut substr := Str()
-    substr.cap = sub(end, start)
+    substr.cap = end.sub(start)
     substr.c_string = malloc(substr.cap)
     if NULL.eq(substr.c_string) {
         throw AllocError.new(format(loc(), "Str.get_substr: failed to allocate ", I64.to_str(substr.cap), " bytes"))
