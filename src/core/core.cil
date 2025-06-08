@@ -132,7 +132,7 @@ Ptr := struct {
         return p
     }
 
-    new2 := proc(T: Dynamic) returns Ptr throws Str {
+    new2 := proc(T: Dynamic) returns Ptr throws AllocError {
         size := size_of(T)
         return Ptr.new(size)
     }
