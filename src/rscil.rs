@@ -1071,6 +1071,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LLiteral(Literal::Bool(_)) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
+        NodeType::LLiteral(Literal::List(_)) => Ok(ValueType::TCustom("List".to_string())),
         NodeType::FuncDef(func_def) => match func_def.function_type {
             FunctionType::FTFunc | FunctionType::FTFuncExt => Ok(ValueType::TFunction(FunctionType::FTFunc)),
             FunctionType::FTProc | FunctionType::FTProcExt => Ok(ValueType::TFunction(FunctionType::FTProc)),
@@ -2882,7 +2883,8 @@ fn eval_core_exit(e: &Expr) -> Result<EvalResult, String> {
 
     let e_exit_code = e.get(1)?;
     let exit_code = match &e_exit_code.node_type {
-        NodeType::LLiteral(Literal::Number(my_li64)) => *my_li64,
+        NodeType::LLiteral(Literal::Number(my_li64)) => my_li64.parse::<i64>()
+            .map_err(|err| e.lang_error("eval", &format!("Invalid number literal '{}': {}", *my_li64, err)))?,
         node_type => return Err(e.lang_error("eval", &format!("calling core proc 'exit', but found {:?} instead of literal i64 exit code.", node_type))),
     };
 
@@ -3820,9 +3822,9 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {
         NodeType::Body => eval_body(context, &e.params),
         NodeType::LLiteral(Literal::Bool(lbool)) => Ok(EvalResult::new(lbool)),
-        NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(&li64.to_string())),
+        NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(li64)),
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
-        NodeType::LLiteral(Literal::List(list_str_)) => Ok(EvalResult::new(list_str_)),
+        NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
         NodeType::FCall => {
             let f_name = get_func_name_in_call(&e);
             eval_func_proc_call(&f_name, context, &e)

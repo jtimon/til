@@ -60,7 +60,7 @@ pub struct SStructDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
-    Number(i64), // TODO support more kinds of numbers
+    Number(String), // TODO support more kinds of numbers
     Str(String),
     Bool(String),
     List(String), // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
@@ -320,7 +320,7 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
         TokenType::Number => {
             let number = t.token_str.parse::<i64>()
                 .map_err(|e| t.lang_error(&format!("Invalid number literal '{}': {}", t.token_str, e)))?;
-            NodeType::LLiteral(Literal::Number(number))
+            NodeType::LLiteral(Literal::Number(number.to_string()))
         },
         TokenType::True => NodeType::LLiteral(Literal::Bool(t.token_str.clone())),
         _ => {
