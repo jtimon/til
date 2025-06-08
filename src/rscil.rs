@@ -3819,7 +3819,7 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalRe
 fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {
         NodeType::Body => eval_body(context, &e.params),
-        NodeType::LLiteral(Literal::Bool(bool_value)) => Ok(EvalResult::new(&bool_value.to_string())),
+        NodeType::LLiteral(Literal::Bool(lbool)) => Ok(EvalResult::new(lbool)),
         NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(&li64.to_string())),
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
         NodeType::LLiteral(Literal::List(list_str_)) => Ok(EvalResult::new(list_str_)),
