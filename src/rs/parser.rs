@@ -216,6 +216,7 @@ pub struct ModeDef {
     pub allows_base_calls: bool,
     pub allows_base_anything: bool,
     pub needs_main_proc: bool,
+    pub imports: Vec<String>,
 }
 
 pub fn can_be_imported(mode: &ModeDef) -> bool {
@@ -236,6 +237,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : false,
                     allows_base_anything : false,
                     needs_main_proc      : false,
+                    imports              : vec![],
         }),
         "pure" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -244,6 +246,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : false,
                     allows_base_anything : false,
                     needs_main_proc      : false,
+                    imports              : vec![],
         }),
         "script" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -252,6 +255,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : true,
                     allows_base_anything : true,
                     needs_main_proc      : false,
+                    imports              : vec![],
         }),
         "safe_script" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -260,6 +264,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : true,
                     allows_base_anything : true,
                     needs_main_proc      : false,
+                    imports              : vec![],
         }),
         "cli" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -268,6 +273,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : true,
                     allows_base_anything : false,
                     needs_main_proc      : true,
+                    imports              : vec![],
         }),
         "test" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -276,6 +282,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
                     allows_base_mut      : true,
                     allows_base_anything : false,
                     needs_main_proc      : false,
+                    imports              : vec!["src/core/modes/test".to_string()],
         }),
 
         _  => return Err(format!("0:0: {} interpreter implementation doesn't support mode '{}'", LANG_NAME, mode_name)),

@@ -4047,9 +4047,9 @@ fn main_run(print_extra: bool, context: &mut Context, path: &String, source: Str
         println!("Mode: {}", context.mode.name);
     }
 
-    if context.mode.name == "test" {
+    for import_str in context.mode.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
-        let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/modes/test".to_string())), params: Vec::new(), line: 0, col: 0};
+        let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
         match eval_core_proc_import(context, &import_fcall_expr) {
             Ok(_) => {},
