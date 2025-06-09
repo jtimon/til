@@ -855,15 +855,20 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
             }
 
             let mut parts: Vec<&str> = combined_name.split('.').collect();
-            if parts.len() == 2 {
-                let enum_name = parts[0];
-                let variant_name = parts[1];
-                if let Some(enum_def) = context.enum_defs.get(enum_name) {
-                    if enum_def.enum_map.contains_key(variant_name) {
-                        return Ok(None); // REM: This is to allow enum variant constructors
+            if let Some(id_expr) = fcall_expr.get(0).ok() {
+                if let NodeType::Identifier(enum_type_name) = &id_expr.node_type {
+                    if let Some(variant_expr) = id_expr.params.get(0) {
+                        if let NodeType::Identifier(variant_name) = &variant_expr.node_type {
+                            if let Some(enum_def) = context.enum_defs.get(enum_type_name) {
+                                if enum_def.enum_map.contains_key(variant_name) {
+                                    return Ok(None); // REM: This is to allow enum variant constructors
+                                }
+                            }
+                        }
                     }
                 }
             }
+
             // Using UFCS
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
@@ -1917,6 +1922,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                         thrown_types.extend(temp_thrown_types);
                                     },
                                     Ok(None) => {
+                                        println!("[DEBUG] arg fcall expr {:?}", arg);
                                         errors.push(arg.error("type", "Could not resolve function definition for nested call."));
                                     },
                                     Err(reason) => {
@@ -1927,6 +1933,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                         }
                     },
                     Ok(None) => {
+                        println!("[DEBUG] fcall expr {:?}", p);
                         errors.push(p.error("type", "Could not resolve function definition for call."));
                     },
                     Err(reason) => {
@@ -2001,6 +2008,18 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                 }
                             }
                         }
+                        if let NodeType::Identifier(enum_name) = &id_expr.node_type {
+                            if let Some(variant_expr) = id_expr.params.get(0) {
+                                if let NodeType::Identifier(variant_name) = &variant_expr.node_type {
+                                    if let Some(enum_def) = context.enum_defs.get(enum_name) {
+                                        if enum_def.enum_map.contains_key(variant_name) {
+                                            continue; // Skip enum variant constructor
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(called_func_def)) => {
                                 for called_throw in &called_func_def.throws {
@@ -2192,21 +2211,31 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             Ok(t) => t,
             Err(err) => {
                 errors.push(err);
-                return errors;
+                return errors
             }
         },
         Err(err) => {
             errors.push(err);
-            return errors;
+            return errors
         }
+    };
+
+    let (enum_name_opt, enum_def_opt) = match &switch_expr_type {
+        ValueType::TCustom(ref enum_name) => (
+            Some(enum_name.clone()),
+            context.enum_defs.get(enum_name).cloned(),
+        ),
+        _ => (None, None),
     };
 
     let mut case_found = false;
     let mut default_found = false;
-
+    let mut matched_variants: Vec<String> = Vec::new();
     let mut i = 1;
+
     while i < e.params.len() {
         let case_expr = &e.params[i];
+        let mut payload_id: Option<(String, ValueType)> = None;
 
         match &case_expr.node_type {
             NodeType::DefaultCase => {
@@ -2215,6 +2244,86 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                 }
                 default_found = true;
                 case_found = true;
+            }
+            NodeType::Identifier(enum_or_variant_name) => {
+                case_found = true;
+
+                if let Some(ref enum_def) = enum_def_opt {
+                    if case_expr.params.is_empty() {
+                        // case Variant:
+                        matched_variants.push(enum_or_variant_name.clone());
+
+                        if let Some(Some(_)) = enum_def.enum_map.get(enum_or_variant_name) {
+                            errors.push(case_expr.error("type", &format!("Variant '{}' requires a payload", enum_or_variant_name)));
+                        }
+                    } else {
+                        // case Enum.Variant:
+                        let variant_expr = &case_expr.params[0];
+                        if let NodeType::Identifier(variant_name) = &variant_expr.node_type {
+                            if Some(enum_or_variant_name) != enum_name_opt.as_ref() {
+                                errors.push(case_expr.error(
+                                    "type",
+                                    &format!(
+                                        "Mismatched enum type '{}', expected '{}'.",
+                                        enum_or_variant_name,
+                                        enum_name_opt.as_ref().unwrap_or(&"<unknown>".to_string())
+                                    ),
+                                ));
+                            }
+                            matched_variants.push(variant_name.clone());
+
+                            match enum_def.enum_map.get(variant_name) {
+                                Some(Some(payload_type)) => {
+                                    payload_id = Some((variant_name.clone(), payload_type.clone()));
+                                }
+                                Some(None) => {} // No payload
+                                None => errors.push(case_expr.error("type", &format!("Unknown enum variant '{}'", variant_name))),
+                            }
+                        } else {
+                            errors.push(case_expr.error("type", "Invalid enum case syntax"));
+                        }
+                    }
+                }
+            }
+            NodeType::FCall => {
+                println!("FCall case_expr: {:?}", case_expr);
+                case_found = true;
+
+                if let (Some(enum_name), Some(enum_def)) = (&enum_name_opt, &enum_def_opt) {
+                    if let Some(callee_expr) = case_expr.get(0).ok() {
+                        if let NodeType::Identifier(callee_base) = &callee_expr.node_type {
+                            if callee_expr.params.len() == 1 {
+                                if let NodeType::Identifier(variant_name) = &callee_expr.params[0].node_type {
+                                    if callee_base == enum_name {
+                                        matched_variants.push(variant_name.clone());
+
+                                        match enum_def.enum_map.get(variant_name) {
+                                            Some(Some(payload_type)) => {
+                                                if let Some(payload_expr) = case_expr.get(1).ok() {
+                                                    if let NodeType::Identifier(payload_id_str) = &payload_expr.node_type {
+                                                        payload_id = Some((payload_id_str.clone(), payload_type.clone()));
+                                                    } else {
+                                                        errors.push(case_expr.error("type", "Expected identifier as payload binding"));
+                                                    }
+                                                } else {
+                                                    errors.push(case_expr.error("type", "Missing payload expression"));
+                                                }
+                                            }
+                                            Some(None) => {
+                                                errors.push(case_expr.error("type", &format!("Variant '{}' does not take a payload", variant_name)));
+                                            }
+                                            None => {
+                                                errors.push(case_expr.error("type", &format!("Unknown enum variant '{}'", variant_name)));
+                                            }
+                                        }
+                                    } else {
+                                        errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", callee_base, enum_name)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             _ => {
                 case_found = true;
@@ -2229,7 +2338,17 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         }
 
         let body_expr = &e.params[i];
-        errors.extend(check_types(context, body_expr));
+        // let mut temp_context = context.clone(); // TODO FIX local declarations in switch statements should remain local
+        if let Some((id, value_type)) = payload_id {
+            context.symbols.insert(id.clone(), SymbolInfo {
+                value_type,
+                is_mut: false,
+            });
+            errors.extend(check_types(context, body_expr));
+            context.symbols.remove(&id);
+        } else {
+            errors.extend(check_types(context, body_expr));
+        }
 
         i += 1;
     }
@@ -2238,46 +2357,10 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         errors.push(e.error("type", "Switch must have at least one case"));
     }
 
-    // Exhaustiveness check only for enums
-    if let ValueType::TCustom(enum_name) = switch_expr_type {
-        if let Some(enum_def) = context.enum_defs.get(&enum_name) {
-            let mut matched_variants: Vec<String> = Vec::new();
-
-            let mut j = 1;
-            while j < e.params.len() {
-                let case_expr = &e.params[j];
-                match &case_expr.node_type {
-                    NodeType::Identifier(name) => {
-                        if case_expr.params.is_empty() {
-                            // case A
-                            matched_variants.push(name.clone());
-                        } else {
-                            // case ExampleEnum.A
-                            let variant_expr = &case_expr.params[0];
-                            if let NodeType::Identifier(variant) = &variant_expr.node_type {
-                                if name != &enum_name {
-                                    errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", name, enum_name)));
-                                }
-                                matched_variants.push(variant.clone());
-                            } else {
-                                errors.push(case_expr.error("type", "Invalid enum case syntax"));
-                            }
-                        }
-                    }
-                    NodeType::DefaultCase => {
-                        default_found = true;
-                    }
-                    _ => {}
-                }
-                j += 2;
-            }
-
-            if !default_found {
-                for variant in enum_def.enum_map.keys() {
-                    if !matched_variants.contains(variant) {
-                        errors.push(e.error("type", &format!("Switch is missing case for variant '{}'", variant)));
-                    }
-                }
+    if let (Some(enum_def), false) = (&enum_def_opt, default_found) {
+        for variant in enum_def.enum_map.keys() {
+            if !matched_variants.contains(variant) {
+                errors.push(e.error("type", &format!("Switch is missing case for variant '{}'", variant)));
             }
         }
     }
