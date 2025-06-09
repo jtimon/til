@@ -2338,17 +2338,14 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         }
 
         let body_expr = &e.params[i];
-        // let mut temp_context = context.clone(); // TODO FIX local declarations in switch statements should remain local
+        let mut temp_context = context.clone();
         if let Some((id, value_type)) = payload_id {
-            context.symbols.insert(id.clone(), SymbolInfo {
+            temp_context.symbols.insert(id.clone(), SymbolInfo {
                 value_type,
                 is_mut: false,
             });
-            errors.extend(check_types(context, body_expr));
-            context.symbols.remove(&id);
-        } else {
-            errors.extend(check_types(context, body_expr));
         }
+        errors.extend(check_types(temp_context, body_expr));
 
         i += 1;
     }
