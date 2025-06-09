@@ -854,12 +854,20 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
                 return Ok(None) // REM: This is to allow struct instantiation
             }
 
+            let mut parts: Vec<&str> = combined_name.split('.').collect();
+            if parts.len() == 2 {
+                let enum_name = parts[0];
+                let variant_name = parts[1];
+                if let Some(enum_def) = context.enum_defs.get(enum_name) {
+                    if enum_def.enum_map.contains_key(variant_name) {
+                        return Ok(None); // REM: This is to allow enum variant constructors
+                    }
+                }
+            }
             // Using UFCS
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
-                    let mut parts: Vec<&str> = combined_name.split('.').collect();
                     parts.pop(); // Remove the last element
-
                     // Regular functions used with UFCS
                     if let Some(func_def) = context.funcs.get(&ufcs_func_name.to_string()) {
 
@@ -963,6 +971,51 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
         let id_expr = e.get(0)?;
         match &symbol.value_type {
+            ValueType::TType(TTypeDef::TEnumDef) => {
+                let enum_def = context.enum_defs.get(&f_name)
+                    .ok_or_else(|| e.error("type", &format!("Enum '{}' not found in context", f_name)))?;
+
+                let id_expr = e.get(0)?;
+                let after_dot = id_expr.params.get(0).ok_or_else(|| {
+                    e.lang_error("type", &format!("Missing variant access after enum '{}'", f_name))
+                })?;
+
+                let variant_name = match &after_dot.node_type {
+                    NodeType::Identifier(n) => n,
+                    _ => return Err(after_dot.error("type", "Expected identifier after enum name")),
+                };
+
+                let payload_type_opt = enum_def.enum_map.get(variant_name)
+                    .ok_or_else(|| e.error("type", &format!("Enum '{}' has no variant '{}'", f_name, variant_name)))?;
+
+                // Validate arguments
+                if let Some(payload_type) = payload_type_opt {
+                    if e.params.len() != 2 {
+                        return Err(e.error("type", &format!(
+                            "Enum variant '{}.{}' expects 1 argument, got {}",
+                            f_name, variant_name, e.params.len() - 1
+                        )));
+                    }
+                    let actual_arg_type = get_value_type(context, &e.params[1])?;
+                    if &actual_arg_type != payload_type {
+                        return Err(e.error("type", &format!(
+                            "Enum variant '{}.{}' expects argument of type '{}', found '{}'",
+                            f_name, variant_name,
+                            value_type_to_str(payload_type),
+                            value_type_to_str(&actual_arg_type),
+                        )));
+                    }
+                } else {
+                    if e.params.len() > 1 {
+                        return Err(e.error("type", &format!(
+                            "Enum variant '{}.{}' takes no arguments, but got {}",
+                            f_name, variant_name, e.params.len() - 1
+                        )));
+                    }
+                }
+
+                return Ok(ValueType::TCustom(f_name.clone()));
+            },
             ValueType::TType(TTypeDef::TStructDef) => {
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
@@ -1114,17 +1167,17 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' e", name, member_name))),
                         }
                     },
+
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        // If it's an enum, resolve the variant
                         let enum_def = context.enum_defs.get(name)
                             .ok_or_else(|| e.error("type", &format!("Enum '{}' not found", name)))?;
 
-                        if enum_def.enum_map.contains_key(member_name) {
-                            return Ok(ValueType::TCustom(name.to_string()));
-                        } else {
-                            return Err(e.error("type", &format!("Enum '{}' has no value '{}'", name, member_name)));
+                        match enum_def.enum_map.get(member_name) {
+                            Some(_) => return Ok(ValueType::TCustom(name.to_string())),
+                            None => return Err(e.error("type", &format!("Enum '{}' has no value '{}'", name, member_name))),
                         }
                     },
+
                     ValueType::TCustom(custom_type_name) => {
                         // If it's a custom type (a struct), resolve the member
                         let struct_def = context.struct_defs.get(custom_type_name)
@@ -1566,7 +1619,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut e) {
         Ok(func_def_) => match func_def_ {
             Some(func_def_) => func_def_,
-            None => return errors, // REM: This is to allow struct instantiation
+            None => return errors, // REM: This is to allow struct or enum instantiation
         },
         Err(err) => {
             errors.push(err);
@@ -1939,8 +1992,12 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                         };
                         if let NodeType::Identifier(name) = &id_expr.node_type {
                             if let Some(symbol) = context.symbols.get(name) {
-                                if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
-                                    continue; // Skip default constructor calls, for instantiations like 'StructName()'
+                                match symbol.value_type {
+                                    ValueType::TType(TTypeDef::TStructDef) |
+                                    ValueType::TType(TTypeDef::TEnumDef) => {
+                                        continue; // Skip default constructor or enum variant constructor
+                                    },
+                                    _ => {}
                                 }
                             }
                         }
@@ -3174,6 +3231,35 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 "Str" => "",
                 _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
             }))
+        }
+    }
+
+    if context.enum_defs.contains_key(name) {
+        let id_expr = e.get(0)?;
+        if id_expr.params.len() == 1 {
+            let variant_expr = &id_expr.params[0];
+            if let NodeType::Identifier(variant_name) = &variant_expr.node_type {
+                let enum_def = context.enum_defs.get(name).unwrap();
+
+                match enum_def.enum_map.get(variant_name) {
+                    Some(Some(_expected_type)) => {
+                        if e.params.len() != 2 {
+                            return Err(e.error("eval", &format!("Enum variant '{}.{}' expects 1 argument", name, variant_name)));
+                        }
+                        let _payload = eval_expr(context, &e.params[1])?;
+                        return Ok(EvalResult::new(&format!("{}.{}", name, variant_name)));
+                    },
+                    Some(None) => {
+                        if e.params.len() != 1 {
+                            return Err(e.error("eval", &format!("Enum variant '{}.{}' takes no arguments", name, variant_name)));
+                        }
+                        return Ok(EvalResult::new(&format!("{}.{}", name, variant_name)));
+                    },
+                    None => {
+                        return Err(e.error("eval", &format!("Enum '{}' has no variant '{}'", name, variant_name)));
+                    }
+                }
+            }
         }
     }
 
