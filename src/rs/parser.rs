@@ -84,6 +84,7 @@ pub enum NodeType {
     While,
     Switch,
     DefaultCase,
+    Range,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1024,6 +1025,17 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
+fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
+    let left = parse_primary(lexer)?;
+    let t = lexer.peek();
+    if t.token_type == TokenType::DoubleDot {
+        lexer.advance(1)?;
+        let right = parse_primary(lexer)?;
+        return Ok(Expr::new_parse(NodeType::Range, t, vec![left, right]));
+    }
+    Ok(left)
+}
+
 fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let t = lexer.peek();
     let initial_current = lexer.current;
@@ -1052,7 +1064,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         if next_t.token_type == TokenType::Colon {
             params.push(Expr::new_parse(NodeType::DefaultCase, t.clone(), Vec::new()));
         } else {
-            let prim = match parse_primary(lexer) {
+            let prim = match parse_case_expr(lexer) {
                 Ok(to_ret) => to_ret,
                 Err(err_str) => return Err(err_str),
             };

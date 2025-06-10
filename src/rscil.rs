@@ -1080,6 +1080,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
         NodeType::EnumDef(_) => Ok(ValueType::TType(TTypeDef::TEnumDef)),
         NodeType::StructDef(_) => Ok(ValueType::TType(TTypeDef::TStructDef)),
         NodeType::FCall => get_fcall_value_type(context, e),
+        NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.get(0)?)?)))),
 
         NodeType::Identifier(name) => {
             let mut current_type = match context.symbols.get(name) {
@@ -1326,21 +1327,29 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         NodeType::Body => {
             for se in &e.params {
                 if is_expr_calling_procs(&context, &se) {
-                    return true;
+                    return true
                 }
             }
-            false
+            return false
         },
         NodeType::StructDef(_) => {
             // TODO default values could try to call procs
-            false
+            return false
         },
         NodeType::EnumDef(_) => {
-            false
+            return false
         },
-        NodeType::LLiteral(_) => false,
-        NodeType::DefaultCase => false,
-        NodeType::Identifier(_) => false,
+        NodeType::LLiteral(_) => return false,
+        NodeType::DefaultCase => return false,
+        NodeType::Identifier(_) => return false,
+        NodeType::Range => {
+            for se in &e.params {
+                if is_expr_calling_procs(&context, &se) {
+                    return true
+                }
+            }
+            return false
+        },
         NodeType::FCall => {
             // TODO the arguments of a function call can also call procedures
             let f_name = get_func_name_in_call(e);
@@ -1349,8 +1358,9 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
                 return false
             }
             match context.funcs.get(&f_name) {
-                Some(func) => func.is_proc(),
-                None => false,
+                // TODO check the args too
+                Some(func) => return func.is_proc(),
+                None => return false,
             }
         },
         NodeType::Declaration(decl) => {
@@ -2161,6 +2171,22 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             }
             _ => {
                 case_found = true;
+
+                match get_value_type(context, case_expr) {
+                    Ok(case_type) => {
+                        let switch_type_str = value_type_to_str(&switch_expr_type);
+                        let case_type_str = value_type_to_str(&case_type);
+                        if case_type_str != switch_type_str && case_type_str != format!("{}Range", switch_type_str) {
+                            errors.push(case_expr.error("type", &format!(
+                                "Switch value type '{}', case value type '{}' do not match",
+                                switch_type_str, case_type_str
+                            )));
+                        }
+                    }
+                    Err(err) => {
+                        errors.push(err);
+                    }
+                }
             }
         }
 
@@ -2285,6 +2311,28 @@ fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Switch => {
             errors.extend(check_switch_statement(context, &e));
+        },
+        NodeType::Range => {
+            if e.params.len() != 2 {
+                errors.push(e.lang_error("type", "Range expression must have exactly two elements"));
+                return errors;
+            }
+
+            let left_type = get_value_type(context, &e.params[0]);
+            if let Err(err) = &left_type {
+                errors.push(err.clone());
+            }
+            let right_type = get_value_type(context, &e.params[1]);
+            if let Err(err) = &right_type {
+                errors.push(err.clone());
+            }
+
+            if let (Ok(t1), Ok(t2)) = (left_type, right_type) {
+                if t1 != t2 {
+                    errors.push(e.error("type", &format!("Range start and end must be of same type, found '{}' and '{}'",
+                                                         value_type_to_str(&t1), value_type_to_str(&t2))));
+                }
+            }
         },
         NodeType::FCall => {
             errors.extend(check_fcall(context, &e));
@@ -3879,32 +3927,70 @@ fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
         },
         NodeType::Switch => {
             if e.params.len() < 3 {
-                return Err(e.lang_error("eval", "switch nodes must have at least 3 parameters."))
+                return Err(e.lang_error("eval", "switch nodes must have at least 3 parameters."));
             }
             let to_switch = e.get(0)?;
             let value_type = get_value_type(&context, &to_switch)?;
             let result_to_switch = eval_expr(context, &to_switch)?;
             if result_to_switch.is_throw {
-                return Ok(result_to_switch)
+                return Ok(result_to_switch);
             }
+
             let mut param_it = 1;
             while param_it < e.params.len() {
                 let case = e.get(param_it)?;
                 if case.node_type == NodeType::DefaultCase {
                     param_it += 1;
-                    return eval_expr(context, e.get(param_it)?)
+                    return eval_expr(context, e.get(param_it)?);
                 }
+
                 let case_type = get_value_type(&context, &case)?;
-                if value_type != case_type {
+                let vt_str = value_type_to_str(&value_type);
+                let ct_str = value_type_to_str(&case_type);
+                if ct_str != vt_str && ct_str != format!("{}Range", vt_str) {
                     return Err(e.lang_error("eval", &format!("switch value type {:?}, case value type {:?}", value_type, case_type)));
                 }
-                let result_case = eval_expr(context, &case)?;
-                if result_case.is_throw {
-                    return Ok(result_case)
-                }
+
+                let is_match = match &case.node_type {
+                    NodeType::Range => {
+                        let start = eval_expr(context, &case.params[0])?;
+                        if start.is_throw {
+                            return Ok(start);
+                        }
+                        let end = eval_expr(context, &case.params[1])?;
+                        if end.is_throw {
+                            return Ok(end);
+                        }
+                        match &value_type {
+                            ValueType::TCustom(s) if s == "I64" || s == "U8" => {
+                                let val = result_to_switch.value.parse::<i64>();
+                                let start_val = start.value.parse::<i64>();
+                                let end_val = end.value.parse::<i64>();
+
+                                if let (Ok(val), Ok(start_val), Ok(end_val)) = (val, start_val, end_val) {
+                                    val >= start_val && val <= end_val
+                                } else {
+                                    false
+                                }
+                            }
+                            _ => {
+                                // Lexicographical comparisons for Str
+                                result_to_switch.value >= start.value && result_to_switch.value <= end.value
+                            }
+                        }
+                    }
+                    _ => {
+                        let result_case = eval_expr(context, &case)?;
+                        if result_case.is_throw {
+                            return Ok(result_case);
+                        }
+                        result_to_switch.value == result_case.value
+                    }
+                };
+
                 param_it += 1;
-                if result_to_switch.value == result_case.value {
-                    return eval_expr(context, e.get(param_it)?)
+                if is_match {
+                    return eval_expr(context, e.get(param_it)?);
                 }
                 param_it += 1;
             }

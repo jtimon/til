@@ -1,4 +1,5 @@
 mode script
+// TODO use mode test and asserts instead of prints
 
 // Basic control flow (execution):
 
@@ -62,3 +63,17 @@ test_int_switch(00);
 test_int_switch(42); // note the semicolon between statements is being ignored
 test_int_switch(69); // note the semicolon between statements is being ignored at the end of the file too
 // test_int_switch(69);; // fails because there's no need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
+
+test_int_range := proc(x: I64) {
+    switch x {
+    case 1..5:
+        println(x.to_str(), " is between 1 and 5")
+    case 10..20:
+        println(x.to_str(), " is between 10 and 20")
+    case:
+        println(x.to_str(), " is out of ranges")
+    }
+}
+test_int_range(3)
+test_int_range(15)
+test_int_range(42)

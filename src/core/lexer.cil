@@ -172,82 +172,18 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
-    current_char := source.get_substr(pos, pos.add(1))
-    switch current_char {
-    case "0": return true
-    case "1": return true
-    case "2": return true
-    case "3": return true
-    case "4": return true
-    case "5": return true
-    case "6": return true
-    case "7": return true
-    case "8": return true
-    case "9": return true
-    // case "0".."9": return true // TODO Immplement ranges
-    case:
+    switch source.get_substr(pos, pos.add(1)) {
+    case "0".."9": return true
+    case: return false
     }
-    return false
 }
 
 is_id_start := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
     // current_char := Str.get_substr(source, pos, add(pos, 1)) // TODO FIX throws check doesn't propagate for associated functions (unless called as methods)
     current_char := source.get_substr(pos, pos.add(1))
     switch current_char {
-    case "a": return true
-    case "b": return true
-    case "c": return true
-    case "d": return true
-    case "e": return true
-    case "f": return true
-    case "g": return true
-    case "h": return true
-    case "i": return true
-    case "j": return true
-    case "k": return true
-    case "l": return true
-    case "m": return true
-    case "n": return true
-    case "o": return true
-    case "p": return true
-    case "q": return true
-    case "r": return true
-    case "s": return true
-    case "t": return true
-    case "u": return true
-    case "v": return true
-    case "w": return true
-    case "x": return true
-    case "y": return true
-    case "z": return true
-    // case "a".."z": return true // TODO Immplement ranges
-    case "A": return true
-    case "B": return true
-    case "C": return true
-    case "D": return true
-    case "E": return true
-    case "F": return true
-    case "G": return true
-    case "H": return true
-    case "I": return true
-    case "J": return true
-    case "K": return true
-    case "L": return true
-    case "M": return true
-    case "N": return true
-    case "O": return true
-    case "P": return true
-    case "Q": return true
-    case "R": return true
-    case "S": return true
-    case "T": return true
-    case "U": return true
-    case "V": return true
-    case "W": return true
-    case "X": return true
-    case "Y": return true
-    case "Z": return true
-    // case "A".."Z": return true // TODO Immplement ranges
+    case "a".."z": return true
+    case "A".."Z": return true
     case "_": return true
     case:
     }
