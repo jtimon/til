@@ -334,14 +334,13 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
 
 fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut rightparent_found = false;
-    let mut params : Vec<Expr> = Vec::new();
+    let mut params = Vec::new();
     let initial_current = lexer.current;
     lexer.advance(1)?;
     let mut list_t = lexer.peek();
-    // println!("primary debug LeftParen: {} {}", initial_current, *current);
     let mut expect_comma = false;
+
     while !(lexer.is_eof(0) || rightparent_found) {
-        // println!("primary debug LeftParen while: {} {}", current, *current);
         match list_t.token_type {
             TokenType::RightParen => {
                 rightparent_found = true;
@@ -358,21 +357,29 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
             },
             _ => {
                 if expect_comma {
-                    return Err(list_t.error(&format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));
+                    return Err(list_t.error(&format!(
+                        "Expected ')' or ',', found '{:?}'.",
+                        list_t.token_type,
+                    )))
                 }
-                expect_comma = true;
                 let prim = match parse_primary(lexer) {
                     Ok(to_ret) => to_ret,
                     Err(err_str) => return Err(err_str),
                 };
                 params.push(prim);
-                list_t = lexer.peek();
+                expect_comma = true;
+                list_t = lexer.peek(); // <-- critical fix
             },
         }
     }
+
     match list_t.token_type {
         // TODO properly parse lists besides function definition arguments
-        TokenType::RightParen => Ok(Expr::new_parse(NodeType::LLiteral(Literal::List("".to_string())), lexer.get_token(initial_current)?.clone(), params)),
+        TokenType::RightParen => Ok(Expr::new_parse(
+            NodeType::LLiteral(Literal::List("".to_string())),
+            lexer.get_token(initial_current)?.clone(),
+            params,
+        )),
         _ => Err(list_t.error("Expected closing parentheses.")),
     }
 }
@@ -869,6 +876,12 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Struct => return parse_struct_definition(lexer),
         TokenType::LeftParen => return parse_list(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
+        TokenType::LeftBrace => {
+            lexer.advance(1)?; // consume '{'
+            let body = parse_body(lexer, TokenType::RightBrace)?;
+            lexer.advance(1)?; // consume '}'
+            return Ok(body);
+        }
         _ => return Err(t.error(&format!("Expected primary expression, found '{:?}'.", t.token_type))),
     }
 }

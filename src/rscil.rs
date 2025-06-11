@@ -1068,6 +1068,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
 fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
+        NodeType::Body => Ok(ValueType::TCustom("Body".to_string())),
         NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
         NodeType::LLiteral(Literal::Bool(_)) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
@@ -2695,6 +2696,20 @@ fn eval_core_func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
     Ok(EvalResult::new(&val))
 }
 
+fn eval_core_func_execute_body(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() != 2 {
+        return Err(e.lang_error("eval", "core_execute_body takes exactly 1 argument of type Body"));
+    }
+
+    let body_expr = e.get(1)?;
+    match body_expr.node_type {
+        NodeType::Body => {
+            return eval_body(context, &body_expr.params);
+        }
+        _ => return Err(e.lang_error("eval", "Expected argument of type Body")),
+    }
+}
+
 fn eval_core_func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
@@ -2970,6 +2985,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     "Str" => {
                         function_context.insert_string(&arg.name, &result_str, e)?;
                     },
+                    "Body" => {
+                        return Err(e.lang_error("eval", "TODO: eval_user_func_proc_call: 'Body' arguments not supported yet"))
+                    },
                     _ => {
                         let custom_symbol = function_context.symbols.get(custom_type_name).ok_or_else(|| {
                             return e.lang_error("eval", &format!( "Undefined symbol for custom type '{}'", custom_type_name))
@@ -3135,6 +3153,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "eval_to_str" => eval_core_proc_eval_to_str(context, &e),
         "exit" => eval_core_exit(&e),
         "import" => Ok(EvalResult::new("")), // REM Should already be imported in init_context
+        "core_execute_body" => eval_core_func_execute_body(context, e),
         "input_read_line" => eval_core_proc_input_read_line(context, &e),
         "single_print" => eval_core_proc_single_print(context, &e),
         "print_flush" => eval_core_proc_print_flush(context, &e),

@@ -1,0 +1,66 @@
+mode test
+
+mut temp_str := ""
+
+test_body_pass_as_argument := proc() {
+    print_body := func(b: Body) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
+        temp_str = format(temp_str, "start|")
+        core_execute_body(b)
+        temp_str = format(temp_str, "end|")
+    }
+
+    // TODO rscil eval ERROR: TODO: eval_user_func_proc_call: 'Body' arguments not supported yet
+    // print_body({
+    //     temp_str = format(temp_str, "body1|")
+    // })
+    // assert_eq_str(loc(), "start|body1|end|", temp_str)
+
+    // catch(err: AllocError) {
+    //     println(loc(), "AllocError thrown:")
+    //     println(err.msg)
+    // }
+    // catch(err: IndexOutOfBoundsError) {
+    //     println(loc(), "IndexOutOfBoundsError thrown:")
+    //     println(err.msg)
+    // }
+    // catch(err: I64_OverflowError) {
+    //     println(loc(), "I64_OverflowError thrown:")
+    //     println(err.msg)
+    // }
+}
+test_body_pass_as_argument()
+
+test_body_in_variable_and_call := proc() {
+    temp_str = ""
+
+    // mut b: Body = {
+    //     temp_str = format(temp_str, "v1|")
+    // }
+
+    // core_execute_body(b)
+
+    // b = {
+    //     temp_str = format(temp_str, "v2|")
+    // }
+
+    // core_execute_body(b)
+
+    // assert_eq_str(loc(), "v1|v2|", temp_str)
+}
+test_body_in_variable_and_call()
+
+test_body_nested_and_reused := proc() {
+    temp_str = ""
+
+    call_twice := func(b: Body) {
+        core_execute_body(b)
+        core_execute_body(b)
+    }
+
+    // call_twice({
+    //     temp_str = format(temp_str, "twice|")
+    // })
+
+    // assert_eq_str(loc(), "twice|twice|", temp_str)
+}
+test_body_nested_and_reused()

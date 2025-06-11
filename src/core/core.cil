@@ -2,6 +2,7 @@ mode lib
 
 import("src/core/constants")
 
+Body    := struct {}
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 
 // DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
@@ -59,6 +60,7 @@ AllocError := struct {
 
 // FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
+core_execute_body := ext_func(b: Body); // REM: From this base, while, if/else, function defitions and more will depend
 
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;
