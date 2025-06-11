@@ -75,6 +75,7 @@ struct Context {
     symbols: HashMap<String, SymbolInfo>,
     // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
     funcs: HashMap<String, SFuncDef>,
+    bodies: HashMap<String, Vec<Expr>>,
     // Enum type definitions (variants and associated data)
     enum_defs: HashMap<String, SEnumDef>,
     // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
@@ -94,6 +95,7 @@ impl Context {
             mode: mode_from_name(mode_name)?,
             symbols: HashMap::new(),
             funcs: HashMap::new(),
+            bodies: HashMap::new(),
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
@@ -637,6 +639,11 @@ impl Context {
         Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
         Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
 
+        return Ok(())
+    }
+
+    fn insert_body(self: &mut Context, id: &str, e: &Expr) -> Result<(), String> {
+        self.bodies.insert(id.to_string(), vec![e.params[0..e.params.len()])]);
         return Ok(())
     }
 
@@ -2986,7 +2993,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_string(&arg.name, &result_str, e)?;
                     },
                     "Body" => {
-                        return Err(e.lang_error("eval", "TODO: eval_user_func_proc_call: 'Body' arguments not supported yet"))
+                        // TODO Test this well
+                        function_context.insert_body(&arg.name, e)?;
                     },
                     _ => {
                         let custom_symbol = function_context.symbols.get(custom_type_name).ok_or_else(|| {

@@ -10,23 +10,23 @@ test_body_pass_as_argument := proc() {
     }
 
     // TODO rscil eval ERROR: TODO: eval_user_func_proc_call: 'Body' arguments not supported yet
-    // print_body({
-    //     temp_str = format(temp_str, "body1|")
-    // })
-    // assert_eq_str(loc(), "start|body1|end|", temp_str)
+    print_body({
+        temp_str = format(temp_str, "body1|")
+    })
+    assert_eq_str(loc(), "start|body1|end|", temp_str)
 
-    // catch(err: AllocError) {
-    //     println(loc(), "AllocError thrown:")
-    //     println(err.msg)
-    // }
-    // catch(err: IndexOutOfBoundsError) {
-    //     println(loc(), "IndexOutOfBoundsError thrown:")
-    //     println(err.msg)
-    // }
-    // catch(err: I64_OverflowError) {
-    //     println(loc(), "I64_OverflowError thrown:")
-    //     println(err.msg)
-    // }
+    catch(err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), "I64_OverflowError thrown:")
+        println(err.msg)
+    }
 }
 test_body_pass_as_argument()
 
