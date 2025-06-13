@@ -291,10 +291,7 @@ pub fn mode_from_name(mode_name: &str) -> Result<ModeDef, String> {
 }
 
 pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
-    if TokenType::Mode != lexer.peek().token_type {
-        return Err(format!("0:0: 'mode' is required in the beginning of the file"));
-    }
-    lexer.advance(1)?; // Add one for mode
+    lexer.expect(TokenType::Mode)?; // Add one for mode
 
     if TokenType::Identifier != lexer.peek().token_type {
         return Err(format!("0:0: Expected identifier after 'mode'"));
@@ -310,7 +307,7 @@ pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
         return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "script"));
     }
 
-    lexer.advance(1)?; // Add one for the identifier mode
+    lexer.expect(TokenType::Identifier)?; // Add one for the identifier of the mode
     return Ok(mode);
 }
 
@@ -337,7 +334,7 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut rightparent_found = false;
     let mut params : Vec<Expr> = Vec::new();
     let initial_current = lexer.current;
-    lexer.advance(1)?;
+    lexer.expect(TokenType::LeftParen)?;
     let mut list_t = lexer.peek();
     // println!("primary debug LeftParen: {} {}", initial_current, *current);
     let mut expect_comma = false;
@@ -345,13 +342,13 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
         // println!("primary debug LeftParen while: {} {}", current, *current);
         match list_t.token_type {
             TokenType::RightParen => {
+                lexer.expect(TokenType::RightParen)?;
                 rightparent_found = true;
-                lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_comma {
+                    lexer.expect(TokenType::Comma)?;
                     expect_comma = false;
-                    lexer.advance(1)?;
                     list_t = lexer.peek();
                 } else {
                     return Err(list_t.error("Unexpected ','."));
@@ -379,16 +376,16 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
 }
 
 fn parse_assignment(lexer: &mut Lexer, t: &Token, name: &String) -> Result<Expr, String> {
-    lexer.advance(1)?; // skip equal
+    lexer.expect(TokenType::Equal)?;
     let mut params = Vec::new();
     params.push(parse_primary(lexer)?);
     return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), t.clone(), params))
 }
 
 fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
+    lexer.expect(TokenType::LeftParen)?;
     let mut rightparent_found = false;
     let mut args : Vec<Declaration> = Vec::new();
-    lexer.advance(1)?;
     let mut t = lexer.peek();
     let mut expect_comma = false;
     let mut expect_colon = false;
@@ -417,7 +414,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     expect_colon = false;
                     expect_name = true;
                     is_mut = false;
-                    lexer.advance(1)?;
+                    lexer.expect(TokenType::Comma)?;
                     t = lexer.peek();
                 } else {
                     return Err(t.error("Unexpected ','."));
@@ -522,8 +519,8 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
             },
             TokenType::Comma => {
                 if expect_comma {
+                    lexer.expect(TokenType::Comma)?;
                     expect_comma = false;
-                    lexer.advance(1)?;
                     t = lexer.peek();
                 } else {
                     return Err(t.error("Unexpected ','."));
@@ -694,7 +691,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
 }
 
 fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
-    lexer.advance(1)?;
+    lexer.expect(TokenType::Struct)?;
     let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
         return Err(t.error("Expected '{{' after 'struct'."));
@@ -1192,7 +1189,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
             break;
         }
         if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-            lexer.advance(1)?;
+            lexer.expect(TokenType::Semicolon)?; // REM: This is suboptimal but more clear in grep
             continue;
         }
 
@@ -1214,7 +1211,7 @@ pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
-    lexer.advance(1)?; // Add one for the EOF
+    lexer.expect(TokenType::Eof)?;
 
     let mut i = lexer.current;
     let mut unparsed_tokens = 0;
