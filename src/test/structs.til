@@ -141,3 +141,27 @@ test_structs := proc() {
 
 }
 test_structs()
+
+D := struct {
+    truth_func := func(self: D) returns Bool {
+        return true
+    }
+}
+
+C := struct {
+    mut d: D = D()
+}
+
+B := struct {
+    mut c: C = C()
+}
+
+A := struct {
+    mut b: B = B()
+}
+
+test_chained_field_access := proc() {
+    a := A()
+    assert(loc(), a.b.c.d.truth_func())
+}
+test_chained_field_access()

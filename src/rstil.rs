@@ -3198,54 +3198,43 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
     }
 }
 
-fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+fn eval_func_proc_call(_name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.node_type != NodeType::FCall {
-        return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall node type"));
+        return Err(e.lang_error("eval", "Expected FCall node type"));
     }
-    let func_expr = match e.params.first() {
-        Some(expr) => expr,
-        None => return Err(e.lang_error("eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
-    };
 
-    if context.struct_defs.contains_key(name) {
-        // TODO allow instantiations with arguments
+    let mut new_fcall_e = e.clone();
+    let maybe_func_def = get_func_def_for_fcall_with_expr(context, &mut new_fcall_e)?;
+
+    if maybe_func_def.is_none() {
+        // Handle struct instantiations like MyStruct()
         let id_expr = e.get(0)?;
         if id_expr.params.len() == 0 {
-            let id_name = match &id_expr.node_type {
-                NodeType::Identifier(s) => s,
-                _ => return Err(e.todo_error("eval", "Expected identifier name for struct instantiation")),
-            };
-            context.insert_struct(&id_name, &name, e)?;
-            return Ok(EvalResult::new(match id_name.as_str() {
-                "Bool" => "false",
-                "U8" | "I64" => "0",
-                "Str" => "",
-                _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
-            }))
+            if let NodeType::Identifier(id_name) = &id_expr.node_type {
+                let combined_name = id_name.as_str();
+                if context.struct_defs.contains_key(combined_name) {
+                    context.insert_struct(id_name, combined_name, e)?;
+                    return Ok(EvalResult::new(match combined_name {
+                        "Bool" => "false",
+                        "U8" | "I64" => "0",
+                        "Str" => "",
+                        _ => id_name,
+                    }))
+                }
+            }
         }
+        return Err(e.lang_error("eval", "eval_func_proc_call: unhandled instantiation case"));
     }
 
-    let combined_name = &get_combined_name(func_expr)?;
-    let mut new_fcall_e = e.clone();
-    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
-        Some(func_def_) => func_def_,
-        None  => {
-            return Err(e.lang_error("eval", "eval_func_proc_call: Instantiations should be handled already"))
-        },
-    };
+    let func_def = maybe_func_def.unwrap();
+    let callee_expr = new_fcall_e.get(0)?;
+    let combined_name = get_combined_name(callee_expr)?;
+
     if func_def.is_ext() {
-        // External/core functions are treated specially
-        let is_proc = func_def.is_proc();
-        let parts: Vec<&str> = combined_name.split('.').collect();
-        let last_name = match parts.last() {
-            Some(last_name_) => last_name_,
-            None => {
-                return Err(e.lang_error("eval", "Somehow function without name"))
-            }
-        };
-        return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
+        return eval_core_func_proc_call(&combined_name, context, &new_fcall_e, func_def.is_proc());
     }
-    return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
+
+    eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }
 
 fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
