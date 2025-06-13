@@ -1,5 +1,6 @@
 mode script
 // TODO use mode test and asserts instead of prints
+import("src/core/modes/test")
 
 // Basic control flow (execution):
 
@@ -17,17 +18,18 @@ comments
 nested too
 */
 
-doesn't break with nesting like C // TODO nested comments don't work properly in til-mode
+doesn't break with nesting like C // REM nested comments don't work properly in til-mode, but that's an emacs limitation
+                                  // TODO rewrite emacs in til and fix this
 
 */ // TODO should it be unterminated comment when we remove this? or give errors in "doesn't break"
 
-// basic 'if' statements:
+// 'if' statements:
 
 if not(gt(4, 2)) {
     panic(loc(), "'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
 }
 
-// basic 'if/else' statements:
+// 'if/elif/else/' statements:
 
 // if 42 { // fails because ints are not allowed for conditions, only bool
 if gt(2, 4) {
@@ -75,5 +77,27 @@ test_int_range := proc(x: I64) {
     }
 }
 test_int_range(3)
-test_int_range(15)
+test_int_range(10)
+test_int_range(19)
+test_int_range(20)
 test_int_range(42)
+
+test_for_loop_range := proc(min_range : I64, max_range : I64) {
+
+    mut sum_for := 0
+    for i in min_range..max_range {
+        sum_for = sum_for.add(i)
+    }
+
+    mut sum_while := 0
+    mut j := min_range
+    while j.lt(max_range) {
+        sum_while = sum_while.add(j)
+        j.inc()
+    }
+
+    assert_eq(loc(), sum_for, sum_while)
+}
+test_for_loop_range(0, 12)
+test_for_loop_range(3, 5)
+test_for_loop_range(4, 2) // TODO this should probably fail, but it hasn't been tested yet

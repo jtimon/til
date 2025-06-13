@@ -25,7 +25,7 @@
   '("mode" "mut" "struct" "enum" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
-    "if" "else" "while" "switch" "case" "true" "false"
+    "if" "else" "while" "for" "in" "switch" "case" "true" "false"
     ))
 
 (defconst til-types

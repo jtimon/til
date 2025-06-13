@@ -65,10 +65,12 @@ impl Token {
                  self.line, self.col, LANG_NAME, msg);
     }
 
-    pub fn todo_error(self: &Token, msg: &str) -> String {
-        return format!("{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-                 self.line, self.col, LANG_NAME, msg);
-    }
+    // REM: shut up, rust. now I'mm going to get a compile error next time I want to legitimitely use it
+    // on the other hand it is cool when it reminds me  I can now erase a function I don't want to maintain
+    // pub fn todo_error(self: &Token, msg: &str) -> String {
+    //     return format!("{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+    //              self.line, self.col, LANG_NAME, msg);
+    // }
 
     pub fn error(self: &Token, msg: &str) -> String {
         return format!("{}:{}: parse ERROR: {}", self.line, self.col, msg);

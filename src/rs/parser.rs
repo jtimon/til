@@ -1022,6 +1022,77 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
+fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
+    let initial_token = lexer.peek();
+    lexer.advance(1)?; // consume 'for'
+
+    // Expect loop variable name
+    let ident_token = lexer.expect(TokenType::Identifier)?;
+    let loop_var_name = ident_token.token_str.clone();
+
+    lexer.expect(TokenType::In)?;
+
+    // Parse the range expression (e.g., 1..10)
+    let range_expr = parse_case_expr(lexer)?;
+    if range_expr.node_type != NodeType::Range {
+        return Err(ident_token.error("Expected range expression (start..end) after 'in'"));
+    }
+    let start_expr = range_expr.get(0)?.clone();
+    let end_expr = range_expr.get(1)?.clone();
+
+    lexer.expect(TokenType::LeftBrace)?;
+    let body_expr = parse_body(lexer, TokenType::RightBrace)?;
+    lexer.expect(TokenType::RightBrace)?;
+
+    // let loop_var := <start_expr>
+    let decl = Declaration {
+        name: loop_var_name.clone(),
+        value_type: str_to_value_type(INFER_TYPE),
+        is_mut: true,
+    };
+    let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
+
+    // while <loop_var> < <end_expr> {
+    let cond_expr = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_parse(
+                NodeType::Identifier(loop_var_name.clone()),
+                initial_token.clone(),
+                vec![
+                    Expr::new_parse(
+                        NodeType::Identifier("lt".to_string()),
+                        initial_token.clone(),
+                        vec![],
+                    ),
+                ],
+            ),
+            end_expr.clone(),
+        ],
+        initial_token.line,
+        initial_token.col,
+    );
+
+    let inc_expr = Expr::new_explicit(
+        NodeType::FCall,
+        vec![
+            Expr::new_parse(NodeType::Identifier(loop_var_name.clone()), initial_token.clone(), vec![
+                Expr::new_parse(NodeType::Identifier("inc".to_string()), initial_token.clone(), vec![]),
+            ]),
+        ],
+        initial_token.line,
+        initial_token.col,
+    );
+
+    let mut while_body_params = body_expr.params.clone();
+    while_body_params.push(inc_expr);
+    let while_body = Expr::new_explicit(NodeType::Body, while_body_params, body_expr.line, body_expr.col);
+
+    let while_expr = Expr::new_explicit(NodeType::While, vec![cond_expr, while_body], initial_token.line, initial_token.col);
+
+    Ok(Expr::new_explicit(NodeType::Body, vec![decl_expr, while_expr], initial_token.line, initial_token.col))
+}
+
 fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
     let left = parse_primary(lexer)?;
     let t = lexer.peek();
@@ -1157,13 +1228,11 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
 fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     let t = lexer.peek();
     match &t.token_type {
-        TokenType::For => {
-            return Err(t.todo_error("Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,"));
-        },
         TokenType::Return => return return_statement(lexer),
         TokenType::Throw => return parse_throw_statement(lexer),
         TokenType::If => return if_statement(lexer),
         TokenType::While => return while_statement(lexer),
+        TokenType::For => return parse_for_statement(lexer),
         TokenType::Switch => return parse_switch_statement(lexer),
         TokenType::Mut => return parse_mut_declaration(lexer),
         TokenType::Identifier => return parse_statement_identifier(lexer),
