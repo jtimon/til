@@ -1,7 +1,7 @@
 * Array and Struct Literals Across Languages
 
-** CIL
-#+begin_src cil
+** TIL
+#+begin_src til
 // Array literal
 start_fib: [2]I64 = [1, 1]
 

@@ -3,8 +3,8 @@ mode cli
 import("src/core/interpreter")
 // interpreter := import("src/core/interpreter") // TODO accept imports as declarations of struct (as namespace)
 
-CURRENT_VERSION := "cil_0.0.1" // REM: No point in advancing versions until it compiles itself
-REPL_PATH       := "src/core/modes/repl.cil"
+CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
+REPL_PATH       := "src/core/modes/repl.til"
 
 // FIX Cannot use 'main_args' of type 'StrArray' as an argument. Only name of struct instances allowed for struct arguments for now.
 // run_file_or_exit := proc(path: Str, main_args: StrArray) {

@@ -2,11 +2,11 @@
 // Suggestion: run 'make repl' from another terminal insted
 mode script
 
-__LANG_NAME := "cil(interactive)"
+__LANG_NAME := "til(interactive)"
 
 println("Started ", __LANG_NAME, " session. Press Ctrl-c or call 'exit(0)' to exit the session.")
 while true {
     print(__LANG_NAME, "> ")
-    __line := input_read_line("cil(interactive) error: Failed to read line")
+    __line := input_read_line("til(interactive) error: Failed to read line")
     println(eval_to_str(__line))
 }

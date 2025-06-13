@@ -1,4 +1,4 @@
-;;; cil-dark-theme.el --- A dark theme based on sanityinc-tomorrow-night -*- lexical-binding: t -*-
+;;; til-dark-theme.el --- A dark theme based on sanityinc-tomorrow-night -*- lexical-binding: t -*-
 ;; Package-Requires: ((emacs "27.1"))
 
 ;; The colors are taken from sanityinc-tomorrow-night, from the
@@ -24,8 +24,8 @@
   ;;             (dark-green . "#00994c")
   ;; ))
 
-(deftheme cil-dark
-  "A dark theme designed to use of syntax highlighning capabilities of cil-mode, based on sanityinc-tomorrow-night.")
+(deftheme til-dark
+  "A dark theme designed to use of syntax highlighning capabilities of til-mode, based on sanityinc-tomorrow-night.")
 
 (let ((class '((class color) (min-colors 89)))
       ;; Color palette based on sanityinc-tomorrow-night
@@ -73,7 +73,7 @@
 
 
   (custom-theme-set-faces
-   'cil-dark
+   'til-dark
    `(default ((,class (:background ,background :foreground ,foreground))))
    `(cursor ((,class (:background ,cursor))))
    `(highlight ((,class (:background ,highlight))))
@@ -116,11 +116,11 @@
    `(dired-symlink ((,class (:foreground ,type)))))
 
   (custom-theme-set-variables
-   'cil-dark
+   'til-dark
    `(ansi-color-names-vector [,background ,error ,string ,type ,keyword ,variable ,function ,comment])))
 
 (when (and (boundp 'custom-theme-load-path) load-file-name)
   (add-to-list 'custom-theme-load-path
                (file-name-as-directory (file-name-directory load-file-name))))
 
-(provide-theme 'cil-dark)
+(provide-theme 'til-dark)

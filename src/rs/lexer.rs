@@ -1,4 +1,4 @@
-pub const LANG_NAME  : &str = "rscil";
+pub const LANG_NAME  : &str = "rstil";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {

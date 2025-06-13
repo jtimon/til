@@ -1,4 +1,4 @@
-* CIL Language Design Notes
+* TIL Language Design Notes
 
 ** Mutability Rules
 - All variables and function arguments are immutable (const) by default.
@@ -47,7 +47,7 @@
 
 | Lang | Zero Cost (No Runtime Overhead)?                | Must Declare 'throws'?    | Must Handle All Errors? | 'catch' Placement                | Extra readability mark                              |
 |------+-------------------------------------------------+---------------------------+-------------------------+----------------------------------+-----------------------------------------------------|
-| CIL  | ✅ Yes                                          | ✅ Yes (explicit)         | ✅ Yes                  | ✅ Free-floating 'catch()'       | ✅ Yes (extra '?' after call that can throw)        |
+| TIL  | ✅ Yes                                          | ✅ Yes (explicit)         | ✅ Yes                  | ✅ Free-floating 'catch()'       | ✅ Yes (extra '?' after call that can throw)        |
 | C++  | ❌ No (zero-cost only if no errors, many costs) | ❌ No                     | ❌ No                   | ❌ 'try { } catch { }'           | ❌ No                                               |
 | Java | ❌ No (runtime checked exceptions, afaik)       | ✅ Yes (explicit)         | ✅ Yes                  | ❌ 'try { } catch { }'           | ❌ No                                               |
 | Rust | ✅ Yes                                          | ✅ Yes (templated return) | ✅ Yes                  | ❌ Must match or '?'             | ❌ No                                               |
@@ -62,8 +62,8 @@ By convention, the errors of each function are enumerated and documented as nega
 But most "pure functional" languages can't have mutable argumments.
 C is not included in the table though, perhaps it should.
 
-Likewise, CIL has "mmultiple return values" planned too, so eventually users can use the Go/Odin syntax if they preffer it.
-Same for rust style once CIL has templates.
+Likewise, TIL has "mmultiple return values" planned too, so eventually users can use the Go/Odin syntax if they preffer it.
+Same for rust style once TIL has templates.
 
 The "extra" column is about readability, pure syntax bikesheeding, no
 functionality at all, besides the type checking for the syntax
@@ -75,10 +75,10 @@ This is not necessary, but it is good for readability, for identifying faster wh
 But that's limited to "per-line" (per-statemment).
 But serveral calls may throw within the same statemnt (for example, the arguments of a function call may be other function calls)
 Similarly, rust uses the '!' convention for macros and roc uses it for procs (aka almost pure functions with managed effects in their fff language).
-Similarly, CIL could adopt a convention for ending proc names with !, why not, we can even check that depending on the mode.
+Similarly, TIL could adopt a convention for ending proc names with !, why not, we can even check that depending on the mode.
 
 I personally preffer the rust syntax for the zig intent, if I understood it correctly, which is a "?" right after the call.
-In rust, you only use that to rethrow automatically. In cil it will be always, even if you catch right after the call.
+In rust, you only use that to rethrow automatically. In til it will be always, even if you catch right after the call.
 
 NOTE: My understanding of other languages is not complete. Not even of my own since it is a work in progress (WIP).
 

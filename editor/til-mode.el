@@ -1,7 +1,7 @@
-;;; cil-mode.el --- Major mode for editing cil files
-;; A basic major mode for the cil language, developed at https://github.com/jtimon/cil.
+;;; til-mode.el --- Major mode for editing til files
+;; A basic major mode for the til language, developed at https://github.com/jtimon/til.
 
-(defconst cil-mode-syntax-table
+(defconst til-mode-syntax-table
   (with-syntax-table (copy-syntax-table)
     ;; Line comments: // and #
     (modify-syntax-entry ?/ ". 124b")
@@ -19,19 +19,19 @@
     (modify-syntax-entry ?} "){")
     (modify-syntax-entry ?, ".")
     (syntax-table))
-  "Syntax table for `cil-mode'.")
+  "Syntax table for `til-mode'.")
 
-(defconst cil-keywords
+(defconst til-keywords
   '("mode" "mut" "struct" "enum" "main"
     "func" "proc" "ext_func" "ext_proc" "macro"
     "returns" "return" "throws" "catch"
     "if" "else" "while" "switch" "case" "true" "false"
     ))
 
-(defconst cil-types
+(defconst til-types
   '("U8" "I64" "Bool" "Str"))
 
-(defconst cil-builtins
+(defconst til-builtins
   '("and" "or" "not" "eq" "branchless"
     "lt" "lteq" "gt" "gteq"
     "add" "sub" "mul" "div" "mod"
@@ -47,7 +47,7 @@
     "pure" "gui" "server" "arduino"
     ))
 
-(defconst cil-error-words
+(defconst til-error-words
   '(;; Because they're kind of "dangerous" and it's nice to see them in red
     "throw" "panic" "exit" "TODO" "NULL"
     ;; Because they are planned, but not implemented yet
@@ -59,7 +59,7 @@
     "static" "let" "var" "const" "global" "fn" "function" "try"
     "public" "pub" ;; TODO add to lexer errors
     )
-  "Words that are invalid in cil and should be highlighted as errors.")
+  "Words that are invalid in til and should be highlighted as errors.")
 
 (defconst comment-error-words
   '("TODO" "FIX" "FIXME" "WIP")
@@ -70,21 +70,21 @@
   '("REM" "WARNING")
   "Words to highlight as warning in comments.")
 
-(defconst cil-highlights `(
+(defconst til-highlights `(
     ;; Doc comments /** ... */
     ("/\\*\\*\\([^*]\\|\\*[^/]\\)*\\*/" . font-lock-doc-face)
     ;; Error words
-    (,(regexp-opt cil-error-words 'symbols) . compilation-error)
+    (,(regexp-opt til-error-words 'symbols) . compilation-error)
     ;; Error words in comments
     (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-error-words t) "\\)\\>\\)") . (2 compilation-error t))
     ;; Warning words in comments
     (,(concat comment-start-skip "\\(.*\\<\\(" (regexp-opt comment-warning-words t) "\\)\\>\\)") . (2 font-lock-warning-face t))
     ;; Keywords
-    (,(regexp-opt cil-keywords 'symbols) . font-lock-keyword-face)
+    (,(regexp-opt til-keywords 'symbols) . font-lock-keyword-face)
     ;; Built-in Types
-    (,(regexp-opt cil-types 'symbols) . font-lock-type-face)
+    (,(regexp-opt til-types 'symbols) . font-lock-type-face)
     ;; Builtins
-    (,(regexp-opt cil-builtins 'symbols) . font-lock-builtin-face)
+    (,(regexp-opt til-builtins 'symbols) . font-lock-builtin-face)
     ;; Numeric literals (not part of identifiers)
     ("\\(?:^\\|[^a-zA-Z0-9_]\\)\\([0-9]+\\(?:\\.[0-9]+\\)?\\)\\_>" 1 font-lock-preprocessor-face)
     ;; Type declarations: 'enum' and 'struct'
@@ -112,8 +112,8 @@
     ;; TODO Enum values as constants
 ))
 
-(defun cil-indent-line ()
-  "Indent current line as cil code using 4 spaces."
+(defun til-indent-line ()
+  "Indent current line as til code using 4 spaces."
   (interactive)
   (let ((indent 0)
         (not-indented t))
@@ -183,11 +183,11 @@
     (delete-horizontal-space)
     (indent-to indent)))
 
-(define-derived-mode cil-mode prog-mode "cil"
-  "Major Mode for editing cil source code."
-  :syntax-table cil-mode-syntax-table
-  (setq font-lock-defaults '(cil-highlights))
-  (setq indent-line-function 'cil-indent-line)
+(define-derived-mode til-mode prog-mode "til"
+  "Major Mode for editing til source code."
+  :syntax-table til-mode-syntax-table
+  (setq font-lock-defaults '(til-highlights))
+  (setq indent-line-function 'til-indent-line)
   (setq-local indent-tabs-mode nil)          ; Use spaces, not tabs
   (setq-local tab-width 4)                   ; Set tab width to 4 spaces
   (setq-local comment-start "// ")           ; Default comment prefix for region commenting
@@ -195,7 +195,7 @@
   (setq-local comment-end "")                ; Single-line comments, no end delimiter
   (setq-local comment-multi-line nil)        ; Enforce single-line comment style
   ;; Enable nested multi-line comments
-  ;; NOTE: While CIL supports nested /* ... */ comments,
+  ;; NOTE: While TIL supports nested /* ... */ comments,
   ;; Emacs syntax highlighting does not. This mode will only highlight up to the first '*/' matching.
   (setq-local font-lock-syntactic-face-function
 	      (lambda (state)
@@ -211,6 +211,6 @@
 		 (t nil))))
   )
 
-(add-to-list 'auto-mode-alist '("\\.cil\\'" . cil-mode))
+(add-to-list 'auto-mode-alist '("\\.til\\'" . til-mode))
 
-(provide 'cil-mode)
+(provide 'til-mode)

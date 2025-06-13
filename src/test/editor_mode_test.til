@@ -1,4 +1,4 @@
-// editor_mode_test.cil - Test file for cil-mode.el highlighting
+// editor_mode_test.til - Test file for til-mode.el highlighting
 
 // Keywords should be highlighted
 mode script // 'mode' (font-lock-keyword-face in emacs)

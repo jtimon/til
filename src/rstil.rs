@@ -19,7 +19,7 @@ use rs::parser::{
 };
 
 const DEFAULT_MODE         : &str = "lib";
-const SELF_HOSTED_PATH     : &str = "src/cil.cil";
+const SELF_HOSTED_PATH     : &str = "src/til.til";
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 const SKIP_AST             : bool = true;
 
@@ -1192,7 +1192,7 @@ fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                 return errors
                             },
                         };
-                        println!("{}.cil:{}", import_path, err);
+                        println!("{}.til:{}", import_path, err);
                         println!("{}:{}", context.path, err);
                     },
                 }
@@ -2866,7 +2866,7 @@ fn eval_core_proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, 
     }
 
     let original_path = context.path.clone();
-    let path = format!("{}{}", result.value, ".cil");
+    let path = format!("{}{}", result.value, ".til");
 
     // If imported already, use the cache
     match context.imports_done.get(&path) {
@@ -4207,7 +4207,7 @@ fn main_run(print_extra: bool, context: &mut Context, path: &String, source: Str
 
 fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let mut context = Context::new(path, DEFAULT_MODE)?;
-    if path != "src/core/core.cil" {
+    if path != "src/core/core.til" {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/core".to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};

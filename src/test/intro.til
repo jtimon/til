@@ -2,7 +2,7 @@ mode script
 
 import("src/core/modes/test")
 
-assert_eq_str(loc(), loc(), "src/test/intro.cil:5:22:") // TODO fix, the col should be one less
+assert_eq_str(loc(), loc(), "src/test/intro.til:5:22:") // TODO fix, the col should be one less
 
 //// Intro to the language (suggestion: uncomment lines which claim will fail and see what happens)
 // @ // fails because @ is invalid on the lexer for now

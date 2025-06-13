@@ -17,7 +17,7 @@ comments
 nested too
 */
 
-doesn't break with nesting like C // TODO nested comments don't work properly in cil-mode
+doesn't break with nesting like C // TODO nested comments don't work properly in til-mode
 
 */ // TODO should it be unterminated comment when we remove this? or give errors in "doesn't break"
 

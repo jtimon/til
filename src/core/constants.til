@@ -23,7 +23,7 @@ MIN_U64   := 0
 MIN_U128  := 0
 MIN_U256  := 0
 
-// TODO we can't use sub from core.cil before constants.cil, wait for negative literal number support
+// TODO we can't use sub from core.til before constants.til, wait for negative literal number support
 // MIN_I8    := sub(0, 128)
 // MIN_I16   := sub(0, 32768)
 // MIN_I32   := sub(0, 2147483648)

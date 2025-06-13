@@ -1,4 +1,4 @@
-#!/usr/bin/env cil
+#!~/bin/til
 mode script
 
 println("Hello World!")
