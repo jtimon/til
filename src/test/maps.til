@@ -1,0 +1,25 @@
+mode test
+
+test_i64map := proc() {
+    m := I64Map.new()
+    m.set("a", 1)
+    m.set("b", 2)
+    m.set("a", 3) // overwrite
+
+    a_val := m.get("a")
+    b_val := m.get("b")
+    m.set("c", 42)
+    c_val := m.get("c")
+
+    assert_eq(loc(), a_val, 3)
+    assert_eq(loc(), b_val, 2)
+    assert_eq(loc(), c_val, 42)
+
+    // _ := m.get("missing") // should throw
+
+    catch (err: KeyNotFound) {
+        // TODO FIXME
+        // assert(loc(), not(m.contains("missing")))
+    }
+}
+test_i64map()

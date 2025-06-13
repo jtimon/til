@@ -877,3 +877,80 @@ Array := struct {
         self.is_dyn = false
     }
 }
+
+KeyNotFound := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns KeyNotFound {
+        err := KeyNotFound()
+        err.msg = msg
+        return err
+    }
+}
+
+I64Map := struct {
+    // TODO Use a hash function like everyone else
+    mut keys: StrArray = StrArray.new_dyn()
+    mut values: I64Array = I64Array.new_dyn()
+
+    new := proc() returns I64Map {
+        mut m := I64Map()
+        m.keys = StrArray.new_dyn()
+        m.values = I64Array.new_dyn()
+        return m
+    }
+
+    set := proc(mut self: I64Map, key: Str, value: I64) {
+        mut i := 0
+        keys := self.keys
+        values := self.values
+        keys_len := keys.len
+
+        while i.lt(keys_len) {
+            existing_key := keys.get(i)
+            if existing_key.eq(key) {
+                values.set(i, value)
+                return
+            }
+            i.inc()
+        }
+
+        keys.push(key)
+        values.push(value)
+
+        self.keys = keys
+        self.values = values
+    }
+
+    get := func(self: I64Map, key: Str) returns I64 throws KeyNotFound {
+        keys := self.keys
+        values := self.values
+        keys_len := keys.len
+
+        mut i := 0
+        while i.lt(keys_len) {
+            k := keys.get(i)
+            if k.eq(key) {
+                return values.get(i)
+            }
+            i.inc()
+        }
+
+        throw KeyNotFound.new(format("I64Map.get: key not found: ", key))
+    }
+
+    contains := func(self: I64Map, key: Str) returns Bool {
+        keys := self.keys
+        keys_len := keys.len
+
+        mut i := 0
+        while i.lt(keys_len) {
+            k := keys.get(i)
+            if k.eq(key) {
+                return true
+            }
+            i.inc()
+        }
+        return false
+    }
+}
