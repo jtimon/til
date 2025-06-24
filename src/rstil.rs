@@ -49,6 +49,7 @@ struct Arena {
 // REM: first address 0 is reserved (invalid), malloc always >0
 impl Arena {
     // This function gives access to the singleton instance of Arena
+    #[allow(static_mut_refs)]
     fn g() -> &'static mut Arena {
         unsafe { // TODO research if we can do "safe" singletons in rust before self hosting, just out of curiosity
             static mut INSTANCE: Option<Arena> = None;
