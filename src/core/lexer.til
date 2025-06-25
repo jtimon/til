@@ -629,7 +629,7 @@ Lexer := struct {
 
 }
 
-print_lex_error := proc(path: Str, t: Token, errors_found: I64, msg: Str) {
+print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
     print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
     print(". Offending symbol: '", t.token_str, "'")
     print("\n")
@@ -696,12 +696,10 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
 
 print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
     mut errors_found := 0
-    mut i := 0
-    while i.lt(tokens.len) {
+    for i in 0..tokens.len {
         t := Token()
         tokens.get(i, t)
-        // print_if_lex_error(path, t, errors_found)
-        i.inc()
+        print_if_lex_error(path, t, errors_found)
     }
     return errors_found
 }
@@ -725,12 +723,10 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str {
     }
 
     mut errors := 0
-    mut i := 0
-    while i.lt(tokens.len) {
+    for i in 0..tokens.len {
         mut t := Token()
         tokens.get(i, t)
         print_if_lex_error(path, t, errors)
-        i.inc()
     }
     if gt(errors, 0) {
         throw format("Compiler errors: ", I64.to_str(errors), " lexical errors found")

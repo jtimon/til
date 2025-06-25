@@ -94,19 +94,15 @@ memcpy := ext_func(dest: I64, src: I64, size: I64);
 memset := ext_func(dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
-    mut i := 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         single_print(args.get(i))
-        i.inc()
     }
     print_flush()
 }
 
 println := proc(args: ..Str) {
-    mut i := 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         single_print(args.get(i))
-        i.inc()
     }
     single_print("\n")
     print_flush()
@@ -173,12 +169,10 @@ not := func(b: Bool) returns Bool {
 }
 
 or := func(args: ..Bool) returns Bool {
-    mut i := 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         if args.get(i) {
             return true
         }
-        i.inc()
     }
     return false
     catch(err: Str) {
@@ -187,12 +181,10 @@ or := func(args: ..Bool) returns Bool {
 }
 
 and := func(args: ..Bool) returns Bool {
-    mut i := 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         if not(args.get(i)) {
             return false
         }
-        i.inc()
     }
     return true
 }
@@ -361,8 +353,7 @@ Str := struct {
             return false
         }
 
-        mut i : I64 = 0
-        while i.lt(self.cap) {
+        for i in 0..self.cap {
             mut self_byte  : U8 = 0
             mut other_byte : U8 = 0
             memcpy(to_ptr(self_byte), add(self.c_string, i), 1)
@@ -371,7 +362,6 @@ Str := struct {
             if not(U8.eq(self_byte, other_byte)) {
                 return false
             }
-            i.inc()
         }
 
         return true
@@ -419,14 +409,12 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     mut result := Str()
     result.cap = prefix.cap
 
-    mut i := 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         arg := args.get(i)
         result.cap = add(result.cap, arg.cap)
         if lt(result.cap, arg.cap) {
             throw I64_OverflowError.new(format(loc(), "format: integer overflow while summing cap for arg ", i.to_str()))
         }
-        i.inc()
     }
 
     result.c_string = malloc(result.cap)
@@ -438,12 +426,10 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     memcpy(result.c_string, prefix.c_string, prefix.cap)
     offset = prefix.cap
 
-    i = 0
-    while i.lt(args.len) {
+    for i in 0..args.len {
         mut s := args.get(i)
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
         offset = add(offset, s.cap)
-        i.inc()
     }
 
     return result

@@ -99,13 +99,9 @@ test_array_dynamic_str := proc() {
 
     mut combined_str := ""
     // for s in dyn { // TODO support for loops for Arrays
-    // for i in 0..dyn.len { // TODO support for loops with ranges
-    mut i := 0
-    // while i.lt(dyn.len) { // TODO Fix more UFCS cases
-    while i.lt(dyn.len) {
+    for i in 0..dyn.len {
         s := dyn.get(i)
         combined_str = format(combined_str, s)
-        i.inc()
     }
     assert_eq_str(loc(), "bazbar", combined_str)
 
