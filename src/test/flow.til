@@ -41,15 +41,25 @@ if gt(2, 4) {
 }
 
 // while loops:
-
-mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-print("it: ")
-// while 42 { // fails, because while expects a bool first, not an int
-while lt(it, 5) {
-    print(it.to_str(), " ")
-    it = add(it, 1)
+{
+    mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
+    print("it: ")
+    // while 42 { // fails, because while expects a bool first, not an int
+    while lt(it, 5) {
+        print(it.to_str(), " ")
+        it = add(it, 1)
+    }
+    print("\n")
 }
-print("\n")
+
+// for loops:
+{
+    print("i: ")
+    for i in 0..5 {
+        print(i.to_str(), " ")
+    }
+    print("\n")
+}
 
 // switch statements:
 

@@ -1230,6 +1230,10 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Mut => return parse_mut_declaration(lexer),
         TokenType::Identifier => return parse_statement_identifier(lexer),
         TokenType::Catch => return parse_catch_statement(lexer),
+        TokenType::LeftBrace => {
+            lexer.advance(1)?; // Skip LeftBrace
+            return parse_body(lexer, TokenType::RightBrace)
+        }
         _ => {
             Err(t.error(&format!("Expected statement, found {:?}.", t.token_type)))
         },
