@@ -1753,6 +1753,11 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
 
     for p in body.iter() {
         match &p.node_type {
+            NodeType::Body => {
+                let mut temp_thrown_types = Vec::new();
+                errors.extend(check_body_returns_throws(context, e, func_def, &p.params, &mut temp_thrown_types, return_found));
+                thrown_types.extend(temp_thrown_types);
+            },
             NodeType::Return => {
                 *return_found = true;
                 if returns_len != p.params.len() {
