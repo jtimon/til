@@ -621,7 +621,6 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
     let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body, throws};
     let params : Vec<Expr> = Vec::new();
     let e = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), params);
-    lexer.advance(1)?;
     Ok(e)
 }
 
@@ -727,7 +726,6 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         }
     }
 
-    lexer.advance(1)?;
     return Ok(Expr::new_parse(NodeType::StructDef(SStructDef{members: members, default_values: default_values}),
                               t.clone(), Vec::new()));
 }
@@ -946,7 +944,6 @@ fn parse_catch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 
     lexer.expect(TokenType::LeftBrace)?; // expect '{'
     let body_expr = parse_body(lexer, TokenType::RightBrace)?;
-    lexer.expect(TokenType::RightBrace)?; // expect '}'
 
     Ok(Expr::new_parse(
         NodeType::Catch,
@@ -974,7 +971,6 @@ fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         Err(err_str) => return Err(err_str),
     };
     params.push(body);
-    lexer.advance(1)?;
 
     let t = lexer.peek();
     if t.token_type == TokenType::Else {
@@ -990,7 +986,6 @@ fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
                 Err(err_str) => return Err(err_str),
             };
             params.push(else_body);
-            lexer.advance(1)?;
         } else {
             return Err(t.error(&format!("Expected '{{' or 'if' after 'else', found '{:?}'.", next.token_type)));
         }
@@ -1018,7 +1013,6 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         Err(err_str) => return Err(err_str),
     };
     params.push(body);
-    lexer.advance(1)?;
     Ok(Expr::new_parse(NodeType::While, lexer.get_token(initial_current)?.clone(), params))
 }
 
@@ -1042,7 +1036,6 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 
     lexer.expect(TokenType::LeftBrace)?;
     let body_expr = parse_body(lexer, TokenType::RightBrace)?;
-    lexer.expect(TokenType::RightBrace)?;
 
     // let loop_var := <start_expr>
     let decl = Declaration {
@@ -1254,6 +1247,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
         t = lexer.peek(); // update t with the current token
         let token_type = &t.token_type;
         if token_type == &end_token {
+            lexer.advance(1)?;
             end_found = true;
             break;
         }
@@ -1280,7 +1274,6 @@ pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
         Ok(expr) => expr,
         Err(error_string) => return Err(error_string),
     };
-    lexer.expect(TokenType::Eof)?;
 
     let mut i = lexer.current;
     let mut unparsed_tokens = 0;
