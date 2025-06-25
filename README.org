@@ -1,17 +1,14 @@
 
 |   |   |   |   |   |   |   |   |   |   | [[https://github.com/jtimon/til/raw/master/img/logo.png"]] |   |   |   |   |   |   |   |   |   |   |
 
-* Translated Interpreted Language
+* Translatable Interpretable Language
 
 Til is a general purpose experimental language that is meant to be
 interpreted or translated to machine code or to some other high level
-language. Not to be confused with CIL https://github.com/cil-project/cil
+language.
 
 A priority is to have a self hosted implementation as soon as possible,
 although the bootstrap implementation is written in rust.
-
-TODO apparently not only cil, but the til file extension is "taken"
-too. Consider changing the name of ti language again.
 
 ** Motivation
 
@@ -27,10 +24,11 @@ It may become unmaintained.
 
 * WARNING Contributing
 
-Until src/til.til does everything src/main.rs does and also compiles to a
+Until src/til.til does everything src/rstil.rs does and also compiles to a
 amd64-linux binary, it is not worth it.
 
 Please, don't even try yet.
+
 * Get started
 
 See /src (except for src/rscil.rs) to read some examples.
@@ -106,15 +104,12 @@ itself to C and compile and link itself.
 - Compiled and interpreted
 - Self hosted and backend agnostic
 - Purely functional and purely procedural
-- Strongly typed and a dynamic language (implement some sort of Anything type for arguments that is not checked)
+- Strongly typed and a dynamic language (Dynamic special type for arguments that is not checked)
 - Using UFCS and calling it OOP is allowed
 - Semicolon agnostic (currently required only for external function declarations, but allowed after any statement)
-  Because everyone hates to recompile because a meaningless semicolon was forgotten, as trivial as the fix is
-  Some times they're also introduced by accident in languages that forbid them.
-  Some people just love them for whatever reason, perhaps just muscle memory.
-  Let everyone be happy on this one, it's just [[https://en.wikipedia.org/wiki/Law_of_triviality][bikeshedding]] anyway,
-- Without "indentation-based block-level structure"
-  Because, as rare as it may be, everyone hates to introduce a subtle bug if you accidentally press tab after testing but before committing
+- Without "indentation-based block-level structure", just braces for blocks
+- Flexible error handling styles (like in C, like in Go, like in Rust or in its own style similar to java: your functions, your choice)
+- General purpose and domain-specific with an extensible mode system
 
 * Early documentation
 ** Pure functions:
