@@ -1,34 +1,15 @@
 ;;; til-dark-theme.el --- A dark theme based on sanityinc-tomorrow-night -*- lexical-binding: t -*-
-;; Package-Requires: ((emacs "27.1"))
 
-;; The colors are taken from sanityinc-tomorrow-night, from the
+;; The colors are initially taken from sanityinc-tomorrow-night, from the
 ;; color-theme-sanityinc-tomorrow package, Original source:
 ;; https://github.com/purcell/color-theme-sanityinc-tomorrow
 ;; Used with permission under the original MIT License.
 
-  ;; '((night . ((background . "#1d1f21")
-  ;;             (alt-background . "#22a224a427a7")
-  ;;             (current-line . "#282a2e")
-  ;;             (selection . "#373b41")
-  ;;             (foreground . "#c5c8c6")
-  ;;             (comment . "#969896")
-  ;;             (red . "#cc6666")
-  ;;             (orange . "#de935f")
-  ;;             (yellow . "#f0c674")
-  ;;             (green . "#b5bd68")
-  ;;             (aqua . "#8abeb7")
-  ;;             (blue . "#81a2be")
-  ;;             (purple . "#b294bb")
-
-  ;; test new colors:
-  ;;             (dark-green . "#00994c")
-  ;; ))
-
 (deftheme til-dark
-  "A dark theme designed to use of syntax highlighning capabilities of til-mode, based on sanityinc-tomorrow-night.")
+  "A dark theme designed to use all syntax highlighting capabilities of til-mode, based initially on sanityinc-tomorrow-night.")
 
 (let ((class '((class color) (min-colors 89)))
-      ;; Color palette based on sanityinc-tomorrow-night
+      ;; Color palette initially based on sanityinc-tomorrow-night
       (background "#1d1f21")
       (foreground "#c5c8c6")
       (cursor "#aeafad")
@@ -47,30 +28,7 @@
       (warning "#de935f")   ; orange
       (error "#c66"))
 
-  ;; font-lock-builtin-face LightSteelBlue "#b0c4de"
-  ;; #b294bb Muted magenta
   ;; Soft red-orange like #e78c45
-
-;; (let ((class '((class color) (min-colors 89)))
-;;       ;; Color palette based on sanityinc-tomorrow-night
-;;       (background "#1d2526")
-;;       (foreground "#c5c8c6")
-;;       (cursor "#aeafad")
-;;       (highlight "#2d3b44")
-;;       (hl-line "#2b2b2b")
-;;       (region "#3f494a")
-;;       (comment "#969896")
-;;       (string "#b5bd68")
-;;       (keyword "#81a2be")
-;;       ;; Modified faces for distinction
-;;       (constant "#d08770")  ; Soft orange, distinct from type
-;;       (type "#8abeb7")      ; Muted teal, clearly different from constant
-;;       (function "#b294bb")
-;;       (variable "#cc6666")
-;;       (warning "#de935f")
-;;       (error "#c66"))
-
-
 
   (custom-theme-set-faces
    'til-dark
