@@ -1,12 +1,12 @@
 mode test
 
 test_pointers := proc() {
-    p := Ptr.new(32) // allocate 32 bytes
+    p := Ptr.new_by_size(32) // allocate 32 bytes
     println("Pointer address: ", I64.to_str(p.data))
 
     Ptr.set_zero(p, 32)
 
-    q := Ptr.new(32)
+    q := Ptr.new_by_size(32)
 
     Ptr.copy_to(p, q, 32)
 
