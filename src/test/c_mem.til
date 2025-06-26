@@ -43,12 +43,18 @@ test_malloc := proc() {
     mut p := malloc(16)
     test(loc(), gt(p, 0), "malloc: pointer address should be non-zero")
     free(p)
+    catch(err: AllocError) {
+        exit(1)
+    }
 }
 test_malloc()
 
 test_free := proc() {
     mut p := malloc(8)
     free(p)
+    catch(err: AllocError) {
+        exit(1)
+    }
 }
 test_free()
 
@@ -56,6 +62,9 @@ test_memset := proc() {
     mut p := malloc(8)
     memset(p, U8.from_i64(0), 8)
     free(p)
+    catch(err: AllocError) {
+        exit(1)
+    }
 }
 test_memset()
 
@@ -66,5 +75,8 @@ test_memcpy := proc() {
     memcpy(p2, p1, 8)
     free(p1)
     free(p2)
+    catch(err: AllocError) {
+        exit(1)
+    }
 }
 test_memcpy()

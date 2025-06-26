@@ -2431,6 +2431,9 @@ fn eval_core_func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, 
         Arena::g().memory.resize(offset + size, 0); // extend safely
     }
 
+    if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
+        return Err(e.lang_error("eval", "Core func 'malloc' was about to produce a NULL pointer"))
+    }
     return Ok(EvalResult::new(&offset.to_string()))
 }
 
