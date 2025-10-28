@@ -2714,6 +2714,27 @@ fn eval_core_func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     Ok(EvalResult::new(&(a / b).to_string()))
 }
 
+fn eval_core_func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+   if e.params.len() != 3 {
+        return Err(e.lang_error("eval", "Core func 'mod' takes exactly 2 arguments"))
+    }
+    let a_result = eval_expr(context, e.get(1)?)?;
+    if a_result.is_throw {
+        return Ok(a_result); // Propagate throw
+    }
+    let b_result = eval_expr(context, e.get(2)?)?;
+    if b_result.is_throw {
+        return Ok(b_result); // Propagate throw
+    }
+    let a = a_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mod': {}", err)))?;
+    let b = b_result.value.parse::<i64>()
+        .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mod': {}", err)))?;
+
+    // TODO: Handle b == 0? (e.g., return 0, throw, or propagate Rust panic/UB)
+    Ok(EvalResult::new(&(a % b).to_string()))
+}
+
 fn eval_core_func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'str_to_i64' takes exactly 1 argument"))
@@ -3184,6 +3205,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "sub" => eval_core_func_sub(context, &e),
         "mul" => eval_core_func_mul(context, &e),
         "div" => eval_core_func_div(context, &e),
+        "mod" => eval_core_func_mod(context, &e),
         "str_to_i64" => eval_core_func_str_to_i64(context, &e),
         "i64_to_str" => eval_core_func_i64_to_str(context, &e),
         "enum_to_str" => eval_core_func_enum_to_str(context, &e),

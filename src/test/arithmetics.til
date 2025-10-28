@@ -5,6 +5,10 @@ mode test
 c2      := 2
 c4      := 4
 c42     := 42
+c0      := 0
+c1      := 1
+cNeg2   := sub(0, 2)
+cNeg42  := sub(0, 42)
 
 test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
 test(loc(), c42.eq(sub(44, 2)), "44 - 2 = 42")
@@ -13,7 +17,7 @@ test(loc(), c42.eq(div(420, 10)), " 420 / 10 = 42")
 test(loc(),  c4.eq(add(2, 2)), "2 + 2 = 4")
 test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
 
-// Testing inc and dec methods
+// Testing inc and dec (UFCS: val.inc() -> inc(val))
 test_inc_dec := proc() {
     mut val := 41
     val.inc() // Equivalent to I64.inc(val)
@@ -39,3 +43,44 @@ test(loc(), I64.eq(div(9, 3), 3), "9 / 3 = 3")
 test(loc(), I64.eq(sub(5, 2), 3), "5 - 2 = 3")
 test(loc(), I64.eq(add(0, 0), 0), "0 + 0 = 0")
 test(loc(), I64.eq(add(1, 1), 2), "1 + 1 = 2")
+
+// Negative number tests
+test(loc(), I64.eq(add(cNeg42, 100), 58), "-42 + 100 = 58")
+test(loc(), I64.eq(sub(cNeg42, cNeg2), sub(0, 40)), "-42 - (-2) = -40")
+test(loc(), I64.eq(mul(cNeg2, 21), cNeg42), "-2 * 21 = -42")
+test(loc(), I64.eq(div(cNeg42, cNeg2), 21), "-42 / -2 = 21")  // Toward zero?
+test(loc(), I64.eq(sub(0, cNeg2), 2), "0 - (-2) = 2")
+
+// TODO: Safe wrappers for future throws (core mul/div wrap for now; add explicit checks post-selfhost)
+# DivideByZero := struct {}
+# safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+#     if I64.eq(b, 0) { throw DivideByZero() }
+#     return div(a, b)
+# }
+# // Similar for safe_add/safe_mul with I64_OverflowError
+# // Tests: Wrap in catch + flag, e.g., test_safe_div() proc as before
+
+// Chaining and precedence (UFCS dots for "methods")
+test_chaining := proc() {
+    mut val := 5
+    val = val.add(3)
+    val = val.mul(2)
+    val = val.sub(1)
+    test(loc(), val.eq(15), "(5 + 3) * 2 - 1 = 15")
+
+    test(loc(), I64.eq(sub(mul(add(2, 3), 4), 1), 19), "((2 + 3) * 4) - 1 = 19")
+    test(loc(), I64.eq(add(sub(mul(10, 2), 5), 3), 18), "((10 * 2 - 5) + 3) = 18")
+}
+test_chaining()
+
+// Mod tests (Current: toward-zero div, rem sign follows dividend like Rust/C.
+// Pros: Hardware-friendly, consistent with div. Cons: Negative rems possible.
+// Alt (Python/Go): toward -inf div, rem sign follows divisor (always |rem| < |div|, non-neg for pos div).
+// Pros: Math-ier, intuitive for loops. Cons: Asym rounding, slower on some HW.
+// TODO: Decide post-selfhost? For now, stick to zero for bootstrap/FFI ease.
+// Remove core.til TODO once settled.
+test(loc(), I64.eq(mod(10, 3), 1), "10 % 3 = 1")
+test(loc(), I64.eq(mod(sub(0, 10), 3), sub(0, 1)), "-10 % 3 = -1")
+test(loc(), I64.eq(mod(10, sub(0, 3)), 1), "10 % -3 = 1 (toward zero)")
+# test(loc(), I64.eq(mod(10, sub(0, 3)), sub(0, 2)), "10 % -3 = -2 (if toward -inf; alt impl)")
+// TODO: Test mod(a, 0) behavior (panics in Rust; catch/0/throw?)

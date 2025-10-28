@@ -69,7 +69,7 @@ add       := ext_func(a: I64, b: I64) returns I64;
 sub       := ext_func(a: I64, b: I64) returns I64;
 mul       := ext_func(a: I64, b: I64) returns I64;
 div       := ext_func(a: I64, b: I64) returns I64;
-mod       := ext_func(a: I64, b: I64) returns I64; // TODO implement 'mod'
+mod       := ext_func(a: I64, b: I64) returns I64;
 
 single_print := ext_proc(args: ..Str);
 // TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
