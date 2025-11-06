@@ -90,8 +90,8 @@ type_as_str := ext_func(type: Dynamic) returns Str;
 // TODO Use throws for memory operations, don't return 0 from malloc
 malloc := ext_func(size: I64) returns I64 throws AllocError;
 free   := ext_func(ptr: I64);
-memcpy := ext_func(dest: I64, src: I64, size: I64);
-memset := ext_func(dest: I64, value: U8, size: I64);
+memcpy := ext_func(mut dest: I64, src: I64, size: I64);
+memset := ext_func(mut dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
     for i in 0..args.len {
@@ -152,7 +152,8 @@ Ptr := struct {
     //     return self
     // }
 
-    copy_from := proc(self: Ptr, src: Ptr, size: I64) {
+    copy_from := proc(mut self: Ptr, src: Ptr, size: I64) {
+        // TODO this should fail if self arg is not declared as mut
         memcpy(self.data, src.data, size)
     }
 
