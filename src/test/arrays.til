@@ -142,7 +142,7 @@ test_array_dynamic_str := proc() {
 test_array_dynamic_str()
 
 test_array_static_bool := proc() {
-    mut stat := BoolArray.new(3)
+    mut stat := Array.new("Bool", size_of(Bool), 3)
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -150,35 +150,47 @@ test_array_static_bool := proc() {
     stat.set(0, true)
     stat.set(1, false)
     stat.set(2, true)
-    test(loc(), Bool.eq(true, stat.get(2)), "Get after set at index 2")
+    mut val := false
+    stat.get(2, val)
+    test(loc(), Bool.eq(true, val), "Get after set at index 2")
 
     stat.delete()
-    catch(err: Str) {
-        println(loc(), "test_array_static_bool: error thrown:")
-        println(err)
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_array_static_bool: IndexOutOfBoundsError thrown:")
+        println(err.msg)
     }
 }
 test_array_static_bool()
 
 test_array_dynamic_bool := proc() {
-    mut dyn := BoolArray.new_dyn()
+    mut dyn := Array.new_dyn("Bool", size_of(Bool))
     assert_eq(loc(), 0, dyn.len)
-    assert_eq(loc(), BoolArray.INIT_DYN_CAP, dyn.cap)
+    assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(true)
     dyn.push(false)
     assert_eq(loc(), 2, dyn.len)
-    test(loc(), Bool.eq(dyn.get(0), true), "Value at index 0")
-    test(loc(), Bool.eq(dyn.get(1), false), "Value at index 1")
+    mut val0 := false
+    dyn.get(0, val0)
+    test(loc(), Bool.eq(val0, true), "Value at index 0")
+    mut val1 := false
+    dyn.get(1, val1)
+    test(loc(), Bool.eq(val1, false), "Value at index 1")
 
     dyn.set(0, false)
-    test(loc(), Bool.eq(dyn.get(0), false), "Set and get index 0")
+    mut val := false
+    dyn.get(0, val)
+    test(loc(), Bool.eq(val, false), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
 
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_array_dynamic_bool: IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
     catch(err: FullError) {
         println(loc(), "test_array_dynamic_bool: FullError thrown:")
         println(err.msg)

@@ -178,23 +178,32 @@ not := func(b: Bool) returns Bool {
 
 or := func(args: ..Bool) returns Bool {
     for i in 0..args.len {
-        if args.get(i) {
+        mut val := false
+        args.get(i, val)
+        if val {
             return true
         }
     }
     return false
-    catch(err: Str) {
-        // This should never happen anyway
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "or: IndexOutOfBoundsError should never happen")
     }
 }
 
 and := func(args: ..Bool) returns Bool {
     for i in 0..args.len {
-        if not(args.get(i)) {
+        mut val := false
+        args.get(i, val)
+        if not(val) {
             return false
         }
     }
     return true
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "and: IndexOutOfBoundsError should never happen")
+    }
 }
 
 Bool := struct {
@@ -518,89 +527,6 @@ StrArray := struct {
     }
 
     delete := proc(mut self: StrArray) {
-        free(self.ptr)
-        self.ptr = 0
-        self.len = 0
-        self.cap = 0
-        self.is_dyn = false
-    }
-}
-
-BoolArray := struct {
-    mut ptr      : I64  = 0     // Pointer to the data buffer
-    mut len      : I64  = 0     // Current number of elements
-    mut cap      : I64  = 0     // Allocated capacity
-    mut is_dyn   : Bool = false // Whether this array is dynamic
-
-    INIT_DYN_CAP : I64  = 16
-    MAX_CAP      : I64  = 512
-
-    new := proc(capacity: I64) returns BoolArray {
-        mut arr := BoolArray()
-        size_bytes := mul(capacity, size_of(Bool))
-        arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
-        arr.len = capacity
-        arr.cap = capacity
-        arr.is_dyn = false
-        return arr
-    }
-
-    new_dyn := proc() returns BoolArray {
-        mut arr := BoolArray()
-        size_bytes := mul(BoolArray.INIT_DYN_CAP, size_of(Bool))
-        arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
-        arr.len = 0
-        arr.cap = BoolArray.INIT_DYN_CAP
-        arr.is_dyn = true
-        return arr
-    }
-
-    push := proc(mut self: BoolArray, value: Bool) throws FullError, Str {
-        if not(self.is_dyn) {
-            throw format(loc(), "BoolArray.push: push is not allowed for static arrays")
-        }
-
-        if I64.eq(self.len, self.cap) {
-            new_cap := mul(self.cap, 2)
-            if gt(new_cap, BoolArray.MAX_CAP) {
-                throw FullError.new(format(loc(), "BoolArray.push: capacity exceeded BoolArray.MAX_CAP"))
-            }
-
-            new_ptr := malloc(mul(new_cap, size_of(Bool)))
-            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Bool)))
-            free(self.ptr)
-            self.ptr = new_ptr
-            self.cap = new_cap
-        }
-
-        dest := add(self.ptr, mul(self.len, size_of(Bool)))
-        memcpy(dest, to_ptr(value), size_of(Bool))
-        self.len = add(self.len, 1)
-    }
-
-    get := func(self: BoolArray, index: I64) returns Bool throws Str {
-        if gteq(index, self.len) {
-            throw format(loc(), "BoolArray.get: index out of bounds")
-        }
-
-        src := add(self.ptr, mul(index, size_of(Bool)))
-        mut value : Bool = false
-        memcpy(to_ptr(value), src, size_of(Bool))
-        return value
-    }
-
-    set := proc(mut self: BoolArray, index: I64, value: Bool) throws Str {
-        if gteq(index, self.len) {
-            throw format(loc(), "BoolArray.set: index out of bounds")
-        }
-
-        dest := add(self.ptr, mul(index, size_of(Bool)))
-        memcpy(dest, to_ptr(value), size_of(Bool))
-    }
-
-    delete := proc(mut self: BoolArray) {
         free(self.ptr)
         self.ptr = 0
         self.len = 0
