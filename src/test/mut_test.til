@@ -26,7 +26,7 @@ test_mut_struct := proc() {
 test_mut_struct()
 
 test_mut_array := proc() {
-    mut arr := I64Array.new_dyn()
+    mut arr := Array.new_dyn("I64", size_of(I64))
     println("Initial: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
 
     arr.push(10)
@@ -42,7 +42,8 @@ test_mut_array := proc() {
     println("After push: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
     assert_eq(loc(), 1, arr.len)
 
-    value := arr.get(0)
+    mut value := 0
+    arr.get(0, value)
     catch (err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)

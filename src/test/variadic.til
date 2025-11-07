@@ -25,7 +25,9 @@ assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", 
 var_i64_add := proc(args: ..I64) returns I64 {
     mut result := 0
     for i in 0..args.len {
-        result = result.add(args.get(i))
+        mut val := 0
+        args.get(i, val)
+        result = result.add(val)
     }
     return result
 

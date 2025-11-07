@@ -191,7 +191,7 @@ test_array_dynamic_bool := proc() {
 test_array_dynamic_bool()
 
 test_array_static_i64 := proc() {
-    mut stat := I64Array.new(3)
+    mut stat := Array.new("I64", size_of(I64), 3)
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -199,7 +199,9 @@ test_array_static_i64 := proc() {
     stat.set(0, 100)
     stat.set(1, 200)
     stat.set(2, 300)
-    test(loc(), I64.eq(300, stat.get(2)), "Get after set at index 2")
+    mut val := 0
+    stat.get(2, val)
+    test(loc(), I64.eq(300, val), "Get after set at index 2")
 
     stat.delete()
     catch(err: IndexOutOfBoundsError) {
@@ -210,18 +212,24 @@ test_array_static_i64 := proc() {
 test_array_static_i64()
 
 test_array_dynamic_i64 := proc() {
-    mut dyn := I64Array.new_dyn()
+    mut dyn := Array.new_dyn("I64", size_of(I64))
     assert_eq(loc(), 0, dyn.len)
-    assert_eq(loc(), I64Array.INIT_DYN_CAP, dyn.cap)
+    assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(42)
     dyn.push(84)
     assert_eq(loc(), 2, dyn.len)
-    test(loc(), I64.eq(dyn.get(0), 42), "Value at index 0")
-    test(loc(), I64.eq(dyn.get(1), 84), "Value at index 1")
+    mut val0 := 0
+    dyn.get(0, val0)
+    test(loc(), I64.eq(val0, 42), "Value at index 0")
+    mut val1 := 0
+    dyn.get(1, val1)
+    test(loc(), I64.eq(val1, 84), "Value at index 1")
 
     dyn.set(0, 123)
-    test(loc(), I64.eq(dyn.get(0), 123), "Set and get index 0")
+    mut val := 0
+    dyn.get(0, val)
+    test(loc(), I64.eq(val, 123), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)

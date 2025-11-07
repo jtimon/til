@@ -245,7 +245,7 @@ test_non_mut_isolation()
 
 // === Test arrays with mut arguments ===
 
-push_value := proc(mut arr: I64Array, value: I64) {
+push_value := proc(mut arr: Array, value: I64) {
     arr.push(value)
     catch (err: FullError) {
         println(loc(), "FullError thrown:")
@@ -258,7 +258,7 @@ push_value := proc(mut arr: I64Array, value: I64) {
 }
 
 test_mut_array := proc() {
-    mut numbers := I64Array.new_dyn()
+    mut numbers := Array.new_dyn("I64", size_of(I64))
 
     assert_eq(loc(), 0, numbers.len)
 
@@ -268,14 +268,16 @@ test_mut_array := proc() {
     push_value(numbers, 84)
     assert_eq(loc(), 2, numbers.len)
 
-    val0 := numbers.get(0)
+    mut val0 := 0
+    numbers.get(0, val0)
     catch (err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
     assert_eq(loc(), 42, val0)
 
-    val1 := numbers.get(1)
+    mut val1 := 0
+    numbers.get(1, val1)
     catch (err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)

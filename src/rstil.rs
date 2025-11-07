@@ -702,8 +702,8 @@ impl Context {
     }
 
     pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
-        // Special case for U8 which now uses generic Array
-        let array_type = if elem_type == "U8" {
+        // Special case for U8 and I64 which now use generic Array
+        let array_type = if elem_type == "U8" || elem_type == "I64" {
             "Array".to_string()
         } else {
             format!("{}Array", elem_type)
@@ -1761,8 +1761,8 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
                 has_variadic = true;
 
-                // Special case for U8 which now uses generic Array
-                let array_type_name = if multi_type == "U8" {
+                // Special case for U8 and I64 which now use generic Array
+                let array_type_name = if multi_type == "U8" || multi_type == "I64" {
                     "Array".to_string()
                 } else {
                     format!("{}Array", multi_type)
@@ -3109,8 +3109,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     values.push(val);
                 }
 
-                // Special case for U8 which now uses generic Array
-                let array_type_name = if multi_value_type == "U8" {
+                // Special case for U8 and I64 which now use generic Array
+                let array_type_name = if multi_value_type == "U8" || multi_value_type == "I64" {
                     "Array".to_string()
                 } else {
                     format!("{}Array", multi_value_type)
