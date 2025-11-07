@@ -155,8 +155,7 @@ TokenArray := struct {
     }
 }
 
-scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) {
-// scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
+scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
     mut t := Token()
     t.token_type = token_type
     t.token_str = token_str
@@ -165,10 +164,10 @@ scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str
 
     println("Token (", I64.to_str(line), ", ", I64.to_str(col), "): Type: ", enum_to_str(t.token_type), " str: ", token_str)
 
-    // tokens.push(t) // TODO FIX 115:9: eval ERROR: memcpy out of bounds: src=82424 dest=82477 size=24 arena_len=82493
-    // catch (err: FullError) {
-    //     throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
-    // }
+    tokens.push(t)
+    catch (err: FullError) {
+        throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
+    }
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws IndexOutOfBoundsError, AllocError {
