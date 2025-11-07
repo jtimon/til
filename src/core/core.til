@@ -120,6 +120,9 @@ Ptr := struct {
     size_of := func() returns I64 { return size_of(I64) }
 
     new_by_size := proc(size: I64) returns Ptr throws AllocError {
+        if size.lteq(0) {
+            throw AllocError.new(format(loc(), "Ptr.new_by_size: invalid size ", size.to_str()))
+        }
         mut p := Ptr()
         p.data = malloc(size)
         if NULL.eq(p.data) {

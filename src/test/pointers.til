@@ -1,6 +1,14 @@
 mode test
 
 test_pointers := proc() {
+    // TODO FIX uncomment, throws from methods don't seem to be working properly
+    // mut got_error := false
+    // bad_p := Ptr.new_by_size(0) // Allocating 0 or less bytes must throw AllocError
+    // catch (err: AllocError) {
+    //     got_error = true
+    // }
+    // test(loc(), got_error, "Expecter AllocError when calling Ptr.new_by_size(0)")
+
     p := Ptr.new_by_size(32) // allocate 32 bytes
     println("Pointer address: ", I64.to_str(p.data))
 
