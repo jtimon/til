@@ -45,3 +45,24 @@ test_ufcs := proc () {
     test(loc(), aaa.and(true), "true.and(true) == true")
 }
 test_ufcs()
+
+// Test chained method calls (NEW functionality!)
+test_ufcs_chaining := proc () {
+    // Simple chain: (1 + 2) + 3 = 6
+    result := add(1, 2).add(3)
+    assert_eq(loc(), 6, result)
+
+    // Longer chain: ((1 + 2) + 3) * 2 = 12
+    result2 := add(1, 2).add(3).mul(2)
+    assert_eq(loc(), 12, result2)
+
+    // Chain with variable: (10 + 5) * 2 = 30
+    x := 10
+    result3 := x.add(5).mul(2)
+    assert_eq(loc(), 30, result3)
+
+    // Chain with boolean operations
+    result4 := my_true.and(true).or(false)
+    assert(loc(), result4)
+}
+test_ufcs_chaining()

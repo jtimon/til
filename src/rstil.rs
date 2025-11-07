@@ -889,14 +889,19 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
                     let mut parts: Vec<&str> = combined_name.split('.').collect();
-                    parts.pop(); // Remove the last element
+                    parts.pop(); // Remove the last element (the function name)
+                    let new_combined_name = parts.join(".");
+
+                    // Create identifier expression preserving nested structure
+                    // Copy func_expr but remove the last param (the method name)
+                    let mut id_params = func_expr.params.clone();
+                    id_params.pop(); // Remove the method name
+                    let extra_arg_e = Expr::new_clone(func_expr.node_type.clone(), fcall_expr, id_params);
 
                     // Regular functions used with UFCS
                     if let Some(func_def) = context.funcs.get(&ufcs_func_name.to_string()) {
 
-                        let name = parts[0]; // TODO use new_combined_name to generalize to more than one dot
                         let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), fcall_expr.get(0)?, Vec::new());
-                        let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), fcall_expr, Vec::new());
                         let mut new_args = Vec::new();
                         new_args.push(new_e);
                         new_args.push(extra_arg_e);
@@ -907,7 +912,6 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
                     }
 
                     // Associated functions used with UFCS (aka methods)
-                    let new_combined_name = parts.join(".");
                     if let Some(symbol_info) = context.symbols.get(&new_combined_name) {
 
                         match &symbol_info.value_type {
@@ -915,9 +919,7 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
                                 let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
                                 if let Some(func_def) = context.funcs.get(&id_expr_name) {
 
-                                    let name = parts[0]; // TODO use new_combined_name to generalize to more than one dot
                                     let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), fcall_expr.get(0)?, Vec::new());
-                                    let extra_arg_e = Expr::new_clone(NodeType::Identifier(name.to_string()), fcall_expr, Vec::new());
                                     let mut new_args = Vec::new();
                                     new_args.push(new_e);
                                     new_args.push(extra_arg_e);
@@ -964,24 +966,46 @@ fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<Val
 }
 
 fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_expr: &Expr, symbol: &SymbolInfo) -> Result<ValueType, String> {
-    let after_dot = match id_expr.params.get(0) {
-        Some(_after_dot) => _after_dot,
-        None => {
-            return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
-                                                &f_name, value_type_to_str(&symbol.value_type))));
-        },
+    if id_expr.params.is_empty() {
+        return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
+                                            &f_name, value_type_to_str(&symbol.value_type))));
+    }
+
+    // Get the last param (the method name)
+    let method_name_expr = match id_expr.params.last() {
+        Some(expr) => expr,
+        None => return Err(e.lang_error("type", "Expected method name in UFCS call")),
     };
 
-    match &after_dot.node_type {
-        NodeType::Identifier(after_dot_name) => {
-            if let Some(func_def) = context.funcs.get(after_dot_name) {
-                return value_type_func_proc(&e, &f_name, func_def)
+    let method_name = match &method_name_expr.node_type {
+        NodeType::Identifier(name) => name,
+        _ => return Err(e.error("type", &format!("Expected identifier for method name, found '{:?}'", method_name_expr.node_type))),
+    };
+
+    // Check if it's a regular function
+    if let Some(func_def) = context.funcs.get(method_name) {
+        return value_type_func_proc(&e, &f_name, func_def)
+    }
+
+    // Create identifier expression without the last param (method name) to get the type
+    let mut id_without_method = id_expr.clone();
+    id_without_method.params.pop();
+
+    // Get the type of the nested identifier
+    let target_type = get_value_type(context, &id_without_method)?;
+
+    // Check if it's an associated function for this type
+    match &target_type {
+        ValueType::TCustom(custom_type_name) => {
+            let id_expr_name = format!("{}.{}", custom_type_name, method_name);
+            if let Some(func_def) = context.funcs.get(&id_expr_name) {
+                return value_type_func_proc(&e, &id_expr_name, &func_def);
             }
-            return Err(e.lang_error("type", &format!("expected function name after '{}.' found '{}'", f_name, after_dot_name)));
+            return Err(e.error("type", &format!("Type '{}' has no method '{}'", custom_type_name, method_name)));
         },
         _ => {
-            return Err(e.error("type", &format!("expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
-        },
+            return Err(e.error("type", &format!("'{}' of type '{}' doesn't support methods", f_name, value_type_to_str(&target_type))));
+        }
     }
 }
 

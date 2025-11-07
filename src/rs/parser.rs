@@ -760,7 +760,50 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         let mut params : Vec<Expr> = Vec::new();
         params.push(e);
         params.extend(arg_list.params);
-        return Ok(Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params))
+        let mut result = Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params);
+
+        // Handle chained method calls: a.method1().method2().method3()
+        loop {
+            let peek_t = lexer.peek();
+            if peek_t.token_type != TokenType::Dot {
+                break;
+            }
+
+            // Consume the dot
+            lexer.advance(1)?;
+
+            // Expect an identifier for the next method name
+            let method_t = lexer.peek();
+            if method_t.token_type != TokenType::Identifier {
+                return Err(method_t.error(&format!("Expected method name after '.', found '{:?}'", method_t.token_type)));
+            }
+            let method_name = method_t.token_str.clone();
+            lexer.advance(1)?;
+
+            // Check if it's a method call (has parentheses)
+            let next_peek = lexer.peek();
+            if next_peek.token_type != TokenType::LeftParen {
+                return Err(next_peek.error(&format!("Expected '(' after method name '{}', found '{:?}'", method_name, next_peek.token_type)));
+            }
+
+            // Parse the argument list
+            let method_args = match parse_list(lexer) {
+                Ok(a_list) => a_list,
+                Err(err_str) => return Err(err_str),
+            };
+
+            // Create a new FCall with the method name as identifier and previous result as first arg
+            // This represents: method_name(result, args...)
+            let method_id = Expr::new_parse(NodeType::Identifier(method_name), method_t.clone(), Vec::new());
+            let mut new_params = Vec::new();
+            new_params.push(method_id);
+            new_params.push(result); // Previous call result becomes first argument
+            new_params.extend(method_args.params);
+
+            result = Expr::new_parse(NodeType::FCall, method_t, new_params);
+        }
+
+        return Ok(result);
     }
     return Ok(e);
 }
