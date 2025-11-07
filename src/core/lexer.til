@@ -86,76 +86,7 @@ Token := struct {
     }
 }
 
-TokenArray := struct {
-    mut ptr      : I64  = 0     // Pointer to the data buffer
-    mut len      : I64  = 0     // Current number of elements
-    mut cap      : I64  = 0     // Allocated capacity
-    mut is_dyn   : Bool = false // Whether this array is dynamic
-
-    INIT_DYN_CAP : I64  = 16
-    MAX_CAP      : I64  = 512
-
-    new := proc(capacity: I64) returns TokenArray {
-        mut arr := TokenArray()
-        size_bytes := mul(capacity, size_of(Token))
-        arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
-        arr.len = capacity
-        arr.cap = capacity
-        arr.is_dyn = false
-        return arr
-    }
-
-    new_dyn := proc() returns TokenArray {
-        mut arr := TokenArray()
-        arr.cap = TokenArray.INIT_DYN_CAP
-        size_bytes := mul(arr.cap, size_of(Token))
-        arr.ptr = malloc(size_bytes)
-        arr.len = 0
-        arr.is_dyn = true
-        memset(arr.ptr, 0, size_bytes)
-        return arr
-    }
-
-    push := proc(mut self: TokenArray, t: Token) throws FullError {
-        if not(self.is_dyn) {
-            panic(loc(), "TokenArray.push: push is not allowed for static arrays")
-        }
-        if I64.eq(self.len, self.cap) {
-            new_cap := mul(self.cap, 2)
-            if gt(new_cap, TokenArray.MAX_CAP) {
-                throw FullError.new(format(loc(), "TokenArray.push: capacity exceeded TokenArray.MAX_CAP"))
-            }
-            new_ptr := malloc(mul(new_cap, size_of(Token)))
-            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Token)))
-            free(self.ptr)
-            self.ptr = new_ptr
-            self.cap = new_cap
-        }
-        dest := add(self.ptr, mul(self.len, size_of(Token)))
-        memcpy(dest, to_ptr(t), size_of(Token))
-        self.len = add(self.len, 1)
-    }
-
-    get := func(self: TokenArray, index: I64, mut t: Token) {
-        if index.gteq(self.len) {
-            panic(loc(), "TokenArray.get: index out of bounds")
-        }
-        src := add(self.ptr, mul(index, size_of(Token)))
-        memcpy(to_ptr(t), src, size_of(Token))
-        return t
-    }
-
-    delete := proc(mut self: TokenArray) {
-        free(self.ptr)
-        self.ptr = 0
-        self.len = 0
-        self.cap = 0
-        self.is_dyn = false
-    }
-}
-
-scan_push_token := proc(mut tokens: TokenArray, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
+scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
     mut t := Token()
     t.token_type = token_type
     t.token_str = token_str
@@ -248,8 +179,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_tokens := proc(source: Str) returns TokenArray throws Str {
-    mut tokens := TokenArray.new_dyn()
+scan_tokens := proc(source: Str) returns Array throws Str {
+    mut tokens := Array.new_dyn("Token", size_of(Token))
 
     eof_pos := source.len()
     mut pos := 0
@@ -496,8 +427,8 @@ scan_tokens := proc(source: Str) returns TokenArray throws Str {
 /** An interface for the Lexer */
 Lexer := struct {
     mut path: Str = ""
-    // mut tokens: TokenArray = TokenArray.new_dyn() // TODO re-enable new_dyn
-    mut tokens: TokenArray = TokenArray.new(1) // TODO remove this
+    // mut tokens: Array = Array.new_dyn("Token", size_of(Token)) // TODO re-enable new_dyn
+    mut tokens: Array = Array.new("Token", size_of(Token), 1) // TODO remove this
     mut current_token: I64 = 0
 
     new := proc(path: Str) returns Lexer {
@@ -512,42 +443,46 @@ Lexer := struct {
         return self_tokens.len
     }
 
-    is_eof := func(self: Lexer, offset: I64) returns Bool {
+    is_eof := func(self: Lexer, offset: I64) returns Bool throws IndexOutOfBoundsError {
         self_tokens := self.tokens
         i := I64.add(self.current_token, offset)
         if gteq(i, self_tokens.len) {
             return true
         }
-        t := Token()
+        mut t := Token()
         self_tokens.get(i, t)
         return TokenType.eq(t.token_type, TokenType.Eof)
     }
 
-    get_token := func(self: Lexer, index: I64) returns Token {
+    get_token := func(self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
         self_tokens := self.tokens
-        t := Token()
+        mut t := Token()
         self_tokens.get(index, t)
         return t
     }
 
-    peek := func(self: Lexer) returns Token {
-        return self.tokens.get(self.current_token)
+    peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
+        mut t := Token()
+        self.tokens.get(self.current_token, t)
+        return t
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token {
+    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError {
         index := I64.add(self.current_token, offset)
         if I64.gteq(index, self.tokens.len()) {
             t := self.peek()
             self.error(loc(), t, Str.fmt("Peek ahead by ", offset.to_str(), " is out of bounds"))
         }
-        return self.tokens.get(index)
+        mut t := Token()
+        self.tokens.get(index, t)
+        return t
     }
 
-    next := func(self: Lexer) returns Token {
+    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         return self.peek_ahead(1)
     }
 
-    previous := func(self: Lexer) returns Token {
+    previous := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         if I64.eq(self.current_token, 0) {
             t := self.peek()
             self.error(loc(), t, "No previous token (at position 0)")
@@ -557,7 +492,9 @@ Lexer := struct {
             t := self.peek()
             self.error(loc(), t, "Previous token is out of bounds")
         }
-        return self.tokens.get(index)
+        mut t := Token()
+        self.tokens.get(index, t)
+        return t
     }
 
     advance := func(mut self: Lexer, count: I64) {
@@ -661,17 +598,17 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
     }
 }
 
-print_lex_errors := proc(tokens: TokenArray, path: Str) returns I64 {
+print_lex_errors := proc(tokens: Array, path: Str) returns I64 throws IndexOutOfBoundsError {
     mut errors_found := 0
     for i in 0..tokens.len {
-        t := Token()
+        mut t := Token()
         tokens.get(i, t)
         print_if_lex_error(path, t, errors_found)
     }
     return errors_found
 }
 
-lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str {
+lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)

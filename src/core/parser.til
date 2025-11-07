@@ -67,14 +67,14 @@ str_to_value_type := func(type_name: Str) returns ValueType {
     return ValueType.Dynamic
 }
 
-parse_primary := func(lexer: Lexer) returns Expr throws Str {
+parse_primary := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     e := Expr()
     return e
     throw t.todo_error("parse_primary not implemented yet")
 }
 
-parse_primary_identifier := func(lexer: Lexer) returns Expr throws Str {
+parse_primary_identifier := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     e := Expr()
     return e
@@ -93,7 +93,7 @@ parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws 
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr {
+parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
@@ -115,7 +115,7 @@ parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) return
     // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
-parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str {
+parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -169,7 +169,7 @@ parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str {
     }
 }
 
-parse_statement := func(lexer: Lexer) returns Expr throws Str {
+parse_statement := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
 
     switch t.token_type {
@@ -199,7 +199,7 @@ parse_statement := func(lexer: Lexer) returns Expr throws Str {
     return e
 }
 
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str {
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError {
     mut params := ExprArray()
     mut end_found := false
     start_token := lexer.peek()
