@@ -184,6 +184,8 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 
     eof_pos := source.len()
     mut pos := 0
+    // NOTE: Rust version starts line at 1, but we start at 0 to avoid adding 1 everywhere
+    // Both approaches are valid, this is simpler
     mut line := 0
     mut start_line_pos := 0
 
@@ -358,8 +360,9 @@ scan_tokens := proc(source: Str) returns Array throws Str {
             case "\"":
                 pos.inc()
                 mut done := false
+                mut lit_string := ""
 
-                while and(lt(pos.add(1), eof_pos), not(done)) {
+                while and(lt(pos, eof_pos), not(done)) {
                     current := source.get_substr(pos, pos.add(1))
 
                     if current.eq("\"") {
@@ -368,19 +371,27 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                         pos.inc() // move past '\'
                         if lt(pos.add(1), eof_pos) {
                             esc := source.get_substr(pos, pos.add(1))
-                            // accept known escapes
+                            // Process escape sequences
                             switch esc {
                             case "\"":
+                                lit_string = format(lit_string, "\"")
                             case "\\":
+                                lit_string = format(lit_string, "\\")
                             case "n":
+                                lit_string = format(lit_string, "\n")
                             case "r":
+                                lit_string = format(lit_string, "\r")
                             case "t":
+                                lit_string = format(lit_string, "\t")
                             case "0":
-                                // valid escape, skip over it
+                                lit_string = format(lit_string, "\0")
                             case:
-                                // unknown escape, still skip the character
+                                // Unknown escape: keep backslash and character
+                                lit_string = format(lit_string, "\\", esc)
                             }
                         }
+                    } else {
+                        lit_string = format(lit_string, current)
                     }
                     pos.inc()
                 }
@@ -389,8 +400,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                     token_str := source.get_substr(start, pos.add(1))
                     scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, pos.sub(add(start_line_pos, 1)))
                 } else {
-                    token_str := source.get_substr(add(start, 1), pos)
-                    scan_push_token(tokens, TokenType.String, token_str, line, pos.sub(add(start_line_pos, 1)))
+                    scan_push_token(tokens, TokenType.String, lit_string, line, pos.sub(add(start_line_pos, 1)))
                     pos.inc()
                 }
 
@@ -417,6 +427,9 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 
     catch (err: IndexOutOfBoundsError) {
         throw format(loc(), "scan_tokens: IndexOutOfBoundsError error thrown:\n", err.msg)
+    }
+    catch (err: I64_OverflowError) {
+        throw format(loc(), "scan_tokens: I64_OverflowError error thrown:\n", err.msg)
     }
     catch (err: AllocError) {
         throw format(loc(), "scan_tokens: AllocError error thrown:\n", err.msg)
@@ -548,6 +561,9 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
     case TokenType.UnterminatedString:
         print_lex_error(path, t, errors_found, "Unterminated Str\nSuggestion: add missing '\"'")
 
+    case TokenType.UnterminatedComment:
+        print_lex_error(path, t, errors_found, "Unterminated comment\nSuggestion: add missing '*/'")
+
     case TokenType.Const:
         print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used")
 
@@ -612,7 +628,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)
-    // l.tokens = scan_tokens(source) // TODO fix access to fields of type array
+    l.tokens = tokens
 
     if I64.eq(tokens.len, 0) {
         throw path.format(":1:0: compiler ERROR: End of file not found.")
