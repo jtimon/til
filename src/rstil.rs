@@ -702,12 +702,8 @@ impl Context {
     }
 
     pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
-        // Special case for U8, I64, and Bool which now use generic Array
-        let array_type = if elem_type == "U8" || elem_type == "I64" || elem_type == "Bool" {
-            "Array".to_string()
-        } else {
-            format!("{}Array", elem_type)
-        };
+        // All array types now use the generic Array
+        let array_type = "Array".to_string();
 
         self.insert_struct(name, &array_type, e)?;
 
@@ -1752,7 +1748,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
         }
 
         match &arg.value_type {
-            ValueType::TMulti(multi_type) => {
+            ValueType::TMulti(_multi_type) => {
                 if arg.is_mut {
                     errors.push(e.error("type", &format!("Variadic argument '{}' cannot be 'mut'.", &arg.name)));
                 }
@@ -1761,12 +1757,8 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
                 has_variadic = true;
 
-                // Special case for U8, I64, and Bool which now use generic Array
-                let array_type_name = if multi_type == "U8" || multi_type == "I64" || multi_type == "Bool" {
-                    "Array".to_string()
-                } else {
-                    format!("{}Array", multi_type)
-                };
+                // All array types now use the generic Array
+                let array_type_name = "Array".to_string();
 
                 context.symbols.insert(arg.name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
@@ -3109,12 +3101,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     values.push(val);
                 }
 
-                // Special case for U8, I64, and Bool which now use generic Array
-                let array_type_name = if multi_value_type == "U8" || multi_value_type == "I64" || multi_value_type == "Bool" {
-                    "Array".to_string()
-                } else {
-                    format!("{}Array", multi_value_type)
-                };
+                // All array types now use the generic Array
+                let array_type_name = "Array".to_string();
 
                 function_context.symbols.insert(arg.name.to_string(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),

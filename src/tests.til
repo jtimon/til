@@ -44,6 +44,7 @@ runfile("src/test/structs.til")
 runfile("src/test/u8.til")
 runfile("src/test/ufcs.til")
 runfile("src/test/variadic.til")
+runfile("src/test/variadic_type_check.til")
 
 // next level:
 

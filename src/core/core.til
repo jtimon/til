@@ -95,17 +95,29 @@ memset := ext_func(mut dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
     for i in 0..args.len {
-        single_print(args.get(i))
+        mut val := ""
+        args.get(i, val)
+        single_print(val)
     }
     print_flush()
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "print: IndexOutOfBoundsError should never happen")
+    }
 }
 
 println := proc(args: ..Str) {
     for i in 0..args.len {
-        single_print(args.get(i))
+        mut val := ""
+        args.get(i, val)
+        single_print(val)
     }
     single_print("\n")
     print_flush()
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "println: IndexOutOfBoundsError should never happen")
+    }
 }
 
 panic := proc(loc_str: Str, msg: Str) {
@@ -427,7 +439,8 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     result.cap = prefix.cap
 
     for i in 0..args.len {
-        arg := args.get(i)
+        mut arg := ""
+        args.get(i, arg)
         result.cap = add(result.cap, arg.cap)
         if lt(result.cap, arg.cap) {
             throw I64_OverflowError.new(format(loc(), "format: integer overflow while summing cap for arg ", i.to_str()))
@@ -444,95 +457,13 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     offset = prefix.cap
 
     for i in 0..args.len {
-        mut s := args.get(i)
+        mut s := ""
+        args.get(i, s)
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
         offset = add(offset, s.cap)
     }
 
     return result
-}
-
-StrArray := struct {
-    mut ptr      : I64  = 0     // Pointer to the data buffer
-    mut len      : I64  = 0     // Current number of elements
-    mut cap      : I64  = 0     // Allocated capacity
-    mut is_dyn   : Bool = false // Whether this array is dynamic
-
-    INIT_DYN_CAP : I64  = 16
-    MAX_CAP      : I64  = 512
-
-    new := proc(capacity: I64) returns StrArray {
-        mut arr := StrArray()
-        size_bytes := mul(capacity, size_of(Str))
-        arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
-        arr.len = capacity
-        arr.cap = capacity
-        arr.is_dyn = false
-        return arr
-    }
-
-    new_dyn := proc() returns StrArray {
-        mut arr := StrArray()
-        size_bytes := mul(StrArray.INIT_DYN_CAP, size_of(Str))
-        arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
-        arr.len = 0
-        arr.cap = StrArray.INIT_DYN_CAP
-        arr.is_dyn = true
-        return arr
-    }
-
-    push := proc(mut self: StrArray, value: Str) throws FullError, Str {
-        if not(self.is_dyn) {
-            throw format(loc(), "StrArray.push: push is not allowed for static arrays")
-        }
-
-        if I64.eq(self.len, self.cap) {
-            new_cap := mul(self.cap, 2)
-            if gt(new_cap, StrArray.MAX_CAP) {
-                throw FullError.new(format(loc(), "StrArray.push: capacity exceeded StrArray.MAX_CAP"))
-            }
-
-            new_ptr := malloc(mul(new_cap, size_of(Str)))
-            memcpy(new_ptr, self.ptr, mul(self.len, size_of(Str)))
-            free(self.ptr)
-            self.ptr = new_ptr
-            self.cap = new_cap
-        }
-
-        dest := add(self.ptr, mul(self.len, size_of(Str)))
-        memcpy(dest, to_ptr(value), size_of(Str))
-        self.len = add(self.len, 1)
-    }
-
-    get := func(self: StrArray, index: I64) returns Str throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "StrArray.get: index out of bounds"))
-        }
-
-        src := add(self.ptr, mul(index, size_of(Str)))
-        mut value : Str = ""
-        memcpy(to_ptr(value), src, size_of(Str))
-        return value
-    }
-
-    set := proc(mut self: StrArray, index: I64, value: Str) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "StrArray.set: index out of bounds"))
-        }
-
-        dest := add(self.ptr, mul(index, size_of(Str)))
-        memcpy(dest, to_ptr(value), size_of(Str))
-    }
-
-    delete := proc(mut self: StrArray) {
-        free(self.ptr)
-        self.ptr = 0
-        self.len = 0
-        self.cap = 0
-        self.is_dyn = false
-    }
 }
 
 Array := struct {

@@ -1,0 +1,60 @@
+mode test
+
+// Test that variadic type checking works correctly
+
+test_i64_variadic := func(args: ..I64) returns I64 {
+    mut sum := 0
+    for i in 0..args.len {
+        mut val := 0
+        args.get(i, val)
+        sum = sum.add(val)
+    }
+    return sum
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "test_i64_variadic: IndexOutOfBoundsError should never happen")
+    }
+}
+
+// These should work - all I64
+result1 := test_i64_variadic(1, 2, 3)
+assert_eq(loc(), 6, result1)
+
+result2 := test_i64_variadic(10, 20)
+assert_eq(loc(), 30, result2)
+
+// This test file should compile and run successfully
+// To test that type checking works, try uncommenting the following lines
+// which should fail to compile:
+
+// test_i64_variadic("string")  // Should fail: passing Str to ..I64
+// test_i64_variadic(1, "two", 3)  // Should fail: mixed types
+// test_i64_variadic(true, false)  // Should fail: passing Bool to ..I64
+
+test_str_variadic := func(args: ..Str) returns Str {
+    mut result := ""
+    for i in 0..args.len {
+        mut val := ""
+        args.get(i, val)
+        result = format(result, val)
+    }
+    return result
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "test_str_variadic: IndexOutOfBoundsError should never happen")
+    }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "test_str_variadic: I64_OverflowError")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "test_str_variadic: AllocError")
+    }
+}
+
+// These should work - all Str
+result3 := test_str_variadic("hello", " ", "world")
+assert_eq_str(loc(), "hello world", result3)
+
+// To test type checking, try uncommenting:
+// test_str_variadic(1, 2, 3)  // Should fail: passing I64 to ..Str
+// test_str_variadic("hello", 42, "world")  // Should fail: mixed types

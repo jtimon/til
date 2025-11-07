@@ -3,7 +3,9 @@ mode test
 concat2 := proc(args: ..Str) returns Str {
     mut result := ""
     for i in 0..args.len {
-        result = format(result, args.get(i))
+        mut val := ""
+        args.get(i, val)
+        result = format(result, val)
     }
     return result
 

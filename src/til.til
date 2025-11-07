@@ -42,20 +42,28 @@ usage := proc() {
 main := proc(args: ..Str) {
 
     if gt(args.len, 1) {
-        mut main_args := StrArray.new(sub(args.len, 1))
+        mut main_args := Array.new("Str", size_of(Str), sub(args.len, 1))
         for i in 1..args.len {
-            main_args.set(add(i, 0), args.get(i))
+            mut val := ""
+            args.get(i, val)
+            main_args.set(add(i, 0), val)
             catch(err: IndexOutOfBoundsError) {
                 // REM: It is fine to args.set(0) here, we just checked
             }
         }
 
-        cmd := args.get(0)
+        mut cmd := ""
+        args.get(0, cmd)
         catch(err: IndexOutOfBoundsError) {
             // REM: It is fine to args.get(0) here, we just checked
         }
+        mut val1 := ""
+        args.get(1, val1)
+        catch(err: IndexOutOfBoundsError) {
+            // REM: It is fine to args.get(1) here, we just checked
+        }
         switch cmd {
-        case "interpret" : run_file_or_exit(args.get(1))
+        case "interpret" : run_file_or_exit(val1)
         // case "interpret" : run_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
         case "build"     : usage()
@@ -66,7 +74,8 @@ main := proc(args: ..Str) {
         }
 
     } else if gt(args.len, 0) {
-        path := args.get(0)
+        mut path := ""
+        args.get(0, path)
         catch(err: IndexOutOfBoundsError) {
             // REM: It is fine to args.get(0) here, we just checked
         }
@@ -87,8 +96,8 @@ main := proc(args: ..Str) {
         case "interpret" : usage()
         case "run"       : usage()
         case:
-            run_file_or_exit(args.get(0))
-            // run_file_or_exit(args.get(0), StrArray.new(0)) // TODO FIX
+            run_file_or_exit(path)
+            // run_file_or_exit(path, Array.new("Str", size_of(Str), 0)) // TODO FIX
         }
     } else {
         runfile(REPL_PATH)
