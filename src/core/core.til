@@ -48,10 +48,10 @@ FullError := struct {
 
 // TODO check for undefined types in catch
 AllocError := struct {
-    msg: Str = ""
+    mut msg: Str = ""
 
     new := func(msg: Str) returns AllocError {
-        err := AllocError()
+        mut err := AllocError()
         err.msg = msg
         return err
     }

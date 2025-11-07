@@ -1964,9 +1964,13 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                             },
                         };
                         if let NodeType::Identifier(name) = &id_expr.node_type {
-                            if let Some(symbol) = context.symbols.get(name) {
-                                if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
-                                    continue; // Skip default constructor calls, for instantiations like 'StructName()'
+                            // Only skip default constructor calls (simple StructName() with no dots)
+                            // Don't skip method calls like Struct.method()
+                            if id_expr.params.is_empty() {
+                                if let Some(symbol) = context.symbols.get(name) {
+                                    if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                                        continue; // Skip default constructor calls, for instantiations like 'StructName()'
+                                    }
                                 }
                             }
                         }

@@ -1,13 +1,12 @@
 mode test
 
 test_pointers := proc() {
-    // TODO FIX uncomment, throws from methods don't seem to be working properly
-    // mut got_error := false
-    // bad_p := Ptr.new_by_size(0) // Allocating 0 or less bytes must throw AllocError
-    // catch (err: AllocError) {
-    //     got_error = true
-    // }
-    // test(loc(), got_error, "Expecter AllocError when calling Ptr.new_by_size(0)")
+    mut got_error := false
+    bad_p := Ptr.new_by_size(0) // Allocating 0 or less bytes must throw AllocError
+    catch (err: AllocError) {
+        got_error = true
+    }
+    test(loc(), got_error, "Expecter AllocError when calling Ptr.new_by_size(0)")
 
     p := Ptr.new_by_size(32) // allocate 32 bytes
     println("Pointer address: ", I64.to_str(p.data))
@@ -25,12 +24,14 @@ test_pointers := proc() {
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
     Ptr.delete(p)
-    q.delete()
-    // No need to free 'r', it shares memory with 'p'
-
     catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
+        println(loc(), "AllocError thrown deleting p")
     }
+
+    q.delete()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown deleting q")
+    }
+    // No need to free 'r', it shares memory with 'p'
 }
 test_pointers()
