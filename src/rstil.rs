@@ -1681,8 +1681,8 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 });
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let _custom_symbol = match context.symbols.get(custom_type_name) {
-                    Some(custom_symbol_) => custom_symbol_,
+                let custom_symbol = match context.symbols.get(custom_type_name) {
+                    Some(custom_symbol_) => custom_symbol_.clone(),
                     None => {
                         errors.push(e.error("type", &format!("Argument '{}' is of undefined type '{}'.", &arg.name, &custom_type_name)));
                         return errors
@@ -1691,6 +1691,14 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 // TODO check more type stuff
 
                 context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+
+                // For struct parameters, register the field offsets so they can be accessed in the function body
+                if let ValueType::TType(TTypeDef::TStructDef) = custom_symbol.value_type {
+                    if let Err(err) = context.insert_struct(&arg.name, custom_type_name, e) {
+                        errors.push(err);
+                        return errors;
+                    }
+                }
             },
             _ => {
                 context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
