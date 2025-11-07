@@ -22,6 +22,7 @@ runfile("src/test/hello/hello_test.til")
 
 println("\nSome basic tests/examples:\n")
 
+runfile("src/test/args.til")
 runfile("src/test/arithmetics.til")
 runfile("src/test/arrays.til")
 runfile("src/test/boolean.til")
@@ -35,6 +36,7 @@ runfile("src/test/fibonacci.til") // recursive examples
 runfile("src/test/flow.til") // control flow, execution path examples
 runfile("src/test/function_pointers.til")
 runfile("src/test/intro.til")
+runfile("src/test/mut_test.til")
 runfile("src/test/namespaces.til")
 runfile("src/test/pointers.til")
 runfile("src/test/strings.til")

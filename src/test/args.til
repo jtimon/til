@@ -1,0 +1,324 @@
+mode test
+
+// Test basic argument passing
+
+Vec2 := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+    new := func(x: I64, y: I64) returns Vec2 {
+        mut v := Vec2()
+        v.x = x
+        v.y = y
+        return v
+    }
+}
+
+Color := enum {
+    Red,
+    Green,
+    Blue,
+}
+
+// === Test primitive argument passing ===
+
+test_i64_arg := proc(n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+test_i64_args := proc() {
+    result := test_i64_arg(21)
+    assert_eq(loc(), 42, result)
+}
+test_i64_args()
+
+test_bool_arg := proc(b: Bool) returns Bool {
+    return not(b)
+}
+
+test_bool_args := proc() {
+    result := test_bool_arg(true)
+    test(loc(), Bool.eq(false, result), "bool arg should be negated")
+}
+test_bool_args()
+
+test_str_arg := proc(s: Str) returns Str {
+    result := format(s, " world")
+    catch (err: I64_OverflowError) {
+        println(loc(), "I64_OverflowError thrown:")
+        println(err.msg)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+    }
+    return result
+}
+
+test_str_args := proc() {
+    result := test_str_arg("hello")
+    assert_eq_str(loc(), "hello world", result)
+}
+test_str_args()
+
+// === Test struct argument passing ===
+
+sum_vec := func(v: Vec2) returns I64 {
+    return add(v.x, v.y)
+}
+
+test_struct_arg := proc() {
+    v := Vec2.new(10, 20)
+    result := sum_vec(v)
+    assert_eq(loc(), 30, result)
+}
+test_struct_arg()
+
+// === Test enum argument passing ===
+
+color_to_i64 := func(c: Color) returns I64 {
+    switch c {
+    case Color.Red: return 1
+    case Color.Green: return 2
+    case Color.Blue: return 3
+    }
+}
+
+test_enum_arg := proc() {
+    result := color_to_i64(Color.Green)
+    assert_eq(loc(), 2, result)
+}
+test_enum_arg()
+
+// === Test mut primitive arguments ===
+
+double_i64 := proc(mut n: I64) {
+    n = mul(n, 2)
+}
+
+test_mut_i64 := proc() {
+    mut value := 21
+    double_i64(value)
+    assert_eq(loc(), 42, value)
+}
+test_mut_i64()
+
+toggle_bool := proc(mut b: Bool) {
+    b = not(b)
+}
+
+test_mut_bool := proc() {
+    mut flag := true
+    toggle_bool(flag)
+    test(loc(), Bool.eq(false, flag), "flag should be toggled to false")
+}
+test_mut_bool()
+
+append_str := proc(mut s: Str, suffix: Str) {
+    s = format(s, suffix)
+    catch (err: I64_OverflowError) {
+        println(loc(), "I64_OverflowError thrown:")
+        println(err.msg)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+    }
+}
+
+test_mut_str := proc() {
+    mut text := "hello"
+    append_str(text, " world")
+    assert_eq_str(loc(), "hello world", text)
+}
+test_mut_str()
+
+// === Test mut struct arguments ===
+
+scale_vec := proc(mut v: Vec2, factor: I64) {
+    v.x = mul(v.x, factor)
+    v.y = mul(v.y, factor)
+}
+
+test_mut_struct := proc() {
+    mut v := Vec2.new(3, 4)
+    scale_vec(v, 10)
+    assert_eq(loc(), 30, v.x)
+    assert_eq(loc(), 40, v.y)
+}
+test_mut_struct()
+
+// === Test mut enum arguments ===
+
+next_color := proc(mut c: Color) {
+    switch c {
+    case Color.Red: c = Color.Green
+    case Color.Green: c = Color.Blue
+    case Color.Blue: c = Color.Red
+    }
+}
+
+test_mut_enum := proc() {
+    mut col := Color.Red
+    next_color(col)
+    assert_eq(loc(), color_to_i64(Color.Green), color_to_i64(col))
+
+    next_color(col)
+    assert_eq(loc(), color_to_i64(Color.Blue), color_to_i64(col))
+}
+test_mut_enum()
+
+// === Test multiple arguments ===
+
+add_three := func(a: I64, b: I64, c: I64) returns I64 {
+    return add(add(a, b), c)
+}
+
+test_multiple_args := proc() {
+    result := add_three(10, 20, 30)
+    assert_eq(loc(), 60, result)
+}
+test_multiple_args()
+
+// === Test mixed mut and non-mut arguments ===
+
+add_to_first := proc(mut a: I64, b: I64) {
+    a = add(a, b)
+}
+
+test_mixed_mut := proc() {
+    mut x := 10
+    y := 20
+    add_to_first(x, y)
+    assert_eq(loc(), 30, x)
+    assert_eq(loc(), 20, y)  // y should be unchanged
+}
+test_mixed_mut()
+
+translate_vec := proc(mut v: Vec2, dx: I64, dy: I64) {
+    v.x = add(v.x, dx)
+    v.y = add(v.y, dy)
+}
+
+test_struct_mixed_mut := proc() {
+    mut pos := Vec2.new(100, 200)
+    translate_vec(pos, 50, 75)
+    assert_eq(loc(), 150, pos.x)
+    assert_eq(loc(), 275, pos.y)
+}
+test_struct_mixed_mut()
+
+// === Test that non-mut struct arguments don't persist changes ===
+
+// Note: This would normally be a compile error if we tried to modify
+// a non-mut parameter, but we can test that passing a struct doesn't
+// affect the original when using non-mut
+
+copy_and_modify := func(v: Vec2) returns Vec2 {
+    mut copy := v
+    copy.x = 999
+    copy.y = 888
+    return copy
+}
+
+test_non_mut_isolation := proc() {
+    original := Vec2.new(1, 2)
+    modified := copy_and_modify(original)
+
+    // Original should be unchanged
+    assert_eq(loc(), 1, original.x)
+    assert_eq(loc(), 2, original.y)
+
+    // Modified copy should have new values
+    assert_eq(loc(), 999, modified.x)
+    assert_eq(loc(), 888, modified.y)
+}
+test_non_mut_isolation()
+
+// === Test arrays with mut arguments ===
+
+push_value := proc(mut arr: I64Array, value: I64) {
+    arr.push(value)
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+    }
+    catch (err: Str) {
+        println(loc(), "Error thrown:")
+        println(err)
+    }
+}
+
+test_mut_array := proc() {
+    mut numbers := I64Array.new_dyn()
+
+    assert_eq(loc(), 0, numbers.len)
+
+    push_value(numbers, 42)
+    assert_eq(loc(), 1, numbers.len)
+
+    push_value(numbers, 84)
+    assert_eq(loc(), 2, numbers.len)
+
+    val0 := numbers.get(0)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+    assert_eq(loc(), 42, val0)
+
+    val1 := numbers.get(1)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+    assert_eq(loc(), 84, val1)
+
+    numbers.delete()
+}
+test_mut_array()
+
+// === Test nested struct fields ===
+
+Point := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+}
+
+Line := struct {
+    mut start : Point = Point()
+    mut end   : Point = Point()
+}
+
+move_line := proc(mut line: Line, dx: I64, dy: I64) {
+    line.start.x = add(line.start.x, dx)
+    line.start.y = add(line.start.y, dy)
+    line.end.x = add(line.end.x, dx)
+    line.end.y = add(line.end.y, dy)
+}
+
+test_nested_struct_mut := proc() {
+    mut l := Line()
+    l.start.x = 10
+    l.start.y = 20
+    l.end.x = 30
+    l.end.y = 40
+
+    move_line(l, 5, 10)
+
+    assert_eq(loc(), 15, l.start.x)
+    assert_eq(loc(), 30, l.start.y)
+    assert_eq(loc(), 35, l.end.x)
+    assert_eq(loc(), 50, l.end.y)
+}
+test_nested_struct_mut()
+
+println("All argument passing tests passed!")

@@ -1,0 +1,56 @@
+mode test
+
+Vec2 := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+}
+
+modify_vec := proc(mut v: Vec2) {
+    v.x = 100
+    v.y = 200
+}
+
+test_mut_struct := proc() {
+    mut v := Vec2()
+    v.x = 1
+    v.y = 2
+
+    println("Before modify: v.x=", I64.to_str(v.x), " v.y=", I64.to_str(v.y))
+    modify_vec(v)
+    println("After modify: v.x=", I64.to_str(v.x), " v.y=", I64.to_str(v.y))
+
+    assert_eq(loc(), 100, v.x)
+    assert_eq(loc(), 200, v.y)
+}
+
+test_mut_struct()
+
+test_mut_array := proc() {
+    mut arr := I64Array.new_dyn()
+    println("Initial: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
+
+    arr.push(10)
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+    }
+    catch (err: Str) {
+        println(loc(), "Error thrown:")
+        println(err)
+    }
+
+    println("After push: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
+    assert_eq(loc(), 1, arr.len)
+
+    value := arr.get(0)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+
+    assert_eq(loc(), 10, value)
+
+    arr.delete()
+}
+
+test_mut_array()
