@@ -93,7 +93,7 @@ parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws 
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError {
+parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
