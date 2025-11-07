@@ -837,7 +837,7 @@ Array := struct {
         self.len = add(self.len, 1)
     }
 
-    get := proc(self: Array, index: I64, dest_ptr: I64) throws IndexOutOfBoundsError {
+    get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self.len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
         }
@@ -847,7 +847,8 @@ Array := struct {
         // }
 
         src := add(self.ptr, mul(index, self.type_size))
-        memcpy(dest_ptr, src, self.type_size)
+        dest := to_ptr(T)
+        memcpy(dest, src, self.type_size)
     }
 
     set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {

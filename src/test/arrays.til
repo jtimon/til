@@ -264,7 +264,7 @@ test_array_static_vec2 := proc() {
     stat.set(2, v3)
 
     mut v := Vec2()
-    stat.get(2, to_ptr(v))
+    stat.get(2, v)
     assert_eq(loc(), 5, v.x)
     assert_eq(loc(), 6, v.y)
 
@@ -293,7 +293,7 @@ test_array_dynamic_vec2 := proc() {
     assert_eq(loc(), 2, dyn.len)
 
     mut v0 := Vec2()
-    dyn.get(0, to_ptr(v0))
+    dyn.get(0, v0)
     catch (err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)
@@ -309,7 +309,7 @@ test_array_dynamic_vec2 := proc() {
     }
 
     mut v_after_set := Vec2()
-    dyn.get(0, to_ptr(v_after_set))
+    dyn.get(0, v_after_set)
     catch (err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)

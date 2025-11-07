@@ -3033,21 +3033,23 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
                 let result_str = result.value;
 
+                // Resolve Dynamic to actual type first
+                let custom_type_name = &match custom_type_name.as_str() {
+                    "Dynamic" => value_type_to_str(&get_value_type(context, &current_arg)?),
+                    _ => custom_type_name.clone(),
+                };
+
+                // Now push to mut_args with the resolved type
                 if arg.is_mut {
                     match &current_arg.node_type {
                         NodeType::Identifier(id_) => {
-                            mut_args.push((arg.name.clone(), id_.clone(), arg.value_type.clone()));
+                            mut_args.push((arg.name.clone(), id_.clone(), ValueType::TCustom(custom_type_name.clone())));
                         },
                         _ => {
                             return Err(e.lang_error("eval", "mut arguments must be passed as identifiers"))
                         }
                     }
                 }
-
-                let custom_type_name = &match custom_type_name.as_str() {
-                    "Dynamic" => value_type_to_str(&get_value_type(context, &current_arg)?),
-                    _ => custom_type_name.clone(),
-                };
 
                 match custom_type_name.as_str() {
                     "I64" => {
