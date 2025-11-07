@@ -1,0 +1,11 @@
+mode test
+
+test_print := proc(args: ..Str) {
+    for i in 0..args.len {
+        mut arg := ""
+        args.get(i, arg)
+        println(arg)
+    }
+}
+
+test_print("hello", "world")

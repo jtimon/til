@@ -303,7 +303,7 @@ U8 := struct {
 }
 
 I64 := struct {
-    // mut data : U8Array = U8Array.new(8) // TODO Use [8]U8 for this one
+    // mut data : Array = Array.new("U8", size_of(U8), 8) // TODO Use [8]U8 for this one
 
     eq := func(a: I64, b: I64) returns Bool {
         // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
@@ -441,86 +441,6 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     }
 
     return result
-}
-
-U8Array := struct {
-    mut ptr      : I64  = 0     // Pointer to the data buffer
-    mut len      : I64  = 0     // Current number of elements
-    mut cap      : I64  = 0     // Allocated capacity
-    mut is_dyn   : Bool = false // Whether this array is dynamic (can grow)
-
-    INIT_DYN_CAP : I64  = 32
-    MAX_CAP      : I64  = 1024
-
-    new := proc(capacity: I64) returns U8Array {
-        mut arr := U8Array()
-        arr.cap = capacity
-        arr.ptr = malloc(arr.cap)
-        memset(arr.ptr, U8.from_i64(0), arr.cap) // Zeroing by default
-        arr.is_dyn = false
-        arr.len = arr.cap
-        return arr
-    }
-
-    new_dyn := proc() returns U8Array {
-        mut arr := U8Array()
-        arr.cap = U8Array.INIT_DYN_CAP
-        arr.ptr = malloc(arr.cap)
-        memset(arr.ptr, U8.from_i64(0), arr.cap) // Zeroing by default
-        arr.is_dyn = true
-        arr.len = 0
-        return arr
-    }
-
-    push := proc(mut self: U8Array, value: U8) throws FullError, Str {
-        if not(self.is_dyn) {
-            throw format(loc(), "U8Array.push: push is not allowed for static arrays")
-        }
-
-        if I64.eq(self.len, self.cap) {
-            new_cap := mul(self.cap, 2)
-            if gt(new_cap, U8Array.MAX_CAP) {
-                throw FullError.new(format(loc(), "U8Array.push: capacity exceeded U8Array.MAX_CAP"))
-            }
-
-            new_ptr := malloc(new_cap)
-            memcpy(new_ptr, self.ptr, self.len)
-            free(self.ptr)
-            self.ptr = new_ptr
-            self.cap = new_cap
-        }
-
-        mut dest := add(self.ptr, self.len)
-        memcpy(dest, to_ptr(value), 1)
-        self.len = add(self.len, 1)
-    }
-
-    get := func(self: U8Array, index: I64) returns U8 throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "U8Array.get: index out of bounds"))
-        }
-
-        mut src := add(self.ptr, index)
-        mut value : U8 = 0
-        memcpy(to_ptr(value), src, 1)
-        return value
-    }
-
-    set := proc(mut self: U8Array, index: I64, value: U8) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
-            throw IndexOutOfBoundsError.new(format(loc(), "U8Array.set: index out of bounds"))
-        }
-        mut dest := add(self.ptr, index)
-        memcpy(dest, to_ptr(value), 1)
-    }
-
-    delete := proc(mut self: U8Array) {
-        free(self.ptr)
-        self.ptr = 0
-        self.len = 0
-        self.cap = 0
-        self.is_dyn = false
-    }
 }
 
 StrArray := struct {

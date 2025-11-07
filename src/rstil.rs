@@ -702,7 +702,12 @@ impl Context {
     }
 
     pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
-        let array_type = format!("{}Array", elem_type);
+        // Special case for U8 which now uses generic Array
+        let array_type = if elem_type == "U8" {
+            "Array".to_string()
+        } else {
+            format!("{}Array", elem_type)
+        };
 
         self.insert_struct(name, &array_type, e)?;
 
@@ -787,9 +792,36 @@ impl Context {
 
         if let Some(is_dyn_offset) = self.arena_index.get(&format!("{}.is_dyn", name)) {
             Arena::g().memory[*is_dyn_offset] = 0; // false
-            return Ok(())
+        } else {
+            return Err(e.lang_error("context", "insert_array: missing .is_dyn field offset"))
         }
-        return Err(e.lang_error("context", "insert_array: missing .is_dyn field offset"))
+
+        // For generic Array, also set type_name and type_size fields
+        if array_type == "Array" {
+            // Set type_name field (it's a Str, so we need to store it properly)
+            let type_name_offset_opt = self.arena_index.get(&format!("{}.type_name", name)).copied();
+            if let Some(type_name_offset) = type_name_offset_opt {
+                let temp_id = format!("{}_type_name_temp", name);
+                self.symbols.insert(temp_id.clone(), SymbolInfo {
+                    value_type: ValueType::TCustom("Str".to_string()),
+                    is_mut: false,
+                });
+                self.insert_string(&temp_id, &elem_type.to_string(), e)?;
+                if let Some(&str_offset) = self.arena_index.get(&temp_id) {
+                    let str_size = self.get_type_size("Str")?;
+                    Arena::g().memory[type_name_offset..type_name_offset + str_size]
+                        .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
+                }
+            }
+
+            // Set type_size field
+            if let Some(&type_size_offset) = self.arena_index.get(&format!("{}.type_size", name)) {
+                let size_bytes = (elem_size as i64).to_ne_bytes();
+                Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
+            }
+        }
+
+        Ok(())
     }
 
 }
@@ -1059,6 +1091,59 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
                 }
             },
+            ValueType::TMulti(_) => {
+                // Variadic parameters are implemented as Array at runtime
+                // Treat them as Array for type checking method calls
+                let custom_type_name = "Array";
+                let struct_def = match context.struct_defs.get(custom_type_name) {
+                    Some(_struct_def) => _struct_def,
+                    None => {
+                        return Err(e.lang_error("type", &format!("struct '{}' not found in context", custom_type_name)));
+                    },
+                };
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        return Ok(ValueType::TCustom(custom_type_name.to_string()));
+                    },
+                };
+                match &after_dot.node_type {
+                    NodeType::Identifier(after_dot_name) => {
+                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
+                            Some(_member) => _member,
+                            None => {
+                                match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
+                                    Ok(ok_val) => return Ok(ok_val),
+                                    Err(error_string) => {
+                                        println!("{}", error_string);
+                                        return Err(e.error("type", &format!("struct '{}' has no member '{}' (variadic)", custom_type_name, after_dot_name)));
+                                    },
+                                }
+                            },
+                        };
+                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
+                            Some(_member) => _member,
+                            None => {
+                                return Err(e.error("type", &format!("struct '{}' has no member '{}' (variadic default)", custom_type_name, after_dot_name)));
+                            },
+                        };
+                        match &member_default_value.node_type {
+                            NodeType::FuncDef(func_def) => {
+                                let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
+                                return value_type_func_proc(&e, &combined_name, &func_def);
+                            },
+                            _  => {
+                                return Err(e.error("type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
+                                                                    custom_type_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
+                            },
+                        }
+                    },
+
+                    _ => {
+                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                    },
+                }
+            },
             _ => {
                 return get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol)
             },
@@ -1141,8 +1226,9 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                             None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' f", custom_type_name, member_name))),
                         }
                     },
-                    ValueType::TMulti(variadic_type_name) => {
-                        return Ok(ValueType::TMulti(variadic_type_name.to_string()))
+                    ValueType::TMulti(_variadic_type_name) => {
+                        // Variadic parameters are implemented as Array at runtime
+                        current_type = ValueType::TCustom("Array".to_string());
                     },
                     _ => {
                         return Err(e.error("type", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&current_type))));
@@ -1675,8 +1761,15 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
                 has_variadic = true;
 
+                // Special case for U8 which now uses generic Array
+                let array_type_name = if multi_type == "U8" {
+                    "Array".to_string()
+                } else {
+                    format!("{}Array", multi_type)
+                };
+
                 context.symbols.insert(arg.name.clone(), SymbolInfo {
-                    value_type: ValueType::TCustom(format!("{}Array", multi_type)),
+                    value_type: ValueType::TCustom(array_type_name),
                     is_mut: false,
                 });
             },
@@ -3016,8 +3109,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     values.push(val);
                 }
 
+                // Special case for U8 which now uses generic Array
+                let array_type_name = if multi_value_type == "U8" {
+                    "Array".to_string()
+                } else {
+                    format!("{}Array", multi_value_type)
+                };
+
                 function_context.symbols.insert(arg.name.to_string(), SymbolInfo {
-                    value_type: ValueType::TCustom(format!("{}Array", &multi_value_type)),
+                    value_type: ValueType::TCustom(array_type_name),
                     is_mut: arg.is_mut,
                 });
                 function_context.insert_array(&arg.name, &multi_value_type, &values, e)?;
