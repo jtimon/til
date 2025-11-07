@@ -54,7 +54,7 @@ impl SFuncDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SStructDef {
-    pub members : HashMap<String, Declaration>,
+    pub members : Vec<(String, Declaration)>,
     pub default_values : HashMap<String, Expr>,
 }
 
@@ -704,12 +704,12 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
         Ok(body) => body,
         Err(err_str) => return Err(err_str),
     };
-    let mut members = HashMap::new();
+    let mut members = Vec::new();
     let mut default_values = HashMap::new();
     for p in body.params {
         match p.node_type {
             NodeType::Declaration(decl) => {
-                members.insert(decl.name.clone(), decl.clone());
+                members.push((decl.name.clone(), decl.clone()));
                 if p.params.len() == 1 {
                     match p.params.get(0) {
                         Some(val) => {

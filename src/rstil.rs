@@ -979,7 +979,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.members.get(after_dot_name) {
+                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
                             Some(_member) => _member,
                             None => {
                                 return Err(e.error("type", &format!("struct '{}' has no member '{}' a", f_name, after_dot_name)));
@@ -1022,7 +1022,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.members.get(after_dot_name) {
+                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
                             Some(_member) => _member,
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
@@ -1109,7 +1109,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                         let struct_def = context.struct_defs.get(name)
                             .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", name)))?;
 
-                        match struct_def.members.get(member_name) {
+                        match struct_def.members.iter().find(|(k, _)| k == member_name).map(|(_, v)| v) {
                             Some(decl) => {
                                 current_type = decl.value_type.clone();
                             },
@@ -1132,7 +1132,7 @@ fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
                         let struct_def = context.struct_defs.get(custom_type_name)
                             .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", custom_type_name)))?;
 
-                        match struct_def.members.get(member_name) {
+                        match struct_def.members.iter().find(|(k, _)| k == member_name).map(|(_, v)| v) {
                             Some(decl) => {
                                 current_type = decl.value_type.clone();
                             },
@@ -3660,7 +3660,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Resul
     let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
-            match struct_def.members.get(inner_name) {
+            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v) {
                 Some(member_decl) => {
                     return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, member_decl);
                 },
@@ -3708,7 +3708,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                                                 Some(def) => def,
                                                 None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", custom_type_name))),
                                             };
-                                            match struct_def.members.get(inner_name) {
+                                            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v) {
                                                 Some(member_decl) => {
                                                     current_type = member_decl.value_type.clone();
                                                     current_name = format!("{}.{}", current_name, inner_name);
