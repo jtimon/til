@@ -260,7 +260,9 @@ impl Context {
         for (field_name, decl) in members {
             if decl.is_mut {
                 let combined_name = format!("{}.{}", instance_name, field_name);
-                self.arena_index.insert(combined_name.clone(), base_offset + current_offset);
+                let field_offset = base_offset + current_offset;
+                self.arena_index.insert(combined_name.clone(), field_offset);
+
                 self.symbols.insert(
                     combined_name.clone(),
                     SymbolInfo {
@@ -3057,14 +3059,62 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                function_context.insert_struct(&arg.name, &custom_type_name, e)?;
                                 if current_arg.params.len() > 0 {
                                     return Err(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now.",
                                                                              &arg.name, &custom_type_name)))
                                 }
                                 match &current_arg.node_type {
                                     NodeType::Identifier(id_) => {
-                                        function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                        // If source and dest have the same name, we need to save the source offsets
+                                        // before insert_struct overwrites them
+                                        let (saved_offsets, temp_src_key) = if id_ == &arg.name {
+                                            let mut offsets = Vec::new();
+
+                                            // Save all arena_index entries that start with the struct name
+                                            // This includes the base offset and all nested field offsets
+                                            let prefix = format!("{}.", id_);
+                                            for (key, offset) in function_context.arena_index.iter() {
+                                                if key == id_ || key.starts_with(&prefix) {
+                                                    offsets.push((key.clone(), *offset));
+                                                }
+                                            }
+
+                                            (Some(offsets), Some(format!("__temp_src_{}", id_)))
+                                        } else {
+                                            (None, None)
+                                        };
+
+                                        function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+
+                                        // If we saved offsets, restore them with temp keys for copy_fields
+                                        if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
+                                            for (orig_key, offset) in offsets.iter() {
+                                                let new_key = if orig_key == id_ {
+                                                    temp_key.clone()
+                                                } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                    format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                } else {
+                                                    orig_key.clone()
+                                                };
+                                                function_context.arena_index.insert(new_key, *offset);
+                                            }
+
+                                            function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
+
+                                            // Clean up temp keys
+                                            for (orig_key, _) in offsets.iter() {
+                                                let new_key = if orig_key == id_ {
+                                                    temp_key.clone()
+                                                } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                    format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                } else {
+                                                    orig_key.clone()
+                                                };
+                                                function_context.arena_index.remove(&new_key);
+                                            }
+                                        } else {
+                                            function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                        }
                                     },
                                     _ => {
                                         return Err(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now.",
