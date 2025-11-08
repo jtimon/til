@@ -164,6 +164,27 @@ main := proc(args: ..Str) {
             // run_file_or_exit(path, Array.new("Str", size_of(Str), 0)) // TODO FIX
         }
     } else {
-        runfile(REPL_PATH)
+        // TEMP: Testing self-hosted compiler on hello_script.til
+        run_file_or_exit("src/test/hello/hello_script.til")
+        catch (err: Str) {
+            println("Error during file execution: ", err)
+            exit(1)
+        }
+        catch (err: AllocError) {
+            println("AllocError during file execution")
+            exit(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            println("IndexOutOfBoundsError during file execution")
+            exit(1)
+        }
+        catch (err: I64_OverflowError) {
+            println("I64_OverflowError during file execution")
+            exit(1)
+        }
+        catch (err: FullError) {
+            println("FullError during file execution")
+            exit(1)
+        }
     }
 }

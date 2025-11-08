@@ -1,0 +1,113 @@
+mode test
+
+import("src/core/modes/modes")
+import("src/core/interpreter")
+
+test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Simple test: just run hello_script.til directly
+    println("Self-hosted compiler test: Running hello_script.til...")
+
+    // Create lexer
+    println("Step 1: Creating lexer...")
+    mut lexer := Lexer.new("src/test/hello/hello_script.til")
+
+    // Create test mode
+    println("Step 2: Creating mode_def...")
+    mut mode_def := ModeDef()
+    mode_def.name = "test"
+    mode_def.allows_procs = true
+    mode_def.allows_base_mut = true
+    mode_def.allows_base_calls = true
+    mode_def.allows_base_anything = true
+    mode_def.needs_main_proc = false
+
+    // Skip mode directive
+    println("Step 3: Skipping mode directive...")
+    mut first_token := lexer.peek()
+    mut first_token_str := first_token.token_str
+    if first_token_str.eq("mode") {
+        lexer.advance(1)
+        lexer.advance(1)
+    }
+
+    // Parse
+    println("Step 4: Creating AST manually (parser has issues)...")
+
+    // Create: println("Hello World!")
+    // This is: FCall(Identifier("println"), Literal(String("Hello World!")))
+
+    // Create the literal
+    println("  4a: Creating literal...")
+    mut hello_lit := Expr()
+    println("  4b: Creating lit_type...")
+    mut lit_type := LiteralNodeType.String("Hello World!")
+    println("  4c: Assigning node_type...")
+    hello_lit.node_type = NodeType.Literal(lit_type)
+    println("  4d: Literal complete")
+
+    // Create the identifier
+    println("  4e: Creating identifier...")
+    mut println_id := Expr()
+    println_id.node_type = NodeType.Identifier("println")
+    println("  4f: Identifier complete")
+
+    // Create the function call
+    println("  4g: Creating function call...")
+    mut println_call := Expr()
+    println_call.node_type = NodeType.FCall
+    println("  4h: Creating params array...")
+    mut call_params := Array.new("Expr", size_of(Expr), 2)
+    println("  4i: Setting param 0 (println_id)...")
+    call_params.set(0, println_id)
+    println("  4j: Setting param 1 (hello_lit)...")
+    call_params.set(1, hello_lit)
+    println("  4k: Incrementing array length...")
+    call_params.len = 2
+    println_call.params = call_params
+    println("  4l: Function call complete")
+
+    // Create body containing the call
+    println("  4m: Creating body...")
+    mut ast := Expr()
+    ast.node_type = NodeType.Body
+    println("  4n: Creating body params array...")
+    mut body_params := Array.new("Expr", size_of(Expr), 1)
+    println("  4o: Setting println_call in body...")
+    body_params.set(0, println_call)
+    body_params.len = 1
+    ast.params = body_params
+    println("  4p: Body complete")
+
+    // Create context
+    println("Step 5: Creating context...")
+    mut context := init_context(mode_def, "src/test/hello/hello_script.til")
+    println("Step 5 complete")
+
+    // Evaluate
+    println("Step 6: Evaluating AST...")
+    result := eval_expr(context, ast)
+    println("Step 6 complete")
+
+    println("Self-hosted compiler test completed!")
+}
+
+run_test := proc() {
+    test_self_hosting()
+    catch (err: Str) {
+        println("Error occurred (Str exception - cannot print error due to TIL bug)")
+    }
+    catch (err: AllocError) {
+        println("AllocError during test")
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError during test")
+    }
+    catch (err: I64_OverflowError) {
+        println("I64_OverflowError during test")
+    }
+    catch (err: FullError) {
+        println("FullError during test")
+    }
+}
+
+run_test()

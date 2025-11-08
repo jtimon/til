@@ -601,7 +601,7 @@ variant_pos_to_str := proc(enum_def: SEnumDef, position: I64) returns Str throws
 // Corresponds to value_type_func_proc in init.rs
 value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
     // Check that function returns exactly one value
-    mut returns_len := func_def.returns.len
+    mut returns_len := func_def.return_types.len
 
     if eq(returns_len, 0) {
         throw format(loc(), " ERROR: func '", name, "' does not return anything")
@@ -612,7 +612,7 @@ value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns Val
     }
 
     // Get the return type (should be at index 0)
-    mut returns_arr := func_def.returns
+    mut returns_arr := func_def.return_types
     mut return_type := ValueType.TCustom("")
     returns_arr.get(0, return_type)
 

@@ -43,9 +43,9 @@ SStructDef := struct {
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
     mut args: StrMap = StrMap()      // arg_name -> type_name
-    mut return_type: Str = ""        // return type name
-    mut exception_types: Str = ""    // exception types (comma-separated for now)
-    mut body: Expr = Expr()          // function body expression
+    mut return_types: Array = Array() // return types (usually 0 or 1)
+    mut throw_types: Array = Array()  // exception types that can be thrown
+    mut body: Expr = Expr()           // function body expression
 
     // Check if this is a procedure
     is_proc := func(self: SFuncDef) returns Bool {
