@@ -594,13 +594,79 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
 
     // Handle literals
     if node_type_str.eq("NodeType.Literal") {
-        // TODO: Extract literal type and return appropriate ValueType
-        throw format(loc(), " TODO: get_value_type for literals not fully implemented")
+        // Extract LiteralNodeType from payload
+        mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
+        mut node_type := e.node_type
+        enum_extract_payload(node_type, lit_node_type)
+
+        lit_type_str := enum_to_str(lit_node_type)
+
+        if lit_type_str.eq("LiteralNodeType.I64") {
+            return ValueType.TCustom("I64")
+        }
+        if lit_type_str.eq("LiteralNodeType.Bool") {
+            return ValueType.TCustom("Bool")
+        }
+        if lit_type_str.eq("LiteralNodeType.String") {
+            return ValueType.TCustom("Str")
+        }
+        if lit_type_str.eq("LiteralNodeType.List") {
+            return ValueType.TCustom("List")
+        }
+
+        throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
+    }
+
+    // Handle function definitions
+    if node_type_str.eq("NodeType.FuncDef") {
+        // Extract SFuncDef from payload
+        mut func_def := SFuncDef()
+        mut node_type := e.node_type
+        enum_extract_payload(node_type, func_def)
+
+        // Determine function type
+        func_type := func_def.function_type
+        func_type_str := enum_to_str(func_type)
+
+        if func_type_str.eq("FunctionType.FTFunc") {
+            return ValueType.TFunction(FunctionType.FTFunc)
+        }
+        if func_type_str.eq("FunctionType.FTFuncExt") {
+            return ValueType.TFunction(FunctionType.FTFunc)
+        }
+        if func_type_str.eq("FunctionType.FTProc") {
+            return ValueType.TFunction(FunctionType.FTProc)
+        }
+        if func_type_str.eq("FunctionType.FTProcExt") {
+            return ValueType.TFunction(FunctionType.FTProc)
+        }
+        if func_type_str.eq("FunctionType.FTMacro") {
+            return ValueType.TFunction(FunctionType.FTMacro)
+        }
+
+        throw format(loc(), " ERROR: Unknown function type: ", func_type_str)
+    }
+
+    // Handle enum definitions
+    if node_type_str.eq("NodeType.EnumDef") {
+        return ValueType.TType(TTypeDef.TEnumDef)
+    }
+
+    // Handle struct definitions
+    if node_type_str.eq("NodeType.StructDef") {
+        return ValueType.TType(TTypeDef.TStructDef)
     }
 
     // Handle function calls
     if node_type_str.eq("NodeType.FCall") {
         return get_fcall_value_type(context, e)
+    }
+
+    // Handle Range expressions
+    if node_type_str.eq("NodeType.Range") {
+        // TODO: Get type of range bounds and return appropriate RangeType
+        // For now, assume I64Range
+        return ValueType.TCustom("I64Range")
     }
 
     // Handle identifiers
