@@ -187,7 +187,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
     eof_pos := source.len()
     mut pos := 0
     mut line := 1
-    mut start_line_pos := 0
+    mut start_line_pos := sub(0, 1)
 
     while pos.lt(eof_pos) {
         start := pos
@@ -236,7 +236,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
             case "\n":
                 pos.inc()
                 line.inc()
-                start_line_pos = pos
+                start_line_pos = pos.sub(1)
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
@@ -363,7 +363,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                         } else {
                             if source.get_substr(pos, pos.add(1)).eq("\n") {
                                 line.inc()
-                                start_line_pos = pos.add(1)
+                                start_line_pos = pos
                             }
                             pos.inc()
                         }

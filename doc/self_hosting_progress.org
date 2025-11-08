@@ -76,7 +76,7 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 * Component Details
 
 ** Lexer (lexer.til vs src/rs/lexer.rs)
-*** Status: FUNCTIONAL PARITY ✅ - HOMOLOGIZATION IN PROGRESS ⚠️
+*** Status: FUNCTIONAL PARITY ✅ - HOMOLOGIZATION COMPLETE ✅
 
 *TIL Implementation (712 lines):*
 - Full token scanning with nested comments
@@ -113,13 +113,15 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 - [X] Add error message for 'try' keyword
 - [X] Validate functional equivalence
 
-*Phase 2: Critical Bugs (MUST FIX)*
+*Phase 2: Critical Bugs (COMPLETE ✅)*
 - [X] Fix line numbering (0-based vs 1-based) - Both now start at line 1
-- [ ] Fix column calculation +1 inconsistencies - Rust uses +1 for 1-based columns (correct)
+- [X] Fix column calculation +1 inconsistencies - Optimized: start_line_pos = sub(0,1), no +1 needed
 - [X] Fix number token column (use start not pos) - TIL line 229
 - [X] Fix TIL comment scanning bug (2 chars vs 1) - TIL line 336
 - [X] Fix string token column (use start not pos) - TIL line 427
 - [X] Fix identifier token column calculation - TIL line 450
+
+Both lexers now use identical algorithms and produce byte-for-byte identical output.
 
 *Phase 3: Code Quality (SHOULD FIX)*
 - [X] Add path field to Rust Lexer struct

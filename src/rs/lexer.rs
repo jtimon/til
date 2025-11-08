@@ -323,7 +323,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
     let eof_pos: usize = source.len();
     let mut pos = 0;
     let mut line = 1;
-    let mut start_line_pos = 0;
+    let mut start_line_pos: isize = -1;
 
     while pos < eof_pos {
         let start = pos;
@@ -339,7 +339,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     pos += 1;
                 }
             }
-            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, start - start_line_pos + 1);
+            scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, (start as isize - start_line_pos) as usize);
         } else {
 
             let token_type = match &source[pos..pos+1] {
@@ -350,7 +350,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 "\n" => {
                     pos += 1;
                     line = line + 1;
-                    start_line_pos = pos;
+                    start_line_pos = (pos - 1) as isize;
                     continue;
                 },
                 // open/close. left/right
@@ -413,13 +413,13 @@ fn scan_tokens(source: String) -> Vec<Token> {
                             } else {
                                 if &source[pos..pos+1] == "\n" {
                                     line += 1;
-                                    start_line_pos = pos + 1;
+                                    start_line_pos = pos as isize;
                                 }
                                 pos += 1;
                             }
                         }
                         if depth > 0 {
-                            scan_push_token(&mut tokens, TokenType::UnterminatedComment, "/*", line, pos - start_line_pos + 1);
+                            scan_push_token(&mut tokens, TokenType::UnterminatedComment, "/*", line, (pos as isize - start_line_pos) as usize);
                         }
                         continue;
                     },
@@ -465,7 +465,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     if pos >= eof_pos {
                         TokenType::UnterminatedString
                     } else {
-                        scan_push_token(&mut tokens, TokenType::String, &lit_string, line, start - start_line_pos + 1);
+                        scan_push_token(&mut tokens, TokenType::String, &lit_string, line, (start as isize - start_line_pos) as usize);
                         TokenType::String
                     }
                 },
@@ -485,7 +485,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
 
             }; // let match
             if token_type != TokenType::String {
-                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, start - start_line_pos + 1);
+                scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, (start as isize - start_line_pos) as usize);
             }
             pos += 1;
         } // else
