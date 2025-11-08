@@ -311,6 +311,14 @@ Context := struct {
         // Unknown type
         throw format(loc(), " ERROR: Unknown type '", type_name, "' in get_type_size")
     }
+
+    // Get payload size for an enum type at a given offset
+    // Corresponds to get_payload_size_for_type in init.rs
+    get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64) returns I64 throws Str {
+        // TODO: Implement payload size calculation for enums
+        // For now, just return a default size
+        return 8
+    }
 }
 
 // Get enum variant position by name
