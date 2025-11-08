@@ -808,7 +808,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
     return Ok(e);
 }
 
-fn get_combined_name(e: &Expr) -> Result<String, String> {
+pub fn get_combined_name(e: &Expr) -> Result<String, String> {
     let mut to_return = String::new();
     match &e.node_type {
         NodeType::Identifier(id_str_) => {
