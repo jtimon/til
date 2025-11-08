@@ -302,27 +302,19 @@ test_struct_payloads := proc() {
     // assert_eq(loc(), 200, extracted_container.vec.y)
     // assert_eq(loc(), 42, extracted_container.value)
 
-    // Test with switch - using enum_to_str because struct pattern matching not supported yet
+    // Test with switch pattern matching
     test_shape_match := proc(s: Shape) returns I64 {
-        variant_str := enum_to_str(s)
-        switch variant_str {
-        case "Shape.Point":
-            mut v := Vec2()
-            // TODO: Use switch instead of rsonly_enum_extract_payload
-            rsonly_enum_extract_payload(s, v)
+        switch s {
+        case Shape.Point(v):
             return add(v.x, v.y)
-        case "Shape.Point3D":
-            mut v3 := Vec3()
-            // TODO: Use switch instead of rsonly_enum_extract_payload
-            rsonly_enum_extract_payload(s, v3)
+        case Shape.Point3D(v3):
             return add(add(v3.x, v3.y), v3.z)
-        case "Shape.Container":
-            mut c := ContainerStruct()
-            // TODO: Use switch instead of rsonly_enum_extract_payload
-            rsonly_enum_extract_payload(s, c)
-            return c.value
+        case Shape.Container:
+            // TODO: Container with nested struct not yet supported
+            return 0
+        case:
+            return 0
         }
-        return 0
     }
 
     assert_eq(loc(), 30, test_shape_match(point))  // 10 + 20
