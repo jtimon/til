@@ -134,6 +134,10 @@ test_lexer_peek := proc() {
     first_again := lexer.peek()
     assert_eq_str(loc(), "mode", first_again.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_peek: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -153,6 +157,10 @@ test_lexer_advance := proc() {
     t2 := lexer.peek()
     assert_eq_str(loc(), "script", t2.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_advance: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -171,6 +179,10 @@ test_lexer_peek_ahead := proc() {
     current := lexer.peek()
     assert_eq_str(loc(), "mode", current.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_peek_ahead: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -189,6 +201,10 @@ test_lexer_next := proc() {
     t2 := lexer.peek()
     assert_eq_str(loc(), "mode", t2.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_next: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -208,6 +224,10 @@ test_lexer_previous := proc() {
     prev := lexer.previous()
     assert_eq_str(loc(), "mode", prev.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_previous: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -228,6 +248,10 @@ test_lexer_go_back := proc() {
     current := lexer.peek()
     assert_eq_str(loc(), "script", current.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_go_back: IndexOutOfBoundsError: ", err.msg)
         exit(1)
@@ -241,6 +265,11 @@ test_lexer_len := proc() {
     // empty.til should have at least 2 tokens: "mode" and "script"
     token_count := lexer.len()
     assert(loc(), gt(token_count, 1))
+
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
 }
 test_lexer_len()
 
@@ -255,6 +284,10 @@ test_lexer_get_token := proc() {
     t1 := lexer.get_token(1)
     assert_eq_str(loc(), "script", t1.token_str)
 
+    catch(err: Str) {
+        println(loc(), " FAIL: Lexer.new threw error")
+        exit(1)
+    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_get_token: IndexOutOfBoundsError: ", err.msg)
         exit(1)

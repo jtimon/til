@@ -95,7 +95,7 @@ scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str
 
     tokens.push(t)
     catch (err: FullError) {
-        throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
+        throw "scan_tokens: tokens array full"
     }
 }
 
@@ -190,14 +190,36 @@ scan_tokens := proc(source: Str) returns Array throws Str {
     while pos.lt(eof_pos) {
         start := pos
         if source.is_digit(pos) {
-            while and(pos.lt(eof_pos), source.is_digit(pos)) {
+            mut continue_scanning := true
+            while continue_scanning {
                 pos.inc()
+                if pos.lt(eof_pos) {
+                    if not(source.is_digit(pos)) {
+                        continue_scanning = false
+                    }
+                } else {
+                    continue_scanning = false
+                }
             }
             // Look for a fractional part.
-            if and(source.get_substr(pos, pos.add(1)).eq("."), source.is_digit(pos.add(1))) {
-                pos.inc()
-                while and(pos.lt(eof_pos), source.is_digit(pos)) {
-                    pos.inc()
+            if pos.lt(eof_pos) {
+                if source.get_substr(pos, pos.add(1)).eq(".") {
+                    if pos.add(1).lt(eof_pos) {
+                        if source.is_digit(pos.add(1)) {
+                            pos.inc()
+                            mut continue_scanning2 := true
+                            while continue_scanning2 {
+                                pos.inc()
+                                if pos.lt(eof_pos) {
+                                    if not(source.is_digit(pos)) {
+                                        continue_scanning2 = false
+                                    }
+                                } else {
+                                    continue_scanning2 = false
+                                }
+                            }
+                        }
+                    }
                 }
             }
             scan_push_token(tokens, TokenType.Number, source.get_substr(start, pos), line, pos.sub(start_line_pos))
@@ -406,8 +428,17 @@ scan_tokens := proc(source: Str) returns Array throws Str {
             case:
                 if source.is_id_start(pos) {
                     pos.inc()
-                    while and(pos.lt(eof_pos), or(source.is_digit(pos), source.is_id_start(pos))) {
-                        pos.inc()
+                    mut continue_id_scan := true
+                    while continue_id_scan {
+                        if pos.lt(eof_pos) {
+                            if or(source.is_digit(pos), source.is_id_start(pos)) {
+                                pos.inc()
+                            } else {
+                                continue_id_scan = false
+                            }
+                        } else {
+                            continue_id_scan = false
+                        }
                         // TODO fix literal strings with escape characters like in the rust implementation
                     }
                     pos.dec()
@@ -424,13 +455,13 @@ scan_tokens := proc(source: Str) returns Array throws Str {
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
     catch (err: IndexOutOfBoundsError) {
-        throw format(loc(), "scan_tokens: IndexOutOfBoundsError error thrown")
+        throw "scan_tokens: IndexOutOfBoundsError"
     }
     catch (err: I64_OverflowError) {
-        throw format(loc(), "scan_tokens: I64_OverflowError error thrown")
+        throw "scan_tokens: I64_OverflowError"
     }
     catch (err: AllocError) {
-        throw format(loc(), "scan_tokens: AllocError error thrown")
+        throw "scan_tokens: AllocError"
     }
     return tokens
 }
@@ -438,18 +469,17 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 /** An interface for the Lexer */
 Lexer := struct {
     mut path: Str = ""
-    // mut tokens: Array = Array.new_dyn("Token", size_of(Token)) // TODO re-enable new_dyn
-    mut tokens: Array = Array.new("Token", size_of(Token), 1) // TODO remove this
+    mut tokens: Array = Array.new_dyn("Token", size_of(Token))
     mut current_token: I64 = 0
 
-    new := proc(path: Str) returns Lexer {
+    new := proc(path: Str) returns Lexer throws Str {
         mut l := Lexer()
         l.path = path
         l.tokens = scan_tokens(readfile(path))
         return l
     }
 
-    new_from_src := proc(source: Str) returns Lexer {
+    new_from_src := proc(source: Str) returns Lexer throws Str {
         mut l := Lexer()
         l.path = "<test>"
         l.tokens = scan_tokens(source)

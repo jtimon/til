@@ -91,6 +91,7 @@ NodeType := enum {
     While,
     Switch,
     DefaultCase,
+    Range,
 }
 
 ExprArray := struct {
@@ -605,15 +606,15 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     case TokenType.Return:
         return parse_return_statement(lexer)
     case TokenType.Throw:
-        throw t.todo_error("parse throw_statement not implemented yet")
+        return parse_throw_statement(lexer)
     case TokenType.If:
         return parse_if_statement(lexer)
     case TokenType.While:
         return parse_while_statement(lexer)
     case TokenType.Switch:
-        throw t.todo_error("parse switch_statement not implemented yet")
+        return parse_switch_statement(lexer)
     case TokenType.Mut:
-        throw t.todo_error("parse mut_declaration not implemented yet")
+        return parse_mut_declaration(lexer)
     case TokenType.Identifier:
         return parse_statement_identifier(lexer)
     case TokenType.Catch:
@@ -726,6 +727,189 @@ parse_while_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     params.push(body)
 
     return Expr.new_parse(NodeType.While, lexer.get_token(initial_index), params)
+}
+
+// Parse a throw statement: throw expr1, expr2, ...
+parse_throw_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    initial_index := lexer.current_token
+    lexer.advance(1)
+    mut params := ExprArray.new()
+
+    // Try to parse first expression (optional - throw might have no value)
+    prim := parse_primary(lexer)
+    params.push(prim)
+
+    catch(err: Str) {
+        // No throw value - this is OK for some throw statements
+    }
+
+    // Parse additional comma-separated values
+    mut t := lexer.peek()
+    mut continue_loop := true
+    while continue_loop {
+        switch t.token_type {
+        case TokenType.Comma:
+            lexer.advance(1)
+            prim2 := parse_primary(lexer)
+            params.push(prim2)
+            t = lexer.peek()
+        case:
+            continue_loop = false
+        }
+    }
+
+    return Expr.new_parse(NodeType.Throw, lexer.get_token(initial_index), params)
+}
+
+// Parse a mutable variable declaration: mut x: Type = value  or  mut x := value
+parse_mut_declaration := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+    t := lexer.peek()
+    mut next_t := lexer.next()
+    mut next_token_type := next_t.token_type
+
+    // Expect identifier after 'mut'
+    switch next_token_type {
+    case TokenType.Identifier:
+        // Good
+    case:
+        throw t.error(format("Expected identifier after 'mut', found '", enum_to_str(next_token_type), "'."))
+    }
+
+    identifier := next_t.token_str
+    lexer.advance(1)
+    next_t = lexer.next()
+    next_token_type = next_t.token_type
+
+    // Expect ':' after identifier
+    switch next_token_type {
+    case TokenType.Colon:
+        // Good
+    case:
+        throw t.error(format("Expected ':' after 'mut ", identifier, "', found '", enum_to_str(next_token_type), "'."))
+    }
+
+    // Check if we have a type or just '='
+    next_next_t := lexer.peek_ahead(2)
+    next_next_token_type := next_next_t.token_type
+
+    switch next_next_token_type {
+    case TokenType.Identifier:
+        // Has explicit type: mut x: I64 = ...
+        type_name := next_next_t.token_str
+        return parse_declaration(lexer, true, type_name)
+    case TokenType.Equal:
+        // Type inference: mut x := ...
+        return parse_declaration(lexer, true, INFER_TYPE)
+    case:
+        throw t.error(format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", enum_to_str(next_next_token_type), "'."))
+    }
+}
+
+// Parse a case expression in a switch: either a primary expression or a range (a..b)
+parse_case_expr := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    left := parse_primary(lexer)
+    t := lexer.peek()
+
+    switch t.token_type {
+    case TokenType.DoubleDot:
+        // Range expression: a..b
+        lexer.advance(1)
+        right := parse_primary(lexer)
+        mut range_params := ExprArray.new()
+        range_params.push(left)
+        range_params.push(right)
+        return Expr.new_parse(NodeType.Range, t, range_params)
+    case:
+        // Just a single expression
+        return left
+    }
+}
+
+// Parse a switch statement: switch expr { case ...: body }
+parse_switch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    t := lexer.peek()
+    initial_index := lexer.current_token
+    lexer.advance(1)
+    mut params := ExprArray.new()
+
+    // Parse the value being switched on
+    prim := parse_primary(lexer)
+    params.push(prim)
+
+    // Expect left brace
+    peek_t := lexer.peek()
+    switch peek_t.token_type {
+    case TokenType.LeftBrace:
+        lexer.advance(1)
+    case:
+        throw t.error("Expected '{' after primary expression in 'switch' statement.")
+    }
+
+    // Parse case statements
+    mut end_found := false
+    while and(lt(lexer.current_token, lexer.len()), not(end_found)) {
+        mut next_t := lexer.peek()
+
+        // Expect 'case' keyword
+        switch next_t.token_type {
+        case TokenType.Case:
+            // Good
+        case:
+            throw next_t.error(format("Expected 'case' in switch, found '", enum_to_str(next_t.token_type), "'"))
+        }
+
+        lexer.advance(1)
+        next_t = lexer.peek()
+
+        // Check if it's default case (case:) or regular case (case expr:)
+        switch next_t.token_type {
+        case TokenType.Colon:
+            // Default case
+            default_case := Expr.new_parse(NodeType.DefaultCase, t, ExprArray.new())
+            params.push(default_case)
+        case:
+            // Regular case with expression
+            case_prim := parse_case_expr(lexer)
+            params.push(case_prim)
+        }
+
+        // Expect colon
+        next_t = lexer.peek()
+        switch next_t.token_type {
+        case TokenType.Colon:
+            lexer.advance(1)
+        case:
+            throw next_t.error(format("Expected ':' after case expression in switch, found '", enum_to_str(next_t.token_type), "'"))
+        }
+
+        // Parse case body
+        next_t = lexer.peek()
+        mut body_params := ExprArray.new()
+        mut body_continue := true
+        while body_continue {
+            switch next_t.token_type {
+            case TokenType.RightBrace:
+                // End of switch
+                body := Expr.new_parse(NodeType.Body, t, body_params)
+                params.push(body)
+                end_found = true
+                body_continue = false
+                lexer.advance(1)
+            case TokenType.Case:
+                // Next case
+                body := Expr.new_parse(NodeType.Body, t, body_params)
+                params.push(body)
+                body_continue = false
+            case:
+                // Statement in case body
+                stmt := parse_statement(lexer)
+                body_params.push(stmt)
+                next_t = lexer.peek()
+            }
+        }
+    }
+
+    return Expr.new_parse(NodeType.Switch, lexer.get_token(initial_index), params)
 }
 
 // Parse a catch statement: catch (err: ErrorType) { body }
