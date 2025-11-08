@@ -124,11 +124,20 @@ src/rstil.rs           - CLI orchestration, main() (REMAINING)
 - Ready for module extraction
 - All tests pass
 
-** Phase 2: Extract init.rs (TODO)
-Move from rstil.rs to init.rs:
-- =init_context()= function
-- =init_import_declarations()= function
-- Helper functions used only by init
+** DONE Phase 2: Extract init.rs
+*Status:* Complete
+
+Moved from rstil.rs to src/rs/init.rs:
+- [X] =init_context()= function
+- [X] =init_import_declarations()= function
+- [X] Helper functions: =get_value_type()=, =get_fcall_value_type()=, =get_ufcs_fcall_value_type()=, =value_type_func_proc()=, =get_func_name_in_call()=
+- [X] Made Context and SymbolInfo pub to be accessible from init module
+- [X] Updated all call sites in rstil.rs to use =rs::init::= prefix
+
+*Benefits:*
+- Init phase cleanly separated from rstil.rs
+- Clear module boundary between init and other phases
+- All tests pass
 
 ** Phase 3: Extract typer.rs (TODO)
 Move from rstil.rs to typer.rs:
