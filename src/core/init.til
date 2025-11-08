@@ -30,6 +30,11 @@ Context := struct {
     mut struct_defs: StrMap = StrMap()         // struct_name -> SStructDef (as JSON for now)
     mut arena_index: StrMap = StrMap()         // var_name -> arena_offset (as str)
     mut arena: Arena = Arena()                 // Memory storage
+    mut temp_enum_payload_exists: Bool = false // Whether temp enum payload exists
+    mut temp_enum_payload: Str = ""            // Temp storage for enum payload during construction
+    mut imports_declarations_done: StrMap = StrMap()  // Tracks imports with declarations copied
+    mut imports_values_done: StrMap = StrMap() // Tracks imports with values initialized
+    mut imports_wip: StrMap = StrMap()         // Work-in-progress imports for cycle detection
 
     // Create new context
     new := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
@@ -42,6 +47,11 @@ Context := struct {
         ctx.struct_defs = StrMap.new()
         ctx.arena_index = StrMap.new()
         ctx.arena = Arena.new()
+        ctx.temp_enum_payload_exists = false
+        ctx.temp_enum_payload = ""
+        ctx.imports_declarations_done = StrMap.new()
+        ctx.imports_values_done = StrMap.new()
+        ctx.imports_wip = StrMap.new()
         return ctx
     }
 
