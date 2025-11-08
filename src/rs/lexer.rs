@@ -523,10 +523,7 @@ pub fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String>
         return Err(format!("{}:{}:{} compiler ERROR: Nothing to be done", path, 0, 0));
     }
 
-    let mut errors_found: usize = 0;
-    for t in &lexer.tokens {
-        print_if_lex_error(&path, &t, &mut errors_found)
-    }
+    let errors_found = print_lex_errors(&lexer.tokens, &path);
     if errors_found > 0 {
         return Err(format!("Compiler errors: {} lexical errors found", errors_found));
     }

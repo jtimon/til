@@ -702,12 +702,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     case:
     }
 
-    mut errors := 0
-    for i in 0..tokens.len {
-        mut t := Token()
-        tokens.get(i, t)
-        print_if_lex_error(path, t, errors)
-    }
+    errors := print_lex_errors(tokens, path)
     if gt(errors, 0) {
         throw format("Compiler errors: ", I64.to_str(errors), " lexical errors found")
     }
