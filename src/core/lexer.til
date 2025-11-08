@@ -186,9 +186,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 
     eof_pos := source.len()
     mut pos := 0
-    // NOTE: Rust version starts line at 1, but we start at 0 to avoid adding 1 everywhere
-    // Both approaches are valid, this is simpler
-    mut line := 0
+    mut line := 1
     mut start_line_pos := 0
 
     while pos.lt(eof_pos) {

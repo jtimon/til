@@ -114,7 +114,7 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 - [X] Validate functional equivalence
 
 *Phase 2: Critical Bugs (MUST FIX)*
-- [ ] Fix line numbering (0-based vs 1-based) - Rust line 258, TIL line 191
+- [X] Fix line numbering (0-based vs 1-based) - Both now start at line 1
 - [ ] Fix column calculation +1 inconsistencies - Rust uses +1 for 1-based columns (correct)
 - [X] Fix number token column (use start not pos) - TIL line 229
 - [X] Fix TIL comment scanning bug (2 chars vs 1) - TIL line 336
