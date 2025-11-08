@@ -499,7 +499,15 @@ Lexer := struct {
         }
         mut t := Token()
         self_tokens.get(i, t)
-        return TokenType.eq(t.token_type, TokenType.Eof)
+        // Compare TokenType using switch
+        mut is_eof := false
+        switch t.token_type {
+        case TokenType.Eof:
+            is_eof = true
+        case:
+            is_eof = false
+        }
+        return is_eof
     }
 
     get_token := func(self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
@@ -574,7 +582,15 @@ Lexer := struct {
 
     expect := func(mut self: Lexer, expected: TokenType) returns Token {
         p := self.peek()
-        if TokenType.eq(p.token_type, expected) {
+        mut matches := false
+        // Compare TokenType enums using switch
+        switch p.token_type {
+        case expected:
+            matches = true
+        case:
+            matches = false
+        }
+        if matches {
             self.advance(1)
             return p
         }
