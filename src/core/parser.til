@@ -93,51 +93,22 @@ NodeType := enum {
     Range,
 }
 
-ExprArray := struct {
-    mut data: Array = Array()      // Array to hold Expr elements
-    mut count: I64 = 0              // Number of elements currently stored
-    mut capacity: I64 = 16          // Maximum capacity (fixed for Phase 2)
+// ExprArray has been removed - we now use Array directly for Expr.params
+// Helper function for creating dynamic Expr arrays:
 
-    new := proc() returns ExprArray throws AllocError {
-        mut arr := ExprArray()
-        // For now, use fixed capacity since dynamic arrays of structs are complex
-        arr.data = Array.new("Expr", size_of(Expr), 16)
-        arr.count = 0
-        arr.capacity = 16
-        return arr
-    }
-
-    push := proc(mut self: ExprArray, e: Expr) throws IndexOutOfBoundsError, FullError {
-        if gteq(self.count, self.capacity) {
-            throw FullError.new("ExprArray is full")
-        }
-        mut data := self.data
-        data.set(self.count, e)
-        self.count = add(self.count, 1)
-    }
-
-    get := func(self: ExprArray, index: I64, mut result: Expr) throws IndexOutOfBoundsError {
-        if or(lt(index, 0), gteq(index, self.count)) {
-            throw IndexOutOfBoundsError.new("ExprArray index out of bounds")
-        }
-        data := self.data
-        data.get(index, result)
-    }
-
-    len := func(self: ExprArray) returns I64 {
-        return self.count
-    }
+new_expr_array := proc() returns Array {
+    return Array.new_dyn("Expr", size_of(Expr))
 }
 
 // TODO improve error: when we forget "mut" in fields: "Cannot declare 'Expr.node_type' of custom type 'NodeType'"
 Expr := struct {
     mut node_type: NodeType = NodeType.Identifier
-    mut params: ExprArray = ExprArray()
+    mut params: Array = Array()
     mut line: I64 = 0
     mut col: I64 = 0
 
     // Constructor from token
-    new_parse := func(node_type: NodeType, token: Token, params: ExprArray) returns Expr {
+    new_parse := func(node_type: NodeType, token: Token, params: Array) returns Expr {
         mut e := Expr()
         e.node_type = node_type
         e.params = params
@@ -147,7 +118,7 @@ Expr := struct {
     }
 
     // Constructor with explicit line/col
-    new_explicit := func(node_type: NodeType, params: ExprArray, line: I64, col: I64) returns Expr {
+    new_explicit := func(node_type: NodeType, params: Array, line: I64, col: I64) returns Expr {
         mut e := Expr()
         e.node_type = node_type
         e.params = params
@@ -190,12 +161,13 @@ Expr := struct {
 
     // Safe parameter access (returns expression at index or error)
     get := func(self: Expr, index: I64) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // TODO: implement when ExprArray.get is implemented
-        if gteq(index, 0) {
-            return Expr()  // placeholder
+        if or(lt(index, 0), gteq(index, self.params.len)) {
+            err_msg := self.error("eval", format("Parameter index ", index.to_str(), " out of bounds"))
+            throw err_msg
         }
-        err_msg := self.error("eval", format("Parameter index ", index.to_str(), " out of bounds"))
-        throw err_msg
+        mut result := Expr()
+        self.params.get(index, result)
+        return result
     }
 }
 
@@ -256,8 +228,8 @@ is_literal := func(t: Token) returns Bool {
 }
 
 // Parse a literal value (string, number, or boolean)
-parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError {
-    mut params := ExprArray.new()
+parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str {
+    mut params := new_expr_array()
     tt_str := enum_to_str(t.token_type)
 
     mut node_type := NodeType.Literal(LiteralNodeType.String(""))
@@ -289,7 +261,7 @@ parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, Alloc
 // Parse a list (parenthesized expression)
 parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     mut rightparen_found := false
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     initial_index := lexer.current_token
 
     lexer.expect(TokenType.LeftParen)
@@ -370,7 +342,7 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
     t := lexer.peek()
     mut next_t := lexer.next()
     mut current_identifier := t.token_str
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Handle dotted identifiers (a.b.c)
     mut continue_dotted := true
@@ -385,7 +357,7 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
 
                 // Create identifier expr and add to params
                 id_node := NodeType.Identifier(current_identifier)
-                id_expr := Expr.new_parse(id_node, t, ExprArray.new())
+                id_expr := Expr.new_parse(id_node, t, new_expr_array())
                 params.push(id_expr)
 
                 next_t = lexer.next()
@@ -410,12 +382,12 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
         arg_list := parse_list(lexer)
 
         // Create FCall with identifier as first param, followed by arguments
-        mut fcall_params := ExprArray.new()
+        mut fcall_params := new_expr_array()
         fcall_params.push(e)
 
         // Add all arguments from the parsed list
         mut arg_list_params := arg_list.params
-        for i in 0..arg_list_params.count {
+        for i in 0..arg_list_params.len {
             mut arg := Expr()
             arg_list_params.get(i, arg)
             fcall_params.push(arg)
@@ -449,14 +421,14 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
 
                         // Create a new FCall with the method name as identifier and previous result as first arg
                         method_id_node := NodeType.Identifier(method_name)
-                        method_id := Expr.new_parse(method_id_node, method_t, ExprArray.new())
-                        mut new_params := ExprArray.new()
+                        method_id := Expr.new_parse(method_id_node, method_t, new_expr_array())
+                        mut new_params := new_expr_array()
                         new_params.push(method_id)
                         new_params.push(result)  // Previous call result becomes first argument
 
                         // Add method arguments
                         mut method_args_params := method_args.params
-                        for i in 0..method_args_params.count {
+                        for i in 0..method_args_params.len {
                             mut arg := Expr()
                             method_args_params.get(i, arg)
                             new_params.push(arg)
@@ -494,7 +466,7 @@ get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutO
 
         // Check if there are params (dotted access like Foo.bar)
         mut e_params := e.params
-        params_len := e_params.count
+        params_len := e_params.len
         if gt(params_len, 0) {
             // Get the first param (the rest of the dotted name)
             mut first_param := Expr()
@@ -515,15 +487,15 @@ get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutO
     }
 }
 
-parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws IndexOutOfBoundsError, AllocError, FullError {
+parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, FullError {
     lexer.expect(TokenType.Equal)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     params.push(parse_primary(lexer))
     assignment_node := NodeType.Assignment(name)
     return Expr.new_parse(assignment_node, t, params)
 }
 
-parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError, AllocError, FullError {
+parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError, FullError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
@@ -533,7 +505,7 @@ parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
         lexer.advance(1) // skip type identifier
     }
 
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     params.push(parse_primary(lexer))
 
     mut decl := Declaration()
@@ -633,7 +605,7 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 parse_return_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_index := lexer.current_token
     lexer.advance(1)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Try to parse first expression (optional - return might have no value)
     prim := parse_primary(lexer)
@@ -665,7 +637,7 @@ parse_return_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexO
 parse_if_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_index := lexer.current_token
     lexer.advance(1)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Parse condition
     prim := parse_primary(lexer)
@@ -709,7 +681,7 @@ parse_if_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOf
 parse_while_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_index := lexer.current_token
     lexer.advance(1)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Parse condition
     prim := parse_primary(lexer)
@@ -784,42 +756,42 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
     // Create: mut loop_var := start_expr
     // Note: Declaration info (name, type, is_mut) not stored in AST yet due to tagged unions not working
-    mut decl_params := ExprArray.new()
+    mut decl_params := new_expr_array()
     decl_params.push(start_expr)
     mut decl_expr := Expr.new_parse(NodeType.Declaration, initial_token, decl_params)
 
     // Create condition: loop_var.lt(end_expr)
     // This creates an AST like: loop_var.lt(end_expr) which becomes a function call
-    mut lt_id_params := ExprArray.new()
+    mut lt_id_params := new_expr_array()
     mut lt_id_node := NodeType.Identifier("lt")
-    mut empty_params := ExprArray.new()
+    mut empty_params := new_expr_array()
     mut lt_ident := Expr.new_parse(lt_id_node, initial_token, empty_params)
     lt_id_params.push(lt_ident)
     mut loop_var_node := NodeType.Identifier(loop_var_name)
     mut loop_var_id := Expr.new_parse(loop_var_node, initial_token, lt_id_params)
 
-    mut cond_params := ExprArray.new()
+    mut cond_params := new_expr_array()
     cond_params.push(loop_var_id)
     cond_params.push(end_expr)
     mut cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, initial_token.line, initial_token.col)
 
     // Create increment: loop_var.inc()
-    mut inc_id_params := ExprArray.new()
+    mut inc_id_params := new_expr_array()
     mut inc_id_node := NodeType.Identifier("inc")
-    mut empty_params2 := ExprArray.new()
+    mut empty_params2 := new_expr_array()
     mut inc_ident := Expr.new_parse(inc_id_node, initial_token, empty_params2)
     inc_id_params.push(inc_ident)
     mut loop_var_node2 := NodeType.Identifier(loop_var_name)
     mut loop_var_id2 := Expr.new_parse(loop_var_node2, initial_token, inc_id_params)
-    mut inc_params := ExprArray.new()
+    mut inc_params := new_expr_array()
     inc_params.push(loop_var_id2)
     mut inc_expr := Expr.new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
 
     // Create while body with original body + increment
-    mut while_body_params := ExprArray.new()
+    mut while_body_params := new_expr_array()
     mut i := 0
     mut body_params := body_expr.params
-    while i.lt(body_params.len()) {
+    while i.lt(body_params.len) {
         mut param := Expr()
         body_params.get(i, param)
         while_body_params.push(param)
@@ -829,13 +801,13 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     mut while_body := Expr.new_explicit(NodeType.Body, while_body_params, body_expr.line, body_expr.col)
 
     // Create while statement
-    mut while_params := ExprArray.new()
+    mut while_params := new_expr_array()
     while_params.push(cond_expr)
     while_params.push(while_body)
     while_expr := Expr.new_explicit(NodeType.While, while_params, initial_token.line, initial_token.col)
 
     // Wrap in a body with declaration and while
-    mut result_params := ExprArray.new()
+    mut result_params := new_expr_array()
     result_params.push(decl_expr)
     result_params.push(while_expr)
     return Expr.new_explicit(NodeType.Body, result_params, initial_token.line, initial_token.col)
@@ -1095,7 +1067,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     }
     if is_declaration {
         // Function declaration without body (e.g., external function)
-        body = Expr.new_explicit(NodeType.Body, ExprArray.new(), initial_token.line, initial_token.col)
+        body = Expr.new_explicit(NodeType.Body, new_expr_array(), initial_token.line, initial_token.col)
     } else {
         // Parse the function body
         body = parse_body(lexer, TokenType.RightBrace)
@@ -1106,7 +1078,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     func_def.function_type = func_type
     func_def.body = body
 
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     mut func_def_node := NodeType.FuncDef(func_def)
     return Expr.new_parse(func_def_node, initial_token, params)
 }
@@ -1115,7 +1087,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
 parse_throw_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_index := lexer.current_token
     lexer.advance(1)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Try to parse first expression (optional - throw might have no value)
     prim := parse_primary(lexer)
@@ -1144,7 +1116,7 @@ parse_throw_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
 }
 
 // Parse a mutable variable declaration: mut x: Type = value  or  mut x := value
-parse_mut_declaration := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+parse_mut_declaration := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, FullError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -1197,7 +1169,7 @@ parse_case_expr := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         // Range expression: a..b
         lexer.advance(1)
         right := parse_primary(lexer)
-        mut range_params := ExprArray.new()
+        mut range_params := new_expr_array()
         range_params.push(left)
         range_params.push(right)
         return Expr.new_parse(NodeType.Range, t, range_params)
@@ -1212,7 +1184,7 @@ parse_switch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexO
     t := lexer.peek()
     initial_index := lexer.current_token
     lexer.advance(1)
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Parse the value being switched on
     prim := parse_primary(lexer)
@@ -1247,7 +1219,7 @@ parse_switch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexO
         switch next_t.token_type {
         case TokenType.Colon:
             // Default case
-            default_case := Expr.new_parse(NodeType.DefaultCase, t, ExprArray.new())
+            default_case := Expr.new_parse(NodeType.DefaultCase, t, new_expr_array())
             params.push(default_case)
         case:
             // Regular case with expression
@@ -1266,7 +1238,7 @@ parse_switch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexO
 
         // Parse case body
         next_t = lexer.peek()
-        mut body_params := ExprArray.new()
+        mut body_params := new_expr_array()
         mut body_continue := true
         while body_continue {
             switch next_t.token_type {
@@ -1305,7 +1277,7 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     name_token := lexer.peek()
     lexer.expect(TokenType.Identifier)
     name := name_token.token_str
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
 
     // Create name expression manually
     mut name_expr := Expr()
@@ -1362,15 +1334,15 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
 
     mut i := 0
     mut body_params := body.params
-    while i.lt(body_params.len()) {
+    while i.lt(body_params.len) {
         mut param := Expr()
         body_params.get(i, param)
 
         switch param.node_type {
         case NodeType.Declaration:
-            // Check that declaration has a value (params.len() == 1)
+            // Check that declaration has a value (params.len == 1)
             mut param_params := param.params
-            param_count := param_params.len()
+            param_count := param_params.len
             if not(param_count.eq(1)) {
                 throw t.error("all declarations inside struct definitions must have a value for now")
             }
@@ -1387,7 +1359,7 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     struct_def.members = members
     struct_def.default_values = default_values
 
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     mut struct_def_node := NodeType.StructDef(struct_def)
     return Expr.new_parse(struct_def_node, initial_token, params)
 }
@@ -1469,13 +1441,13 @@ enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     mut enum_def := SEnumDef()
     enum_def.enum_map = enum_map
 
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     mut enum_def_node := NodeType.EnumDef(enum_def)
     return Expr.new_parse(enum_def_node, lexer.get_token(initial_index), params)
 }
 
 parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
-    mut params := ExprArray.new()
+    mut params := new_expr_array()
     mut end_found := false
     start_token := lexer.peek()
 
