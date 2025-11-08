@@ -1162,3 +1162,24 @@ init_context := proc(mode_def: ModeDef, path: Str) returns Context throws AllocE
     // For now, just return the basic context
     return ctx
 }
+
+// Check if function/proc has variadic arguments
+// Corresponds to func_proc_has_multi_arg in typer.rs
+func_proc_has_multi_arg := proc(func_def: SFuncDef) returns Bool {
+    // TODO: Need to iterate through func_def.args and check for TMulti type
+    // For now, return false (no variadic support in type checking yet)
+    TODO(loc(), "func_proc_has_multi_arg: Need SFuncDef arg iteration")
+    return false
+}
+
+// Get function definition for a function call
+// Corresponds to get_func_def_for_fcall_with_expr in typer.rs
+// Returns Option.Some(SFuncDef) if found, Option.None for struct constructors
+get_func_def_for_fcall := proc(context: Context, e: Expr) returns Option throws Str, IndexOutOfBoundsError {
+    // TODO: Extract function name, look up in context.funcs
+    // TODO: Handle UFCS (Uniform Function Call Syntax)
+    // TODO: Return None for struct constructors
+    // For now, return None to allow struct instantiation
+    TODO(loc(), "get_func_def_for_fcall: Need function lookup implementation")
+    return Option.None
+}
