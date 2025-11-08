@@ -1,0 +1,13 @@
+mode lib
+
+import("src/core/init")
+
+// Typer phase: Type checking and validation
+// Corresponds to src/rs/typer.rs in the Rust implementation
+
+// Type check an AST expression
+// Corresponds to check_types in typer.rs
+check_types := proc(mut context: Context, ast: Expr) throws Str {
+    // TODO: Implement type checking
+    // For now, just a placeholder
+}
