@@ -142,8 +142,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "func": return TokenType.Func
     case "proc": return TokenType.Proc
     case "macro": return TokenType.Macro // TODO implement for real once we compile
-    case "ext_func": return TokenType.FuncExt // this have to link when we compile
-    case "ext_proc": return TokenType.ProcExt // this have to link when we compile
+    case "ext_func": return TokenType.FuncExt // this has to link when we compile
+    case "ext_proc": return TokenType.ProcExt // this has to link when we compile
 
         // control flow
     case "if": return TokenType.If
