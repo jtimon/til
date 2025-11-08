@@ -196,8 +196,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 pos.inc()
             }
             // Look for a fractional part.
-            // TODO: Use source.get_substr(pos, pos.add(1)).eq(".") once UFCS supports function call return values
-            if and(Str.eq(source.get_substr(pos, pos.add(1)), "."), source.is_digit(pos.add(1))) {
+            if and(source.get_substr(pos, pos.add(1)).eq("."), source.is_digit(pos.add(1))) {
                 pos.inc()
                 while and(pos.lt(eof_pos), source.is_digit(pos)) {
                     pos.inc()
@@ -238,7 +237,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 pos.inc()
 
             case ";":
-                if Str.eq(";", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq(";") {
                     scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, pos.sub(start_line_pos))
                     pos = pos.add(2)
                 } else {
@@ -267,7 +266,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 
                 // reserved for two chars in a row
             case ".":
-                if Str.eq(".", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq(".") {
                     scan_push_token(tokens, TokenType.DoubleDot, "..", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
@@ -275,7 +274,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 }
                 pos.inc()
             case "=":
-                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
                     scan_push_token(tokens, TokenType.EqualEqual, "==", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
@@ -283,7 +282,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 }
                 pos.inc()
             case "<":
-                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
                     scan_push_token(tokens, TokenType.LesserEqual, "<=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
@@ -291,7 +290,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 }
                 pos.inc()
             case ">":
-                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
                     scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
@@ -299,7 +298,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 }
                 pos.inc()
             case "!":
-                if Str.eq("=", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
                     scan_push_token(tokens, TokenType.NotEqual, "!=", line, pos.sub(start_line_pos))
                     pos.inc()
                 } else {
@@ -310,18 +309,18 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 // comments:
             case "#":
                 pos.inc()
-                while and(lt(pos.add(1), eof_pos), not(Str.eq("\n", source.get_substr(pos, pos.add(2))))) {
+                while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(2)).eq("\n"))) {
                     pos.inc()
                 }
             case "/":
-                if Str.eq("/", source.get_substr(pos.add(1), pos.add(2))) {
+                if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
                     // Single-line comment
                     pos = pos.add(2)
-                    while and(lt(pos.add(1), eof_pos), not(Str.eq("\n", source.get_substr(pos, pos.add(2))))) {
+                    while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(2)).eq("\n"))) {
                         pos.inc()
                     }
                     pos.inc()
-                } else if Str.eq("*", source.get_substr(pos.add(1), pos.add(2))) {
+                } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
                     // Nested block comment
                     pos = pos.add(2)
                     depth := 1
@@ -340,7 +339,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                                 done = true
                             }
                         } else {
-                            if Str.eq("\n", source.get_substr(pos, pos.add(1))) {
+                            if source.get_substr(pos, pos.add(1)).eq("\n") {
                                 line.inc()
                                 start_line_pos = pos.add(1)
                             }
