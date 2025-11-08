@@ -443,6 +443,27 @@ Context := struct {
         // For now, just throw TODO
         throw format(loc(), " TODO: insert_struct not fully implemented for '", var_name, "' of type '", custom_type_name, "'")
     }
+
+    // Register struct fields for type checking without evaluating defaults
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws Str, AllocError {
+        // TODO: Look up struct definition, register all field symbols for type checking
+        // For now, just throw TODO
+        throw format(loc(), " TODO: register_struct_fields_for_typecheck not fully implemented for '", instance_name, "' of type '", struct_type_name, "'")
+    }
+
+    // Get Str value from arena by variable name
+    get_str := func(self: Context, var_name: Str) returns Str throws Str, IndexOutOfBoundsError {
+        // TODO: Look up c_string and cap offsets, read pointer and length, return string
+        // For now, just throw TODO
+        throw format(loc(), " TODO: get_str not fully implemented for '", var_name, "'")
+    }
+
+    // Insert Str value into arena
+    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+        // TODO: Allocate string data in arena, store pointer and cap in struct fields
+        // For now, just throw TODO
+        throw format(loc(), " TODO: insert_str not fully implemented for '", var_name, "'")
+    }
 }
 
 // Get enum variant position by name
