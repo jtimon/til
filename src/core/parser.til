@@ -487,7 +487,7 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return e
 }
 
-parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     mut params := ExprArray.new()
     mut end_found := false
     start_token := lexer.peek()

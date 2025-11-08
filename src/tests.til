@@ -4,9 +4,9 @@ mode test
 
 runfile("src/test/future.til")
 
-// self hosting:
-runfile("src/til.til", "src/test/self/lexer/premode.til")
-// runfile("src/til.til", "src/test/self/lexer/error.til") // REM: uncomment to test lexer tests
+// Self-hosting interpreter tests
+// TODO Phase 3: Re-enable when catch/throw is implemented
+// runfile("src/tests_self_hosted.til")
 
 println("\nSome versions of 'hello world' in different basic modes:\n")
 

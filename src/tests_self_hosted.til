@@ -1,0 +1,20 @@
+mode test
+
+// Self-hosting interpreter tests
+// The til interpreter (written in til) running til programs
+
+println("\n=== Self-Hosted Interpreter Tests ===\n")
+
+// Basic lexer test (just parses, exits)
+println("Testing lexer with premode.til...")
+runfile("src/til.til", "src/test/self/lexer/premode.til")
+println("[PASS] Lexer test passed\n")
+
+// runfile("src/til.til", "src/test/self/lexer/error.til") // REM: uncomment to test lexer error tests
+
+// Phase 2 capabilities test (literals, variables, arithmetic, comparisons)
+println("Testing Phase 2 interpreter capabilities...")
+runfile("src/til.til", "src/test/self/phase2_test.til")
+println("[PASS] Phase 2 test passed\n")
+
+println("=== All Self-Hosted Interpreter Tests Passed! ===\n")

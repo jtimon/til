@@ -621,7 +621,7 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
 }
 
 // Run a file: read, lex, parse, and evaluate
-run_file_or_exit := proc(path: Str) {
+run_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     println("Running file '", path, "'")
 
     // Create lexer (reads file internally)
@@ -649,26 +649,8 @@ run_file_or_exit := proc(path: Str) {
 
     // Success - no need to print result for test mode
 
-    catch (err: Str) {
-        println("ERROR: While running file ", path, ":\n", path, ":", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: While running file ", path, ":\n", path, ": AllocError: ", err.msg)
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR: While running file ", path, ":\n", path, ": IndexOutOfBoundsError: ", err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR: While running file ", path, ":\n", path, ": I64_OverflowError: ", err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR: While running file ", path, ":\n", path, ": FullError: ", err.msg)
-        exit(1)
-    }
+    // TODO Phase 3: Add catch blocks for error handling
+    // For now, errors will propagate up and be caught by the Rust runtime
 }
 
 usage := proc() {
@@ -687,7 +669,7 @@ usage := proc() {
     println("version, --version, -v: Prints version.\n");
 }
 
-main := proc(args: ..Str) {
+main := proc(args: ..Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
 
     if gt(args.len, 1) {
         mut main_args := Array.new("Str", size_of(Str), sub(args.len, 1))
@@ -711,7 +693,10 @@ main := proc(args: ..Str) {
             // REM: It is fine to args.get(1) here, we just checked
         }
         switch cmd {
-        case "interpret" : run_file_or_exit(val1)
+        case "interpret" :
+            run_file_or_exit(val1)
+            // TODO Phase 3: Add catch blocks for error handling
+            // For now, errors propagate to Rust runtime
         // case "interpret" : run_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
         case "build"     : usage()
@@ -745,6 +730,8 @@ main := proc(args: ..Str) {
         case "run"       : usage()
         case:
             run_file_or_exit(path)
+            // TODO Phase 3: Add catch blocks for error handling
+            // For now, errors propagate to Rust runtime
             // run_file_or_exit(path, Array.new("Str", size_of(Str), 0)) // TODO FIX
         }
     } else {

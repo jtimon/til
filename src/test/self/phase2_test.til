@@ -1,0 +1,19 @@
+// Test Phase 2 self-hosted interpreter capabilities
+
+// Test literals
+x := 42
+name := "Alice"
+flag := true
+
+// Test arithmetic
+result := add(mul(3, 4), 2)  // 3 * 4 + 2 = 14
+
+// Test comparisons
+is_less := lt(10, 20)  // true
+is_greater := gt(5, 10)  // false
+
+// Test reassignment
+x = 100
+
+println("Phase 2 test completed successfully!")
+exit(0)
