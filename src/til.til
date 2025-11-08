@@ -1,10 +1,23 @@
 mode cli
 
-import("src/core/interpreter")
-// interpreter := import("src/core/interpreter") // TODO accept imports as declarations of struct (as namespace)
+import("src/core/parser")
+import("src/core/modes/modes")
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/core/modes/repl.til"
+
+// Context for type checking and evaluation
+// Mimics Context struct in rstil.rs
+Context := struct {
+    // TODO: Add fields as needed for type checking and evaluation
+}
+
+// Evaluate an expression
+// Mimics eval_expr in rstil.rs
+eval_expr := proc(context: Context, e: Expr) returns Str {
+    TODO(loc(), "Implement eval_expr")
+    return ""
+}
 
 // FIX Cannot use 'main_args' of type 'StrArray' as an argument. Only name of struct instances allowed for struct arguments for now.
 // run_file_or_exit := proc(path: Str, main_args: StrArray) {

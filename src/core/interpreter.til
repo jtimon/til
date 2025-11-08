@@ -1,8 +1,0 @@
-mode lib
-
-import("src/core/typer")
-
-eval_expr := proc(context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_expr")
-    return ""
-}
