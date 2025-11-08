@@ -648,6 +648,77 @@ impl Context {
         return Ok(())
     }
 
+    fn get_enum_at_offset(&self, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
+        // Read enum from a specific offset (used for nested enum payloads)
+        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
+                                            .map_err(|_| e.lang_error("context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
+
+        let enum_def = self.enum_defs.get(enum_type)
+            .ok_or_else(|| e.lang_error("context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
+
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, e)?;
+
+        // Check if this variant has a payload type
+        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let (payload_data, payload_type) = match variant_payload_type {
+            Some(Some(vtype)) => {
+                // This variant has a payload - recursively determine size
+                let payload_size = self.get_payload_size_for_type(vtype, offset + 8, e)?;
+                if payload_size > 0 {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_size;
+                    if payload_end <= Arena::g().memory.len() {
+                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        (Some(payload_bytes), Some(vtype.clone()))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            },
+            _ => (None, None),
+        };
+
+        Ok(EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name,
+            payload: payload_data,
+            payload_type,
+        })
+    }
+
+    fn get_payload_size_for_type(&self, vtype: &ValueType, offset: usize, e: &Expr) -> Result<usize, String> {
+        match vtype {
+            ValueType::TCustom(type_name) if type_name == "Bool" => Ok(1),
+            ValueType::TCustom(type_name) if type_name == "I64" => Ok(8),
+            ValueType::TCustom(type_name) => {
+                match self.symbols.get(type_name) {
+                    Some(type_symbol) => {
+                        match &type_symbol.value_type {
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                self.get_type_size(type_name).map_err(|e| e.to_string())
+                            },
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                // Recursively get the inner enum's size
+                                let inner_enum = self.get_enum_at_offset(type_name, offset, e)?;
+                                let mut total_size = 8; // variant tag
+                                if let Some(inner_payload) = &inner_enum.payload {
+                                    total_size += inner_payload.len();
+                                }
+                                Ok(total_size)
+                            },
+                            _ => Ok(0),
+                        }
+                    },
+                    None => Ok(0),
+                }
+            },
+            _ => Ok(0),
+        }
+    }
+
     fn get_enum(&self, id: &str, e: &Expr) -> Result<EnumVal, String> {
         let symbol_info = self.symbols.get(id)
             .ok_or_else(|| e.lang_error("context", &format!("get_enum: Symbol '{}' not found", id)))?;
@@ -677,14 +748,24 @@ impl Context {
                 let payload_size = match vtype {
                     ValueType::TCustom(type_name) if type_name == "Bool" => 1,
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
-                    ValueType::TCustom(struct_type_name) => {
-                        // Check if this is a struct type
-                        match self.symbols.get(struct_type_name) {
+                    ValueType::TCustom(type_name) => {
+                        // Check if this is a struct or enum type
+                        match self.symbols.get(type_name) {
                             Some(type_symbol) => {
                                 match &type_symbol.value_type {
                                     ValueType::TType(TTypeDef::TStructDef) => {
                                         // Get struct size
-                                        self.get_type_size(struct_type_name).unwrap_or(0)
+                                        self.get_type_size(type_name).unwrap_or(0)
+                                    },
+                                    ValueType::TType(TTypeDef::TEnumDef) => {
+                                        // For enum payloads, recursively get the enum to determine size
+                                        let inner_enum = self.get_enum_at_offset(type_name, offset + 8, e)?;
+                                        // Size is: 8 bytes (tag) + payload bytes
+                                        let mut total_size = 8;
+                                        if let Some(inner_payload) = &inner_enum.payload {
+                                            total_size += inner_payload.len();
+                                        }
+                                        total_size
                                     },
                                     _ => 0,
                                 }
@@ -3199,6 +3280,60 @@ fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Resul
                     Arena::g().memory[*dest_offset..*dest_offset + struct_size]
                         .copy_from_slice(&payload_bytes);
                 },
+                ValueType::TType(TTypeDef::TEnumDef) => {
+                    // Handle enum payloads
+                    // The payload_bytes contains: [8 bytes variant tag][N bytes enum's payload]
+
+                    if payload_bytes.len() < 8 {
+                        return Err(e.error("eval", "Invalid enum payload: too small"));
+                    }
+
+                    // Extract variant tag (first 8 bytes)
+                    let mut variant_bytes = [0u8; 8];
+                    variant_bytes.copy_from_slice(&payload_bytes[0..8]);
+                    let variant_pos = i64::from_le_bytes(variant_bytes);
+
+                    // Extract enum's own payload (rest of bytes)
+                    let inner_payload = if payload_bytes.len() > 8 {
+                        Some(payload_bytes[8..].to_vec())
+                    } else {
+                        None
+                    };
+
+                    // Get the enum definition to find variant name
+                    let enum_def = context.enum_defs.get(struct_type_name).ok_or_else(|| {
+                        e.error("eval", &format!("Enum definition for '{}' not found", struct_type_name))
+                    })?;
+
+                    // Find variant name by matching the variant position
+                    let mut found_variant = None;
+                    for (name, _) in &enum_def.enum_map {
+                        let pos = Context::get_variant_pos(enum_def, name, e)?;
+                        if pos == variant_pos {
+                            found_variant = Some(name.clone());
+                            break;
+                        }
+                    }
+
+                    let variant_name = found_variant.ok_or_else(|| {
+                        e.error("eval", &format!("Variant position {} not found in enum {}", variant_pos, struct_type_name))
+                    })?;
+
+                    // Get the inner payload type
+                    let inner_payload_type = enum_def.enum_map.get(&variant_name)
+                        .and_then(|opt| opt.clone());
+
+                    // Now reconstruct the enum and insert it
+                    let enum_val_str = format!("{}.{}", struct_type_name, variant_name);
+
+                    // Set temp_enum_payload if there's an inner payload
+                    if let Some(payload_data) = inner_payload {
+                        context.temp_enum_payload = Some((payload_data, inner_payload_type.unwrap()));
+                    }
+
+                    // Insert the enum (needs: id, enum_type, pre_normalized_enum_name, e)
+                    context.insert_enum(dest_var_name, struct_type_name, &enum_val_str, e)?;
+                },
                 _ => {
                     return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(payload_type))));
                 }
@@ -3894,6 +4029,39 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     // Copy struct bytes from arena
                                     let struct_bytes = Arena::g().memory[*offset..*offset + struct_size].to_vec();
                                     struct_bytes
+                                },
+                                ValueType::TType(TTypeDef::TEnumDef) => {
+                                    // Handle enum payloads
+                                    // Get enum variable name from the original expression
+                                    let enum_var_name = match &payload_expr.node_type {
+                                        NodeType::Identifier(name) => name.clone(),
+                                        _ => return Err(e.error("eval", &format!("Enum payload must be a variable identifier, got {:?}", payload_expr.node_type))),
+                                    };
+
+                                    // Get the full enum value including its payload
+                                    let enum_val = context.get_enum(&enum_var_name, e)?;
+
+                                    // Calculate total enum size: 8 bytes tag + payload bytes
+                                    let mut enum_bytes = Vec::new();
+
+                                    // Get the variant position
+                                    let variant_pos = Context::get_variant_pos(
+                                        context.enum_defs.get(struct_type_name).ok_or_else(|| {
+                                            e.error("eval", &format!("Enum definition for '{}' not found", struct_type_name))
+                                        })?,
+                                        &enum_val.enum_name,
+                                        e
+                                    )?;
+
+                                    // Add 8 bytes for variant tag
+                                    enum_bytes.extend_from_slice(&variant_pos.to_le_bytes());
+
+                                    // Add payload bytes if present
+                                    if let Some(payload_data) = &enum_val.payload {
+                                        enum_bytes.extend_from_slice(payload_data);
+                                    }
+
+                                    enum_bytes
                                 },
                                 _ => {
                                     return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));

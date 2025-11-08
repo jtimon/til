@@ -292,3 +292,87 @@ ExampleEnum2 := enum {
     LNumber : I64,
     LString : Str,
 }
+
+// Test enum payloads - Option<Color> pattern
+SimpleColor := enum {
+    Red,
+    Green,
+    Blue,
+}
+
+Option := enum {
+    None,
+    Some: SimpleColor,
+}
+
+test_enum_payloads := proc() {
+    // Test None variant (no payload)
+    opt_none := Option.None
+    assert(loc(), enum_to_str(opt_none).eq("Option.None"))
+
+    // Test Some variant with Color payload
+    my_color := SimpleColor.Red
+    opt_some := Option.Some(my_color)
+
+    mut extracted_color := SimpleColor.Blue
+    enum_extract_payload(opt_some, extracted_color)
+    assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
+
+    // Test with Green
+    green := SimpleColor.Green
+    opt_green := Option.Some(green)
+    mut extracted2 := SimpleColor.Red
+    enum_extract_payload(opt_green, extracted2)
+    assert(loc(), enum_to_str(extracted2).eq("SimpleColor.Green"))
+
+    // Test with Blue
+    blue := SimpleColor.Blue
+    opt_blue := Option.Some(blue)
+    mut extracted3 := SimpleColor.Red
+    enum_extract_payload(opt_blue, extracted3)
+    assert(loc(), enum_to_str(extracted3).eq("SimpleColor.Blue"))
+}
+test_enum_payloads()
+
+// Test nested enums with payloads - Result<Option<Color>, Error>
+ErrorType := enum {
+    NotFound,
+    Invalid,
+}
+
+Result := enum {
+    Ok: Option,
+    Err: ErrorType,
+}
+
+test_nested_enum_payloads := proc() {
+    // Test Ok(Some(Red))
+    red := SimpleColor.Red
+    some_red := Option.Some(red)
+    result_ok := Result.Ok(some_red)
+
+    mut extracted_option := Option.None
+    enum_extract_payload(result_ok, extracted_option)
+    assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
+
+    // Extract the color from the option
+    mut extracted_color := SimpleColor.Blue
+    enum_extract_payload(extracted_option, extracted_color)
+    assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
+
+    // Test Ok(None)
+    none_opt := Option.None
+    result_ok_none := Result.Ok(none_opt)
+    green_temp := SimpleColor.Green
+    mut extracted_option2 := Option.Some(green_temp)
+    enum_extract_payload(result_ok_none, extracted_option2)
+    assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
+
+    // Test Err variant
+    error := ErrorType.NotFound
+    result_err := Result.Err(error)
+    mut extracted_error := ErrorType.Invalid
+    enum_extract_payload(result_err, extracted_error)
+    assert(loc(), enum_to_str(extracted_error).eq("ErrorType.NotFound"))
+}
+test_nested_enum_payloads()
