@@ -698,21 +698,86 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
     // Get function name
     f_name := get_func_name_in_call(e)
 
+    // Check for UFCS call (2+ params means target + args)
+    if not(lt(e.params.len, 2)) {
+        // Get first arg (the UFCS target)
+        mut first_arg := Expr()
+        mut params := e.params
+        params.get(1, first_arg)
+
+        // Try to get type of first argument
+        mut target_type := get_value_type(context, first_arg)
+        catch (err: Str) {
+            // If we can't determine type, fall through to regular function lookup
+        }
+
+        // Check if target type has an associated method
+        target_type_str := enum_to_str(target_type)
+        if target_type_str.eq("ValueType.TCustom") {
+            mut custom_type_name := ""
+            enum_extract_payload(target_type, custom_type_name)
+
+            // Check for associated method
+            mut method_name := ""
+            method_name = custom_type_name
+            method_name = method_name.concat(".")
+            method_name = method_name.concat(f_name)
+
+            mut funcs_map := context.funcs
+            mut method_def_str := funcs_map.get(method_name)
+            if not(method_def_str.eq("")) {
+                // TODO: Parse func_def and return its type
+                // For now, return TCustom placeholder
+                return ValueType.TCustom("MethodReturnType")
+            }
+        }
+    }
+
     // Check if it's a standalone function
     mut funcs_map := context.funcs
     mut func_def_str := funcs_map.get(f_name)
     if not(func_def_str.eq("")) {
-        // TODO: Parse SFuncDef from JSON string
-        // For now, just return a placeholder type
-        throw format(loc(), " TODO: get_fcall_value_type not fully implemented for function '", f_name, "'")
+        // TODO: Parse SFuncDef from storage and call value_type_func_proc
+        // For now, return placeholder
+        return ValueType.TCustom("FunctionReturnType")
     }
 
     // Check if it's a struct or enum constructor
     mut symbols_map := context.symbols
     mut symbol_str := symbols_map.get(f_name)
     if not(symbol_str.eq("")) {
-        // TODO: Handle struct/enum constructors
-        throw format(loc(), " TODO: get_fcall_value_type not fully implemented for constructor '", f_name, "'")
+        // Check if it's a type (struct or enum)
+        if symbol_str.eq("ValueType.TType") {
+            // Get params[0] to check for member access (Struct.field or Enum.Variant)
+            mut params := e.params
+            mut id_expr := Expr()
+            params.get(0, id_expr)
+
+            // Check if id_expr has params (means Struct.field or Enum.Variant)
+            if eq(id_expr.params.len, 0) {
+                // Just the type itself - return TCustom(type_name)
+                return ValueType.TCustom(f_name)
+            }
+
+            // Has params - check enum_defs and struct_defs
+            mut enum_defs_map := context.enum_defs
+            mut enum_def_str := enum_defs_map.get(f_name)
+            if not(enum_def_str.eq("")) {
+                // It's an enum - return TCustom(enum_name)
+                return ValueType.TCustom(f_name)
+            }
+
+            mut struct_defs_map := context.struct_defs
+            mut struct_def_str := struct_defs_map.get(f_name)
+            if not(struct_def_str.eq("")) {
+                // It's a struct - TODO: check if accessing field or calling method
+                // For now, return TCustom(struct_name)
+                return ValueType.TCustom(f_name)
+            }
+        }
+
+        // Other symbol types - return as custom type
+        return ValueType.TCustom(f_name)
     }
 
     // Function not found
