@@ -102,8 +102,8 @@ src/rstil.rs           - CLI orchestration, main() (REMAINING)
 
 * Implementation Plan
 
-** Phase 1: Two-Phase Imports ⏳ (Current)
-*Status:* In progress
+** DONE Phase 1: Two-Phase Imports
+*Status:* Complete
 
 *Problem:* Currently imports call =run_file_with_context= which runs full eval. This creates circular dependency and isn't compilation-friendly.
 
@@ -112,15 +112,17 @@ src/rstil.rs           - CLI orchestration, main() (REMAINING)
 2. *Value phase (eval):* Initialize constants/values in arena
 
 *Changes:*
-- Create =init_import_declarations()= - declaration-only import
-- Update =init_context= to use new function
-- Rename =eval_core_proc_import= → =eval_import_values=
-- Add separate import caches in Context
+- [X] Create =init_import_declarations()= - declaration-only import
+- [X] Update =init_context= to use new function
+- [X] Update =eval_core_proc_import= to use separate values cache
+- [X] Add separate import caches in Context (=imports_declarations_done=, =imports_values_done=)
+- [X] Add =skip_init_and_typecheck= flag to =main_run= to skip Phase 1 during Phase 2
 
 *Benefits:*
 - Breaks circular dependency
 - init_context no longer calls eval
 - Ready for module extraction
+- All tests pass
 
 ** Phase 2: Extract init.rs (TODO)
 Move from rstil.rs to init.rs:
