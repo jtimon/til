@@ -110,59 +110,59 @@ test_is_literal_keyword()
 // causes type errors in test mode, even though the code runs correctly.
 // The get_combined_name function has been implemented and tested manually in script mode.
 
-// test_get_combined_name_simple := proc() {
-//     // NOTE: This test triggers the enum_extract_payload recursion bug
-//     // Create an identifier expression for "foo"
-//     node_type := NodeType.Identifier("foo")
-//     params := new_expr_array()
-//     e := Expr.new_explicit(node_type, params, 1, 1)
+test_get_combined_name_simple := proc() {
+    // NOTE: This test triggers the enum_extract_payload recursion bug
+    // Create an identifier expression for "foo"
+    node_type := NodeType.Identifier("foo")
+    params := new_expr_array()
+    e := Expr.new_explicit(node_type, params, 1, 1)
 
-//     result := get_combined_name(e)
-//     assert_eq_str(loc(), "foo", result)
-//     println("test_get_combined_name_simple: PASS")
+    result := get_combined_name(e)
+    assert_eq_str(loc(), "foo", result)
+    println("test_get_combined_name_simple: PASS")
 
-//     catch(err: Str) {
-//         println(loc(), "test_get_combined_name_simple failed")
-//         exit(1)
-//     }
-//     catch(err: AllocError) {
-//         println(loc(), "test_get_combined_name_simple: AllocError: ", err.msg)
-//         exit(1)
-//     }
-//     catch(err: IndexOutOfBoundsError) {
-//         println(loc(), "test_get_combined_name_simple: IndexOutOfBoundsError: ", err.msg)
-//         exit(1)
-//     }
-//     catch(err: I64_OverflowError) {
-//         println(loc(), "test_get_combined_name_simple: I64_OverflowError: ", err.msg)
-//         exit(1)
-//     }
-// }
-// test_get_combined_name_simple()
+    catch(err: Str) {
+        println(loc(), "test_get_combined_name_simple failed")
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), "test_get_combined_name_simple: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_get_combined_name_simple: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), "test_get_combined_name_simple: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_get_combined_name_simple()
 
 // test_get_combined_name_dotted := proc() {
 //     // NOTE: This test triggers a rstil bug where local string variables get
 //     // corrupted during recursive calls when populated via enum_extract_payload
 //     // TODO: Re-enable when the bug is fixed
-//
+// //
 //     // Create an identifier expression for "Foo.bar"
 //     // This is represented as Identifier("Foo") with params containing Identifier("bar")
-
+//
 //     // Create inner expression for "bar"
 //     inner_node_type := NodeType.Identifier("bar")
 //     inner_params := new_expr_array()
 //     inner_expr := Expr.new_explicit(inner_node_type, inner_params, 1, 1)
-
+//
 //     // Create outer expression for "Foo" with "bar" as param
 //     mut outer_params := new_expr_array()
 //     outer_params.push(inner_expr)
 //     outer_node_type := NodeType.Identifier("Foo")
 //     e := Expr.new_explicit(outer_node_type, outer_params, 1, 1)
-
+//
 //     result := get_combined_name(e)
 //     assert_eq_str(loc(), "Foo.bar", result)
 //     println("test_get_combined_name_dotted: PASS")
-
+//
 //     catch(err: Str) {
 //         println(loc(), "test_get_combined_name_dotted failed: ", err)
 //         exit(1)
@@ -265,57 +265,57 @@ test_parse_primary_identifier_simple := proc() {
 }
 test_parse_primary_identifier_simple()
 
-// test_parse_primary_identifier_function_call := proc() {
-//     // NOTE: This test triggers an IndexOutOfBoundsError in parse_list
-//     // TODO: Debug and fix
-//     // Test with empty argument list
-//     mut lexer := Lexer.new_from_src("foo()")
-//     result := parse_primary_identifier(lexer)
+test_parse_primary_identifier_function_call := proc() {
+    // NOTE: This test triggers an IndexOutOfBoundsError in parse_list
+    // TODO: Debug and fix
+    // Test with empty argument list
+    mut lexer := Lexer.new_from_src("foo()")
+    result := parse_primary_identifier(lexer)
 
-//     // Should be a FCall node
-//     node_type_str := enum_to_str(result.node_type)
-//     switch result.node_type {
-//     case NodeType.FCall:
-//         // Success - should be a function call
-//         println("test_parse_primary_identifier_function_call: PASS")
-//     case:
-//         println(loc(), " FAIL: Expected NodeType.FCall, got ", node_type_str)
-//         exit(1)
-//     }
+    // Should be a FCall node
+    node_type_str := enum_to_str(result.node_type)
+    switch result.node_type {
+    case NodeType.FCall:
+        // Success - should be a function call
+        println("test_parse_primary_identifier_function_call: PASS")
+    case:
+        println(loc(), " FAIL: Expected NodeType.FCall, got ", node_type_str)
+        exit(1)
+    }
 
-//     catch(err: Str) {
-//         println(loc(), " test_parse_primary_identifier_function_call failed: ", err)
-//         exit(1)
-//     }
-//     catch(err: IndexOutOfBoundsError) {
-//         println(loc(), " test_parse_primary_identifier_function_call: IndexOutOfBoundsError")
-//         exit(1)
-//     }
-//     catch(err: AllocError) {
-//         println(loc(), " test_parse_primary_identifier_function_call: AllocError")
-//         exit(1)
-//     }
-//     catch(err: FullError) {
-//         println(loc(), " test_parse_primary_identifier_function_call: FullError")
-//         exit(1)
-//     }
-//     catch(err: I64_OverflowError) {
-//         println(loc(), " test_parse_primary_identifier_function_call: I64_OverflowError")
-//         exit(1)
-//     }
-// }
-// test_parse_primary_identifier_function_call()
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_function_call failed: ", err)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_function_call: IndexOutOfBoundsError")
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_function_call: AllocError")
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_function_call: FullError")
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_function_call: I64_OverflowError")
+        exit(1)
+    }
+}
+test_parse_primary_identifier_function_call()
 
 // TODO: Re-enable when parser runtime issues are fixed
 // test_parse_primary_identifier_function_call_with_args := proc() {
 //     mut lexer := Lexer.new_from_src("add(1, 2, 3)")
 //     result := parse_primary_identifier(lexer)
-//
+// //
 //     // Should be a FCall node with 4 params (identifier + 3 args)
 //     switch result.node_type {
 //     case NodeType.FCall:
 //         result_params := result.params
-//         params_len := result_params.len()
+//         params_len := result_params.len
 //         if I64.eq(params_len, 4) {
 //             println("test_parse_primary_identifier_function_call_with_args: PASS")
 //         }
@@ -327,7 +327,7 @@ test_parse_primary_identifier_simple()
 //         println(loc(), " FAIL: Expected NodeType.FCall")
 //         exit(1)
 //     }
-//
+// //
 //     catch(err: Str) {
 //         println(loc(), " test_parse_primary_identifier_function_call_with_args failed:")
 //         exit(1)
@@ -355,14 +355,14 @@ test_parse_primary_identifier_simple()
 //     // NOTE: This test triggers an issue with Array when called from test mode
 //     // The error occurs inside parse_primary_identifier when calling new_expr_array()
 //     // TODO: Consider replacing Array with Array directly throughout parser.til
-//
+// //
 //     mut lexer := Lexer.new_from_src("Str.eq")
 //     result := parse_primary_identifier(lexer)
-
+// 
 //     // Should be an Identifier node with 1 param (the dotted part)
 //     switch result.node_type {
 //     case NodeType.Identifier:
-//         params_count := result.params.count
+//         params_count := result.params.len
 //         if I64.eq(params_count, 1) {
 //             println("test_parse_primary_identifier_dotted: PASS")
 //         }
@@ -374,7 +374,7 @@ test_parse_primary_identifier_simple()
 //         println(loc(), " FAIL: Expected NodeType.Identifier")
 //         exit(1)
 //     }
-
+// 
 //     catch(err: Str) {
 //         println(loc(), " test_parse_primary_identifier_dotted failed: ", err)
 //         exit(1)
@@ -402,12 +402,12 @@ test_parse_primary_identifier_simple()
 // test_parse_primary_identifier_dotted_call := proc() {
 //     mut lexer := Lexer.new_from_src("Str.eq(a, b)")
 //     result := parse_primary_identifier(lexer)
-//
+// //
 //     // Should be a FCall node
 //     switch result.node_type {
 //     case NodeType.FCall:
 //         result_params := result.params
-//         params_len := result_params.len()
+//         params_len := result_params.len
 //         if I64.eq(params_len, 3) {
 //             println("test_parse_primary_identifier_dotted_call: PASS")
 //         }
@@ -419,7 +419,7 @@ test_parse_primary_identifier_simple()
 //         println(loc(), " FAIL: Expected NodeType.FCall")
 //         exit(1)
 //     }
-//
+// //
 //     catch(err: Str) {
 //         println(loc(), " test_parse_primary_identifier_dotted_call failed:")
 //         exit(1)
@@ -447,7 +447,7 @@ test_parse_primary_identifier_simple()
 // test_parse_primary_identifier_method_chain := proc() {
 //     mut lexer := Lexer.new_from_src("obj.method1().method2()")
 //     result := parse_primary_identifier(lexer)
-//
+// //
 //     // Should be a FCall node (outer call to method2)
 //     switch result.node_type {
 //     case NodeType.FCall:
@@ -456,7 +456,7 @@ test_parse_primary_identifier_simple()
 //         println(loc(), " FAIL: Expected NodeType.FCall")
 //         exit(1)
 //     }
-//
+// //
 //     catch(err: Str) {
 //         println(loc(), " test_parse_primary_identifier_method_chain failed:")
 //         exit(1)

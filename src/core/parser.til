@@ -817,7 +817,7 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
 // Parse function/procedure arguments: (name: Type, mut name2: Type, variadic: ..Type)
 // Validates syntax - full Declaration array could be returned if needed in the future
-parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError {
+parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     lexer.expect(TokenType.LeftParen)
 
     mut rightparen_found := false
@@ -1118,7 +1118,7 @@ parse_throw_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
 }
 
 // Parse a mutable variable declaration: mut x: Type = value  or  mut x := value
-parse_mut_declaration := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, FullError {
+parse_mut_declaration := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, FullError, I64_OverflowError, AllocError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -1367,7 +1367,7 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
 }
 
 // Parse enum definition: enum { Variant1, Variant2: Type, ... }
-enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_index := lexer.current_token
     lexer.advance(1) // consume 'enum'
 
