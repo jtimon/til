@@ -95,7 +95,7 @@ scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str
 
     tokens.push(t)
     catch (err: FullError) {
-        throw format(loc(), "scan_tokens: tokens array full")
+        throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
     }
 }
 

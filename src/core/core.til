@@ -7,7 +7,7 @@ Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 // DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
 
 I64_OverflowError := struct {
-    msg: Str = ""
+    mut msg: Str = ""
 
     new := func(msg: Str) returns I64_OverflowError {
         mut err := I64_OverflowError()
@@ -17,7 +17,7 @@ I64_OverflowError := struct {
 }
 
 U8_OverflowError := struct {
-    msg: Str = ""
+    mut msg: Str = ""
 
     new := func(msg: Str) returns U8_OverflowError {
         mut err := U8_OverflowError()
@@ -27,7 +27,7 @@ U8_OverflowError := struct {
 }
 
 IndexOutOfBoundsError := struct {
-    msg: Str = ""
+    mut msg: Str = ""
 
     new := func(msg: Str) returns IndexOutOfBoundsError {
         mut err := IndexOutOfBoundsError()
@@ -37,7 +37,7 @@ IndexOutOfBoundsError := struct {
 }
 
 FullError := struct {
-    msg: Str = ""
+    mut msg: Str = ""
 
     new := func(msg: Str) returns FullError {
         mut err := FullError()

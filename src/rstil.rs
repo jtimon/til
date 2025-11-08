@@ -2450,10 +2450,24 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     // Create scoped context for catch body
     let mut temp_context = context.clone();
     temp_context.symbols.insert(var_name.clone(), SymbolInfo {
-        value_type: ValueType::TCustom(type_name),
+        value_type: ValueType::TCustom(type_name.clone()),
         is_mut: false,
     });
-    // TODO properly insert whatever struct in the context, including the arena_index
+
+    // Map struct fields so err.msg etc. can be accessed during type-checking
+    if let Some(struct_def) = context.struct_defs.get(&type_name) {
+        for (field_name, field_decl) in &struct_def.members {
+            let combined_name = format!("{}.{}", var_name, field_name);
+            temp_context.symbols.insert(
+                combined_name.clone(),
+                SymbolInfo {
+                    value_type: field_decl.value_type.clone(),
+                    is_mut: false,  // Error variables are not mutable in catch blocks
+                },
+            );
+        }
+    }
+
     errors.extend(check_types(&mut temp_context, body_expr));
 
     return errors
@@ -4690,6 +4704,14 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalRe
         if let Some(throw_result) = &pending_throw {
             if let NodeType::Catch = stmt.node_type {
                 if stmt.params.len() == 3 {
+                    // params[0]: error variable name (e.g., "err")
+                    // params[1]: error type (e.g., "AllocError")
+                    // params[2]: body
+                    let var_expr = &stmt.params[0];
+                    let var_name = match &var_expr.node_type {
+                        NodeType::Identifier(name) => name,
+                        _ => return Err(stmt.lang_error("eval", "Catch variable must be an identifier")),
+                    };
                     let type_expr = &stmt.params[1];
                     let type_name = match &type_expr.node_type {
                         NodeType::Identifier(name) => name,
@@ -4697,8 +4719,49 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalRe
                     };
                     if let Some(thrown_type) = &throw_result.thrown_type {
                         if type_name == thrown_type {
+                            // Bind the error variable to the caught error value
+                            context.symbols.insert(var_name.to_string(), SymbolInfo {
+                                value_type: ValueType::TCustom(thrown_type.clone()),
+                                is_mut: false,
+                            });
+
+                            // Map instance fields for the error variable
+                            // First try to find the arena index for proper field mapping
+                            if let Some(offset) = context.arena_index.get(&throw_result.value) {
+                                context.arena_index.insert(var_name.to_string(), *offset);
+                                context.map_instance_fields(thrown_type, var_name, stmt)?;
+                            } else {
+                                // Even without arena index, we need to add field symbols
+                                // This allows err.msg to be looked up during type checking and simple access
+                                if let Some(struct_def) = context.struct_defs.get(thrown_type) {
+                                    for (field_name, field_decl) in &struct_def.members {
+                                        let combined_name = format!("{}.{}", var_name, field_name);
+                                        context.symbols.insert(
+                                            combined_name.clone(),
+                                            SymbolInfo {
+                                                value_type: field_decl.value_type.clone(),
+                                                is_mut: false,
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+
                             let body_expr = &stmt.params[2];
                             let result = eval_body(&mut context, &body_expr.params)?;
+
+                            // Clean up the error variable binding after the catch block
+                            context.symbols.remove(var_name);
+                            context.arena_index.remove(var_name);
+                            // Also remove the field mappings
+                            if let Some(struct_def) = context.struct_defs.get(thrown_type) {
+                                for (field_name, _) in &struct_def.members {
+                                    let combined_name = format!("{}.{}", var_name, field_name);
+                                    context.symbols.remove(&combined_name);
+                                    context.arena_index.remove(&combined_name);
+                                }
+                            }
+
                             if result.is_return {
                                 return Ok(result);
                             } else if result.is_throw {
