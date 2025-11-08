@@ -3163,13 +3163,6 @@ fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Resul
 
     // Extract payload based on type
     match payload_type {
-        ValueType::TCustom(type_name) if type_name == "Bool" => {
-            if payload_bytes.len() != 1 {
-                return Err(e.error("eval", "Invalid Bool payload size"));
-            }
-            let bool_val = payload_bytes[0] != 0;
-            context.insert_bool(dest_var_name, &bool_val.to_string(), e)?;
-        },
         ValueType::TCustom(type_name) if type_name == "I64" => {
             if payload_bytes.len() != 8 {
                 return Err(e.error("eval", "Invalid I64 payload size"));
@@ -3827,11 +3820,6 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                     // Convert payload to bytes based on type
                     let payload_bytes = match &payload_type {
-                        ValueType::TCustom(type_name) if type_name == "Bool" => {
-                            let bool_val = payload_result.value.parse::<bool>()
-                                .map_err(|_| e.error("eval", &format!("Expected Bool payload, got '{}'", payload_result.value)))?;
-                            vec![if bool_val { 1u8 } else { 0u8 }]
-                        },
                         ValueType::TCustom(type_name) if type_name == "I64" => {
                             let i64_val = payload_result.value.parse::<i64>()
                                 .map_err(|_| e.error("eval", &format!("Expected I64 payload, got '{}'", payload_result.value)))?;
@@ -3853,6 +3841,20 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     // Get struct variable name from the original expression or create temporary for literals
                                     let struct_var_name = match &payload_expr.node_type {
                                         NodeType::Identifier(name) => name.clone(),
+                                        NodeType::LLiteral(Literal::Bool(_)) if struct_type_name == "Bool" => {
+                                            // For bool literals, create a temporary Bool struct
+                                            let temp_var_name = format!("__temp_bool_{}", context.arena_index.len());
+                                            let bool_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_bool
+                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Bool".to_string()),
+                                                is_mut: false,
+                                            });
+
+                                            context.insert_bool(&temp_var_name, &bool_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
                                             // For string literals, create a temporary Str struct
                                             let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
@@ -3867,7 +3869,21 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
                                             temp_var_name
                                         },
-                                        _ => return Err(e.error("eval", &format!("Struct payload must be a variable identifier or Str literal, got {:?}", payload_expr.node_type))),
+                                        NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
+                                            // For I64 literals, create a temporary I64 struct
+                                            let temp_var_name = format!("__temp_i64_{}", context.arena_index.len());
+                                            let i64_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_i64
+                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("I64".to_string()),
+                                                is_mut: false,
+                                            });
+
+                                            context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error("eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get struct offset from arena
