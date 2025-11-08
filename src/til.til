@@ -462,9 +462,139 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
 }
 
 // Evaluate a function call
-eval_fcall := proc(mut context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_fcall")
-    return ""
+// Phase 2: basic arithmetic and core functions only
+eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Get function name from params[0]
+    mut params_array := e.params
+    if lt(params_array.len(), 1) {
+        throw format(loc(), " ERROR: Function call has no function name")
+    }
+
+    mut func_name_expr := Expr()
+    params_array.get(0, func_name_expr)
+
+    mut func_node_type := func_name_expr.node_type
+    mut func_name := ""
+    enum_extract_payload(func_node_type, func_name)
+
+    // For Phase 2, handle core arithmetic functions
+    // TODO: Full function dispatch with user-defined functions
+
+    // Binary arithmetic operations
+    if func_name.eq("add") {
+        return eval_binary_i64_op(context, params_array, "add")
+    }
+    if func_name.eq("sub") {
+        return eval_binary_i64_op(context, params_array, "sub")
+    }
+    if func_name.eq("mul") {
+        return eval_binary_i64_op(context, params_array, "mul")
+    }
+    if func_name.eq("div") {
+        return eval_binary_i64_op(context, params_array, "div")
+    }
+    if func_name.eq("mod") {
+        return eval_binary_i64_op(context, params_array, "mod")
+    }
+
+    // Comparison operations
+    if func_name.eq("lt") {
+        return eval_comparison_op(context, params_array, "lt")
+    }
+    if func_name.eq("gt") {
+        return eval_comparison_op(context, params_array, "gt")
+    }
+    if func_name.eq("eq") {
+        return eval_comparison_op(context, params_array, "eq")
+    }
+
+    throw format(loc(), " ERROR: Function '", func_name, "' not implemented (Phase 2 only supports add, sub, mul, div, mod, lt, gt, eq)")
+}
+
+// Helper: evaluate binary I64 operations
+eval_binary_i64_op := proc(mut context: Context, params: ExprArray, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    if lt(params.len(), 3) {
+        throw format(loc(), " ERROR: ", op, " requires 2 arguments")
+    }
+
+    // Get arg1 and arg2 (params[1] and params[2])
+    mut arg1_expr := Expr()
+    mut arg2_expr := Expr()
+    params.get(1, arg1_expr)
+    params.get(2, arg2_expr)
+
+    // Evaluate arguments
+    arg1_str := eval_expr(context, arg1_expr)
+    arg2_str := eval_expr(context, arg2_expr)
+
+    // Convert to I64
+    mut a1_copy := arg1_str
+    mut a2_copy := arg2_str
+    a1 := a1_copy.to_i64()
+    a2 := a2_copy.to_i64()
+
+    // Perform operation
+    mut result := 0
+    mut op_copy := op
+    if op_copy.eq("add") {
+        result = add(a1, a2)
+    }
+    else if op_copy.eq("sub") {
+        result = sub(a1, a2)
+    }
+    else if op_copy.eq("mul") {
+        result = mul(a1, a2)
+    }
+    else if op_copy.eq("div") {
+        result = div(a1, a2)
+    }
+    else if op_copy.eq("mod") {
+        result = mod(a1, a2)
+    }
+
+    mut res_copy := result
+    return res_copy.to_str()
+}
+
+// Helper: evaluate comparison operations
+eval_comparison_op := proc(mut context: Context, params: ExprArray, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    if lt(params.len(), 3) {
+        throw format(loc(), " ERROR: ", op, " requires 2 arguments")
+    }
+
+    // Get arg1 and arg2
+    mut arg1_expr := Expr()
+    mut arg2_expr := Expr()
+    params.get(1, arg1_expr)
+    params.get(2, arg2_expr)
+
+    // Evaluate arguments
+    arg1_str := eval_expr(context, arg1_expr)
+    arg2_str := eval_expr(context, arg2_expr)
+
+    // Convert to I64 for numeric comparison
+    mut a1_copy := arg1_str
+    mut a2_copy := arg2_str
+    a1 := a1_copy.to_i64()
+    a2 := a2_copy.to_i64()
+
+    // Perform comparison
+    mut result := false
+    mut op_copy := op
+    if op_copy.eq("lt") {
+        result = lt(a1, a2)
+    }
+    else if op_copy.eq("gt") {
+        result = gt(a1, a2)
+    }
+    else if op_copy.eq("eq") {
+        result = eq(a1, a2)
+    }
+
+    if result {
+        return "true"
+    }
+    return "false"
 }
 
 // Evaluate a body (sequence of statements)
