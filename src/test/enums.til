@@ -86,19 +86,23 @@ bbb := Color.Green(true)
 ccc := Color.Number(42)
 
 // Test payload extraction
-bool_payload := enum_get_payload_bool(bbb)
+mut bool_payload := false
+enum_extract_payload(bbb, bool_payload)
 assert(loc(), bool_payload)
 
-i64_payload := enum_get_payload_i64(ccc)
+mut i64_payload := 0
+enum_extract_payload(ccc, i64_payload)
 assert_eq(loc(), 42, i64_payload)
 
 // Test with different values
 green_false := Color.Green(false)
-bool_payload2 := enum_get_payload_bool(green_false)
+mut bool_payload2 := false
+enum_extract_payload(green_false, bool_payload2)
 assert(loc(), not(bool_payload2))
 
 number_99 := Color.Number(99)
-i64_payload2 := enum_get_payload_i64(number_99)
+mut i64_payload2 := 0
+enum_extract_payload(number_99, i64_payload2)
 assert_eq(loc(), 99, i64_payload2)
 
 // Test type checking: these should fail at compile time
@@ -113,13 +117,15 @@ test_color_match := proc(to_switch: Color) returns Str {
     switch variant_str {
     case "Color.Unknown": return "unknown color"
     case "Color.Green":
-        is_olive := enum_get_payload_bool(to_switch)
+        mut is_olive := false
+        enum_extract_payload(to_switch, is_olive)
         if is_olive {
             return "olive green"
         }
         return "dark green"
     case "Color.Number":
-        code := enum_get_payload_i64(to_switch)
+        mut code := 0
+        enum_extract_payload(to_switch, code)
         if gt(code, 0) {
             return "positive color code"
         }
@@ -166,7 +172,8 @@ test_str_payloads := proc() {
             enum_extract_payload(c, name)
             return format("color name: ", name)
         case "Color.Number":
-            code := enum_get_payload_i64(c)
+            mut code := 0
+            enum_extract_payload(c, code)
             return format("color code: ", code.to_str())
         }
         return "other color"

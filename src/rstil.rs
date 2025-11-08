@@ -3109,85 +3109,6 @@ fn eval_core_func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
     Ok(EvalResult::new(&val))
 }
 
-fn eval_core_func_enum_get_payload_bool(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'enum_get_payload_bool' takes exactly 1 argument"))
-    }
-    let enum_expr = e.get(1)?;
-    let result = eval_expr(context, enum_expr)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-
-    // Get the enum variable name
-    let enum_var_name = match &enum_expr.node_type {
-        NodeType::Identifier(name) => name,
-        _ => return Err(e.error("eval", "enum_get_payload_bool expects an enum variable")),
-    };
-
-    // Get the enum value from context
-    let enum_val = context.get_enum(enum_var_name, e)?;
-
-    // Check if this enum has a Bool payload
-    match &enum_val.payload_type {
-        Some(ValueType::TCustom(type_name)) if type_name == "Bool" => {
-            match &enum_val.payload {
-                Some(payload_bytes) if payload_bytes.len() == 1 => {
-                    let bool_val = payload_bytes[0] != 0;
-                    Ok(EvalResult::new(&bool_val.to_string()))
-                },
-                _ => Err(e.error("eval", &format!("Enum {} has Bool payload type but payload data is missing", enum_var_name))),
-            }
-        },
-        Some(other_type) => {
-            Err(e.error("eval", &format!("Enum {} has payload type {}, not Bool", enum_var_name, value_type_to_str(other_type))))
-        },
-        None => {
-            Err(e.error("eval", &format!("Enum {} has no payload", enum_var_name)))
-        },
-    }
-}
-
-fn eval_core_func_enum_get_payload_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'enum_get_payload_i64' takes exactly 1 argument"))
-    }
-    let enum_expr = e.get(1)?;
-    let result = eval_expr(context, enum_expr)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-
-    // Get the enum variable name
-    let enum_var_name = match &enum_expr.node_type {
-        NodeType::Identifier(name) => name,
-        _ => return Err(e.error("eval", "enum_get_payload_i64 expects an enum variable")),
-    };
-
-    // Get the enum value from context
-    let enum_val = context.get_enum(enum_var_name, e)?;
-
-    // Check if this enum has an I64 payload
-    match &enum_val.payload_type {
-        Some(ValueType::TCustom(type_name)) if type_name == "I64" => {
-            match &enum_val.payload {
-                Some(payload_bytes) if payload_bytes.len() == 8 => {
-                    let mut bytes = [0u8; 8];
-                    bytes.copy_from_slice(&payload_bytes[0..8]);
-                    let i64_val = i64::from_le_bytes(bytes);
-                    Ok(EvalResult::new(&i64_val.to_string()))
-                },
-                _ => Err(e.error("eval", &format!("Enum {} has I64 payload type but payload data is missing", enum_var_name))),
-            }
-        },
-        Some(other_type) => {
-            Err(e.error("eval", &format!("Enum {} has payload type {}, not I64", enum_var_name, value_type_to_str(other_type))))
-        },
-        None => {
-            Err(e.error("eval", &format!("Enum {} has no payload", enum_var_name)))
-        },
-    }
-}
 
 fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
@@ -3828,8 +3749,6 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "str_to_i64" => eval_core_func_str_to_i64(context, &e),
         "i64_to_str" => eval_core_func_i64_to_str(context, &e),
         "enum_to_str" => eval_core_func_enum_to_str(context, &e),
-        "enum_get_payload_bool" => eval_core_func_enum_get_payload_bool(context, &e),
-        "enum_get_payload_i64" => eval_core_func_enum_get_payload_i64(context, &e),
         "enum_extract_payload" => eval_core_proc_enum_extract_payload(context, &e),
         "u8_to_i64" => eval_core_func_u8_to_i64(context, &e),
         "i64_to_u8" => eval_core_func_i64_to_u8(context, &e),
