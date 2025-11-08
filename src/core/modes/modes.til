@@ -12,7 +12,7 @@ ModeDef := struct {
 UnknownModeError := struct {
     mut msg: Str = ""
     new := func(msg: Str) returns UnknownModeError {
-        err := UnknownModeError()
+        mut err := UnknownModeError()
         err.msg = msg
         return err
     }

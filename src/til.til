@@ -1,8 +1,12 @@
 mode cli
 
+import("src/core/std")
+
+// Try re-enabling parser import
 import("src/core/parser")
 import("src/core/modes/modes")
 
+// LANG_NAME is defined in lexer.til
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/core/modes/repl.til"
 
@@ -461,6 +465,21 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
     return ""
 }
 
+// Helper: evaluate println function
+eval_println := proc(mut context: Context, params: ExprArray) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Print each argument (skip params[0] which is the function name)
+    for i in 1..params.len() {
+        mut arg_expr := Expr()
+        params.get(i, arg_expr)
+
+        // Evaluate the argument and print its string representation
+        result_str := eval_expr(context, arg_expr)
+        print(result_str)
+    }
+    println("")
+    return ""
+}
+
 // Evaluate a function call
 // Phase 2: basic arithmetic and core functions only
 eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
@@ -508,7 +527,39 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
         return eval_comparison_op(context, params_array, "eq")
     }
 
-    throw format(loc(), " ERROR: Function '", func_name, "' not implemented (Phase 2 only supports add, sub, mul, div, mod, lt, gt, eq)")
+    // IO operations
+    if func_name.eq("println") {
+        return eval_println(context, params_array)
+    }
+
+    if func_name.eq("readfile") {
+        // For now, just call the external readfile function
+        // TODO Phase 4: Full implementation
+        if lt(params_array.len(), 2) {
+            throw format(loc(), " ERROR: readfile requires 1 argument")
+        }
+        mut path_expr := Expr()
+        params_array.get(1, path_expr)
+        path_str := eval_expr(context, path_expr)
+        return readfile(path_str)
+    }
+
+    if func_name.eq("scan_tokens") {
+        // For now, just call the external scan_tokens function
+        // TODO Phase 4: Full implementation - this should call the self-hosted lexer
+        if lt(params_array.len(), 2) {
+            throw format(loc(), " ERROR: scan_tokens requires 1 argument")
+        }
+        mut source_expr := Expr()
+        params_array.get(1, source_expr)
+        source_str := eval_expr(context, source_expr)
+        // scan_tokens returns a TokenArray, but we can't return that from eval_expr (which returns Str)
+        // This is a limitation - we need proper struct support
+        // For now, just throw an error
+        throw format(loc(), " ERROR: scan_tokens not yet supported in self-hosted interpreter (needs struct return values)")
+    }
+
+    throw format(loc(), " ERROR: Function '", func_name, "' not implemented (Phase 2 only supports add, sub, mul, div, mod, lt, gt, eq, println, readfile)")
 }
 
 // Helper: evaluate binary I64 operations
@@ -598,7 +649,7 @@ eval_comparison_op := proc(mut context: Context, params: ExprArray, op: Str) ret
 }
 
 // Evaluate a body (sequence of statements)
-// Phase 2: simplified version without catch/throw/return handling
+// Phase 3: basic catch support (skips catch blocks, doesn't actually handle errors)
 eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     // Get the statements array
     mut params_array := e.params
@@ -611,7 +662,14 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
         mut stmt := Expr()
         params_array.get(i, stmt)
 
-        last_result = eval_expr(context, stmt)
+        // Phase 3: Skip catch blocks (don't evaluate them unless there's a pending throw)
+        // TODO: Implement proper throw/catch mechanism
+        mut stmt_type_str := enum_to_str(stmt.node_type)
+        mut is_catch := stmt_type_str.eq("NodeType.Catch")
+
+        if not(is_catch) {
+            last_result = eval_expr(context, stmt)
+        }
 
         i = add(i, 1)
     }
@@ -638,6 +696,15 @@ run_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsErro
 
     println("Mode: ", mode_def.name)
 
+    // Skip mode directive if present
+    // TODO Phase 3: Implement proper mode parsing
+    mut first_token := lexer.peek()
+    mut first_token_str := first_token.token_str
+    if first_token_str.eq("mode") {
+        lexer.advance(1) // skip 'mode'
+        lexer.advance(1) // skip mode name
+    }
+
     // Parse the file body (sequence of statements until EOF)
     mut ast := parse_body(lexer, TokenType.Eof)
 
@@ -648,9 +715,6 @@ run_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsErro
     result := eval_expr(context, ast)
 
     // Success - no need to print result for test mode
-
-    // TODO Phase 3: Add catch blocks for error handling
-    // For now, errors will propagate up and be caught by the Rust runtime
 }
 
 usage := proc() {
@@ -669,7 +733,7 @@ usage := proc() {
     println("version, --version, -v: Prints version.\n");
 }
 
-main := proc(args: ..Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+main := proc(args: ..Str) {
 
     if gt(args.len, 1) {
         mut main_args := Array.new("Str", size_of(Str), sub(args.len, 1))
@@ -695,8 +759,26 @@ main := proc(args: ..Str) throws Str, AllocError, IndexOutOfBoundsError, I64_Ove
         switch cmd {
         case "interpret" :
             run_file_or_exit(val1)
-            // TODO Phase 3: Add catch blocks for error handling
-            // For now, errors propagate to Rust runtime
+            catch (err: Str) {
+                println("Error during file execution")
+                exit(1)
+            }
+            catch (err: AllocError) {
+                println("AllocError during file execution")
+                exit(1)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                println("IndexOutOfBoundsError during file execution")
+                exit(1)
+            }
+            catch (err: I64_OverflowError) {
+                println("I64_OverflowError during file execution")
+                exit(1)
+            }
+            catch (err: FullError) {
+                println("FullError during file execution")
+                exit(1)
+            }
         // case "interpret" : run_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
         case "build"     : usage()
@@ -730,8 +812,26 @@ main := proc(args: ..Str) throws Str, AllocError, IndexOutOfBoundsError, I64_Ove
         case "run"       : usage()
         case:
             run_file_or_exit(path)
-            // TODO Phase 3: Add catch blocks for error handling
-            // For now, errors propagate to Rust runtime
+            catch (err: Str) {
+                println("Error during file execution")
+                exit(1)
+            }
+            catch (err: AllocError) {
+                println("AllocError during file execution")
+                exit(1)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                println("IndexOutOfBoundsError during file execution")
+                exit(1)
+            }
+            catch (err: I64_OverflowError) {
+                println("I64_OverflowError during file execution")
+                exit(1)
+            }
+            catch (err: FullError) {
+                println("FullError during file execution")
+                exit(1)
+            }
             // run_file_or_exit(path, Array.new("Str", size_of(Str), 0)) // TODO FIX
         }
     } else {

@@ -5,8 +5,7 @@ mode test
 runfile("src/test/future.til")
 
 // Self-hosting interpreter tests
-// TODO Phase 3: Re-enable when catch/throw is implemented
-// runfile("src/tests_self_hosted.til")
+runfile("src/tests_self_hosted.til")
 
 println("\nSome versions of 'hello world' in different basic modes:\n")
 

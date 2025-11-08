@@ -1,3 +1,5 @@
+mode test
+
 // Test Phase 2 self-hosted interpreter capabilities
 
 // Test literals

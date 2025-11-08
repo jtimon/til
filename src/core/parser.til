@@ -86,6 +86,7 @@ NodeType := enum {
     // StructDef : SStructDef,
     Return,
     Throw,
+    Catch,
     If,
     While,
     Switch,
@@ -457,7 +458,7 @@ parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, In
     }
 }
 
-parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     t := lexer.peek()
 
     switch t.token_type {
@@ -478,13 +479,55 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     case TokenType.Identifier:
         throw t.todo_error("parse statement_identifier not implemented yet")
     case TokenType.Catch:
-        throw t.todo_error("parse catch_statement not implemented yet")
+        return parse_catch_statement(lexer)
     case:
         throw t.error(format("Expected statement, found ", enum_to_str(t.token_type)))
     }
 
     e := Expr()
     return e
+}
+
+// Parse a catch statement: catch (err: ErrorType) { body }
+parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    initial_index := lexer.current_token
+    lexer.advance(1) // consume 'catch'
+
+    lexer.expect(TokenType.LeftParen) // expect '('
+
+    // Parse the error variable name
+    name_token := lexer.peek()
+    lexer.expect(TokenType.Identifier)
+    name := name_token.token_str
+    mut params := ExprArray.new()
+
+    // Create name expression manually
+    mut name_expr := Expr()
+    name_expr.node_type = NodeType.Identifier(name)
+    name_expr.line = name_token.line
+    name_expr.col = name_token.col
+    params.push(name_expr)
+
+    lexer.expect(TokenType.Colon) // expect ':'
+
+    // Parse the exception type
+    type_token := lexer.peek()
+    lexer.expect(TokenType.Identifier)
+
+    // Create type expression manually
+    mut type_expr := Expr()
+    type_expr.node_type = NodeType.Identifier(type_token.token_str)
+    type_expr.line = type_token.line
+    type_expr.col = type_token.col
+    params.push(type_expr)
+
+    lexer.expect(TokenType.RightParen) // expect ')'
+
+    lexer.expect(TokenType.LeftBrace) // expect '{'
+    body_expr := parse_body(lexer, TokenType.RightBrace)
+    params.push(body_expr)
+
+    return Expr.new_parse(NodeType.Catch, lexer.get_token(initial_index), params)
 }
 
 parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {

@@ -10,7 +10,7 @@ I64_OverflowError := struct {
     msg: Str = ""
 
     new := func(msg: Str) returns I64_OverflowError {
-        err := I64_OverflowError()
+        mut err := I64_OverflowError()
         err.msg = msg
         return err
     }
@@ -20,7 +20,7 @@ U8_OverflowError := struct {
     msg: Str = ""
 
     new := func(msg: Str) returns U8_OverflowError {
-        err := U8_OverflowError()
+        mut err := U8_OverflowError()
         err.msg = msg
         return err
     }
@@ -30,7 +30,7 @@ IndexOutOfBoundsError := struct {
     msg: Str = ""
 
     new := func(msg: Str) returns IndexOutOfBoundsError {
-        err := IndexOutOfBoundsError()
+        mut err := IndexOutOfBoundsError()
         err.msg = msg
         return err
     }
@@ -40,7 +40,7 @@ FullError := struct {
     msg: Str = ""
 
     new := func(msg: Str) returns FullError {
-        err := FullError()
+        mut err := FullError()
         err.msg = msg
         return err
     }
