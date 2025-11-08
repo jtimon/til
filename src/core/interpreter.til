@@ -66,12 +66,10 @@ eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
     mut literal_type := e.node_type
     literal_str := enum_to_str(literal_type)
 
-    if literal_str.eq("NodeType.Literal") {
-        // Extract payload to get LiteralNodeType
-        mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
-        rsonly_enum_extract_payload(literal_type, lit_node_type)
-
-        // Use pattern matching to extract primitive payloads
+    // Use pattern matching to extract LiteralNodeType from NodeType.Literal
+    switch literal_type {
+    case NodeType.Literal(lit_node_type):
+        // Now extract primitive payloads from LiteralNodeType
         switch lit_node_type {
         case LiteralNodeType.String(str_val):
             return str_val
@@ -91,9 +89,9 @@ eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
             lit_type_str := enum_to_str(lit_node_type)
             throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
         }
+    case:
+        throw format(loc(), " ERROR: Unknown literal type: ", literal_str)
     }
-
-    throw format(loc(), " ERROR: Unknown literal type: ", literal_str)
 }
 
 // Evaluate an identifier (variable lookup)
