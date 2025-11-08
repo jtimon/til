@@ -262,8 +262,12 @@ test_struct_payloads := proc() {
     point := Shape.Point(my_vec)
 
     mut extracted_vec := Vec2()
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(point, extracted_vec)
+    switch point {
+    case Shape.Point(vec):
+        extracted_vec = vec
+    case:
+        // Other variants
+    }
     assert_eq(loc(), 10, extracted_vec.x)
     assert_eq(loc(), 20, extracted_vec.y)
 

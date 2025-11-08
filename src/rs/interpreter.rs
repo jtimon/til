@@ -247,9 +247,54 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             context.insert_string(binding_var, &empty_string, &case)?;
                                         }
                                     }
+                                    ValueType::TCustom(type_name) => {
+                                        // Handle custom types (structs and enums)
+                                        let type_symbol = context.symbols.get(type_name).ok_or_else(|| {
+                                            case.error("eval", &format!("Unknown type '{}'", type_name))
+                                        })?;
+
+                                        match &type_symbol.value_type {
+                                            ValueType::TType(TTypeDef::TStructDef) => {
+                                                // Handle struct payloads
+                                                // First add the symbol to context
+                                                context.symbols.insert(
+                                                    binding_var.clone(),
+                                                    crate::rs::init::SymbolInfo {
+                                                        value_type: payload_type.clone(),
+                                                        is_mut: false,
+                                                    }
+                                                );
+
+                                                // Allocate destination struct in arena
+                                                context.insert_struct(binding_var, type_name, &case)?;
+
+                                                // Get destination offset
+                                                let dest_offset = context.arena_index.get(binding_var).ok_or_else(|| {
+                                                    case.error("eval", &format!("Struct '{}' not found in arena", binding_var))
+                                                })?;
+
+                                                // Validate payload size
+                                                let struct_size = context.get_type_size(type_name)
+                                                    .map_err(|err| case.error("eval", &err))?;
+                                                if payload_bytes.len() != struct_size {
+                                                    return Err(case.error("eval", &format!(
+                                                        "Payload size mismatch: expected {}, got {}",
+                                                        struct_size, payload_bytes.len()
+                                                    )));
+                                                }
+
+                                                // Copy payload bytes directly into arena
+                                                Arena::g().memory[*dest_offset..*dest_offset + struct_size]
+                                                    .copy_from_slice(&payload_bytes);
+                                            },
+                                            _ => {
+                                                // Enums and other types not yet implemented
+                                                return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
+                                            }
+                                        }
+                                    },
                                     _ => {
-                                        // For other types (structs, nested enums), we need more complex handling
-                                        // For now, try to handle it as a generic custom type
+                                        // Unknown types
                                         return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
                                     }
                                 }
