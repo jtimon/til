@@ -482,19 +482,43 @@ Context := struct {
 
 // Get enum variant position by name
 // Corresponds to get_variant_pos in init.rs
-get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str {
-    // TODO: Search enum_map for variant_name and return its position
-    // For now, just throw an error
-    throw format(loc(), " TODO: get_variant_pos not fully implemented for variant '", variant_name, "'")
+get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str, IndexOutOfBoundsError {
+    // Get position of variant in enum_map (maintains insertion order)
+    mut enum_map := enum_def.enum_map
+    pos := enum_map.position(variant_name)
+
+    if lt(pos, 0) {
+        throw format(loc(), " ERROR: Enum variant '", variant_name, "' not found in enum map")
+    }
+
+    return pos
 }
 
 // Get enum variant name by position
 // Corresponds to variant_pos_to_str in init.rs
-variant_pos_to_str := proc(enum_def: SEnumDef, position: I64) returns Str throws Str {
-    // TODO: Get variant name at position from enum_map keys
-    // For now, just throw an error
-    mut pos_str := position.to_str()
-    throw format(loc(), " TODO: variant_pos_to_str not fully implemented for position ", pos_str)
+variant_pos_to_str := proc(enum_def: SEnumDef, position: I64) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
+    // Get keys array from enum_map
+    mut enum_map := enum_def.enum_map
+    mut map_size := enum_map.len()
+
+    // Validate position
+    if lt(position, 0) {
+        mut pos_str := position.to_str()
+        throw format(loc(), " ERROR: Invalid position '", pos_str, "' for enum variant (negative)")
+    }
+
+    if not(lt(position, map_size)) {
+        mut pos_str := position.to_str()
+        mut size_str := map_size.to_str()
+        throw format(loc(), " ERROR: Invalid position '", pos_str, "' for enum variant (max ", size_str, ")")
+    }
+
+    // Get key at position from enum_map.keys array
+    mut variant_name := ""
+    mut keys_arr := enum_map.keys
+    keys_arr.get(position, variant_name)
+
+    return variant_name
 }
 
 // Check function/proc return type
