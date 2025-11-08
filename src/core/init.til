@@ -273,6 +273,61 @@ Context := struct {
             self.arena.memory = mem_arr
         }
     }
+
+    // Get size in bytes of a type
+    // Corresponds to get_type_size in init.rs
+    get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
+        // Handle primitive types
+        mut tn_copy := type_name
+        if tn_copy.eq("U8") {
+            return 1
+        }
+        if tn_copy.eq("I64") {
+            return 8
+        }
+        if tn_copy.eq("Bool") {
+            return 1
+        }
+        if tn_copy.eq("Str") {
+            return 24  // c_string (8 bytes ptr) + cap (8 bytes) + len (8 bytes)
+        }
+
+        // Check if it's an enum (all enums are 8 bytes)
+        mut enum_defs_map := self.enum_defs
+        mut enum_def_str := enum_defs_map.get(type_name)
+        if not(enum_def_str.eq("")) {
+            return 8
+        }
+
+        // Check if it's a struct - need to calculate total size
+        mut struct_defs_map := self.struct_defs
+        mut struct_def_str := struct_defs_map.get(type_name)
+        if not(struct_def_str.eq("")) {
+            // TODO: Parse SStructDef and calculate total size of all members
+            // For now, just return a placeholder
+            return 8
+        }
+
+        // Unknown type
+        throw format(loc(), " ERROR: Unknown type '", type_name, "' in get_type_size")
+    }
+}
+
+// Get enum variant position by name
+// Corresponds to get_variant_pos in init.rs
+get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str {
+    // TODO: Search enum_map for variant_name and return its position
+    // For now, just throw an error
+    throw format(loc(), " TODO: get_variant_pos not fully implemented for variant '", variant_name, "'")
+}
+
+// Get enum variant name by position
+// Corresponds to variant_pos_to_str in init.rs
+variant_pos_to_str := proc(enum_def: SEnumDef, position: I64) returns Str throws Str {
+    // TODO: Get variant name at position from enum_map keys
+    // For now, just throw an error
+    mut pos_str := position.to_str()
+    throw format(loc(), " TODO: variant_pos_to_str not fully implemented for position ", pos_str)
 }
 
 // Check function/proc return type
