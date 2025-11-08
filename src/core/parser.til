@@ -96,7 +96,7 @@ NodeType := enum {
 // ExprArray has been removed - we now use Array directly for Expr.params
 // Helper function for creating dynamic Expr arrays:
 
-new_expr_array := proc() returns Array {
+new_expr_array := proc() returns Array throws AllocError {
     return Array.new_dyn("Expr", size_of(Expr))
 }
 
@@ -139,7 +139,9 @@ Expr := struct {
 
     // Format error message
     error := func(self: Expr, error_type: Str, msg: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        return format(self.line.to_str(), ":", self.col.to_str(), ": ", error_type, " ERROR: ", msg)
+        line := self.line
+        col := self.col
+        return format(I64.to_str(line), ":", I64.to_str(col), ": ", error_type, " ERROR: ", msg)
     }
 
     // Exit with error (for unrecoverable errors)
@@ -228,7 +230,7 @@ is_literal := func(t: Token) returns Bool {
 }
 
 // Parse a literal value (string, number, or boolean)
-parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str {
+parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, IndexOutOfBoundsError {
     mut params := new_expr_array()
     tt_str := enum_to_str(t.token_type)
 

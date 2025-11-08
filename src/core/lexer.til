@@ -94,6 +94,9 @@ scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str
     t.col = col
 
     tokens.push(t)
+    catch (err: AllocError) {
+        throw format("scan_tokens: AllocError while pushing token: ", err.msg)
+    }
     catch (err: FullError) {
         throw "scan_tokens: tokens array full"
     }
@@ -493,8 +496,9 @@ Lexer := struct {
 
     is_eof := func(self: Lexer, offset: I64) returns Bool throws IndexOutOfBoundsError {
         self_tokens := self.tokens
-        i := self.current_token.add(offset)
-        if i.gteq(self_tokens.len) {
+        current_token := self.current_token
+        i := add(current_token, offset)
+        if gteq(i, self_tokens.len) {
             return true
         }
         mut t := Token()
@@ -528,8 +532,9 @@ Lexer := struct {
         index := add(self.current_token, offset)
         self_tokens := self.tokens
         if gteq(index, self_tokens.len) {
-            t := self.peek()
-            self.error(loc(), t, Str.fmt("Peek ahead by ", I64.to_str(offset), " is out of bounds"))
+            mut err := IndexOutOfBoundsError()
+            err.msg = format("Peek ahead by ", I64.to_str(offset), " is out of bounds")
+            throw err
         }
         mut t := Token()
         self_tokens.get(index, t)
@@ -542,45 +547,43 @@ Lexer := struct {
 
     previous := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         if eq(self.current_token, 0) {
-            t := self.peek()
-            self.error(loc(), t, "No previous token (at position 0)")
+            mut err := IndexOutOfBoundsError()
+            err.msg = "No previous token (at position 0)"
+            throw err
         }
         index := sub(self.current_token, 1)
         self_tokens := self.tokens
         if gteq(index, self_tokens.len) {
-            t := self.peek()
-            self.error(loc(), t, "Previous token is out of bounds")
+            mut err := IndexOutOfBoundsError()
+            err.msg = "Previous token is out of bounds"
+            throw err
         }
         mut t := Token()
         self_tokens.get(index, t)
         return t
     }
 
-    advance := func(mut self: Lexer, count: I64) {
+    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError {
         next_index := add(self.current_token, count)
         if gt(next_index, self.tokens.len) {
-            t := self.peek()
-            self.error(
-                loc(),
-                t,
-                Str.fmt("Advance by ", I64.to_str(count), " from ", I64.to_str(self.current_token),
+            mut err := IndexOutOfBoundsError()
+            err.msg = format("Advance by ", I64.to_str(count), " from ", I64.to_str(self.current_token),
                     " would exceed bounds (", I64.to_str(self.tokens.len), " tokens total)")
-            )
+            throw err
         }
         self.current_token = next_index
     }
 
-    go_back := func(mut self: Lexer, count: I64) {
+    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError {
         if gt(count, self.current_token) {
-            t := self.peek()
-            self.error(loc(), t,
-                Str.fmt("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current_token), " would underflow")
-            )
+            mut err := IndexOutOfBoundsError()
+            err.msg = format("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current_token), " would underflow")
+            throw err
         }
         self.current_token = sub(self.current_token, count)
     }
 
-    expect := func(mut self: Lexer, expected: TokenType) returns Token {
+    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
         p := self.peek()
         mut matches := false
         // Compare TokenType enums using switch
@@ -594,9 +597,8 @@ Lexer := struct {
             self.advance(1)
             return p
         }
-        self.error(loc(), p, Str.fmt(
-            "Expected token '", token_type_to_str(expected), "', but found '", token_type_to_str(p.token_type), "'"))
-        return Token() // unreachable
+        throw format(
+            "Expected token '", token_type_to_str(expected), "', but found '", token_type_to_str(p.token_type), "'")
     }
 }
 
