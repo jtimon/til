@@ -464,6 +464,20 @@ Context := struct {
         // For now, just throw TODO
         throw format(loc(), " TODO: insert_str not fully implemented for '", var_name, "'")
     }
+
+    // Get enum value at specific arena offset
+    get_enum_at_offset := func(self: Context, enum_type: Str, offset: I64) returns EnumVal throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // TODO: Read enum tag and payload from arena at offset
+        // For now, just throw TODO
+        throw format(loc(), " TODO: get_enum_at_offset not fully implemented for type '", enum_type, "'")
+    }
+
+    // Insert array into arena
+    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError {
+        // TODO: Allocate Array struct, allocate buffer for elements, initialize fields
+        // For now, just throw TODO
+        throw format(loc(), " TODO: insert_array not fully implemented for '", var_name, "' with elem_type '", elem_type, "'")
+    }
 }
 
 // Get enum variant position by name
