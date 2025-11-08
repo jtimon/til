@@ -42,7 +42,7 @@ TokenType := enum {
     While, For, In,
     Match, Switch, Default, Case,
     Return, Throw,
-    Try, Catch,
+    Catch,
 
     // Special in this language:
     Mode,
@@ -52,6 +52,7 @@ TokenType := enum {
     // Errors (unsupported tokens)
     Const, Var,
     Fn,
+    Try,
     Invalid,
     UnterminatedString,
     UnterminatedComment,
@@ -164,8 +165,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
     case "fn": return TokenType.Fn
+    case "try": return TokenType.Try // TIL uses catch without try (forbidden for users from other languages)
     case "function": return TokenType.Invalid
-    case "try": return TokenType.Try
     case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
     case "const": return TokenType.Const
@@ -628,6 +629,9 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
 
     case TokenType.Fn:
         print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead")
+
+    case TokenType.Try:
+        print_lex_error(path, t, errors_found, "Keyword 'try' is not supported\nSuggestion: TIL uses 'catch' blocks without 'try' (just use throw/catch)")
 
     case TokenType.DoubleSemicolon:
         print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for")

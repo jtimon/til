@@ -35,7 +35,7 @@ pub enum TokenType {
     While, For, In,
     Match, Switch, Default, Case,
     Return, Throw,
-    Try, Catch,
+    Catch,
 
     // Special in this language:
     Mode,
@@ -45,6 +45,7 @@ pub enum TokenType {
     // Errors
     Const, Var,
     Fn,
+    Try,
     Invalid,
     UnterminatedString,
     UnterminatedComment,
@@ -224,13 +225,12 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         "throw" => TokenType::Throw, // TODO
         // TODO throw should just act as a return that gets post-processed by the next catch or rethrown
         "catch" => TokenType::Catch,
-        "try" => TokenType::Try, // TODO don't allow it to open contexts, just mandatory 'try:' in any line that may throw
-        // or should 'try:' be optional?
 
         // Reserved forbidden/illegal words (intentionally unsupported reserved words)
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
         "fn" => TokenType::Fn,
+        "try" => TokenType::Try, // TIL uses catch without try (try is forbidden for users from other languages)
         "function" => TokenType::Invalid,
         "global" => TokenType::Invalid, // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
@@ -453,6 +453,9 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         },
         TokenType::Fn => {
             print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
+        },
+        TokenType::Try => {
+            print_lex_error(path, t, errors_found, "Keyword 'try' is not supported\nSuggestion: TIL uses 'catch' blocks without 'try' (just use throw/catch)");
         },
         TokenType::DoubleSemicolon => {
             print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");
