@@ -3931,9 +3931,28 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     let struct_size = context.get_type_size(struct_type_name)
                                         .map_err(|err| e.error("eval", &err))?;
 
+                                    // Get struct variable name from the original expression or create temporary for literals
+                                    let struct_var_name = match &payload_expr.node_type {
+                                        NodeType::Identifier(name) => name.clone(),
+                                        NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
+                                            // For string literals, create a temporary Str struct
+                                            let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
+                                            let string_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_string
+                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false, // Temporary string is immutable
+                                            });
+
+                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error("eval", &format!("Struct payload must be a variable identifier or Str literal, got {:?}", payload_expr.node_type))),
+                                    };
+
                                     // Get struct offset from arena
-                                    let struct_var_name = &payload_result.value;
-                                    let offset = context.arena_index.get(struct_var_name).ok_or_else(|| {
+                                    let offset = context.arena_index.get(&struct_var_name).ok_or_else(|| {
                                         e.error("eval", &format!("Struct '{}' not found in arena", struct_var_name))
                                     })?;
 

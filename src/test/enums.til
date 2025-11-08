@@ -78,7 +78,7 @@ Color := enum {
     Unknown,
     Green: Bool,
     Number: I64,
-    Name: String,
+    Name: Str,
 }
 
 aaa := Color.Unknown
@@ -132,6 +132,63 @@ assert_eq_str(loc(), test_color_match(Color.Unknown), "unknown color")
 assert_eq_str(loc(), test_color_match(bbb), "olive green")
 assert_eq_str(loc(), test_color_match(green_false), "dark green")
 assert_eq_str(loc(), test_color_match(ccc), "positive color code")
+
+// Test Str payloads
+test_str_payloads := proc() {
+    // Test creating enum with Str payload
+    my_name := "crimson"
+    color_name := Color.Name(my_name)
+
+    // Test extraction with enum_extract_payload
+    mut extracted_name := ""
+    enum_extract_payload(color_name, extracted_name)
+    assert(loc(), extracted_name.eq("crimson"))
+
+    // Test with different string values
+    blue_color := Color.Name("blue")
+    mut extracted_blue := ""
+    enum_extract_payload(blue_color, extracted_blue)
+    assert(loc(), extracted_blue.eq("blue"))
+
+    // Test with longer string
+    long_name := "bright-yellow-green"
+    long_color := Color.Name(long_name)
+    mut extracted_long := ""
+    enum_extract_payload(long_color, extracted_long)
+    assert(loc(), extracted_long.eq("bright-yellow-green"))
+
+    // Test in switch statement
+    test_color_name_match := proc(c: Color) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        variant_str := enum_to_str(c)
+        switch variant_str {
+        case "Color.Name":
+            mut name := ""
+            enum_extract_payload(c, name)
+            return format("color name: ", name)
+        case "Color.Number":
+            code := enum_get_payload_i64(c)
+            return format("color code: ", code.to_str())
+        }
+        return "other color"
+    }
+
+    assert(loc(), test_color_name_match(color_name).eq("color name: crimson"))
+    assert(loc(), test_color_name_match(blue_color).eq("color name: blue"))
+
+    number_color := Color.Number(255)
+    assert(loc(), test_color_name_match(number_color).eq("color code: 255"))
+
+    catch (err: AllocError) {
+        panic(loc(), format("Unexpected AllocError: ", err.msg))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
+    }
+    catch (err: I64_OverflowError) {
+        panic(loc(), format("Unexpected I64_OverflowError: ", err.msg))
+    }
+}
+test_str_payloads()
 
 // Test struct payloads
 Vec2 := struct {
