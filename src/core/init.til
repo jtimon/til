@@ -422,6 +422,27 @@ Context := struct {
         // For now, just throw TODO
         throw format(loc(), " TODO: insert_enum not fully implemented for '", var_name, "' type '", enum_type, "' variant '", enum_variant, "'")
     }
+
+    // Map struct instance fields to arena offsets
+    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str) throws Str {
+        // TODO: Look up struct definition, calculate field offsets, register in arena_index and symbols
+        // For now, just throw TODO
+        throw format(loc(), " TODO: map_instance_fields not fully implemented for '", instance_name, "' of type '", custom_type_name, "'")
+    }
+
+    // Copy struct fields from source to destination
+    copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, dest: Str) throws Str {
+        // TODO: Look up struct definition, copy all field values from src to dest in arena
+        // For now, just throw TODO
+        throw format(loc(), " TODO: copy_fields not fully implemented from '", src, "' to '", dest, "' of type '", custom_type_name, "'")
+    }
+
+    // Insert struct instance into arena
+    insert_struct := proc(mut self: Context, var_name: Str, custom_type_name: Str) throws Str, AllocError {
+        // TODO: Look up struct definition, calculate total size, allocate in arena, initialize fields
+        // For now, just throw TODO
+        throw format(loc(), " TODO: insert_struct not fully implemented for '", var_name, "' of type '", custom_type_name, "'")
+    }
 }
 
 // Get enum variant position by name
