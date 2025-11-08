@@ -93,8 +93,6 @@ scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str
     t.line = line
     t.col = col
 
-    println("Token (", I64.to_str(line), ", ", I64.to_str(col), "): Type: ", enum_to_str(t.token_type), " str: ", token_str)
-
     tokens.push(t)
     catch (err: FullError) {
         throw format(loc(), "scan_tokens: tokens array full:\n", err.msg)
