@@ -170,11 +170,69 @@ impl Lexer {
             self.advance(1)?; // consume the token
             Ok(token)
         } else {
-            // TODO use token.token_str and implement a token_type_to_str function
-            Err(token.lang_error(&format!("Expected token '{:?}', but found '{:?}'", expected, token.token_type)))
+            Err(token.lang_error(&format!("Expected token '{}', but found '{}'",
+                token_type_to_str(&expected), token.token_str)))
         }
     }
 
+}
+
+fn token_type_to_str(tt: &TokenType) -> &'static str {
+    match tt {
+        TokenType::If => "if",
+        TokenType::Else => "else",
+        TokenType::While => "while",
+        TokenType::For => "for",
+        TokenType::In => "in",
+        TokenType::Return => "return",
+        TokenType::Throw => "throw",
+        TokenType::Catch => "catch",
+        TokenType::Struct => "struct",
+        TokenType::Enum => "enum",
+        TokenType::Mode => "mode",
+        TokenType::Func => "func",
+        TokenType::Proc => "proc",
+        TokenType::Macro => "macro",
+        TokenType::FuncExt => "ext_func",
+        TokenType::ProcExt => "ext_proc",
+        TokenType::Returns => "returns",
+        TokenType::Throws => "throws",
+        TokenType::Match => "match",
+        TokenType::Switch => "switch",
+        TokenType::Default => "default",
+        TokenType::Case => "case",
+        TokenType::Mut => "mut",
+        TokenType::LeftParen => "(",
+        TokenType::RightParen => ")",
+        TokenType::LeftBrace => "{",
+        TokenType::RightBrace => "}",
+        TokenType::LeftBracket => "[",
+        TokenType::RightBracket => "]",
+        TokenType::Comma => ",",
+        TokenType::Dot => ".",
+        TokenType::DoubleDot => "..",
+        TokenType::Colon => ":",
+        TokenType::Semicolon => ";",
+        TokenType::DoubleSemicolon => ";;",
+        TokenType::Equal => "=",
+        TokenType::EqualEqual => "==",
+        TokenType::Not => "!",
+        TokenType::NotEqual => "!=",
+        TokenType::Lesser => "<",
+        TokenType::LesserEqual => "<=",
+        TokenType::Greater => ">",
+        TokenType::GreaterEqual => ">=",
+        TokenType::Plus => "+",
+        TokenType::Minus => "-",
+        TokenType::Star => "*",
+        TokenType::Slash => "/",
+        TokenType::Identifier => "identifier",
+        TokenType::String => "string",
+        TokenType::Number => "number",
+        TokenType::True => "true",
+        TokenType::Eof => "eof",
+        _ => "invalid",
+    }
 }
 
 fn is_digit(source: &str, pos: usize) -> bool {
