@@ -6,10 +6,224 @@ import("src/core/modes/modes")
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/core/modes/repl.til"
 
+// Tracks information about a declared symbol (variable, constant, etc.)
+SymbolInfo := struct {
+    mut value_type: Str = ""     // Type of the symbol (e.g., "I64", "Str", "Bool")
+    mut is_mut: Bool = false     // Whether the symbol is mutable
+}
+
+// Global arena for interpreter memory (simplified version)
+// In rstil.rs this is a singleton, here we'll pass it around
+Arena := struct {
+    mut memory: Array = Array()       // Byte array for storage
+    mut next_offset: I64 = 1          // Next available offset (0 is reserved/NULL)
+
+    // Create new arena
+    new := proc() returns Arena throws AllocError {
+        mut a := Arena()
+        a.memory = Array.new_dyn("U8", size_of(U8))
+        a.next_offset = 1  // Reserve 0 as invalid/NULL
+        return a
+    }
+}
+
 // Context for type checking and evaluation
-// Mimics Context struct in rstil.rs
+// Mimics Context struct in rstil.rs (Phase 1: simplified version)
 Context := struct {
-    // TODO: Add fields as needed for type checking and evaluation
+    mut mode_def: ModeDef = ModeDef()          // Mode definition
+    mut path: Str = ""                         // File path for error reporting
+    mut symbols: StrMap = StrMap()             // symbol_name -> SymbolInfo (as JSON for now)
+    mut funcs: StrMap = StrMap()               // func_name -> SFuncDef (as JSON for now)
+    mut arena_index: StrMap = StrMap()         // var_name -> arena_offset (as str)
+    mut arena: Arena = Arena()                 // Memory storage
+
+    // Create new context
+    new := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
+        mut ctx := Context()
+        ctx.mode_def = mode_def
+        ctx.path = path
+        ctx.symbols = StrMap.new()
+        ctx.funcs = StrMap.new()
+        ctx.arena_index = StrMap.new()
+        ctx.arena = Arena.new()
+        return ctx
+    }
+
+    // Get I64 value from arena by variable name
+    get_i64 := func(self: Context, var_name: Str) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Look up the offset in arena_index
+        mut offset_str := self.arena_index.get(var_name)
+        if offset_str.eq("") {
+            throw format(loc(), " ERROR: I64 variable '", var_name, "' not found in arena")
+        }
+
+        // Convert offset string to I64
+        mut offset_str_copy := offset_str
+        offset := offset_str_copy.to_i64()
+
+        // Read 8 bytes from arena memory at offset
+        // For now, simplified: convert back from string representation
+        // TODO: Implement proper byte-level storage when needed
+        mut value_bytes := ""
+        mut mem_arr := self.arena.memory
+        mem_arr.get(offset, value_bytes)
+
+        // Parse back to I64
+        mut value_str := value_bytes
+        return value_str.to_i64()
+    }
+
+    // Insert I64 value into arena
+    insert_i64 := proc(mut self: Context, var_name: Str, value: I64) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // For Phase 1: simplified storage - store as string representation
+        // Later: store as actual bytes like rstil.rs does
+
+        // Check if variable already exists (update vs insert)
+        mut offset_str := self.arena_index.get(var_name)
+        mut value_str := value.to_str()
+
+        if offset_str.eq("") {
+            // New variable - allocate space
+            offset := self.arena.next_offset
+            mut offset_str_new := offset.to_str()
+
+            // Store offset in index
+            mut arena_idx := self.arena_index
+            arena_idx.insert(var_name, offset_str_new)
+            self.arena_index = arena_idx
+
+            // Store value in arena memory (as string for now)
+            mut mem_arr := self.arena.memory
+            mem_arr.push(value_str)
+            self.arena.memory = mem_arr
+
+            // Update next offset
+            self.arena.next_offset = add(offset, 1)
+        }
+        else {
+            // Update existing variable
+            mut offset_str_copy := offset_str
+            offset := offset_str_copy.to_i64()
+
+            mut mem_arr := self.arena.memory
+            mem_arr.set(offset, value_str)
+            self.arena.memory = mem_arr
+        }
+    }
+
+    // Get Str value from arena by variable name
+    get_str := func(self: Context, var_name: Str) returns Str throws Str, IndexOutOfBoundsError {
+        // Look up the offset in arena_index
+        mut offset_str := self.arena_index.get(var_name)
+        if offset_str.eq("") {
+            throw format(loc(), " ERROR: Str variable '", var_name, "' not found in arena")
+        }
+
+        // Convert offset string to I64
+        mut offset_str_copy := offset_str
+        offset := offset_str_copy.to_i64()
+
+        // Read string from arena memory at offset
+        mut value := ""
+        mut mem_arr := self.arena.memory
+        mem_arr.get(offset, value)
+        return value
+    }
+
+    // Insert Str value into arena
+    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // Check if variable already exists
+        mut offset_str := self.arena_index.get(var_name)
+
+        if offset_str.eq("") {
+            // New variable - allocate space
+            offset := self.arena.next_offset
+            mut offset_str_new := offset.to_str()
+
+            // Store offset in index
+            mut arena_idx := self.arena_index
+            arena_idx.insert(var_name, offset_str_new)
+            self.arena_index = arena_idx
+
+            // Store value in arena memory
+            mut mem_arr := self.arena.memory
+            mem_arr.push(value)
+            self.arena.memory = mem_arr
+
+            // Update next offset
+            self.arena.next_offset = add(offset, 1)
+        }
+        else {
+            // Update existing variable
+            mut offset_str_copy := offset_str
+            offset := offset_str_copy.to_i64()
+
+            mut mem_arr := self.arena.memory
+            mem_arr.set(offset, value)
+            self.arena.memory = mem_arr
+        }
+    }
+
+    // Get Bool value from arena by variable name
+    get_bool := func(self: Context, var_name: Str) returns Bool throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Look up the offset in arena_index
+        mut offset_str := self.arena_index.get(var_name)
+        if offset_str.eq("") {
+            throw format(loc(), " ERROR: Bool variable '", var_name, "' not found in arena")
+        }
+
+        // Convert offset string to I64
+        mut offset_str_copy := offset_str
+        offset := offset_str_copy.to_i64()
+
+        // Read bool from arena memory (stored as "true"/"false" string)
+        mut value_str := ""
+        mut mem_arr := self.arena.memory
+        mem_arr.get(offset, value_str)
+
+        // Convert string to bool
+        return value_str.eq("true")
+    }
+
+    // Insert Bool value into arena
+    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // Convert bool to string
+        mut value_str := "false"
+        if value {
+            value_str = "true"
+        }
+
+        // Check if variable already exists
+        mut offset_str := self.arena_index.get(var_name)
+
+        if offset_str.eq("") {
+            // New variable - allocate space
+            offset := self.arena.next_offset
+            mut offset_str_new := offset.to_str()
+
+            // Store offset in index
+            mut arena_idx := self.arena_index
+            arena_idx.insert(var_name, offset_str_new)
+            self.arena_index = arena_idx
+
+            // Store value in arena memory
+            mut mem_arr := self.arena.memory
+            mem_arr.push(value_str)
+            self.arena.memory = mem_arr
+
+            // Update next offset
+            self.arena.next_offset = add(offset, 1)
+        }
+        else {
+            // Update existing variable
+            mut offset_str_copy := offset_str
+            offset := offset_str_copy.to_i64()
+
+            mut mem_arr := self.arena.memory
+            mem_arr.set(offset, value_str)
+            self.arena.memory = mem_arr
+        }
+    }
 }
 
 // Evaluate an expression
