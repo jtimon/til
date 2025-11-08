@@ -877,6 +877,31 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
         NodeType::Identifier(_) => {
             // Regular functions and associated functions used directly
             let combined_name = get_combined_name(func_expr)?;
+
+            // NEW: Check if this is a UFCS call on a function/expression result
+            // If params has 2+ elements and params[1] is an expression (FCall, etc.)
+            if fcall_expr.params.len() >= 2 {
+                let first_arg = fcall_expr.get(1)?;
+                // Try to get the type of the first argument
+                if let Ok(target_type) = get_value_type(context, first_arg) {
+                    if let ValueType::TCustom(custom_type_name) = target_type {
+                        // Check if this type has an associated method
+                        let method_name = format!("{}.{}", custom_type_name, combined_name);
+                        if let Some(func_def) = context.funcs.get(&method_name) {
+                            // Transform: method(target, args...) with proper identifier
+                            let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.get(0)?, Vec::new());
+                            let mut new_args = Vec::new();
+                            new_args.push(new_e);
+                            new_args.extend(fcall_expr.params[1..].to_vec());
+
+                            *fcall_expr = Expr::new_clone(NodeType::FCall, fcall_expr.get(0)?, new_args);
+                            return Ok(Some(func_def.clone()));
+                        }
+                    }
+                }
+            }
+
+            // Original logic: check for regular function
             if let Some(func_def) = context.funcs.get(&combined_name) {
                 return Ok(Some(func_def.clone()))
             }
@@ -1012,6 +1037,28 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
 fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
 
     let f_name = get_func_name_in_call(&e);
+
+    // Check if this is a UFCS call on a function/expression result
+    // If e has 2+ params (func name + target + args), check if the target's type
+    // has an associated method with this name, prioritizing it over standalone functions
+    if e.params.len() >= 2 {
+        let first_arg = e.get(1)?;  // Get the UFCS target (skip func name at index 0)
+
+        // Try to get the type of the first argument
+        if let Ok(target_type) = get_value_type(context, first_arg) {
+            if let ValueType::TCustom(custom_type_name) = target_type {
+                // Check if this type has an associated method with this name
+                let method_name = format!("{}.{}", custom_type_name, f_name);
+                if let Some(func_def) = context.funcs.get(&method_name) {
+                    // UFCS method exists! Use it instead of standalone function
+                    return value_type_func_proc(&e, &method_name, func_def);
+                }
+            }
+        }
+        // If we couldn't determine type or no associated method exists, fall through
+    }
+
+    // Original logic: check for standalone function
     if let Some(func_def) = context.funcs.get(&f_name) {
         return value_type_func_proc(&e, &f_name, func_def)
     } else if let Some(symbol) = context.symbols.get(&f_name) {
