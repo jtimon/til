@@ -354,7 +354,7 @@ parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, Ind
         return parse_func_proc_definition(lexer)
     }
     if tt_str.eq("TokenType.Enum") {
-        throw t.todo_error("enum_definition not implemented yet")
+        return enum_definition(lexer)
     }
     if tt_str.eq("TokenType.Struct") {
         return parse_struct_definition(lexer)
@@ -1387,6 +1387,88 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     mut params := ExprArray.new()
     mut struct_def_node := NodeType.StructDef(struct_def)
     return Expr.new_parse(struct_def_node, initial_token, params)
+}
+
+// Parse enum definition: enum { Variant1, Variant2: Type, ... }
+enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+    initial_index := lexer.current_token
+    lexer.advance(1) // consume 'enum'
+
+    t := lexer.peek()
+    switch t.token_type {
+    case TokenType.LeftBrace:
+        // Good, continue
+    case:
+        throw t.error("Expected '{{' after 'enum'.")
+    }
+
+    if lexer.is_eof(1) {
+        throw t.error("expected identifier after 'enum {{', found EOF.")
+    }
+
+    lexer.advance(1) // consume '{'
+    mut enum_map := StrMap.new()
+    mut end_found := false
+
+    while not(or(lexer.is_eof(0), end_found)) {
+        mut it_t := lexer.peek()
+
+        switch it_t.token_type {
+        case TokenType.RightBrace:
+            end_found = true
+
+        case TokenType.Identifier:
+            enum_val_name := it_t.token_str
+            next_t := lexer.next()
+
+            switch next_t.token_type {
+            case TokenType.Colon:
+                // Variant with type: VarName: Type
+                next2_t := lexer.peek_ahead(2)
+                switch next2_t.token_type {
+                case TokenType.Identifier:
+                    // Good - this is the type
+                case:
+                    throw next2_t.error(format("Expected type identifier after '", enum_val_name, " :', found '", enum_to_str(next2_t.token_type), "'."))
+                }
+                enum_val_type := next2_t.token_str
+                enum_map.insert(enum_val_name, enum_val_type)
+                lexer.advance(2) // skip colon and type
+
+            case TokenType.Comma:
+                // Variant without type, followed by comma
+                enum_map.insert(enum_val_name, "")
+
+            case TokenType.RightBrace:
+                // Variant without type, end of enum
+                enum_map.insert(enum_val_name, "")
+                end_found = true
+
+            case:
+                throw next_t.error(format("Expected ',' or ':' after '", enum_val_name, "', found '", enum_to_str(next_t.token_type), "'."))
+            }
+
+        case TokenType.Comma:
+            // Skip comma - already handled
+
+        case:
+            throw it_t.error(format("Expected '}}' to end enum or a new identifier, found '", enum_to_str(it_t.token_type), "'."))
+        }
+
+        lexer.advance(1)
+    }
+
+    if not(end_found) {
+        throw t.error("Expected '}}' to end enum.")
+    }
+
+    // Create SEnumDef and return as NodeType.EnumDef
+    mut enum_def := SEnumDef()
+    enum_def.enum_map = enum_map
+
+    mut params := ExprArray.new()
+    mut enum_def_node := NodeType.EnumDef(enum_def)
+    return Expr.new_parse(enum_def_node, lexer.get_token(initial_index), params)
 }
 
 parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
