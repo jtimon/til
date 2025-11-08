@@ -69,35 +69,27 @@ eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
     if literal_str.eq("NodeType.Literal") {
         // Extract payload to get LiteralNodeType
         mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
-        enum_extract_payload(literal_type, lit_node_type)
+        rsonly_enum_extract_payload(literal_type, lit_node_type)
 
-        lit_type_str := enum_to_str(lit_node_type)
-
-        if lit_type_str.eq("LiteralNodeType.String") {
-            mut str_val := ""
-            enum_extract_payload(lit_node_type, str_val)
+        // Use pattern matching to extract primitive payloads
+        switch lit_node_type {
+        case LiteralNodeType.String(str_val):
             return str_val
-        }
-
-        if lit_type_str.eq("LiteralNodeType.I64") {
-            mut i64_val := 0
-            enum_extract_payload(lit_node_type, i64_val)
+        case LiteralNodeType.I64(i64_val):
             mut i64_copy := i64_val
             return i64_copy.to_str()
-        }
-
-        if lit_type_str.eq("LiteralNodeType.Bool") {
-            mut bool_val := false
-            enum_extract_payload(lit_node_type, bool_val)
+        case LiteralNodeType.Bool(bool_val):
             if bool_val {
                 return "true"
             }
             return "false"
-        }
-
-        if lit_type_str.eq("LiteralNodeType.List") {
+        case LiteralNodeType.List:
             // Lists not implemented yet
             throw format(loc(), " ERROR: List literals not yet implemented")
+        case:
+            // Unknown literal types
+            lit_type_str := enum_to_str(lit_node_type)
+            throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
         }
     }
 
@@ -106,10 +98,15 @@ eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
 
 // Evaluate an identifier (variable lookup)
 eval_identifier := proc(context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
-    // Get identifier name from node_type payload
+    // Get identifier name from node_type payload using pattern matching
     mut node_type := e.node_type
     mut var_name := ""
-    enum_extract_payload(node_type, var_name)
+    switch node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        // Should never happen for this eval function
+    }
 
     // Look up in symbol table to get type
     mut symbols_map := context.symbols
@@ -165,7 +162,7 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
     // Extract Declaration from node_type
     mut node_type := e.node_type
     mut decl := Declaration()
-    enum_extract_payload(node_type, decl)
+    rsonly_enum_extract_payload(node_type, decl)
 
     // Get the initializer expression (params[0])
     mut params_array := e.params
@@ -209,10 +206,15 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
 // Evaluate an assignment
 // Phase 2: simple types only, no mutability checking yet
 eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Extract variable name from node_type
+    // Extract variable name from node_type using pattern matching
     mut node_type := e.node_type
     mut var_name := ""
-    enum_extract_payload(node_type, var_name)
+    switch node_type {
+    case NodeType.Identifier(name):
+        var_name = name
+    case:
+        // Should never happen for this eval function
+    }
 
     // Look up symbol to verify it exists and get its type
     mut symbols_map := context.symbols
@@ -284,7 +286,7 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
 
     mut func_node_type := func_name_expr.node_type
 
-    // WORKAROUND for rstil bug: enum_extract_payload corrupts strings during recursive calls
+    // WORKAROUND for rstil bug: rsonly_enum_extract_payload corrupts strings during recursive calls
     // enum_to_str() doesn't include payload, so we can't distinguish between functions
     // TEMPORARY HACK: For hello_script.til test, just assume all calls are println
     // TODO: Fix this properly - possibly by using switch statement to extract payload

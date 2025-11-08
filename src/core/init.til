@@ -630,7 +630,7 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
         // Extract LiteralNodeType from payload
         mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
         mut node_type := e.node_type
-        enum_extract_payload(node_type, lit_node_type)
+        rsonly_enum_extract_payload(node_type, lit_node_type)
 
         lit_type_str := enum_to_str(lit_node_type)
 
@@ -655,7 +655,7 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
         // Extract SFuncDef from payload
         mut func_def := SFuncDef()
         mut node_type := e.node_type
-        enum_extract_payload(node_type, func_def)
+        rsonly_enum_extract_payload(node_type, func_def)
 
         // Determine function type
         func_type := func_def.function_type
@@ -704,10 +704,15 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
 
     // Handle identifiers
     if node_type_str.eq("NodeType.Identifier") {
-        // Extract identifier name
+        // Extract identifier name using pattern matching
         mut id_name := ""
         mut node_type := e.node_type
-        enum_extract_payload(node_type, id_name)
+        switch node_type {
+        case NodeType.Identifier(name):
+            id_name = name
+        case:
+            // Should never happen due to the if check above
+        }
 
         // Look up symbol
         mut symbols_map := context.symbols
@@ -740,7 +745,12 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             }
 
             mut member_name := ""
-            enum_extract_payload(member_node_type, member_name)
+            switch member_node_type {
+            case NodeType.Identifier(name):
+                member_name = name
+            case:
+                // Should never happen due to the if check above
+            }
 
             // Check current_type to determine how to resolve member
             current_type_str := enum_to_str(current_type)
@@ -748,7 +758,7 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             // Handle TType - accessing enum variant or struct member
             if current_type_str.eq("ValueType.TType") {
                 mut ttype_def := TTypeDef.TEnumDef
-                enum_extract_payload(current_type, ttype_def)
+                rsonly_enum_extract_payload(current_type, ttype_def)
                 ttype_str := enum_to_str(ttype_def)
 
                 if ttype_str.eq("TTypeDef.TEnumDef") {
@@ -777,7 +787,12 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             // Handle TCustom - accessing field on instance
             if current_type_str.eq("ValueType.TCustom") {
                 mut custom_type_name := ""
-                enum_extract_payload(current_type, custom_type_name)
+                switch current_type {
+                case ValueType.TCustom(name):
+                    custom_type_name = name
+                case:
+                    // Should never happen due to the if check above
+                }
 
                 // Check if it's a struct instance
                 mut struct_defs_map := context.struct_defs
@@ -822,7 +837,12 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
         target_type_str := enum_to_str(target_type)
         if target_type_str.eq("ValueType.TCustom") {
             mut custom_type_name := ""
-            enum_extract_payload(target_type, custom_type_name)
+            switch target_type {
+            case ValueType.TCustom(name):
+                custom_type_name = name
+            case:
+                // Should never happen due to the if check above
+            }
 
             // Check for associated method
             mut method_name := ""
@@ -930,9 +950,14 @@ get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsE
         throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0], got ", func_node_type_str)
     }
 
-    // Extract the function name string from the Identifier payload
+    // Extract the function name string from the Identifier payload using pattern matching
     mut func_name := ""
-    enum_extract_payload(func_node_type, func_name)
+    switch func_node_type {
+    case NodeType.Identifier(name):
+        func_name = name
+    case:
+        // Should never happen due to the if check above
+    }
     return func_name
 }
 
@@ -970,7 +995,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         // Extract Declaration from node_type
         mut decl := Declaration()
         mut node_type := e.node_type
-        enum_extract_payload(node_type, decl)
+        rsonly_enum_extract_payload(node_type, decl)
 
         // Check if already declared
         mut funcs_map := context.funcs
@@ -1009,7 +1034,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
 
             if inner_node_type_str.eq("NodeType.FuncDef") {
                 mut func_def := SFuncDef()
-                enum_extract_payload(inner_node_type, func_def)
+                rsonly_enum_extract_payload(inner_node_type, func_def)
 
                 // Register in symbols and funcs
                 symbols_map.insert(decl.name, value_type_str)
@@ -1025,14 +1050,14 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         // Handle enum definitions
         if value_type_str.eq("ValueType.TType") {
             mut ttype_def := TTypeDef.TEnumDef
-            enum_extract_payload(value_type, ttype_def)
+            rsonly_enum_extract_payload(value_type, ttype_def)
             ttype_str := enum_to_str(ttype_def)
 
             if ttype_str.eq("TTypeDef.TEnumDef") {
                 // Extract enum definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut enum_def := SEnumDef()
-                enum_extract_payload(inner_node_type, enum_def)
+                rsonly_enum_extract_payload(inner_node_type, enum_def)
 
                 // Register in symbols and enum_defs
                 symbols_map.insert(decl.name, value_type_str)
@@ -1049,7 +1074,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 // Extract struct definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut struct_def := SStructDef()
-                enum_extract_payload(inner_node_type, struct_def)
+                rsonly_enum_extract_payload(inner_node_type, struct_def)
 
                 // Register in symbols and struct_defs
                 symbols_map.insert(decl.name, value_type_str)

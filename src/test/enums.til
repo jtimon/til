@@ -85,53 +85,74 @@ aaa := Color.Unknown
 bbb := Color.Green(true)
 ccc := Color.Number(42)
 
-// Test payload extraction
-mut bool_payload := false
-enum_extract_payload(bbb, bool_payload)
-assert(loc(), bool_payload)
+// Test payload extraction using switch pattern matching
+test_simple_payload_extraction := proc() {
+    mut bool_payload := false
+    switch bbb {
+    case Color.Green(is_olive):
+        bool_payload = is_olive
+    case:
+        // Other variants
+    }
+    assert(loc(), bool_payload)
 
-mut i64_payload := 0
-enum_extract_payload(ccc, i64_payload)
-assert_eq(loc(), 42, i64_payload)
+    mut i64_payload := 0
+    switch ccc {
+    case Color.Number(code):
+        i64_payload = code
+    case:
+        // Other variants
+    }
+    assert_eq(loc(), 42, i64_payload)
 
-// Test with different values
+    // Test with different values
+    green_false := Color.Green(false)
+    mut bool_payload2 := false
+    switch green_false {
+    case Color.Green(is_olive):
+        bool_payload2 = is_olive
+    case:
+        // Other variants
+    }
+    assert(loc(), not(bool_payload2))
+
+    number_99 := Color.Number(99)
+    mut i64_payload2 := 0
+    switch number_99 {
+    case Color.Number(code):
+        i64_payload2 = code
+    case:
+        // Other variants
+    }
+    assert_eq(loc(), 99, i64_payload2)
+}
+test_simple_payload_extraction()
+
 green_false := Color.Green(false)
-mut bool_payload2 := false
-enum_extract_payload(green_false, bool_payload2)
-assert(loc(), not(bool_payload2))
-
-number_99 := Color.Number(99)
-mut i64_payload2 := 0
-enum_extract_payload(number_99, i64_payload2)
-assert_eq(loc(), 99, i64_payload2)
 
 // Test type checking: these should fail at compile time
 // Color.Green(42)  // ERROR: expects Bool, got I64
 // Color.Number(true)  // ERROR: expects I64, got Bool
 
-// Test matching enum variants with payload extraction
-// Note: Full pattern matching syntax like `case Color.Green(is_olive):` requires parser changes
-// For now, we match on enum_to_str() and extract payloads manually
+// Test matching enum variants with payload extraction using switch pattern matching
 test_color_match := proc(to_switch: Color) returns Str {
-    variant_str := enum_to_str(to_switch)
-    switch variant_str {
-    case "Color.Unknown": return "unknown color"
-    case "Color.Green":
-        mut is_olive := false
-        enum_extract_payload(to_switch, is_olive)
+    switch to_switch {
+    case Color.Unknown: return "unknown color"
+    case Color.Green(is_olive):
         if is_olive {
             return "olive green"
         }
         return "dark green"
-    case "Color.Number":
-        mut code := 0
-        enum_extract_payload(to_switch, code)
+    case Color.Number(code):
         if gt(code, 0) {
             return "positive color code"
         }
         return "negative color code"
+    case Color.Name:
+        return "color with name"
+    case:
+        return "should not reach here"
     }
-    return "should not reach here"
 }
 
 assert_eq_str(loc(), test_color_match(Color.Unknown), "unknown color")
@@ -145,38 +166,50 @@ test_str_payloads := proc() {
     my_name := "crimson"
     color_name := Color.Name(my_name)
 
-    // Test extraction with enum_extract_payload
+    // Test extraction with switch pattern matching
     mut extracted_name := ""
-    enum_extract_payload(color_name, extracted_name)
+    switch color_name {
+    case Color.Name(name):
+        extracted_name = name
+    case:
+        // Other variants
+    }
     assert(loc(), extracted_name.eq("crimson"))
 
     // Test with different string values
     blue_color := Color.Name("blue")
     mut extracted_blue := ""
-    enum_extract_payload(blue_color, extracted_blue)
+    switch blue_color {
+    case Color.Name(name):
+        extracted_blue = name
+    case:
+        // Other variants
+    }
     assert(loc(), extracted_blue.eq("blue"))
 
     // Test with longer string
     long_name := "bright-yellow-green"
     long_color := Color.Name(long_name)
     mut extracted_long := ""
-    enum_extract_payload(long_color, extracted_long)
+    switch long_color {
+    case Color.Name(name):
+        extracted_long = name
+    case:
+        // Other variants
+    }
     assert(loc(), extracted_long.eq("bright-yellow-green"))
 
     // Test in switch statement
-    test_color_name_match := proc(c: Color) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        variant_str := enum_to_str(c)
-        switch variant_str {
-        case "Color.Name":
-            mut name := ""
-            enum_extract_payload(c, name)
+    test_color_name_match := proc(col: Color) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        switch col {
+        case Color.Name(name):
             return format("color name: ", name)
-        case "Color.Number":
-            mut code := 0
-            enum_extract_payload(c, code)
-            return format("color code: ", code.to_str())
+        case Color.Number(code):
+            code_str := I64.to_str(code)
+            return format("color code: ", code_str)
+        case:
+            return "other color"
         }
-        return "other color"
     }
 
     assert(loc(), test_color_name_match(color_name).eq("color name: crimson"))
@@ -222,13 +255,14 @@ Shape := enum {
 
 test_struct_payloads := proc() {
     // Test basic struct payload
+    // NOTE: Pattern matching not yet supported for struct payloads, using rsonly_enum_extract_payload
     mut my_vec := Vec2()
     my_vec.x = 10
     my_vec.y = 20
     point := Shape.Point(my_vec)
 
     mut extracted_vec := Vec2()
-    enum_extract_payload(point, extracted_vec)
+    rsonly_enum_extract_payload(point, extracted_vec)
     assert_eq(loc(), 10, extracted_vec.x)
     assert_eq(loc(), 20, extracted_vec.y)
 
@@ -240,7 +274,7 @@ test_struct_payloads := proc() {
     point3d := Shape.Point3D(my_vec3)
 
     mut extracted_vec3 := Vec3()
-    enum_extract_payload(point3d, extracted_vec3)
+    rsonly_enum_extract_payload(point3d, extracted_vec3)
     assert_eq(loc(), 1, extracted_vec3.x)
     assert_eq(loc(), 2, extracted_vec3.y)
     assert_eq(loc(), 3, extracted_vec3.z)
@@ -253,26 +287,26 @@ test_struct_payloads := proc() {
     // container_shape := Shape.Container(container)
     //
     // mut extracted_container := ContainerStruct()
-    // enum_extract_payload(container_shape, extracted_container)
+    // rsonly_enum_extract_payload(container_shape, extracted_container)
     // assert_eq(loc(), 100, extracted_container.vec.x)
     // assert_eq(loc(), 200, extracted_container.vec.y)
     // assert_eq(loc(), 42, extracted_container.value)
 
-    // Test with enum_extract_payload in switch
+    // Test with switch - using enum_to_str because struct pattern matching not supported yet
     test_shape_match := proc(s: Shape) returns I64 {
         variant_str := enum_to_str(s)
         switch variant_str {
         case "Shape.Point":
             mut v := Vec2()
-            enum_extract_payload(s, v)
+            rsonly_enum_extract_payload(s, v)
             return add(v.x, v.y)
         case "Shape.Point3D":
             mut v3 := Vec3()
-            enum_extract_payload(s, v3)
+            rsonly_enum_extract_payload(s, v3)
             return add(add(v3.x, v3.y), v3.z)
         case "Shape.Container":
             mut c := ContainerStruct()
-            enum_extract_payload(s, c)
+            rsonly_enum_extract_payload(s, c)
             return c.value
         }
         return 0
@@ -311,25 +345,26 @@ test_enum_payloads := proc() {
     assert(loc(), enum_to_str(opt_none).eq("Option.None"))
 
     // Test Some variant with Color payload
+    // NOTE: Pattern matching not yet supported for enum payloads, using rsonly_enum_extract_payload
     my_color := SimpleColor.Red
     opt_some := Option.Some(my_color)
 
     mut extracted_color := SimpleColor.Blue
-    enum_extract_payload(opt_some, extracted_color)
+    rsonly_enum_extract_payload(opt_some, extracted_color)
     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
 
     // Test with Green
     green := SimpleColor.Green
     opt_green := Option.Some(green)
     mut extracted2 := SimpleColor.Red
-    enum_extract_payload(opt_green, extracted2)
+    rsonly_enum_extract_payload(opt_green, extracted2)
     assert(loc(), enum_to_str(extracted2).eq("SimpleColor.Green"))
 
     // Test with Blue
     blue := SimpleColor.Blue
     opt_blue := Option.Some(blue)
     mut extracted3 := SimpleColor.Red
-    enum_extract_payload(opt_blue, extracted3)
+    rsonly_enum_extract_payload(opt_blue, extracted3)
     assert(loc(), enum_to_str(extracted3).eq("SimpleColor.Blue"))
 }
 test_enum_payloads()
@@ -347,17 +382,18 @@ Result := enum {
 
 test_nested_enum_payloads := proc() {
     // Test Ok(Some(Red))
+    // NOTE: Pattern matching not yet supported for enum payloads, using rsonly_enum_extract_payload
     red := SimpleColor.Red
     some_red := Option.Some(red)
     result_ok := Result.Ok(some_red)
 
     mut extracted_option := Option.None
-    enum_extract_payload(result_ok, extracted_option)
+    rsonly_enum_extract_payload(result_ok, extracted_option)
     assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
 
     // Extract the color from the option
     mut extracted_color := SimpleColor.Blue
-    enum_extract_payload(extracted_option, extracted_color)
+    rsonly_enum_extract_payload(extracted_option, extracted_color)
     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
 
     // Test Ok(None)
@@ -365,14 +401,14 @@ test_nested_enum_payloads := proc() {
     result_ok_none := Result.Ok(none_opt)
     green_temp := SimpleColor.Green
     mut extracted_option2 := Option.Some(green_temp)
-    enum_extract_payload(result_ok_none, extracted_option2)
+    rsonly_enum_extract_payload(result_ok_none, extracted_option2)
     assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
 
     // Test Err variant
     error := ErrorType.NotFound
     result_err := Result.Err(error)
     mut extracted_error := ErrorType.Invalid
-    enum_extract_payload(result_err, extracted_error)
+    rsonly_enum_extract_payload(result_err, extracted_error)
     assert(loc(), enum_to_str(extracted_error).eq("ErrorType.NotFound"))
 }
 test_nested_enum_payloads()
@@ -413,28 +449,28 @@ Message := enum {
 }
 
 test_complex_nesting := proc() {
-    // Helper to process Message using switch
+    // Helper to process Message - using enum_to_str because struct/enum payload pattern matching not supported
     process_message := proc(msg: Message) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
         variant_str := enum_to_str(msg)
         switch variant_str {
         case "Message.Info":
             mut info := ""
-            enum_extract_payload(msg, info)
+            rsonly_enum_extract_payload(msg, info)
             return format("Info: ", info)
         case "Message.State":
             mut state := GameState()
-            enum_extract_payload(msg, state)
+            rsonly_enum_extract_payload(msg, state)
             player_id := state.player_id
             return format("State with player_id=", player_id.to_str())
         case "Message.Error":
             mut err_status := Status.Inactive
-            enum_extract_payload(msg, err_status)
+            rsonly_enum_extract_payload(msg, err_status)
             return format("Error: ", enum_to_str(err_status))
         }
         return "unknown message"
     }
 
-    // Helper to process Action using switch
+    // Helper to process Action - using enum_to_str because struct payload pattern matching not supported
     process_action := proc(act: Action) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
         variant_str := enum_to_str(act)
         switch variant_str {
@@ -442,7 +478,7 @@ test_complex_nesting := proc() {
             return "Noop action"
         case "Action.Move":
             mut pos := Point2D()
-            enum_extract_payload(act, pos)
+            rsonly_enum_extract_payload(act, pos)
             x := pos.x
             y := pos.y
             return format("Move to (", x.to_str(), ",", y.to_str(), ")")
@@ -486,7 +522,7 @@ test_complex_nesting := proc() {
 
     // Extract GameState from Message
     mut extracted_state := GameState()
-    enum_extract_payload(message, extracted_state)
+    rsonly_enum_extract_payload(message, extracted_state)
 
     // Verify GameState.player_id
     assert_eq(loc(), 456, extracted_state.player_id)
@@ -503,7 +539,7 @@ test_complex_nesting := proc() {
     // This creates struct-with-enum-field as enum payload, which doesn't work yet
     // // Extract Entity from Action
     // mut extracted_entity := Entity()
-    // enum_extract_payload(extracted_action, extracted_entity)
+    // rsonly_enum_extract_payload(extracted_action, extracted_entity)
     // assert_eq(loc(), 123, extracted_entity.id)
     // assert(loc(), enum_to_str(extracted_entity.status).eq("Status.Error"))
 
@@ -514,7 +550,7 @@ test_complex_nesting := proc() {
 
     // // Extract Point2D from Status
     // mut extracted_point := Point2D()
-    // enum_extract_payload(extracted_status, extracted_point)
+    // rsonly_enum_extract_payload(extracted_status, extracted_point)
     // assert_eq(loc(), 42, extracted_point.x)
     // assert_eq(loc(), 100, extracted_point.y)
 
@@ -527,7 +563,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_info := ""
-    enum_extract_payload(info_msg, extracted_info)
+    rsonly_enum_extract_payload(info_msg, extracted_info)
     assert(loc(), extracted_info.eq("System initialized"))
 
     // Test Message.Error with simpler Status
@@ -540,7 +576,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_status2 := Status.Inactive
-    enum_extract_payload(simple_error, extracted_status2)
+    rsonly_enum_extract_payload(simple_error, extracted_status2)
     assert(loc(), enum_to_str(extracted_status2).eq("Status.Active"))
 
     // Test Action.Move with Point2D directly (simpler test)
@@ -555,7 +591,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_test_point := Point2D()
-    enum_extract_payload(test_move, extracted_test_point)
+    rsonly_enum_extract_payload(test_move, extracted_test_point)
     assert_eq(loc(), 99, extracted_test_point.x)
     assert_eq(loc(), 88, extracted_test_point.y)
 
@@ -571,14 +607,14 @@ test_complex_nesting := proc() {
 
     // message2 := Message.State(game_state2)
     // mut extracted_state2 := GameState()
-    // enum_extract_payload(message2, extracted_state2)
+    // rsonly_enum_extract_payload(message2, extracted_state2)
 
     // mut extracted_action2 := Action.Noop
     // extracted_action2 = extracted_state2.current_action
     // assert(loc(), enum_to_str(extracted_action2).eq("Action.Move"))
 
     // mut extracted_move_point := Point2D()
-    // enum_extract_payload(extracted_action2, extracted_move_point)
+    // rsonly_enum_extract_payload(extracted_action2, extracted_move_point)
     // assert_eq(loc(), 10, extracted_move_point.x)
     // assert_eq(loc(), 20, extracted_move_point.y)
 
@@ -593,3 +629,117 @@ test_complex_nesting := proc() {
     }
 }
 test_complex_nesting()
+
+// Test switch pattern matching with payload extraction
+// This tests the new syntax: case EnumVariant(var_name):
+test_switch_pattern_bool := proc() {
+    green_true := Color.Green(true)
+    green_false := Color.Green(false)
+
+    mut result := ""
+
+    // Test extracting true payload
+    switch green_true {
+    case Color.Green(is_olive):
+        if is_olive {
+            result = "olive green"
+        } else {
+            result = "ERROR: Should be olive green"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "olive green", result)
+
+    // Test extracting false payload
+    switch green_false {
+    case Color.Green(is_olive):
+        if not(is_olive) {
+            result = "dark green"
+        } else {
+            result = "ERROR: Should be dark green"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "dark green", result)
+
+    println("PASS: Switch pattern matching with Bool payload works")
+}
+
+test_switch_pattern_i64 := proc() {
+    num42 := Color.Number(42)
+    num0 := Color.Number(0)
+
+    mut result := ""
+
+    // Test extracting I64 payload
+    switch num42 {
+    case Color.Number(code):
+        if I64.eq(code, 42) {
+            result = "answer to everything"
+        } else {
+            result = "ERROR: Should be 42"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "answer to everything", result)
+
+    // Test extracting zero
+    switch num0 {
+    case Color.Number(code):
+        if I64.eq(code, 0) {
+            result = "zero"
+        } else {
+            result = "ERROR: Should be 0"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "zero", result)
+
+    println("PASS: Switch pattern matching with I64 payload works")
+}
+
+test_switch_pattern_str := proc() {
+    red := Color.Name("red")
+    blue := Color.Name("blue")
+
+    mut result := ""
+
+    // Test extracting Str payload
+    switch red {
+    case Color.Name(name):
+        mut name_copy := name
+        if Str.eq(name_copy, "red") {
+            result = "red color"
+        } else {
+            result = "ERROR: Should be red"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "red color", result)
+
+    // Test extracting another string
+    switch blue {
+    case Color.Name(name):
+        mut name_copy := name
+        if Str.eq(name_copy, "blue") {
+            result = "blue color"
+        } else {
+            result = "ERROR: Should be blue"
+        }
+    case:
+        result = "ERROR: No match"
+    }
+    assert_eq_str(loc(), "blue color", result)
+
+    println("PASS: Switch pattern matching with Str payload works")
+}
+
+// Run the pattern matching tests
+test_switch_pattern_bool()
+test_switch_pattern_i64()
+test_switch_pattern_str()

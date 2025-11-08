@@ -193,24 +193,18 @@ str_to_value_type := proc(type_name: Str) returns ValueType {
 
 // Convert ValueType to string representation
 value_type_to_str := proc(vtype: ValueType) returns Str {
-    vtype_str := enum_to_str(vtype)
-
-    if vtype_str.eq("ValueType.TFunction") {
+    switch vtype {
+    case ValueType.TFunction:
         return "Function"
-    }
-    if vtype_str.eq("ValueType.TType") {
+    case ValueType.TType:
         return "Type"
-    }
-    if vtype_str.eq("ValueType.TMulti") {
+    case ValueType.TMulti:
         return "Multi"
-    }
-    if vtype_str.eq("ValueType.TCustom") {
-        // Extract the custom type name from payload
-        mut type_name := ""
-        enum_extract_payload(vtype, type_name)
+    case ValueType.TCustom(type_name):
         return type_name
+    case:
+        return "Unknown"
     }
-    return "Unknown"
 }
 
 // Check if a token is a literal (string, number, or boolean)
@@ -458,14 +452,9 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
 
 get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     node_type := e.node_type
-    variant_str := enum_to_str(node_type)
 
-    switch variant_str {
-    case "NodeType.Identifier":
-        // Extract the identifier name from the payload FIRST
-        mut identifier_name := ""
-        enum_extract_payload(node_type, identifier_name)
-
+    switch node_type {
+    case NodeType.Identifier(identifier_name):
         // Check if there are params (dotted access like Foo.bar)
         mut e_params := e.params
         params_len := e_params.len
