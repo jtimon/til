@@ -449,6 +449,13 @@ Lexer := struct {
         return l
     }
 
+    new_from_src := proc(source: Str) returns Lexer {
+        mut l := Lexer()
+        l.path = "<test>"
+        l.tokens = scan_tokens(source)
+        return l
+    }
+
     len := func(self: Lexer) returns I64 {
         self_tokens := self.tokens
         return self_tokens.len

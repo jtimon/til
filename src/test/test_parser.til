@@ -178,3 +178,277 @@ test_is_literal_keyword()
 //     }
 // }
 // test_get_combined_name_dotted()
+
+// ===== Lexer.new_from_src tests =====
+
+test_lexer_new_from_src_basic := proc() {
+    mut lexer := Lexer.new_from_src("42")
+    tokens_len := lexer.len()
+    // Should have the number token and EOF (so exactly 2)
+    if I64.eq(tokens_len, 2) {
+        println("test_lexer_new_from_src_basic: PASS")
+    }
+    else {
+        println(loc(), " FAIL: Expected 2 tokens, got ", I64.to_str(tokens_len))
+        exit(1)
+    }
+}
+test_lexer_new_from_src_basic()
+
+test_lexer_new_from_src_identifier := proc() {
+    mut lexer := Lexer.new_from_src("x")
+    tokens_len := lexer.len()
+    // Should have identifier token and EOF (so exactly 2)
+    if I64.eq(tokens_len, 2) {
+        println("test_lexer_new_from_src_identifier: PASS")
+    }
+    else {
+        println(loc(), " FAIL: Expected 2 tokens, got ", I64.to_str(tokens_len))
+        exit(1)
+    }
+}
+test_lexer_new_from_src_identifier()
+
+// ===== parse_primary_identifier tests =====
+
+test_parse_primary_identifier_simple := proc() {
+    mut lexer := Lexer.new_from_src("foo")
+    result := parse_primary_identifier(lexer)
+
+    // Should be an Identifier node
+    switch result.node_type {
+    case NodeType.Identifier:
+        // Success - this is what we expect
+        println("test_parse_primary_identifier_simple: PASS")
+    case:
+        println(loc(), " FAIL: Expected NodeType.Identifier")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_simple failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_simple: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_simple: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_simple: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_simple: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_simple()
+
+test_parse_primary_identifier_function_call := proc() {
+    mut lexer := Lexer.new_from_src("println(\"Hello World!\")")
+    result := parse_primary_identifier(lexer)
+
+    // Should be a FCall node
+    switch result.node_type {
+    case NodeType.FCall:
+        // Success - should be a function call
+        println("test_parse_primary_identifier_function_call: PASS")
+    case:
+        println(loc(), " FAIL: Expected NodeType.FCall")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_function_call failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_function_call: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_function_call: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_function_call: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_function_call: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_function_call()
+
+test_parse_primary_identifier_function_call_with_args := proc() {
+    mut lexer := Lexer.new_from_src("add(1, 2, 3)")
+    result := parse_primary_identifier(lexer)
+
+    // Should be a FCall node with 4 params (identifier + 3 args)
+    switch result.node_type {
+    case NodeType.FCall:
+        result_params := result.params
+        params_len := result_params.len()
+        if I64.eq(params_len, 4) {
+            println("test_parse_primary_identifier_function_call_with_args: PASS")
+        }
+        else {
+            println(loc(), " FAIL: Expected 4 params (1 identifier + 3 args), got ", I64.to_str(params_len))
+            exit(1)
+        }
+    case:
+        println(loc(), " FAIL: Expected NodeType.FCall")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_function_call_with_args failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_function_call_with_args: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_function_call_with_args: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_function_call_with_args: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_function_call_with_args: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_function_call_with_args()
+
+test_parse_primary_identifier_dotted := proc() {
+    mut lexer := Lexer.new_from_src("Str.eq")
+    result := parse_primary_identifier(lexer)
+
+    // Should be an Identifier node with 1 param (the dotted part)
+    switch result.node_type {
+    case NodeType.Identifier:
+        result_params := result.params
+        params_len := result_params.len()
+        if I64.eq(params_len, 1) {
+            println("test_parse_primary_identifier_dotted: PASS")
+        }
+        else {
+            println(loc(), " FAIL: Expected 1 param for dotted identifier, got ", I64.to_str(params_len))
+            exit(1)
+        }
+    case:
+        println(loc(), " FAIL: Expected NodeType.Identifier")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_dotted failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_dotted: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_dotted: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_dotted: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_dotted: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_dotted()
+
+test_parse_primary_identifier_dotted_call := proc() {
+    mut lexer := Lexer.new_from_src("Str.eq(a, b)")
+    result := parse_primary_identifier(lexer)
+
+    // Should be a FCall node
+    switch result.node_type {
+    case NodeType.FCall:
+        result_params := result.params
+        params_len := result_params.len()
+        if I64.eq(params_len, 3) {
+            println("test_parse_primary_identifier_dotted_call: PASS")
+        }
+        else {
+            println(loc(), " FAIL: Expected 3 params (dotted identifier + 2 args), got ", I64.to_str(params_len))
+            exit(1)
+        }
+    case:
+        println(loc(), " FAIL: Expected NodeType.FCall")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_dotted_call failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_dotted_call: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_dotted_call: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_dotted_call: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_dotted_call: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_dotted_call()
+
+test_parse_primary_identifier_method_chain := proc() {
+    mut lexer := Lexer.new_from_src("obj.method1().method2()")
+    result := parse_primary_identifier(lexer)
+
+    // Should be a FCall node (outer call to method2)
+    switch result.node_type {
+    case NodeType.FCall:
+        println("test_parse_primary_identifier_method_chain: PASS")
+    case:
+        println(loc(), " FAIL: Expected NodeType.FCall")
+        exit(1)
+    }
+
+    catch(err: Str) {
+        println(loc(), " test_parse_primary_identifier_method_chain failed:")
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), " test_parse_primary_identifier_method_chain: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch(err: AllocError) {
+        println(loc(), " test_parse_primary_identifier_method_chain: AllocError: ", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), " test_parse_primary_identifier_method_chain: FullError: ", err.msg)
+        exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        println(loc(), " test_parse_primary_identifier_method_chain: I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+}
+test_parse_primary_identifier_method_chain()
