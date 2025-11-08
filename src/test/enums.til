@@ -82,7 +82,8 @@ Color := enum {
 }
 
 aaa := Color.Unknown
-// bbb := Color.Green(true)
+bbb := Color.Green(true)
+ccc := Color.Number(42)
 
 // // Test matching all cases
 // test_color_match := proc(to_switch: Color) returns String {

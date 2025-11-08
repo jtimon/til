@@ -35,8 +35,10 @@ struct SymbolInfo {
 struct EnumVal {
     enum_type: String,
     enum_name: String,
-    // TODO implement tagged unions
-    // payload: Option<String>,
+    // Payload for tagged unions: stores the associated data
+    // For now, supports Bool (1 byte) and I64 (8 bytes)
+    payload: Option<Vec<u8>>,
+    payload_type: Option<ValueType>,
 }
 
 // Singleton struct that will hold the arena
@@ -667,6 +669,8 @@ impl Context {
         Ok(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name,
+            payload: None,  // TODO: Read payload from arena
+            payload_type: None,
         })
     }
 
@@ -698,6 +702,8 @@ impl Context {
         Ok(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name: enum_name.to_string(),
+            payload: None,  // TODO: Store payload in arena
+            payload_type: None,
         })
     }
 
@@ -910,6 +916,19 @@ fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) ->
                 return Ok(None) // REM: This is to allow struct instantiation
             }
 
+            // Check for enum constructors (e.g., Color.Green(true))
+            let parts: Vec<&str> = combined_name.split('.').collect();
+            if parts.len() == 2 {
+                let enum_type = parts[0];
+                if let Some(enum_def) = context.enum_defs.get(enum_type) {
+                    let variant_name = parts[1];
+                    if enum_def.enum_map.contains_key(variant_name) {
+                        // This is a valid enum constructor
+                        return Ok(None) // Allow enum construction
+                    }
+                }
+            }
+
             // Using UFCS
             if let Some(func_name_expr) = func_expr.params.last() {
                 if let NodeType::Identifier(ufcs_func_name) = &func_name_expr.node_type {
@@ -1102,6 +1121,59 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                                                     f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
                             },
                         }
+                    },
+                    _ => {
+                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                    },
+                }
+            },
+            ValueType::TType(TTypeDef::TEnumDef) => {
+                // Handle enum constructor calls like Color.Green(true)
+                let enum_def = match context.enum_defs.get(&f_name) {
+                    Some(_enum_def) => _enum_def,
+                    None => {
+                        return Err(e.lang_error("type", &format!("enum '{}' not found in context", f_name)));
+                    },
+                };
+                let after_dot = match id_expr.params.get(0) {
+                    Some(_after_dot) => _after_dot,
+                    None => {
+                        // Just referencing the enum type itself, not constructing
+                        return Ok(ValueType::TType(TTypeDef::TEnumDef));
+                    },
+                };
+                match &after_dot.node_type {
+                    NodeType::Identifier(variant_name) => {
+                        // Check if this variant exists in the enum
+                        let variant_type = match enum_def.enum_map.get(variant_name) {
+                            Some(_variant) => _variant,
+                            None => {
+                                return Err(e.error("type", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
+                            },
+                        };
+
+                        // Validate argument count based on whether the variant expects a payload
+                        match variant_type {
+                            Some(payload_type) => {
+                                // This variant expects a payload
+                                if e.params.len() < 2 {
+                                    return Err(e.error("type", &format!("Enum constructor {}.{} expects a payload of type {}", f_name, variant_name, value_type_to_str(payload_type))));
+                                }
+                                // Type check the payload argument
+                                let payload_expr = e.get(1)?;
+                                let _payload_actual_type = get_value_type(context, payload_expr)?;
+                                // TODO: Add stricter type checking to ensure payload matches expected type
+                            },
+                            None => {
+                                // This variant doesn't have a payload
+                                if e.params.len() > 1 {
+                                    return Err(e.error("type", &format!("Enum variant {}.{} does not take a payload", f_name, variant_name)));
+                                }
+                            },
+                        }
+
+                        // Return the enum type
+                        return Ok(ValueType::TCustom(f_name.clone()));
                     },
                     _ => {
                         return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
@@ -2126,6 +2198,19 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                 if let Some(symbol) = context.symbols.get(name) {
                                     if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                                         continue; // Skip default constructor calls, for instantiations like 'StructName()'
+                                    }
+                                }
+                            }
+
+                            // Check for enum constructors (e.g., Color.Green(true))
+                            if id_expr.params.len() == 1 {
+                                if let Some(symbol) = context.symbols.get(name) {
+                                    if symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                                        if let Some(variant_expr) = id_expr.params.get(0) {
+                                            if let NodeType::Identifier(_variant_name) = &variant_expr.node_type {
+                                                continue; // Skip enum constructor calls, for instantiations like 'Color.Green(true)'
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -3480,6 +3565,50 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     }
 
     let combined_name = &get_combined_name(func_expr)?;
+
+    // Check if this is an enum constructor call (e.g., Color.Green(true))
+    let parts: Vec<&str> = combined_name.split('.').collect();
+    if parts.len() == 2 {
+        let enum_type = parts[0];
+        if context.enum_defs.contains_key(enum_type) {
+            // This is an enum constructor!
+            let variant_name = parts[1];
+
+            // Get the enum definition to check if this variant has a payload type
+            let enum_def = context.enum_defs.get(enum_type).unwrap();
+            let variant_type = enum_def.enum_map.get(variant_name);
+
+            match variant_type {
+                Some(Some(payload_type)) => {
+                    // This variant expects a payload
+                    if e.params.len() < 2 {
+                        return Err(e.error("eval", &format!("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(payload_type))));
+                    }
+
+                    // Evaluate the payload argument
+                    let payload_expr = e.get(1)?;
+                    let payload_result = eval_expr(context, payload_expr)?;
+                    if payload_result.is_throw {
+                        return Ok(payload_result);
+                    }
+
+                    // For now, just return the enum variant name
+                    // TODO: Store payload in arena
+                    return Ok(EvalResult::new(&format!("{}.{}", enum_type, variant_name)));
+                },
+                Some(None) => {
+                    // This variant doesn't have a payload, but constructor was called with args
+                    if e.params.len() > 1 {
+                        return Err(e.error("eval", &format!("Enum variant {}.{} does not take a payload", enum_type, variant_name)));
+                    }
+                },
+                None => {
+                    return Err(e.error("eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
+                }
+            }
+        }
+    }
+
     let mut new_fcall_e = e.clone();
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
         Some(func_def_) => func_def_,
