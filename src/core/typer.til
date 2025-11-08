@@ -30,6 +30,34 @@ check_types := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsE
         check_declaration(context, e)
     case "NodeType.Assignment":
         check_assignment(context, e)
+    case "NodeType.Identifier":
+        check_identifier(context, e)
+    case "NodeType.Return":
+        // Recursively check all return values
+        i := 0
+        while i.lt(e.params.len) {
+            param := e.params.get(i)
+            check_types(context, param)
+            i = i.add(1)
+        }
+    case "NodeType.Throw":
+        // Recursively check all throw values
+        i := 0
+        while i.lt(e.params.len) {
+            param := e.params.get(i)
+            check_types(context, param)
+            i = i.add(1)
+        }
+    case "NodeType.While":
+        check_while_statement(context, e)
+    case "NodeType.Range":
+        check_range(context, e)
+    case "NodeType.LLiteral":
+        // Literals are always valid, no checking needed
+    case "NodeType.DefaultCase":
+        // Default case in switch, no checking needed
+    case "NodeType.Pattern":
+        // Pattern in switch, no checking needed
     case:
         TODO(loc(), format("check_types: Unimplemented node type ", node_type_str))
     }
@@ -235,4 +263,74 @@ check_assignment := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBo
     // Recursively check the value expression
     value_expr := e.params.get(0)
     check_types(context, value_expr)
+}
+
+// Check identifier exists
+check_identifier := proc(context: Context, e: Expr) throws Str {
+    // Extract identifier name
+    mut name := ""
+    switch e.node_type {
+    case NodeType.Identifier(n):
+        name = n
+    case:
+        throw e.exit_error("type", "check_identifier called on non-identifier node")
+    }
+
+    // Check if it exists as function or symbol
+    has_func := context.funcs.has(name)
+    has_symbol := context.symbols.has(name)
+
+    if has_func.not() {
+        if has_symbol.not() {
+            throw e.error("type", format("Undefined symbol ", name))
+        }
+    }
+}
+
+// Check while statement - condition must be Bool
+check_while_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Must have exactly 2 parameters (condition, body)
+    if e.params.len.ne(2) {
+        throw e.exit_error("type", "while nodes must have exactly 2 parameters.")
+    }
+
+    // Check condition is Bool
+    condition := e.params.get(0)
+    condition_type := get_value_type(context, condition)
+
+    type_str := value_type_to_str(condition_type)
+    if type_str.ne("Bool") {
+        throw condition.error("type", format("'while' can only accept a bool condition first, found ", type_str))
+    }
+
+    // Recursively check all params
+    i := 0
+    while i.lt(e.params.len) {
+        param := e.params.get(i)
+        check_types(context, param)
+        i = i.add(1)
+    }
+}
+
+// Check range - both sides must be same type
+check_range := proc(context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Must have exactly 2 parameters (start, end)
+    if e.params.len.ne(2) {
+        throw e.lang_error("type", "Range expression must have exactly two elements")
+    }
+
+    // Get types of both sides
+    left_expr := e.params.get(0)
+    right_expr := e.params.get(1)
+
+    left_type := get_value_type(context, left_expr)
+    right_type := get_value_type(context, right_expr)
+
+    left_type_str := value_type_to_str(left_type)
+    right_type_str := value_type_to_str(right_type)
+
+    // Check they match
+    if left_type_str.ne(right_type_str) {
+        throw e.error("type", format("Range start and end must be of same type, found '", left_type_str, "' and '", right_type_str, "'"))
+    }
 }
