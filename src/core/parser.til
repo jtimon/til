@@ -81,9 +81,9 @@ NodeType := enum {
     Identifier : Str,
     Declaration : Declaration,
     Assignment : Str,
-    // FuncDef : SFuncDef,
-    // EnumDef : SEnumDef,
-    // StructDef : SStructDef,
+    FuncDef,    // TODO: FuncDef : SFuncDef when tagged unions work
+    EnumDef,    // TODO: EnumDef : SEnumDef when tagged unions work
+    StructDef,  // TODO: StructDef : SStructDef when tagged unions work
     Return,
     Throw,
     Catch,
@@ -347,12 +347,12 @@ parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, Ind
         return parse_primary_identifier(lexer)
     }
 
-    // Function/procedure/enum/struct definitions not yet implemented
+    // Function/procedure/enum/struct definitions
     if tt_str.eq("TokenType.Func") {
-        throw t.todo_error("parse_func_proc_definition not implemented yet")
+        return parse_func_proc_definition(lexer)
     }
     if tt_str.eq("TokenType.Proc") {
-        throw t.todo_error("parse_func_proc_definition not implemented yet")
+        return parse_func_proc_definition(lexer)
     }
     if tt_str.eq("TokenType.Enum") {
         throw t.todo_error("enum_definition not implemented yet")
@@ -837,6 +837,263 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     result_params.push(decl_expr)
     result_params.push(while_expr)
     return Expr.new_explicit(NodeType.Body, result_params, initial_token.line, initial_token.col)
+}
+
+// Parse function/procedure arguments: (name: Type, mut name2: Type, variadic: ..Type)
+// TODO: Return DeclarationArray with full metadata when tagged unions work
+parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError {
+    lexer.expect(TokenType.LeftParen)
+
+    mut rightparen_found := false
+    mut t := lexer.peek()
+    mut expect_comma := false
+    mut expect_colon := false
+    mut expect_name := true
+    mut is_variadic := false
+    mut arg_name := "unnamed"
+    mut is_mut := false
+
+    while not(or(lexer.is_eof(0), rightparen_found)) {
+        switch t.token_type {
+        case TokenType.RightParen:
+            if expect_colon {
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
+            }
+            rightparen_found = true
+            lexer.advance(1)
+
+        case TokenType.Comma:
+            if expect_colon {
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
+            }
+            if expect_name {
+                throw t.error("Expected arg name before ','.")
+            }
+            if expect_comma {
+                expect_comma = false
+                expect_colon = false
+                expect_name = true
+                is_mut = false
+                lexer.expect(TokenType.Comma)
+                t = lexer.peek()
+            } else {
+                throw t.error("Unexpected ','.")
+            }
+
+        case TokenType.Colon:
+            if expect_colon {
+                expect_colon = false
+                expect_name = false
+                expect_comma = false
+                lexer.advance(1)
+                t = lexer.peek()
+                switch t.token_type {
+                case TokenType.Identifier:
+                    // Type name - good
+                case TokenType.DoubleDot:
+                    // Variadic marker - good
+                case:
+                    throw t.error(format("Expected type after '", arg_name, ":', but found '", t.token_str, "'."))
+                }
+            } else {
+                throw t.error("Unexpected ':'.")
+            }
+
+        case TokenType.DoubleDot:
+            if expect_colon {
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '..'."))
+            }
+            if expect_comma {
+                throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
+            }
+            if expect_name {
+                throw t.error(format("Expected arg name, found '", enum_to_str(t.token_type), "'."))
+            }
+            is_variadic = true
+            lexer.advance(1)
+            t = lexer.peek()
+
+        case TokenType.Identifier:
+            if expect_colon {
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '", t.token_str, "'."))
+            }
+            if expect_comma {
+                throw t.error(format("Expected ',', found identifier '", t.token_str, "'."))
+            }
+            if expect_name {
+                arg_name = t.token_str
+                expect_colon = true
+                expect_name = false
+            } else {
+                // This is the type name
+                // TODO: Store Declaration(arg_name, type, is_mut, is_variadic) when tagged unions work
+                expect_comma = true
+                is_mut = false
+                is_variadic = false
+            }
+            lexer.advance(1)
+            t = lexer.peek()
+
+        case TokenType.Mut:
+            if not(expect_name) {
+                throw t.error("Unexpected 'mut' in argument list.")
+            }
+            is_mut = true
+            lexer.advance(1)
+            t = lexer.peek()
+
+        case:
+            throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc args."))
+        }
+    }
+
+    switch t.token_type {
+    case TokenType.RightParen:
+        return
+    case:
+        throw t.error("Expected closing parentheses.")
+    }
+}
+
+// Parse function/procedure definition: func/proc(args) returns Type throws Error { body }
+// TODO: Store full function metadata (args, returns, throws) when tagged unions work
+parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    initial_token := lexer.peek()
+    lexer.advance(1) // consume 'func' or 'proc'
+
+    mut t := lexer.peek()
+    if lexer.is_eof(1) {
+        throw t.error("expected '(' after 'func' or 'proc', found EOF.")
+    }
+    switch t.token_type {
+    case TokenType.LeftParen:
+        // Good, continue
+    case:
+        throw t.error(format("expected '(' after 'func', found '", enum_to_str(t.token_type), "'."))
+    }
+
+    // Parse arguments (validates syntax but doesn't return metadata)
+    parse_func_proc_args(lexer)
+
+    // Parse returns clause (if present)
+    t = lexer.peek()
+    lexer.advance(1)
+    mut has_returns := false
+    switch t.token_type {
+    case TokenType.Returns:
+        has_returns = true
+    case:
+        has_returns = false
+    }
+    if has_returns {
+        t = lexer.peek()
+        mut returns_end_found := false
+        mut expect_comma := false
+        while not(or(lexer.is_eof(0), returns_end_found)) {
+            switch t.token_type {
+            case TokenType.Throws:
+                returns_end_found = true
+                lexer.advance(1)
+            case TokenType.LeftBrace:
+                returns_end_found = true
+                lexer.advance(1)
+            case TokenType.Semicolon:
+                returns_end_found = true
+                lexer.advance(1)
+            case TokenType.Comma:
+                if expect_comma {
+                    lexer.expect(TokenType.Comma)
+                    expect_comma = false
+                    t = lexer.peek()
+                } else {
+                    throw t.error("Unexpected ','.")
+                }
+            case TokenType.Identifier:
+                if expect_comma {
+                    throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
+                }
+                // TODO: Store return type when tagged unions work
+                expect_comma = true
+                lexer.advance(1)
+                t = lexer.peek()
+            case:
+                throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc returns."))
+            }
+        }
+        if not(returns_end_found) {
+            throw t.error("Expected '{{' or 'throws' after return values.")
+        }
+    }
+
+    // Parse throws clause (if present)
+    mut prev_t := lexer.previous()
+    mut has_throws := false
+    switch prev_t.token_type {
+    case TokenType.Throws:
+        has_throws = true
+    case:
+        has_throws = false
+    }
+    if has_throws {
+        t = lexer.peek()
+        mut throws_end_found := false
+        mut expect_comma := false
+        while not(or(lexer.is_eof(0), throws_end_found)) {
+            switch t.token_type {
+            case TokenType.LeftBrace:
+                throws_end_found = true
+                lexer.advance(1)
+            case TokenType.Semicolon:
+                throws_end_found = true
+                lexer.advance(1)
+            case TokenType.Comma:
+                if expect_comma {
+                    expect_comma = false
+                    lexer.advance(1)
+                    t = lexer.peek()
+                } else {
+                    throw t.error("Unexpected ','.")
+                }
+            case TokenType.Identifier:
+                if expect_comma {
+                    throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
+                }
+                // TODO: Store throw type when tagged unions work
+                expect_comma = true
+                lexer.advance(1)
+                t = lexer.peek()
+            case:
+                throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc throws."))
+            }
+        }
+        if not(throws_end_found) {
+            throw t.error("Expected '{{' or ';' after throw types.")
+        }
+    }
+
+    // Check if this is a declaration (ends with semicolon) or definition (has body)
+    prev_t = lexer.previous()
+    mut body := Expr()
+    mut is_declaration := false
+    switch prev_t.token_type {
+    case TokenType.Semicolon:
+        is_declaration = true
+    case:
+        is_declaration = false
+    }
+    if is_declaration {
+        // Function declaration without body (e.g., external function)
+        body = Expr.new_explicit(NodeType.Body, ExprArray.new(), initial_token.line, initial_token.col)
+    } else {
+        // Parse the function body
+        body = parse_body(lexer, TokenType.RightBrace)
+    }
+
+    // Return FuncDef node with body as params[0]
+    // TODO: Store full SFuncDef(function_type, args, returns, throws, body) when tagged unions work
+    mut params := ExprArray.new()
+    params.push(body)
+    return Expr.new_parse(NodeType.FuncDef, initial_token, params)
 }
 
 // Parse a throw statement: throw expr1, expr2, ...
