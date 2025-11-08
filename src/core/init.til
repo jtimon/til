@@ -625,29 +625,28 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
     // Match on node type
     mut node_type_str := enum_to_str(e.node_type)
 
-    // Handle literals
+    // Handle literals - use pattern matching to extract LiteralNodeType
     if node_type_str.eq("NodeType.Literal") {
-        // Extract LiteralNodeType from payload
-        mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
         mut node_type := e.node_type
-        rsonly_enum_extract_payload(node_type, lit_node_type)
-
-        lit_type_str := enum_to_str(lit_node_type)
-
-        if lit_type_str.eq("LiteralNodeType.I64") {
-            return ValueType.TCustom("I64")
+        switch node_type {
+        case NodeType.Literal(lit_node_type):
+            switch lit_node_type {
+            case LiteralNodeType.I64:
+                return ValueType.TCustom("I64")
+            case LiteralNodeType.Bool:
+                return ValueType.TCustom("Bool")
+            case LiteralNodeType.String:
+                return ValueType.TCustom("Str")
+            case LiteralNodeType.List:
+                return ValueType.TCustom("List")
+            case:
+                lit_type_str := enum_to_str(lit_node_type)
+                throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
+            }
+        case:
+            // Should not happen due to if check above
+            throw format(loc(), " ERROR: Expected NodeType.Literal")
         }
-        if lit_type_str.eq("LiteralNodeType.Bool") {
-            return ValueType.TCustom("Bool")
-        }
-        if lit_type_str.eq("LiteralNodeType.String") {
-            return ValueType.TCustom("Str")
-        }
-        if lit_type_str.eq("LiteralNodeType.List") {
-            return ValueType.TCustom("List")
-        }
-
-        throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
     }
 
     // Handle function definitions
