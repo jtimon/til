@@ -226,10 +226,166 @@ Context := struct {
     }
 }
 
-// Evaluate an expression
+// Evaluate an expression - Phase 2: minimal version
 // Mimics eval_expr in rstil.rs
-eval_expr := proc(context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_expr")
+eval_expr := proc(mut context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
+    // Get node type as string for matching
+    node_type_str := enum_to_str(e.node_type)
+
+    // Handle literals
+    if node_type_str.eq("NodeType.Literal") {
+        return eval_literal(context, e)
+    }
+
+    // Handle identifiers (variable lookup)
+    if node_type_str.eq("NodeType.Identifier") {
+        return eval_identifier(context, e)
+    }
+
+    // Handle declarations
+    if node_type_str.eq("NodeType.Declaration") {
+        return eval_declaration(context, e)
+    }
+
+    // Handle assignments
+    if node_type_str.eq("NodeType.Assignment") {
+        return eval_assignment(context, e)
+    }
+
+    // Handle function calls
+    if node_type_str.eq("NodeType.FCall") {
+        return eval_fcall(context, e)
+    }
+
+    // Handle body (sequence of statements)
+    if node_type_str.eq("NodeType.Body") {
+        return eval_body(context, e)
+    }
+
+    // Not implemented yet
+    throw format(loc(), " ERROR: eval_expr not implemented for node type: ", node_type_str)
+}
+
+// Evaluate a literal expression
+eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
+    // Extract the literal type and value
+    mut literal_type := e.node_type
+    literal_str := enum_to_str(literal_type)
+
+    if literal_str.eq("NodeType.Literal") {
+        // Extract payload to get LiteralNodeType
+        mut lit_node_type: LiteralNodeType = LiteralNodeType.String("")
+        enum_extract_payload(literal_type, lit_node_type)
+
+        lit_type_str := enum_to_str(lit_node_type)
+
+        if lit_type_str.eq("LiteralNodeType.String") {
+            mut str_val := ""
+            enum_extract_payload(lit_node_type, str_val)
+            return str_val
+        }
+
+        if lit_type_str.eq("LiteralNodeType.I64") {
+            mut i64_val := 0
+            enum_extract_payload(lit_node_type, i64_val)
+            mut i64_copy := i64_val
+            return i64_copy.to_str()
+        }
+
+        if lit_type_str.eq("LiteralNodeType.Bool") {
+            mut bool_val := false
+            enum_extract_payload(lit_node_type, bool_val)
+            if bool_val {
+                return "true"
+            }
+            return "false"
+        }
+
+        if lit_type_str.eq("LiteralNodeType.List") {
+            // Lists not implemented yet
+            throw format(loc(), " ERROR: List literals not yet implemented")
+        }
+    }
+
+    throw format(loc(), " ERROR: Unknown literal type: ", literal_str)
+}
+
+// Evaluate an identifier (variable lookup)
+eval_identifier := proc(context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
+    // Get identifier name from node_type payload
+    mut node_type := e.node_type
+    mut var_name := ""
+    enum_extract_payload(node_type, var_name)
+
+    // Look up in symbol table to get type
+    mut symbols_map := context.symbols
+    mut symbol_info_str := symbols_map.get(var_name)
+    if symbol_info_str.eq("") {
+        throw format(loc(), " ERROR: Variable '", var_name, "' not found")
+    }
+
+    // For now, try each type - later we'll parse SymbolInfo properly
+    // For Phase 2, we'll just try I64, Str, Bool in order until one works
+
+    // Try I64 first
+    mut i64_result := context.get_i64(var_name)
+    mut str_result := ""
+    mut bool_result := false
+    mut which_type := "i64"
+
+    catch (err: Str) {
+        // Not I64, try Str
+        which_type = "str"
+        str_result = context.get_str(var_name)
+        catch (err2: Str) {
+            // Not Str, try Bool
+            which_type = "bool"
+            bool_result = context.get_bool(var_name)
+            catch (err3: Str) {
+                throw format(loc(), " ERROR: Could not retrieve variable '", var_name, "' as any known type")
+            }
+        }
+    }
+
+    // Return based on which type succeeded
+    mut wt_copy := which_type
+    if wt_copy.eq("i64") {
+        mut val_copy := i64_result
+        return val_copy.to_str()
+    }
+
+    if wt_copy.eq("str") {
+        return str_result
+    }
+
+    // Must be bool
+    if bool_result {
+        return "true"
+    }
+    return "false"
+}
+
+// Evaluate a declaration - Phase 2: simple types only
+eval_declaration := proc(mut context: Context, e: Expr) returns Str {
+    TODO(loc(), "Implement eval_declaration")
+    return ""
+}
+
+// Evaluate an assignment
+eval_assignment := proc(mut context: Context, e: Expr) returns Str {
+    TODO(loc(), "Implement eval_assignment")
+    return ""
+}
+
+// Evaluate a function call
+eval_fcall := proc(mut context: Context, e: Expr) returns Str {
+    TODO(loc(), "Implement eval_fcall")
+    return ""
+}
+
+// Evaluate a body (sequence of statements)
+eval_body := proc(mut context: Context, e: Expr) returns Str {
+    TODO(loc(), "Implement eval_body")
     return ""
 }
 
