@@ -33,13 +33,14 @@ test_ufcs := proc () {
     assert(loc(), not(xor2(true, true)))
     assert(loc(), not(xor2(false, false)))
 
-    // xor3 := func(a: Bool, b: Bool) returns Bool {
-    //     return a.and(not(b)).or(b.and(not(a))) // TODO implement UFCS (Uniform Function Call Syntax) for funccall return values
-    // }
-    // assert(loc(), xor3(true, false))
-    // assert(loc(), xor3(false, true))
-    // assert(loc(), not(xor3(true, true)))
-    // assert(loc(), not(xor3(false, false)))
+    // UFCS on function call return values
+    xor3 := func(a: Bool, b: Bool) returns Bool {
+        return a.and(not(b)).or(b.and(not(a)))
+    }
+    assert(loc(), xor3(true, false))
+    assert(loc(), xor3(false, true))
+    assert(loc(), not(xor3(true, true)))
+    assert(loc(), not(xor3(false, false)))
 
     aaa := true
     test(loc(), aaa.and(true), "true.and(true) == true")
@@ -66,3 +67,108 @@ test_ufcs_chaining := proc () {
     assert(loc(), result4)
 }
 test_ufcs_chaining()
+
+// Test UFCS on function call return values
+test_ufcs_on_function_results := proc () {
+    // Test with Str methods on function results
+    source := "hello.world"
+
+    // Simple function result method call
+    assert(loc(), source.get_substr(0, 1).eq("h"))
+    assert(loc(), source.get_substr(6, 11).eq("world"))
+    assert(loc(), not(source.get_substr(0, 5).eq("world")))
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
+    }
+    catch (err: AllocError) {
+        panic(loc(), format("Unexpected AllocError: ", err.msg))
+    }
+
+    // Test with I64 methods on function results
+    assert(loc(), add(10, 20).eq(30))
+    assert(loc(), add(5, 10).lt(20))
+    assert(loc(), add(5, 10).gt(10))
+    assert(loc(), sub(100, 50).eq(50))
+    assert(loc(), mul(5, 6).eq(30))
+
+    // Test with Bool methods on function results
+    assert(loc(), and(true, true).or(false))
+    assert(loc(), or(false, false).not())
+    assert(loc(), not(and(true, false).or(false)))
+}
+test_ufcs_on_function_results()
+
+// Test long chains mixing function calls and methods (NEW functionality!)
+test_ufcs_long_chains := proc () {
+    // Long arithmetic chains: ((1 + 2) + 3) + 4 = 10
+    result1 := add(1, 2).add(3).add(4)
+    assert_eq(loc(), 10, result1)
+
+    // Very long chain: (((10 + 5) * 2) - 10) / 2 = 10
+    result2 := add(10, 5).mul(2).sub(10).div(2)
+    assert_eq(loc(), 10, result2)
+
+    // Chain with comparisons at the end
+    assert(loc(), add(5, 5).eq(10))
+    assert(loc(), mul(3, 4).gt(10))
+    assert(loc(), sub(20, 5).lt(20))
+    assert(loc(), div(100, 10).gteq(10))
+
+    // Chain starting from variable
+    x := 100
+    result3 := x.sub(50).div(5).mul(2)
+    assert_eq(loc(), 20, result3)
+
+    // Complex boolean chains
+    assert(loc(), and(true, true).and(true).or(false))
+    assert(loc(), or(false, true).and(true).and(true))
+    assert(loc(), not(and(false, true).or(false).or(false)))
+}
+test_ufcs_long_chains()
+
+// Test UFCS with Str operations (NEW functionality!)
+test_ufcs_str_chains := proc () {
+    text := "hello world"
+
+    // Chain Str operations
+    first_word := text.get_substr(0, 5)
+    assert(loc(), first_word.eq("hello"))
+
+    // Direct chain
+    assert(loc(), text.get_substr(6, 11).eq("world"))
+
+    // Length checks with chaining
+    hello_len := text.get_substr(0, 5).len()
+    assert_eq(loc(), 5, hello_len)
+
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
+    }
+    catch (err: AllocError) {
+        panic(loc(), format("Unexpected AllocError: ", err.msg))
+    }
+}
+test_ufcs_str_chains()
+
+// Test edge cases for UFCS
+test_ufcs_edge_cases := proc () {
+    // Nested function calls with UFCS
+    result := add(mul(2, 3), 4).add(10)
+    assert_eq(loc(), 20, result)
+
+    // Multiple levels of nesting
+    result2 := add(add(1, 2), add(3, 4)).mul(2)
+    assert_eq(loc(), 20, result2)
+
+    // Method call on literal-returning function
+    assert(loc(), add(0, 0).eq(0))
+    assert(loc(), sub(5, 5).eq(0))
+
+    // Boolean chains with mixed operations
+    a := true
+    b := false
+    assert(loc(), a.and(b.not()))
+    assert(loc(), a.or(b).and(true))
+}
+test_ufcs_edge_cases()
