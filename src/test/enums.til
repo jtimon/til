@@ -580,8 +580,12 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_info := ""
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(info_msg, extracted_info)
+    switch info_msg {
+    case Message.Info(info):
+        extracted_info = info
+    case:
+        // Other variants
+    }
     assert(loc(), extracted_info.eq("System initialized"))
 
     // Test Message.Error with simpler Status
