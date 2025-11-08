@@ -11,6 +11,14 @@ SymbolInfo := struct {
     mut is_mut: Bool = false     // Whether the symbol is mutable
 }
 
+// Represents an enum value with its type, variant name, and optional payload
+EnumVal := struct {
+    mut enum_type: Str = ""      // The enum type name
+    mut enum_name: Str = ""      // The variant name
+    mut has_payload: Bool = false // Whether payload exists
+    mut payload: Str = ""         // Payload data (simplified as string for now)
+}
+
 // Context for type checking and evaluation
 // Mimics Context struct in rstil.rs
 Context := struct {
@@ -318,6 +326,27 @@ Context := struct {
         // TODO: Implement payload size calculation for enums
         // For now, just return a default size
         return 8
+    }
+
+    // Get enum value from arena by variable name
+    get_enum := func(self: Context, var_name: Str) returns EnumVal throws Str, IndexOutOfBoundsError {
+        // Look up symbol to verify it exists
+        mut symbols_map := self.symbols
+        mut symbol_str := symbols_map.get(var_name)
+        if symbol_str.eq("") {
+            throw format(loc(), " ERROR: get_enum: Symbol '", var_name, "' not found")
+        }
+
+        // TODO: Get enum type from symbol, read from arena, parse variant
+        // For now, just throw TODO
+        throw format(loc(), " TODO: get_enum not fully implemented for '", var_name, "'")
+    }
+
+    // Insert enum value into arena
+    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError {
+        // TODO: Look up enum definition, calculate variant position, write to arena
+        // For now, just throw TODO
+        throw format(loc(), " TODO: insert_enum not fully implemented for '", var_name, "' type '", enum_type, "' variant '", enum_variant, "'")
     }
 }
 
