@@ -441,6 +441,14 @@ fn print_lex_error(path: &String, t: &Token, errors_found: &mut usize, msg: &str
     *errors_found += 1;
 }
 
+pub fn print_lex_errors(tokens: &Vec<Token>, path: &String) -> usize {
+    let mut errors_found = 0;
+    for t in tokens {
+        print_if_lex_error(path, t, &mut errors_found);
+    }
+    return errors_found;
+}
+
 fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
     match t.token_type {
         TokenType::Invalid => {
@@ -482,6 +490,9 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         TokenType::EqualEqual => {
             print_lex_error(path, t, errors_found, "Operator '==' is not supported yet\nSuggestion: use 'I64.eq' or 'Str.eq' instead");
         },
+        TokenType::NotEqual => {
+            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'Str.eq' instead");
+        },
         TokenType::Lesser => {
             print_lex_error(path, t, errors_found, "Operator '<' is not supported yet\nSuggestion: use core func 'lt' instead");
         },
@@ -496,9 +507,6 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         },
         TokenType::Not => {
             print_lex_error(path, t, errors_found, "Operator '!' is not supported yet\nSuggestion: use core func 'not' instead");
-        },
-        TokenType::NotEqual => {
-            print_lex_error(path, t, errors_found, "Operator '!=' is not supported yet\nSuggestion: use core funcs 'not' and 'I64.eq'/'Str.eq' instead");
         },
         _ => {
             // No error, do nothing
