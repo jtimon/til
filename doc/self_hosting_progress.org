@@ -125,7 +125,8 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 - [X] Add path field to Rust Lexer struct
 - [X] Add new_from_file constructor to Rust (matches TIL's new/new_from_src)
 - [X] Standardize field name: `current` (was current_token in TIL)
-- [ ] Add print_lex_errors helper to Rust - TIL lines 677-685
+- [X] Add print_lex_errors helper to Rust - TIL lines 677-685
+- [X] Standardize error message ordering (NotEqual after EqualEqual)
 - [ ] Add enum_to_str helper to Rust
 - [ ] Fix grammar: "have" → "has" in ext_func comment
 - [ ] Resolve todo_error method (comment #5)
