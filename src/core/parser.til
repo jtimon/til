@@ -4,8 +4,60 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
+// Represents the type of a value (mirrors parser.rs ValueType)
 ValueType := enum {
-    Dynamic,
+    TFunction,  // Function type
+    TType,      // Type itself (for type definitions)
+    TCustom: Str,  // Custom type (struct/enum) with name
+    TMulti,     // Multiple return values
+}
+
+// Type of function/procedure
+FunctionType := enum {
+    FTFunc,      // Pure function
+    FTProc,      // Procedure (can have side effects)
+    FTMacro,     // Macro (compile-time)
+    FTFuncExt,   // External function
+    FTProcExt,   // External procedure
+    FTMacroExt,  // External macro
+}
+
+// Type definition variants
+TTypeDef := enum {
+    TEnumDef,    // Enum definition
+    TStructDef,  // Struct definition
+}
+
+// Enum definition (variant name -> optional payload type)
+SEnumDef := struct {
+    mut enum_map: StrMap = StrMap()  // variant_name -> payload_type_name (empty string = no payload)
+}
+
+// Struct definition
+SStructDef := struct {
+    mut members: StrMap = StrMap()         // field_name -> type_name
+    mut default_values: StrMap = StrMap()  // field_name -> default_expr_as_string (for now)
+}
+
+// Function/Procedure definition
+SFuncDef := struct {
+    mut function_type: FunctionType = FunctionType.FTFunc
+    mut args: StrMap = StrMap()      // arg_name -> type_name
+    mut return_type: Str = ""        // return type name
+    mut exception_types: Str = ""    // exception types (comma-separated for now)
+    mut body: Expr = Expr()          // function body expression
+
+    // Check if this is a procedure
+    is_proc := func(self: SFuncDef) returns Bool {
+        ft := enum_to_str(self.function_type)
+        return or(ft.eq("FunctionType.FTProc"), ft.eq("FunctionType.FTProcExt"))
+    }
+
+    // Check if this is an external function
+    is_ext := func(self: SFuncDef) returns Bool {
+        ft := enum_to_str(self.function_type)
+        return or(or(ft.eq("FunctionType.FTFuncExt"), ft.eq("FunctionType.FTProcExt")), ft.eq("FunctionType.FTMacroExt"))
+    }
 }
 
 LiteralNodeType := enum {
@@ -51,7 +103,10 @@ ExprArray := struct {
 Expr := struct {
     mut node_type: NodeType = NodeType.Identifier
     mut params: ExprArray = ExprArray()
+    mut line: I64 = 0
+    mut col: I64 = 0
 
+    // Constructor from token
     new_parse := func(node_type: NodeType, token: Token, params: ExprArray) returns Expr {
         mut e := Expr()
         e.node_type = node_type
@@ -60,11 +115,98 @@ Expr := struct {
         e.col = token.col
         return e
     }
+
+    // Constructor with explicit line/col
+    new_explicit := func(node_type: NodeType, params: ExprArray, line: I64, col: I64) returns Expr {
+        mut e := Expr()
+        e.node_type = node_type
+        e.params = params
+        e.line = line
+        e.col = col
+        return e
+    }
+
+    // Clone with new node_type
+    new_clone := func(original: Expr, node_type: NodeType) returns Expr {
+        mut e := Expr()
+        e.node_type = node_type
+        e.params = original.params
+        e.line = original.line
+        e.col = original.col
+        return e
+    }
+
+    // Format error message
+    error := func(self: Expr, error_type: Str, msg: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        return format(self.line.to_str(), ":", self.col.to_str(), ": ", error_type, " ERROR: ", msg)
+    }
+
+    // Exit with error (for unrecoverable errors)
+    exit_error := proc(self: Expr, error_type: Str, msg: Str) throws AllocError, IndexOutOfBoundsError, I64_OverflowError, Str {
+        err_msg := self.error(error_type, msg)
+        throw err_msg
+    }
+
+    // Language bug error
+    lang_error := func(self: Expr, msg: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        full_msg := format(msg, "\nExplanation: This should never happen, this is a bug in the language.")
+        return self.error("rstil", full_msg)
+    }
+
+    // TODO/not-implemented error
+    todo_error := func(self: Expr, msg: Str) returns Str throws AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        return self.error("TODO", msg)
+    }
+
+    // Safe parameter access (returns expression at index or error)
+    get := func(self: Expr, index: I64) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+        // TODO: implement when ExprArray.get is implemented
+        if gteq(index, 0) {
+            return Expr()  // placeholder
+        }
+        err_msg := self.error("eval", format("Parameter index ", index.to_str(), " out of bounds"))
+        throw err_msg
+    }
 }
 
-str_to_value_type := func(type_name: Str) returns ValueType {
-    // Temporary placeholder
-    return ValueType.Dynamic
+// Convert type name string to ValueType
+// TODO: This function is incomplete - need to support TCustom variant creation
+str_to_value_type := proc(type_name: Str) returns ValueType {
+    if type_name.eq("Function") {
+        return ValueType.TFunction
+    }
+    if type_name.eq("Type") {
+        return ValueType.TType
+    }
+    if type_name.eq("Multi") {
+        return ValueType.TMulti
+    }
+    // Everything else is a custom type
+    // TODO: return ValueType.TCustom(type_name) - this doesn't work yet
+    // For now, just return TFunction as placeholder
+    return ValueType.TFunction
+}
+
+// Convert ValueType to string representation
+value_type_to_str := proc(vtype: ValueType) returns Str {
+    vtype_str := enum_to_str(vtype)
+
+    if vtype_str.eq("ValueType.TFunction") {
+        return "Function"
+    }
+    if vtype_str.eq("ValueType.TType") {
+        return "Type"
+    }
+    if vtype_str.eq("ValueType.TMulti") {
+        return "Multi"
+    }
+    if vtype_str.eq("ValueType.TCustom") {
+        // Extract the custom type name from payload
+        mut type_name := ""
+        enum_extract_payload(vtype, type_name)
+        return type_name
+    }
+    return "Unknown"
 }
 
 parse_primary := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
@@ -93,7 +235,7 @@ parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws 
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError {
+parse_declaration := proc(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
@@ -115,7 +257,7 @@ parse_declaration := func(lexer: Lexer, is_mut: Bool, explicit_type: Str) return
     // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
-parse_statement_identifier := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement_identifier := proc(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
