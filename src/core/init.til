@@ -4,6 +4,39 @@ import("src/core/parser")
 
 // Init phase: Context creation and symbol table management
 // Corresponds to src/rs/init.rs in the Rust implementation
+//
+// IMPLEMENTATION STATUS (1072/1750 lines, 61.3%):
+//
+// COMPLETED:
+// - Context struct with all fields (arena, symbols, funcs, enum_defs, struct_defs, imports tracking)
+// - Arena methods: get/insert for I64, U8, Bool, Str (simplified Phase 2 approach)
+// - Enum helpers: get_variant_pos, variant_pos_to_str (fully functional)
+// - Type helpers: get_type_size, get_payload_size_for_type, get_func_name_in_call
+// - Type inference: get_value_type (handles literals, funcdefs, enums, structs, ranges, identifiers with member access)
+// - Type inference: get_fcall_value_type (handles UFCS, standalone funcs, constructors)
+// - Type inference: value_type_func_proc (function return type checking)
+// - Declaration processing: process_declarations (registers funcs, enums, structs in context)
+// - SymbolInfo and EnumVal structs
+//
+// PARTIALLY IMPLEMENTED (with TODOs for complex serialization):
+// - get_fcall_value_type: needs SFuncDef parsing from storage
+// - get_value_type identifier handling: needs SymbolInfo parsing
+// - process_declarations: needs proper type checking, associated function registration
+// - Struct methods: map_instance_fields, copy_fields, insert_struct, register_struct_fields_for_typecheck
+// - Enum methods: get_enum, insert_enum, get_enum_at_offset
+// - Array method: insert_array
+//
+// NOT YET IMPLEMENTED:
+// - init_import_declarations: needs file I/O, lexing, parsing, recursive import handling
+// - Complex type serialization: SFuncDef, SEnumDef, SStructDef storage in maps
+// - Full struct size calculation with nested structs
+// - Proper string storage with c_string/cap/len structure
+// - Mode validation in declarations
+// - Associated function registration for structs
+//
+// KEY LIMITATION:
+// Currently storing complex types (SFuncDef, SEnumDef, SStructDef) as placeholder strings
+// in maps. Full equivalence requires either JSON serialization or direct object storage.
 
 // Tracks information about a declared symbol (variable, constant, etc.)
 SymbolInfo := struct {
