@@ -31,6 +31,7 @@ runfile("src/test/c_mem.til")
 runfile("src/test/comparisons.til")
 runfile("src/test/editor_mode_test.til")
 runfile("src/test/enums.til")
+runfile("src/test/map.til")
 runfile("src/test/errors.til")
 runfile("src/test/fibonacci.til") // recursive examples
 runfile("src/test/flow.til") // control flow, execution path examples
