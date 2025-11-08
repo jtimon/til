@@ -22,6 +22,10 @@ check_types := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsE
         }
     case "NodeType.If":
         check_if_statement(context, e)
+    case "NodeType.FCall":
+        check_fcall(context, e)
+    case "NodeType.FuncDef":
+        check_func_def(context, e)
     case:
         TODO(loc(), format("check_types: Unimplemented node type ", node_type_str))
     }
@@ -52,4 +56,78 @@ check_if_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOf
         check_types(context, param)
         i = i.add(1)
     }
+}
+
+// Check function call - validate arguments match definition
+check_fcall := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    f_name := get_func_name_in_call(e)
+
+    // Get function definition
+    func_def_opt := get_func_def_for_fcall(context, e)
+
+    // REM: Allow None for struct instantiation
+    switch func_def_opt {
+    case Option.None:
+        return
+    case Option.Some(func_def):
+        // Check argument count
+        num_args_provided := e.params.len.sub(1)
+        num_args_expected := func_def.args.len
+
+        if num_args_expected.eq(0) {
+            if num_args_provided.gt(0) {
+                throw e.error("type", format("Function/procedure '", f_name, "' expects 0 args, but ", num_args_provided.to_str(), " were provided."))
+            }
+            return
+        }
+
+        // TODO: Handle variadic args properly
+        has_multi_arg := func_proc_has_multi_arg(func_def)
+        if has_multi_arg.not() {
+            if num_args_expected.ne(num_args_provided) {
+                throw e.error("type", format("Function/procedure '", f_name, "' expects ", num_args_expected.to_str(), " args, but ", num_args_provided.to_str(), " were provided."))
+            }
+        }
+
+        // Check each argument type matches
+        i := 0
+        while i.lt(num_args_provided) {
+            // Get expected arg definition
+            arg_idx := i
+            if arg_idx.ge(num_args_expected) {
+                arg_idx = num_args_expected.sub(1) // Use last arg for variadic
+            }
+            arg_def := func_def.args.get(arg_idx)
+
+            // Get actual argument expression
+            arg_expr := e.params.get(i.add(1))
+
+            // Recursively check the argument
+            check_types(context, arg_expr)
+
+            // Get the type of the argument
+            found_type := get_value_type(context, arg_expr)
+            expected_type := arg_def.value_type
+
+            // Handle special types
+            expected_type_str := value_type_to_str(expected_type)
+            found_type_str := value_type_to_str(found_type)
+
+            // Accept any type for Dynamic
+            if expected_type_str.ne("Dynamic") {
+                // Check types match
+                if expected_type_str.ne(found_type_str) {
+                    throw e.error("type", format("calling function '", f_name, "' expects '", expected_type_str, "' for arg '", arg_def.name, "', but '", found_type_str, "' was provided."))
+                }
+            }
+
+            i = i.add(1)
+        }
+    }
+}
+
+// Check function definition
+check_func_def := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // TODO: Implement function definition checking
+    TODO(loc(), "check_func_def not yet implemented")
 }
