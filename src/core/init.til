@@ -758,8 +758,12 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             // Handle TType - accessing enum variant or struct member
             if current_type_str.eq("ValueType.TType") {
                 mut ttype_def := TTypeDef.TEnumDef
-                // TODO: Use switch instead of rsonly_enum_extract_payload
-                rsonly_enum_extract_payload(current_type, ttype_def)
+                switch current_type {
+                case ValueType.TType(ttype):
+                    ttype_def = ttype
+                case:
+                    // other
+                }
                 ttype_str := enum_to_str(ttype_def)
 
                 if ttype_str.eq("TTypeDef.TEnumDef") {
