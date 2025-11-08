@@ -84,6 +84,8 @@ struct Context {
     struct_defs: HashMap<String, SStructDef>,
     // maps variable names to their offsets in the arena
     arena_index: HashMap<String, usize>, // stores offsets
+    // Temporary storage for enum payload data during construction
+    temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
     // A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // TODO change the cached type to support import as returning a struct_def
     imports_done: HashMap<String, Result<EvalResult, String> >, // finalized imports
@@ -100,6 +102,7 @@ impl Context {
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
+            temp_enum_payload: None,
             imports_done: HashMap::new(),
             imports_wip: HashSet::new(),
         });
@@ -666,11 +669,37 @@ impl Context {
 
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, e)?;
 
+        // Check if this variant has a payload type
+        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let (payload_data, payload_type) = match variant_payload_type {
+            Some(Some(vtype)) => {
+                // This variant has a payload, read it from arena
+                let payload_size = match vtype {
+                    ValueType::TCustom(type_name) if type_name == "Bool" => 1,
+                    ValueType::TCustom(type_name) if type_name == "I64" => 8,
+                    _ => 0, // Unsupported types have no payload for now
+                };
+                if payload_size > 0 {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_size;
+                    if payload_end <= Arena::g().memory.len() {
+                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        (Some(payload_bytes), Some(vtype.clone()))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            },
+            _ => (None, None),
+        };
+
         Ok(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name,
-            payload: None,  // TODO: Read payload from arena
-            payload_type: None,
+            payload: payload_data,
+            payload_type,
         })
     }
 
@@ -684,26 +713,54 @@ impl Context {
 
         let enum_value = Context::get_variant_pos(enum_def, enum_name, e)?;
 
+        // Check if there's payload data to store
+        let (payload_data, payload_type) = match &self.temp_enum_payload {
+            Some((data, vtype)) => (Some(data.clone()), Some(vtype.clone())),
+            None => (None, None),
+        };
+
         let is_field = id.contains('.');
         if is_field {
             if let Some(&offset) = self.arena_index.get(id) {
+                // Update existing enum value
                 Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_bytes.len();
+                    // Ensure arena has enough space
+                    if Arena::g().memory.len() < payload_end {
+                        Arena::g().memory.resize(payload_end, 0);
+                    }
+                    Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
+                }
             } else {
                 let offset = Arena::g().memory.len();
                 Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    Arena::g().memory.extend_from_slice(&payload_bytes);
+                }
                 self.arena_index.insert(id.to_string(), offset);
             }
         } else {
             let offset = Arena::g().memory.len();
             Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+            // Store payload if present
+            if let Some(payload_bytes) = &payload_data {
+                Arena::g().memory.extend_from_slice(&payload_bytes);
+            }
             self.arena_index.insert(id.to_string(), offset);
         }
+
+        // Clear the temp payload after using it
+        self.temp_enum_payload = None;
 
         Ok(EnumVal {
             enum_type: enum_type.to_string(),
             enum_name: enum_name.to_string(),
-            payload: None,  // TODO: Store payload in arena
-            payload_type: None,
+            payload: payload_data,
+            payload_type,
         })
     }
 
@@ -3576,13 +3633,13 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
             // Get the enum definition to check if this variant has a payload type
             let enum_def = context.enum_defs.get(enum_type).unwrap();
-            let variant_type = enum_def.enum_map.get(variant_name);
+            let variant_type = enum_def.enum_map.get(variant_name).cloned();
 
             match variant_type {
                 Some(Some(payload_type)) => {
                     // This variant expects a payload
                     if e.params.len() < 2 {
-                        return Err(e.error("eval", &format!("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(payload_type))));
+                        return Err(e.error("eval", &format!("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(&payload_type))));
                     }
 
                     // Evaluate the payload argument
@@ -3592,8 +3649,27 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(payload_result);
                     }
 
-                    // For now, just return the enum variant name
-                    // TODO: Store payload in arena
+                    // Convert payload to bytes based on type
+                    let payload_bytes = match &payload_type {
+                        ValueType::TCustom(type_name) if type_name == "Bool" => {
+                            let bool_val = payload_result.value.parse::<bool>()
+                                .map_err(|_| e.error("eval", &format!("Expected Bool payload, got '{}'", payload_result.value)))?;
+                            vec![if bool_val { 1u8 } else { 0u8 }]
+                        },
+                        ValueType::TCustom(type_name) if type_name == "I64" => {
+                            let i64_val = payload_result.value.parse::<i64>()
+                                .map_err(|_| e.error("eval", &format!("Expected I64 payload, got '{}'", payload_result.value)))?;
+                            i64_val.to_le_bytes().to_vec()
+                        },
+                        _ => {
+                            return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                        }
+                    };
+
+                    // Store payload in temp location for insert_enum to use
+                    context.temp_enum_payload = Some((payload_bytes, payload_type));
+
+                    // Return the enum variant name
                     return Ok(EvalResult::new(&format!("{}.{}", enum_type, variant_name)));
                 },
                 Some(None) => {
