@@ -413,8 +413,51 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
 }
 
 // Evaluate an assignment
-eval_assignment := proc(mut context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_assignment")
+// Phase 2: simple types only, no mutability checking yet
+eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Extract variable name from node_type
+    mut node_type := e.node_type
+    mut var_name := ""
+    enum_extract_payload(node_type, var_name)
+
+    // Look up symbol to verify it exists and get its type
+    mut symbols_map := context.symbols
+    mut value_type_str := symbols_map.get(var_name)
+    if value_type_str.eq("") {
+        throw format(loc(), " ERROR: Variable '", var_name, "' not found in assignment")
+    }
+
+    // Get the value expression (params[0])
+    mut params_array := e.params
+    if lt(params_array.len(), 1) {
+        throw format(loc(), " ERROR: Assignment to '", var_name, "' has no value expression")
+    }
+
+    mut value_expr := Expr()
+    params_array.get(0, value_expr)
+
+    // Evaluate the value expression
+    new_value := eval_expr(context, value_expr)
+
+    // Update the value based on type
+    mut vt_copy := value_type_str
+    if vt_copy.eq("I64") {
+        mut new_val_str := new_value
+        new_i64 := new_val_str.to_i64()
+        context.insert_i64(var_name, new_i64)
+    }
+    else if vt_copy.eq("Str") {
+        context.insert_str(var_name, new_value)
+    }
+    else if vt_copy.eq("Bool") {
+        mut new_val_str := new_value
+        is_true := new_val_str.eq("true")
+        context.insert_bool(var_name, is_true)
+    }
+    else {
+        throw format(loc(), " ERROR: Assignment to '", var_name, "' has unsupported type '", value_type_str, "' (Phase 2 only supports I64, Str, Bool)")
+    }
+
     return ""
 }
 
