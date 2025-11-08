@@ -2,15 +2,32 @@ mode test
 
 AAAError := struct {}
 simplest_catch := proc () {
-    catched := false
+    mut catched := false
     throw AAAError()
     assert(loc(), false) // This line should be unreachable
     catch (err: AAAError) {
-        catched := true
+        catched = true
     }
     assert(loc(), catched)
 }
 simplest_catch()
+
+// Test catch block with error that has fields
+ErrorWithMessage := struct {
+    msg: Str = "default error message"
+}
+
+test_catch_with_fields := proc() {
+    mut caught_msg := ""
+    my_error := ErrorWithMessage()
+    throw my_error
+    catch (err: ErrorWithMessage) {
+        caught_msg = err.msg
+    }
+    assert_eq_str(loc(), "default error message", caught_msg)
+    println("test_catch_with_fields: caught message: ", caught_msg)
+}
+test_catch_with_fields()
 
 DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
 

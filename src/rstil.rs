@@ -292,6 +292,31 @@ impl Context {
                 };
 
                 current_offset += field_size;
+            } else {
+                // Handle immutable Str fields by copying arena_index entries from type to instance
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    if type_name == "Str" {
+                        let type_field = format!("{}.{}", custom_type_name, field_name);
+                        let instance_field = format!("{}.{}", instance_name, field_name);
+
+                        // Copy c_string and cap arena_index entries
+                        if let Some(&c_string_offset) = self.arena_index.get(&format!("{}.c_string", type_field)) {
+                            self.arena_index.insert(format!("{}.c_string", instance_field), c_string_offset);
+                        }
+                        if let Some(&cap_offset) = self.arena_index.get(&format!("{}.cap", type_field)) {
+                            self.arena_index.insert(format!("{}.cap", instance_field), cap_offset);
+                        }
+
+                        // Add symbol for the immutable field
+                        self.symbols.insert(
+                            instance_field.clone(),
+                            SymbolInfo {
+                                value_type: decl.value_type.clone(),
+                                is_mut: false,
+                            },
+                        );
+                    }
+                }
             }
         }
         return Ok(())
@@ -519,6 +544,40 @@ impl Context {
                     is_mut,
                 },
             );
+        }
+
+        // Map immutable fields by copying arena_index entries from the type to the instance
+        for (member_name, decl) in struct_def.members.iter() {
+            if decl.is_mut {
+                continue; // Skip mutable fields (already handled above)
+            }
+
+            // For immutable Str fields, copy arena_index entries from type to instance
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                if type_name == "Str" {
+                    let type_field = format!("{}.{}", custom_type_name, member_name);
+                    let instance_field = format!("{}.{}", id, member_name);
+
+                    // Copy c_string arena_index entry
+                    if let Some(&c_string_offset) = self.arena_index.get(&format!("{}.c_string", type_field)) {
+                        self.arena_index.insert(format!("{}.c_string", instance_field), c_string_offset);
+                    }
+
+                    // Copy cap arena_index entry
+                    if let Some(&cap_offset) = self.arena_index.get(&format!("{}.cap", type_field)) {
+                        self.arena_index.insert(format!("{}.cap", instance_field), cap_offset);
+                    }
+
+                    // Add symbol for the immutable field
+                    self.symbols.insert(
+                        instance_field.clone(),
+                        SymbolInfo {
+                            value_type: decl.value_type.clone(),
+                            is_mut: false,
+                        },
+                    );
+                }
+            }
         }
 
         Ok(())
@@ -4729,20 +4788,80 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalRe
                             // First try to find the arena index for proper field mapping
                             if let Some(offset) = context.arena_index.get(&throw_result.value) {
                                 context.arena_index.insert(var_name.to_string(), *offset);
-                                context.map_instance_fields(thrown_type, var_name, stmt)?;
+
+                                // Copy ALL field mappings (including nested) from thrown instance to catch variable
+                                // This handles both mutable and immutable fields, and nested struct fields like .msg.c_string
+                                let source_prefix = format!("{}.", &throw_result.value);
+                                let dest_prefix = format!("{}.", var_name);
+
+                                let keys_to_copy: Vec<String> = context.arena_index.keys()
+                                    .filter(|k| k.starts_with(&source_prefix))
+                                    .cloned()
+                                    .collect();
+                                for src_key in keys_to_copy {
+                                    if let Some(&src_offset) = context.arena_index.get(&src_key) {
+                                        let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
+                                        context.arena_index.insert(dest_key, src_offset);
+                                    }
+                                }
+
+                                // Also copy symbol mappings for all fields
+                                let symbol_keys_to_copy: Vec<String> = context.symbols.keys()
+                                    .filter(|k| k.starts_with(&source_prefix))
+                                    .cloned()
+                                    .collect();
+                                for src_key in symbol_keys_to_copy {
+                                    if let Some(src_symbol) = context.symbols.get(&src_key) {
+                                        let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
+                                        context.symbols.insert(dest_key, src_symbol.clone());
+                                    }
+                                }
                             } else {
-                                // Even without arena index, we need to add field symbols
-                                // This allows err.msg to be looked up during type checking and simple access
+                                // Fallback: try to map fields from the thrown value or type
+                                // This happens when throwing inline struct constructors or when arena_index lookup fails
+                                let source_name = &throw_result.value;
+
                                 if let Some(struct_def) = context.struct_defs.get(thrown_type) {
                                     for (field_name, field_decl) in &struct_def.members {
-                                        let combined_name = format!("{}.{}", var_name, field_name);
+                                        let src_instance_field = format!("{}.{}", source_name, field_name);
+                                        let src_type_field = format!("{}.{}", thrown_type, field_name);
+                                        let dst_field = format!("{}.{}", var_name, field_name);
+
+                                        // Add symbol for the field
                                         context.symbols.insert(
-                                            combined_name.clone(),
+                                            dst_field.clone(),
                                             SymbolInfo {
                                                 value_type: field_decl.value_type.clone(),
                                                 is_mut: false,
                                             },
                                         );
+
+                                        // For Str fields, copy arena_index entries for c_string and cap
+                                        // Try instance field first, then fall back to type field
+                                        if let ValueType::TCustom(type_name) = &field_decl.value_type {
+                                            if type_name == "Str" {
+                                                // Try instance field first
+                                                let c_string_src = if let Some(&offset) = context.arena_index.get(&format!("{}.c_string", src_instance_field)) {
+                                                    Some(offset)
+                                                } else {
+                                                    // Fall back to type field
+                                                    context.arena_index.get(&format!("{}.c_string", src_type_field)).copied()
+                                                };
+
+                                                let cap_src = if let Some(&offset) = context.arena_index.get(&format!("{}.cap", src_instance_field)) {
+                                                    Some(offset)
+                                                } else {
+                                                    context.arena_index.get(&format!("{}.cap", src_type_field)).copied()
+                                                };
+
+                                                if let Some(c_string_offset) = c_string_src {
+                                                    context.arena_index.insert(format!("{}.c_string", dst_field), c_string_offset);
+                                                }
+                                                if let Some(cap_offset) = cap_src {
+                                                    context.arena_index.insert(format!("{}.cap", dst_field), cap_offset);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -4755,10 +4874,18 @@ fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalRe
                             context.arena_index.remove(var_name);
                             // Also remove the field mappings
                             if let Some(struct_def) = context.struct_defs.get(thrown_type) {
-                                for (field_name, _) in &struct_def.members {
+                                for (field_name, field_decl) in &struct_def.members {
                                     let combined_name = format!("{}.{}", var_name, field_name);
                                     context.symbols.remove(&combined_name);
                                     context.arena_index.remove(&combined_name);
+
+                                    // For Str fields, also remove c_string and cap entries
+                                    if let ValueType::TCustom(type_name) = &field_decl.value_type {
+                                        if type_name == "Str" {
+                                            context.arena_index.remove(&format!("{}.c_string", combined_name));
+                                            context.arena_index.remove(&format!("{}.cap", combined_name));
+                                        }
+                                    }
                                 }
                             }
 
