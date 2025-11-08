@@ -683,9 +683,83 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             throw format(loc(), " ERROR: Undefined symbol '", id_name, "'")
         }
 
-        // TODO: Parse SymbolInfo and return its value_type
-        // For now, just return a placeholder
-        return ValueType.TCustom(symbol_str)
+        // TODO: Parse SymbolInfo to get actual value_type
+        // For now, assume symbol_str contains the value type string
+        mut current_type := ValueType.TCustom(id_name)
+
+        // If there are no params, return the base type
+        if eq(e.params.len, 0) {
+            return current_type
+        }
+
+        // Process member access (e.params contains the chain like obj.field1.field2)
+        mut i := 0
+        mut params := e.params
+        while lt(i, params.len) {
+            mut member_expr := Expr()
+            params.get(i, member_expr)
+
+            // Get member name
+            mut member_node_type := member_expr.node_type
+            member_node_str := enum_to_str(member_node_type)
+            if not(member_node_str.eq("NodeType.Identifier")) {
+                throw format(loc(), " ERROR: Identifiers can only contain identifiers, found ", member_node_str)
+            }
+
+            mut member_name := ""
+            enum_extract_payload(member_node_type, member_name)
+
+            // Check current_type to determine how to resolve member
+            current_type_str := enum_to_str(current_type)
+
+            // Handle TType - accessing enum variant or struct member
+            if current_type_str.eq("ValueType.TType") {
+                mut ttype_def := TTypeDef.TEnumDef
+                enum_extract_payload(current_type, ttype_def)
+                ttype_str := enum_to_str(ttype_def)
+
+                if ttype_str.eq("TTypeDef.TEnumDef") {
+                    // Accessing enum variant - check if exists
+                    mut enum_defs_map := context.enum_defs
+                    mut enum_def_str := enum_defs_map.get(id_name)
+                    if not(enum_def_str.eq("")) {
+                        // TODO: Check if variant exists in enum_def
+                        // For now, return TCustom(enum_name)
+                        return ValueType.TCustom(id_name)
+                    }
+                }
+
+                if ttype_str.eq("TTypeDef.TStructDef") {
+                    // Accessing struct member
+                    mut struct_defs_map := context.struct_defs
+                    mut struct_def_str := struct_defs_map.get(id_name)
+                    if not(struct_def_str.eq("")) {
+                        // TODO: Get member type from struct_def
+                        // For now, return placeholder
+                        return ValueType.TCustom("StructMemberType")
+                    }
+                }
+            }
+
+            // Handle TCustom - accessing field on instance
+            if current_type_str.eq("ValueType.TCustom") {
+                mut custom_type_name := ""
+                enum_extract_payload(current_type, custom_type_name)
+
+                // Check if it's a struct instance
+                mut struct_defs_map := context.struct_defs
+                mut struct_def_str := struct_defs_map.get(custom_type_name)
+                if not(struct_def_str.eq("")) {
+                    // TODO: Get member type from struct_def
+                    // For now, update current_type to placeholder
+                    current_type = ValueType.TCustom("FieldType")
+                }
+            }
+
+            i = add(i, 1)
+        }
+
+        return current_type
     }
 
     // Not implemented for other node types
