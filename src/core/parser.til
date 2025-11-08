@@ -230,7 +230,7 @@ is_literal := func(t: Token) returns Bool {
 }
 
 // Parse a literal value (string, number, or boolean)
-parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, IndexOutOfBoundsError {
+parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     mut params := new_expr_array()
     tt_str := enum_to_str(t.token_type)
 
@@ -489,7 +489,7 @@ get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutO
     }
 }
 
-parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, FullError {
+parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, FullError, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     lexer.expect(TokenType.Equal)
     mut params := new_expr_array()
     params.push(parse_primary(lexer))
@@ -497,7 +497,7 @@ parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     return Expr.new_parse(assignment_node, t, params)
 }
 
-parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError, FullError {
+parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError, FullError, I64_OverflowError, AllocError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token

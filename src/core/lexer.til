@@ -528,7 +528,7 @@ Lexer := struct {
         return t
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError {
+    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         index := add(self.current_token, offset)
         self_tokens := self.tokens
         if gteq(index, self_tokens.len) {
@@ -541,7 +541,7 @@ Lexer := struct {
         return t
     }
 
-    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
+    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         return self.peek_ahead(1)
     }
 
@@ -563,7 +563,7 @@ Lexer := struct {
         return t
     }
 
-    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError {
+    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         next_index := add(self.current_token, count)
         if gt(next_index, self.tokens.len) {
             mut err := IndexOutOfBoundsError()
@@ -574,7 +574,7 @@ Lexer := struct {
         self.current_token = next_index
     }
 
-    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError {
+    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         if gt(count, self.current_token) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current_token), " would underflow")
@@ -583,7 +583,7 @@ Lexer := struct {
         self.current_token = sub(self.current_token, count)
     }
 
-    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
+    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
         p := self.peek()
         mut matches := false
         // Compare TokenType enums using switch
@@ -598,7 +598,7 @@ Lexer := struct {
             return p
         }
         throw format(
-            "Expected token '", token_type_to_str(expected), "', but found '", token_type_to_str(p.token_type), "'")
+            "Expected token '", enum_to_str(expected), "', but found '", enum_to_str(p.token_type), "'")
     }
 }
 
