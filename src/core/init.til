@@ -795,8 +795,120 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
 
     // Handle Declaration nodes
     if node_type_str.eq("NodeType.Declaration") {
-        // TODO: Extract declaration info and register in context
-        // For now, just skip
+        // Extract Declaration from node_type
+        mut decl := Declaration()
+        mut node_type := e.node_type
+        enum_extract_payload(node_type, decl)
+
+        // Check if already declared
+        mut funcs_map := context.funcs
+        mut symbols_map := context.symbols
+        if funcs_map.contains_key(decl.name) {
+            throw format(loc(), " ERROR: '", decl.name, "' already declared")
+        }
+        if symbols_map.contains_key(decl.name) {
+            throw format(loc(), " ERROR: '", decl.name, "' already declared")
+        }
+
+        // Must have exactly one param (the initializer expression)
+        if not(eq(e.params.len, 1)) {
+            throw format(loc(), " ERROR: Declaration of '", decl.name, "' must have exactly one value")
+        }
+
+        // Get the initializer expression
+        mut inner_e := Expr()
+        mut params := e.params
+        params.get(0, inner_e)
+
+        // Get value type of initializer
+        value_type := get_value_type(context, inner_e)
+
+        // TODO: Type checking - verify declared type matches inferred type
+        // For now, just use the inferred type
+
+        // Register based on value type
+        value_type_str := enum_to_str(value_type)
+
+        // Handle functions
+        if value_type_str.eq("ValueType.TFunction") {
+            // Extract function definition from inner_e
+            mut inner_node_type := inner_e.node_type
+            inner_node_type_str := enum_to_str(inner_node_type)
+
+            if inner_node_type_str.eq("NodeType.FuncDef") {
+                mut func_def := SFuncDef()
+                enum_extract_payload(inner_node_type, func_def)
+
+                // Register in symbols and funcs
+                symbols_map.insert(decl.name, value_type_str)
+                context.symbols = symbols_map
+
+                // TODO: Store func_def properly (currently storing as string)
+                funcs_map.insert(decl.name, "func_def_placeholder")
+                context.funcs = funcs_map
+            }
+            return
+        }
+
+        // Handle enum definitions
+        if value_type_str.eq("ValueType.TType") {
+            mut ttype_def := TTypeDef.TEnumDef
+            enum_extract_payload(value_type, ttype_def)
+            ttype_str := enum_to_str(ttype_def)
+
+            if ttype_str.eq("TTypeDef.TEnumDef") {
+                // Extract enum definition from inner_e
+                mut inner_node_type := inner_e.node_type
+                mut enum_def := SEnumDef()
+                enum_extract_payload(inner_node_type, enum_def)
+
+                // Register in symbols and enum_defs
+                symbols_map.insert(decl.name, value_type_str)
+                context.symbols = symbols_map
+
+                // TODO: Store enum_def properly (currently storing as string)
+                mut enum_defs_map := context.enum_defs
+                enum_defs_map.insert(decl.name, "enum_def_placeholder")
+                context.enum_defs = enum_defs_map
+                return
+            }
+
+            if ttype_str.eq("TTypeDef.TStructDef") {
+                // Extract struct definition from inner_e
+                mut inner_node_type := inner_e.node_type
+                mut struct_def := SStructDef()
+                enum_extract_payload(inner_node_type, struct_def)
+
+                // Register in symbols and struct_defs
+                symbols_map.insert(decl.name, value_type_str)
+                context.symbols = symbols_map
+
+                // TODO: Store struct_def properly (currently storing as string)
+                mut struct_defs_map := context.struct_defs
+                struct_defs_map.insert(decl.name, "struct_def_placeholder")
+                context.struct_defs = struct_defs_map
+
+                // TODO: Register associated functions and constants
+                return
+            }
+        }
+
+        // Handle custom types and multi types
+        if value_type_str.eq("ValueType.TCustom") {
+            symbols_map.insert(decl.name, value_type_str)
+            context.symbols = symbols_map
+            return
+        }
+
+        if value_type_str.eq("ValueType.TMulti") {
+            symbols_map.insert(decl.name, value_type_str)
+            context.symbols = symbols_map
+            return
+        }
+
+        // Unknown type - register anyway
+        symbols_map.insert(decl.name, value_type_str)
+        context.symbols = symbols_map
         return
     }
 
