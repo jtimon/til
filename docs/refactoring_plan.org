@@ -139,14 +139,22 @@ Moved from rstil.rs to src/rs/init.rs:
 - Clear module boundary between init and other phases
 - All tests pass
 
-** Phase 3: Extract typer.rs (TODO)
-Move from rstil.rs to typer.rs:
-- All =check_*= functions
-- Type inference functions
-- =register_struct_fields_for_typecheck=
-- Audit: ensure no eval calls
+** DONE Phase 3: Extract typer.rs
+*Status:* Complete
 
-*Critical fix:* Replace all =insert_struct= calls in type checking with =register_struct_fields_for_typecheck= to prevent eval during type checking.
+Moved from rstil.rs to src/rs/typer.rs:
+- [X] =check_types()= - main type checking dispatcher
+- [X] All =check_*= functions (enum, struct, if, while, switch, fcall, declaration, assignment, catch)
+- [X] =check_func_proc_types()= and =check_body_returns_throws()= - function validation
+- [X] Type checking helpers: =get_func_def_for_fcall=, =get_func_def_for_fcall_with_expr=, =func_proc_has_multi_arg=, =is_expr_calling_procs=, =basic_mode_checks=
+- [X] Made =get_combined_name()= public in parser.rs
+- [X] All call sites updated to use =rs::typer::= prefix
+
+*Benefits:*
+- Type checking phase cleanly separated from rstil.rs
+- No eval calls during type checking (uses only =rs::init::get_value_type=)
+- Clear module boundary for compilation support
+- All tests pass with zero warnings
 
 ** Phase 4: Extract interpreter.rs (TODO)
 Move from rstil.rs to interpreter.rs:
