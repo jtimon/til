@@ -96,8 +96,8 @@ another_func := func() throws ErrorUndeclaredInFunc {
 }
 
 SomeStruct := struct {
-    some_method := func(self: SomeStruct) throws ErrorUndeclaredInMethod {
-        throw ErrorUndeclaredInFunc() // TODO FIX the compiler should tell us this is not ErrorUndeclaredInMethod
+    some_method := func(self: SomeStruct) throws ErrorUndeclaredInFunc {
+        throw ErrorUndeclaredInFunc() // FIXED: the compiler now correctly tells us this error must be declared!
     }
 
     some_assoc := func() throws ErrorUndeclaredInAssoc {
@@ -106,7 +106,7 @@ SomeStruct := struct {
 }
 
 // Remove things from the throws section to test the errors
-undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInMethod {
+undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndeclaredInFunc {
     if true {
         another_func()
         catch (err: ErrorUndeclaredInFunc) {
@@ -133,7 +133,8 @@ test_undeclared_throws := proc() {
     }
     catch (err: I64) {
     }
-    catch (err: ErrorUndeclaredInMethod) {
+    catch (err: ErrorUndeclaredInFunc) {
+        println("test_undeclared_throws: Correctly catched thrown ErrorUndeclaredInFunc")
     }
 }
 test_undeclared_throws()

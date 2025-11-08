@@ -36,7 +36,7 @@ Point := struct {
     mut y: I64 = 0
 
     new := func(x: I64, y: I64) returns Point {
-        self = Point()
+        mut self := Point()
         self.x = x
         self.y = y
         return self

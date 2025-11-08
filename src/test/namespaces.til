@@ -7,7 +7,7 @@ MyNamespace := struct {
     field_static_bool : Bool = true
     field_static_int : I64 = 42
 
-    proc_static := proc() {
+    proc_static := func() returns Str {
         return "func 'proc_static' in struct 'MyNamespace' is being called"
     }
 

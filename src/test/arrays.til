@@ -2,6 +2,11 @@ mode test
 
 test_array_static_u8 := proc() {
     mut stat := Array.new("U8", size_of(U8), 3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 3, stat.len)       // Static array len equals cap
     assert_eq(loc(), stat.cap, stat.len) // Static array len equals cap
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -30,11 +35,26 @@ test_array_static_u8()
 
 test_array_dynamic_u8 := proc() {
     mut dyn := Array.new_dyn("U8", size_of(U8))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(U8.from_i64(42))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     dyn.push(U8.from_i64(255))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := U8.from_i64(0)
     dyn.get(0, val0)
@@ -74,6 +94,11 @@ test_array_dynamic_u8()
 
 test_array_static_str := proc() {
     mut stat := Array.new("Str", size_of(Str), 3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -95,11 +120,26 @@ test_array_static_str()
 
 test_array_dynamic_str := proc() {
     mut dyn := Array.new_dyn("Str", size_of(Str))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push("foo")
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     dyn.push("bar")
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := ""
     dyn.get(0, val0)
@@ -152,6 +192,11 @@ test_array_dynamic_str()
 
 test_array_static_bool := proc() {
     mut stat := Array.new("Bool", size_of(Bool), 3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -173,11 +218,26 @@ test_array_static_bool()
 
 test_array_dynamic_bool := proc() {
     mut dyn := Array.new_dyn("Bool", size_of(Bool))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(true)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     dyn.push(false)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := false
     dyn.get(0, val0)
@@ -213,6 +273,11 @@ test_array_dynamic_bool()
 
 test_array_static_i64 := proc() {
     mut stat := Array.new("I64", size_of(I64), 3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -234,11 +299,26 @@ test_array_static_i64()
 
 test_array_dynamic_i64 := proc() {
     mut dyn := Array.new_dyn("I64", size_of(I64))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap)
 
     dyn.push(42)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     dyn.push(84)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := 0
     dyn.get(0, val0)
@@ -286,6 +366,11 @@ Vec2 := struct {
 
 test_array_static_vec2 := proc() {
     mut stat := Array.new("Vec2", size_of(Vec2), 3) // TODO More ergonomic constructor
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 3, stat.len)
     assert_eq(loc(), stat.cap, stat.len)
     test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
@@ -317,6 +402,11 @@ test_array_static_vec2()
 
 test_array_dynamic_vec2 := proc() {
     mut dyn := Array.new_dyn("Vec2", size_of(Vec2)) // TODO More ergonomic constructor
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     assert_eq(loc(), 0, dyn.len)
     // assert_eq(loc(), Array.INIT_DYN_CAP, dyn.cap) // Optional: verify cap
 
@@ -324,8 +414,18 @@ test_array_dynamic_vec2 := proc() {
     // dyn.push(Vec2.new(30, 40)) // TODO FIX
     v1 := Vec2.new(10, 20)
     dyn.push(v1)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
     v2 := Vec2.new(30, 40)
     dyn.push(v2)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
 
     assert_eq(loc(), 2, dyn.len)
 

@@ -477,7 +477,7 @@ Array := struct {
     INIT_DYN_CAP : I64 = 16
     MAX_CAP      : I64 = 1024
 
-    new := proc(T_str: Str, type_size: I64, capacity: I64) returns Array {
+    new := proc(T_str: Str, type_size: I64, capacity: I64) returns Array throws AllocError {
         mut arr := Array()
         // arr.type_name = type_as_str(T) // TODO allow Dynamic for types too, or implement Type
         // arr.type_size = size_of(T)
@@ -485,14 +485,14 @@ Array := struct {
         arr.type_size = type_size
         size_bytes := mul(capacity, arr.type_size)
         arr.ptr = malloc(size_bytes)
-        memset(arr.ptr, 0, size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
         arr.len = capacity
         arr.cap = capacity
         arr.is_dyn = false
         return arr
     }
 
-    new_dyn := proc(T_str: Str, type_size: I64) returns Array {
+    new_dyn := proc(T_str: Str, type_size: I64) returns Array throws AllocError {
         mut arr := Array()
         arr.type_name = T_str
         arr.type_size = type_size
@@ -504,7 +504,7 @@ Array := struct {
         return arr
     }
 
-    push := proc(mut self: Array, value: Dynamic) throws FullError, Str {
+    push := proc(mut self: Array, value: Dynamic) throws FullError, Str, AllocError {
         if not(self.is_dyn) {
             throw format(loc(), "Array.push: push is not allowed for static arrays")
         }
@@ -585,7 +585,7 @@ StrMap := struct {
     }
 
     // Insert or update key-value pair
-    insert := proc(mut self: StrMap, key: Str, value: Str) throws FullError, Str, IndexOutOfBoundsError {
+    insert := proc(mut self: StrMap, key: Str, value: Str) throws FullError, Str, IndexOutOfBoundsError, AllocError {
         // Linear search for existing key
         mut i := 0
         mut found := false

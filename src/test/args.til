@@ -247,6 +247,10 @@ test_non_mut_isolation()
 
 push_value := proc(mut arr: Array, value: I64) {
     arr.push(value)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+    }
     catch (err: FullError) {
         println(loc(), "FullError thrown:")
         println(err.msg)
@@ -259,6 +263,11 @@ push_value := proc(mut arr: Array, value: I64) {
 
 test_mut_array := proc() {
     mut numbers := Array.new_dyn("I64", size_of(I64))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
 
     assert_eq(loc(), 0, numbers.len)
 

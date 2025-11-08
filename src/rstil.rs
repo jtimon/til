@@ -583,6 +583,30 @@ impl Context {
         Ok(())
     }
 
+    // Register struct field symbols for type checking without evaluating defaults or allocating memory
+    // This allows type checking of struct method bodies without triggering evaluation errors
+    fn register_struct_fields_for_typecheck(&mut self, instance_name: &str, struct_type_name: &str) {
+        if let Some(struct_def) = self.struct_defs.get(struct_type_name).cloned() {
+            for (member_name, decl) in &struct_def.members {
+                let combined_name = format!("{}.{}", instance_name, member_name);
+                self.symbols.insert(
+                    combined_name.clone(),
+                    SymbolInfo {
+                        value_type: decl.value_type.clone(),
+                        is_mut: decl.is_mut,
+                    },
+                );
+
+                // Recursively register nested struct fields
+                if let ValueType::TCustom(ref nested_type) = decl.value_type {
+                    if self.struct_defs.contains_key(nested_type) {
+                        self.register_struct_fields_for_typecheck(&combined_name, nested_type);
+                    }
+                }
+            }
+        }
+    }
+
     fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
         let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
             Some(offset) => *offset,
@@ -2141,12 +2165,11 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 
                 context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
 
-                // For struct parameters, register the field offsets so they can be accessed in the function body
+                // For struct parameters, register field symbols for type checking
+                // We use the lightweight registration instead of insert_struct to avoid evaluating
+                // default values during type checking (which would cause errors for literals)
                 if let ValueType::TType(TTypeDef::TStructDef) = custom_symbol.value_type {
-                    if let Err(err) = context.insert_struct(&arg.name, custom_type_name, e) {
-                        errors.push(err);
-                        return errors;
-                    }
+                    context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
                 }
             },
             _ => {
@@ -2567,17 +2590,10 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                     errors.push(e.lang_error("type", &format!("Cannot infer the declaration type of {}", decl.name)));
                     return errors;
                 }
-                match context.struct_defs.get(&custom_type) {
-                    Some(_struct_def) => {
-                        match context.insert_struct(&decl.name, &custom_type, e) {
-                            Ok(_) => {},
-                            Err(err) => {
-                                errors.push(err);
-                                return errors
-                            },
-                        }
-                    },
-                    _ => {}, // If it's enum, don't do anything
+                // During type checking, register struct fields so they can be accessed in the code
+                // Memory allocation and default value evaluation happens during runtime in eval_declaration
+                if context.struct_defs.contains_key(&custom_type) {
+                    context.register_struct_fields_for_typecheck(&decl.name, &custom_type);
                 }
             }
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
@@ -2764,10 +2780,9 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 // println!("inner_e {:?}", inner_e);
                 match &inner_e.node_type {
                     // If the member's default value is a function (method), type check it
-                    NodeType::FuncDef(_func_def) => {
-                        let mut _function_context = context.clone();
-                        // TODO FIX Uncomment to test functions inside structs
-                        // errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
+                    NodeType::FuncDef(func_def) => {
+                        let mut function_context = context.clone();
+                        errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
                     },
                     // For other types of members, treat them like regular declarations
                     _ => {
