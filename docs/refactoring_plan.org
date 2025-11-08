@@ -156,12 +156,26 @@ Moved from rstil.rs to src/rs/typer.rs:
 - Clear module boundary for compilation support
 - All tests pass with zero warnings
 
-** Phase 4: Extract interpreter.rs (TODO)
-Move from rstil.rs to interpreter.rs:
-- All =eval_*= functions
-- Arena management
-- =eval_import_values= function
-- Context runtime methods
+** DONE Phase 4: Extract interpreter.rs
+*Status:* Complete
+
+Moved from rstil.rs to src/rs/interpreter.rs:
+- [X] =eval_expr()= - main eval dispatcher (cornerstone function)
+- [X] All =eval_*= helper functions (eval_body, eval_declaration, eval_assignment, eval_identifier_expr, etc.)
+- [X] All =eval_core_func_*= implementations (loc, size_of, malloc, free, memset, memcpy, arithmetic ops, type conversions)
+- [X] All =eval_core_proc_*= implementations (import, runfile, readfile, exit, print, input, eval_to_str)
+- [X] =eval_user_func_proc_call()= - user-defined function execution
+- [X] =RETURN_INSTANCE_NAME= constant
+- [X] Arena usage (all eval functions use Arena for memory management)
+
+Kept in rstil.rs:
+- =EvalResult= struct (shared between modules)
+- =main_run()=, =run_file()=, =run_file_with_context()= (orchestration functions)
+
+*Benefits:*
+- Runtime phase cleanly separated from rstil.rs
+- Clear module boundary for interpreter vs orchestration
+- All tests pass with zero warnings
 
 ** Phase 5: Clean up rstil.rs (TODO)
 - Keep only main(), CLI, orchestration
