@@ -677,7 +677,22 @@ impl Context {
                 let payload_size = match vtype {
                     ValueType::TCustom(type_name) if type_name == "Bool" => 1,
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
-                    _ => 0, // Unsupported types have no payload for now
+                    ValueType::TCustom(struct_type_name) => {
+                        // Check if this is a struct type
+                        match self.symbols.get(struct_type_name) {
+                            Some(type_symbol) => {
+                                match &type_symbol.value_type {
+                                    ValueType::TType(TTypeDef::TStructDef) => {
+                                        // Get struct size
+                                        self.get_type_size(struct_type_name).unwrap_or(0)
+                                    },
+                                    _ => 0,
+                                }
+                            },
+                            None => 0,
+                        }
+                    },
+                    _ => 0,
                 };
                 if payload_size > 0 {
                     let payload_offset = offset + 8;
@@ -3174,6 +3189,115 @@ fn eval_core_func_enum_get_payload_i64(context: &mut Context, e: &Expr) -> Resul
     }
 }
 
+fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() != 3 {
+        return Err(e.lang_error("eval", "Core proc 'enum_extract_payload' takes exactly 2 arguments"))
+    }
+
+    // First argument: enum variable
+    let enum_expr = e.get(1)?;
+    let enum_result = eval_expr(context, enum_expr)?;
+    if enum_result.is_throw {
+        return Ok(enum_result);
+    }
+
+    let enum_var_name = match &enum_expr.node_type {
+        NodeType::Identifier(name) => name,
+        _ => return Err(e.error("eval", "enum_extract_payload expects an enum variable as first argument")),
+    };
+
+    // Second argument: destination variable (must be mutable)
+    let dest_expr = e.get(2)?;
+    let dest_var_name = match &dest_expr.node_type {
+        NodeType::Identifier(name) => name,
+        _ => return Err(e.error("eval", "enum_extract_payload expects a variable name as second argument")),
+    };
+
+    // Verify destination is mutable
+    let dest_symbol = context.symbols.get(dest_var_name).ok_or_else(|| {
+        e.error("eval", &format!("Destination variable '{}' not found", dest_var_name))
+    })?;
+    if !dest_symbol.is_mut {
+        return Err(e.error("eval", &format!("Destination variable '{}' must be mutable", dest_var_name)));
+    }
+
+    // Get the enum value
+    let enum_val = context.get_enum(enum_var_name, e)?;
+
+    // Check if enum has a payload
+    let (payload_bytes, payload_type) = match (&enum_val.payload, &enum_val.payload_type) {
+        (Some(bytes), Some(ptype)) => (bytes, ptype),
+        _ => return Err(e.error("eval", &format!("Enum '{}' has no payload", enum_var_name))),
+    };
+
+    // Verify destination type matches payload type
+    let dest_type = &dest_symbol.value_type;
+    if dest_type != payload_type {
+        return Err(e.error("eval", &format!(
+            "Type mismatch: enum payload is {}, but destination is {}",
+            value_type_to_str(payload_type),
+            value_type_to_str(dest_type)
+        )));
+    }
+
+    // Extract payload based on type
+    match payload_type {
+        ValueType::TCustom(type_name) if type_name == "Bool" => {
+            if payload_bytes.len() != 1 {
+                return Err(e.error("eval", "Invalid Bool payload size"));
+            }
+            let bool_val = payload_bytes[0] != 0;
+            context.insert_bool(dest_var_name, &bool_val.to_string(), e)?;
+        },
+        ValueType::TCustom(type_name) if type_name == "I64" => {
+            if payload_bytes.len() != 8 {
+                return Err(e.error("eval", "Invalid I64 payload size"));
+            }
+            let mut bytes = [0u8; 8];
+            bytes.copy_from_slice(&payload_bytes[0..8]);
+            let i64_val = i64::from_le_bytes(bytes);
+            context.insert_i64(dest_var_name, &i64_val.to_string(), e)?;
+        },
+        ValueType::TCustom(struct_type_name) => {
+            // Handle struct payloads
+            let type_symbol = context.symbols.get(struct_type_name).ok_or_else(|| {
+                e.error("eval", &format!("Unknown type '{}'", struct_type_name))
+            })?;
+
+            match &type_symbol.value_type {
+                ValueType::TType(TTypeDef::TStructDef) => {
+                    // Get destination struct offset
+                    let dest_offset = context.arena_index.get(dest_var_name).ok_or_else(|| {
+                        e.error("eval", &format!("Destination struct '{}' not found in arena", dest_var_name))
+                    })?;
+
+                    // Verify payload size matches struct size
+                    let struct_size = context.get_type_size(struct_type_name)
+                        .map_err(|err| e.error("eval", &err))?;
+                    if payload_bytes.len() != struct_size {
+                        return Err(e.error("eval", &format!(
+                            "Payload size mismatch: expected {}, got {}",
+                            struct_size, payload_bytes.len()
+                        )));
+                    }
+
+                    // Copy payload bytes into destination struct's arena location
+                    Arena::g().memory[*dest_offset..*dest_offset + struct_size]
+                        .copy_from_slice(&payload_bytes);
+                },
+                _ => {
+                    return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(payload_type))));
+                }
+            }
+        },
+        _ => {
+            return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(payload_type))));
+        }
+    }
+
+    Ok(EvalResult::new(""))
+}
+
 fn eval_core_func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
@@ -3706,6 +3830,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "enum_to_str" => eval_core_func_enum_to_str(context, &e),
         "enum_get_payload_bool" => eval_core_func_enum_get_payload_bool(context, &e),
         "enum_get_payload_i64" => eval_core_func_enum_get_payload_i64(context, &e),
+        "enum_extract_payload" => eval_core_proc_enum_extract_payload(context, &e),
         "u8_to_i64" => eval_core_func_u8_to_i64(context, &e),
         "i64_to_u8" => eval_core_func_i64_to_u8(context, &e),
         "eval_to_str" => eval_core_proc_eval_to_str(context, &e),
@@ -3792,6 +3917,34 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             let i64_val = payload_result.value.parse::<i64>()
                                 .map_err(|_| e.error("eval", &format!("Expected I64 payload, got '{}'", payload_result.value)))?;
                             i64_val.to_le_bytes().to_vec()
+                        },
+                        ValueType::TCustom(struct_type_name) => {
+                            // Handle struct payloads
+                            // Check if this is a struct type
+                            let type_symbol = context.symbols.get(struct_type_name).ok_or_else(|| {
+                                e.error("eval", &format!("Unknown type '{}'", struct_type_name))
+                            })?;
+
+                            match &type_symbol.value_type {
+                                ValueType::TType(TTypeDef::TStructDef) => {
+                                    // Get struct size
+                                    let struct_size = context.get_type_size(struct_type_name)
+                                        .map_err(|err| e.error("eval", &err))?;
+
+                                    // Get struct offset from arena
+                                    let struct_var_name = &payload_result.value;
+                                    let offset = context.arena_index.get(struct_var_name).ok_or_else(|| {
+                                        e.error("eval", &format!("Struct '{}' not found in arena", struct_var_name))
+                                    })?;
+
+                                    // Copy struct bytes from arena
+                                    let struct_bytes = Arena::g().memory[*offset..*offset + struct_size].to_vec();
+                                    struct_bytes
+                                },
+                                _ => {
+                                    return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                                }
+                            }
                         },
                         _ => {
                             return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));

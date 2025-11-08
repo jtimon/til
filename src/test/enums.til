@@ -133,9 +133,95 @@ assert_eq_str(loc(), test_color_match(bbb), "olive green")
 assert_eq_str(loc(), test_color_match(green_false), "dark green")
 assert_eq_str(loc(), test_color_match(ccc), "positive color code")
 
+// Test struct payloads
+Vec2 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+Vec3 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+    mut z: I64 = 0
+}
+
+ContainerStruct := struct {
+    mut vec: Vec2 = Vec2()
+    mut value: I64 = 0
+}
+
+Shape := enum {
+    Point: Vec2,
+    Point3D: Vec3,
+    Container: ContainerStruct,
+}
+
+test_struct_payloads := proc() {
+    // Test basic struct payload
+    mut my_vec := Vec2()
+    my_vec.x = 10
+    my_vec.y = 20
+    point := Shape.Point(my_vec)
+
+    mut extracted_vec := Vec2()
+    enum_extract_payload(point, extracted_vec)
+    assert_eq(loc(), 10, extracted_vec.x)
+    assert_eq(loc(), 20, extracted_vec.y)
+
+    // Test 3D point
+    mut my_vec3 := Vec3()
+    my_vec3.x = 1
+    my_vec3.y = 2
+    my_vec3.z = 3
+    point3d := Shape.Point3D(my_vec3)
+
+    mut extracted_vec3 := Vec3()
+    enum_extract_payload(point3d, extracted_vec3)
+    assert_eq(loc(), 1, extracted_vec3.x)
+    assert_eq(loc(), 2, extracted_vec3.y)
+    assert_eq(loc(), 3, extracted_vec3.z)
+
+    // TODO: Test nested struct payload - requires fixing nested struct allocation in insert_struct
+    // mut container := ContainerStruct()
+    // container.vec.x = 100
+    // container.vec.y = 200
+    // container.value = 42
+    // container_shape := Shape.Container(container)
+    //
+    // mut extracted_container := ContainerStruct()
+    // enum_extract_payload(container_shape, extracted_container)
+    // assert_eq(loc(), 100, extracted_container.vec.x)
+    // assert_eq(loc(), 200, extracted_container.vec.y)
+    // assert_eq(loc(), 42, extracted_container.value)
+
+    // Test with enum_extract_payload in switch
+    test_shape_match := proc(s: Shape) returns I64 {
+        variant_str := enum_to_str(s)
+        switch variant_str {
+        case "Shape.Point":
+            mut v := Vec2()
+            enum_extract_payload(s, v)
+            return add(v.x, v.y)
+        case "Shape.Point3D":
+            mut v3 := Vec3()
+            enum_extract_payload(s, v3)
+            return add(add(v3.x, v3.y), v3.z)
+        case "Shape.Container":
+            mut c := ContainerStruct()
+            enum_extract_payload(s, c)
+            return c.value
+        }
+        return 0
+    }
+
+    assert_eq(loc(), 30, test_shape_match(point))  // 10 + 20
+    assert_eq(loc(), 6, test_shape_match(point3d))  // 1 + 2 + 3
+    // assert_eq(loc(), 42, test_shape_match(container_shape))  // TODO: nested struct
+}
+test_struct_payloads()
+
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
-    // BBB : MyStruct // TODO This fails, because custom types are not allowed yet in enums
     // CCC : CCC // TODO This fails, because CCC is not defined
     DDD,
     LBool : Bool,

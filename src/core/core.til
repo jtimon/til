@@ -570,3 +570,4 @@ Array := struct {
 // Tagged union payload extraction functions
 enum_get_payload_bool := ext_func(enum_val: Dynamic) returns Bool;
 enum_get_payload_i64 := ext_func(enum_val: Dynamic) returns I64;
+enum_extract_payload := ext_proc(enum_val: Dynamic, mut dest: Dynamic);
