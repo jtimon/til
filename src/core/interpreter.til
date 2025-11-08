@@ -160,6 +160,7 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
     // Extract Declaration from node_type
     mut node_type := e.node_type
     mut decl := Declaration()
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(node_type, decl)
 
     // Get the initializer expression (params[0])

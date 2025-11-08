@@ -262,6 +262,7 @@ test_struct_payloads := proc() {
     point := Shape.Point(my_vec)
 
     mut extracted_vec := Vec2()
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(point, extracted_vec)
     assert_eq(loc(), 10, extracted_vec.x)
     assert_eq(loc(), 20, extracted_vec.y)
@@ -274,6 +275,7 @@ test_struct_payloads := proc() {
     point3d := Shape.Point3D(my_vec3)
 
     mut extracted_vec3 := Vec3()
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(point3d, extracted_vec3)
     assert_eq(loc(), 1, extracted_vec3.x)
     assert_eq(loc(), 2, extracted_vec3.y)
@@ -298,14 +300,17 @@ test_struct_payloads := proc() {
         switch variant_str {
         case "Shape.Point":
             mut v := Vec2()
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(s, v)
             return add(v.x, v.y)
         case "Shape.Point3D":
             mut v3 := Vec3()
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(s, v3)
             return add(add(v3.x, v3.y), v3.z)
         case "Shape.Container":
             mut c := ContainerStruct()
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(s, c)
             return c.value
         }
@@ -350,6 +355,7 @@ test_enum_payloads := proc() {
     opt_some := Option.Some(my_color)
 
     mut extracted_color := SimpleColor.Blue
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(opt_some, extracted_color)
     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
 
@@ -357,6 +363,7 @@ test_enum_payloads := proc() {
     green := SimpleColor.Green
     opt_green := Option.Some(green)
     mut extracted2 := SimpleColor.Red
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(opt_green, extracted2)
     assert(loc(), enum_to_str(extracted2).eq("SimpleColor.Green"))
 
@@ -364,6 +371,7 @@ test_enum_payloads := proc() {
     blue := SimpleColor.Blue
     opt_blue := Option.Some(blue)
     mut extracted3 := SimpleColor.Red
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(opt_blue, extracted3)
     assert(loc(), enum_to_str(extracted3).eq("SimpleColor.Blue"))
 }
@@ -388,11 +396,13 @@ test_nested_enum_payloads := proc() {
     result_ok := Result.Ok(some_red)
 
     mut extracted_option := Option.None
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(result_ok, extracted_option)
     assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
 
     // Extract the color from the option
     mut extracted_color := SimpleColor.Blue
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(extracted_option, extracted_color)
     assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
 
@@ -401,6 +411,7 @@ test_nested_enum_payloads := proc() {
     result_ok_none := Result.Ok(none_opt)
     green_temp := SimpleColor.Green
     mut extracted_option2 := Option.Some(green_temp)
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(result_ok_none, extracted_option2)
     assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
 
@@ -408,6 +419,7 @@ test_nested_enum_payloads := proc() {
     error := ErrorType.NotFound
     result_err := Result.Err(error)
     mut extracted_error := ErrorType.Invalid
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(result_err, extracted_error)
     assert(loc(), enum_to_str(extracted_error).eq("ErrorType.NotFound"))
 }
@@ -455,15 +467,18 @@ test_complex_nesting := proc() {
         switch variant_str {
         case "Message.Info":
             mut info := ""
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(msg, info)
             return format("Info: ", info)
         case "Message.State":
             mut state := GameState()
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(msg, state)
             player_id := state.player_id
             return format("State with player_id=", player_id.to_str())
         case "Message.Error":
             mut err_status := Status.Inactive
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(msg, err_status)
             return format("Error: ", enum_to_str(err_status))
         }
@@ -478,6 +493,7 @@ test_complex_nesting := proc() {
             return "Noop action"
         case "Action.Move":
             mut pos := Point2D()
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(act, pos)
             x := pos.x
             y := pos.y
@@ -522,6 +538,7 @@ test_complex_nesting := proc() {
 
     // Extract GameState from Message
     mut extracted_state := GameState()
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(message, extracted_state)
 
     // Verify GameState.player_id
@@ -563,6 +580,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_info := ""
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(info_msg, extracted_info)
     assert(loc(), extracted_info.eq("System initialized"))
 
@@ -576,6 +594,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_status2 := Status.Inactive
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(simple_error, extracted_status2)
     assert(loc(), enum_to_str(extracted_status2).eq("Status.Active"))
 
@@ -591,6 +610,7 @@ test_complex_nesting := proc() {
 
     // Also test direct extraction
     mut extracted_test_point := Point2D()
+    // TODO: Use switch instead of rsonly_enum_extract_payload
     rsonly_enum_extract_payload(test_move, extracted_test_point)
     assert_eq(loc(), 99, extracted_test_point.x)
     assert_eq(loc(), 88, extracted_test_point.y)

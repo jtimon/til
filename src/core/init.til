@@ -654,6 +654,7 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
         // Extract SFuncDef from payload
         mut func_def := SFuncDef()
         mut node_type := e.node_type
+        // TODO: Use switch instead of rsonly_enum_extract_payload
         rsonly_enum_extract_payload(node_type, func_def)
 
         // Determine function type
@@ -757,6 +758,7 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             // Handle TType - accessing enum variant or struct member
             if current_type_str.eq("ValueType.TType") {
                 mut ttype_def := TTypeDef.TEnumDef
+                // TODO: Use switch instead of rsonly_enum_extract_payload
                 rsonly_enum_extract_payload(current_type, ttype_def)
                 ttype_str := enum_to_str(ttype_def)
 
@@ -994,6 +996,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         // Extract Declaration from node_type
         mut decl := Declaration()
         mut node_type := e.node_type
+        // TODO: Use switch instead of rsonly_enum_extract_payload
         rsonly_enum_extract_payload(node_type, decl)
 
         // Check if already declared
@@ -1033,6 +1036,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
 
             if inner_node_type_str.eq("NodeType.FuncDef") {
                 mut func_def := SFuncDef()
+                // TODO: Use switch instead of rsonly_enum_extract_payload
                 rsonly_enum_extract_payload(inner_node_type, func_def)
 
                 // Register in symbols and funcs
@@ -1049,6 +1053,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         // Handle enum definitions
         if value_type_str.eq("ValueType.TType") {
             mut ttype_def := TTypeDef.TEnumDef
+            // TODO: Use switch instead of rsonly_enum_extract_payload
             rsonly_enum_extract_payload(value_type, ttype_def)
             ttype_str := enum_to_str(ttype_def)
 
@@ -1056,6 +1061,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 // Extract enum definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut enum_def := SEnumDef()
+                // TODO: Use switch instead of rsonly_enum_extract_payload
                 rsonly_enum_extract_payload(inner_node_type, enum_def)
 
                 // Register in symbols and enum_defs
@@ -1073,6 +1079,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 // Extract struct definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut struct_def := SStructDef()
+                // TODO: Use switch instead of rsonly_enum_extract_payload
                 rsonly_enum_extract_payload(inner_node_type, struct_def)
 
                 // Register in symbols and struct_defs
