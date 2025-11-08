@@ -620,21 +620,55 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
     return last_result
 }
 
-// FIX Cannot use 'main_args' of type 'StrArray' as an argument. Only name of struct instances allowed for struct arguments for now.
-// run_file_or_exit := proc(path: Str, main_args: StrArray) {
+// Run a file: read, lex, parse, and evaluate
 run_file_or_exit := proc(path: Str) {
-    println("[INFO] '", LANG_NAME, "': Reading file '", path, "'")
-    src := readfile(path)
-    tokens := scan_tokens(src) // REM don't call scan_tokens from here
+    println("Running file '", path, "'")
+
+    // Create lexer (reads file internally)
+    mut lexer := Lexer.new(path)
+
+    // For Phase 2, assume 'test' mode (simple mode that allows everything)
+    mut mode_def := ModeDef()
+    mode_def.name = "test"
+    mode_def.allows_procs = true
+    mode_def.allows_base_mut = true
+    mode_def.allows_base_calls = true
+    mode_def.allows_base_anything = true
+    mode_def.needs_main_proc = false
+
+    println("Mode: ", mode_def.name)
+
+    // Parse the file body (sequence of statements until EOF)
+    mut ast := parse_body(lexer, TokenType.Eof)
+
+    // Create context for evaluation
+    mut context := Context.new(mode_def, path)
+
+    // Evaluate the AST
+    result := eval_expr(context, ast)
+
+    // Success - no need to print result for test mode
+
     catch (err: Str) {
-        println(err)
+        println("ERROR: While running file ", path, ":\n", path, ":", err)
         exit(1)
     }
-    println("Lexer: ", I64.to_str(tokens.len), " tokens scanned.")
-
-    // FIX Lexer.new(path) and we stop callig scan_tokens(src)
-    // lexer := Lexer.new(path)
-    // lexer.print_lex_errors()
+    catch (err: AllocError) {
+        println("ERROR: While running file ", path, ":\n", path, ": AllocError: ", err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR: While running file ", path, ":\n", path, ": IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+    catch (err: I64_OverflowError) {
+        println("ERROR: While running file ", path, ":\n", path, ": I64_OverflowError: ", err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR: While running file ", path, ":\n", path, ": FullError: ", err.msg)
+        exit(1)
+    }
 }
 
 usage := proc() {

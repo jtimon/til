@@ -63,26 +63,26 @@ Token := struct {
     mut line: I64 = 0
     mut col: I64 = 0
 
-    lang_error := func(self: Token, msg: Str) returns Str {
-        return Str.concat(
-            I64.to_str(self.line), ":", I64.to_str(self.col), ": ",
+    lang_error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+        mut line_copy := self.line
+        mut col_copy := self.col
+        return format(line_copy.to_str(), ":", col_copy.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
-            "Explanation: This is not your fault as a user, this is a bug in the language.",
-        )
+            "Explanation: This is not your fault as a user, this is a bug in the language.")
     }
 
-    todo_error := func(self: Token, msg: Str) returns Str {
-        return Str.concat(
-            I64.to_str(self.line), ":", I64.to_str(self.col), ": ",
+    todo_error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+        mut line_copy := self.line
+        mut col_copy := self.col
+        return format(line_copy.to_str(), ":", col_copy.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
-            "Explanation: Not implemented yet, this is a missing feature in the language.",
-        )
+            "Explanation: Not implemented yet, this is a missing feature in the language.")
     }
 
-    error := func(self: Token, msg: Str) returns Str {
-        return Str.concat(
-            I64.to_str(self.line), ":", I64.to_str(self.col), ": parse ERROR: ", msg,
-        )
+    error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+        mut line_copy := self.line
+        mut col_copy := self.col
+        return format(line_copy.to_str(), ":", col_copy.to_str(), ": parse ERROR: ", msg)
     }
 }
 
@@ -473,8 +473,9 @@ Lexer := struct {
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
+        self_tokens := self.tokens
         mut t := Token()
-        self.tokens.get(self.current_token, t)
+        self_tokens.get(self.current_token, t)
         return t
     }
 
