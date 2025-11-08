@@ -12,12 +12,14 @@ SymbolInfo := struct {
 }
 
 // Context for type checking and evaluation
-// Mimics Context struct in rstil.rs (Phase 1: simplified version)
+// Mimics Context struct in rstil.rs
 Context := struct {
     mut mode_def: ModeDef = ModeDef()          // Mode definition
     mut path: Str = ""                         // File path for error reporting
     mut symbols: StrMap = StrMap()             // symbol_name -> SymbolInfo (as JSON for now)
     mut funcs: StrMap = StrMap()               // func_name -> SFuncDef (as JSON for now)
+    mut enum_defs: StrMap = StrMap()           // enum_name -> SEnumDef (as JSON for now)
+    mut struct_defs: StrMap = StrMap()         // struct_name -> SStructDef (as JSON for now)
     mut arena_index: StrMap = StrMap()         // var_name -> arena_offset (as str)
     mut arena: Arena = Arena()                 // Memory storage
 
@@ -28,6 +30,8 @@ Context := struct {
         ctx.path = path
         ctx.symbols = StrMap.new()
         ctx.funcs = StrMap.new()
+        ctx.enum_defs = StrMap.new()
+        ctx.struct_defs = StrMap.new()
         ctx.arena_index = StrMap.new()
         ctx.arena = Arena.new()
         return ctx
@@ -208,6 +212,140 @@ Context := struct {
             self.arena.memory = mem_arr
         }
     }
+}
+
+// Check function/proc return type
+// Corresponds to value_type_func_proc in init.rs
+value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
+    // Check that function returns exactly one value
+    mut returns_len := func_def.returns.len
+
+    if eq(returns_len, 0) {
+        throw format(loc(), " ERROR: func '", name, "' does not return anything")
+    }
+
+    if gt(returns_len, 1) {
+        throw format(loc(), " TODO: func '", name, "' returns multiple values (not yet supported)")
+    }
+
+    // Get the return type (should be at index 0)
+    mut returns_arr := func_def.returns
+    mut return_type := ValueType.TCustom("")
+    returns_arr.get(0, return_type)
+
+    return return_type
+}
+
+// Get value type for an expression (core type inference)
+// Corresponds to get_value_type in init.rs
+get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
+    // Match on node type
+    mut node_type_str := enum_to_str(e.node_type)
+
+    // Handle literals
+    if node_type_str.eq("NodeType.Literal") {
+        // TODO: Extract literal type and return appropriate ValueType
+        throw format(loc(), " TODO: get_value_type for literals not fully implemented")
+    }
+
+    // Handle function calls
+    if node_type_str.eq("NodeType.FCall") {
+        return get_fcall_value_type(context, e)
+    }
+
+    // Handle identifiers
+    if node_type_str.eq("NodeType.Identifier") {
+        // Extract identifier name
+        mut id_name := ""
+        mut node_type := e.node_type
+        enum_extract_payload(node_type, id_name)
+
+        // Look up symbol
+        mut symbols_map := context.symbols
+        mut symbol_str := symbols_map.get(id_name)
+        if symbol_str.eq("") {
+            throw format(loc(), " ERROR: Undefined symbol '", id_name, "'")
+        }
+
+        // TODO: Parse SymbolInfo and return its value_type
+        // For now, just return a placeholder
+        return ValueType.TCustom(symbol_str)
+    }
+
+    // Not implemented for other node types
+    throw format(loc(), " TODO: get_value_type not fully implemented for node type: ", node_type_str)
+}
+
+// Get value type for function call expressions
+// Corresponds to get_fcall_value_type in init.rs
+get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
+    // Get function name
+    f_name := get_func_name_in_call(e)
+
+    // Check if it's a standalone function
+    mut funcs_map := context.funcs
+    mut func_def_str := funcs_map.get(f_name)
+    if not(func_def_str.eq("")) {
+        // TODO: Parse SFuncDef from JSON string
+        // For now, just return a placeholder type
+        throw format(loc(), " TODO: get_fcall_value_type not fully implemented for function '", f_name, "'")
+    }
+
+    // Check if it's a struct or enum constructor
+    mut symbols_map := context.symbols
+    mut symbol_str := symbols_map.get(f_name)
+    if not(symbol_str.eq("")) {
+        // TODO: Handle struct/enum constructors
+        throw format(loc(), " TODO: get_fcall_value_type not fully implemented for constructor '", f_name, "'")
+    }
+
+    // Function not found
+    throw format(loc(), " ERROR: Unknown function or constructor '", f_name, "'")
+}
+
+// Get value type for UFCS (Uniform Function Call Syntax) calls
+// Corresponds to get_ufcs_fcall_value_type in init.rs
+get_ufcs_fcall_value_type := proc(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError {
+    // Check if id_expr has params (for method calls like obj.method())
+    if lt(id_expr.params.len, 1) {
+        throw format(loc(), " ERROR: Cannot call '", f_name, "', it is not a function or struct, it is a '", symbol.value_type, "'")
+    }
+
+    // TODO: Full UFCS implementation
+    // For now, just throw an error indicating it's not yet supported
+    throw format(loc(), " TODO: UFCS method calls not yet fully implemented for '", f_name, "'")
+}
+
+// Get function name from function call expression
+// Corresponds to get_func_name_in_call in init.rs
+get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+    // Check that this is an FCall node
+    mut node_type_str := enum_to_str(e.node_type)
+    if not(node_type_str.eq("NodeType.FCall")) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): expected FCall node, got ", node_type_str)
+    }
+
+    // Check that we have at least one parameter
+    if lt(e.params.len, 1) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): FCall nodes must have at least 1 parameter")
+    }
+
+    // Get first parameter (function name)
+    mut params := e.params
+    mut func_name_expr := Expr()
+    params.get(0, func_name_expr)
+
+    // Extract identifier from node_type
+    mut func_node_type := func_name_expr.node_type
+    mut func_node_type_str := enum_to_str(func_node_type)
+    if not(func_node_type_str.eq("NodeType.Identifier")) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0], got ", func_node_type_str)
+    }
+
+    // Extract the function name string from the Identifier payload
+    mut func_name := ""
+    enum_extract_payload(func_node_type, func_name)
+    return func_name
 }
 
 // Initialize context (corresponds to init_context in init.rs)
