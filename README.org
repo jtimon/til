@@ -59,7 +59,7 @@ itself to C and compile and link itself.
 - [X] Simulate pointers
 - [X] Self hosted arrays before being actually self hosted
 - [X] User defined variadic arguments
-- [ ] tagged unions (aka algebraic types) - basic enums work, but not with associated data yet
+- [X] tagged unions (aka algebraic types) - enums with Bool, I64, Str, struct, and enum payloads
 - [ ] Self hosted (initially only interpret itself, ie interpret til.til with til.til interpreted with rscil; ala pypy)
 - [ ] Compiled (initially through a C backend)
 - [ ] Can link C libraries
