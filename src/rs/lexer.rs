@@ -33,7 +33,7 @@ pub enum TokenType {
     // flow control
     If, Else,
     While, For, In,
-    Match, Switch, Default,
+    Match, Switch, Default, Case,
     Return, Throw,
     Try, Catch,
 
@@ -45,7 +45,6 @@ pub enum TokenType {
     // Errors
     Const, Var,
     Fn,
-    Case,
     Invalid,
     UnterminatedString,
     UnterminatedComment,
