@@ -145,6 +145,126 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     return Err(e.lang_error("eval", &format!("switch value type {:?}, case value type {:?}", value_type, case_type)));
                 }
 
+                // Handle pattern matching with payload extraction
+                if let NodeType::Pattern(variant_name, binding_var) = &case.node_type {
+                    // Check if the switch value's enum variant matches the pattern
+                    // The switch value should be an enum stored as EnumVal
+                    // We need to extract the enum value - get the identifier name from to_switch
+                    let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
+                        name
+                    } else {
+                        return Err(case.error("eval", "Pattern matching requires switch value to be a variable"));
+                    };
+
+                    let enum_val = context.get_enum(enum_var_name, &case)?;
+
+                    // Check if variant matches (enum_val.enum_name should match variant_name)
+                    let full_variant = format!("{}.{}", enum_val.enum_type, enum_val.enum_name);
+                    if full_variant == *variant_name || enum_val.enum_name == *variant_name {
+                        // Match! Extract the payload and bind it to the variable
+                        param_it += 1;
+
+                        // Extract payload into the binding variable
+                        if let Some(payload_type) = &enum_val.payload_type {
+                            if let Some(payload_bytes) = &enum_val.payload {
+                                // Use the existing payload extraction logic
+                                // We need to insert the payload into context with the binding_var name
+                                match payload_type {
+                                    ValueType::TCustom(type_name) if type_name == "Bool" => {
+                                        if payload_bytes.len() != 1 {
+                                            return Err(case.error("eval", "Invalid Bool payload size"));
+                                        }
+                                        let bool_val = payload_bytes[0] != 0;
+
+                                        // First add the symbol to context
+                                        context.symbols.insert(
+                                            binding_var.clone(),
+                                            crate::rs::init::SymbolInfo {
+                                                value_type: ValueType::TCustom("Bool".to_string()),
+                                                is_mut: false,
+                                            }
+                                        );
+
+                                        // Now insert the value
+                                        context.insert_bool(binding_var, &bool_val.to_string(), &case)?;
+                                    }
+                                    ValueType::TCustom(type_name) if type_name == "I64" => {
+                                        if payload_bytes.len() != 8 {
+                                            return Err(case.error("eval", "Invalid I64 payload size"));
+                                        }
+                                        let mut bytes = [0u8; 8];
+                                        bytes.copy_from_slice(&payload_bytes[0..8]);
+                                        let i64_val = i64::from_le_bytes(bytes);
+
+                                        // First add the symbol to context
+                                        context.symbols.insert(
+                                            binding_var.clone(),
+                                            crate::rs::init::SymbolInfo {
+                                                value_type: ValueType::TCustom("I64".to_string()),
+                                                is_mut: false,
+                                            }
+                                        );
+
+                                        context.insert_i64(binding_var, &i64_val.to_string(), &case)?;
+                                    }
+                                    ValueType::TCustom(type_name) if type_name == "Str" => {
+                                        // For Str, the payload contains pointer + size (16 bytes total)
+                                        // We need to reconstruct the string from the arena
+                                        if payload_bytes.len() != 16 {
+                                            return Err(case.error("eval", &format!("Invalid Str payload size: expected 16, got {}", payload_bytes.len())));
+                                        }
+                                        // Extract the c_string pointer (first 8 bytes)
+                                        let mut ptr_bytes = [0u8; 8];
+                                        ptr_bytes.copy_from_slice(&payload_bytes[0..8]);
+                                        let ptr_offset = i64::from_le_bytes(ptr_bytes);
+
+                                        // Extract size (next 8 bytes)
+                                        let mut size_bytes = [0u8; 8];
+                                        size_bytes.copy_from_slice(&payload_bytes[8..16]);
+                                        let size = i64::from_le_bytes(size_bytes);
+
+                                        // First add the symbol to context
+                                        context.symbols.insert(
+                                            binding_var.clone(),
+                                            crate::rs::init::SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false,
+                                            }
+                                        );
+
+                                        if size > 0 && ptr_offset > 0 {
+                                            // Read the actual string from the global arena
+                                            let ptr = ptr_offset as usize;
+                                            let len = size as usize;
+                                            if ptr + len > Arena::g().memory.len() {
+                                                return Err(case.error("eval", "String payload pointer out of bounds"));
+                                            }
+                                            let str_bytes = &Arena::g().memory[ptr..ptr + len];
+                                            let string_value = String::from_utf8_lossy(str_bytes).to_string();
+                                            context.insert_string(binding_var, &string_value, &case)?;
+                                        } else {
+                                            let empty_string = String::new();
+                                            context.insert_string(binding_var, &empty_string, &case)?;
+                                        }
+                                    }
+                                    _ => {
+                                        // For other types (structs, nested enums), we need more complex handling
+                                        // For now, try to handle it as a generic custom type
+                                        return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
+                                    }
+                                }
+                            }
+                        }
+
+                        // Execute the case body with the bound variable available
+                        return eval_expr(context, e.get(param_it)?);
+                    } else {
+                        // No match, continue to next case
+                        param_it += 2;
+                        continue;
+                    }
+                }
+
                 let is_match = match &case.node_type {
                     NodeType::Range => {
                         let start = eval_expr(context, &case.params[0])?;
@@ -1508,7 +1628,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "str_to_i64" => eval_core_func_str_to_i64(context, &e),
         "i64_to_str" => eval_core_func_i64_to_str(context, &e),
         "enum_to_str" => eval_core_func_enum_to_str(context, &e),
-        "enum_extract_payload" => eval_core_proc_enum_extract_payload(context, &e),
+        "rsonly_enum_extract_payload" => eval_core_proc_enum_extract_payload(context, &e),
         "u8_to_i64" => eval_core_func_u8_to_i64(context, &e),
         "i64_to_u8" => eval_core_func_i64_to_u8(context, &e),
         "eval_to_str" => eval_core_proc_eval_to_str(context, &e),
@@ -1906,7 +2026,7 @@ fn eval_core_func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
 
 fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core proc 'enum_extract_payload' takes exactly 2 arguments"))
+        return Err(e.lang_error("eval", "Core proc 'rsonly_enum_extract_payload' takes exactly 2 arguments"))
     }
 
     // First argument: enum variable
@@ -1918,7 +2038,7 @@ fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Resul
 
     let enum_var_name = match &enum_expr.node_type {
         NodeType::Identifier(name) => name,
-        _ => return Err(e.error("eval", "enum_extract_payload expects an enum variable as first argument")),
+        _ => return Err(e.error("eval", "rsonly_enum_extract_payload expects an enum variable as first argument")),
     };
 
     // Second argument: destination variable (must be mutable)

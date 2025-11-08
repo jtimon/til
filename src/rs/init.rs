@@ -446,6 +446,17 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             Ok(current_type) // Return the type of the last field (x)
         },
 
+        NodeType::Pattern(variant_name, _) => {
+            // Extract enum type from "EnumType.Variant" format
+            if let Some(dot_pos) = variant_name.rfind('.') {
+                let enum_type = &variant_name[..dot_pos];
+                Ok(ValueType::TCustom(enum_type.to_string()))
+            } else {
+                // If no dot, assume the whole thing is the enum type (shouldn't happen in practice)
+                Ok(ValueType::TCustom(variant_name.clone()))
+            }
+        },
+
         node_type => return Err(e.error("type", &format!("get_value_type() not implemented for {:?} yet.", node_type))),
     }
 }

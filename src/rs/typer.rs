@@ -106,7 +106,7 @@ pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_catch_statement(context, &e));
         }
 
-        NodeType::LLiteral(_) | NodeType::DefaultCase => {},
+        NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_, _) => {},
     }
 
     return errors
@@ -826,6 +826,11 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                 default_found = true;
                 case_found = true;
             }
+            NodeType::Pattern(_variant_name, _binding_var) => {
+                // Pattern matching - type is checked in exhaustiveness check below
+                case_found = true;
+                // No need to check type here - patterns implicitly match the switch type
+            }
             _ => {
                 case_found = true;
 
@@ -855,7 +860,49 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         }
 
         let body_expr = &e.params[i];
-        errors.extend(check_types(context, body_expr));
+
+        // For pattern matching, add the binding variable to the context before type checking the body
+        if let NodeType::Pattern(variant_name, binding_var) = &case_expr.node_type {
+            // Get the payload type for this variant
+            if let ValueType::TCustom(enum_name) = &switch_expr_type {
+                if let Some(enum_def) = context.enum_defs.get(enum_name) {
+                    // Extract just the variant name (remove enum prefix if present)
+                    let variant = if let Some(dot_pos) = variant_name.rfind('.') {
+                        &variant_name[dot_pos + 1..]
+                    } else {
+                        variant_name.as_str()
+                    };
+
+                    if let Some(payload_type_opt) = enum_def.enum_map.get(variant) {
+                        if let Some(payload_type) = payload_type_opt {
+                            // Create a temporary context with the binding variable
+                            let mut temp_context = context.clone();
+                            temp_context.symbols.insert(
+                                binding_var.clone(),
+                                crate::rs::init::SymbolInfo {
+                                    value_type: payload_type.clone(),
+                                    is_mut: false,
+                                }
+                            );
+                            errors.extend(check_types(&mut temp_context, body_expr));
+                        } else {
+                            // Variant exists but has no payload
+                            errors.push(case_expr.error("type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
+                            errors.extend(check_types(context, body_expr));
+                        }
+                    } else {
+                        errors.push(case_expr.error("type", &format!("Unknown variant '{}'", variant)));
+                        errors.extend(check_types(context, body_expr));
+                    }
+                } else {
+                    errors.extend(check_types(context, body_expr));
+                }
+            } else {
+                errors.extend(check_types(context, body_expr));
+            }
+        } else {
+            errors.extend(check_types(context, body_expr));
+        }
 
         i += 1;
     }
@@ -873,6 +920,21 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             while j < e.params.len() {
                 let case_expr = &e.params[j];
                 match &case_expr.node_type {
+                    NodeType::Pattern(variant_name, _binding_var) => {
+                        // Pattern matching: case EnumType.Variant(binding)
+                        // Extract the variant name from the full "EnumType.Variant" string
+                        if let Some(dot_pos) = variant_name.rfind('.') {
+                            let enum_part = &variant_name[..dot_pos];
+                            let variant_part = &variant_name[dot_pos + 1..];
+                            if enum_part != enum_name {
+                                errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", enum_part, enum_name)));
+                            }
+                            matched_variants.push(variant_part.to_string());
+                        } else {
+                            // Just the variant name without enum prefix
+                            matched_variants.push(variant_name.clone());
+                        }
+                    }
                     NodeType::Identifier(name) => {
                         if case_expr.params.is_empty() {
                             // case A
@@ -1092,6 +1154,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::LLiteral(_) => return false,
         NodeType::DefaultCase => return false,
+        NodeType::Pattern(_, _) => return false,
         NodeType::Identifier(_) => return false,
         NodeType::Range => {
             for se in &e.params {

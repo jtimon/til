@@ -85,6 +85,7 @@ pub enum NodeType {
     Switch,
     DefaultCase,
     Range,
+    Pattern(String, String), // Pattern(variant_name, binding_var) - for switch case matching with payload extraction
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1129,6 +1130,28 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     Ok(Expr::new_explicit(NodeType::Body, vec![decl_expr, while_expr], initial_token.line, initial_token.col))
 }
 
+// Helper function to extract full identifier name from an expression
+// Handles both simple identifiers and dotted names (represented as FCall)
+fn get_full_identifier_name(expr: &Expr) -> String {
+    match &expr.node_type {
+        NodeType::Identifier(name) => {
+            // Check if this is a dotted name: Identifier with params
+            // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
+            if expr.params.len() == 1 {
+                if let NodeType::Identifier(param_name) = &expr.params[0].node_type {
+                    return format!("{}.{}", name, param_name);
+                }
+            }
+            name.clone()
+        }
+        NodeType::FCall if expr.params.len() >= 1 => {
+            // For FCall, try to extract the function name
+            get_full_identifier_name(&expr.params[0])
+        }
+        _ => String::new(),
+    }
+}
+
 fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
     let left = parse_primary(lexer)?;
     let t = lexer.peek();
@@ -1137,6 +1160,29 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
         let right = parse_primary(lexer)?;
         return Ok(Expr::new_parse(NodeType::Range, t, vec![left, right]));
     }
+
+    // Check if this is a pattern match: EnumVariant(binding_var)
+    // This would have been parsed as FCall with one Identifier parameter
+    if left.node_type == NodeType::FCall && left.params.len() == 2 {
+        // FCall params are: [function_name, arg1, arg2, ...]
+        // For pattern matching, we expect: [variant_identifier, binding_identifier]
+        // Note: variant_identifier might be a dotted name like "Color.Green" which could be
+        // represented as an FCall itself (for the dot access)
+
+        // Get the full variant name (handling dotted names)
+        let variant_name = get_full_identifier_name(&left.params[0]);
+
+        if let NodeType::Identifier(binding_var) = &left.params[1].node_type {
+            // Convert FCall to Pattern
+            return Ok(Expr::new_explicit(
+                NodeType::Pattern(variant_name, binding_var.clone()),
+                Vec::new(),
+                left.line,
+                left.col
+            ));
+        }
+    }
+
     Ok(left)
 }
 
