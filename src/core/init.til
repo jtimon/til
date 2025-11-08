@@ -1057,8 +1057,12 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         // Handle enum definitions
         if value_type_str.eq("ValueType.TType") {
             mut ttype_def := TTypeDef.TEnumDef
-            // TODO: Use switch instead of rsonly_enum_extract_payload
-            rsonly_enum_extract_payload(value_type, ttype_def)
+            switch value_type {
+            case ValueType.TType(ttype):
+                ttype_def = ttype
+            case:
+                // other
+            }
             ttype_str := enum_to_str(ttype_def)
 
             if ttype_str.eq("TTypeDef.TEnumDef") {
