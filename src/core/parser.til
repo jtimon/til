@@ -93,9 +93,36 @@ NodeType := enum {
 }
 
 ExprArray := struct {
+    mut data: Array = Array()      // Array to hold Expr elements
+    mut count: I64 = 0              // Number of elements currently stored
+    mut capacity: I64 = 16          // Maximum capacity (fixed for Phase 2)
 
-    push := func(mut self: ExprArray, e: Expr) {
-        TODO(loc(), "Implement ExprArray.push")
+    new := proc() returns ExprArray throws AllocError {
+        mut arr := ExprArray()
+        // For now, use fixed capacity since dynamic arrays of structs are complex
+        arr.data = Array.new("Expr", size_of(Expr), 16)
+        arr.count = 0
+        arr.capacity = 16
+        return arr
+    }
+
+    push := proc(mut self: ExprArray, e: Expr) throws IndexOutOfBoundsError, FullError {
+        if ge(self.count, self.capacity) {
+            throw FullError.new("ExprArray is full")
+        }
+        self.data.set(self.count, e)
+        self.count = add(self.count, 1)
+    }
+
+    get := func(self: ExprArray, index: I64, mut result: Expr) throws IndexOutOfBoundsError {
+        if or(lt(index, 0), ge(index, self.count)) {
+            throw IndexOutOfBoundsError.new("ExprArray index out of bounds")
+        }
+        self.data.get(index, result)
+    }
+
+    len := func(self: ExprArray) returns I64 {
+        return self.count
     }
 }
 
@@ -226,8 +253,8 @@ is_literal := func(t: Token) returns Bool {
 }
 
 // Parse a literal value (string, number, or boolean)
-parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str {
-    mut params := ExprArray()
+parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError {
+    mut params := ExprArray.new()
     tt_str := enum_to_str(t.token_type)
 
     mut node_type := NodeType.Literal(LiteralNodeType.String(""))
@@ -257,9 +284,9 @@ parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str {
 }
 
 // Parse a list (parenthesized expression)
-parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     mut rightparen_found := false
-    mut params := ExprArray()
+    mut params := ExprArray.new()
     initial_index := lexer.current_token
 
     lexer.expect(TokenType.LeftParen)
@@ -300,7 +327,7 @@ parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexO
     return Expr.new_parse(list_node, start_tok, params)
 }
 
-parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     t := lexer.peek()
 
     // Check if it's a literal first
@@ -354,7 +381,7 @@ parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError {
+parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError, AllocError, FullError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
@@ -364,7 +391,7 @@ parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
         lexer.advance(1) // skip type identifier
     }
 
-    mut params := ExprArray()
+    mut params := ExprArray.new()
     params.push(parse_primary(lexer))
 
     mut decl := Declaration()
@@ -376,7 +403,7 @@ parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
-parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -460,8 +487,8 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     return e
 }
 
-parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError {
-    mut params := ExprArray()
+parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+    mut params := ExprArray.new()
     mut end_found := false
     start_token := lexer.peek()
 

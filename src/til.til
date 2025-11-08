@@ -228,7 +228,7 @@ Context := struct {
 
 // Evaluate an expression - Phase 2: minimal version
 // Mimics eval_expr in rstil.rs
-eval_expr := proc(mut context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
+eval_expr := proc(mut context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
     // Get node type as string for matching
     node_type_str := enum_to_str(e.node_type)
 
@@ -366,8 +366,49 @@ eval_identifier := proc(context: Context, e: Expr) returns Str throws Str, Index
 }
 
 // Evaluate a declaration - Phase 2: simple types only
-eval_declaration := proc(mut context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_declaration")
+// Handles I64, Str, Bool declarations with initializers
+eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Extract Declaration from node_type
+    mut node_type := e.node_type
+    mut decl := Declaration()
+    enum_extract_payload(node_type, decl)
+
+    // Get the initializer expression (params[0])
+    mut params_array := e.params
+    if lt(params_array.len(), 1) {
+        throw format(loc(), " ERROR: Declaration of '", decl.name, "' has no initializer expression")
+    }
+
+    mut init_expr := Expr()
+    params_array.get(0, init_expr)
+
+    // Evaluate the initializer
+    init_value := eval_expr(context, init_expr)
+
+    // Store in symbol table (simplified: just store type as string)
+    mut symbols_map := context.symbols
+    symbols_map.insert(decl.name, decl.value_type)
+
+    // Store the actual value based on type
+    mut value_type := decl.value_type
+    if value_type.eq("I64") {
+        mut init_val_str := init_value
+        init_i64 := init_val_str.to_i64()
+        context.insert_i64(decl.name, init_i64)
+    }
+    else if value_type.eq("Str") {
+        context.insert_str(decl.name, init_value)
+    }
+    else if value_type.eq("Bool") {
+        // Parse "true" or "false" string to boolean
+        mut init_val_str := init_value
+        is_true := init_val_str.eq("true")
+        context.insert_bool(decl.name, is_true)
+    }
+    else {
+        throw format(loc(), " ERROR: Declaration of '", decl.name, "' has unsupported type '", value_type, "' (Phase 2 only supports I64, Str, Bool)")
+    }
+
     return ""
 }
 
