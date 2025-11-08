@@ -231,7 +231,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 
             current_char := source.get_substr(pos, pos.add(1))
             switch current_char {
-                // chars to ignore in this language:
+                // chars to ignore in this language (increment pos, no token, continue loop):
             case " ":  pos.inc()
             case "\r": pos.inc()
             case "\t": pos.inc()

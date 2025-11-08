@@ -78,6 +78,7 @@ impl Token {
 }
 
 pub struct Lexer {
+    #[allow(dead_code)] // Used in TIL implementation, here for homologization
     pub path: String,
     tokens: Vec<Token>,
     pub current: usize,
@@ -88,6 +89,7 @@ impl Lexer {
         return Self{path: "<test>".to_string(), tokens: scan_tokens(source), current: 0};
     }
 
+    #[allow(dead_code)] // Used in TIL implementation, here for homologization
     pub fn new_from_file(path: &str) -> Result<Self, String> {
         let source = std::fs::read_to_string(path)
             .map_err(|e| format!("Failed to read file '{}': {}", path, e))?;
@@ -341,8 +343,8 @@ fn scan_tokens(source: String) -> Vec<Token> {
         } else {
 
             let token_type = match &source[pos..pos+1] {
+                // chars to ignore in this language (increment pos, no token, continue loop):
                 " " => { pos += 1; continue; },
-                // chars to ignore in this language:
                 "\r" => { pos += 1; continue; },
                 "\t" => { pos += 1; continue; },
                 "\n" => {

@@ -128,13 +128,13 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 - [X] Add print_lex_errors helper to Rust - TIL lines 677-685
 - [X] Standardize error message ordering (NotEqual after EqualEqual)
 - [X] Fix grammar: "have" → "has" in ext_func comment
-- [ ] Add enum_to_str helper to Rust
+- [X] Add token_type_to_str helper to both (better error messages)
+- [X] Standardize whitespace handling comments
 - [ ] Resolve todo_error method (comment #5)
 - [ ] Investigate string escape TODO comment (TIL line 446)
 
 *Phase 4: Optimization (OPTIONAL)*
 - [ ] Reduce TIL verbosity using switch pattern matching
-- [ ] Standardize whitespace handling structure
 - [ ] Consider string escape switch in Rust (TIL lines 394-415)
 
 ** Parser (parser.til vs src/rs/parser.rs)
