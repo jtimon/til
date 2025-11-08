@@ -468,9 +468,26 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str {
 }
 
 // Evaluate a body (sequence of statements)
-eval_body := proc(mut context: Context, e: Expr) returns Str {
-    TODO(loc(), "Implement eval_body")
-    return ""
+// Phase 2: simplified version without catch/throw/return handling
+eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // Get the statements array
+    mut params_array := e.params
+    mut num_stmts := params_array.len()
+
+    // Evaluate each statement in sequence
+    mut i := 0
+    mut last_result := ""
+    while lt(i, num_stmts) {
+        mut stmt := Expr()
+        params_array.get(i, stmt)
+
+        last_result = eval_expr(context, stmt)
+
+        i = add(i, 1)
+    }
+
+    // Return the last result (or empty string if no statements)
+    return last_result
 }
 
 // FIX Cannot use 'main_args' of type 'StrArray' as an argument. Only name of struct instances allowed for struct arguments for now.
