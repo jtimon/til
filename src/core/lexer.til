@@ -481,12 +481,13 @@ Lexer := struct {
 
     peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError {
         index := add(self.current_token, offset)
-        if gteq(index, self.tokens.len) {
+        self_tokens := self.tokens
+        if gteq(index, self_tokens.len) {
             t := self.peek()
             self.error(loc(), t, Str.fmt("Peek ahead by ", I64.to_str(offset), " is out of bounds"))
         }
         mut t := Token()
-        self.tokens.get(index, t)
+        self_tokens.get(index, t)
         return t
     }
 
@@ -500,12 +501,13 @@ Lexer := struct {
             self.error(loc(), t, "No previous token (at position 0)")
         }
         index := sub(self.current_token, 1)
-        if gteq(index, self.tokens.len) {
+        self_tokens := self.tokens
+        if gteq(index, self_tokens.len) {
             t := self.peek()
             self.error(loc(), t, "Previous token is out of bounds")
         }
         mut t := Token()
-        self.tokens.get(index, t)
+        self_tokens.get(index, t)
         return t
     }
 

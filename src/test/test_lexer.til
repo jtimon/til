@@ -1,0 +1,263 @@
+mode test
+
+import("src/core/lexer")
+
+// ===== scan_tokens tests =====
+// Test that escape sequences are properly processed by the lexer
+
+test_newline_escape := proc() {
+    mut source := "\"\\n\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning newline: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "\n", tok.token_str)
+}
+test_newline_escape()
+
+test_tab_escape := proc() {
+    mut source := "\"\\t\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning tab: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "\t", tok.token_str)
+}
+test_tab_escape()
+
+test_carriage_return_escape := proc() {
+    mut source := "\"\\r\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning carriage return: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "\r", tok.token_str)
+}
+test_carriage_return_escape()
+
+test_null_escape := proc() {
+    mut source := "\"\\0\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning null: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "\0", tok.token_str)
+}
+test_null_escape()
+
+test_multiple_escapes := proc() {
+    mut source := "\"hello\\nworld\\ttab\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning multi-escape string: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
+}
+test_multiple_escapes()
+
+test_unknown_escape := proc() {
+    // Unknown escape sequences should keep the backslash
+    mut source := "\"\\x\""
+    mut tokens := scan_tokens(source)
+    catch (err: Str) {
+        println("Error scanning unknown escape: ", err)
+        exit(1)
+    }
+
+    mut tok := Token()
+    tokens.get(0, tok)
+    catch (err: IndexOutOfBoundsError) {
+        println("Failed to get token")
+        exit(1)
+    }
+
+    assert_eq_str(loc(), "\\x", tok.token_str)
+}
+test_unknown_escape()
+
+// ===== Lexer class tests =====
+
+test_lexer_peek := proc() {
+    // Create a simple test file
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // Peek at first token (should be "mode")
+    first_token := lexer.peek()
+    assert_eq_str(loc(), "mode", first_token.token_str)
+
+    // Peek again should return same token
+    first_again := lexer.peek()
+    assert_eq_str(loc(), "mode", first_again.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_peek: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_peek()
+
+test_lexer_advance := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // First token should be "mode"
+    t1 := lexer.peek()
+    assert_eq_str(loc(), "mode", t1.token_str)
+
+    // Advance and check next token
+    lexer.advance(1)
+    t2 := lexer.peek()
+    assert_eq_str(loc(), "script", t2.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_advance: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_advance()
+
+test_lexer_peek_ahead := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // Peek ahead by 1 (should be "script" while current is still "mode")
+    next_token := lexer.peek_ahead(1)
+    assert_eq_str(loc(), "script", next_token.token_str)
+
+    // Current token should still be "mode"
+    current := lexer.peek()
+    assert_eq_str(loc(), "mode", current.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_peek_ahead: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_peek_ahead()
+
+test_lexer_next := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // next() returns peek_ahead(1), so it returns the next token
+    t1 := lexer.next()
+    assert_eq_str(loc(), "script", t1.token_str)
+
+    // Current position hasn't changed (peek_ahead doesn't advance)
+    t2 := lexer.peek()
+    assert_eq_str(loc(), "mode", t2.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_next: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_next()
+
+test_lexer_previous := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // Advance to "script"
+    lexer.advance(1)
+    current := lexer.peek()
+    assert_eq_str(loc(), "script", current.token_str)
+
+    // Get previous token (should be "mode")
+    prev := lexer.previous()
+    assert_eq_str(loc(), "mode", prev.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_previous: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_previous()
+
+test_lexer_go_back := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // Advance by 2
+    lexer.advance(2)
+
+    // Go back by 1
+    lexer.go_back(1)
+
+    // Should be at "script"
+    current := lexer.peek()
+    assert_eq_str(loc(), "script", current.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_go_back: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_go_back()
+
+test_lexer_len := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // empty.til should have at least 2 tokens: "mode" and "script"
+    token_count := lexer.len()
+    assert(loc(), gt(token_count, 1))
+}
+test_lexer_len()
+
+test_lexer_get_token := proc() {
+    mut lexer := Lexer.new("src/test/hello/empty.til")
+
+    // Get token at index 0
+    t0 := lexer.get_token(0)
+    assert_eq_str(loc(), "mode", t0.token_str)
+
+    // Get token at index 1
+    t1 := lexer.get_token(1)
+    assert_eq_str(loc(), "script", t1.token_str)
+
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "test_lexer_get_token: IndexOutOfBoundsError: ", err.msg)
+        exit(1)
+    }
+}
+test_lexer_get_token()
