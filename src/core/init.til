@@ -212,6 +212,67 @@ Context := struct {
             self.arena.memory = mem_arr
         }
     }
+
+    // Get U8 value from arena by variable name
+    get_u8 := func(self: Context, var_name: Str) returns U8 throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Look up the offset in arena_index
+        mut offset_str := self.arena_index.get(var_name)
+        if offset_str.eq("") {
+            throw format(loc(), " ERROR: U8 variable '", var_name, "' not found in arena")
+        }
+
+        // Convert offset string to I64
+        mut offset_str_copy := offset_str
+        offset := offset_str_copy.to_i64()
+
+        // Read U8 from arena memory at offset
+        mut value_str := ""
+        mut mem_arr := self.arena.memory
+        mem_arr.get(offset, value_str)
+
+        // Parse to U8 (stored as string for now, like other types)
+        mut value_str_copy := value_str
+        i64_val := value_str_copy.to_i64()
+        return u8(i64_val)
+    }
+
+    // Insert U8 value into arena
+    insert_u8 := proc(mut self: Context, var_name: Str, value: U8) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // Convert U8 to I64 then to string for storage
+        i64_val := i64(value)
+        mut value_str := i64_val.to_str()
+
+        // Check if variable already exists
+        mut offset_str := self.arena_index.get(var_name)
+
+        if offset_str.eq("") {
+            // New variable - allocate space
+            offset := self.arena.next_offset
+            mut offset_str_new := offset.to_str()
+
+            // Store offset in index
+            mut arena_idx := self.arena_index
+            arena_idx.insert(var_name, offset_str_new)
+            self.arena_index = arena_idx
+
+            // Store value in arena memory
+            mut mem_arr := self.arena.memory
+            mem_arr.push(value_str)
+            self.arena.memory = mem_arr
+
+            // Update next offset
+            self.arena.next_offset = add(offset, 1)
+        }
+        else {
+            // Update existing variable
+            mut offset_str_copy := offset_str
+            offset := offset_str_copy.to_i64()
+
+            mut mem_arr := self.arena.memory
+            mem_arr.set(offset, value_str)
+            self.arena.memory = mem_arr
+        }
+    }
 }
 
 // Check function/proc return type
@@ -346,6 +407,45 @@ get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsE
     mut func_name := ""
     enum_extract_payload(func_node_type, func_name)
     return func_name
+}
+
+// Process declarations in AST and register them in context
+// Corresponds to init_context in init.rs (the declaration processing part)
+process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Match on node type
+    mut node_type_str := enum_to_str(e.node_type)
+
+    // Handle Body - recursively process all statements
+    if node_type_str.eq("NodeType.Body") {
+        mut i := 0
+        mut params := e.params
+        while lt(i, params.len) {
+            mut stmt := Expr()
+            params.get(i, stmt)
+            process_declarations(context, stmt)
+            i = add(i, 1)
+        }
+        return
+    }
+
+    // Handle FCall - check for import()
+    if node_type_str.eq("NodeType.FCall") {
+        f_name := get_func_name_in_call(e)
+        mut f_name_copy := f_name
+        if f_name_copy.eq("import") {
+            // TODO: Process import declarations
+            return
+        }
+    }
+
+    // Handle Declaration nodes
+    if node_type_str.eq("NodeType.Declaration") {
+        // TODO: Extract declaration info and register in context
+        // For now, just skip
+        return
+    }
+
+    // For other node types, no declaration processing needed
 }
 
 // Initialize context (corresponds to init_context in init.rs)
