@@ -209,33 +209,152 @@ value_type_to_str := proc(vtype: ValueType) returns Str {
     return "Unknown"
 }
 
-parse_primary := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
-    t := lexer.peek()
-    e := Expr()
-    return e
-    throw t.todo_error("parse_primary not implemented yet")
+// Check if a token is a literal (string, number, or boolean)
+is_literal := func(t: Token) returns Bool {
+    tt := t.token_type
+    tt_str := enum_to_str(tt)
+    if tt_str.eq("TokenType.String") {
+        return true
+    }
+    if tt_str.eq("TokenType.Number") {
+        return true
+    }
+    if tt_str.eq("TokenType.True") {
+        return true
+    }
+    return false
 }
 
-parse_primary_identifier := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+// Parse a literal value (string, number, or boolean)
+parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    mut params := ExprArray()
+    tt_str := enum_to_str(t.token_type)
+
+    mut node_type := NodeType.Literal(LiteralNodeType.String(""))
+
+    if tt_str.eq("TokenType.String") {
+        node_type = NodeType.Literal(LiteralNodeType.String(t.token_str))
+    }
+    else if tt_str.eq("TokenType.Number") {
+        // Parse the number string to I64
+        mut token_str := t.token_str
+        num := token_str.to_i64()
+        node_type = NodeType.Literal(LiteralNodeType.I64(num))
+    }
+    else if tt_str.eq("TokenType.True") {
+        // Parse boolean - "true" becomes true, anything else is false
+        mut token_str := t.token_str
+        is_true := token_str.eq("true")
+        node_type = NodeType.Literal(LiteralNodeType.Bool(is_true))
+    }
+    else {
+        throw t.lang_error(format("Trying to parse a token that's not a literal as a literal, found '", tt_str, "'."))
+    }
+
+    e := Expr.new_parse(node_type, t, params)
+    lexer.advance(1)
+    return e
+}
+
+// Parse a list (parenthesized expression)
+parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    mut rightparen_found := false
+    mut params := ExprArray()
+    initial_index := lexer.current_token
+
+    lexer.expect(TokenType.LeftParen)
+    mut list_t := lexer.peek()
+    mut expect_comma := false
+
+    while and(not(lexer.is_eof(0)), not(rightparen_found)) {
+        tt_str := enum_to_str(list_t.token_type)
+
+        if tt_str.eq("TokenType.RightParen") {
+            lexer.expect(TokenType.RightParen)
+            rightparen_found = true
+        }
+        else if tt_str.eq("TokenType.Comma") {
+            if expect_comma {
+                lexer.expect(TokenType.Comma)
+                expect_comma = false
+                list_t = lexer.peek()
+            }
+            else {
+                throw list_t.error("Unexpected ','.")
+            }
+        }
+        else {
+            if expect_comma {
+                throw list_t.error(format("Expected ')' or ',', found '", tt_str, "'."))
+            }
+            expect_comma = true
+            prim := parse_primary(lexer)
+            params.push(prim)
+            list_t = lexer.peek()
+        }
+    }
+
+    // Return a list literal node
+    start_tok := lexer.get_token(initial_index)
+    list_node := NodeType.Literal(LiteralNodeType.List(""))
+    return Expr.new_parse(list_node, start_tok, params)
+}
+
+parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+
+    // Check if it's a literal first
+    if is_literal(t) {
+        return parse_literal(lexer, t)
+    }
+
+    // Match on token type
+    tt_str := enum_to_str(t.token_type)
+
+    if tt_str.eq("TokenType.LeftParen") {
+        return parse_list(lexer)
+    }
+    if tt_str.eq("TokenType.Identifier") {
+        return parse_primary_identifier(lexer)
+    }
+
+    // Function/procedure/enum/struct definitions not yet implemented
+    if tt_str.eq("TokenType.Func") {
+        throw t.todo_error("parse_func_proc_definition not implemented yet")
+    }
+    if tt_str.eq("TokenType.Proc") {
+        throw t.todo_error("parse_func_proc_definition not implemented yet")
+    }
+    if tt_str.eq("TokenType.Enum") {
+        throw t.todo_error("enum_definition not implemented yet")
+    }
+    if tt_str.eq("TokenType.Struct") {
+        throw t.todo_error("parse_struct_definition not implemented yet")
+    }
+
+    throw t.error(format("Expected primary expression, found '", tt_str, "'."))
+}
+
+parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
     e := Expr()
     return e
     throw t.todo_error("parse_primary_identifier not implemented yet")
 }
 
-get_combined_name := func(e: Expr) returns Str throws Str {
+get_combined_name := func(e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     t := Token() // dummy token to call .todo_error()
     return ""
     throw t.todo_error("get_combined_name not implemented yet")
 }
 
-parse_assignment := func(lexer: Lexer, t: Token, name: Str) returns Expr throws Str {
+parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     e := Expr()
     return e
     throw t.todo_error("parse_assignment not implemented yet")
 }
 
-parse_declaration := proc(lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws IndexOutOfBoundsError {
+parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_index := lexer.current_token
@@ -257,7 +376,7 @@ parse_declaration := proc(lexer: Lexer, is_mut: Bool, explicit_type: Str) return
     // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
-parse_statement_identifier := proc(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -311,7 +430,7 @@ parse_statement_identifier := proc(lexer: Lexer) returns Expr throws Str, IndexO
     }
 }
 
-parse_statement := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {
+parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
 
     switch t.token_type {
@@ -341,7 +460,7 @@ parse_statement := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsE
     return e
 }
 
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, IndexOutOfBoundsError {
+parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     mut params := ExprArray()
     mut end_found := false
     start_token := lexer.peek()
