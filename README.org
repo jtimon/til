@@ -55,10 +55,11 @@ itself to C and compile and link itself.
 - [X] Interpreted
 - [X] Statically typed
 - [X] Error handling (more like roc than like rust/zig or go/odin/jai, let alone cpp, but more like java too)
-- [ ] tagged unions (aka algebraic)
-- [ ] Simulate pointers
-- [ ] Self hosted arrays before being actually self hosted
-- [ ] User defined variadic arguments
+- [X] UFCS (Uniform Function Call Syntax) with method chaining
+- [X] Simulate pointers
+- [X] Self hosted arrays before being actually self hosted
+- [X] User defined variadic arguments
+- [ ] tagged unions (aka algebraic types) - basic enums work, but not with associated data yet
 - [ ] Self hosted (initially only interpret itself, ie interpret til.til with til.til interpreted with rscil; ala pypy)
 - [ ] Compiled (initially through a C backend)
 - [ ] Can link C libraries
