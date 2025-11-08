@@ -2300,7 +2300,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                 // Track the thrown type as a string and another string with its error
                                 let thrown_type_str = value_type_to_str(&thrown_type);
                                 thrown_types.push((thrown_type_str.clone(), throw_param.error("type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str))));
-                                thrown_types.push((thrown_type_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                                thrown_types.push((thrown_type_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                             }
                         },
                         Err(err) => {
@@ -2350,7 +2350,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                             );
 
                             thrown_types.push((called_throw_str.clone(), p.error("type", &error_msg)));
-                            thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                            thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                         }
 
                         for arg in p.params.iter().skip(1) {
@@ -2469,7 +2469,7 @@ fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDe
                                     );
 
                                     thrown_types.push((called_throw_str.clone(), initializer.error("type", &error_msg)));
-                                    thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Update throws section here")));
+                                    thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                                 }
 
                                 let mut temp_thrown_types = Vec::new();
