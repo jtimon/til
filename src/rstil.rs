@@ -198,7 +198,7 @@ impl Context {
     fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
         match self.arena_index.get(id) {
             Some(&offset) => match Arena::g().memory.get(offset) {
-                Some(&byte) => Ok(byte == 0), // <- Fix: restore original behavior
+                Some(&byte) => Ok(byte == 1),
                 None => Err(e.lang_error("context", &format!("Invalid bool read for id '{}'", id))),
             },
             None => Err(e.lang_error("context", &format!("bool not found for id '{}'", id))),
@@ -213,7 +213,7 @@ impl Context {
 
         let bool_to_insert = bool_str.parse::<bool>()
             .map_err(|_| e.lang_error("context", &format!("Invalid bool literal '{}'", bool_str)))?;
-        let stored = if bool_to_insert { 0 } else { 1 }; // TODO why this is backwards?
+        let stored = if bool_to_insert { 1 } else { 0 };
         let bytes = [stored];
 
         let is_field = id.contains('.');
@@ -941,7 +941,7 @@ impl Context {
             let offset = ptr + i * elem_size;
             match elem_type {
                 "Bool" => {
-                    let stored = if val.as_str() == "true" { 0 } else { 1 }; // TODO FIX Invert like insert_bool
+                    let stored = if val.as_str() == "true" { 1 } else { 0 };
                     Arena::g().memory[offset] = stored;
                 },
                 "U8" => {
