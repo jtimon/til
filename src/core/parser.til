@@ -602,7 +602,7 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
 
     switch t.token_type {
     case TokenType.For:
-        throw t.todo_error("Suggestion: use 'while' for now.\nExplanation: keyword 'for' is not supported yet,")
+        return parse_for_statement(lexer)
     case TokenType.Return:
         return parse_return_statement(lexer)
     case TokenType.Throw:
@@ -727,6 +727,116 @@ parse_while_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     params.push(body)
 
     return Expr.new_parse(NodeType.While, lexer.get_token(initial_index), params)
+}
+
+// Parse a for statement: for loop_var in start..end { body }
+// Desugars to: mut loop_var := start; while loop_var.lt(end) { body; loop_var.inc() }
+parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+    initial_token := lexer.peek()
+    lexer.advance(1) // consume 'for'
+
+    // Expect loop variable name
+    ident_token := lexer.peek()
+    switch ident_token.token_type {
+    case TokenType.Identifier:
+        // Good
+    case:
+        throw ident_token.error("Expected identifier after 'for'")
+    }
+    loop_var_name := ident_token.token_str
+    lexer.advance(1)
+
+    // Expect 'in'
+    in_token := lexer.peek()
+    switch in_token.token_type {
+    case TokenType.In:
+        lexer.advance(1)
+    case:
+        throw in_token.error("Expected 'in' after loop variable")
+    }
+
+    // Parse the range expression (e.g., 1..10)
+    range_expr := parse_case_expr(lexer)
+    switch range_expr.node_type {
+    case NodeType.Range:
+        // Good
+    case:
+        throw ident_token.error("Expected range expression (start..end) after 'in'")
+    }
+
+    mut start_expr := Expr()
+    mut end_expr := Expr()
+    range_expr.params.get(0, start_expr)
+    range_expr.params.get(1, end_expr)
+
+    // Expect '{'
+    brace_token := lexer.peek()
+    switch brace_token.token_type {
+    case TokenType.LeftBrace:
+        lexer.advance(1)
+    case:
+        throw brace_token.error("Expected '{{' after range expression")
+    }
+
+    body_expr := parse_body(lexer, TokenType.RightBrace)
+
+    // Create: mut loop_var := start_expr
+    // Note: Declaration info (name, type, is_mut) not stored in AST yet due to tagged unions not working
+    mut decl_params := ExprArray.new()
+    decl_params.push(start_expr)
+    mut decl_expr := Expr.new_parse(NodeType.Declaration, initial_token, decl_params)
+
+    // Create condition: loop_var.lt(end_expr)
+    // This creates an AST like: loop_var.lt(end_expr) which becomes a function call
+    mut lt_id_params := ExprArray.new()
+    mut lt_id_node := NodeType.Identifier("lt")
+    mut empty_params := ExprArray.new()
+    mut lt_ident := Expr.new_parse(lt_id_node, initial_token, empty_params)
+    lt_id_params.push(lt_ident)
+    mut loop_var_node := NodeType.Identifier(loop_var_name)
+    mut loop_var_id := Expr.new_parse(loop_var_node, initial_token, lt_id_params)
+
+    mut cond_params := ExprArray.new()
+    cond_params.push(loop_var_id)
+    cond_params.push(end_expr)
+    mut cond_expr := Expr.new_explicit(NodeType.FCall, cond_params, initial_token.line, initial_token.col)
+
+    // Create increment: loop_var.inc()
+    mut inc_id_params := ExprArray.new()
+    mut inc_id_node := NodeType.Identifier("inc")
+    mut empty_params2 := ExprArray.new()
+    mut inc_ident := Expr.new_parse(inc_id_node, initial_token, empty_params2)
+    inc_id_params.push(inc_ident)
+    mut loop_var_node2 := NodeType.Identifier(loop_var_name)
+    mut loop_var_id2 := Expr.new_parse(loop_var_node2, initial_token, inc_id_params)
+    mut inc_params := ExprArray.new()
+    inc_params.push(loop_var_id2)
+    mut inc_expr := Expr.new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
+
+    // Create while body with original body + increment
+    mut while_body_params := ExprArray.new()
+    mut i := 0
+    mut body_params := body_expr.params
+    while i.lt(body_params.len()) {
+        mut param := Expr()
+        body_params.get(i, param)
+        while_body_params.push(param)
+        i.inc()
+    }
+    while_body_params.push(inc_expr)
+    mut while_body := Expr.new_explicit(NodeType.Body, while_body_params, body_expr.line, body_expr.col)
+
+    // Create while statement
+    mut while_params := ExprArray.new()
+    while_params.push(cond_expr)
+    while_params.push(while_body)
+    while_expr := Expr.new_explicit(NodeType.While, while_params, initial_token.line, initial_token.col)
+
+    // Wrap in a body with declaration and while
+    mut result_params := ExprArray.new()
+    result_params.push(decl_expr)
+    result_params.push(while_expr)
+    return Expr.new_explicit(NodeType.Body, result_params, initial_token.line, initial_token.col)
 }
 
 // Parse a throw statement: throw expr1, expr2, ...
