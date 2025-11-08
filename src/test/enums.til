@@ -367,16 +367,24 @@ test_enum_payloads := proc() {
     green := SimpleColor.Green
     opt_green := Option.Some(green)
     mut extracted2 := SimpleColor.Red
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(opt_green, extracted2)
+    switch opt_green {
+    case Option.Some(color):
+        extracted2 = color
+    case:
+        // None
+    }
     assert(loc(), enum_to_str(extracted2).eq("SimpleColor.Green"))
 
     // Test with Blue
     blue := SimpleColor.Blue
     opt_blue := Option.Some(blue)
     mut extracted3 := SimpleColor.Red
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(opt_blue, extracted3)
+    switch opt_blue {
+    case Option.Some(color):
+        extracted3 = color
+    case:
+        // None
+    }
     assert(loc(), enum_to_str(extracted3).eq("SimpleColor.Blue"))
 }
 test_enum_payloads()
