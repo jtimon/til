@@ -7,7 +7,49 @@ import("src/core/init")
 
 // Type check an AST expression
 // Corresponds to check_types in typer.rs
-check_types := proc(mut context: Context, ast: Expr) throws Str {
-    // TODO: Implement type checking
-    // For now, just a placeholder
+check_types := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    node_type_str := enum_to_str(e.node_type)
+
+    // Match on node type
+    switch node_type_str {
+    case "NodeType.Body":
+        // Recursively check all children
+        i := 0
+        while i.lt(e.params.len) {
+            param := e.params.get(i)
+            check_types(context, param)
+            i = i.add(1)
+        }
+    case "NodeType.If":
+        check_if_statement(context, e)
+    case:
+        TODO(loc(), format("check_types: Unimplemented node type ", node_type_str))
+    }
+}
+
+// Check if statement - condition must be Bool
+check_if_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Must have 2 or 3 parameters (condition, then-body, optional else-body)
+    if e.params.len.ne(2) {
+        if e.params.len.ne(3) {
+            throw e.exit_error("type", "if nodes must have 2 or 3 parameters.")
+        }
+    }
+
+    // Check condition is Bool
+    condition := e.params.get(0)
+    condition_type := get_value_type(context, condition)
+
+    type_str := value_type_to_str(condition_type)
+    if type_str.ne("Bool") {
+        throw condition.error("type", format("'if' can only accept a bool condition first, found ", type_str))
+    }
+
+    // Recursively check all branches
+    i := 0
+    while i.lt(e.params.len) {
+        param := e.params.get(i)
+        check_types(context, param)
+        i = i.add(1)
+    }
 }
