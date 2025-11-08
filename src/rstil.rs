@@ -1218,8 +1218,17 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                 }
                                 // Type check the payload argument
                                 let payload_expr = e.get(1)?;
-                                let _payload_actual_type = get_value_type(context, payload_expr)?;
-                                // TODO: Add stricter type checking to ensure payload matches expected type
+                                let payload_actual_type = get_value_type(context, payload_expr)?;
+
+                                // Verify payload type matches expected type
+                                if payload_actual_type != *payload_type {
+                                    return Err(e.error("type", &format!(
+                                        "Enum constructor {}.{} expects payload of type {}, but got {}",
+                                        f_name, variant_name,
+                                        value_type_to_str(payload_type),
+                                        value_type_to_str(&payload_actual_type)
+                                    )));
+                                }
                             },
                             None => {
                                 // This variant doesn't have a payload
@@ -3085,6 +3094,86 @@ fn eval_core_func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalRes
     Ok(EvalResult::new(&val))
 }
 
+fn eval_core_func_enum_get_payload_bool(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() != 2 {
+        return Err(e.lang_error("eval", "Core func 'enum_get_payload_bool' takes exactly 1 argument"))
+    }
+    let enum_expr = e.get(1)?;
+    let result = eval_expr(context, enum_expr)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+
+    // Get the enum variable name
+    let enum_var_name = match &enum_expr.node_type {
+        NodeType::Identifier(name) => name,
+        _ => return Err(e.error("eval", "enum_get_payload_bool expects an enum variable")),
+    };
+
+    // Get the enum value from context
+    let enum_val = context.get_enum(enum_var_name, e)?;
+
+    // Check if this enum has a Bool payload
+    match &enum_val.payload_type {
+        Some(ValueType::TCustom(type_name)) if type_name == "Bool" => {
+            match &enum_val.payload {
+                Some(payload_bytes) if payload_bytes.len() == 1 => {
+                    let bool_val = payload_bytes[0] != 0;
+                    Ok(EvalResult::new(&bool_val.to_string()))
+                },
+                _ => Err(e.error("eval", &format!("Enum {} has Bool payload type but payload data is missing", enum_var_name))),
+            }
+        },
+        Some(other_type) => {
+            Err(e.error("eval", &format!("Enum {} has payload type {}, not Bool", enum_var_name, value_type_to_str(other_type))))
+        },
+        None => {
+            Err(e.error("eval", &format!("Enum {} has no payload", enum_var_name)))
+        },
+    }
+}
+
+fn eval_core_func_enum_get_payload_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() != 2 {
+        return Err(e.lang_error("eval", "Core func 'enum_get_payload_i64' takes exactly 1 argument"))
+    }
+    let enum_expr = e.get(1)?;
+    let result = eval_expr(context, enum_expr)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+
+    // Get the enum variable name
+    let enum_var_name = match &enum_expr.node_type {
+        NodeType::Identifier(name) => name,
+        _ => return Err(e.error("eval", "enum_get_payload_i64 expects an enum variable")),
+    };
+
+    // Get the enum value from context
+    let enum_val = context.get_enum(enum_var_name, e)?;
+
+    // Check if this enum has an I64 payload
+    match &enum_val.payload_type {
+        Some(ValueType::TCustom(type_name)) if type_name == "I64" => {
+            match &enum_val.payload {
+                Some(payload_bytes) if payload_bytes.len() == 8 => {
+                    let mut bytes = [0u8; 8];
+                    bytes.copy_from_slice(&payload_bytes[0..8]);
+                    let i64_val = i64::from_le_bytes(bytes);
+                    Ok(EvalResult::new(&i64_val.to_string()))
+                },
+                _ => Err(e.error("eval", &format!("Enum {} has I64 payload type but payload data is missing", enum_var_name))),
+            }
+        },
+        Some(other_type) => {
+            Err(e.error("eval", &format!("Enum {} has payload type {}, not I64", enum_var_name, value_type_to_str(other_type))))
+        },
+        None => {
+            Err(e.error("eval", &format!("Enum {} has no payload", enum_var_name)))
+        },
+    }
+}
+
 fn eval_core_func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
@@ -3328,11 +3417,50 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
+
+                // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
+                let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
+                    if let Some(sym) = context.symbols.get(id_name) {
+                        if let ValueType::TCustom(arg_type_name) = &sym.value_type {
+                            if let Some(type_sym) = context.symbols.get(arg_type_name) {
+                                if type_sym.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                                    // This is an enum variable, get its value to preserve payload
+                                    match context.get_enum(id_name, e) {
+                                        Ok(enum_val) => {
+                                            if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                                                Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()))
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                        Err(_) => None,
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
                 let result = eval_expr(context, &current_arg)?;
                 if result.is_throw {
                     return Ok(result); // Propagate throw
                 }
                 let result_str = result.value;
+
+                // Restore enum payload if we saved it
+                if let Some(payload_data) = enum_payload_backup {
+                    context.temp_enum_payload = Some(payload_data);
+                }
 
                 // Resolve Dynamic to actual type first
                 let custom_type_name = &match custom_type_name.as_str() {
@@ -3371,6 +3499,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         })?;
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) => {
+                                // Transfer payload from outer context if present
+                                function_context.temp_enum_payload = context.temp_enum_payload.clone();
                                 function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
@@ -3574,6 +3704,8 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "str_to_i64" => eval_core_func_str_to_i64(context, &e),
         "i64_to_str" => eval_core_func_i64_to_str(context, &e),
         "enum_to_str" => eval_core_func_enum_to_str(context, &e),
+        "enum_get_payload_bool" => eval_core_func_enum_get_payload_bool(context, &e),
+        "enum_get_payload_i64" => eval_core_func_enum_get_payload_i64(context, &e),
         "u8_to_i64" => eval_core_func_u8_to_i64(context, &e),
         "i64_to_u8" => eval_core_func_i64_to_u8(context, &e),
         "eval_to_str" => eval_core_proc_eval_to_str(context, &e),

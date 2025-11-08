@@ -85,34 +85,53 @@ aaa := Color.Unknown
 bbb := Color.Green(true)
 ccc := Color.Number(42)
 
-// // Test matching all cases
-// test_color_match := proc(to_switch: Color) returns String {
-//     switch to_switch {
-//     case Color.Unknown: return "unknown color"
-//     case Color.Green(is_olive):
-//         if is_olive {
-//             return "olive green"
-//         } else {
-//             return "dark green"
-//         }
-//     case Color.Number(code):
-//         if gt(code, 0) {
-//             return "positive color code"
-//         } else {
-//             return concat("color code: ", code.to_str())
-//         }
-//     case Color.Name(name): return concat("color name: ", name)
-//     }
-//     return "should not reach here"
-// }
+// Test payload extraction
+bool_payload := enum_get_payload_bool(bbb)
+assert(loc(), bool_payload)
 
-// // Run assertions
-// assert_eq_str(loc(), test_color_match(Color.Unknown), "unknown color")
-// assert_eq_str(loc(), test_color_match(Color.Green(true)), "olive green")
-// assert_eq_str(loc(), test_color_match(Color.Green(false)), "dark green")
-// assert_eq_str(loc(), test_color_match(Color.Number(42)), "positive color code")
-// assert_eq_str(loc(), test_color_match(Color.Number(sub(0, 1))), "color code: -1")
-// assert_eq_str(loc(), test_color_match(Color.Name("blue")), "color name: blue")
+i64_payload := enum_get_payload_i64(ccc)
+assert_eq(loc(), 42, i64_payload)
+
+// Test with different values
+green_false := Color.Green(false)
+bool_payload2 := enum_get_payload_bool(green_false)
+assert(loc(), not(bool_payload2))
+
+number_99 := Color.Number(99)
+i64_payload2 := enum_get_payload_i64(number_99)
+assert_eq(loc(), 99, i64_payload2)
+
+// Test type checking: these should fail at compile time
+// Color.Green(42)  // ERROR: expects Bool, got I64
+// Color.Number(true)  // ERROR: expects I64, got Bool
+
+// Test matching enum variants with payload extraction
+// Note: Full pattern matching syntax like `case Color.Green(is_olive):` requires parser changes
+// For now, we match on enum_to_str() and extract payloads manually
+test_color_match := proc(to_switch: Color) returns Str {
+    variant_str := enum_to_str(to_switch)
+    switch variant_str {
+    case "Color.Unknown": return "unknown color"
+    case "Color.Green":
+        is_olive := enum_get_payload_bool(to_switch)
+        if is_olive {
+            return "olive green"
+        }
+        return "dark green"
+    case "Color.Number":
+        code := enum_get_payload_i64(to_switch)
+        if gt(code, 0) {
+            return "positive color code"
+        }
+        return "negative color code"
+    }
+    return "should not reach here"
+}
+
+assert_eq_str(loc(), test_color_match(Color.Unknown), "unknown color")
+assert_eq_str(loc(), test_color_match(bbb), "olive green")
+assert_eq_str(loc(), test_color_match(green_false), "dark green")
+assert_eq_str(loc(), test_color_match(ccc), "positive color code")
 
 ExampleEnum2 := enum {
     // AAA : AAA // TODO This fails, because AAA is not a type, it's a bool
