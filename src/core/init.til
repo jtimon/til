@@ -670,7 +670,15 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
     // For other node types, no declaration processing needed
 }
 
-// Initialize context (corresponds to init_context in init.rs)
+// Process import declarations during init phase
+init_import_declarations := proc(mut context: Context, e: Expr, import_path: Str) throws Str, AllocError, IndexOutOfBoundsError {
+    // TODO: Read import file, parse it, copy declarations to parent context
+    // TODO: Track in imports_declarations_done and imports_wip for cycle detection
+    // For now, just throw TODO
+    throw format(loc(), " TODO: init_import_declarations not fully implemented for path '", import_path, "'")
+}
+
+// Initialize context (corresponds to Context::new in init.rs)
 // Creates and sets up a new Context for a given mode and file
 init_context := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
     mut ctx := Context.new(mode_def, path)
