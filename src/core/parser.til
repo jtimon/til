@@ -370,10 +370,36 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
     throw t.todo_error("parse_primary_identifier not implemented yet")
 }
 
-get_combined_name := func(e: Expr) returns Str throws Str {
-    t := Token() // dummy token to call .todo_error()
-    return ""
-    throw t.todo_error("get_combined_name not implemented yet")
+get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    node_type := e.node_type
+
+    switch node_type {
+    case NodeType.Identifier:
+        // Extract the identifier name from the payload
+        mut name := ""
+        enum_extract_payload(node_type, name)
+
+        // Check if there are params (dotted access like Foo.bar)
+        e_params := e.params
+        params_len := e_params.len()
+        if gt(params_len, 0) {
+            // Get the first param (the rest of the dotted name)
+            mut first_param := Expr()
+            e_params.get(0, first_param)
+
+            // Recursively get the combined name for the param
+            rest := get_combined_name(first_param)
+
+            // Combine with a dot
+            return format(name, ".", rest)
+        }
+
+        // Simple identifier, just return the name
+        return name
+    case:
+        t := Token()
+        throw t.error("get_combined_name called on non-Identifier NodeType")
+    }
 }
 
 parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str {
@@ -404,7 +430,7 @@ parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
 }
 
-parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError {
+parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
