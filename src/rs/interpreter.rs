@@ -1,7 +1,4 @@
-use crate::Context;
-use crate::EvalResult;
-use crate::SymbolInfo;
-use crate::Arena;
+use crate::rs::init::{Context, SymbolInfo};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef,
@@ -17,6 +14,51 @@ use crate::{main_run, run_file, run_file_with_context};
 // Manages arena, memory allocation, and actual program execution.
 
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
+
+pub struct Arena {
+    pub memory: Vec<u8>,
+    pub temp_id_counter: usize,
+}
+
+// heap/arena memory (starts at 1 to avoid NULL confusion)
+// REM: first address 0 is reserved (invalid), malloc always >0
+impl Arena {
+    // This function gives access to the singleton instance of Arena
+    #[allow(static_mut_refs)]
+    pub fn g() -> &'static mut Arena {
+        unsafe { // TODO research if we can do "safe" singletons in rust before self hosting, just out of curiosity
+            static mut INSTANCE: Option<Arena> = None;
+
+            // Lazy initialization of the singleton instance
+            INSTANCE.get_or_insert_with(|| Arena {
+                memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
+                temp_id_counter: 0, // A temporary ugly hack for return values
+            })
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct EvalResult {
+    pub value: String,
+    pub is_return: bool,
+    pub is_throw: bool,
+    pub thrown_type: Option<String>,
+}
+
+impl EvalResult {
+    pub fn new(value: &str) -> EvalResult {
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: false, thrown_type: None}
+    }
+
+    pub fn new_return(value: &str) -> EvalResult {
+        return EvalResult{value: value.to_string(), is_return: true, is_throw: false, thrown_type: None}
+    }
+
+    pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
+        return EvalResult{value: value.to_string(), is_return: false, is_throw: true, thrown_type: Some(value_type_to_str(&thrown_type))}
+    }
+}
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {

@@ -1,5 +1,5 @@
 use crate::Context;
-use crate::SymbolInfo;
+use crate::rs::init::SymbolInfo;
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, FunctionType, TTypeDef,
