@@ -287,8 +287,71 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 Arena::g().memory[*dest_offset..*dest_offset + struct_size]
                                                     .copy_from_slice(&payload_bytes);
                                             },
+                                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                                // Handle enum payloads
+                                                // The payload_bytes contains: [8 bytes variant tag][N bytes enum's payload]
+
+                                                if payload_bytes.len() < 8 {
+                                                    return Err(case.error("eval", "Invalid enum payload: too small"));
+                                                }
+
+                                                // Extract variant tag (first 8 bytes)
+                                                let mut variant_bytes = [0u8; 8];
+                                                variant_bytes.copy_from_slice(&payload_bytes[0..8]);
+                                                let variant_pos = i64::from_le_bytes(variant_bytes);
+
+                                                // Extract enum's own payload (rest of bytes)
+                                                let inner_payload = if payload_bytes.len() > 8 {
+                                                    Some(payload_bytes[8..].to_vec())
+                                                } else {
+                                                    None
+                                                };
+
+                                                // Get the enum definition to find variant name
+                                                let enum_def = context.enum_defs.get(type_name).ok_or_else(|| {
+                                                    case.error("eval", &format!("Enum definition for '{}' not found", type_name))
+                                                })?;
+
+                                                // Find variant name by matching the variant position
+                                                let mut found_variant = None;
+                                                for (name, _) in &enum_def.enum_map {
+                                                    let pos = Context::get_variant_pos(enum_def, name, &case)?;
+                                                    if pos == variant_pos {
+                                                        found_variant = Some(name.clone());
+                                                        break;
+                                                    }
+                                                }
+
+                                                let variant_name = found_variant.ok_or_else(|| {
+                                                    case.error("eval", &format!("Variant position {} not found in enum {}", variant_pos, type_name))
+                                                })?;
+
+                                                // Get the inner payload type
+                                                let inner_payload_type = enum_def.enum_map.get(&variant_name)
+                                                    .and_then(|opt| opt.clone());
+
+                                                // Add symbol to context first
+                                                context.symbols.insert(
+                                                    binding_var.clone(),
+                                                    crate::rs::init::SymbolInfo {
+                                                        value_type: payload_type.clone(),
+                                                        is_mut: false,
+                                                    }
+                                                );
+
+                                                // Now reconstruct the enum and insert it
+                                                let enum_val_str = format!("{}.{}", type_name, variant_name);
+
+                                                // Set temp_enum_payload if there's an inner payload
+                                                if let Some(payload_data) = inner_payload {
+                                                    context.temp_enum_payload = Some((payload_data, inner_payload_type.unwrap()));
+                                                }
+
+                                                // Insert the enum
+                                                context.insert_enum(binding_var, type_name, &enum_val_str, &case)?;
+                                            },
                                             _ => {
-                                                // Enums and other types not yet implemented
+                                                // Other types not yet implemented
                                                 return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
                                             }
                                         }
