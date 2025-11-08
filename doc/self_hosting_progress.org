@@ -1,0 +1,414 @@
+#+TITLE: TIL Self-Hosting Progress
+#+AUTHOR: Self-Hosting Homologization Plan
+#+DATE: 2025-01-08
+
+* Overview
+
+Goal: Systematically homologize TIL implementations with Rust counterparts, working bottom-to-top through the compiler stack.
+
+* Current Status Summary
+
+| Component   | TIL Lines | Rust Lines | Completion | Status              |
+|-------------+-----------+------------+------------+---------------------|
+| lexer       |       712 |        517 | 95%        | ✅ READY            |
+| parser      |     1,467 |      1,389 | 75%        | ⚠️ NEEDS TAG UNION  |
+| init        |     1,185 |      1,761 | 61%        | ❌ MAJOR WORK       |
+| typer       |       336 |      1,285 | 26%        | ❌ PORT FROM RUST   |
+| interpreter |       475 |      2,485 | 19%        | ❌ PORT FROM RUST   |
+|-------------+-----------+------------+------------+---------------------|
+| *TOTAL*     |     4,175 |      7,437 | *56%*      | ~40% by function    |
+
+* Architecture & Call Hierarchy
+
+#+BEGIN_EXAMPLE
+┌─────────────────────────────────────────────────────┐
+│                   COMPILATION PHASES                 │
+├─────────────────────────────────────────────────────┤
+│                                                       │
+│  1. LEXER: scan_tokens(source) → Array<Token>       │
+│     ↓                                                 │
+│  2. PARSER: parse_tokens(tokens) → Expr (AST)       │
+│     ↓                                                 │
+│  3. INIT: process_declarations(ctx, ast)            │
+│     - Register funcs, enums, structs in context     │
+│     - Process imports (copy declarations only)       │
+│     - Build symbol table (no eval yet)              │
+│     ↓                                                 │
+│  4. TYPER: check_types(ctx, ast)                    │
+│     - Validate all types match                       │
+│     - Check return/throw statements                  │
+│     - Verify mode constraints                        │
+│     ↓                                                 │
+│  5. INTERPRETER: eval_expr(ctx, ast)                │
+│     - Execute with arena memory management           │
+│     - Handle imports (eval imported code)            │
+│     - Runtime value computation                      │
+│                                                       │
+└─────────────────────────────────────────────────────┘
+#+END_EXAMPLE
+
+* Critical Blockers
+
+** BLOCKER #1: Enum Payload Extraction Bug ⚠️
+- *File*: =interpreter.til= line 292-299
+- *Impact*: Cannot dispatch function calls properly
+- *Priority*: HIGHEST
+- *Fix*: Complete switch pattern matching migration
+- *Timeline*: 1-2 weeks
+- *Current workaround*: All functions treated as println
+
+** BLOCKER #2: Complex Type Serialization ⚠️
+- *File*: =init.til= line 39
+- *Impact*: Cannot store SFuncDef, SEnumDef, SStructDef in maps
+- *Priority*: CRITICAL
+- *Fix*: Implement struct/enum serialization
+- *Timeline*: 3-4 weeks
+- *Blocks*: typer.til and interpreter.til progress
+
+** BLOCKER #3: Tagged Union Support ⚠️
+- *File*: =parser.til= line 508
+- *Impact*: Declaration info not properly stored
+- *Priority*: HIGH
+- *Fix*: Enable payload storage in enums
+- *Timeline*: 2-3 weeks
+- *Blocks*: Full parser parity
+
+* Component Details
+
+** Lexer (lexer.til vs src/rs/lexer.rs)
+*** Status: 95% COMPLETE ✅
+
+*TIL Implementation (712 lines):*
+- Full token scanning with nested comments
+- String escape sequences (including =\0=)
+- Reserved word scanning
+- Dotted number support (fractional parts)
+- Error handling for unterminated strings/comments
+- Comprehensive lexical error reporting
+
+*Key Differences:*
+- *TIL is MORE VERBOSE*: Uses explicit if/switch where Rust uses pattern matching
+- *TIL advantage*: Better error messages with suggestions (e.g., "use 'func' instead of 'fn'")
+- *Rust advantage*: More concise with Rust's match expressions
+
+*TODOs in Rust:*
+- Implement =throws= parsing properly
+- Implement =for=/=in= parsing
+- Implement =match= statement
+- Better error messages for forbidden words
+
+*Recommendation:*
+- Direction: TIL → Rust (backport better error messages)
+- This component is READY for homologization
+- Focus: Remove TIL verbosity by improving pattern matching support
+
+*** Homologization Tasks
+- [ ] Backport error messages from TIL to Rust (lexer.til lines 605-670)
+- [ ] Reduce TIL verbosity using switch pattern matching
+- [ ] Validate token output equivalence with test suite
+- [ ] Document intentional differences
+- [ ] Mark complete
+
+** Parser (parser.til vs src/rs/parser.rs)
+*** Status: 75% COMPLETE ✅
+
+*TIL Implementation (1,467 lines):*
+- Full expression parsing (literals, identifiers, function calls)
+- Statement parsing (if, while, for, switch, return, throw, catch)
+- Function/procedure definitions with args/returns/throws
+- Enum and struct definitions
+- UFCS (Uniform Function Call Syntax) support
+- Method chaining (=a.method1().method2()=)
+- Range expressions for for loops
+- Pattern matching in switch statements
+
+*Key Differences:*
+- Nearly equivalent functionality
+- *TIL*: Desugars =for= loops to while loops in parser (lines 697-805)
+- *Rust*: More complete pattern matching support
+- *TIL limitation*: Declaration info not fully stored due to tagged union issues
+
+*Major Issue:*
+- Line 508: "TODO FIX tagged unions" - Declaration payload not properly stored
+
+*Recommendation:*
+- Direction: Bidirectional sync
+- Fix tagged union support in TIL FIRST
+- Then homologize =for= loop desugaring approach
+- Dependencies: Need working enum payloads before full parity
+
+*** Homologization Tasks
+- [ ] Fix tagged union support (BLOCKER #3)
+- [ ] Store Declaration info properly (line 508 TODO)
+- [ ] Sync for-loop desugaring approach (compare both implementations)
+- [ ] Validate with comprehensive tests
+- [ ] Mark complete
+
+** Init (init.til vs src/rs/init.rs)
+*** Status: 61% COMPLETE ⚠️
+
+*TIL Implementation (1,185 lines):*
+
+*✅ COMPLETED:*
+- Context struct with all fields (arena, symbols, funcs, enum_defs, struct_defs, imports)
+- Arena methods: =get_i64=, =get_str=, =get_bool=, =get_u8=, =insert_*= (simplified)
+- Enum helpers: =get_variant_pos=, =variant_pos_to_str=
+- Type helpers: =get_type_size=, =get_func_name_in_call=
+- Type inference: =get_value_type= (literals, funcdefs, enums, structs, ranges, identifiers)
+- Type inference: =get_fcall_value_type= (UFCS, standalone funcs, constructors)
+- Declaration processing: =process_declarations=
+
+*⚠️ PARTIALLY IMPLEMENTED:*
+- =get_fcall_value_type=: needs SFuncDef parsing from storage
+- =get_value_type= identifier handling: needs SymbolInfo parsing
+- Struct methods: =map_instance_fields=, =copy_fields=, =insert_struct=
+- Enum methods: =get_enum=, =insert_enum=, =get_enum_at_offset=
+
+*❌ NOT IMPLEMENTED:*
+- =init_import_declarations=: needs file I/O, lexing, parsing, recursive imports
+- Complex type serialization: SFuncDef, SEnumDef, SStructDef storage
+- Full struct size calculation with nested structs
+- Proper string storage (c_string/cap/len structure)
+- Mode validation
+- Associated function registration for structs
+
+*KEY LIMITATION (from line 39):*
+#+BEGIN_QUOTE
+Currently storing complex types (SFuncDef, SEnumDef, SStructDef) as placeholder strings
+in maps. Full equivalence requires either JSON serialization or direct object storage.
+#+END_QUOTE
+
+*Recommendation:*
+- Direction: Rust → TIL (most work needed here)
+- *Critical blocker*: Struct serialization to StrMap (BLOCKER #2)
+- *Priority*: Implement proper struct storage before proceeding
+- *Dependencies*: This blocks interpreter and typer progress
+
+*** Homologization Tasks
+- [ ] Design serialization format for SFuncDef, SEnumDef, SStructDef
+- [ ] Implement to_string/from_string for complex types
+- [ ] Update init.til to store actual type info (not placeholders)
+- [ ] Port init_import_declarations from init.rs
+- [ ] Complete struct methods (insert_struct, map_instance_fields, copy_fields)
+- [ ] Complete enum methods (get_enum, insert_enum, get_enum_at_offset)
+- [ ] Implement proper string storage (c_string/cap/len)
+- [ ] Port mode validation
+- [ ] Port associated function registration
+- [ ] Test thoroughly with complex types
+- [ ] Mark complete
+
+** Typer (typer.til vs src/rs/typer.rs)
+*** Status: 26% COMPLETE ❌ SEVERELY BEHIND
+
+*TIL Implementation (336 lines - MINIMAL):*
+
+*✅ Implemented:*
+- Basic =check_types= dispatcher
+- =check_if_statement= (condition must be Bool)
+- =check_while_statement= (condition must be Bool)
+- =check_range= (both sides must match)
+- =check_identifier= (symbol exists)
+- =check_declaration= (type inference, symbol registration)
+- =check_assignment= (mutability checking)
+- Stub functions for: =check_fcall=, =check_func_def=
+
+*❌ Missing (compared to Rust's 1,285 lines):*
+- Actual function call type checking implementation
+- Function definition validation
+- Switch statement type checking
+- Struct definition type checking
+- Enum definition validation
+- Mode constraint checking (lib/pure/script/etc)
+- Catch statement validation
+- Variadic argument handling
+
+*Recommendation:*
+- Direction: Rust → TIL (massive gap)
+- *Status*: This is the WEAKEST component
+- *Priority*: HIGH - implement from Rust after init.til is complete
+- *Dependencies*: Requires working init.til with proper type storage
+
+*** Homologization Tasks
+- [ ] Wait for init.til completion (DEPENDENCY)
+- [ ] Port check_fcall implementation from typer.rs
+- [ ] Port check_func_def validation
+- [ ] Implement check_declaration fully (not just stub)
+- [ ] Implement check_assignment fully (not just stub)
+- [ ] Port check_switch_statement
+- [ ] Port check_catch_statement
+- [ ] Port check_struct_def
+- [ ] Port check_enum_def
+- [ ] Port mode constraint checking
+- [ ] Port variadic argument handling
+- [ ] Test against Rust typer output
+- [ ] Mark complete
+
+** Interpreter (interpreter.til vs src/rs/interpreter.rs)
+*** Status: 19% COMPLETE ❌ SEVERELY BEHIND
+
+*TIL Implementation (475 lines - "Phase 2" only):*
+
+*✅ Implemented (Phase 2):*
+- =eval_literal= (String, I64, Bool)
+- =eval_identifier= (variable lookup from arena)
+- =eval_declaration= (I64, Str, Bool only)
+- =eval_assignment= (I64, Str, Bool only)
+- =eval_body= (skips catch blocks)
+- *WORKAROUND*: =eval_println= hardcoded (line 292-296)
+
+*❌ Missing:*
+- Function call dispatch (corrupted by rstil bug, line 292-299)
+- Binary operations (add, sub, mul, div, mod)
+- Comparison operations (lt, gt, eq)
+- Struct instantiation and field access
+- Enum construction and pattern matching
+- Array operations
+- While/if evaluation
+- Switch statement evaluation
+- Throw/catch mechanism
+- Import evaluation
+- External function calls
+- Memory management beyond simple types
+
+*CRITICAL BUG (line 292-296):*
+#+BEGIN_SRC til
+// WORKAROUND for rstil bug: rsonly_enum_extract_payload corrupts strings during recursive calls
+// enum_to_str() doesn't include payload, so we can't distinguish between functions
+// TEMPORARY HACK: For hello_script.til test, just assume all calls are println
+println("DEBUG: Calling eval_println (assuming all functions are println due to rstil bug)")
+return eval_println(context, params_array)
+#+END_SRC
+
+*Recommendation:*
+- Direction: Rust → TIL (huge gap)
+- *Status*: Blocked by enum payload extraction bug (BLOCKER #1)
+- *Priority*: Fix enum bug FIRST, then port from Rust
+- *Dependencies*: Requires working pattern matching for NodeType switching
+
+*** Homologization Tasks
+- [ ] Fix enum payload bug (BLOCKER #1)
+- [ ] Remove hardcoded println workaround
+- [ ] Test function dispatch works properly
+- [ ] Port eval_fcall from interpreter.rs
+- [ ] Port binary operations (add, sub, mul, div, mod)
+- [ ] Port comparison operations (lt, gt, eq, ne, le, ge)
+- [ ] Port struct instantiation and field access
+- [ ] Port enum construction and pattern matching
+- [ ] Port while/if evaluation
+- [ ] Port switch statement evaluation
+- [ ] Port throw/catch mechanism
+- [ ] Port import evaluation
+- [ ] Port array operations
+- [ ] Port external function calls
+- [ ] Test exhaustively
+- [ ] Mark complete
+
+* Overall Timeline (21 weeks)
+
+** Week 1: Lexer Homologization
+- [X] Create tracking document (this file)
+- [ ] Backport error messages TIL → Rust
+- [ ] Reduce TIL verbosity
+- [ ] Validate equivalence
+- [ ] Mark lexer complete
+
+** Weeks 2-4: Fix Critical Blockers
+- [ ] BLOCKER #1: Fix enum payload extraction bug
+- [ ] BLOCKER #3: Fix tagged union support in parser
+- [ ] Test fixes thoroughly
+
+** Week 5: Parser Homologization
+- [ ] Verify tagged union fix works
+- [ ] Compare for-loop desugaring approaches
+- [ ] Sync improvements bidirectionally
+- [ ] Validate with tests
+- [ ] Mark parser complete
+
+** Weeks 6-10: Init Homologization (MAJOR WORK)
+- [ ] Design struct serialization format
+- [ ] Implement serialization functions
+- [ ] Port init_import_declarations
+- [ ] Complete struct methods
+- [ ] Complete enum methods
+- [ ] Implement string storage
+- [ ] Test with complex types
+- [ ] Mark init complete
+
+** Weeks 11-13: Typer Homologization
+- [ ] Port check_fcall implementation
+- [ ] Port check_func_def validation
+- [ ] Port full check_declaration/check_assignment
+- [ ] Port check_switch/check_catch
+- [ ] Port struct/enum checking
+- [ ] Port mode constraints
+- [ ] Test against Rust typer
+- [ ] Mark typer complete
+
+** Weeks 14-20: Interpreter Homologization (MASSIVE)
+- [ ] Fix function dispatch
+- [ ] Port eval_fcall
+- [ ] Port binary operations
+- [ ] Port comparisons
+- [ ] Port struct operations
+- [ ] Port enum operations
+- [ ] Port control flow
+- [ ] Port throw/catch
+- [ ] Port imports
+- [ ] Port arrays
+- [ ] Test exhaustively
+- [ ] Mark interpreter complete
+
+** Week 21: Final Validation
+- [ ] Run comprehensive test suite
+- [ ] Bootstrap test (compile TIL with TIL)
+- [ ] Compare with Rust compiler output
+- [ ] Fix discrepancies
+- [ ] Update documentation
+- [ ] *DONE: Self-hosting achieved!*
+
+* Success Criteria
+
+- [ ] All components at 100% parity with Rust
+- [ ] TIL compiler can compile itself (bootstrap)
+- [ ] Identical output to Rust compiler on test suite
+- [ ] All tests pass in both implementations
+- [ ] This document shows 100% complete
+
+* Improvements to Backport
+
+** TIL → Rust (Better in TIL)
+
+1. *Better Error Messages* (lexer.til lines 605-670)
+   - Helpful suggestions for common mistakes
+   - "use 'func' instead of 'fn'"
+   - "use 'mut' instead of 'var'"
+   - More user-friendly than Rust version
+
+2. *For Loop Desugaring* (parser.til lines 697-805)
+   - TIL desugars =for i in 0..10 {}= to while loop in parser
+   - Simpler for later phases to handle
+   - Consider adopting in Rust
+
+** Rust → TIL (Missing in TIL)
+
+1. *Complex Type Storage*
+   - Rust stores SFuncDef, SEnumDef, SStructDef directly in HashMaps
+   - TIL uses placeholder strings (init.til line 39 limitation)
+   - *CRITICAL for progress*
+
+2. *Complete Type Checking*
+   - Rust has full typer.rs (1,285 lines)
+   - TIL has minimal typer.til (336 lines)
+   - Missing: fcall checking, struct validation, mode constraints
+
+3. *Full Interpreter*
+   - Rust has complete interpreter.rs (2,485 lines)
+   - TIL has basic Phase 2 only (475 lines)
+   - Missing: All complex operations, struct/enum support
+
+* Notes
+
+- Created: 2025-01-08
+- Last Updated: 2025-01-08
+- Status: Planning phase
+- Next: Begin lexer homologization (Week 1)
