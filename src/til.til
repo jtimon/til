@@ -760,7 +760,7 @@ main := proc(args: ..Str) {
         case "interpret" :
             run_file_or_exit(val1)
             catch (err: Str) {
-                println("Error during file execution")
+                println("Error during file execution: ", err)
                 exit(1)
             }
             catch (err: AllocError) {

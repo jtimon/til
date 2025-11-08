@@ -8,7 +8,12 @@ println("\n=== Self-Hosted Interpreter Tests ===\n")
 // Start simple: just run empty.til through the self-hosted interpreter
 println("Testing self-hosted interpreter with empty.til...")
 runfile("src/til.til", "src/test/hello/empty.til")
-println("[PASS] Self-hosted interpreter test passed\n")
+println("[PASS] empty.til passed\n")
+
+// TODO: Test with declarations and function calls once parser/evaluator issues are resolved
+// println("Testing self-hosted interpreter with add_test.til...")
+// runfile("src/til.til", "src/test/hello/add_test.til")
+// println("[PASS] add_test.til passed\n")
 
 // TODO Phase 4: Add more comprehensive tests once basic interpreter works
 // runfile("src/til.til", "src/test/self/lexer/premode.til")
