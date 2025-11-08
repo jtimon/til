@@ -196,6 +196,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                 pos.inc()
             }
             // Look for a fractional part.
+            // TODO: Use source.get_substr(pos, pos.add(1)).eq(".") once UFCS supports function call return values
             if and(Str.eq(source.get_substr(pos, pos.add(1)), "."), source.is_digit(pos.add(1))) {
                 pos.inc()
                 while and(pos.lt(eof_pos), source.is_digit(pos)) {
@@ -329,7 +330,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                     while and(pos.lt(sub(eof_pos, 1)), not(done)) {
                         next_two := source.get_substr(pos, pos.add(2))
 
-                        if Str.eq(next_two, "/*") {
+                        if next_two.eq("/*") {
                             depth.inc()
                             pos = pos.add(2)
                         } else if next_two.eq("*/") {
