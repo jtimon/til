@@ -2340,11 +2340,11 @@ fn eval_core_proc_print_flush(_context: &mut Context, e: &Expr) -> Result<EvalRe
 }
 
 fn eval_core_proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 1 {
+    if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'input_read_line' takes exactly 1 argument"));
     }
 
-    let first_param = e.get(0)?;
+    let first_param = e.get(1)?;
     let read_line_error_msg = match &first_param.node_type {
         NodeType::LLiteral(Literal::Str(error_msg_)) => error_msg_.clone(),
         _ => return Err(e.lang_error("eval", &format!("input_read_line() expects a literal string error message. Found '{:?}' instead.",

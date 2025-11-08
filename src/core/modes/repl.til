@@ -2,6 +2,8 @@
 // Suggestion: run 'make repl' from another terminal insted
 mode script
 
+import("src/core/std")
+
 __LANG_NAME := "til(interactive)"
 
 println("Started ", __LANG_NAME, " session. Press Ctrl-c or call 'exit(0)' to exit the session.")

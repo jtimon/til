@@ -66,6 +66,10 @@ main := proc(args: ..Str) {
 
     if gt(args.len, 1) {
         mut main_args := Array.new("Str", size_of(Str), sub(args.len, 1))
+        catch(e: AllocError) {
+            println("Fatal: Failed to allocate argument array")
+            return
+        }
         for i in 1..args.len {
             mut val := ""
             args.get(i, val)
