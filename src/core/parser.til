@@ -503,7 +503,7 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     case TokenType.Mut:
         throw t.todo_error("parse mut_declaration not implemented yet")
     case TokenType.Identifier:
-        throw t.todo_error("parse statement_identifier not implemented yet")
+        return parse_statement_identifier(lexer)
     case TokenType.Catch:
         return parse_catch_statement(lexer)
     case:
