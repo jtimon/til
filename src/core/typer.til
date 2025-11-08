@@ -26,6 +26,10 @@ check_types := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsE
         check_fcall(context, e)
     case "NodeType.FuncDef":
         check_func_def(context, e)
+    case "NodeType.Declaration":
+        check_declaration(context, e)
+    case "NodeType.Assignment":
+        check_assignment(context, e)
     case:
         TODO(loc(), format("check_types: Unimplemented node type ", node_type_str))
     }
@@ -130,4 +134,105 @@ check_fcall := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsE
 check_func_def := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // TODO: Implement function definition checking
     TODO(loc(), "check_func_def not yet implemented")
+}
+
+// Check variable declaration
+check_declaration := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Must have exactly 1 parameter (the value being assigned)
+    if e.params.len.ne(1) {
+        // Extract declaration to get name
+        mut decl := Declaration()
+        switch e.node_type {
+        case NodeType.Declaration(d):
+            decl = d
+        case:
+            throw e.exit_error("type", "check_declaration called on non-declaration node")
+        }
+        throw e.exit_error("type", format("in declaration of ", decl.name, ", declaration nodes must take exactly 1 parameter."))
+    }
+
+    // Get the value expression
+    value_expr := e.params.get(0)
+
+    // Extract declaration info
+    mut decl := Declaration()
+    switch e.node_type {
+    case NodeType.Declaration(d):
+        decl = d
+    case:
+        throw e.exit_error("type", "check_declaration called on non-declaration node")
+    }
+
+    // Check if already exists in symbols
+    has_symbol := context.symbols.has(decl.name)
+    if has_symbol.not() {
+        // Type inference: if type is INFER_TYPE, get from value expression
+        mut value_type := decl.value_type
+        type_str := value_type_to_str(value_type)
+
+        if type_str.eq("INFER_TYPE") {
+            value_type = get_value_type(context, value_expr)
+        }
+
+        // Add to symbol table
+        symbol := SymbolInfo()
+        symbol.value_type = value_type
+        symbol.is_mut = decl.is_mut
+        context.symbols.set(decl.name, symbol)
+
+        // TODO: Register struct fields for type checking
+        // TODO: Register function definitions
+    }
+
+    // Recursively check the value expression
+    check_types(context, value_expr)
+}
+
+// Check assignment statement
+check_assignment := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
+    // Must have exactly 1 parameter (the value being assigned)
+    if e.params.len.ne(1) {
+        // Extract var name
+        mut var_name := ""
+        switch e.node_type {
+        case NodeType.Assignment(name):
+            var_name = name
+        case:
+            throw e.exit_error("type", "check_assignment called on non-assignment node")
+        }
+        throw e.exit_error("type", format("in assignment to ", var_name, ", assignments must take exactly one value, not ", e.params.len.to_str(), "."))
+    }
+
+    // Extract var name
+    mut var_name := ""
+    switch e.node_type {
+    case NodeType.Assignment(name):
+        var_name = name
+    case:
+        throw e.exit_error("type", "check_assignment called on non-assignment node")
+    }
+
+    // Check if it's a function (can't assign to functions)
+    has_func := context.funcs.has(var_name)
+    if has_func {
+        throw e.error("type", format("function '", var_name, "' cannot be assigned to."))
+    }
+
+    // Check if variable exists
+    has_symbol := context.symbols.has(var_name)
+    if has_symbol {
+        // Check if it's mutable
+        symbol := context.symbols.get(var_name)
+        if symbol.is_mut.not() {
+            throw e.error("type", format("Cannot assign to constant '", var_name, "', Suggestion: declare it as 'mut'."))
+        }
+    }
+
+    if has_symbol.not() {
+        throw e.error("type", format("Suggestion: try changing '", var_name, " =' for '", var_name, " :='\nExplanation: Cannot assign to undefined symbol '", var_name, "'."))
+    }
+
+    // Recursively check the value expression
+    value_expr := e.params.get(0)
+    check_types(context, value_expr)
 }
