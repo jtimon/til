@@ -414,8 +414,8 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
         fcall_params.push(e)
 
         // Add all arguments from the parsed list
-        arg_list_params := arg_list.params
-        for i in 0..arg_list_params.len() {
+        mut arg_list_params := arg_list.params
+        for i in 0..arg_list_params.count {
             mut arg := Expr()
             arg_list_params.get(i, arg)
             fcall_params.push(arg)
@@ -455,8 +455,8 @@ parse_primary_identifier := proc(mut lexer: Lexer) returns Expr throws Str, Inde
                         new_params.push(result)  // Previous call result becomes first argument
 
                         // Add method arguments
-                        method_args_params := method_args.params
-                        for i in 0..method_args_params.len() {
+                        mut method_args_params := method_args.params
+                        for i in 0..method_args_params.count {
                             mut arg := Expr()
                             method_args_params.get(i, arg)
                             new_params.push(arg)
@@ -493,8 +493,8 @@ get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutO
         enum_extract_payload(node_type, identifier_name)
 
         // Check if there are params (dotted access like Foo.bar)
-        e_params := e.params
-        params_len := e_params.len()
+        mut e_params := e.params
+        params_len := e_params.count
         if gt(params_len, 0) {
             // Get the first param (the rest of the dotted name)
             mut first_param := Expr()
