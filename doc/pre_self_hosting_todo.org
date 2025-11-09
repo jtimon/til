@@ -114,17 +114,16 @@ Workarounds add complexity and may hide issues. Clean code is easier to maintain
 *** TODOs in Rust Type System
 - =src/rs/typer.rs:309= - "TODO: Check more type stuff"
 - =src/rs/typer.rs:984= - "Check types for members inside structs too"
-- =src/rs/typer.rs:1168= - "Arguments of function call can also call procedures"
 - =src/rs/init.rs:251= - "TODO: Handle enums too for TCustom"
 
 *** What's Needed
 - [ ] Add missing type checks identified in comments
 - [ ] Test struct member type checking
-- [ ] Ensure function arguments don't call procs inappropriately
 - [ ] Handle enum types in TCustom context
 
 *** Completed
 - [X] Validate default values don't call procs (FIXED in src/rs/typer.rs:997-1000, 1153-1161)
+- [X] Ensure function arguments don't call procs (FIXED in src/rs/typer.rs:1177-1198, test in src/test/func_purity.til)
 
 * Medium Priority: Test Suite Gaps
 :PROPERTIES:

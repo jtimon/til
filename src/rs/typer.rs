@@ -1175,17 +1175,26 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             return false
         },
         NodeType::FCall => {
-            // TODO the arguments of a function call can also call procedures
+            // Check if the function being called is a proc
             let f_name = crate::rs::init::get_func_name_in_call(e);
             // TODO Temp: In the future, implement a special PanicError that's potentially  thrown implicitly everywhere
             if f_name == "panic" {
                 return false
             }
-            match context.funcs.get(&f_name) {
-                // TODO check the args too
-                Some(func) => return func.is_proc(),
-                None => return false,
+            let func_is_proc = match context.funcs.get(&f_name) {
+                Some(func) => func.is_proc(),
+                None => false,
+            };
+
+            // Also check if any of the arguments call procs
+            // Skip the first param which is the function name itself
+            for i in 1..e.params.len() {
+                if is_expr_calling_procs(context, &e.params[i]) {
+                    return true
+                }
             }
+
+            return func_is_proc
         },
         NodeType::Declaration(decl) => {
             match e.params.get(0) {
