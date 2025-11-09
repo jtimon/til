@@ -1527,6 +1527,9 @@ impl Context {
                 let payload_size = match vtype {
                     ValueType::TCustom(type_name) if type_name == "Bool" => 1,
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
+                    ValueType::TCustom(type_name) if type_name == "Str" => {
+                        16  // Str is always 16 bytes (pointer + size)
+                    },
                     ValueType::TCustom(type_name) => {
                         // Check if this is a struct or enum type
                         match self.symbols.get(type_name) {

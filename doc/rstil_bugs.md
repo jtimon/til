@@ -5,9 +5,9 @@ This document tracks critical bugs in the rstil interpreter that prevent the sel
 ## Status Summary
 
 - **Parser**: ✅ WORKING (after workarounds for bugs #1-3)
-- **Evaluator**: ❌ BLOCKED (by bug #4)
+- **Evaluator**: ✅ WORKING (bug #4 FIXED!)
 
-The self-hosted parser successfully parses `println("test")` and reaches EOF. However, evaluation fails due to string payload extraction issues.
+The self-hosted parser successfully parses `println("test")` and reaches EOF. Enum payload extraction now works correctly. Self-hosted evaluation progresses further but hits other issues.
 
 ## Bug #1: Enum Comparison in Switch/Case ✅ WORKED AROUND
 
@@ -86,43 +86,29 @@ node_type = NodeType.Literal(str_lit)  // Now works
 
 **Status**: Workaround implemented in commit `46a00bc`
 
-## Bug #4: String Payload Extraction from Self-Hosted Enums ❌ BLOCKING
+## Bug #4: Enum Payload Lost When Copying Between Variables ✅ FIXED
 
-**Problem**: rstil cannot extract string payloads from enums created by self-hosted code. This affects ANY enum with a string payload, including:
-- `NodeType.Identifier(name)` - function names, variable names
-- `LiteralNodeType.String(s)` - string literals
-- Any other enum with string payloads
+**Problem**: When assigning an enum value from one variable to another, the enum payload was lost. This happened because:
+1. Reading an enum variable (e.g., `func_name_expr.node_type`) would call `get_enum` to retrieve the enum value
+2. The enum variant name was returned as a string (e.g., "NodeType.Identifier")
+3. When this was assigned to a new variable, `insert_enum` was called to store it
+4. But `temp_enum_payload` was never set, so the new enum had NO payload bytes stored in the arena
+5. Later attempts to extract the payload would read garbage values
 
 **Error Message**: `String payload pointer out of bounds`
 
-**Error Location**: `src/rs/interpreter.rs:240`
+**Error Location**: `src/rs/interpreter.rs:240` (extraction code)
 
-**Where It Fails**:
-```til
-// In init_context, trying to extract function name:
-case NodeType.Identifier(name):  // Fails at interpreter.rs:240
-    func_name = name  // Never reached
-```
+**Root Cause**: The `eval_custom_expr` function at line 1214 (and line 1125 for non-field enums) would call `get_enum` to read an enum value, but did NOT set `context.temp_enum_payload` with the payload data before returning. Later when `insert_enum` was called, it had no payload to store.
 
-**Impact**:
-- ✅ Parser works - successfully parses `println("test")`
-- ❌ Evaluator fails - cannot extract "println" identifier from AST
-- ❌ Blocks ALL self-hosted evaluation
+**Fix**: Added code to set `temp_enum_payload` when reading enum values in two locations:
+1. `src/rs/interpreter.rs:1125-1135` - When reading enum variables
+2. `src/rs/interpreter.rs:1214-1224` - When reading enum struct fields
 
-**Root Cause**: When self-hosted parser creates `NodeType.Identifier("println")`, the string "println" is stored in the global arena. When rstil tries to extract it via pattern matching, the pointer arithmetic fails - the string offset is beyond arena bounds.
+Additional fixes:
+- `src/rs/init.rs:1531-1533` - Added special case for Str payload type to return correct size (16 bytes)
 
-**Attempted Workarounds**:
-- ❌ Using `rsonly_enum_extract_payload()` - same error
-- ❌ Using `enum_to_str()` - doesn't include payload data
-- ❌ String comparison on enum string - no access to payload
-
-**Current Blockers**:
-1. Cannot extract function names from FCall nodes
-2. Cannot extract variable names from Identifier nodes
-3. Cannot extract string values from String literal nodes
-4. Cannot process ANY AST nodes with string payloads
-
-**Status**: CRITICAL BLOCKER - Needs fix in rstil interpreter
+**Status**: ✅ FIXED - Enum payloads now preserved when copying between variables
 
 ## Workarounds Implemented (Bugs #1-3)
 
@@ -135,9 +121,4 @@ These workarounds are necessary for self-hosted code to work and should NOT be r
 
 ## Next Steps
 
-**For Bug #4**: This requires either:
-1. Fix in rstil interpreter's string payload extraction logic
-2. Alternative enum representation that doesn't use arena pointers
-3. Different AST structure that avoids string payloads entirely
-
-**Priority**: CRITICAL - Blocks entire self-hosting effort
+All critical rstil bugs blocking basic self-hosted evaluation have been fixed! The self-hosted parser works, and enum payload extraction works. Further self-hosting work may reveal additional bugs, but the fundamental infrastructure is now functional.

@@ -77,7 +77,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::Assignment(var_name) => {
             eval_assignment(&var_name, context, &e)
         },
-        NodeType::Identifier(name) => eval_identifier_expr(&name, &context, &e),
+        NodeType::Identifier(name) => eval_identifier_expr(&name, context, &e),
         NodeType::If => {
             if e.params.len() != 2 && e.params.len() != 3 {
                 return Err(e.lang_error("eval", "if nodes must have 2 or 3 parameters."))
@@ -528,6 +528,21 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                     // Get struct variable name from the original expression or create temporary for literals
                                     let struct_var_name = match &payload_expr.node_type {
+                                        NodeType::Identifier(name) if struct_type_name == "Str" => {
+                                            // For Str payloads with identifier expressions (like t.token_str),
+                                            // create a temporary Str from the evaluated result value
+                                            let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
+                                            let string_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_string
+                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false,
+                                            });
+
+                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
                                         NodeType::Identifier(name) => name.clone(),
                                         NodeType::LLiteral(Literal::Bool(_)) if struct_type_name == "Bool" => {
                                             // For bool literals, create a temporary Bool struct
@@ -1011,7 +1026,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     }
 }
 
-fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Context, inner_e: &Expr, member_decl: &Declaration) -> Result<EvalResult, String> {
+fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mut Context, inner_e: &Expr, member_decl: &Declaration) -> Result<EvalResult, String> {
     return match member_decl.value_type {
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
@@ -1040,17 +1055,17 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &Co
     }
 }
 
-fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Result<EvalResult, String> {
+fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     let struct_def = match context.struct_defs.get(name) {
-        Some(def) => def,
+        Some(def) => def.clone(),  // Clone to avoid borrow checker issues
         None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", name))),
     };
     let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
-            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v) {
+            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v.clone()) {
                 Some(member_decl) => {
-                    return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, member_decl);
+                    return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
                 },
                 None => {
                     return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}' j", name, inner_name)));
@@ -1063,7 +1078,7 @@ fn eval_identifier_expr_struct(name: &str, context: &Context, e: &Expr) -> Resul
     }
 }
 
-fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &str) -> Result<EvalResult, String> {
+fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_name: &str) -> Result<EvalResult, String> {
     let custom_symbol = match context.symbols.get(custom_type_name) {
         Some(sym) => sym,
         None => return Err(e.lang_error("eval", &format!("Argument '{}' is of undefined type {}.", name, custom_type_name))),
@@ -1071,6 +1086,11 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     match custom_symbol.value_type {
         ValueType::TType(TTypeDef::TEnumDef) => {
             let enum_val = context.get_enum(name, e)?;
+            // Set temp_enum_payload so that if this enum is assigned to another variable,
+            // the payload will be preserved
+            if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+            }
             return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
         },
         ValueType::TType(TTypeDef::TStructDef) => {
@@ -1151,6 +1171,11 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
                             match &custom_symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) => {
                                     let enum_val = context.get_enum(&current_name, inner_e)?;
+                                    // Set temp_enum_payload so that if this enum is assigned to another variable,
+                                    // the payload will be preserved
+                                    if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                                        context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+                                    }
                                     return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
                                 },
                                 ValueType::TType(TTypeDef::TStructDef) => {
@@ -1168,7 +1193,7 @@ fn eval_custom_expr(e: &Expr, context: &Context, name: &str, custom_type_name: &
     }
 }
 
-fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalResult, String> {
+fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match context.symbols.get(name) {
         Some(symbol_info) => match &symbol_info.value_type {
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
@@ -1198,7 +1223,9 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                 return Err(e.lang_error("eval", &format!("Can't infer the type of identifier '{}'.", name)));
             },
             ValueType::TCustom(ref custom_type_name) => {
-                match custom_type_name.as_str() {
+                // Clone custom_type_name to avoid borrow checker issues
+                let custom_type_name_clone = custom_type_name.clone();
+                match custom_type_name_clone.as_str() {
                     "I64" => {
                         let val = context.get_i64(name, e)?;
                         return Ok(EvalResult::new(&val.to_string()))
@@ -1216,10 +1243,10 @@ fn eval_identifier_expr(name: &str, context: &Context, e: &Expr) -> Result<EvalR
                             let val = context.get_string(name, e)?;
                             return Ok(EvalResult::new(&val.to_string()));
                         }
-                        return eval_custom_expr(e, context, name, custom_type_name);
+                        return eval_custom_expr(e, context, name, &custom_type_name_clone);
                     },
                     _ => {
-                        return eval_custom_expr(e, context, name, custom_type_name);
+                        return eval_custom_expr(e, context, name, &custom_type_name_clone);
                     },
                 }
             },
