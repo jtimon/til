@@ -30,21 +30,21 @@ TTypeDef := enum {
 
 // Enum definition (variant name -> optional payload type)
 SEnumDef := struct {
-    mut enum_map: StrMap = StrMap()  // variant_name -> payload_type_name (empty string = no payload)
+    mut enum_map: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // variant_name -> payload_type_name (empty string = no payload)
 }
 
 // Struct definition
 SStructDef := struct {
-    mut members: StrMap = StrMap()                // field_name -> type_name
+    mut members: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // field_name -> type_name
     mut default_value_fields: Array = Array()     // Array of field names that have default values
     mut default_value_exprs: Array = Array()      // Array of Expr objects (parallel to default_value_fields)
-    mut default_values: StrMap = StrMap()         // DEPRECATED: kept for compatibility, not used
+    mut default_values: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // DEPRECATED: kept for compatibility, not used
 }
 
 // Function/Procedure definition
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: StrMap = StrMap()      // arg_name -> type_name
+    mut args: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // arg_name -> type_name
     mut return_types: Array = Array() // return types (usually 0 or 1)
     mut throw_types: Array = Array()  // exception types that can be thrown
     mut body: Expr = Expr()           // function body expression
@@ -1401,7 +1401,7 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     body := parse_body(lexer, TokenType.RightBrace)
 
     // Extract declarations and build members/default_values maps
-    mut members := StrMap.new()
+    mut members := Map.new("Str", size_of(Str), "Str", size_of(Str))
     mut default_value_fields := Array.new_dyn("Str", size_of(Str))
     mut default_value_exprs := Array.new_dyn("Expr", size_of(Expr))
 
@@ -1469,7 +1469,7 @@ enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     }
 
     lexer.advance(1) // consume '{'
-    mut enum_map := StrMap.new()
+    mut enum_map := Map.new("Str", size_of(Str), "Str", size_of(Str))
     mut end_found := false
 
     while not(or(lexer.is_eof(0), end_found)) {

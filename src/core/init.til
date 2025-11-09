@@ -76,34 +76,34 @@ EnumVal := struct {
 Context := struct {
     mut mode_def: ModeDef = ModeDef()          // Mode definition
     mut path: Str = ""                         // File path for error reporting
-    mut symbols: StrMap = StrMap()             // symbol_name -> SymbolInfo (as JSON for now)
-    mut funcs: StrMap = StrMap()               // func_name -> SFuncDef (as JSON for now)
-    mut enum_defs: StrMap = StrMap()           // enum_name -> SEnumDef (as JSON for now)
-    mut struct_defs: StrMap = StrMap()         // struct_name -> SStructDef (as JSON for now)
-    mut arena_index: StrMap = StrMap()         // var_name -> arena_offset (as str)
+    mut symbols: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // symbol_name -> SymbolInfo (as JSON for now)
+    mut funcs: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // func_name -> SFuncDef (as JSON for now)
+    mut enum_defs: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // enum_name -> SEnumDef (as JSON for now)
+    mut struct_defs: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // struct_name -> SStructDef (as JSON for now)
+    mut arena_index: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // var_name -> arena_offset (as str)
     mut arena: Arena = Arena()                 // Memory storage
     mut temp_enum_payload_exists: Bool = false // Whether temp enum payload exists
     mut temp_enum_payload: Str = ""            // Temp storage for enum payload during construction
-    mut imports_declarations_done: StrMap = StrMap()  // Tracks imports with declarations copied
-    mut imports_values_done: StrMap = StrMap() // Tracks imports with values initialized
-    mut imports_wip: StrMap = StrMap()         // Work-in-progress imports for cycle detection
+    mut imports_declarations_done: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // Tracks imports with declarations copied
+    mut imports_values_done: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // Tracks imports with values initialized
+    mut imports_wip: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // Work-in-progress imports for cycle detection
 
     // Create new context
     new := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
         mut ctx := Context()
         ctx.mode_def = mode_def
         ctx.path = path
-        ctx.symbols = StrMap.new()
-        ctx.funcs = StrMap.new()
-        ctx.enum_defs = StrMap.new()
-        ctx.struct_defs = StrMap.new()
-        ctx.arena_index = StrMap.new()
+        ctx.symbols = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.funcs = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.enum_defs = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.struct_defs = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.arena_index = Map.new("Str", size_of(Str), "Str", size_of(Str))
         ctx.arena = Arena.new()
         ctx.temp_enum_payload_exists = false
         ctx.temp_enum_payload = ""
-        ctx.imports_declarations_done = StrMap.new()
-        ctx.imports_values_done = StrMap.new()
-        ctx.imports_wip = StrMap.new()
+        ctx.imports_declarations_done = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.imports_values_done = Map.new("Str", size_of(Str), "Str", size_of(Str))
+        ctx.imports_wip = Map.new("Str", size_of(Str), "Str", size_of(Str))
         return ctx
     }
 
