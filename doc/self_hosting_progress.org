@@ -12,11 +12,11 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
 | parser      |     1,471 |      1,389 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| init        |     1,185 |      1,761 | 61%        | ❌ MAJOR WORK                |
-| typer       |       336 |      1,285 | 26%        | ❌ PORT FROM RUST            |
+| init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
+| typer       |       336 |      1,285 | 26%        | ⏳ STARTING TOP-DOWN        |
 | interpreter |       475 |      2,485 | 19%        | ❌ PORT FROM RUST            |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     4,179 |      7,437 | *56%*      | Lexer+Parser Complete ✅     |
+| *TOTAL*     |     4,214 |      7,437 | *57%*      | Lexer+Parser Complete ✅     |
 
 * Architecture & Call Hierarchy
 
@@ -195,18 +195,25 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - [X] Mark complete - PARSER HOMOLOGIZATION COMPLETE ✅
 
 ** Init (init.til vs src/rs/init.rs)
-*** Status: 61% COMPLETE ⚠️
+*** Status: 70% COMPLETE - TOP-DOWN IN PROGRESS ⏳ (2025-01-09)
 
-*TIL Implementation (1,185 lines):*
+*TIL Implementation (1,220 lines):*
 
-*✅ COMPLETED:*
+*✅ COMPLETED (2025-01-09):*
+- Struct alignment: SymbolInfo.value_type now uses ValueType enum
+- Struct alignment: EnumVal.payload_type added (matches Rust)
+- Function ordering: First 3 functions match Rust order
+  1. =get_func_name_in_call= ✅
+  2. =value_type_func_proc= ✅
+  3. =get_ufcs_fcall_value_type= ✅
+- =init_context= skeleton with TODO() placeholders (top-down approach)
+- Declaration processing skeleton in =init_context=
 - Context struct with all fields (arena, symbols, funcs, enum_defs, struct_defs, imports)
 - Arena methods: =get_i64=, =get_str=, =get_bool=, =get_u8=, =insert_*= (simplified)
 - Enum helpers: =get_variant_pos=, =variant_pos_to_str=
 - Type helpers: =get_type_size=, =get_func_name_in_call=
 - Type inference: =get_value_type= (literals, funcdefs, enums, structs, ranges, identifiers)
 - Type inference: =get_fcall_value_type= (UFCS, standalone funcs, constructors)
-- Declaration processing: =process_declarations=
 
 *⚠️ PARTIALLY IMPLEMENTED:*
 - =get_fcall_value_type=: needs SFuncDef parsing from storage
@@ -234,18 +241,33 @@ in maps. Full equivalence requires either JSON serialization or direct object st
 - *Priority*: Implement proper struct storage before proceeding
 - *Dependencies*: This blocks interpreter and typer progress
 
-*** Homologization Tasks
+*** Homologization Tasks (Top-Down Approach)
+
+*Phase 1: Struct Alignment (COMPLETE)*
+- [X] Align SymbolInfo struct to use ValueType
+- [X] Align EnumVal struct (add payload_type field)
+
+*Phase 2: Function Reordering (IN PROGRESS)*
+- [X] Move get_func_name_in_call to line 560
+- [X] Move value_type_func_proc to line 597
+- [X] Move get_ufcs_fcall_value_type to line 619
+- [ ] Continue reordering remaining functions to match Rust
+
+*Phase 3: Top-Down Implementation with TODO() (IN PROGRESS)*
+- [X] Create init_context skeleton with TODO() placeholders
+- [X] Add Declaration processing skeleton
+- [ ] Fill in Declaration: function registration
+- [ ] Fill in Declaration: enum registration
+- [ ] Fill in Declaration: struct registration
+- [ ] Fill in Declaration: type checking
+- [ ] Add import handling
+- [ ] Add mode validation
+- [ ] Complete remaining helper functions
+
+*Phase 4: Serialization (BLOCKED)*
 - [ ] Design serialization format for SFuncDef, SEnumDef, SStructDef
 - [ ] Implement to_string/from_string for complex types
-- [ ] Update init.til to store actual type info (not placeholders)
-- [ ] Port init_import_declarations from init.rs
-- [ ] Complete struct methods (insert_struct, map_instance_fields, copy_fields)
-- [ ] Complete enum methods (get_enum, insert_enum, get_enum_at_offset)
-- [ ] Implement proper string storage (c_string/cap/len)
-- [ ] Port mode validation
-- [ ] Port associated function registration
-- [ ] Test thoroughly with complex types
-- [ ] Mark complete
+- [ ] Update maps to store actual type info (not placeholders)
 
 ** Typer (typer.til vs src/rs/typer.rs)
 *** Status: 26% COMPLETE ❌ SEVERELY BEHIND
