@@ -149,8 +149,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "if": return TokenType.If
     case "else": return TokenType.Else
     case "while": return TokenType.While
-    case "for": return TokenType.For // TODO
-    case "in": return TokenType.In // TODO, or just use semicolon reserve forbid this
+    case "for": return TokenType.For
+    case "in": return TokenType.In
     case "switch": return TokenType.Switch
     case "match": return TokenType.Match // TODO like switch but special for declarations/assignments
     case "case": return TokenType.Case
