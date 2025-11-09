@@ -1766,6 +1766,13 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 context.struct_defs = struct_defs_map
 
                 // TODO: Register associated functions and constants
+                // This requires default_values to store Expr objects rather than strings.
+                // Once parser.til populates default_values with Expr objects:
+                // 1. Iterate through struct_def.members
+                // 2. For each non-mut member with a default_value:
+                //    - Get member_expr from default_values
+                //    - Register as "StructName.member_name" in symbols
+                //    - If it's a FuncDef, also register in funcs
                 return
             }
         }
@@ -1789,7 +1796,22 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         return
     }
 
-    // For other node types, no declaration processing needed
+    // Mode validation: check if non-declaration nodes are allowed at root level
+    // Corresponds to mode validation in init.rs lines 743-752
+    mut mode := context.mode_def
+    if not(mode.allows_base_anything) {
+        if mode.allows_base_calls {
+            // Allow declarations and calls only
+            if not(node_type_str.eq("NodeType.FCall")) {
+                throw e.error("mode", format("mode '", mode.name, "' allows only declarations and calls in the root context, found ", node_type_str, "."))
+            }
+        } else {
+            // Allow declarations only - we already handled declarations above
+            throw e.error("mode", format("mode '", mode.name, "' allows only declarations in the root context, found ", node_type_str, "."))
+        }
+    }
+
+    // For other node types with allows_base_anything=true, no restriction
 }
 
 // Process import declarations during init phase
