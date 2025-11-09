@@ -557,6 +557,43 @@ Context := struct {
     }
 }
 
+// Get function name from function call expression
+// Corresponds to get_func_name_in_call in init.rs
+get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+    // Check that this is an FCall node
+    mut node_type_str := enum_to_str(e.node_type)
+    if not(node_type_str.eq("NodeType.FCall")) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): expected FCall node, got ", node_type_str)
+    }
+
+    // Check that we have at least one parameter
+    if lt(e.params.len, 1) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): FCall nodes must have at least 1 parameter")
+    }
+
+    // Get first parameter (function name)
+    mut params := e.params
+    mut func_name_expr := Expr()
+    params.get(0, func_name_expr)
+
+    // Extract identifier from node_type
+    mut func_node_type := func_name_expr.node_type
+    mut func_node_type_str := enum_to_str(func_node_type)
+    if not(func_node_type_str.eq("NodeType.Identifier")) {
+        throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0], got ", func_node_type_str)
+    }
+
+    // Extract the function name string from the Identifier payload using pattern matching
+    mut func_name := ""
+    switch func_node_type {
+    case NodeType.Identifier(name):
+        func_name = name
+    case:
+        // Should never happen due to the if check above
+    }
+    return func_name
+}
+
 // Get enum variant position by name
 // Corresponds to get_variant_pos in init.rs
 get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str, IndexOutOfBoundsError {
@@ -932,43 +969,6 @@ get_ufcs_fcall_value_type := proc(context: Context, e: Expr, f_name: Str, id_exp
     // TODO: Full UFCS implementation
     // For now, just throw an error indicating it's not yet supported
     throw format(loc(), " TODO: UFCS method calls not yet fully implemented for '", f_name, "'")
-}
-
-// Get function name from function call expression
-// Corresponds to get_func_name_in_call in init.rs
-get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
-    // Check that this is an FCall node
-    mut node_type_str := enum_to_str(e.node_type)
-    if not(node_type_str.eq("NodeType.FCall")) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected FCall node, got ", node_type_str)
-    }
-
-    // Check that we have at least one parameter
-    if lt(e.params.len, 1) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): FCall nodes must have at least 1 parameter")
-    }
-
-    // Get first parameter (function name)
-    mut params := e.params
-    mut func_name_expr := Expr()
-    params.get(0, func_name_expr)
-
-    // Extract identifier from node_type
-    mut func_node_type := func_name_expr.node_type
-    mut func_node_type_str := enum_to_str(func_node_type)
-    if not(func_node_type_str.eq("NodeType.Identifier")) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0], got ", func_node_type_str)
-    }
-
-    // Extract the function name string from the Identifier payload using pattern matching
-    mut func_name := ""
-    switch func_node_type {
-    case NodeType.Identifier(name):
-        func_name = name
-    case:
-        // Should never happen due to the if check above
-    }
-    return func_name
 }
 
 // Process declarations in AST and register them in context
