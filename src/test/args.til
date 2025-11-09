@@ -331,5 +331,3 @@ test_nested_struct_mut := proc() {
     assert_eq(loc(), 50, l.end.y)
 }
 test_nested_struct_mut()
-
-println("All argument passing tests passed!")

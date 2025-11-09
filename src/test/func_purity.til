@@ -52,5 +52,3 @@ proc_can_call_proc := proc() returns I64 {
 
 mut result2 := proc_can_call_proc()
 assert_eq(loc(), 42, result2)
-
-println("Function purity tests passed")

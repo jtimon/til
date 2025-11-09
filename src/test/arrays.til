@@ -614,5 +614,3 @@ test_array_static_push_error := proc() {
     arr.delete()
 }
 test_array_static_push_error()
-
-println("All Array tests passed!")
