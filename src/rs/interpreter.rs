@@ -601,9 +601,37 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 ValueType::TType(TTypeDef::TEnumDef) => {
                                     // Handle enum payloads
                                     // Get enum variable name from the original expression
+                                    // If it's a function call (enum constructor), evaluate it first to create a temp variable
                                     let enum_var_name = match &payload_expr.node_type {
                                         NodeType::Identifier(name) => name.clone(),
-                                        _ => return Err(e.error("eval", &format!("Enum payload must be a variable identifier, got {:?}", payload_expr.node_type))),
+                                        NodeType::FCall => {
+                                            // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
+                                            // Create a temporary variable to hold the result
+                                            let temp_var_name = format!("__temp_enum_{}", context.arena_index.len());
+
+                                            // Get the function name from the nested enum constructor
+                                            let nested_func_expr = payload_expr.params.first()
+                                                .ok_or_else(|| e.error("eval", "Expected identifier in nested enum constructor"))?;
+                                            let nested_name = get_combined_name(nested_func_expr)?;
+
+                                            // Recursively evaluate the enum constructor
+                                            let nested_result = eval_func_proc_call(&nested_name, context, payload_expr)?;
+                                            if nested_result.is_throw {
+                                                return Ok(nested_result);
+                                            }
+
+                                            // Add symbol entry before calling insert_enum
+                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom(struct_type_name.clone()),
+                                                is_mut: false,
+                                            });
+
+                                            // The result is the enum variant name (e.g., "InnerEnum.ValueA")
+                                            // insert_enum will use context.temp_enum_payload for the payload bytes
+                                            context.insert_enum(&temp_var_name, struct_type_name, &nested_result.value, e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error("eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get the full enum value including its payload

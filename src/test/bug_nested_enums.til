@@ -19,17 +19,26 @@ OuterEnum := enum {
     WrapperB: I64,
 }
 
-// Test 1: Direct nested enum construction (THE BUG)
-// TODO FIX: This test demonstrates the bug - commented out because it causes runtime error
+// Test 1: Direct nested enum construction (NOW FIXED!)
 test_direct_nested_enum := proc() {
-    println("Test 1: Attempting direct nested enum construction...")
+    println("Test 1: Testing direct nested enum construction...")
 
-    // BUG CONFIRMED: This throws error "Enum payload must be a variable identifier, got FCall"
-    // mut outer := OuterEnum.WrapperA(InnerEnum.ValueA(42))
+    // This now works! Bug #3 is FIXED
+    mut outer := OuterEnum.WrapperA(InnerEnum.ValueA(42))
 
-    println("BUG CONFIRMED: Direct nested enum construction fails")
-    println("Error: 'Enum payload must be a variable identifier, got FCall'")
-    println("Must use workaround (assign to variable first)")
+    // Extract and verify
+    switch outer {
+    case OuterEnum.WrapperA(inner):
+        switch inner {
+        case InnerEnum.ValueA(val):
+            test(loc(), I64.eq(val, 42), "Should extract 42 from direct nested enum")
+            println("PASS: Direct nested enum construction works!")
+        case InnerEnum.ValueB(s):
+            test(loc(), false, "Wrong inner variant")
+        }
+    case OuterEnum.WrapperB(i):
+        test(loc(), false, "Wrong outer variant")
+    }
 }
 
 // Test 2: Workaround - assign inner enum to variable first
@@ -99,5 +108,5 @@ test_triple_nesting()
 
 println("")
 println("Bug #3 Test Summary:")
-println("If all tests passed, Bug #3 (nested enum payloads) is NOT present")
-println("or has been fixed in current rstil version")
+println("FIXED! Direct nested enum construction now works!")
+println("The workaround is no longer needed")

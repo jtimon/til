@@ -6,7 +6,7 @@ This document tracks bugs in the rstil interpreter, including those that blocked
 
 - **Bug #1 (enum comparison)**: ❌ NOT PRESENT (typer prevents)
 - **Bug #2 (return frames)**: ❌ NOT PRESENT (tests pass)
-- **Bug #3 (nested enums)**: ⚠️ CONFIRMED BUG (workaround available)
+- **Bug #3 (nested enums)**: ✅ FIXED (direct nested construction now works!)
 - **Bug #4 (enum payload copy)**: ✅ FIXED
 - **Bug #5 (enum extract)**: ⚠️ PARTIALLY WORKING (I64/Str work, struct fails)
 - **Arithmetic**: ✅ SAFE (div/mod by zero fixed to return 0)
@@ -71,30 +71,35 @@ return result  // Still broken in some contexts
 
 **Status**: Workaround implemented in commit `46a00bc`
 
-## Bug #3: Nested Enum Payloads ⚠️ CONFIRMED BUG
+## Bug #3: Nested Enum Payloads ✅ FIXED
 
-**Problem**: Enum constructors can't be used directly as payloads to other enum constructors.
+**Problem**: Enum constructors couldn't be used directly as payloads to other enum constructors.
 
-**Test Result**: Bug CONFIRMED in current rstil. Direct nested enum construction fails with "Enum payload must be a variable identifier, got FCall". Workaround (assign to variable first) works. Test: `src/test/bug_nested_enums.til`
+**Test Result**: Bug FIXED! Direct nested enum construction now works. Test: `src/test/bug_nested_enums.til`
+
+**Fix**: Added support for `NodeType::FCall` in enum payload handling (interpreter.rs:607-633). When an enum constructor is used as a payload, the interpreter now:
+1. Recursively evaluates the nested enum constructor
+2. Creates a temporary variable to hold the result
+3. Uses that temporary variable as the payload
 
 ```til
-// This doesn't work:
+// This now works!
 node_type = NodeType.Literal(LiteralNodeType.String(s))
-//                           ^^^^^^^^^^^^^^^^^^^^^^^^
-//                           Can't use enum constructor as direct payload
+
+// Direct triple nesting also works
+mut triple := Level1.L1(Level2.L2(Level3.L3(99)))
 ```
 
-**Workaround**: Assign inner enum to variable first:
+**Example**:
 ```til
-mut str_lit := LiteralNodeType.String(s)
-node_type = NodeType.Literal(str_lit)  // Now works
+InnerEnum := enum { ValueA: I64 }
+OuterEnum := enum { WrapperA: InnerEnum }
+
+// Direct nested construction now works:
+mut outer := OuterEnum.WrapperA(InnerEnum.ValueA(42))
 ```
 
-**Locations**:
-- `src/core/parser.til` - parse_literal (String/I64/Bool payloads)
-- `src/core/parser.til` - parse_list return value (List payload)
-
-**Status**: Workaround implemented in commit `46a00bc`
+**Status**: ✅ FIXED - Workarounds in parser.til can now be removed
 
 ## Bug #4: Enum Payload Lost When Copying Between Variables ✅ FIXED
 
