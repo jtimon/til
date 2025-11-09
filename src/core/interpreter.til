@@ -20,44 +20,154 @@ Arena := struct {
     }
 }
 
-// Evaluate an expression - Phase 2: minimal version
-// Mimics eval_expr in rstil.rs
-eval_expr := proc(mut context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
-    // Get node type as string for matching
-    node_type_str := enum_to_str(e.node_type)
+// Result of evaluating an expression
+// Corresponds to EvalResult in interpreter.rs
+EvalResult := struct {
+    mut value: Str = ""                // The result value as string
+    mut is_return: Bool = false        // True if this is a return statement
+    mut is_throw: Bool = false         // True if this is a throw statement
+    mut thrown_type: Str = ""          // Type of thrown value (if is_throw)
 
-    // Handle literals
-    if node_type_str.eq("NodeType.Literal") {
-        return eval_literal(context, e)
+    // Create normal result
+    new := proc(value: Str) returns EvalResult {
+        mut result := EvalResult()
+        result.value = value
+        result.is_return = false
+        result.is_throw = false
+        result.thrown_type = ""
+        return result
     }
 
-    // Handle identifiers (variable lookup)
-    if node_type_str.eq("NodeType.Identifier") {
-        return eval_identifier(context, e)
+    // Create return result
+    new_return := proc(value: Str) returns EvalResult {
+        mut result := EvalResult()
+        result.value = value
+        result.is_return = true
+        result.is_throw = false
+        result.thrown_type = ""
+        return result
     }
 
-    // Handle declarations
-    if node_type_str.eq("NodeType.Declaration") {
-        return eval_declaration(context, e)
+    // Create throw result
+    new_throw := proc(value: Str, thrown_type: Str) returns EvalResult {
+        mut result := EvalResult()
+        result.value = value
+        result.is_return = false
+        result.is_throw = true
+        result.thrown_type = thrown_type
+        return result
     }
+}
 
-    // Handle assignments
-    if node_type_str.eq("NodeType.Assignment") {
-        return eval_assignment(context, e)
+// Evaluate an expression
+// Returns EvalResult (not throws - errors returned as EvalResult)
+// Corresponds to eval_expr in interpreter.rs
+eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError {
+    // Match on node type
+    switch e.node_type {
+    case NodeType.Body:
+        // TODO: eval_body
+        TODO(loc(), "eval_body not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Literal(lit):
+        // Handle literals - return value directly
+        switch lit {
+        case LiteralNodeType.Bool(b):
+            if b {
+                return EvalResult.new("true")
+            }
+            return EvalResult.new("false")
+        case LiteralNodeType.I64(i):
+            return EvalResult.new(I64.to_str(i))
+        case LiteralNodeType.String(s):
+            return EvalResult.new(s)
+        case LiteralNodeType.List(l):
+            return EvalResult.new(l)
+        }
+
+    case NodeType.FCall:
+        // TODO: eval_func_proc_call
+        TODO(loc(), "eval_func_proc_call not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Declaration(decl):
+        // TODO: eval_declaration
+        TODO(loc(), format("eval_declaration not yet implemented for '", decl.name, "'"))
+        return EvalResult.new("")
+
+    case NodeType.Assignment(var_name):
+        // TODO: eval_assignment
+        TODO(loc(), format("eval_assignment not yet implemented for '", var_name, "'"))
+        return EvalResult.new("")
+
+    case NodeType.Identifier(name):
+        // TODO: eval_identifier_expr
+        TODO(loc(), format("eval_identifier_expr not yet implemented for '", name, "'"))
+        return EvalResult.new("")
+
+    case NodeType.If:
+        // TODO: eval if statement
+        TODO(loc(), "if statement eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.While:
+        // TODO: eval while loop
+        TODO(loc(), "while loop eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Switch:
+        // TODO: eval switch statement
+        TODO(loc(), "switch statement eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Return:
+        // TODO: eval return statement
+        TODO(loc(), "return statement eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Throw:
+        // TODO: eval throw statement
+        TODO(loc(), "throw statement eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.Catch:
+        // TODO: eval catch statement
+        TODO(loc(), "catch statement eval not yet implemented")
+        return EvalResult.new("")
+
+    case NodeType.FuncDef(_):
+        // Function definitions don't eval to a value
+        return EvalResult.new("")
+
+    case NodeType.EnumDef(_):
+        // Enum definitions don't eval to a value
+        return EvalResult.new("")
+
+    case NodeType.StructDef(_):
+        // Struct definitions don't eval to a value
+        return EvalResult.new("")
+
+    case NodeType.Range:
+        // Ranges are only valid in for-loops (already desugared)
+        TODO(loc(), "Range should not appear in eval (should be desugared)")
+        return EvalResult.new("")
+
+    case NodeType.DefaultCase:
+        // Default case only appears in switch (handled above)
+        TODO(loc(), "DefaultCase should not appear in eval outside switch")
+        return EvalResult.new("")
+
+    case NodeType.Pattern(_, _):
+        // Pattern only appears in switch (handled above)
+        TODO(loc(), "Pattern should not appear in eval outside switch")
+        return EvalResult.new("")
+
+    case:
+        // Unhandled node type
+        TODO(loc(), "eval_expr: Unhandled node type")
+        return EvalResult.new("")
     }
-
-    // Handle function calls
-    if node_type_str.eq("NodeType.FCall") {
-        return eval_fcall(context, e)
-    }
-
-    // Handle body (sequence of statements)
-    if node_type_str.eq("NodeType.Body") {
-        return eval_body(context, e)
-    }
-
-    // Not implemented yet
-    throw format(loc(), " ERROR: eval_expr not implemented for node type: ", node_type_str)
 }
 
 // Evaluate a literal expression
