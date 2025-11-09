@@ -1,17 +1,23 @@
-# rstil Interpreter Bugs Blocking Self-Hosting
+# rstil Interpreter Bugs and Fixes
 
-This document tracks critical bugs in the rstil interpreter that prevent the self-hosted TIL compiler from working.
+This document tracks bugs in the rstil interpreter, including those that blocked self-hosting (now worked around or fixed).
 
 ## Status Summary
 
-- **Parser**: ✅ WORKING (after workarounds for bugs #1-3)
-- **Evaluator**: ✅ WORKING (bug #4 FIXED!)
+- **Bug #1 (enum comparison)**: ❌ NOT PRESENT (typer prevents)
+- **Bug #2 (return frames)**: ❌ NOT PRESENT (tests pass)
+- **Bug #3 (nested enums)**: ⚠️ CONFIRMED BUG (workaround available)
+- **Bug #4 (enum payload copy)**: ✅ FIXED
+- **Bug #5 (enum extract)**: ⚠️ PARTIALLY WORKING (I64/Str work, struct fails)
+- **Arithmetic**: ✅ SAFE (div/mod by zero fixed to return 0)
 
-The self-hosted parser successfully parses `println("test")` and reaches EOF. Enum payload extraction now works correctly. Self-hosted evaluation progresses further but hits other issues.
+All bugs have test files in `src/test/bug_*.til` and are included in the test suite.
 
-## Bug #1: Enum Comparison in Switch/Case ✅ WORKED AROUND
+## Bug #1: Enum Comparison in Switch/Case ❌ NOT PRESENT
 
 **Problem**: Switch/case with enum variables performs pattern binding instead of comparison.
+
+**Test Result**: Bug is NOT present in current rstil. The typer prevents using enum variables as case patterns, requiring exhaustive enum variant matching instead. Test: `src/test/bug_enum_comparison.til`
 
 ```til
 // This doesn't work:
@@ -34,9 +40,11 @@ if p_type_str.eq(expected_str) {
 
 **Status**: Workaround implemented in commit `46a00bc`
 
-## Bug #2: Return Statements Pop Multiple Stack Frames ✅ WORKED AROUND
+## Bug #2: Return Statements Pop Multiple Stack Frames ❌ NOT PRESENT
 
 **Problem**: Return statements in functions pop multiple stack frames when called from deep call stacks, returning from the caller instead of from the current function.
+
+**Test Result**: Bug is NOT present in current rstil. All nested return tests pass correctly, including 4-level deep nesting. Test: `src/test/bug_return_frames.til`
 
 ```til
 func(mut lexer: Lexer) returns Token {
@@ -63,9 +71,11 @@ return result  // Still broken in some contexts
 
 **Status**: Workaround implemented in commit `46a00bc`
 
-## Bug #3: Nested Enum Payloads ✅ WORKED AROUND
+## Bug #3: Nested Enum Payloads ⚠️ CONFIRMED BUG
 
 **Problem**: Enum constructors can't be used directly as payloads to other enum constructors.
+
+**Test Result**: Bug CONFIRMED in current rstil. Direct nested enum construction fails with "Enum payload must be a variable identifier, got FCall". Workaround (assign to variable first) works. Test: `src/test/bug_nested_enums.til`
 
 ```til
 // This doesn't work:
@@ -109,6 +119,77 @@ Additional fixes:
 - `src/rs/init.rs:1531-1533` - Added special case for Str payload type to return correct size (16 bytes)
 
 **Status**: ✅ FIXED - Enum payloads now preserved when copying between variables
+
+## Bug #5: rsonly_enum_extract_payload Function ⚠️ PARTIALLY WORKING
+
+**Problem**: The `rsonly_enum_extract_payload` core function is used for extracting enum payloads during pattern matching. Testing revealed issues with certain payload types.
+
+**Test Result**: PARTIALLY WORKING in current rstil. Test: `src/test/bug_enum_extract.til`
+- ✅ I64 payloads work correctly
+- ✅ Str payloads work correctly
+- ❌ Struct payloads fail (empty values extracted)
+- ❌ Nested enum payloads hit instantiation bug
+- ⚠️ Enum variants without payloads hit instantiation bug
+
+**Working Example**:
+```til
+mut val := SimplePayload.IntValue(42)
+mut extracted: I64 = 0
+rsonly_enum_extract_payload(val, extracted)
+// extracted now contains 42
+```
+
+**Status**: Core I64/Str extraction works. Struct and nested enum extraction needs investigation.
+
+## Division/Modulo by Zero ✅ FIXED
+
+**Problem**: Division (`div()`) and modulo (`mod()`) by zero caused Rust panic, terminating the program.
+
+**Error**: `thread 'main' panicked at src/rs/interpreter.rs:2157: attempt to divide by zero`
+
+**Fix**: Added zero checks to return 0 instead of panicking (safe default behavior).
+
+**Implementation**:
+```rust
+// src/rs/interpreter.rs - eval_core_func_div
+if b == 0 {
+    return Ok(EvalResult::new("0"));
+}
+
+// src/rs/interpreter.rs - eval_core_func_mod
+if b == 0 {
+    return Ok(EvalResult::new("0"));
+}
+```
+
+**Rationale**:
+- Prevents program termination
+- Provides predictable behavior (returns 0)
+- Users can implement custom error handling if needed
+
+**For custom error handling**, see `safe_div` example in `src/test/errors.til`:
+```til
+DivideByZero := struct {}
+
+safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    if I64.eq(b, 0) {
+        throw DivideByZero()
+    }
+    return div(a, b)
+}
+
+// Catch and handle the error
+unsafe_div := proc(a: I64, b: I64) returns I64 {
+    return safe_div(a, b)
+    catch (err: DivideByZero) {
+        return 0  // Or handle however you want
+    }
+}
+```
+
+**Future consideration**: Post-self-hosting, may add optional `DivideByZero` error to core `div()` and `mod()` functions. Current behavior prioritizes convenience and safety.
+
+**Status**: ✅ FIXED - Returns 0 for div/mod by zero
 
 ## Workarounds Implemented (Bugs #1-3)
 

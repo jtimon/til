@@ -2154,6 +2154,10 @@ fn eval_core_func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'div': {}", err)))?;
     let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'div': {}", err)))?;
+    // Return 0 for division by zero (safe default, revisit post-self-hosting)
+    if b == 0 {
+        return Ok(EvalResult::new("0"));
+    }
     Ok(EvalResult::new(&(a / b).to_string()))
 }
 
@@ -2173,8 +2177,10 @@ fn eval_core_func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mod': {}", err)))?;
     let b = b_result.value.parse::<i64>()
         .map_err(|err| e.lang_error("eval", &format!("Invalid integer for 'mod': {}", err)))?;
-
-    // TODO: Handle b == 0? (e.g., return 0, throw, or propagate Rust panic/UB)
+    // Return 0 for modulo by zero (safe default, revisit post-self-hosting)
+    if b == 0 {
+        return Ok(EvalResult::new("0"));
+    }
     Ok(EvalResult::new(&(a % b).to_string()))
 }
 
