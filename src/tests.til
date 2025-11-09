@@ -67,7 +67,7 @@ runfile("src/test/bug_return_frames.til")     // Bug #2: return frame popping (N
 runfile("src/test/bug_nested_enums.til")      // Bug #3: nested enum payloads (FIXED!)
 runfile("src/test/bug_enum_payload_copy.til") // Bug #4: enum payload copy (FIXED - stays fixed)
 runfile("src/test/bug_divmod_zero.til")       // Division/modulo by zero (FIXED - returns 0)
-runfile("src/test/bug_enum_extract.til")      // Bug #5: rsonly_enum_extract_payload (PARTIAL - I64/Str work)
+runfile("src/test/bug_enum_extract.til")      // Bug #5: rsonly_enum_extract_payload (FIXED!)
 
 // LLM suggested tests:
 runfile("src/test/llm/llama3.3.til") // TODO FIX from discussing tagged unions in rust vs algebraic types in haskell

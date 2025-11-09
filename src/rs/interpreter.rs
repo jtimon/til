@@ -2339,6 +2339,11 @@ fn eval_core_proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Resul
                     // Copy payload bytes into destination struct's arena location
                     Arena::g().memory[*dest_offset..*dest_offset + struct_size]
                         .copy_from_slice(&payload_bytes);
+
+                    // Re-map the struct fields to update field offsets in arena_index and symbols
+                    // This is necessary because the destination struct's fields were registered
+                    // when it was created, but the byte copy changed the internal structure
+                    context.map_instance_fields(struct_type_name, dest_var_name, e)?;
                 },
                 ValueType::TType(TTypeDef::TEnumDef) => {
                     // Handle enum payloads

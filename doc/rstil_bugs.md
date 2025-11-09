@@ -8,8 +8,10 @@ This document tracks bugs in the rstil interpreter, including those that blocked
 - **Bug #2 (return frames)**: ❌ NOT PRESENT (tests pass)
 - **Bug #3 (nested enums)**: ✅ FIXED (direct nested construction now works!)
 - **Bug #4 (enum payload copy)**: ✅ FIXED
-- **Bug #5 (enum extract)**: ⚠️ PARTIALLY WORKING (I64/Str work, struct fails)
+- **Bug #5 (enum extract)**: ✅ FIXED (all major payload types work!)
 - **Arithmetic**: ✅ SAFE (div/mod by zero fixed to return 0)
+
+**All documented bugs are now fixed or not present!** 🎉
 
 All bugs have test files in `src/test/bug_*.til` and are included in the test suite.
 
@@ -125,26 +127,41 @@ Additional fixes:
 
 **Status**: ✅ FIXED - Enum payloads now preserved when copying between variables
 
-## Bug #5: rsonly_enum_extract_payload Function ⚠️ PARTIALLY WORKING
+## Bug #5: rsonly_enum_extract_payload Function ✅ FIXED
 
-**Problem**: The `rsonly_enum_extract_payload` core function is used for extracting enum payloads during pattern matching. Testing revealed issues with certain payload types.
+**Problem**: The `rsonly_enum_extract_payload` core function is used for extracting enum payloads during pattern matching. Struct payloads were failing because field mappings weren't updated after byte copying.
 
-**Test Result**: PARTIALLY WORKING in current rstil. Test: `src/test/bug_enum_extract.til`
+**Test Result**: FIXED! All major payload types now work. Test: `src/test/bug_enum_extract.til`
 - ✅ I64 payloads work correctly
 - ✅ Str payloads work correctly
-- ❌ Struct payloads fail (empty values extracted)
-- ❌ Nested enum payloads hit instantiation bug
-- ⚠️ Enum variants without payloads hit instantiation bug
+- ✅ Struct payloads work correctly (FIXED!)
+- ✅ Nested enum payloads work correctly (FIXED!)
 
-**Working Example**:
+**Fix**: Added `map_instance_fields` call after copying struct payload bytes (interpreter.rs:2346). This re-registers all struct fields with their correct offsets in `arena_index` and `symbols`, which is necessary for fields containing pointers (like Str fields) to be accessed correctly.
+
+**Examples**:
 ```til
+// I64 payload
 mut val := SimplePayload.IntValue(42)
 mut extracted: I64 = 0
 rsonly_enum_extract_payload(val, extracted)
 // extracted now contains 42
+
+// Struct payload
+Person := struct { mut name: Str = "", mut age: I64 = 0 }
+mut val := StructPayload.PersonData(p)
+mut extracted_person := Person()
+rsonly_enum_extract_payload(val, extracted_person)
+// extracted_person.name and age are now populated!
+
+// Nested enum payload (thanks to Bug #3 fix!)
+mut val := NestedPayload.Inner(SimplePayload.IntValue(99))
+mut extracted_inner := SimplePayload.NoValue
+rsonly_enum_extract_payload(val, extracted_inner)
+// extracted_inner is now SimplePayload.IntValue(99)
 ```
 
-**Status**: Core I64/Str extraction works. Struct and nested enum extraction needs investigation.
+**Status**: ✅ FIXED - All major payload types work correctly
 
 ## Division/Modulo by Zero ✅ FIXED
 

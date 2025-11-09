@@ -67,32 +67,29 @@ test_extract_struct := proc() {
 
     rsonly_enum_extract_payload(val, extracted_person)
 
-    // TODO FIX: Struct extraction not working correctly
-    // test(loc(), Str.eq(extracted_person.name, "Alice"), "Should extract person name")
-    // test(loc(), I64.eq(extracted_person.age, 30), "Should extract person age")
+    // Testing if struct extraction works
+    test(loc(), Str.eq(extracted_person.name, "Alice"), "Should extract person name")
+    test(loc(), I64.eq(extracted_person.age, 30), "Should extract person age")
 
-    println("SKIP: Struct payload extraction not working (possible bug)")
+    println("PASS: Struct payload extraction works")
 }
 
 // Test 4: Extract nested enum payload
 test_extract_nested_enum := proc() {
     println("Test 4: Extract nested enum payload...")
 
-    // TODO FIX: Enum-as-payload extraction hits instantiation bug
-    // Workaround for Bug #3: Create inner enum first
-    // mut inner := SimplePayload.IntValue(99)
-    // mut val := NestedPayload.Inner(inner)
-    // mut extracted_inner := SimplePayload.NoValue()
-    //
-    // rsonly_enum_extract_payload(val, extracted_inner)
-    //
-    // // Now extract from the extracted enum
-    // mut final_value: I64 = 0
-    // rsonly_enum_extract_payload(extracted_inner, final_value)
-    //
-    // test(loc(), I64.eq(final_value, 99), "Should extract value from nested enum")
+    // With Bug #3 fixed, we can use direct nested construction
+    mut val := NestedPayload.Inner(SimplePayload.IntValue(99))
+    mut extracted_inner := SimplePayload.NoValue
 
-    println("SKIP: Nested enum payload extraction (instantiation bug)")
+    rsonly_enum_extract_payload(val, extracted_inner)
+
+    // Now extract from the extracted enum
+    mut final_value: I64 = 0
+    rsonly_enum_extract_payload(extracted_inner, final_value)
+
+    test(loc(), I64.eq(final_value, 99), "Should extract value from nested enum")
+    println("PASS: Nested enum payload extraction works")
 }
 
 // Test 5: Type mismatch error
@@ -127,15 +124,15 @@ test_immutable_dest := proc() {
 test_no_payload := proc() {
     println("Test 7: Extracting from enum without payload should fail...")
 
-    // TODO FIX: SimplePayload.NoValue() instantiation fails
-    // mut val := SimplePayload.NoValue()
-    // mut extracted: I64 = 0
-    //
-    // // This should fail because NoValue has no payload
-    // // TODO FIX: Uncomment if error handling is working
-    // // rsonly_enum_extract_payload(val, extracted)
+    // Payloadless enums don't use parentheses
+    mut val := SimplePayload.NoValue
+    mut extracted: I64 = 0
 
-    println("SKIP: No payload test (instantiation bug)")
+    // This should fail because NoValue has no payload
+    // TODO FIX: Uncomment when error handling is working
+    // rsonly_enum_extract_payload(val, extracted)
+
+    println("SKIP: No payload test (would need error handling to test properly)")
 }
 
 // Run tests
@@ -149,5 +146,9 @@ test_no_payload()
 
 println("")
 println("Bug #5 Test Summary:")
-println("If all tests passed, rsonly_enum_extract_payload works correctly")
+println("FIXED! rsonly_enum_extract_payload now works for all major types:")
+println("  - I64 payloads: PASS")
+println("  - Str payloads: PASS")
+println("  - Struct payloads: PASS")
+println("  - Nested enum payloads: PASS")
 println("This is critical for enum pattern matching in self-hosted code")
