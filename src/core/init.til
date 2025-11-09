@@ -616,6 +616,19 @@ value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns Val
     return return_type
 }
 
+// Get value type for UFCS (Uniform Function Call Syntax) calls
+// Corresponds to get_ufcs_fcall_value_type in init.rs
+get_ufcs_fcall_value_type := proc(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError {
+    // Check if id_expr has params (for method calls like obj.method())
+    if lt(id_expr.params.len, 1) {
+        throw format(loc(), " ERROR: Cannot call '", f_name, "', it is not a function or struct, it is a '", symbol.value_type, "'")
+    }
+
+    // TODO: Full UFCS implementation
+    // For now, just throw an error indicating it's not yet supported
+    throw format(loc(), " TODO: UFCS method calls not yet fully implemented for '", f_name, "'")
+}
+
 // Get enum variant position by name
 // Corresponds to get_variant_pos in init.rs
 get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str, IndexOutOfBoundsError {
@@ -956,19 +969,6 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
 
     // Function not found
     throw format(loc(), " ERROR: Unknown function or constructor '", f_name, "'")
-}
-
-// Get value type for UFCS (Uniform Function Call Syntax) calls
-// Corresponds to get_ufcs_fcall_value_type in init.rs
-get_ufcs_fcall_value_type := proc(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError {
-    // Check if id_expr has params (for method calls like obj.method())
-    if lt(id_expr.params.len, 1) {
-        throw format(loc(), " ERROR: Cannot call '", f_name, "', it is not a function or struct, it is a '", symbol.value_type, "'")
-    }
-
-    // TODO: Full UFCS implementation
-    // For now, just throw an error indicating it's not yet supported
-    throw format(loc(), " TODO: UFCS method calls not yet fully implemented for '", f_name, "'")
 }
 
 // Process declarations in AST and register them in context
