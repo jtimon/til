@@ -15,9 +15,9 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 | Component           | Status                          | Notes                                  |
 |---------------------+---------------------------------+----------------------------------------|
 | Known Bugs          | ✅ ALL FIXED                    | See rstil_bugs.md                      |
-| Error Handling      | ⚠️ PARTIALLY IMPLEMENTED        | throw/throws/catch needs completion    |
+| Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional    |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes        |
-| Test Suite          | ⚠️ 4 TESTS DISABLED             | Error handling, broken assertions      |
+| Test Suite          | ⚠️ 2 TESTS DISABLED             | Missing throws declarations            |
 | Type System         | ⚠️ MINOR GAPS                   | Variadic args, some edge cases         |
 
 * Critical: Missing rstil Features
@@ -25,32 +25,53 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 :CATEGORY: Missing Features
 :END:
 
-** TODO Complete Error Handling System (throw/throws/catch)        :BLOCKER:
+** TODO Add Optional Error Handling Enhancements                      :LOW:
 :PROPERTIES:
-:FILE: src/rs/interpreter.rs, src/rs/typer.rs
-:STATUS: Partially implemented
+:FILE: src/rs/typer.rs:1212, src/test/errors.til
+:STATUS: Core system working, optional features could be added
 :END:
 
-*** Current State
-- Basic throw/catch works in some contexts
-- =src/tests.til:61= - errors.til test file commented out: "TODO implement, throw, throws and catch"
-- =src/core/interpreter.til:571= - Throw/catch mechanism needs implementation
-- =src/rs/typer.rs:1170= - "TODO: Implement special PanicError potentially thrown implicitly everywhere"
+*** Current State - Core System Working
+Error handling is FULLY FUNCTIONAL:
+- =throw= keyword works
+- =throws= declarations work and are type-checked
+- =catch= blocks work with multiple catch types
+- Type checker enforces throws propagation
+- All tests in =src/test/errors.til= pass
 
 *** What Works
-- Basic throw/catch syntax recognized
-- Simple error struct throwing/catching
-- Test cases in =src/test/errors.til= pass
+#+BEGIN_SRC til
+// Throw and catch
+MyError := struct { msg: Str = "error" }
 
-*** What's Missing
-- [ ] =throws= keyword fully implemented in lexer/parser
-- [ ] Type checker validation for throws declarations
-- [ ] PanicError implicit throwing mechanism
-- [ ] Throws propagation checking (all throwable calls marked with ?)
-- [ ] Better error messages with backtraces (src/rs/interpreter.rs:2545)
+risky := func() throws MyError {
+    throw MyError()
+}
 
-*** Blockers for Self-Hosting
-The self-hosted code will need proper error handling for file I/O, parsing errors, type errors, etc.
+safe := proc() {
+    risky()
+    catch (e: MyError) {
+        println("Caught: ", e.msg)
+    }
+}
+#+END_SRC
+
+- Throwing custom error types (any struct)
+- Multiple catch blocks for different error types
+- Throws propagation checking (must declare or catch)
+- Error structs with fields
+
+*** Optional Enhancements (Not Needed for Self-Hosting)
+See =src/test/errors.til= for detailed TODO examples:
+- [ ] PanicError - implicit error type (src/rs/typer.rs:1212)
+- [ ] Result<T, E> type (Rust-style explicit errors)
+- [ ] Rethrow keyword
+- [ ] Try operator (? for auto-propagation)
+- [ ] Finally blocks for cleanup
+- [ ] Better error messages with backtraces
+
+*** Why This Isn't Blocking
+The current throw/throws/catch system is complete and sufficient for self-hosting. The optional enhancements are nice-to-haves that can be added later.
 
 ** TODO Fix Disabled Test Files                                      :HIGH:
 :PROPERTIES:

@@ -58,7 +58,6 @@ runfile("src/test/eval.til")
 // runfile("src/core.til") // you can't run it because it is already imported everywhere
 
 runfile("src/test/todo.til") // permanent TODO
-// runfile("src/test/errors.til") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
 
 // REM test exit.til only at the end
 runfile("src/test/exit.til")

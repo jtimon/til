@@ -159,21 +159,101 @@ test_undeclared_throws := proc() {
 }
 test_undeclared_throws()
 
-// TODO do beter examples with throw, including catch in the examples
-# example1 := func(u32 a, u32 b) returns u32 throws AaaException, BbbException {
+// ==============================================================================
+// TODO: Features that could be added to error handling
+// ==============================================================================
 
-#     if (a > b) throw AaaException;
-#     else if (a > b) throw BbbException
-#     else if (a < 32) return a;
-#     return 42;
-# }
+// TODO: PanicError - special error type that can be thrown implicitly everywhere
+// This would allow functions to panic without declaring throws PanicError
+// Currently panic() is special-cased but doesn't actually throw
+//
+// PanicError := struct {
+//     msg: Str = "panic"
+//     location: Str = ""
+// }
+//
+// test_implicit_panic := proc() {
+//     // This should work without declaring throws PanicError
+//     panic(loc(), "Something went wrong")
+//     catch (err: PanicError) {
+//         assert_eq_str(loc(), "Something went wrong", err.msg)
+//     }
+// }
 
-# main := proc() throws BbbException {
+// TODO: Multiple error types in a single catch chain
+// Currently partially works - can have multiple catch blocks
+// Could be improved with better syntax
+//
+// test_multiple_catches := proc() {
+//     risky_operation()
+//     catch (err: IOError) {
+//         println("IO error: ", err.msg)
+//     }
+//     catch (err: ParseError) {
+//         println("Parse error: ", err.msg)
+//     }
+//     catch (err: Str) {
+//         println("String error: ", err)
+//     }
+// }
 
-#     const result1 = example1(50, 50) catch {
-#         AaaException: debug.print("AaaException\n");
-#         BbbException: rethrow;
-#     }
+// TODO: Result<T, E> type (Rust-style)
+// Alternative to throws - explicit error handling in return type
+//
+// Result := enum {
+//     Ok: T,
+//     Err: E,
+// }
+//
+// safe_divide := func(a: I64, b: I64) returns Result<I64, DivideByZero> {
+//     if eq(b, 0) {
+//         return Result.Err(DivideByZero())
+//     }
+//     return Result.Ok(div(a, b))
+// }
+//
+// test_result_type := proc() {
+//     result := safe_divide(10, 2)
+//     switch result {
+//     case Result.Ok(value):
+//         assert_eq(loc(), 5, value)
+//     case Result.Err(err):
+//         panic(loc(), "Should not error")
+//     }
+// }
 
-#     const result2 = example2(50, 50) catch debug.print("Exception calling example2\n");
-# }
+// TODO: Rethrow keyword
+// Currently have to manually throw again
+//
+// test_rethrow := proc() throws SomeError {
+//     risky_operation()
+//     catch (err: SomeError) {
+//         println("Logging error before rethrow")
+//         rethrow  // or: throw err
+//     }
+// }
+
+// TODO: Try operator (? in Rust)
+// Automatically propagate errors without explicit catch
+//
+// parse_and_compute := func(s: Str) returns I64 throws ParseError, ComputeError {
+//     n := parse_number(s)?  // Auto-propagates ParseError
+//     result := compute(n)?  // Auto-propagates ComputeError
+//     return result
+// }
+
+// TODO: Finally blocks
+// Cleanup code that runs whether error is thrown or not
+//
+// test_finally := proc() {
+//     resource := acquire_resource()
+//     try {
+//         use_resource(resource)
+//     }
+//     catch (err: ResourceError) {
+//         println("Error using resource")
+//     }
+//     finally {
+//         release_resource(resource)  // Always runs
+//     }
+// }
