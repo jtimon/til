@@ -120,6 +120,79 @@ Like switch but for declarations/assignments.
 *** Why It's Post-Self-Hosting
 Switch statements work fine for now. This is a nice language feature but not essential.
 
+** TODO Add Guards to Pattern Matching                                  :LOW:
+:PROPERTIES:
+:FILE: N/A
+:STATUS: Not implemented, workaround exists
+:END:
+
+*** Description
+Guards are boolean conditions attached to pattern match cases, allowing additional constraints beyond structural matching.
+
+*** Current State - Workaround Works Fine
+TIL uses if-statements inside case blocks, which provides equivalent functionality:
+
+#+BEGIN_SRC til
+describeNumber := func(n: I64) returns Str {
+    switch n {
+    case n:
+        if lt(n, 0) { return "negative" }
+        if eq(n, 0) { return "zero" }
+        if lt(n, 10) { return "small positive" }
+        return "large positive"
+    }
+}
+
+// With enum pattern matching
+describeColor := func(c: Color) returns Str {
+    switch c {
+    case Color.RGB(r, g, b):
+        if and(eq(r, g), eq(g, b)) { return "grayscale" }
+        if gt(r, 200) { return "reddish" }
+        return format("RGB ", r.to_str(), " ", g.to_str(), " ", b.to_str())
+    case Color.Named(name):
+        return format("named ", name)
+    }
+}
+#+END_SRC
+
+*** Hypothetical Guard Syntax
+If guards were added, they might look like:
+
+#+BEGIN_SRC til
+// Haskell-style with |
+switch n {
+case n | lt(n, 0): return "negative"
+case n | eq(n, 0): return "zero"
+case n | lt(n, 10): return "small positive"
+case n: return "large positive"
+}
+
+// Or Rust-style with if
+switch c {
+case Color.RGB(r, g, b) if and(eq(r, g), eq(g, b)):
+    return "grayscale"
+case Color.RGB(r, g, b) if gt(r, 200):
+    return "reddish"
+}
+#+END_SRC
+
+*** Pros and Cons
+
+*Pros of adding guards:*
+- More concise for simple conditions
+- Familiar to functional programmers
+- Slightly more "pattern-matching-y"
+
+*Cons / Why current approach is fine:*
+- If-statements are more explicit and readable for imperative programmers
+- No new syntax needed
+- More flexible (can have multiple statements, not just boolean conditions)
+- Doesn't enforce exhaustiveness checking on guards anyway
+
+*** Priority
+Very low. The if-statement workaround is actually clearer and more flexible than special guard syntax.
+
 ** TODO Implement Macro System                                         :LOW:
 :PROPERTIES:
 :FILE: src/core/lexer.til:144, src/rs/lexer.rs:277
@@ -156,23 +229,78 @@ Using =case:= for default case, could use =default:= instead for more traditiona
 - [ ] Update all test cases
 - [ ] Document in language guide
 
-** TODO Support Struct Instantiation with Arguments                    :LOW:
+** TODO Support Struct Literals and Struct Instantiation with Arguments :LOW:
 :PROPERTIES:
-:FILE: src/rs/interpreter.rs:464
+:FILE: src/rs/interpreter.rs:464, doc/literal_syntax.org
 :END:
 
 *** Current vs Desired
+
+*Struct instantiation with arguments:*
 - Current: =Vec2()= initializes with defaults, must set fields afterward
 - Desired: =Vec2(10, 20)= initializes x and y directly
 
+*Struct literals:*
+- Current: Not supported
+- Desired: =Vec2{x: 10, y: 20}= creates struct with named fields
+
+*** Example Current Workaround
+#+BEGIN_SRC til
+Point := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+// Current approach
+mut p := Point()
+p.x = 10
+p.y = 20
+
+// Or with constructor function
+Point := struct {
+    // ...
+    new := func(x: I64, y: I64) returns Point {
+        mut self := Point()
+        self.x = x
+        self.y = y
+        return self
+    }
+}
+p := Point.new(10, 20)
+#+END_SRC
+
 *** What's Needed
-- [ ] Parse constructor call arguments
+- [ ] Design struct literal syntax (see doc/literal_syntax.org)
+- [ ] Parse constructor call arguments: =Vec2(10, 20)=
+- [ ] Parse struct literals: =Vec2{x: 10, y: 20}=
 - [ ] Map arguments to struct fields
-- [ ] Type check argument types match field types
+- [ ] Type check field types
 - [ ] Handle default values for missing arguments
+- [ ] Add test cases
+
+*** Natural Follow-up: Struct Pattern Matching
+Once struct literals exist, pattern matching on structs becomes a natural extension:
+
+#+BEGIN_SRC til
+switch point {
+case Point{x: 0, y: 0}:
+    return "origin"
+case Point{x: _, y: 0}:
+    return "on x-axis"  // _ for wildcard
+case Point{x: 0, y: _}:
+    return "on y-axis"
+case Point{x: x, y: y}:
+    return format("point (", x.to_str(), ", ", y.to_str(), ")")
+}
+#+END_SRC
+
+This would complement the already-working enum pattern matching:
+- [ ] Implement struct destructuring in patterns
+- [ ] Add wildcard =_= for ignored fields
+- [ ] Test with nested structs
 
 *** Why It's Post-Self-Hosting
-Current workaround (initialize then assign fields) works fine.
+Current workaround (constructor functions, manual initialization) works fine. This is syntactic convenience.
 
 * Type System Enhancements
 

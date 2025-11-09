@@ -60,8 +60,5 @@ runfile("src/test/eval.til")
 runfile("src/test/todo.til") // permanent TODO
 // runfile("src/test/errors.til") // TODO implement, throw, throws and catch, or at least try (multiple return values too, and rust_like "Result")
 
-// LLM suggested tests:
-runfile("src/test/llm/llama3.3.til") // TODO FIX from discussing tagged unions in rust vs algebraic types in haskell
-
 // REM test exit.til only at the end
 runfile("src/test/exit.til")
