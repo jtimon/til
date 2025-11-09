@@ -35,8 +35,10 @@ SEnumDef := struct {
 
 // Struct definition
 SStructDef := struct {
-    mut members: StrMap = StrMap()         // field_name -> type_name
-    mut default_values: StrMap = StrMap()  // field_name -> default_expr_as_string (for now)
+    mut members: StrMap = StrMap()                // field_name -> type_name
+    mut default_value_fields: Array = Array()     // Array of field names that have default values
+    mut default_value_exprs: Array = Array()      // Array of Expr objects (parallel to default_value_fields)
+    mut default_values: StrMap = StrMap()         // DEPRECATED: kept for compatibility, not used
 }
 
 // Function/Procedure definition
@@ -1400,7 +1402,8 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
 
     // Extract declarations and build members/default_values maps
     mut members := StrMap.new()
-    mut default_values := StrMap.new()
+    mut default_value_fields := Array.new_dyn("Str", size_of(Str))
+    mut default_value_exprs := Array.new_dyn("Expr", size_of(Expr))
 
     mut i := 0
     mut body_params := body.params
@@ -1416,9 +1419,21 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
             if not(param_count.eq(1)) {
                 throw t.error("all declarations inside struct definitions must have a value for now")
             }
-            // Extract field name and type from Declaration payload
-            members.set(decl.name, value_type_to_str(decl.value_type))
-            // TODO: Store default value expression
+            // Extract field name, type, and is_mut from Declaration payload
+            // Format: "is_mut:type_name" or "const:type_name"
+            mut mut_prefix := ""
+            if decl.is_mut {
+                mut_prefix = "mut:"
+            } else {
+                mut_prefix = "const:"
+            }
+            members.set(decl.name, format(mut_prefix, value_type_to_str(decl.value_type)))
+
+            // Store default value expression
+            mut default_val := Expr()
+            param_params.get(0, default_val)
+            default_value_fields.push(decl.name)
+            default_value_exprs.push(default_val)
         case:
             throw t.error("expected only declarations inside struct definition")
         }
@@ -1428,7 +1443,8 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     // Create SStructDef and return as NodeType.StructDef
     mut struct_def := SStructDef()
     struct_def.members = members
-    struct_def.default_values = default_values
+    struct_def.default_value_fields = default_value_fields
+    struct_def.default_value_exprs = default_value_exprs
 
     mut params := new_expr_array()
     mut struct_def_node := NodeType.StructDef(struct_def)
