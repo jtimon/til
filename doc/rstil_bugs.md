@@ -247,9 +247,22 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Goal**: Implement remaining struct operations for init.til
 
-#### 🔄 Step 1: Struct Field Operations (IN PROGRESS)
-- Implement `copy_fields` for copying struct field values
-- Implement `register_struct_fields_for_typecheck` for type checking
+#### ✅ Step 1: Struct Field Operations (COMPLETED)
+
+**Implemented:**
+- ✅ `copy_fields` - Copy struct field values from source to dest
+  - Parses serialized struct definition
+  - Iterates through fields and copies values
+  - Registers destination fields in arena_index and symbols
+  - Recursively handles nested structs
+  - Commit: b94100d
+- ✅ `register_struct_fields_for_typecheck` - Register fields for type checking
+  - Parses serialized struct definition
+  - Registers each field in symbols with type info
+  - Recursively registers nested struct fields
+  - Commit: b94100d
+
+**Note:** Simplified implementation using string value copying in arena.
 
 ## Next Steps
 
