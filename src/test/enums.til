@@ -740,3 +740,156 @@ test_switch_pattern_str := proc() {
 test_switch_pattern_bool()
 test_switch_pattern_i64()
 test_switch_pattern_str()
+
+// Test: Direct nested enum construction
+TestInnerEnum := enum {
+    ValueA: I64,
+    ValueB: Str,
+}
+
+TestOuterEnum := enum {
+    WrapperA: TestInnerEnum,
+    WrapperB: I64,
+}
+
+test_direct_nested_construction := proc() {
+
+    // Direct nested enum construction
+    mut outer := TestOuterEnum.WrapperA(TestInnerEnum.ValueA(42))
+
+    // Extract and verify
+    switch outer {
+    case TestOuterEnum.WrapperA(inner):
+        switch inner {
+        case TestInnerEnum.ValueA(val):
+            assert_eq(loc(), 42, val)
+        case TestInnerEnum.ValueB(s):
+            panic(loc(), "Wrong inner variant")
+        }
+    case TestOuterEnum.WrapperB(i):
+        panic(loc(), "Wrong outer variant")
+    }
+
+    // Test with string payload
+    mut outer2 := TestOuterEnum.WrapperA(TestInnerEnum.ValueB("hello"))
+    switch outer2 {
+    case TestOuterEnum.WrapperA(inner_extracted):
+        switch inner_extracted {
+        case TestInnerEnum.ValueB(s):
+            assert(loc(), Str.eq(s, "hello"))
+        case TestInnerEnum.ValueA(i):
+            panic(loc(), "Wrong inner variant")
+        }
+    case TestOuterEnum.WrapperB(i):
+        panic(loc(), "Wrong outer variant")
+    }
+}
+test_direct_nested_construction()
+
+// Test: Enum payload preservation when copying
+TestSimpleEnum := enum {
+    IntValue: I64,
+    StrValue: Str,
+    NoValue,
+}
+
+TestContainer := struct {
+    mut enum_field: TestSimpleEnum = TestSimpleEnum.NoValue
+}
+
+test_enum_payload_copy := proc() {
+    // Copy enum with I64 payload
+    mut original := TestSimpleEnum.IntValue(42)
+    mut copy := original
+    switch copy {
+    case TestSimpleEnum.IntValue(val):
+        assert_eq(loc(), 42, val)
+    case: panic(loc(), "Payload lost during copy")
+    }
+
+    // Copy enum with Str payload
+    mut original_str := TestSimpleEnum.StrValue("hello")
+    mut copy_str := original_str
+    switch copy_str {
+    case TestSimpleEnum.StrValue(s):
+        assert(loc(), Str.eq(s, "hello"))
+    case: panic(loc(), "Payload lost during copy")
+    }
+
+    // Copy from struct field (critical test case)
+    mut container := TestContainer()
+    container.enum_field = TestSimpleEnum.IntValue(99)
+    mut local_copy := container.enum_field
+    switch local_copy {
+    case TestSimpleEnum.IntValue(val):
+        assert_eq(loc(), 99, val)
+    case: panic(loc(), "Payload lost when copying from struct field")
+    }
+
+    // Chain of copies
+    mut a := TestSimpleEnum.IntValue(123)
+    mut b := a
+    mut c := b
+    mut d := c
+    switch d {
+    case TestSimpleEnum.IntValue(val):
+        assert_eq(loc(), 123, val)
+    case: panic(loc(), "Payload lost in chain of copies")
+    }
+}
+test_enum_payload_copy()
+
+// Test: rsonly_enum_extract_payload function
+TestPayloadEnum := enum {
+    IntValue: I64,
+    StrValue: Str,
+    NoValue,
+}
+
+TestPerson := struct {
+    mut name: Str = ""
+    mut age: I64 = 0
+}
+
+TestStructPayload := enum {
+    PersonData: TestPerson,
+    Count: I64,
+}
+
+TestNestedPayload := enum {
+    Inner: TestPayloadEnum,
+    Direct: I64,
+}
+
+test_rsonly_extract_payload := proc() {
+    // Extract I64 payload
+    mut val_i64 := TestPayloadEnum.IntValue(42)
+    mut extracted_i64: I64 = 0
+    rsonly_enum_extract_payload(val_i64, extracted_i64)
+    assert_eq(loc(), 42, extracted_i64)
+
+    // Extract Str payload
+    mut val_str := TestPayloadEnum.StrValue("hello")
+    mut extracted_str: Str = ""
+    rsonly_enum_extract_payload(val_str, extracted_str)
+    assert(loc(), Str.eq(extracted_str, "hello"))
+
+    // Extract struct payload
+    mut p := TestPerson()
+    p.name = "Alice"
+    p.age = 30
+    mut val_struct := TestStructPayload.PersonData(p)
+    mut extracted_person := TestPerson()
+    rsonly_enum_extract_payload(val_struct, extracted_person)
+    assert(loc(), Str.eq(extracted_person.name, "Alice"))
+    assert_eq(loc(), 30, extracted_person.age)
+
+    // Extract nested enum payload
+    mut val_nested := TestNestedPayload.Inner(TestPayloadEnum.IntValue(99))
+    mut extracted_inner := TestPayloadEnum.NoValue
+    rsonly_enum_extract_payload(val_nested, extracted_inner)
+    mut final_value: I64 = 0
+    rsonly_enum_extract_payload(extracted_inner, final_value)
+    assert_eq(loc(), 99, final_value)
+}
+test_rsonly_extract_payload()

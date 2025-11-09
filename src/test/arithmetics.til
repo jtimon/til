@@ -83,4 +83,19 @@ test(loc(), I64.eq(mod(10, 3), 1), "10 % 3 = 1")
 test(loc(), I64.eq(mod(sub(0, 10), 3), sub(0, 1)), "-10 % 3 = -1")
 test(loc(), I64.eq(mod(10, sub(0, 3)), 1), "10 % -3 = 1 (toward zero)")
 # test(loc(), I64.eq(mod(10, sub(0, 3)), sub(0, 2)), "10 % -3 = -2 (if toward -inf; alt impl)")
-// TODO: Test mod(a, 0) behavior (panics in Rust; catch/0/throw?)
+
+// Division and modulo by zero tests
+// Current behavior: Returns 0 for div/mod by zero (safe default)
+// Future: Post-self-hosting may add optional DivideByZero error
+test_divmod_by_zero := proc() {
+    // Division by zero returns 0
+    test(loc(), I64.eq(div(10, 0), 0), "div(10, 0) returns 0 (safe default)")
+    test(loc(), I64.eq(div(0, 0), 0), "div(0, 0) returns 0")
+    test(loc(), I64.eq(div(sub(0, 10), 0), 0), "div(-10, 0) returns 0")
+
+    // Modulo by zero returns 0
+    test(loc(), I64.eq(mod(10, 0), 0), "mod(10, 0) returns 0 (safe default)")
+    test(loc(), I64.eq(mod(0, 0), 0), "mod(0, 0) returns 0")
+    test(loc(), I64.eq(mod(sub(0, 10), 0), 0), "mod(-10, 0) returns 0")
+}
+test_divmod_by_zero()
