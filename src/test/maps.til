@@ -24,7 +24,6 @@ test_map_i64_to_i64 := proc() {
     ages.get(200, age)
     test(loc(), I64.eq(age, 25), "ID 200 should map to 25")
 
-    println("PASS: Map<I64, I64> works")
     ages.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -46,7 +45,6 @@ test_map_i64_to_str := proc() {
     names.get(300, name)
     test(loc(), Str.eq(name, "Charlie"), "ID 300 should map to Charlie")
 
-    println("PASS: Map<I64, Str> works")
     names.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -68,7 +66,6 @@ test_map_str_to_bool := proc() {
     flags.get("production", flag)
     test(loc(), flag.eq(false), "production should be false")
 
-    println("PASS: Map<Str, Bool> works")
     flags.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -90,7 +87,6 @@ test_map_str_to_str := proc() {
     capitals.get("Brazil", capital)
     test(loc(), Str.eq(capital, "Brasilia"), "Brazil's capital should be Brasilia")
 
-    println("PASS: Map<Str, Str> works")
     capitals.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -112,7 +108,6 @@ test_map_str_to_u8 := proc() {
     grades.get("Charlie", grade)
     test(loc(), grade.eq(U8.from_i64(92)), "Charlie's grade should be 92")
 
-    println("PASS: Map<Str, U8> works")
     grades.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -141,7 +136,6 @@ test_map_str_to_vec2 := proc() {
     test(loc(), I64.eq(pos.x, 50), "item.x should be 50")
     test(loc(), I64.eq(pos.y, 60), "item.y should be 60")
 
-    println("PASS: Map<Str, Vec2> works")
     positions.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -176,7 +170,6 @@ test_map_str_to_array_str := proc() {
     arr.get(0, item)
     test(loc(), Str.eq(item, "red"), "colors[0] should be red")
 
-    println("PASS: Map<Str, Array<Str>> works")
     fruits.delete()
     colors.delete()
     lists.delete()
@@ -203,7 +196,6 @@ test_map_u8_to_bool := proc() {
     flags.get(U8.from_i64(30), flag)
     test(loc(), flag.eq(true), "key 30 should be true")
 
-    println("PASS: Map<U8, Bool> works")
     flags.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -216,9 +208,7 @@ test_map_insert_duplicate := proc() {
     ages.insert("Alice", 30)
     ages.insert("Alice", 35)
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
-    catch (err: DuplicatedKeyError) {
-        println("PASS: insert() correctly throws DuplicatedKeyError on duplicate")
-    }
+    catch (err: DuplicatedKeyError) {}
     ages.delete()
     catch (err: AllocError) { exit(1) }
 }
@@ -234,7 +224,6 @@ test_map_set := proc() {
     ages.get("Alice", age)
     test(loc(), I64.eq(age, 35), "Expected age 35 after update")
 
-    println("PASS: set() overwrites existing keys")
     ages.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: KeyNotFoundError) { exit(1) }
@@ -248,9 +237,7 @@ test_map_get_missing := proc() {
     mut age := 0
     ages.get("Charlie", age)
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
-    catch (err: KeyNotFoundError) {
-        println("PASS: get() throws KeyNotFoundError for non-existent key")
-    }
+    catch (err: KeyNotFoundError) {}
     ages.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -266,7 +253,6 @@ test_map_contains_key := proc() {
     test(loc(), ages.contains_key("Bob"), "Should contain Bob")
     test(loc(), not(ages.contains_key("Charlie")), "Should not contain Charlie")
 
-    println("PASS: contains_key() works correctly")
     ages.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -286,7 +272,6 @@ test_map_position := proc() {
     mut pos := colors.position("yellow")
     test(loc(), I64.eq(pos, sub(0, 1)), "non-existent key should return -1")
 
-    println("PASS: position() returns correct insertion order")
     colors.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -300,7 +285,6 @@ test_map_empty := proc() {
     mut pos := m.position("anything")
     test(loc(), I64.eq(pos, sub(0, 1)), "position in empty map should return -1")
 
-    println("PASS: Empty map operations work correctly")
     m.delete()
     catch (err: AllocError) { exit(1) }
 }
@@ -332,7 +316,6 @@ test_map_growth := proc() {
     test(loc(), ages.contains_key(15), "Should contain key 15 after growth")
     test(loc(), not(ages.contains_key(25)), "Should not contain key 25")
 
-    println("PASS: Map growth and reallocation works")
     ages.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -351,7 +334,6 @@ test_map_delete := proc() {
     m.delete()
     test(loc(), I64.eq(m.len(), 0), "Map size should be 0 after delete")
 
-    println("PASS: Map.delete() properly resets map")
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
 }
@@ -377,7 +359,6 @@ test_map_len_tracking := proc() {
     m.set("d", 4)
     test(loc(), I64.eq(m.len(), 4), "Map len should be 4 after set() with new key")
 
-    println("PASS: Map.len() tracks size correctly")
     m.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -402,7 +383,6 @@ test_map_multiple_overwrites := proc() {
 
     test(loc(), I64.eq(m.len(), 1), "Multiple overwrites should keep len at 1")
 
-    println("PASS: Multiple set() overwrites work correctly")
     m.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: KeyNotFoundError) { exit(1) }
@@ -426,7 +406,6 @@ test_map_order_after_growth := proc() {
     test(loc(), I64.eq(m.position(19), 19), "Key 19 should be at position 19")
     test(loc(), I64.eq(m.position(100), sub(0, 1)), "Non-existent key should return -1")
 
-    println("PASS: Insertion order preserved after growth")
     m.delete()
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }

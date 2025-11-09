@@ -660,8 +660,6 @@ test_switch_pattern_bool := proc() {
         result = "ERROR: No match"
     }
     assert_eq_str(loc(), "dark green", result)
-
-    println("PASS: Switch pattern matching with Bool payload works")
 }
 
 test_switch_pattern_i64 := proc() {
@@ -695,8 +693,6 @@ test_switch_pattern_i64 := proc() {
         result = "ERROR: No match"
     }
     assert_eq_str(loc(), "zero", result)
-
-    println("PASS: Switch pattern matching with I64 payload works")
 }
 
 test_switch_pattern_str := proc() {
@@ -732,8 +728,6 @@ test_switch_pattern_str := proc() {
         result = "ERROR: No match"
     }
     assert_eq_str(loc(), "blue color", result)
-
-    println("PASS: Switch pattern matching with Str payload works")
 }
 
 // Run the pattern matching tests
