@@ -173,17 +173,23 @@ switch e_copy.node_type {
 
 **Next**: Step 2 - Basic struct support (`insert_struct`, `get_type_size`)
 
-#### 🔄 Step 2: Basic Struct Support (IN PROGRESS)
+#### ✅ Step 2: Basic Struct Support (COMPLETED)
 
-**Completed:**
+**Implemented:**
 - ✅ Implement `get_type_size` for structs (recursive calculation)
   - Serialization format: `"STRUCT|field1=Type1|field2=Type2|..."`
   - Parses serialized data and recursively calculates field sizes
   - Commit: c004cd2
-
-**Pending:**
-- Implement `insert_struct` for basic allocation
-- Implement `map_instance_fields` for field offsets
+- ✅ Implement `insert_struct` for basic allocation
+  - Allocates memory blob in arena
+  - Registers fields in arena_index and symbols
+  - Recursively handles nested structs
+  - Commit: 988a944
+- ✅ Implement `map_instance_fields` for field offsets
+  - Maps struct instance fields to arena offsets
+  - Calculates field offsets relative to base offset
+  - Recursively handles nested structs
+  - Commit: 988a944
 
 #### 🔄 Step 3: String Storage Structure (PENDING)
 - Implement `insert_string` with c_string/cap/len
