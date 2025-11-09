@@ -248,11 +248,43 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
                 }
             },
-            ValueType::TCustom(custom_type_name) => { // TODO handle enums too
+            ValueType::TCustom(custom_type_name) => {
+                // Check if it's an enum first
+                if context.enum_defs.contains_key(custom_type_name) {
+                    // It's an enum - try UFCS method call
+                    let after_dot = match id_expr.params.get(0) {
+                        Some(_after_dot) => _after_dot,
+                        None => {
+                            return Ok(ValueType::TCustom(f_name.clone()));
+                        },
+                    };
+                    match &after_dot.node_type {
+                        NodeType::Identifier(after_dot_name) => {
+                            // Try associated method first
+                            let method_name = format!("{}.{}", custom_type_name, after_dot_name);
+                            if let Some(func_def) = context.funcs.get(&method_name) {
+                                return value_type_func_proc(&e, &method_name, func_def);
+                            }
+
+                            // Fall back to UFCS: try standalone function with enum as first arg
+                            match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
+                                Ok(ok_val) => return Ok(ok_val),
+                                Err(_) => {
+                                    return Err(e.error("type", &format!("enum '{}' has no method '{}' and no matching function found for UFCS", custom_type_name, after_dot_name)));
+                                },
+                            }
+                        },
+                        _ => {
+                            return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        },
+                    }
+                }
+
+                // Not an enum, try struct
                 let struct_def = match context.struct_defs.get(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(e.lang_error("type", &format!("struct '{}' not found in context", f_name)));
+                        return Err(e.lang_error("type", &format!("type '{}' not found in context", f_name)));
                     },
                 };
                 let after_dot = match id_expr.params.get(0) {

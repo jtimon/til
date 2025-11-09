@@ -172,3 +172,38 @@ test_ufcs_edge_cases := proc () {
     assert(loc(), a.or(b).and(true))
 }
 test_ufcs_edge_cases()
+
+// Test UFCS with enums
+TestUfcsEnum := enum {
+    A,
+    B,
+    C,
+}
+
+// Define a standalone function that takes the enum as first arg
+test_ufcs_enum_to_int := func(e: TestUfcsEnum) returns I64 {
+    switch e {
+    case TestUfcsEnum.A: return 1
+    case TestUfcsEnum.B: return 2
+    case TestUfcsEnum.C: return 3
+    }
+    return 0
+}
+
+test_ufcs_with_enums := proc() {
+    // Test traditional call
+    val1 := TestUfcsEnum.A
+    result1 := test_ufcs_enum_to_int(val1)
+    assert_eq(loc(), 1, result1)
+
+    // Test UFCS call (should work like: val1.test_ufcs_enum_to_int())
+    result2 := val1.test_ufcs_enum_to_int()
+    assert_eq(loc(), 1, result2)
+
+    // Test with different variants
+    val2 := TestUfcsEnum.B
+    val3 := TestUfcsEnum.C
+    assert_eq(loc(), 2, val2.test_ufcs_enum_to_int())
+    assert_eq(loc(), 3, val3.test_ufcs_enum_to_int())
+}
+test_ufcs_with_enums()
