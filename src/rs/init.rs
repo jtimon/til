@@ -1206,6 +1206,18 @@ impl Context {
                                 Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                                     .copy_from_slice(&v.to_ne_bytes());
                             },
+                            "Str" => {
+                                let combined_name = format!("{}.{}", id, member_name);
+                                self.symbols.insert(
+                                    combined_name.clone(),
+                                    SymbolInfo {
+                                        value_type: ValueType::TCustom("Str".to_string()),
+                                        is_mut: true,
+                                    },
+                                );
+                                self.arena_index.insert(combined_name.clone(), offset + field_offset);
+                                self.insert_string(&combined_name, &default_value, e)?;
+                            },
                             _ => {
                                 if self.struct_defs.contains_key(type_name) {
                                     let combined_name = format!("{}.{}", id, member_name);
