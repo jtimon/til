@@ -268,41 +268,42 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Goal**: Make init.til increasingly equivalent to init.rs
 
-**Recent improvements (Commit: 5d268f4):**
+**Recent improvements (Commit: b5431db):**
+- ✅ Implemented proper SymbolInfo serialization
+  - Added str_to_value_type() to parse ValueType from strings
+  - Added serialize_symbol_info() and parse_symbol_info_from_str()
+  - Format: "VALUE_TYPE|is_mut" (e.g., "ValueType.TCustom=I64|true")
+  - Updated all symbol storage/retrieval to use proper serialization
+  - Backward compatible with old format
+
+**Previous improvements (Commit: 5d268f4):**
 - ✅ Implemented mode validation in process_declarations
   - Checks context.mode_def.allows_base_anything and allows_base_calls
   - Throws error if non-declaration nodes found at root when not allowed
 - ✅ Documented associated function registration with implementation plan
   - Blocked on parser.til storing Expr objects in default_values
-  - Detailed TODO added for future implementation
 
-**Previous improvements (Commit: d8a08ba):**
+**Earlier improvements (Commit: d8a08ba):**
 - ✅ Implemented get_payload_size_for_type properly
   - Returns correct sizes for Bool (1), I64 (8), structs (calculated), enums (8)
-  - Handles TCustom types by looking up in symbol table
 - ✅ Removed unused get_ufcs_fcall_value_type stub
-  - UFCS is already implemented in get_fcall_value_type (lines 1461-1518)
-
-**Earlier improvements (Commit: a0f906c):**
-- ✅ Added Pattern node type handling in get_value_type
-- ✅ Improved member type resolution (parses struct definitions)
 
 **Current status of init.til:**
-- **~89% functionally equivalent to init.rs** (syntax aside)
+- **~91% functionally equivalent to init.rs** (syntax aside)
 - All core type inference working
 - All struct/enum/array operations implemented (simplified)
-- Using serialization formats for complex types
+- Using serialization formats for complex types (SFuncDef, SStructDef, SymbolInfo)
 - UFCS method resolution working
 - Payload size calculation working
 - Mode validation working
+- SymbolInfo serialization working ✅ NEW
 
-**Remaining for full equivalence (~11%):**
+**Remaining for full equivalence (~9%):**
 - init_import_declarations (file I/O, recursive imports) - complex, future work
 - Enum payloads (beyond basic tags) - needs byte-level storage
 - Array initialization with values - needs byte-level storage
 - Byte-level string storage (c_string/cap/len) - architectural change
 - Associated function registration - needs parser changes first
-- SymbolInfo serialization - using simple string format currently
 
 ## Next Steps
 

@@ -5,13 +5,14 @@ import("src/core/parser")
 // Init phase: Context creation and symbol table management
 // Corresponds to src/rs/init.rs in the Rust implementation
 //
-// IMPLEMENTATION STATUS (~89% complete):
+// IMPLEMENTATION STATUS (~91% complete):
 //
 // COMPLETED:
 // Phase 1: Foundation
 // - Context struct with all fields (arena, symbols, funcs, enum_defs, struct_defs, imports tracking)
 // - Type serialization: SFuncDef serialization/deserialization ("FUNC|type|return_type")
 // - Type serialization: SStructDef serialization ("STRUCT|field1=Type1|field2=Type2|...")
+// - Type serialization: SymbolInfo serialization/deserialization ("VALUE_TYPE|is_mut")
 // - Basic struct support: get_type_size, insert_struct, map_instance_fields
 // - String storage: get_str, insert_str (simplified arena storage)
 //
@@ -30,6 +31,7 @@ import("src/core/parser")
 // - Member access with actual type resolution (parses struct definitions)
 // - get_fcall_value_type: UFCS method resolution, standalone funcs, constructors (fully working)
 // - value_type_func_proc: function return type checking
+// - str_to_value_type: parse ValueType from string representation
 //
 // Arena Methods (simplified string-based storage):
 // - get/insert for I64, U8, Bool, Str
@@ -40,13 +42,12 @@ import("src/core/parser")
 // - Mode validation: checks allows_base_anything and allows_base_calls
 // - Enum helpers: get_variant_pos, variant_pos_to_str
 //
-// NOT YET IMPLEMENTED (~11% remaining):
+// NOT YET IMPLEMENTED (~9% remaining):
 // - init_import_declarations: needs file I/O, lexing, parsing, recursive import handling
 // - Enum payload handling (basic tags only, no payload bytes)
 // - Array initialization with values (empty arrays only)
 // - Proper byte-level c_string/cap/len for strings (architectural change)
 // - Associated function registration (needs parser to store Expr in default_values)
-// - SymbolInfo serialization (currently using simple string format)
 //
 // KEY APPROACH:
 // Using simplified serialization formats for complex types:
