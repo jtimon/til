@@ -535,9 +535,8 @@ Context := struct {
             return 0
         }
 
-        // Parse symbol to get ValueType
-        mut symbol := SymbolInfo()
-        symbol.value_type = parse_value_type_from_str(symbol_str)
+        // Parse symbol to get ValueType and is_mut
+        mut symbol := parse_symbol_info_from_str(symbol_str)
 
         // Check if it's a struct or enum type
         mut symbol_vtype_str := value_type_to_str(symbol.value_type)
@@ -1299,9 +1298,9 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
             throw format(loc(), " ERROR: Undefined symbol '", id_name, "'")
         }
 
-        // TODO: Parse SymbolInfo to get actual value_type
-        // For now, assume symbol_str contains the value type string
-        mut current_type := ValueType.TCustom(id_name)
+        // Parse SymbolInfo to get actual value_type
+        mut symbol := parse_symbol_info_from_str(symbol_str)
+        mut current_type := symbol.value_type
 
         // If there are no params, return the base type
         if eq(e.params.len, 0) {
@@ -1492,6 +1491,93 @@ parse_func_return_type := proc(serialized: Str) returns Str {
     return return_type
 }
 
+// Parse ValueType from string representation
+// Handles formats like "ValueType.TCustom=I64", "ValueType.TFunction", "ValueType.TType"
+str_to_value_type := proc(s: Str) returns ValueType throws Str, IndexOutOfBoundsError {
+    // Handle TCustom with payload: "ValueType.TCustom=TypeName"
+    if s.contains("ValueType.TCustom=") {
+        mut parts := s.split("=")
+        mut type_name := ""
+        if gt(parts.len, 1) {
+            parts.get(1, type_name)
+        }
+        return ValueType.TCustom(type_name)
+    }
+
+    // Handle TCustom without "=" (older format): "ValueType.TCustom"
+    if s.eq("ValueType.TCustom") {
+        return ValueType.TCustom("INFER_TYPE")
+    }
+
+    // Handle TFunction
+    if s.eq("ValueType.TFunction") {
+        return ValueType.TFunction
+    }
+
+    // Handle TType variants
+    if s.contains("ValueType.TType") {
+        if s.contains("TTypeDef.TStructDef") {
+            return ValueType.TType(TTypeDef.TStructDef)
+        }
+        if s.contains("TTypeDef.TEnumDef") {
+            return ValueType.TType(TTypeDef.TEnumDef)
+        }
+        // Default TType
+        return ValueType.TType(TTypeDef.TStructDef)
+    }
+
+    // Handle TMulti
+    if s.contains("ValueType.TMulti") {
+        // Simplified - just return empty TMulti
+        mut empty_arr := Array.new_dyn("Str", size_of(Str))
+        return ValueType.TMulti(empty_arr)
+    }
+
+    // Default fallback - treat as TCustom
+    return ValueType.TCustom(s)
+}
+
+// Serialize SymbolInfo to string format
+// Format: "VALUE_TYPE|is_mut"
+// Example: "ValueType.TCustom=I64|true"
+serialize_symbol_info := proc(symbol: SymbolInfo) returns Str {
+    mut value_type_str := value_type_to_str(symbol.value_type)
+    mut is_mut_str := ""
+    if symbol.is_mut {
+        is_mut_str = "true"
+    } else {
+        is_mut_str = "false"
+    }
+    return format(value_type_str, "|", is_mut_str)
+}
+
+// Parse SymbolInfo from string format
+// Format: "VALUE_TYPE|is_mut"
+parse_symbol_info_from_str := proc(serialized: Str) returns SymbolInfo throws Str, IndexOutOfBoundsError {
+    mut symbol := SymbolInfo()
+
+    // Split by "|" to get parts
+    mut parts := serialized.split("|")
+    if lt(parts.len, 2) {
+        // Old format - just value_type string without is_mut
+        // Default is_mut to false for backward compatibility
+        symbol.value_type = str_to_value_type(serialized)
+        symbol.is_mut = false
+        return symbol
+    }
+
+    // New format - has both value_type and is_mut
+    mut value_type_str := ""
+    mut is_mut_str := ""
+    parts.get(0, value_type_str)
+    parts.get(1, is_mut_str)
+
+    symbol.value_type = str_to_value_type(value_type_str)
+    symbol.is_mut = is_mut_str.eq("true")
+
+    return symbol
+}
+
 get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
     // Get function name
     f_name := get_func_name_in_call(e)
@@ -1555,8 +1641,10 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
     mut symbols_map := context.symbols
     mut symbol_str := symbols_map.get(f_name)
     if not(symbol_str.eq("")) {
-        // Check if it's a type (struct or enum)
-        if symbol_str.eq("ValueType.TType") {
+        // Parse symbol to check if it's a type (struct or enum)
+        mut symbol := parse_symbol_info_from_str(symbol_str)
+        mut vtype_str := value_type_to_str(symbol.value_type)
+        if vtype_str.contains("ValueType.TType") {
             // Get params[0] to check for member access (Struct.field or Enum.Variant)
             mut params := e.params
             mut id_expr := Expr()
@@ -1679,7 +1767,10 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 }
 
                 // Register in symbols and funcs
-                symbols_map.insert(decl.name, value_type_str)
+                mut symbol := SymbolInfo()
+                symbol.value_type = value_type
+                symbol.is_mut = decl.is_mut
+                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
                 context.symbols = symbols_map
 
                 // Serialize func_def to string for storage
@@ -1720,7 +1811,10 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 }
 
                 // Register in symbols and enum_defs
-                symbols_map.insert(decl.name, value_type_str)
+                mut symbol := SymbolInfo()
+                symbol.value_type = value_type
+                symbol.is_mut = decl.is_mut
+                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
                 context.symbols = symbols_map
 
                 // TODO: Store enum_def properly (currently storing as string)
@@ -1742,7 +1836,10 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 }
 
                 // Register in symbols and struct_defs
-                symbols_map.insert(decl.name, value_type_str)
+                mut symbol := SymbolInfo()
+                symbol.value_type = value_type
+                symbol.is_mut = decl.is_mut
+                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
                 context.symbols = symbols_map
 
                 // Serialize struct_def to string for storage
@@ -1779,19 +1876,28 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
 
         // Handle custom types and multi types
         if value_type_str.eq("ValueType.TCustom") {
-            symbols_map.insert(decl.name, value_type_str)
+            mut symbol := SymbolInfo()
+            symbol.value_type = value_type
+            symbol.is_mut = decl.is_mut
+            symbols_map.insert(decl.name, serialize_symbol_info(symbol))
             context.symbols = symbols_map
             return
         }
 
         if value_type_str.eq("ValueType.TMulti") {
-            symbols_map.insert(decl.name, value_type_str)
+            mut symbol := SymbolInfo()
+            symbol.value_type = value_type
+            symbol.is_mut = decl.is_mut
+            symbols_map.insert(decl.name, serialize_symbol_info(symbol))
             context.symbols = symbols_map
             return
         }
 
         // Unknown type - register anyway
-        symbols_map.insert(decl.name, value_type_str)
+        mut symbol := SymbolInfo()
+        symbol.value_type = value_type
+        symbol.is_mut = decl.is_mut
+        symbols_map.insert(decl.name, serialize_symbol_info(symbol))
         context.symbols = symbols_map
         return
     }
