@@ -106,25 +106,6 @@ All enum bugs are FIXED (see rstil_bugs.md), but workarounds remain:
 *** Why This Matters
 Workarounds add complexity and may hide issues. Clean code is easier to maintain during self-hosting transition.
 
-** TODO Fix Variadic Argument Handling                              :MEDIUM:
-:PROPERTIES:
-:FILE: src/rs/typer.rs:1175, src/core/typer.til:188
-:END:
-
-*** Current State
-- =src/rs/typer.rs:1175= - "TODO: Check the args too" for variadic functions
-- =src/core/typer.til:188= - Variadic args not properly handled
-- Tests in =src/test/variadic.til= and =src/test/variadic_type_check.til= pass but may not cover all cases
-
-*** What's Needed
-- [ ] Complete variadic argument type checking in typer.rs
-- [ ] Add comprehensive variadic tests
-- [ ] Document variadic function semantics
-- [ ] Handle edge cases (zero variadic args, type mismatches)
-
-*** Why This Matters for Self-Hosting
-Self-hosted code may need variadic functions for flexible APIs. Type checking must be complete.
-
 ** TODO Improve Type Checking Edge Cases                            :MEDIUM:
 :PROPERTIES:
 :FILE: src/rs/typer.rs, src/rs/interpreter.rs
@@ -234,9 +215,8 @@ Commented out: "TODO: Implement throw, throws and catch, or at least try (multip
 3. [ ] Remove workarounds for fixed bugs
 
 ** Phase 3: Polish (Nice to have before self-hosting)
-1. [ ] Fix variadic argument handling
-2. [ ] Improve type checking edge cases
-3. [ ] Better error messages and backtraces
+1. [ ] Improve type checking edge cases
+2. [ ] Better error messages and backtraces
 
 * Success Criteria
 
