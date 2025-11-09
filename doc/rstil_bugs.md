@@ -153,11 +153,49 @@ switch e_copy.node_type {
 
 **Files Attempted**: init.til, interpreter.til, parser.til, typer.til
 
+## init.til Completion Progress
+
+**Goal**: Make init.til functionally equivalent to init.rs for basic programs
+
+### Phase 1: Foundation (In Progress)
+
+#### ✅ Step 1: Complex Type Serialization (COMPLETED)
+**Status**: Basic function serialization/deserialization working
+
+**Implemented**:
+- SFuncDef serialization format: `"FUNC|<function_type>|<return_type>"`
+- `parse_func_return_type()` for deserialization
+- Updated `process_declarations()` to store serialized function data
+- Updated `get_fcall_value_type()` to return actual function types
+- Both standalone functions and UFCS methods supported
+
+**Commits**: 066e373, f92e58f
+
+**Next**: Step 2 - Basic struct support (`insert_struct`, `get_type_size`)
+
+#### 🔄 Step 2: Basic Struct Support (IN PROGRESS)
+
+**Completed:**
+- ✅ Implement `get_type_size` for structs (recursive calculation)
+  - Serialization format: `"STRUCT|field1=Type1|field2=Type2|..."`
+  - Parses serialized data and recursively calculates field sizes
+  - Commit: c004cd2
+
+**Pending:**
+- Implement `insert_struct` for basic allocation
+- Implement `map_instance_fields` for field offsets
+
+#### 🔄 Step 3: String Storage Structure (PENDING)
+- Implement `insert_string` with c_string/cap/len
+- Implement `get_string` to read structured strings
+
 ## Next Steps
 
-Self-hosted execution is currently blocked by complex enum handling issues. Possible approaches:
-1. Investigate rstil's enum storage mechanism during self-hosted execution
-2. Focus on other language features first, return to self-hosting later
-3. Consider alternative self-hosting strategies (bootstrap from different base)
+Self-hosted execution is currently blocked by complex enum handling issues. Meanwhile, working on making init.til complete for basic single-file programs.
+
+Current focus: Phase 1 Foundation work to enable:
+- Function type checking (✅ DONE)
+- Simple struct instantiation (IN PROGRESS)
+- Proper string handling (PENDING)
 
 The workarounds for bugs #1-3 continue to work for directly-executed til code. Self-hosting remains a future goal.
