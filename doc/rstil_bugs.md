@@ -1,10 +1,25 @@
 # rstil Bug Fixes - Historical Reference
 
-This document provides a brief changelog of bugs that were fixed in the rstil interpreter. All documented bugs are now fixed or were never present.
+This document provides a brief changelog of bugs that were fixed in the rstil interpreter.
+
+## Active Bugs
+
+### Bug #6: Enum Payload Corruption in Struct Field Assignment
+- **Status**: ⚠️ ACTIVE BUG - Blocks test_parser.til
+- **Symptom**: When assigning an enum value to a struct field, the payload is replaced with the struct's type name
+- **Example**:
+  ```til
+  node_type := NodeType.Identifier("foo")  // Correctly contains "foo"
+  mut e := Expr()
+  e.node_type = node_type                   // Now contains "Expr" instead of "foo"!
+  ```
+- **Impact**: test_parser.til fails with `assert_eq_str failed: expected 'foo', found 'Expr'`
+- **Workaround**: None known - direct assignment of enums to struct fields is broken
+- **Discovery**: 2025-01-09 during test_parser.til investigation
 
 ## Fixed Bugs Summary
 
-All bugs have been fixed and their tests integrated into the regular test suite (`enums.til`, `flow.til`, `arithmetics.til`).
+Bugs #1-#5 have been fixed and their tests integrated into the regular test suite (`enums.til`, `flow.til`, `arithmetics.til`).
 
 ### Bug #1: Enum Comparison in Switch/Case
 - **Status**: ❌ NOT PRESENT - Type system prevents this issue
@@ -37,6 +52,7 @@ All bugs have been fixed and their tests integrated into the regular test suite 
 
 ---
 
-**All documented bugs fixed as of January 2025.**
+**Historical bugs (#1-#5) all fixed as of January 2025.**
+**Bug #6 discovered January 2025 - ACTIVE.**
 
 For implementation details and self-hosting progress, see git history and commit messages.

@@ -165,6 +165,12 @@ test_lexer_advance := proc() {
         println(loc(), "test_lexer_advance: IndexOutOfBoundsError: ", err.msg)
         exit(1)
     }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "I64_OverflowError in test_lexer_advance")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "AllocError in test_lexer_advance")
+    }
 }
 test_lexer_advance()
 
@@ -187,6 +193,12 @@ test_lexer_peek_ahead := proc() {
         println(loc(), "test_lexer_peek_ahead: IndexOutOfBoundsError: ", err.msg)
         exit(1)
     }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "I64_OverflowError in test_lexer_peek_ahead")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "AllocError in test_lexer_peek_ahead")
+    }
 }
 test_lexer_peek_ahead()
 
@@ -208,6 +220,12 @@ test_lexer_next := proc() {
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_next: IndexOutOfBoundsError: ", err.msg)
         exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "I64_OverflowError in test_lexer_next")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "AllocError in test_lexer_next")
     }
 }
 test_lexer_next()
@@ -232,6 +250,12 @@ test_lexer_previous := proc() {
         println(loc(), "test_lexer_previous: IndexOutOfBoundsError: ", err.msg)
         exit(1)
     }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "I64_OverflowError in test_lexer_previous")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "AllocError in test_lexer_previous")
+    }
 }
 test_lexer_previous()
 
@@ -255,6 +279,12 @@ test_lexer_go_back := proc() {
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "test_lexer_go_back: IndexOutOfBoundsError: ", err.msg)
         exit(1)
+    }
+    catch(err: I64_OverflowError) {
+        panic(loc(), "I64_OverflowError in test_lexer_go_back")
+    }
+    catch(err: AllocError) {
+        panic(loc(), "AllocError in test_lexer_go_back")
     }
 }
 test_lexer_go_back()

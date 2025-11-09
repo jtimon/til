@@ -14,10 +14,10 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 | Component           | Status                          | Notes                                  |
 |---------------------+---------------------------------+----------------------------------------|
-| Known Bugs          | ✅ ALL FIXED                    | See rstil_bugs.md                      |
+| Known Bugs          | ⚠️ BUG #6 ACTIVE                | Enum payload corruption in struct fields |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional    |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes        |
-| Test Suite          | ⚠️ 2 TESTS DISABLED             | Missing throws declarations            |
+| Test Suite          | ⚠️ 1 TEST DISABLED              | test_parser.til blocked by Bug #6      |
 | Type System         | ✅ COMPLETE                     | Variadic args support zero arguments   |
 
 * Critical: Missing rstil Features
@@ -27,25 +27,26 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 ** TODO Fix Disabled Test Files                                      :HIGH:
 :PROPERTIES:
-:FILE: src/tests.til:44-46, src/tests.til:61
-:IMPACT: test_lexer.til and test_parser.til disabled
+:FILE: src/tests.til:44-46
+:IMPACT: test_parser.til disabled due to Bug #6
 :END:
 
 *** Current State
-- =src/tests.til:44-46= - test_lexer.til and test_parser.til disabled (claimed "mode inheritance issues" but actually other problems)
-- =src/tests.til:61= - errors.til test file commented out: "TODO implement, throw, throws and catch"
-- Import system itself works fine in lib mode (tested and verified)
+- =src/test/test_lexer.til= - ✅ FIXED - Added catch blocks for I64_OverflowError and AllocError
+- =src/test/test_parser.til= - ⚠️ BLOCKED by Bug #6 (enum payload corruption in struct field assignment)
+- =src/tests.til:44-46= - test_lexer.til can be re-enabled, test_parser.til must stay disabled
 
-*** Actual Issues
-1. test_lexer.til fails due to missing =throws= declarations in function signatures (24 type errors)
-2. test_parser.til fails due to broken assertions (e.g., line 121 expects 'foo', finds 'Expr')
-3. errors.til blocked by incomplete throw/throws/catch implementation
+*** Bug #6: Enum Payload Corruption
+When assigning an enum to a struct field, the payload gets replaced with the struct type name:
+- =NodeType.Identifier("foo")= becomes =NodeType.Identifier("Expr")= after assignment to =Expr.node_type=
+- See [[file:rstil_bugs.md][rstil_bugs.md]] for full details
+- Discovered 2025-01-09 during test_parser.til investigation
 
 *** What's Needed
-- [ ] Add =throws= declarations to functions in lexer.til that can throw errors
-- [ ] Fix broken assertions in test_parser.til (update expected values)
-- [ ] Re-enable test_lexer.til and test_parser.til in src/tests.til
-- [ ] Complete throw/throws/catch implementation to enable errors.til
+- [X] Fix test_lexer.til (DONE - added catch blocks)
+- [ ] Re-enable test_lexer.til in src/tests.til
+- [ ] Fix Bug #6 in rstil (interpreter.rs) before test_parser.til can work
+- [ ] After Bug #6 fixed, re-enable test_parser.til
 
 *** Why This Matters
 These tests exercise critical lexer/parser functionality needed for self-hosting.
