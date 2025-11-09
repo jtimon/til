@@ -1060,8 +1060,16 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 symbols_map.insert(decl.name, value_type_str)
                 context.symbols = symbols_map
 
-                // TODO: Store func_def properly (currently storing as string)
-                funcs_map.insert(decl.name, "func_def_placeholder")
+                // Serialize func_def to string for storage
+                // Format: "FUNC|<function_type>|<return_type>"
+                // TODO: Add args, throw_types when needed
+                mut ft_str := enum_to_str(func_def.function_type)
+                mut ret_type := ""
+                if gt(func_def.return_types.len, 0) {
+                    func_def.return_types.get(0, ret_type)
+                }
+                mut serialized := format("FUNC|", ft_str, "|", ret_type)
+                funcs_map.insert(decl.name, serialized)
                 context.funcs = funcs_map
             }
             return
