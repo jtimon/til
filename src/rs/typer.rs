@@ -991,8 +991,13 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                         let mut function_context = context.clone();
                         errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
                     },
-                    // For other types of members, treat them like regular declarations
+                    // For other types of members, check if default value calls procs
                     _ => {
+                        // Check if default value calls procs (violates purity of constructors)
+                        if is_expr_calling_procs(context, inner_e) {
+                            errors.push(inner_e.exit_error("type",
+                                &format!("Struct field '{}' has default value that calls proc. Default values must be pure (can only call funcs, not procs).", member_name)));
+                        }
                         // println!("DEBUG: Check members that are NOT function definitions, got inner_e: {:?}", inner_e);
                         // errors.extend(check_declaration(&mut context, &inner_e, &member_decl));
                     }
@@ -1145,8 +1150,13 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             }
             return false
         },
-        NodeType::StructDef(_) => {
-            // TODO default values could try to call procs
+        NodeType::StructDef(struct_def) => {
+            // Check if any default values call procs
+            for (_member_name, default_expr) in &struct_def.default_values {
+                if is_expr_calling_procs(context, default_expr) {
+                    return true
+                }
+            }
             return false
         },
         NodeType::EnumDef(_) => {

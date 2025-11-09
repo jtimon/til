@@ -1,0 +1,46 @@
+mode test
+
+// Test that struct default values maintain purity rules
+// Default values can call funcs but not procs (to keep constructors pure)
+
+pure_func := func() returns I64 {
+    return 42
+}
+
+impure_proc := proc() returns I64 {
+    println("Side effect!")
+    return 99
+}
+
+// Test 1: Default values with funcs are OK
+GoodStruct := struct {
+    mut value1: I64 = 10
+    mut value2: I64 = pure_func()  // OK: calling func
+    mut value3: I64 = add(20, 30)  // OK: calling func
+}
+
+mut good := GoodStruct()
+assert_eq(loc(), 10, good.value1)
+assert_eq(loc(), 42, good.value2)
+assert_eq(loc(), 50, good.value3)
+
+// Test 2: Nested struct with func calls OK
+Inner := struct {
+    mut x: I64 = pure_func()
+}
+
+Outer := struct {
+    mut inner: Inner = Inner()
+    mut y: I64 = pure_func()
+}
+
+mut outer := Outer()
+assert_eq(loc(), 42, outer.inner.x)
+assert_eq(loc(), 42, outer.y)
+
+// Test 3: The following should fail type check (proc calls in defaults)
+// Uncomment to test error detection:
+//
+// BadStruct := struct {
+//     mut bad_value: I64 = impure_proc()  // ERROR: calling proc
+// }
