@@ -234,22 +234,29 @@ parse_literal := proc(mut lexer: Lexer, t: Token) returns Expr throws Str, Alloc
     mut params := new_expr_array()
     tt_str := enum_to_str(t.token_type)
 
-    mut node_type := NodeType.Literal(LiteralNodeType.String(""))
+    // Workaround for rstil bug: enum payloads must be variables, not function calls
+    // Can't do: NodeType.Literal(LiteralNodeType.String("..."))
+    // Must assign to variable first
+    mut default_lit := LiteralNodeType.String("")
+    mut node_type := NodeType.Literal(default_lit)
 
     if tt_str.eq("TokenType.String") {
-        node_type = NodeType.Literal(LiteralNodeType.String(t.token_str))
+        mut str_lit := LiteralNodeType.String(t.token_str)
+        node_type = NodeType.Literal(str_lit)
     }
     else if tt_str.eq("TokenType.Number") {
         // Parse the number string to I64
         mut token_str := t.token_str
         num := token_str.to_i64()
-        node_type = NodeType.Literal(LiteralNodeType.I64(num))
+        mut num_lit := LiteralNodeType.I64(num)
+        node_type = NodeType.Literal(num_lit)
     }
     else if tt_str.eq("TokenType.True") {
         // Parse boolean - "true" becomes true, anything else is false
         mut token_str := t.token_str
         is_true := token_str.eq("true")
-        node_type = NodeType.Literal(LiteralNodeType.Bool(is_true))
+        mut bool_lit := LiteralNodeType.Bool(is_true)
+        node_type = NodeType.Literal(bool_lit)
     }
     else {
         throw t.lang_error(format("Trying to parse a token that's not a literal as a literal, found '", tt_str, "'."))
@@ -266,7 +273,15 @@ parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexO
     mut params := new_expr_array()
     initial_index := lexer.current
 
-    lexer.expect(TokenType.LeftParen)
+    // Inline lexer_expect logic to avoid rstil return bug
+    mut p := lexer.peek()
+    mut p_type_str := enum_to_str(p.token_type)
+    mut expected_str := enum_to_str(TokenType.LeftParen)
+    if p_type_str.eq(expected_str) {
+        lexer.advance(1)
+    } else {
+        throw format("Expected token '(', but found '", p.token_str, "'")
+    }
     mut list_t := lexer.peek()
     mut expect_comma := false
 
@@ -274,12 +289,12 @@ parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexO
         tt_str := enum_to_str(list_t.token_type)
 
         if tt_str.eq("TokenType.RightParen") {
-            lexer.expect(TokenType.RightParen)
+            lexer_expect(lexer, TokenType.RightParen)
             rightparen_found = true
         }
         else if tt_str.eq("TokenType.Comma") {
             if expect_comma {
-                lexer.expect(TokenType.Comma)
+                lexer_expect(lexer, TokenType.Comma)
                 expect_comma = false
                 list_t = lexer.peek()
             }
@@ -300,7 +315,9 @@ parse_list := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, IndexO
 
     // Return a list literal node
     start_tok := lexer.get_token(initial_index)
-    list_node := NodeType.Literal(LiteralNodeType.List(""))
+    // Workaround for rstil bug: enum payloads must be variables
+    mut list_lit := LiteralNodeType.List("")
+    list_node := NodeType.Literal(list_lit)
     return Expr.new_parse(list_node, start_tok, params)
 }
 
@@ -309,7 +326,8 @@ parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, Ind
 
     // Check if it's a literal first
     if is_literal(t) {
-        return parse_literal(lexer, t)
+        mut lit_result := parse_literal(lexer, t)
+        return lit_result
     }
 
     // Match on token type
@@ -491,7 +509,7 @@ get_combined_name := proc(e: Expr) returns Str throws Str, AllocError, IndexOutO
 }
 
 parse_assignment := proc(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, FullError, IndexOutOfBoundsError, I64_OverflowError, AllocError {
-    lexer.expect(TokenType.Equal)
+    lexer_expect(lexer, TokenType.Equal)
     mut params := new_expr_array()
     params.push(parse_primary(lexer))
     assignment_node := NodeType.Assignment(name)
@@ -829,7 +847,7 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 // Parse function/procedure arguments: (name: Type, mut name2: Type, variadic: ..Type)
 // Validates syntax - full Declaration array could be returned if needed in the future
 parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
-    lexer.expect(TokenType.LeftParen)
+    lexer_expect(lexer, TokenType.LeftParen)
 
     mut rightparen_found := false
     mut t := lexer.peek()
@@ -861,7 +879,7 @@ parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError
                 expect_colon = false
                 expect_name = true
                 is_mut = false
-                lexer.expect(TokenType.Comma)
+                lexer_expect(lexer, TokenType.Comma)
                 t = lexer.peek()
             } else {
                 throw t.error("Unexpected ','.")
@@ -1003,7 +1021,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
                 lexer.advance(1)
             case TokenType.Comma:
                 if expect_comma {
-                    lexer.expect(TokenType.Comma)
+                    lexer_expect(lexer, TokenType.Comma)
                     expect_comma = false
                     t = lexer.peek()
                 } else {
@@ -1323,11 +1341,11 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     initial_index := lexer.current
     lexer.advance(1) // consume 'catch'
 
-    lexer.expect(TokenType.LeftParen) // expect '('
+    lexer_expect(lexer, TokenType.LeftParen) // expect '('
 
     // Parse the error variable name
     name_token := lexer.peek()
-    lexer.expect(TokenType.Identifier)
+    lexer_expect(lexer, TokenType.Identifier)
     name := name_token.token_str
     mut params := new_expr_array()
 
@@ -1338,11 +1356,11 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     name_expr.col = name_token.col
     params.push(name_expr)
 
-    lexer.expect(TokenType.Colon) // expect ':'
+    lexer_expect(lexer, TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer.peek()
-    lexer.expect(TokenType.Identifier)
+    lexer_expect(lexer, TokenType.Identifier)
 
     // Create type expression manually
     mut type_expr := Expr()
@@ -1351,9 +1369,9 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
     type_expr.col = type_token.col
     params.push(type_expr)
 
-    lexer.expect(TokenType.RightParen) // expect ')'
+    lexer_expect(lexer, TokenType.RightParen) // expect ')'
 
-    lexer.expect(TokenType.LeftBrace) // expect '{'
+    lexer_expect(lexer, TokenType.LeftBrace) // expect '{'
     body_expr := parse_body(lexer, TokenType.RightBrace)
     params.push(body_expr)
 
@@ -1363,7 +1381,7 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
 // Parse struct definition: struct { field: Type = value, ... }
 parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_token := lexer.peek()
-    lexer.expect(TokenType.Struct)
+    lexer_expect(lexer, TokenType.Struct)
 
     t := lexer.peek()
     switch t.token_type {

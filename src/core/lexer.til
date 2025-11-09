@@ -581,23 +581,22 @@ Lexer := struct {
         self.current = sub(self.current, count)
     }
 
-    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
-        p := self.peek()
-        mut matches := false
-        // Compare TokenType enums using switch
-        switch p.token_type {
-        case expected:
-            matches = true
-        case:
-            matches = false
-        }
-        if matches {
-            self.advance(1)
-            return p
-        }
-        throw format(
-            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
+}
+
+// Workaround for rstil bug: return in methods returns from caller
+// So we make expect a standalone function instead of a method
+lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
+    p := lexer.peek()
+    // Compare TokenType enums by converting to strings
+    // (switch/case doesn't work with enum variables - only constants)
+    mut p_type_str := enum_to_str(p.token_type)
+    mut expected_str := enum_to_str(expected)
+    if p_type_str.eq(expected_str) {
+        lexer.advance(1)
+        return p
     }
+    throw format(
+        "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
 }
 
 token_type_to_str := func(tt: TokenType) returns Str {
