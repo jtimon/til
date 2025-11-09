@@ -106,15 +106,6 @@ All enum bugs are FIXED (see rstil_bugs.md), but workarounds remain:
 *** Why This Matters
 Workarounds add complexity and may hide issues. Clean code is easier to maintain during self-hosting transition.
 
-** TODO Improve Type Checking Edge Cases                            :MEDIUM:
-:PROPERTIES:
-:FILE: src/rs/typer.rs, src/rs/interpreter.rs
-:END:
-
-*** TODOs in Rust Type System
-
-All identified type checking TODOs have been completed.
-
 * Medium Priority: Test Suite Gaps
 :PROPERTIES:
 :CATEGORY: Tests
