@@ -139,7 +139,7 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - [ ] Consider string escape switch in Rust (TIL lines 394-415)
 
 ** Parser (parser.til vs src/rs/parser.rs)
-*** Status: 75% COMPLETE ✅
+*** Status: HOMOLOGIZATION COMPLETE ✅
 
 *TIL Implementation (1,467 lines):*
 - Full expression parsing (literals, identifiers, function calls)
@@ -170,9 +170,9 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 *** Homologization Tasks
 - [X] Fix tagged union support (BLOCKER #3) - COMPLETE
 - [X] Store Declaration info properly (line 508, 754) - COMPLETE
-- [ ] Sync for-loop desugaring approach (compare both implementations)
-- [ ] Validate with comprehensive tests
-- [ ] Mark complete
+- [X] Sync for-loop desugaring approach - IDENTICAL (both desugar to while loops)
+- [X] Validate with comprehensive tests - PASS (for-loop test: 0..5 = 10)
+- [X] Mark complete - PARSER HOMOLOGIZATION COMPLETE ✅
 
 ** Init (init.til vs src/rs/init.rs)
 *** Status: 61% COMPLETE ⚠️

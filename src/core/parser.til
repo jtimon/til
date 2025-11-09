@@ -174,7 +174,6 @@ Expr := struct {
 }
 
 // Convert type name string to ValueType
-// TODO: This function is incomplete - need to support TCustom variant creation
 str_to_value_type := proc(type_name: Str) returns ValueType {
     if type_name.eq("Function") {
         return ValueType.TFunction
@@ -186,9 +185,7 @@ str_to_value_type := proc(type_name: Str) returns ValueType {
         return ValueType.TMulti
     }
     // Everything else is a custom type
-    // TODO: return ValueType.TCustom(type_name) - this doesn't work yet
-    // For now, just return TFunction as placeholder
-    return ValueType.TFunction
+    return ValueType.TCustom(type_name)
 }
 
 // Convert ValueType to string representation
@@ -1332,15 +1329,16 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
         body_params.get(i, param)
 
         switch param.node_type {
-        case NodeType.Declaration:
+        case NodeType.Declaration(decl):
             // Check that declaration has a value (params.len == 1)
             mut param_params := param.params
             param_count := param_params.len
             if not(param_count.eq(1)) {
                 throw t.error("all declarations inside struct definitions must have a value for now")
             }
-            // TODO: Extract field name and type from Declaration and store in maps
-            // For now, we're just validating the structure
+            // Extract field name and type from Declaration payload
+            members.set(decl.name, value_type_to_str(decl.value_type))
+            // TODO: Store default value expression
         case:
             throw t.error("expected only declarations inside struct definition")
         }
