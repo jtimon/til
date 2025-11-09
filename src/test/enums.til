@@ -933,6 +933,68 @@ test_enum_field_no_payload := proc() {
 }
 test_enum_field_no_payload()
 
-// TODO: Test struct copy with enum fields - requires architectural fix
-// Enums with variable-sized payloads don't fit in fixed-size struct layouts
-// This needs either: indirection (pointers), reallocation, or max-size reservation
+// Test: Struct copy preserves enum payloads (Bug #6 regression test)
+test_struct_copy_with_enum := proc() {
+    mut t1 := Token()
+    t1.token_type = TokenType.Identifier("foo")
+    t1.token_str = "identifier_foo"
+
+    // Copy the struct
+    t2 := t1
+
+    // Verify the enum payload was preserved
+    nt := t2.token_type
+    switch nt {
+    case TokenType.Identifier(name):
+        assert_eq_str(loc(), "foo", name)
+    case:
+        panic(loc(), "Expected Identifier variant with payload 'foo'")
+    }
+
+    // Verify the string field was also preserved
+    assert_eq_str(loc(), "identifier_foo", t2.token_str)
+}
+test_struct_copy_with_enum()
+
+// Test: Struct copy with different enum variants
+test_struct_copy_various_payloads := proc() {
+    // Test with Number variant
+    mut t1 := Token()
+    t1.token_type = TokenType.Number
+    t2 := t1
+
+    nt := t2.token_type
+    switch nt {
+    case TokenType.Number:
+        // Success
+    case:
+        panic(loc(), "Expected Number variant")
+    }
+
+    // Test with String variant
+    mut t3 := Token()
+    t3.token_type = TokenType.String
+    t4 := t3
+
+    nt2 := t4.token_type
+    switch nt2 {
+    case TokenType.String:
+        // Success
+    case:
+        panic(loc(), "Expected String variant")
+    }
+
+    // Test with different Identifier payload
+    mut t5 := Token()
+    t5.token_type = TokenType.Identifier("bar_test")
+    t6 := t5
+
+    nt3 := t6.token_type
+    switch nt3 {
+    case TokenType.Identifier(name):
+        assert_eq_str(loc(), "bar_test", name)
+    case:
+        panic(loc(), "Expected Identifier variant with payload 'bar_test'")
+    }
+}
+test_struct_copy_various_payloads()

@@ -1115,8 +1115,29 @@ impl Context {
             "I64"  => return Ok(8),
             _ => {},
         }
-        if self.enum_defs.contains_key(type_name) {
-            return Ok(8);
+        if let Some(enum_def) = self.enum_defs.get(type_name) {
+            // Calculate maximum variant size (8 bytes for tag + largest payload)
+            let mut max_size = 8; // Start with tag size
+
+            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
+                if let Some(payload_type) = payload_type_opt {
+                    let payload_size = match payload_type {
+                        ValueType::TCustom(t) => self.get_type_size(t)?,
+                        _ => {
+                            return Err(format!(
+                                "get_type_size: unsupported payload type in enum '{}': {:?}",
+                                type_name, payload_type
+                            ));
+                        }
+                    };
+                    let variant_total = 8 + payload_size; // tag + payload
+                    if variant_total > max_size {
+                        max_size = variant_total;
+                    }
+                }
+            }
+
+            return Ok(max_size);
         }
 
         if let Some(struct_def) = self.struct_defs.get(type_name) {

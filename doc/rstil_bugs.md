@@ -4,35 +4,11 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 ## Active Bugs
 
-### Bug #6: Enum Payloads Lost in Struct-to-Struct Copy
-- **Status**: ⚠️ ARCHITECTURAL LIMITATION
-- **Symptom**: When copying a struct that contains enum fields with payloads, the payloads are lost or corrupted
-- **Root Cause**: Structs are allocated with fixed sizes based on `get_type_size()`, which returns 8 bytes for all enums regardless of payload. When enum payloads are written, they extend beyond the allocated space, causing memory corruption.
-- **What Works**:
-  ```til
-  mut t := Token()
-  t.token_type = TokenType.Identifier("foo")  // ✅ Direct assignment works!
-  ```
-- **What Doesn't Work**:
-  ```til
-  t1.token_type = TokenType.Identifier("foo")
-  t2 = t1  // ❌ Struct copy loses enum payload
-  ```
-- **Impact**:
-  - Direct enum-to-field assignment works correctly
-  - Struct-to-struct copying doesn't preserve enum payloads
-  - test_parser.til blocked by related issues
-- **Possible Solutions**:
-  1. Use indirection (pointers) for enum fields
-  2. Implement struct reallocation when payloads change
-  3. Reserve maximum possible size for enum fields
-  4. Copy structs field-by-field instead of memcpy
-- **Tests**: src/test/enum_payloads.til covers working cases
-- **Discovery**: 2025-01-09 during test_parser.til investigation
+None - all known bugs have been fixed!
 
 ## Fixed Bugs Summary
 
-Bugs #1-#5 have been fixed and their tests integrated into the regular test suite (`enums.til`, `flow.til`, `arithmetics.til`).
+Bugs #1-#6 have been fixed and their tests integrated into the regular test suite (`enums.til`, `flow.til`, `arithmetics.til`).
 
 ### Bug #1: Enum Comparison in Switch/Case
 - **Status**: ❌ NOT PRESENT - Type system prevents this issue
@@ -57,6 +33,16 @@ Bugs #1-#5 have been fixed and their tests integrated into the regular test suit
 - **Fix**: interpreter.rs:2346 (map_instance_fields for struct payloads)
 - **Commit**: 4676a6b
 
+### Bug #6: Enum Payloads Lost in Struct-to-Struct Copy
+- **Status**: ✅ FIXED - Enum fields now reserve maximum variant size
+- **Symptom**: When copying a struct that contains enum fields with payloads, the payloads were lost or corrupted
+- **Root Cause**: Structs were allocated with fixed sizes based on `get_type_size()`, which returned only 8 bytes for all enums regardless of payload size. When enum payloads were written, they extended beyond the allocated space, causing memory corruption.
+- **Solution**: Modified `get_type_size()` to calculate and reserve the maximum variant size for each enum type (8 bytes for tag + largest payload size), following the Rust approach.
+- **Fix**: init.rs:1118-1144 (calculate max variant size in get_type_size)
+- **Tests**: src/test/enums.til includes comprehensive regression tests for direct assignment and struct copying
+- **Discovery**: 2025-01-09 during test_parser.til investigation
+- **Fixed**: 2025-01-09
+
 ### Division/Modulo by Zero
 - **Status**: ✅ FIXED - Returns 0 instead of panicking (safe default)
 - **Fix**: interpreter.rs (zero checks in div/mod operations)
@@ -65,7 +51,6 @@ Bugs #1-#5 have been fixed and their tests integrated into the regular test suit
 
 ---
 
-**Historical bugs (#1-#5) all fixed as of January 2025.**
-**Bug #6 discovered January 2025 - ACTIVE.**
+**All historical bugs (#1-#6) fixed as of January 2025.**
 
 For implementation details and self-hosting progress, see git history and commit messages.

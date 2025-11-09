@@ -42,7 +42,7 @@ runfile("src/test/namespaces.til")
 runfile("src/test/pointers.til")
 runfile("src/test/strings.til")
 runfile("src/test/test_lexer.til")
-// TODO: Re-enable after fixing Bug #6 (enum payload corruption in struct field assignment)
+// TODO: Re-enable after fixing issues in parser.til itself
 // runfile("src/test/test_parser.til")
 runfile("src/test/structs.til")
 runfile("src/test/func_purity.til")
