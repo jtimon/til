@@ -12,15 +12,101 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Progress Summary
 
-| Component           | Status                          | Notes                                  |
-|---------------------+---------------------------------+----------------------------------------|
-| Known Bugs          | ⚠️ BUG #6 ACTIVE                | Enum payload corruption in struct fields |
-| Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional    |
-| Import System       | ✅ WORKING                      | Basic imports work in all modes        |
-| Test Suite          | ⚠️ 1 TEST DISABLED              | test_parser.til blocked by Bug #6      |
-| Type System         | ✅ COMPLETE                     | Variadic args support zero arguments   |
+| Component           | Status                          | Notes                                           |
+|---------------------+---------------------------------+-------------------------------------------------|
+| Known Bugs          | ✅ BUG #6 FIXED                 | Enum payloads now reserve max variant size      |
+| Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
+| Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
+| Test Suite          | ⚠️ PARTIALLY BLOCKED            | test_parser.til blocked by enum-as-payload      |
+| Type System         | ⚠️ MISSING FEATURES             | Recursive enum payloads not supported           |
+| Parser Homogenization | ⚠️ 85% COMPLETE                | Phases 0-3 done, need enum-as-payload support   |
 
 * Critical: Missing rstil Features
+:PROPERTIES:
+:CATEGORY: Missing Features
+:END:
+
+** TODO Support Recursive Enum Payloads (enums as payloads)              :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-09
+:IMPACT: Blocks parser homogenization completion
+:RELATED: Parser homogenization, Type system
+:END:
+
+*** Problem
+TIL does not currently support using enum types as payloads for other enums.
+This is required for proper parser data structures in parser.til.
+
+Example that should work but doesn't:
+#+BEGIN_SRC til
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+}
+
+ValueType := enum {
+    TFunction: FunctionType,  // Enum as payload - NOT SUPPORTED
+    TCustom: Str,             // Primitive as payload - WORKS
+}
+
+// This fails at runtime with:
+// "get_enum: 'FunctionType' is not a custom enum type"
+vt := ValueType.TFunction(FunctionType.FTFunc)
+#+END_SRC
+
+*** Current Workaround
+Parser homogenization currently must use I64 to store enum variant indices instead
+of the actual enum values, which loses type safety and clarity.
+
+*** What's Needed
+- [ ] Update init.rs to properly register and serialize enum definitions used as payloads
+- [ ] Update interpreter.rs to handle enum-as-payload construction and access
+- [ ] Add test cases for recursive enum payloads in src/test/enums.til
+- [ ] Re-test parser.til import after fix
+
+*** Impact
+- Parser data structures cannot match Rust implementation exactly
+- Type safety is compromised (using I64 instead of proper enum types)
+- Harder to maintain parity between parser.til and parser.rs
+
+** TODO Improve Forward Reference Error Messages                         :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-09
+:IMPACT: Developer experience, debugging
+:END:
+
+*** Problem
+When an enum references another enum that hasn't been defined yet (forward reference),
+rstil gives an unclear error message at runtime instead of a clear parse-time error.
+
+Example:
+#+BEGIN_SRC til
+ValueType := enum {
+    TFunction: FunctionType,  // Forward reference - FunctionType not defined yet
+}
+
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+}
+#+END_SRC
+
+Current error (at runtime):
+: get_enum: 'FunctionType' is not a custom enum type
+
+Better error (at parse time):
+: Forward reference: 'FunctionType' used in ValueType definition before being defined
+: Hint: Move FunctionType definition before ValueType
+
+*** What's Needed
+- [ ] Add forward reference detection in parser.rs during enum definition parsing
+- [ ] Provide clear error message with line numbers and helpful suggestion
+- [ ] Document enum definition ordering requirements in language docs
+
+*** Workaround
+Manually ensure enum definitions are in dependency order (dependencies defined first).
+
+* Critical: Missing rstil Features (Continued)
 :PROPERTIES:
 :CATEGORY: Missing Features
 :END:
