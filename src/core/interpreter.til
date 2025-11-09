@@ -403,7 +403,6 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
     // enum_to_str() doesn't include payload, so we can't distinguish between functions
     // TEMPORARY HACK: For hello_script.til test, just assume all calls are println
     // TODO: Fix this properly - possibly by using switch statement to extract payload
-    println("DEBUG: Calling eval_println (assuming all functions are println due to rstil bug)")
     return eval_println(context, params_array)
 
     // TODO: Restore proper function dispatch once rstil bug is fixed or switch-based workaround is implemented
