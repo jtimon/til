@@ -38,10 +38,31 @@ run_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsErro
     mut ast := parse_body(lexer, TokenType.Eof)
 
     // Create context for evaluation
-    mut context := init_context(mode_def, path)
+    mut context := Context.new(mode_def, path)
+
+    // Process declarations (register symbols, functions, types)
+    mut init_errors := init_context(context, ast)
+    if gt(init_errors.len, 0) {
+        mut i := 0
+        while i.lt(init_errors.len) {
+            mut err_msg := ""
+            init_errors.get(i, err_msg)
+            println(err_msg)
+            i = i.add(1)
+        }
+        println("Initialization failed - exiting")
+        exit(1)
+    }
 
     // Evaluate the AST
-    result := eval_expr(context, ast)
+    mut eval_result := eval_expr(context, ast)
+
+    // Handle throw/return
+    if eval_result.is_throw {
+        println("Uncaught exception: ", eval_result.thrown_type, " - ", eval_result.value)
+        exit(1)
+    }
+    // For script mode, result value is ignored
 
     // Success - no need to print result for test mode
 }
@@ -146,26 +167,26 @@ main := proc(args: ..Str) {
         case:
             run_file_or_exit(path)
             catch (err: Str) {
-                println("Error during file execution")
+                println("Error during execution:")
+                println(err)
                 exit(1)
             }
             catch (err: AllocError) {
-                println("AllocError during file execution")
+                println("AllocError during execution")
                 exit(1)
             }
             catch (err: IndexOutOfBoundsError) {
-                println("IndexOutOfBoundsError during file execution")
+                println("IndexOutOfBoundsError during execution")
                 exit(1)
             }
             catch (err: I64_OverflowError) {
-                println("I64_OverflowError during file execution")
+                println("I64_OverflowError during execution")
                 exit(1)
             }
             catch (err: FullError) {
-                println("FullError during file execution")
+                println("FullError during execution")
                 exit(1)
             }
-            // run_file_or_exit(path, Array.new("Str", size_of(Str), 0)) // TODO FIX
         }
     } else {
         // TEMP: Testing self-hosted compiler on hello_script.til

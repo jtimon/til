@@ -66,9 +66,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, 
     // Match on node type
     switch e.node_type {
     case NodeType.Body:
-        // TODO: eval_body
-        TODO(loc(), "eval_body not yet implemented")
-        return EvalResult.new("")
+        // Evaluate body and wrap result in EvalResult
+        mut body_result := eval_body(context, e)
+        return EvalResult.new(body_result)
 
     case NodeType.Literal(lit):
         // Handle literals - return value directly
@@ -87,9 +87,9 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, 
         }
 
     case NodeType.FCall:
-        // TODO: eval_func_proc_call
-        TODO(loc(), "eval_func_proc_call not yet implemented")
-        return EvalResult.new("")
+        // Evaluate function call and wrap result in EvalResult
+        mut fcall_result := eval_fcall(context, e)
+        return EvalResult.new(fcall_result)
 
     case NodeType.Declaration(decl):
         // TODO: eval_declaration
@@ -574,7 +574,16 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
         mut is_catch := stmt_type_str.eq("NodeType.Catch")
 
         if not(is_catch) {
-            last_result = eval_expr(context, stmt)
+            mut stmt_result := eval_expr(context, stmt)
+            last_result = stmt_result.value
+
+            // Handle early return/throw
+            if stmt_result.is_return {
+                return last_result
+            }
+            if stmt_result.is_throw {
+                throw format("Uncaught exception: ", stmt_result.thrown_type, " - ", stmt_result.value)
+            }
         }
 
         i = add(i, 1)
