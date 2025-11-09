@@ -5,7 +5,7 @@ import("src/core/parser")
 // Init phase: Context creation and symbol table management
 // Corresponds to src/rs/init.rs in the Rust implementation
 //
-// IMPLEMENTATION STATUS (~85% complete):
+// IMPLEMENTATION STATUS (~87% complete):
 //
 // COMPLETED:
 // Phase 1: Foundation
@@ -17,6 +17,7 @@ import("src/core/parser")
 //
 // Phase 2: Enum and Array Support
 // - Enum methods: get_enum, insert_enum, get_enum_at_offset (simplified without payloads)
+// - Payload size calculation: get_payload_size_for_type (handles Bool, I64, structs, enums)
 // - Array method: insert_array (empty array allocation)
 // - Helper methods: get_i64_at_offset, set_i64_at_offset, insert_bool_at_offset
 //
@@ -27,7 +28,7 @@ import("src/core/parser")
 // Core Type Inference:
 // - get_value_type: handles literals, funcdefs, enums, structs, ranges, identifiers, patterns
 // - Member access with actual type resolution (parses struct definitions)
-// - get_fcall_value_type: handles UFCS, standalone funcs, constructors
+// - get_fcall_value_type: UFCS method resolution, standalone funcs, constructors (fully working)
 // - value_type_func_proc: function return type checking
 //
 // Arena Methods (simplified string-based storage):
@@ -38,12 +39,11 @@ import("src/core/parser")
 // - process_declarations: registers funcs, enums, structs with serialization
 // - Enum helpers: get_variant_pos, variant_pos_to_str
 //
-// NOT YET IMPLEMENTED:
+// NOT YET IMPLEMENTED (~13% remaining):
 // - init_import_declarations: needs file I/O, lexing, parsing, recursive import handling
-// - Full UFCS method resolution (partially stubbed)
-// - Enum payload handling (basic tags only)
+// - Enum payload handling (basic tags only, no payload bytes)
 // - Array initialization with values (empty arrays only)
-// - Proper byte-level c_string/cap/len for strings
+// - Proper byte-level c_string/cap/len for strings (architectural change)
 // - Mode validation in declarations
 // - Associated function registration for structs
 // - SymbolInfo serialization (currently using simple string format)
