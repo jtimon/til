@@ -65,6 +65,7 @@ println("\nrstil Bug Tests:\n")
 runfile("src/test/bug_enum_comparison.til")  // Bug #1: enum comparison in switch (NOT PRESENT - typer prevents)
 runfile("src/test/bug_return_frames.til")     // Bug #2: return frame popping (NOT PRESENT)
 runfile("src/test/bug_nested_enums.til")      // Bug #3: nested enum payloads (CONFIRMED BUG)
+runfile("src/test/bug_enum_payload_copy.til") // Bug #4: enum payload copy (FIXED - stays fixed)
 runfile("src/test/bug_divmod_zero.til")       // Division/modulo by zero (FIXED - returns 0)
 runfile("src/test/bug_enum_extract.til")      // Bug #5: rsonly_enum_extract_payload (PARTIAL - I64/Str work)
 
