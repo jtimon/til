@@ -229,8 +229,19 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Note:** Simplified implementation without payload handling. Payloads marked as TODO for future enhancement.
 
-#### 🔄 Step 2: Array Support (PENDING)
-- Implement `insert_array` for array allocation
+#### ✅ Step 2: Array Support (COMPLETED)
+
+**Implemented:**
+- ✅ `insert_array` - Allocate empty arrays
+  - Calls insert_struct to allocate Array struct
+  - Initializes all fields (ptr, len, cap, is_dyn, type_name, type_size)
+  - Creates empty arrays (len=0, cap=0, ptr=0)
+  - Commit: edae985
+
+**Helper functions added:**
+- `insert_bool_at_offset` - Write Bool at specific offset
+
+**Note:** Simplified implementation for empty arrays. Support for arrays with initial values marked as TODO.
 
 ## Next Steps
 
