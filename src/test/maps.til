@@ -305,6 +305,133 @@ test_map_empty := proc() {
     catch (err: AllocError) { exit(1) }
 }
 
+// Test Map growth/reallocation beyond initial capacity
+test_map_growth := proc() {
+    mut ages := Map.new("I64", size_of(I64), "I64", size_of(I64))
+
+    // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
+    mut i := 0
+    while lt(i, 20) {
+        ages.insert(i, mul(i, 100))
+        i = add(i, 1)
+    }
+
+    test(loc(), I64.eq(ages.len(), 20), "Map should have 20 entries after growth")
+
+    // Verify all values are still correct after reallocation
+    mut val := 0
+    ages.get(0, val)
+    test(loc(), I64.eq(val, 0), "First element should still be 0")
+    ages.get(10, val)
+    test(loc(), I64.eq(val, 1000), "Middle element should be 1000")
+    ages.get(19, val)
+    test(loc(), I64.eq(val, 1900), "Last element should be 1900")
+
+    // Verify contains_key still works after reallocation
+    test(loc(), ages.contains_key(5), "Should contain key 5 after growth")
+    test(loc(), ages.contains_key(15), "Should contain key 15 after growth")
+    test(loc(), not(ages.contains_key(25)), "Should not contain key 25")
+
+    println("PASS: Map growth and reallocation works")
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map.delete() properly resets size
+test_map_delete := proc() {
+    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+
+    m.insert("a", 1)
+    m.insert("b", 2)
+    m.insert("c", 3)
+    test(loc(), I64.eq(m.len(), 3), "Map should have 3 entries")
+
+    m.delete()
+    test(loc(), I64.eq(m.len(), 0), "Map size should be 0 after delete")
+
+    println("PASS: Map.delete() properly resets map")
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
+// Test len() tracks correctly through various operations
+test_map_len_tracking := proc() {
+    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+
+    test(loc(), I64.eq(m.len(), 0), "Empty map should have len 0")
+
+    m.insert("a", 1)
+    test(loc(), I64.eq(m.len(), 1), "Map should have len 1 after first insert")
+
+    m.insert("b", 2)
+    m.insert("c", 3)
+    test(loc(), I64.eq(m.len(), 3), "Map should have len 3 after three inserts")
+
+    // set() with existing key should not change len
+    m.set("a", 100)
+    test(loc(), I64.eq(m.len(), 3), "Map len should stay 3 after set() on existing key")
+
+    // set() with new key should increase len
+    m.set("d", 4)
+    test(loc(), I64.eq(m.len(), 4), "Map len should be 4 after set() with new key")
+
+    println("PASS: Map.len() tracks size correctly")
+    m.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
+// Test multiple set() overwrites
+test_map_multiple_overwrites := proc() {
+    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+
+    m.set("key", 1)
+    mut val := 0
+    m.get("key", val)
+    test(loc(), I64.eq(val, 1), "First set should store 1")
+
+    m.set("key", 2)
+    m.get("key", val)
+    test(loc(), I64.eq(val, 2), "Second set should overwrite to 2")
+
+    m.set("key", 3)
+    m.get("key", val)
+    test(loc(), I64.eq(val, 3), "Third set should overwrite to 3")
+
+    test(loc(), I64.eq(m.len(), 1), "Multiple overwrites should keep len at 1")
+
+    println("PASS: Multiple set() overwrites work correctly")
+    m.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test insertion order is preserved after growth
+test_map_order_after_growth := proc() {
+    mut m := Map.new("I64", size_of(I64), "Str", size_of(Str))
+
+    // Insert 20 keys to trigger reallocation
+    mut i := 0
+    while lt(i, 20) {
+        m.insert(i, format("val", I64.to_str(i)))
+        i = add(i, 1)
+    }
+
+    // Verify position() still returns correct insertion order
+    test(loc(), I64.eq(m.position(0), 0), "Key 0 should be at position 0")
+    test(loc(), I64.eq(m.position(5), 5), "Key 5 should be at position 5")
+    test(loc(), I64.eq(m.position(10), 10), "Key 10 should be at position 10")
+    test(loc(), I64.eq(m.position(19), 19), "Key 19 should be at position 19")
+    test(loc(), I64.eq(m.position(100), sub(0, 1)), "Non-existent key should return -1")
+
+    println("PASS: Insertion order preserved after growth")
+    m.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
 // Run all tests
 test_map_i64_to_i64()
 test_map_i64_to_str()
@@ -320,5 +447,10 @@ test_map_get_missing()
 test_map_contains_key()
 test_map_position()
 test_map_empty()
+test_map_growth()
+test_map_delete()
+test_map_len_tracking()
+test_map_multiple_overwrites()
+test_map_order_after_growth()
 
 println("All Map tests passed!")
