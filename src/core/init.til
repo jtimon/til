@@ -109,6 +109,21 @@ Context := struct {
         self.arena.memory = mem_arr
     }
 
+    // Insert Bool value in arena at specific offset
+    insert_bool_at_offset := proc(mut self: Context, offset: I64, value: Bool) throws Str, IndexOutOfBoundsError {
+        // Store Bool as "true" or "false" string
+        mut value_str := ""
+        if value {
+            value_str = "true"
+        }
+        else {
+            value_str = "false"
+        }
+        mut mem_arr := self.arena.memory
+        mem_arr.set(offset, value_str)
+        self.arena.memory = mem_arr
+    }
+
     // Get I64 value from arena by variable name
     get_i64 := func(self: Context, var_name: Str) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
         // Look up the offset in arena_index
@@ -827,10 +842,60 @@ Context := struct {
     }
 
     // Insert array into arena
-    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError {
-        // TODO: Allocate Array struct, allocate buffer for elements, initialize fields
-        // For now, just throw TODO
-        throw format(loc(), " TODO: insert_array not fully implemented for '", var_name, "' with elem_type '", elem_type, "'")
+    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // Allocate Array struct
+        self.insert_struct(var_name, "Array")
+
+        // Get element type size
+        mut elem_size := self.get_type_size(elem_type)
+
+        // Initialize Array fields
+        // ptr = 0 (no buffer allocated yet)
+        mut ptr_field := format(var_name, ".ptr")
+        mut ptr_offset_str := self.arena_index.get(ptr_field)
+        if not(ptr_offset_str.eq("")) {
+            mut ptr_offset := ptr_offset_str.to_i64()
+            self.set_i64_at_offset(ptr_offset, 0)
+        }
+
+        // len = 0 (empty array)
+        mut len_field := format(var_name, ".len")
+        mut len_offset_str := self.arena_index.get(len_field)
+        if not(len_offset_str.eq("")) {
+            mut len_offset := len_offset_str.to_i64()
+            self.set_i64_at_offset(len_offset, 0)
+        }
+
+        // cap = 0 (no capacity)
+        mut cap_field := format(var_name, ".cap")
+        mut cap_offset_str := self.arena_index.get(cap_field)
+        if not(cap_offset_str.eq("")) {
+            mut cap_offset := cap_offset_str.to_i64()
+            self.set_i64_at_offset(cap_offset, 0)
+        }
+
+        // is_dyn = false (static array)
+        mut is_dyn_field := format(var_name, ".is_dyn")
+        mut is_dyn_offset_str := self.arena_index.get(is_dyn_field)
+        if not(is_dyn_offset_str.eq("")) {
+            mut is_dyn_offset := is_dyn_offset_str.to_i64()
+            self.insert_bool_at_offset(is_dyn_offset, false)
+        }
+
+        // type_name = elem_type (using insert_str for the type_name field)
+        mut type_name_field := format(var_name, ".type_name")
+        self.insert_str(type_name_field, elem_type)
+
+        // type_size = elem_size
+        mut type_size_field := format(var_name, ".type_size")
+        mut type_size_offset_str := self.arena_index.get(type_size_field)
+        if not(type_size_offset_str.eq("")) {
+            mut type_size_offset := type_size_offset_str.to_i64()
+            self.set_i64_at_offset(type_size_offset, elem_size)
+        }
+
+        // TODO: Support arrays with initial values
+        // For now, creates empty array (len=0, cap=0, ptr=0)
     }
 }
 
