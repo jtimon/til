@@ -230,12 +230,12 @@ pub struct ModeDef {
     pub imports: Vec<String>,
 }
 
-pub fn can_be_imported(mode: &ModeDef) -> bool {
+pub fn can_be_imported(mode_def: &ModeDef) -> bool {
     return !(
-        mode.needs_main_proc || // TODO think harder, why not?
-        mode.allows_base_mut ||
-        mode.allows_base_calls ||
-        mode.allows_base_anything
+        mode_def.needs_main_proc || // TODO think harder, why not?
+        mode_def.allows_base_mut ||
+        mode_def.allows_base_calls ||
+        mode_def.allows_base_anything
     );
 }
 
@@ -308,17 +308,17 @@ pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
     }
     let t = lexer.peek();
     let mode_name = &t.token_str;
-    let mode = match mode_from_name(&mode_name) {
+    let m = match mode_from_name(&mode_name) {
         Ok(mode_) => mode_,
         Err(err_) => return Err(err_),
     };
 
-    if mode.name == "safe_script" {
-        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, mode.name, LANG_NAME, "script"));
+    if m.name == "safe_script" {
+        return Err(format!("{}:0:0: mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", path, m.name, LANG_NAME, "script"));
     }
 
     lexer.expect(TokenType::Identifier)?; // Add one for the identifier of the mode
-    return Ok(mode);
+    return Ok(m);
 }
 
 fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {

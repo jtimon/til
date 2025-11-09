@@ -4,6 +4,124 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
+// ==============================================================================
+// Mode System (mirrors parser.rs lines 222-322)
+// ==============================================================================
+
+// Mode definition - controls what language features are allowed in a file
+ModeDef := struct {
+    mut name: Str = ""
+    mut allows_procs: Bool = false
+    mut allows_base_mut: Bool = false
+    mut allows_base_calls: Bool = false
+    mut allows_base_anything: Bool = false
+    mut needs_main_proc: Bool = false
+    mut imports: Array = Array()  // Array of Str (import paths)
+}
+
+// Check if a mode can be imported by other files
+can_be_imported := func(mode_def: ModeDef) returns Bool {
+    // Modes that need main_proc or allow base-level mutations/calls cannot be imported
+    return not(or(or(or(
+        mode_def.needs_main_proc,
+        mode_def.allows_base_mut),
+        mode_def.allows_base_calls),
+        mode_def.allows_base_anything))
+}
+
+// Create ModeDef from mode name string
+mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
+    mut m := ModeDef()
+    m.name = mode_name
+
+    if mode_name.eq("lib") {
+        m.allows_procs = true
+        m.allows_base_calls = false
+        m.allows_base_mut = false
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        // m.imports remains empty
+        return m
+    }
+
+    if mode_name.eq("pure") {
+        m.allows_procs = false
+        m.allows_base_calls = false
+        m.allows_base_mut = false
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        // m.imports remains empty
+        return m
+    }
+
+    if mode_name.eq("script") {
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = true
+        m.needs_main_proc = false
+        // m.imports remains empty
+        return m
+    }
+
+    if mode_name.eq("safe_script") {
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = true
+        m.needs_main_proc = false
+        // m.imports remains empty
+        return m
+    }
+
+    if mode_name.eq("cli") {
+        m.allows_procs = true
+        m.allows_base_calls = false
+        m.allows_base_mut = true
+        m.allows_base_anything = false
+        m.needs_main_proc = true
+        // m.imports remains empty
+        return m
+    }
+
+    if mode_name.eq("test") {
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        m.imports.push("src/core/modes/test")
+        return m
+    }
+
+    // Unknown mode
+    throw Str.add("0:0: rstil interpreter implementation doesn't support mode '", Str.add(mode_name, "'"))
+}
+
+// Parse mode declaration at start of file
+parse_mode := func(path: Str, lexer: Lexer) returns ModeDef throws Str {
+    lexer_expect(lexer, TokenType.Mode)  // Consume 'mode' keyword
+
+    t := lexer.peek()
+    if not(enum_to_str(t.token_type).eq("TokenType.Identifier")) {
+        throw "0:0: Expected identifier after 'mode'"
+    }
+
+    mode_name := t.token_str
+    m := mode_from_name(mode_name)
+
+    if m.name.eq("safe_script") {
+        throw Str.add(Str.add(Str.add(path, ":0:0: mode '"), m.name), "' is not properly supported in 'rstil' yet. Try mode 'script' instead")
+    }
+
+    lexer_expect(lexer, TokenType.Identifier)  // Consume mode identifier
+    return m
+}
+
+// ==============================================================================
+// Type System (mirrors parser.rs ValueType and related enums)
+// ==============================================================================
+
 // Represents the type of a value (mirrors parser.rs ValueType)
 ValueType := enum {
     TFunction,  // Function type
@@ -1560,4 +1678,34 @@ parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     }
     t := lexer.peek()
     t.error(format(loc(), "Expected the body to end with ", enum_to_str(end_token)))
+}
+
+// ==============================================================================
+// Public Parser Entry Point (mirrors parser.rs lines 1377-1402)
+// ==============================================================================
+
+// Parse tokens from lexer into AST
+// This is the main entry point for parsing
+parse_tokens := func(lexer: Lexer) returns Expr throws Str {
+    e := parse_body(lexer, TokenType.Eof)
+
+    // Check for unparsed tokens
+    mut i := lexer.current
+    mut unparsed_tokens := 0
+    lexer_len := lexer.len()
+    if I64.lt(i, lexer_len) {
+        unparsed_tokens = I64.sub(lexer_len, i)
+    }
+    if I64.gt(unparsed_tokens, 0) {
+        println(Str.add("Total tokens parsed: ", Str.add(I64.to_str(lexer.current), Str.add("/", I64.to_str(lexer_len)))))
+    }
+    while I64.lt(i, lexer_len) {
+        t := lexer.get_token(i)
+        println(Str.add("Token: ", enum_to_str(t.token_type)))
+        i = I64.add(i, 1)
+    }
+    if I64.gt(unparsed_tokens, 0) {
+        throw Str.add("Total unparsed tokens: ", Str.add(I64.to_str(unparsed_tokens), Str.add("/", I64.to_str(lexer_len))))
+    }
+    return e
 }
