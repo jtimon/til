@@ -91,6 +91,7 @@ NodeType := enum {
     Switch,
     DefaultCase,
     Range,
+    Pattern    : (Str, Str)  // Pattern(variant_name, binding_var)
 }
 
 // ExprArray has been removed - we now use Array directly for Expr.params
@@ -317,7 +318,13 @@ parse_primary := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, Ind
     if tt_str.eq("TokenType.Func") {
         return parse_func_proc_definition(lexer)
     }
+    if tt_str.eq("TokenType.FuncExt") {
+        return parse_func_proc_definition(lexer)
+    }
     if tt_str.eq("TokenType.Proc") {
+        return parse_func_proc_definition(lexer)
+    }
+    if tt_str.eq("TokenType.ProcExt") {
         return parse_func_proc_definition(lexer)
     }
     if tt_str.eq("TokenType.Enum") {
@@ -580,6 +587,10 @@ parse_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         return parse_statement_identifier(lexer)
     case TokenType.Catch:
         return parse_catch_statement(lexer)
+    case TokenType.LeftBrace:
+        // Nested block scope
+        lexer.advance(1)
+        return parse_body(lexer, TokenType.RightBrace)
     case:
         throw t.error(format("Expected statement, found ", enum_to_str(t.token_type)))
     }
@@ -650,12 +661,16 @@ parse_if_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOf
         lexer.advance(1)
         next_t := lexer.peek()
         switch next_t.token_type {
+        case TokenType.If:
+            // else if - recursively parse as nested if statement
+            nested_if := parse_if_statement(lexer)
+            params.push(nested_if)
         case TokenType.LeftBrace:
             lexer.advance(1)
             else_body := parse_body(lexer, TokenType.RightBrace)
             params.push(else_body)
         case:
-            throw next_t.error(format("Expected '{{' after 'else', found '", enum_to_str(next_t.token_type), "'."))
+            throw next_t.error(format("Expected '{{' or 'if' after 'else', found '", enum_to_str(next_t.token_type), "'."))
         }
     case:
         // No else clause
@@ -927,10 +942,14 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     switch initial_token.token_type {
     case TokenType.Func:
         func_type = FunctionType.FTFunc
+    case TokenType.FuncExt:
+        func_type = FunctionType.FTFuncExt
     case TokenType.Proc:
         func_type = FunctionType.FTProc
+    case TokenType.ProcExt:
+        func_type = FunctionType.FTProcExt
     case:
-        throw initial_token.error("Expected 'func' or 'proc'")
+        throw initial_token.error("Expected 'func', 'func_ext', 'proc', or 'proc_ext'")
     }
 
     lexer.advance(1) // consume 'func' or 'proc'
@@ -1164,6 +1183,38 @@ parse_case_expr := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         range_params.push(right)
         return Expr.new_parse(NodeType.Range, t, range_params)
     case:
+        // Check if this is a pattern match: EnumVariant(binding_var)
+        // This would have been parsed as FCall with one Identifier parameter
+        mut left_params := left.params
+        left_node_type := left.node_type
+        if enum_eq(left_node_type, NodeType.FCall) {
+            if left_params.len.eq(2) {
+                // FCall params are: [function_name, arg1, arg2, ...]
+                // For pattern matching, we expect: [variant_identifier, binding_identifier]
+                mut variant_expr := Expr()
+                left_params.get(0, variant_expr)
+                variant_name := get_combined_name(variant_expr)
+
+                mut binding_expr := Expr()
+                left_params.get(1, binding_expr)
+                binding_node_type := binding_expr.node_type
+
+                switch binding_node_type {
+                case NodeType.Identifier(binding_var):
+                    // Convert FCall to Pattern
+                    return Expr.new_explicit(
+                        NodeType.Pattern(variant_name, binding_var),
+                        new_expr_array(),
+                        left.line,
+                        left.col
+                    )
+                case:
+                    // Not a pattern match, return as-is
+                    return left
+                }
+            }
+        }
+
         // Just a single expression
         return left
     }
