@@ -666,10 +666,97 @@ Context := struct {
     }
 
     // Copy struct fields from source to destination
-    copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, dest: Str) throws Str {
-        // TODO: Look up struct definition, copy all field values from src to dest in arena
-        // For now, just throw TODO
-        throw format(loc(), " TODO: copy_fields not fully implemented from '", src, "' to '", dest, "' of type '", custom_type_name, "'")
+    copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, dest: Str) throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Get struct definition
+        mut struct_defs_map := self.struct_defs
+        mut struct_def_str := struct_defs_map.get(custom_type_name)
+        if struct_def_str.eq("") {
+            throw format(loc(), " ERROR: copy_fields: definition for '", custom_type_name, "' not found")
+        }
+
+        // Get destination symbol info (for is_mut)
+        mut symbols_map := self.symbols
+        mut dest_symbol_str := symbols_map.get(dest)
+        if dest_symbol_str.eq("") {
+            throw format(loc(), " ERROR: copy_fields: destination symbol '", dest, "' not found")
+        }
+        // TODO: Parse SymbolInfo to get is_mut
+        mut is_mut := true
+
+        // Get destination base offset
+        mut arena_idx := self.arena_index
+        mut dest_base_offset_str := arena_idx.get(dest)
+        if dest_base_offset_str.eq("") {
+            throw format(loc(), " ERROR: copy_fields: destination arena offset for '", dest, "' not found")
+        }
+        mut dest_base_offset := dest_base_offset_str.to_i64()
+
+        // Parse serialized struct definition
+        // Format: "STRUCT|field1=Type1|field2=Type2|..."
+        mut parts := struct_def_str.split("|")
+        mut current_offset := 0
+
+        // Skip first part ("STRUCT") and iterate through field definitions
+        mut i := 1
+        while lt(i, parts.len) {
+            mut field_def := ""
+            parts.get(i, field_def)
+
+            // Split field_def by "=" to get field_name=field_type
+            mut field_parts := field_def.split("=")
+            if gteq(field_parts.len, 2) {
+                mut field_name := ""
+                mut field_type := ""
+                field_parts.get(0, field_name)
+                field_parts.get(1, field_type)
+
+                // Get field size
+                mut field_size := self.get_type_size(field_type)
+
+                // Build source and destination keys
+                mut src_key := format(src, ".", field_name)
+                mut dest_key := format(dest, ".", field_name)
+
+                // Get source offset
+                mut arena_map := self.arena_index
+                mut src_offset_str := arena_map.get(src_key)
+                if src_offset_str.eq("") {
+                    throw format(loc(), " ERROR: copy_fields: source offset for '", src_key, "' not found")
+                }
+                mut src_offset := src_offset_str.to_i64()
+
+                // Calculate destination offset
+                mut dest_offset := add(dest_base_offset, current_offset)
+
+                // Register destination field in arena_index and symbols
+                mut arena_idx_map := self.arena_index
+                arena_idx_map.insert(dest_key, dest_offset.to_str())
+                self.arena_index = arena_idx_map
+
+                mut syms := self.symbols
+                // TODO: Serialize SymbolInfo properly (for now just store type)
+                syms.insert(dest_key, format("ValueType.TCustom=", field_type))
+                self.symbols = syms
+
+                // Copy memory from source to destination (simplified: copy string value)
+                mut mem_arr := self.arena.memory
+                mut value_str := ""
+                mem_arr.get(src_offset, value_str)
+                mem_arr.set(dest_offset, value_str)
+                self.arena.memory = mem_arr
+
+                // Recursively handle nested structs
+                mut struct_defs := self.struct_defs
+                mut nested_struct_def := struct_defs.get(field_type)
+                if not(nested_struct_def.eq("")) {
+                    self.copy_fields(field_type, src_key, dest_key)
+                }
+
+                current_offset = add(current_offset, field_size)
+            }
+
+            i = add(i, 1)
+        }
     }
 
     // Insert struct instance into arena
@@ -755,10 +842,53 @@ Context := struct {
     }
 
     // Register struct fields for type checking without evaluating defaults
-    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws Str, AllocError {
-        // TODO: Look up struct definition, register all field symbols for type checking
-        // For now, just throw TODO
-        throw format(loc(), " TODO: register_struct_fields_for_typecheck not fully implemented for '", instance_name, "' of type '", struct_type_name, "'")
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws Str, AllocError, IndexOutOfBoundsError {
+        // Get struct definition
+        mut struct_defs_map := self.struct_defs
+        mut struct_def_str := struct_defs_map.get(struct_type_name)
+        if struct_def_str.eq("") {
+            // Struct definition not found - silently return (not all types are structs)
+            return
+        }
+
+        // Parse serialized struct definition
+        // Format: "STRUCT|field1=Type1|field2=Type2|..."
+        mut parts := struct_def_str.split("|")
+
+        // Skip first part ("STRUCT") and iterate through field definitions
+        mut i := 1
+        while lt(i, parts.len) {
+            mut field_def := ""
+            parts.get(i, field_def)
+
+            // Split field_def by "=" to get field_name=field_type
+            mut field_parts := field_def.split("=")
+            if gteq(field_parts.len, 2) {
+                mut field_name := ""
+                mut field_type := ""
+                field_parts.get(0, field_name)
+                field_parts.get(1, field_type)
+
+                // Build combined name (instance.field)
+                mut combined_name := format(instance_name, ".", field_name)
+
+                // Register field in symbols for type checking
+                mut syms := self.symbols
+                // TODO: Serialize SymbolInfo properly with is_mut
+                // For now, just store type info
+                syms.insert(combined_name, format("ValueType.TCustom=", field_type))
+                self.symbols = syms
+
+                // Recursively register nested struct fields
+                mut struct_defs := self.struct_defs
+                mut nested_struct_def := struct_defs.get(field_type)
+                if not(nested_struct_def.eq("")) {
+                    self.register_struct_fields_for_typecheck(combined_name, field_type)
+                }
+            }
+
+            i = add(i, 1)
+        }
     }
 
     // Get Str value from arena by variable name

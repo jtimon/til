@@ -243,6 +243,14 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Note:** Simplified implementation for empty arrays. Support for arrays with initial values marked as TODO.
 
+### Phase 3: Struct Operations (In Progress)
+
+**Goal**: Implement remaining struct operations for init.til
+
+#### 🔄 Step 1: Struct Field Operations (IN PROGRESS)
+- Implement `copy_fields` for copying struct field values
+- Implement `register_struct_fields_for_typecheck` for type checking
+
 ## Next Steps
 
 Self-hosted execution is currently blocked by complex enum handling issues. Meanwhile, working on making init.til complete for basic single-file programs.
