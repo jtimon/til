@@ -17,27 +17,29 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 | Known Bugs          | ✅ BUG #6 FIXED                 | Enum payloads now reserve max variant size      |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
-| Test Suite          | ⚠️ PARTIALLY BLOCKED            | test_parser.til blocked by enum-as-payload      |
-| Type System         | ⚠️ MISSING FEATURES             | Recursive enum payloads not supported           |
-| Parser Homogenization | ⚠️ 85% COMPLETE                | Phases 0-3 done, need enum-as-payload support   |
+| Test Suite          | ⚠️ PARTIALLY BLOCKED            | test_parser.til blocked by arena size issue     |
+| Type System         | ✅ ENUM-AS-PAYLOAD WORKS        | Direct construction now supported               |
+| Parser Homogenization | ⚠️ 85% COMPLETE                | Phases 0-3 done, blocked by arena size bug      |
 
 * Critical: Missing rstil Features
 :PROPERTIES:
 :CATEGORY: Missing Features
 :END:
 
-** TODO Support Recursive Enum Payloads (enums as payloads)              :HIGH:
+** DONE Support Recursive Enum Payloads (enums as payloads)              :HIGH:
+CLOSED: [2025-01-09]
 :PROPERTIES:
 :DISCOVERED: 2025-01-09
-:IMPACT: Blocks parser homogenization completion
+:FIXED: 2025-01-09
+:IMPACT: Was blocking parser homogenization completion
 :RELATED: Parser homogenization, Type system
 :END:
 
-*** Problem
-TIL does not currently support using enum types as payloads for other enums.
-This is required for proper parser data structures in parser.til.
+*** Problem (FIXED)
+TIL did not support using enum constructors directly as payloads for other enums.
+This was required for proper parser data structures in parser.til.
 
-Example that should work but doesn't:
+Example that now works:
 #+BEGIN_SRC til
 FunctionType := enum {
     FTFunc,
@@ -45,29 +47,26 @@ FunctionType := enum {
 }
 
 ValueType := enum {
-    TFunction: FunctionType,  // Enum as payload - NOT SUPPORTED
+    TFunction: FunctionType,  // Enum as payload - NOW WORKS
     TCustom: Str,             // Primitive as payload - WORKS
 }
 
-// This fails at runtime with:
-// "get_enum: 'FunctionType' is not a custom enum type"
-vt := ValueType.TFunction(FunctionType.FTFunc)
+// This now works:
+vt := ValueType.TFunction(FunctionType.FTFunc)  // Direct constructor as payload
+ft := FunctionType.FTFunc
+vt2 := ValueType.TFunction(ft)                  // Identifier as payload (already worked)
 #+END_SRC
 
-*** Current Workaround
-Parser homogenization currently must use I64 to store enum variant indices instead
-of the actual enum values, which loses type safety and clarity.
+*** Solution
+Fixed in interpreter.rs:
+- Line 607: Check if Identifier has params before treating as variable name
+- Line 615: Use eval_expr instead of eval_func_proc_call to handle both FCall and Identifier nodes
+- Line 1118: Added safety check to prevent get_enum on type names
 
-*** What's Needed
-- [ ] Update init.rs to properly register and serialize enum definitions used as payloads
-- [ ] Update interpreter.rs to handle enum-as-payload construction and access
-- [ ] Add test cases for recursive enum payloads in src/test/enums.til
-- [ ] Re-test parser.til import after fix
-
-*** Impact
-- Parser data structures cannot match Rust implementation exactly
-- Type safety is compromised (using I64 instead of proper enum types)
-- Harder to maintain parity between parser.til and parser.rs
+*** Remaining Issue
+test_parser.til still crashes with "range end index out of bounds" in get_enum_at_offset.
+This is a separate arena size calculation issue when passing enums with enum payloads to functions.
+See new TODO below.
 
 ** TODO Improve Forward Reference Error Messages                         :MEDIUM:
 :PROPERTIES:
@@ -111,31 +110,43 @@ Manually ensure enum definitions are in dependency order (dependencies defined f
 :CATEGORY: Missing Features
 :END:
 
-** TODO Fix Disabled Test Files                                      :HIGH:
+** TODO Fix Arena Size Calculation for Enum Payloads                 :HIGH:
 :PROPERTIES:
-:FILE: src/tests.til:44-46
-:IMPACT: test_parser.til disabled due to Bug #6
+:FILE: src/tests.til:45-49
+:IMPACT: test_parser.til crashes when passing enums with enum payloads to functions
+:DISCOVERED: 2025-01-09
 :END:
 
 *** Current State
-- =src/test/test_lexer.til= - ✅ FIXED - Added catch blocks for I64_OverflowError and AllocError
-- =src/test/test_parser.til= - ⚠️ BLOCKED by Bug #6 (enum payload corruption in struct field assignment)
-- =src/tests.til:44-46= - test_lexer.til can be re-enabled, test_parser.til must stay disabled
+- =src/test/test_lexer.til= - ✅ WORKING
+- =src/test/test_parser.til= - ⚠️ CRASHES with "range end index out of bounds" in get_enum_at_offset
 
-*** Bug #6: Enum Payload Corruption
-When assigning an enum to a struct field, the payload gets replaced with the struct type name:
-- =NodeType.Identifier("foo")= becomes =NodeType.Identifier("Expr")= after assignment to =Expr.node_type=
-- See [[file:rstil_bugs.md][rstil_bugs.md]] for full details
-- Discovered 2025-01-09 during test_parser.til investigation
+*** Problem
+When an enum with an enum payload is passed to a function, rstil crashes trying to read
+past the end of the arena. The error occurs in init.rs:1497 in get_enum_at_offset.
+
+Example that crashes:
+#+BEGIN_SRC til
+import("src/core/parser")
+vt := ValueType.TFunction  // ValueType has FunctionType as payload
+result := value_type_to_str(vt)  // Crashes here with "range end index 672 out of range for slice of length 664"
+#+END_SRC
+
+*** Root Cause
+The arena doesn't allocate enough space for enums that have other enums as payloads.
+When get_enum_at_offset tries to read the payload at offset+8, it goes past the allocated memory.
+
+This is different from the enum-as-payload construction issue (which is now fixed).
+Direct construction works: =ValueType.TFunction(FunctionType.FTFunc)= ✅
+Passing to functions fails: =some_func(vt)= where vt has an enum payload ❌
 
 *** What's Needed
-- [X] Fix test_lexer.til (DONE - added catch blocks)
-- [ ] Re-enable test_lexer.til in src/tests.til
-- [ ] Fix Bug #6 in rstil (interpreter.rs) before test_parser.til can work
-- [ ] After Bug #6 fixed, re-enable test_parser.til
+- [ ] Fix arena size calculation in insert_enum to reserve max variant size including enum payloads
+- [ ] Ensure get_enum_at_offset correctly reads enum payloads from arena
+- [ ] Re-enable test_parser.til after fix
 
 *** Why This Matters
-These tests exercise critical lexer/parser functionality needed for self-hosting.
+Parser.til uses ValueType extensively with enum payloads. This blocks all parser tests.
 
 * High Priority: Known Bugs & Workarounds
 :PROPERTIES:

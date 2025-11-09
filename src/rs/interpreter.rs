@@ -603,19 +603,15 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     // Get enum variable name from the original expression
                                     // If it's a function call (enum constructor), evaluate it first to create a temp variable
                                     let enum_var_name = match &payload_expr.node_type {
-                                        NodeType::Identifier(name) => name.clone(),
-                                        NodeType::FCall => {
+                                        NodeType::Identifier(name) if payload_expr.params.is_empty() => name.clone(),
+                                        NodeType::Identifier(_) | NodeType::FCall => {
                                             // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                             // Create a temporary variable to hold the result
                                             let temp_var_name = format!("__temp_enum_{}", context.arena_index.len());
 
-                                            // Get the function name from the nested enum constructor
-                                            let nested_func_expr = payload_expr.params.first()
-                                                .ok_or_else(|| e.error("eval", "Expected identifier in nested enum constructor"))?;
-                                            let nested_name = get_combined_name(nested_func_expr)?;
-
                                             // Recursively evaluate the enum constructor
-                                            let nested_result = eval_func_proc_call(&nested_name, context, payload_expr)?;
+                                            // This could be either an FCall or an Identifier with params (like Inner.A)
+                                            let nested_result = eval_expr(context, payload_expr)?;
                                             if nested_result.is_throw {
                                                 return Ok(nested_result);
                                             }
@@ -1113,6 +1109,11 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
     };
     match custom_symbol.value_type {
         ValueType::TType(TTypeDef::TEnumDef) => {
+            // If name equals the type name, this is a reference to the type itself, not a variable
+            // This shouldn't happen in normal code, but handle it gracefully
+            if name == custom_type_name {
+                return Err(e.lang_error("eval", &format!("Cannot use enum type '{}' as a value", name)));
+            }
             let enum_val = context.get_enum(name, e)?;
             // Set temp_enum_payload so that if this enum is assigned to another variable,
             // the payload will be preserved

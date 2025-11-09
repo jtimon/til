@@ -42,7 +42,10 @@ runfile("src/test/namespaces.til")
 runfile("src/test/pointers.til")
 runfile("src/test/strings.til")
 runfile("src/test/test_lexer.til")
-// test_parser.til disabled - blocked by missing enum-as-payload support (see doc/pre_self_hosting_todo.org)
+// test_parser.til disabled - crashes in get_enum_at_offset due to arena size calculation
+// The crash occurs when ValueType enums (which have enum payloads) are passed to functions
+// This is a separate issue from enum-as-payload support (which now works for direct construction)
+// TODO: Fix arena size calculation for enums with enum payloads
 // runfile("src/test/test_parser.til")
 runfile("src/test/structs.til")
 runfile("src/test/func_purity.til")
