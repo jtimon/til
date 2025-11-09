@@ -282,8 +282,8 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         "if" => TokenType::If,
         "else" => TokenType::Else,
         "while" => TokenType::While,
-        "for" => TokenType::For, // TODO parse
-        "in" => TokenType::In, // TODO, or just use semicolon reserve forbid this
+        "for" => TokenType::For,
+        "in" => TokenType::In,
         "switch" => TokenType::Switch,
         "match" => TokenType::Match, // TODO like switch but special for declarations/assignments
         "case" => TokenType::Case,
