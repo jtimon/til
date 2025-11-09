@@ -144,6 +144,42 @@ test_structs := proc() {
 }
 test_structs()
 
+// Test that struct default values maintain purity rules
+// Default values can call funcs but not procs (to keep constructors pure)
+
+pure_func := func() returns I64 {
+    return 42
+}
+
+impure_proc := proc() returns I64 {
+    println("Side effect!")
+    return 99
+}
+
+// Test: Default values with funcs are OK
+PurityTestStruct := struct {
+    mut value1: I64 = 10
+    mut value2: I64 = pure_func()  // OK: calling func
+    mut value3: I64 = add(20, 30)  // OK: calling func
+}
+
+// Test: Nested struct with func calls OK
+InnerPurity := struct {
+    mut x: I64 = pure_func()
+}
+
+OuterPurity := struct {
+    mut inner: InnerPurity = InnerPurity()
+    mut y: I64 = pure_func()
+}
+
+// Test: The following should fail type check (proc calls in defaults)
+// Uncomment to test error detection:
+//
+// BadPurityStruct := struct {
+//     mut bad_value: I64 = impure_proc()  // ERROR: calling proc
+// }
+
 // Test that struct member default values match their declared types
 
 // Test 1: Correct types - should work
@@ -169,6 +205,17 @@ FuncReturnStruct := struct {
 }
 
 test_struct_member_types := proc() {
+    // Test purity
+    mut purity := PurityTestStruct()
+    assert_eq(loc(), 10, purity.value1)
+    assert_eq(loc(), 42, purity.value2)
+    assert_eq(loc(), 50, purity.value3)
+
+    mut outer := OuterPurity()
+    assert_eq(loc(), 42, outer.inner.x)
+    assert_eq(loc(), 42, outer.y)
+
+    // Test type matching
     mut good := GoodStruct()
     assert_eq(loc(), 42, good.x)
     assert_eq(loc(), 100, good.y)
