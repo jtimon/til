@@ -505,10 +505,57 @@ Context := struct {
 
     // Get payload size for an enum type at a given offset
     // Corresponds to get_payload_size_for_type in init.rs
-    get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64) returns I64 throws Str {
-        // TODO: Implement payload size calculation for enums
-        // For now, just return a default size
-        return 8
+    get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Match on value type
+        mut vtype_str := value_type_to_str(vtype)
+
+        // Extract type name if TCustom
+        mut type_name := ""
+        switch vtype {
+        case ValueType.TCustom(name):
+            type_name = name
+        case:
+            // For non-custom types, return 0
+            return 0
+        }
+
+        // Handle primitive types
+        if type_name.eq("Bool") {
+            return 1
+        }
+        if type_name.eq("I64") {
+            return 8
+        }
+
+        // Look up the type in symbols
+        mut symbols_map := self.symbols
+        mut symbol_str := symbols_map.get(type_name)
+        if symbol_str.eq("") {
+            // Type not found in symbols, return 0
+            return 0
+        }
+
+        // Parse symbol to get ValueType
+        mut symbol := SymbolInfo()
+        symbol.value_type = parse_value_type_from_str(symbol_str)
+
+        // Check if it's a struct or enum type
+        mut symbol_vtype_str := value_type_to_str(symbol.value_type)
+
+        // Handle TType(TStructDef)
+        if symbol_vtype_str.contains("TType.TStructDef") {
+            return self.get_type_size(type_name)
+        }
+
+        // Handle TType(TEnumDef)
+        if symbol_vtype_str.contains("TType.TEnumDef") {
+            // For simplified implementation without payloads, just return 8 for variant tag
+            // In full implementation, this would recursively get the inner enum's payload size
+            return 8
+        }
+
+        // For other types, return 0
+        return 0
     }
 
     // Get enum value from arena by variable name
@@ -1103,19 +1150,6 @@ value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns Val
     returns_arr.get(0, return_type)
 
     return return_type
-}
-
-// Get value type for UFCS (Uniform Function Call Syntax) calls
-// Corresponds to get_ufcs_fcall_value_type in init.rs
-get_ufcs_fcall_value_type := proc(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError {
-    // Check if id_expr has params (for method calls like obj.method())
-    if lt(id_expr.params.len, 1) {
-        throw format(loc(), " ERROR: Cannot call '", f_name, "', it is not a function or struct, it is a '", symbol.value_type, "'")
-    }
-
-    // TODO: Full UFCS implementation
-    // For now, just throw an error indicating it's not yet supported
-    throw format(loc(), " TODO: UFCS method calls not yet fully implemented for '", f_name, "'")
 }
 
 // Get enum variant position by name
