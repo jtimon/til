@@ -492,6 +492,12 @@ Using =TODO(loc(), "message")= from std.til allows tests to keep passing while b
 - [ ] Mark interpreter complete
 
 ** Week 21: Final Validation
+- [ ] Re-enable tests_self_hosted.til (src/tests.til:9)
+  - Fix type errors in lexer.til and parser.til
+  - Ensure all self-hosted tests pass
+- [ ] Re-enable test_lexer.til and test_parser.til (src/tests.til:44-46)
+  - Fix lib mode import issues
+  - Test lexer/parser as library imports
 - [ ] Run comprehensive test suite
 - [ ] Bootstrap test (compile TIL with TIL)
 - [ ] Compare with Rust compiler output
@@ -503,6 +509,8 @@ Using =TODO(loc(), "message")= from std.til allows tests to keep passing while b
 
 - [ ] All components at 100% parity with Rust
 - [ ] TIL compiler can compile itself (bootstrap)
+- [ ] tests_self_hosted.til passes completely
+- [ ] All tests enabled and passing (currently 3 disabled)
 - [ ] Identical output to Rust compiler on test suite
 - [ ] All tests pass in both implementations
 - [ ] This document shows 100% complete
