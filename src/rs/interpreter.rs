@@ -1753,6 +1753,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "free" => eval_core_func_free(context, &e),
         "memset" => eval_core_func_memset(context, &e),
         "memcpy" => eval_core_func_memcpy(context, &e),
+        "memcmp" => eval_core_func_memcmp(context, &e),
         "lt" => eval_core_func_lt(context, &e),
         "gt" => eval_core_func_gt(context, &e),
         "add" => eval_core_func_add(context, &e),
@@ -1937,6 +1938,63 @@ fn eval_core_func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, 
     }
 
     Ok(EvalResult::new(""))
+}
+
+fn eval_core_func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() != 4 {
+        return Err(e.lang_error("eval", "Core func 'memcmp' takes exactly 3 arguments"))
+    }
+
+    let ptr1_result = eval_expr(context, e.get(1)?)?;
+    if ptr1_result.is_throw {
+        return Ok(ptr1_result); // Propagate throw
+    }
+    let ptr2_result = eval_expr(context, e.get(2)?)?;
+    if ptr2_result.is_throw {
+        return Ok(ptr2_result); // Propagate throw
+    }
+    let size_result = eval_expr(context, e.get(3)?)?;
+    if size_result.is_throw {
+        return Ok(size_result); // Propagate throw
+    }
+
+    let ptr1_str = ptr1_result.value;
+    let ptr2_str = ptr2_result.value;
+    let size_str = size_result.value;
+
+    let ptr1 = match ptr1_str.parse::<usize>() {
+        Ok(v) => v,
+        Err(err) => return Err(e.lang_error("eval", &format!("memcmp: Invalid ptr1 (usize): '{}': {}", ptr1_str, err))),
+    };
+
+    let ptr2 = match ptr2_str.parse::<usize>() {
+        Ok(v) => v,
+        Err(err) => return Err(e.lang_error("eval", &format!("memcmp: Invalid ptr2 (usize): '{}': {}", ptr2_str, err))),
+    };
+
+    let size = match size_str.parse::<usize>() {
+        Ok(v) => v,
+        Err(err) => return Err(e.lang_error("eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
+    };
+
+    if ptr1 + size > Arena::g().memory.len() || ptr2 + size > Arena::g().memory.len() {
+        return Err(e.error("eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
+                                            ptr1, ptr2, size, Arena::g().memory.len())));
+    }
+
+    // Compare bytes
+    for i in 0..size {
+        let byte1 = Arena::g().memory[ptr1 + i];
+        let byte2 = Arena::g().memory[ptr2 + i];
+        if byte1 < byte2 {
+            return Ok(EvalResult::new("-1"));
+        } else if byte1 > byte2 {
+            return Ok(EvalResult::new("1"));
+        }
+    }
+
+    // All bytes equal
+    Ok(EvalResult::new("0"))
 }
 
 fn eval_core_func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
