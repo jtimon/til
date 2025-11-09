@@ -1192,8 +1192,36 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
         }
 
     case NodeType.Declaration(decl):
-        // TODO: Process declaration - register in symbols, funcs, enum_defs, struct_defs
-        TODO(loc(), format("Declaration processing not yet implemented for '", decl.name, "'"))
+        // Check for duplicate declaration
+        mut symbols_map := context.symbols
+        mut funcs_map := context.funcs
+        if symbols_map.contains(decl.name) {
+            errors.push(e.error("type", format("'", decl.name, "' already declared.")))
+        }
+
+        // Declaration must have exactly one value (the initializer)
+        mut params := e.params
+        if not(params.len.eq(1)) {
+            errors.push(e.exit_error("type", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
+            return errors
+        }
+
+        // Get the initializer expression
+        mut inner_e := Expr()
+        params.get(0, inner_e)
+
+        // Get value type of initializer
+        // TODO: Call get_value_type once it's fully homologized
+        mut value_type := ValueType.TCustom("TODO_get_value_type")
+
+        // For now, just register symbols with placeholder type
+        // TODO: Complete type checking and proper registration
+        mut symbol_info := SymbolInfo()
+        symbol_info.value_type = value_type
+        symbol_info.is_mut = decl.is_mut
+        context.symbols.set(decl.name, "TODO_serialize_SymbolInfo")
+
+        TODO(loc(), format("Full declaration processing not yet implemented for '", decl.name, "'"))
 
     case:
         // Other node types - check mode constraints
