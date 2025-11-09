@@ -255,7 +255,6 @@ Shape := enum {
 
 test_struct_payloads := proc() {
     // Test basic struct payload
-    // NOTE: Pattern matching not yet supported for struct payloads, using rsonly_enum_extract_payload
     mut my_vec := Vec2()
     my_vec.x = 10
     my_vec.y = 20
@@ -350,7 +349,6 @@ test_enum_payloads := proc() {
     assert(loc(), enum_to_str(opt_none).eq("Option.None"))
 
     // Test Some variant with Color payload
-    // NOTE: Pattern matching not yet supported for enum payloads, using rsonly_enum_extract_payload
     my_color := SimpleColor.Red
     opt_some := Option.Some(my_color)
 

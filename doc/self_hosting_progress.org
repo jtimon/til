@@ -153,9 +153,9 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 
 *Key Differences:*
 - Nearly equivalent functionality
-- *TIL*: Desugars =for= loops to while loops in parser (lines 697-805)
-- *Rust*: More complete pattern matching support
-- *TIL limitation*: Declaration info not fully stored due to tagged union issues
+- Both desugar =for= loops to while loops in parser
+- Both support full tagged union payloads
+- Pattern matching support equivalent between implementations
 
 *Resolution:*
 - Tagged unions now working properly in parser
