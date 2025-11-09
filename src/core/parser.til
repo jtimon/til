@@ -30,7 +30,7 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
 }
 
 // Create ModeDef from mode name string
-mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
+mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, AllocError {
     mut m := ModeDef()
     m.name = mode_name
 
@@ -95,11 +95,11 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str {
     }
 
     // Unknown mode
-    throw Str.add("0:0: rstil interpreter implementation doesn't support mode '", Str.add(mode_name, "'"))
+    throw format(format("0:0: rstil interpreter implementation doesn't support mode '", mode_name), "'")
 }
 
 // Parse mode declaration at start of file
-parse_mode := func(path: Str, lexer: Lexer) returns ModeDef throws Str {
+parse_mode := func(path: Str, lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
     lexer_expect(lexer, TokenType.Mode)  // Consume 'mode' keyword
 
     t := lexer.peek()
@@ -111,7 +111,7 @@ parse_mode := func(path: Str, lexer: Lexer) returns ModeDef throws Str {
     m := mode_from_name(mode_name)
 
     if m.name.eq("safe_script") {
-        throw Str.add(Str.add(Str.add(path, ":0:0: mode '"), m.name), "' is not properly supported in 'rstil' yet. Try mode 'script' instead")
+        throw format(format(format(path, ":0:0: mode '"), m.name), "' is not properly supported in 'rstil' yet. Try mode 'script' instead")
     }
 
     lexer_expect(lexer, TokenType.Identifier)  // Consume mode identifier
@@ -1003,7 +1003,7 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 
 // Parse function/procedure arguments: (name: Type, mut name2: Type, variadic: ..Type)
 // Returns Array of Declaration (mirrors parser.rs parse_func_proc_args)
-parse_func_proc_args := proc(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
+parse_func_proc_args := proc(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
     lexer_expect(lexer, TokenType.LeftParen)
 
     mut rightparen_found := false
@@ -1128,7 +1128,7 @@ parse_func_proc_args := proc(mut lexer: Lexer) returns Array throws Str, IndexOu
 
 // Parse return types: returns Type1, Type2, ...
 // Returns Array of ValueType
-func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
+func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
     mut end_found := false
     mut return_types := Array()
     mut t := lexer.peek()
@@ -1183,7 +1183,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOf
 
 // Parse throw types: throws Error1, Error2, ...
 // Returns Array of ValueType
-func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
+func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
     mut end_found := false
     mut throw_types := Array()
     mut t := lexer.previous()
@@ -1565,7 +1565,7 @@ parse_catch_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOu
 }
 
 // Parse struct definition: struct { field: Type = value, ... }
-parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError, DuplicatedKeyError {
     initial_token := lexer.peek()
     lexer_expect(lexer, TokenType.Struct)
 
@@ -1630,7 +1630,7 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
 }
 
 // Parse enum definition: enum { Variant1, Variant2: Type, ... }
-enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError, DuplicatedKeyError {
     initial_index := lexer.current
     lexer.advance(1) // consume 'enum'
 
@@ -1748,7 +1748,7 @@ parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
 
 // Parse tokens from lexer into AST
 // This is the main entry point for parsing
-parse_tokens := func(lexer: Lexer) returns Expr throws Str {
+parse_tokens := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     e := parse_body(lexer, TokenType.Eof)
 
     // Check for unparsed tokens
@@ -1759,15 +1759,15 @@ parse_tokens := func(lexer: Lexer) returns Expr throws Str {
         unparsed_tokens = I64.sub(lexer_len, i)
     }
     if I64.gt(unparsed_tokens, 0) {
-        println(Str.add("Total tokens parsed: ", Str.add(I64.to_str(lexer.current), Str.add("/", I64.to_str(lexer_len)))))
+        println(format(format(format("Total tokens parsed: ", I64.to_str(lexer.current)), "/"), I64.to_str(lexer_len)))
     }
     while I64.lt(i, lexer_len) {
         t := lexer.get_token(i)
-        println(Str.add("Token: ", enum_to_str(t.token_type)))
+        println(format("Token: ", enum_to_str(t.token_type)))
         i = I64.add(i, 1)
     }
     if I64.gt(unparsed_tokens, 0) {
-        throw Str.add("Total unparsed tokens: ", Str.add(I64.to_str(unparsed_tokens), Str.add("/", I64.to_str(lexer_len))))
+        throw format(format(format("Total unparsed tokens: ", I64.to_str(unparsed_tokens)), "/"), I64.to_str(lexer_len))
     }
     return e
 }
