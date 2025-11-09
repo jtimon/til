@@ -4,17 +4,30 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 ## Active Bugs
 
-### Bug #6: Enum Payload Corruption in Struct Field Assignment
-- **Status**: ⚠️ ACTIVE BUG - Blocks test_parser.til
-- **Symptom**: When assigning an enum value to a struct field, the payload is replaced with the struct's type name
-- **Example**:
+### Bug #6: Enum Payloads Lost in Struct-to-Struct Copy
+- **Status**: ⚠️ ARCHITECTURAL LIMITATION
+- **Symptom**: When copying a struct that contains enum fields with payloads, the payloads are lost or corrupted
+- **Root Cause**: Structs are allocated with fixed sizes based on `get_type_size()`, which returns 8 bytes for all enums regardless of payload. When enum payloads are written, they extend beyond the allocated space, causing memory corruption.
+- **What Works**:
   ```til
-  node_type := NodeType.Identifier("foo")  // Correctly contains "foo"
-  mut e := Expr()
-  e.node_type = node_type                   // Now contains "Expr" instead of "foo"!
+  mut t := Token()
+  t.token_type = TokenType.Identifier("foo")  // ✅ Direct assignment works!
   ```
-- **Impact**: test_parser.til fails with `assert_eq_str failed: expected 'foo', found 'Expr'`
-- **Workaround**: None known - direct assignment of enums to struct fields is broken
+- **What Doesn't Work**:
+  ```til
+  t1.token_type = TokenType.Identifier("foo")
+  t2 = t1  // ❌ Struct copy loses enum payload
+  ```
+- **Impact**:
+  - Direct enum-to-field assignment works correctly
+  - Struct-to-struct copying doesn't preserve enum payloads
+  - test_parser.til blocked by related issues
+- **Possible Solutions**:
+  1. Use indirection (pointers) for enum fields
+  2. Implement struct reallocation when payloads change
+  3. Reserve maximum possible size for enum fields
+  4. Copy structs field-by-field instead of memcpy
+- **Tests**: src/test/enum_payloads.til covers working cases
 - **Discovery**: 2025-01-09 during test_parser.til investigation
 
 ## Fixed Bugs Summary

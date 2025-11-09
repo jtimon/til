@@ -887,3 +887,52 @@ test_rsonly_extract_payload := proc() {
     assert_eq(loc(), 99, final_value)
 }
 test_rsonly_extract_payload()
+
+// ==============================================================================
+// Regression tests for enum payloads in struct fields (Bug #6)
+// ==============================================================================
+
+TokenType := enum {
+    String,
+    Number,
+    Identifier: Str,
+}
+
+Token := struct {
+    mut token_type: TokenType = TokenType.String
+    mut token_str: Str = ""
+}
+
+// Test: Direct enum assignment to struct field preserves payload
+test_enum_field_assignment := proc() {
+    mut t := Token()
+    t.token_type = TokenType.Identifier("foo")
+
+    nt := t.token_type
+    switch nt {
+    case TokenType.Identifier(name):
+        assert_eq_str(loc(), "foo", name)
+    case:
+        panic(loc(), "Expected Identifier variant")
+    }
+}
+test_enum_field_assignment()
+
+// Test: Enum without payload in struct field
+test_enum_field_no_payload := proc() {
+    mut t := Token()
+    t.token_type = TokenType.String
+
+    nt := t.token_type
+    switch nt {
+    case TokenType.String:
+        // Success
+    case:
+        panic(loc(), "Expected String variant")
+    }
+}
+test_enum_field_no_payload()
+
+// TODO: Test struct copy with enum fields - requires architectural fix
+// Enums with variable-sized payloads don't fit in fixed-size struct layouts
+// This needs either: indirection (pointers), reallocation, or max-size reservation
