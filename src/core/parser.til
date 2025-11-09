@@ -504,8 +504,7 @@ parse_declaration := proc(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     decl.value_type = str_to_value_type(explicit_type)
     decl.is_mut = is_mut
 
-    return Expr.new_parse(NodeType.Declaration, lexer.get_token(initial_index), params)
-    // return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params) // TODO FIX tagged unions
+    return Expr.new_parse(NodeType.Declaration(decl), lexer.get_token(initial_index), params)
 }
 
 parse_statement_identifier := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
@@ -746,10 +745,13 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     body_expr := parse_body(lexer, TokenType.RightBrace)
 
     // Create: mut loop_var := start_expr
-    // Note: Declaration info (name, type, is_mut) not stored in AST yet due to tagged unions not working
     mut decl_params := new_expr_array()
     decl_params.push(start_expr)
-    mut decl_expr := Expr.new_parse(NodeType.Declaration, initial_token, decl_params)
+    mut loop_var_decl := Declaration()
+    loop_var_decl.name = loop_var_name
+    loop_var_decl.value_type = str_to_value_type(INFER_TYPE)
+    loop_var_decl.is_mut = true
+    mut decl_expr := Expr.new_parse(NodeType.Declaration(loop_var_decl), initial_token, decl_params)
 
     // Create condition: loop_var.lt(end_expr)
     // This creates an AST like: loop_var.lt(end_expr) which becomes a function call

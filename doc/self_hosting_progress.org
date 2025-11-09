@@ -65,13 +65,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 - *Timeline*: 3-4 weeks
 - *Blocks*: typer.til and interpreter.til progress
 
-** BLOCKER #3: Tagged Union Support ⚠️
-- *File*: =parser.til= line 508
-- *Impact*: Declaration info not properly stored
-- *Priority*: HIGH
-- *Fix*: Enable payload storage in enums
-- *Timeline*: 2-3 weeks
-- *Blocks*: Full parser parity
+** BLOCKER #3: Tagged Union Support ✅ RESOLVED
+- *File*: =parser.til= lines 507, 754
+- *Status*: FIXED - Tagged unions work, just needed to uncomment
+- *Fix*: Enum payload extraction via switch already working in rstil
+- *Changes*: Enabled NodeType.Declaration(decl) payloads in parser
+- *Result*: Declaration info now properly stored in AST
 
 * Component Details
 
@@ -158,18 +157,19 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - *Rust*: More complete pattern matching support
 - *TIL limitation*: Declaration info not fully stored due to tagged union issues
 
-*Major Issue:*
-- Line 508: "TODO FIX tagged unions" - Declaration payload not properly stored
+*Resolution:*
+- Tagged unions now working properly in parser
+- Declaration payloads stored in NodeType.Declaration(decl)
+- For-loop desugaring also fixed to use Declaration payloads
 
 *Recommendation:*
-- Direction: Bidirectional sync
-- Fix tagged union support in TIL FIRST
-- Then homologize =for= loop desugaring approach
-- Dependencies: Need working enum payloads before full parity
+- Direction: Continue parser homologization
+- Compare detailed implementation differences with Rust parser
+- Validate parser produces identical AST structures
 
 *** Homologization Tasks
-- [ ] Fix tagged union support (BLOCKER #3)
-- [ ] Store Declaration info properly (line 508 TODO)
+- [X] Fix tagged union support (BLOCKER #3) - COMPLETE
+- [X] Store Declaration info properly (line 508, 754) - COMPLETE
 - [ ] Sync for-loop desugaring approach (compare both implementations)
 - [ ] Validate with comprehensive tests
 - [ ] Mark complete
