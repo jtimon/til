@@ -25,54 +25,6 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 :CATEGORY: Missing Features
 :END:
 
-** TODO Add Optional Error Handling Enhancements                      :LOW:
-:PROPERTIES:
-:FILE: src/rs/typer.rs:1212, src/test/errors.til
-:STATUS: Core system working, optional features could be added
-:END:
-
-*** Current State - Core System Working
-Error handling is FULLY FUNCTIONAL:
-- =throw= keyword works
-- =throws= declarations work and are type-checked
-- =catch= blocks work with multiple catch types
-- Type checker enforces throws propagation
-- All tests in =src/test/errors.til= pass
-
-*** What Works
-#+BEGIN_SRC til
-// Throw and catch
-MyError := struct { msg: Str = "error" }
-
-risky := func() throws MyError {
-    throw MyError()
-}
-
-safe := proc() {
-    risky()
-    catch (e: MyError) {
-        println("Caught: ", e.msg)
-    }
-}
-#+END_SRC
-
-- Throwing custom error types (any struct)
-- Multiple catch blocks for different error types
-- Throws propagation checking (must declare or catch)
-- Error structs with fields
-
-*** Optional Enhancements (Not Needed for Self-Hosting)
-See =src/test/errors.til= for detailed TODO examples:
-- [ ] PanicError - implicit error type (src/rs/typer.rs:1212)
-- [ ] Result<T, E> type (Rust-style explicit errors)
-- [ ] Rethrow keyword
-- [ ] Try operator (? for auto-propagation)
-- [ ] Finally blocks for cleanup
-- [ ] Better error messages with backtraces
-
-*** Why This Isn't Blocking
-The current throw/throws/catch system is complete and sufficient for self-hosting. The optional enhancements are nice-to-haves that can be added later.
-
 ** TODO Fix Disabled Test Files                                      :HIGH:
 :PROPERTIES:
 :FILE: src/tests.til:44-46, src/tests.til:61

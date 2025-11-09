@@ -193,6 +193,137 @@ case Color.RGB(r, g, b) if gt(r, 200):
 *** Priority
 Very low. The if-statement workaround is actually clearer and more flexible than special guard syntax.
 
+** TODO Add Optional Error Handling Enhancements                    :MEDIUM:
+:PROPERTIES:
+:FILE: src/rs/typer.rs:1212, src/test/errors.til
+:STATUS: Core system working, optional features could be added
+:END:
+
+*** Current State - Core System Working
+Error handling is FULLY FUNCTIONAL:
+- =throw= keyword works
+- =throws= declarations work and are type-checked
+- =catch= blocks work with multiple catch types
+- Type checker enforces throws propagation
+- All tests in =src/test/errors.til= pass
+
+*** What Works Today
+#+BEGIN_SRC til
+// Throw and catch
+MyError := struct { msg: Str = "error" }
+
+risky := func() throws MyError {
+    throw MyError()
+}
+
+safe := proc() {
+    risky()
+    catch (e: MyError) {
+        println("Caught: ", e.msg)
+    }
+}
+#+END_SRC
+
+Working features:
+- Throwing custom error types (any struct)
+- Multiple catch blocks for different error types
+- Throws propagation checking (must declare or catch)
+- Error structs with fields
+
+*** Optional Enhancements
+See =src/test/errors.til= for detailed TODO examples with code.
+
+**** 1. PanicError - Implicit Error Type
+Currently =panic()= is special-cased but doesn't actually throw a catchable error.
+
+#+BEGIN_SRC til
+// Proposed: PanicError that doesn't need declaration
+test_implicit_panic := proc() {
+    panic(loc(), "Something went wrong")
+    catch (err: PanicError) {
+        // Can catch panics without declaring throws
+        println("Caught panic: ", err.msg)
+    }
+}
+#+END_SRC
+
+**** 2. Result<T, E> Type (Rust-style)
+Alternative to throws - explicit error handling in return type.
+
+#+BEGIN_SRC til
+Result := enum {
+    Ok: T,
+    Err: E,
+}
+
+safe_divide := func(a: I64, b: I64) returns Result<I64, DivideByZero> {
+    if eq(b, 0) {
+        return Result.Err(DivideByZero())
+    }
+    return Result.Ok(div(a, b))
+}
+
+// Use with pattern matching
+result := safe_divide(10, 2)
+switch result {
+case Result.Ok(value):
+    println("Result: ", value.to_str())
+case Result.Err(err):
+    println("Error dividing by zero")
+}
+#+END_SRC
+
+**** 3. Rethrow Keyword
+Currently must manually throw again.
+
+#+BEGIN_SRC til
+test_rethrow := proc() throws SomeError {
+    risky_operation()
+    catch (err: SomeError) {
+        println("Logging error before rethrow")
+        rethrow  // or: throw err
+    }
+}
+#+END_SRC
+
+**** 4. Try Operator (? in Rust)
+Automatically propagate errors without explicit catch.
+
+#+BEGIN_SRC til
+parse_and_compute := func(s: Str) returns I64 throws ParseError, ComputeError {
+    n := parse_number(s)?  // Auto-propagates ParseError
+    result := compute(n)?  // Auto-propagates ComputeError
+    return result
+}
+#+END_SRC
+
+**** 5. Finally Blocks
+Cleanup code that runs whether error is thrown or not.
+
+#+BEGIN_SRC til
+test_finally := proc() {
+    resource := acquire_resource()
+    try {
+        use_resource(resource)
+    }
+    catch (err: ResourceError) {
+        println("Error using resource")
+    }
+    finally {
+        release_resource(resource)  // Always runs
+    }
+}
+#+END_SRC
+
+*** Why It's Post-Self-Hosting
+The current throw/throws/catch system is complete and sufficient. These enhancements are nice-to-haves:
+- PanicError would reduce boilerplate
+- Result<T, E> provides explicit error handling (alternative style)
+- Rethrow, try operator (?), and finally are convenience features
+- Better backtraces improve debugging experience
+
+All can be added after self-hosting without breaking existing code.
+
 ** TODO Implement Macro System                                         :LOW:
 :PROPERTIES:
 :FILE: src/core/lexer.til:144, src/rs/lexer.rs:277
