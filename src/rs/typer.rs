@@ -306,15 +306,23 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                         return errors
                     },
                 };
-                // TODO check more type stuff
 
-                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
-
-                // For struct parameters, register field symbols for type checking
-                // We use the lightweight registration instead of insert_struct to avoid evaluating
-                // default values during type checking (which would cause errors for literals)
-                if let ValueType::TType(TTypeDef::TStructDef) = custom_symbol.value_type {
-                    context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+                // Validate that the custom type is actually a type definition, not a value
+                match &custom_symbol.value_type {
+                    ValueType::TType(TTypeDef::TStructDef) => {
+                        // Valid: struct type
+                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                        // Register struct fields for type checking
+                        context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+                    },
+                    ValueType::TType(TTypeDef::TEnumDef) => {
+                        // Valid: enum type
+                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                    },
+                    _ => {
+                        // Invalid: not a type, it's a value or something else
+                        errors.push(e.error("type", &format!("Argument '{}' has type '{}' which is not a valid type (expected struct or enum)", &arg.name, &custom_type_name)));
+                    },
                 }
             },
             _ => {

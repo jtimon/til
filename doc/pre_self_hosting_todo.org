@@ -112,10 +112,8 @@ Workarounds add complexity and may hide issues. Clean code is easier to maintain
 :END:
 
 *** TODOs in Rust Type System
-- =src/rs/typer.rs:309= - "TODO: Check more type stuff"
 
-*** What's Needed
-- [ ] Add missing type checks identified in comments
+All identified type checking TODOs have been completed.
 
 * Medium Priority: Test Suite Gaps
 :PROPERTIES:
