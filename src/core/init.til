@@ -419,9 +419,32 @@ Context := struct {
         mut struct_defs_map := self.struct_defs
         mut struct_def_str := struct_defs_map.get(type_name)
         if not(struct_def_str.eq("")) {
-            // TODO: Parse SStructDef and calculate total size of all members
-            // For now, just return a placeholder
-            return 8
+            // Parse serialized struct definition
+            // Format: "STRUCT|field1=Type1|field2=Type2|..."
+            mut parts := struct_def_str.split("|")
+            mut total_size := 0
+
+            // Skip first part ("STRUCT") and iterate through field definitions
+            mut i := 1
+            while lt(i, parts.len) {
+                mut field_def := ""
+                parts.get(i, field_def)
+
+                // Split field_def by "=" to get field_name=field_type
+                mut field_parts := field_def.split("=")
+                if gteq(field_parts.len, 2) {
+                    mut field_type := ""
+                    field_parts.get(1, field_type)
+
+                    // Recursively get the size of this field's type
+                    mut field_size := self.get_type_size(field_type)
+                    total_size = add(total_size, field_size)
+                }
+
+                i = add(i, 1)
+            }
+
+            return total_size
         }
 
         // Unknown type
@@ -1142,9 +1165,24 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 symbols_map.insert(decl.name, value_type_str)
                 context.symbols = symbols_map
 
-                // TODO: Store struct_def properly (currently storing as string)
+                // Serialize struct_def to string for storage
+                // Format: "STRUCT|field1=Type1|field2=Type2|..."
+                mut serialized := "STRUCT"
+                mut members_map := struct_def.members
+                mut i := 0
+                while lt(i, members_map.size) {
+                    mut field_name := ""
+                    mut field_type := ""
+                    mut keys_arr := members_map.keys
+                    mut values_arr := members_map.values
+                    keys_arr.get(i, field_name)
+                    values_arr.get(i, field_type)
+                    serialized = format(serialized, "|", field_name, "=", field_type)
+                    i = add(i, 1)
+                }
+
                 mut struct_defs_map := context.struct_defs
-                struct_defs_map.insert(decl.name, "struct_def_placeholder")
+                struct_defs_map.insert(decl.name, serialized)
                 context.struct_defs = struct_defs_map
 
                 // TODO: Register associated functions and constants
