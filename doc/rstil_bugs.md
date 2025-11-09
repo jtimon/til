@@ -264,6 +264,31 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Note:** Simplified implementation using string value copying in arena.
 
+### Ongoing: Type Inference Improvements
+
+**Goal**: Make init.til increasingly equivalent to init.rs
+
+**Recent improvements (Commit: a0f906c):**
+- ✅ Added Pattern node type handling in get_value_type
+- ✅ Improved member type resolution (parses struct definitions)
+- ✅ Updated implementation status to ~85% complete
+- ✅ Documented all completed phases in header comment
+
+**Current status of init.til:**
+- **~85% functionally equivalent to init.rs** (syntax aside)
+- All core type inference working
+- All struct/enum/array operations implemented (simplified)
+- Using serialization formats for complex types
+
+**Remaining for full equivalence:**
+- init_import_declarations (file I/O, recursive imports)
+- Full UFCS method resolution
+- Enum payloads (beyond basic tags)
+- Array initialization with values
+- Byte-level string storage (c_string/cap/len)
+- Mode validation
+- Associated function registration
+
 ## Next Steps
 
 Self-hosted execution is currently blocked by complex enum handling issues. Meanwhile, working on making init.til complete for basic single-file programs.
