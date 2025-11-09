@@ -89,6 +89,26 @@ Context := struct {
         return ctx
     }
 
+    // Get I64 value from arena at specific offset
+    get_i64_at_offset := func(self: Context, offset: I64) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
+        // Read value from arena memory at offset
+        mut value_bytes := ""
+        mut mem_arr := self.arena.memory
+        mem_arr.get(offset, value_bytes)
+
+        // Parse back to I64
+        mut value_str := value_bytes
+        return value_str.to_i64()
+    }
+
+    // Set I64 value in arena at specific offset
+    set_i64_at_offset := proc(mut self: Context, offset: I64, value: I64) throws Str, IndexOutOfBoundsError {
+        mut value_str := value.to_str()
+        mut mem_arr := self.arena.memory
+        mem_arr.set(offset, value_str)
+        self.arena.memory = mem_arr
+    }
+
     // Get I64 value from arena by variable name
     get_i64 := func(self: Context, var_name: Str) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
         // Look up the offset in arena_index
@@ -460,7 +480,7 @@ Context := struct {
     }
 
     // Get enum value from arena by variable name
-    get_enum := func(self: Context, var_name: Str) returns EnumVal throws Str, IndexOutOfBoundsError {
+    get_enum := func(self: Context, var_name: Str) returns EnumVal throws Str, IndexOutOfBoundsError, I64_OverflowError {
         // Look up symbol to verify it exists
         mut symbols_map := self.symbols
         mut symbol_str := symbols_map.get(var_name)
@@ -468,16 +488,89 @@ Context := struct {
             throw format(loc(), " ERROR: get_enum: Symbol '", var_name, "' not found")
         }
 
-        // TODO: Get enum type from symbol, read from arena, parse variant
-        // For now, just throw TODO
-        throw format(loc(), " TODO: get_enum not fully implemented for '", var_name, "'")
+        // TODO: Parse SymbolInfo to get enum_type
+        // For now, assume symbol_str contains type info like "ValueType.TCustom=TypeName"
+        mut enum_type := ""
+        if symbol_str.contains("=") {
+            mut parts := symbol_str.split("=")
+            if gteq(parts.len, 2) {
+                parts.get(1, enum_type)
+            }
+        }
+        if enum_type.eq("") {
+            throw format(loc(), " ERROR: get_enum: Could not determine enum type for '", var_name, "'")
+        }
+
+        // Get arena offset
+        mut arena_idx := self.arena_index
+        mut offset_str := arena_idx.get(var_name)
+        if offset_str.eq("") {
+            throw format(loc(), " ERROR: get_enum: Arena index for '", var_name, "' not found")
+        }
+        mut offset := offset_str.to_i64()
+
+        // Read enum value from arena (stored as I64 variant position)
+        mut enum_value := self.get_i64_at_offset(offset)
+
+        // Get enum definition to map position to name
+        mut enum_defs_map := self.enum_defs
+        mut enum_def_str := enum_defs_map.get(enum_type)
+        if enum_def_str.eq("") {
+            throw format(loc(), " ERROR: get_enum: Enum definition for '", enum_type, "' not found")
+        }
+
+        // Get variant name from position
+        mut enum_name := self.variant_pos_to_str(enum_type, enum_value)
+
+        // TODO: Handle payload reading
+        // For now, return enum without payload
+        mut result := EnumVal()
+        result.enum_type = enum_type
+        result.enum_name = enum_name
+        return result
     }
 
     // Insert enum value into arena
-    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError {
-        // TODO: Look up enum definition, calculate variant position, write to arena
-        // For now, just throw TODO
-        throw format(loc(), " TODO: insert_enum not fully implemented for '", var_name, "' type '", enum_type, "' variant '", enum_variant, "'")
+    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+        // Get enum definition
+        mut enum_defs_map := self.enum_defs
+        mut enum_def_str := enum_defs_map.get(enum_type)
+        if enum_def_str.eq("") {
+            throw format(loc(), " ERROR: insert_enum: Enum definition for '", enum_type, "' not found")
+        }
+
+        // Normalize enum_variant (strip type prefix if present)
+        mut normalized_variant := enum_variant
+        if enum_variant.contains(".") {
+            mut parts := enum_variant.split(".")
+            mut last_part := ""
+            mut last_idx := sub(parts.len, 1)
+            parts.get(last_idx, last_part)
+            normalized_variant = last_part
+        }
+
+        // Get variant position
+        mut enum_value := self.get_variant_pos(enum_type, normalized_variant)
+
+        // Check if variable already exists (update vs insert)
+        mut offset_str := self.arena_index.get(var_name)
+
+        if offset_str.eq("") {
+            // New variable - allocate space and store
+            self.insert_i64(var_name, enum_value)
+        }
+        else {
+            // Update existing variable
+            mut offset := offset_str.to_i64()
+            self.set_i64_at_offset(offset, enum_value)
+        }
+
+        // TODO: Handle temp_enum_payload for variants with payloads
+        // For now, return enum without payload
+        mut result := EnumVal()
+        result.enum_type = enum_type
+        result.enum_name = normalized_variant
+        return result
     }
 
     // Map struct instance fields to arena offsets
@@ -712,9 +805,25 @@ Context := struct {
 
     // Get enum value at specific arena offset
     get_enum_at_offset := func(self: Context, enum_type: Str, offset: I64) returns EnumVal throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // TODO: Read enum tag and payload from arena at offset
-        // For now, just throw TODO
-        throw format(loc(), " TODO: get_enum_at_offset not fully implemented for type '", enum_type, "'")
+        // Read enum value from arena at given offset
+        mut enum_value := self.get_i64_at_offset(offset)
+
+        // Get enum definition to map position to name
+        mut enum_defs_map := self.enum_defs
+        mut enum_def_str := enum_defs_map.get(enum_type)
+        if enum_def_str.eq("") {
+            throw format(loc(), " ERROR: get_enum_at_offset: Enum definition for '", enum_type, "' not found")
+        }
+
+        // Get variant name from position
+        mut enum_name := self.variant_pos_to_str(enum_type, enum_value)
+
+        // TODO: Handle payload reading from offset+8
+        // For now, return enum without payload
+        mut result := EnumVal()
+        result.enum_type = enum_type
+        result.enum_name = enum_name
+        return result
     }
 
     // Insert array into arena

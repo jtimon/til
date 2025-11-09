@@ -202,6 +202,18 @@ switch e_copy.node_type {
 **Note:** Full c_string/cap/len byte-level implementation planned for future phase.
 Current simplified approach sufficient for Phase 1 foundation work.
 
+### Phase 2: Enum and Array Support (In Progress)
+
+**Goal**: Implement enum and array operations for init.til
+
+#### 🔄 Step 1: Enum Support (IN PROGRESS)
+- Implement `get_enum` to read enum values from arena
+- Implement `insert_enum` to store enum values in arena
+- Implement `get_enum_at_offset` for nested enum payloads
+
+#### 🔄 Step 2: Array Support (PENDING)
+- Implement `insert_array` for array allocation
+
 ## Next Steps
 
 Self-hosted execution is currently blocked by complex enum handling issues. Meanwhile, working on making init.til complete for basic single-file programs.
