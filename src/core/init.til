@@ -1155,13 +1155,52 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path: Str
     throw format(loc(), " TODO: init_import_declarations not fully implemented for path '", import_path, "'")
 }
 
-// Initialize context (corresponds to Context::new in init.rs)
-// Creates and sets up a new Context for a given mode and file
-init_context := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
-    mut ctx := Context.new(mode_def, path)
-    // TODO: Register core types, functions, imports
-    // For now, just return the basic context
-    return ctx
+// Context priming / declaration indexing
+// Process AST and register all declarations (funcs, enums, structs, vars)
+// Returns array of error strings (empty if success)
+// Corresponds to init_context in init.rs
+init_context := proc(mut context: Context, e: Expr) returns Array throws Str, AllocError, IndexOutOfBoundsError {
+    mut errors := Array.new_dyn("Str", size_of(Str))
+
+    // Match on node type
+    switch e.node_type {
+    case NodeType.Body:
+        // Recursively process all statements in body
+        mut params := e.params
+        mut i := 0
+        while lt(i, params.len) {
+            mut stmt := Expr()
+            params.get(i, stmt)
+            mut stmt_errors := init_context(context, stmt)
+            // Extend errors array with stmt_errors
+            mut j := 0
+            while lt(j, stmt_errors.len) {
+                mut err_str := ""
+                stmt_errors.get(j, err_str)
+                errors.push(err_str)
+                j = add(j, 1)
+            }
+            i = add(i, 1)
+        }
+
+    case NodeType.FCall:
+        // Check if this is an import call
+        f_name := get_func_name_in_call(e)
+        if f_name.eq("import") {
+            // TODO: Handle import - extract path and call init_import_declarations
+            TODO(loc(), "import handling not yet implemented in init_context")
+        }
+
+    case NodeType.Declaration(decl):
+        // TODO: Process declaration - register in symbols, funcs, enum_defs, struct_defs
+        TODO(loc(), format("Declaration processing not yet implemented for '", decl.name, "'"))
+
+    case:
+        // Other node types - check mode constraints
+        // TODO: Add mode validation
+    }
+
+    return errors
 }
 
 // Check if function/proc has variadic arguments
