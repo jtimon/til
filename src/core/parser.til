@@ -73,6 +73,14 @@ Declaration := struct {
     mut is_mut     : Bool = false
 }
 
+// TODO: PatternInfo is a workaround for lack of tuple syntax in TIL
+// Once TIL supports tuple notation like (Str, Str), this can be replaced with:
+// Pattern : (Str, Str)  // Pattern(variant_name, binding_var)
+PatternInfo := struct {
+    mut variant_name : Str = ""
+    mut binding_var  : Str = ""
+}
+
 NodeType := enum {
     Body,
     FCall,
@@ -91,7 +99,7 @@ NodeType := enum {
     Switch,
     DefaultCase,
     Range,
-    Pattern    : (Str, Str)  // Pattern(variant_name, binding_var)
+    Pattern    : PatternInfo
 }
 
 // ExprArray has been removed - we now use Array directly for Expr.params
@@ -1202,8 +1210,11 @@ parse_case_expr := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
                 switch binding_node_type {
                 case NodeType.Identifier(binding_var):
                     // Convert FCall to Pattern
+                    mut pattern_info := PatternInfo()
+                    pattern_info.variant_name = variant_name
+                    pattern_info.binding_var = binding_var
                     return Expr.new_explicit(
-                        NodeType.Pattern(variant_name, binding_var),
+                        NodeType.Pattern(pattern_info),
                         new_expr_array(),
                         left.line,
                         left.col

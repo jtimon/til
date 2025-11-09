@@ -18,6 +18,15 @@ pub struct Declaration {
     pub is_mut: bool,
 }
 
+// TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
+// Once TIL supports tuple notation like (Str, Str), this can be replaced with:
+// Pattern(String, String)  // Pattern(variant_name, binding_var)
+#[derive(Debug, Clone, PartialEq)]
+pub struct PatternInfo {
+    pub variant_name: String,
+    pub binding_var: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FunctionType {
     FTFunc,
@@ -85,7 +94,7 @@ pub enum NodeType {
     Switch,
     DefaultCase,
     Range,
-    Pattern(String, String), // Pattern(variant_name, binding_var) - for switch case matching with payload extraction
+    Pattern(PatternInfo), // Pattern matching for switch case with payload extraction
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1174,8 +1183,12 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
 
         if let NodeType::Identifier(binding_var) = &left.params[1].node_type {
             // Convert FCall to Pattern
+            let pattern_info = PatternInfo {
+                variant_name: variant_name,
+                binding_var: binding_var.clone(),
+            };
             return Ok(Expr::new_explicit(
-                NodeType::Pattern(variant_name, binding_var.clone()),
+                NodeType::Pattern(pattern_info),
                 Vec::new(),
                 left.line,
                 left.col

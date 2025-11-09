@@ -2,7 +2,7 @@ use crate::Context;
 use crate::rs::init::SymbolInfo;
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, FunctionType, TTypeDef,
+    Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
 
@@ -106,7 +106,7 @@ pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_catch_statement(context, &e));
         }
 
-        NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_, _) => {},
+        NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => {},
     }
 
     return errors
@@ -826,7 +826,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                 default_found = true;
                 case_found = true;
             }
-            NodeType::Pattern(_variant_name, _binding_var) => {
+            NodeType::Pattern(_) => {
                 // Pattern matching - type is checked in exhaustiveness check below
                 case_found = true;
                 // No need to check type here - patterns implicitly match the switch type
@@ -862,7 +862,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         let body_expr = &e.params[i];
 
         // For pattern matching, add the binding variable to the context before type checking the body
-        if let NodeType::Pattern(variant_name, binding_var) = &case_expr.node_type {
+        if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
             // Get the payload type for this variant
             if let ValueType::TCustom(enum_name) = &switch_expr_type {
                 if let Some(enum_def) = context.enum_defs.get(enum_name) {
@@ -920,7 +920,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             while j < e.params.len() {
                 let case_expr = &e.params[j];
                 match &case_expr.node_type {
-                    NodeType::Pattern(variant_name, _binding_var) => {
+                    NodeType::Pattern(PatternInfo { variant_name, .. }) => {
                         // Pattern matching: case EnumType.Variant(binding)
                         // Extract the variant name from the full "EnumType.Variant" string
                         if let Some(dot_pos) = variant_name.rfind('.') {
@@ -1154,7 +1154,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::LLiteral(_) => return false,
         NodeType::DefaultCase => return false,
-        NodeType::Pattern(_, _) => return false,
+        NodeType::Pattern(_) => return false,
         NodeType::Identifier(_) => return false,
         NodeType::Range => {
             for se in &e.params {

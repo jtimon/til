@@ -6,7 +6,7 @@ use std::convert::TryInto;
 use crate::rs::lexer::{lexer_from_source};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, ModeDef, Declaration,
+    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, ModeDef, Declaration, PatternInfo,
     can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens, mode_from_name,
 };
 use crate::rs::interpreter::{Arena, EvalResult};
@@ -446,7 +446,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             Ok(current_type) // Return the type of the last field (x)
         },
 
-        NodeType::Pattern(variant_name, _) => {
+        NodeType::Pattern(PatternInfo { variant_name, .. }) => {
             // Extract enum type from "EnumType.Variant" format
             if let Some(dot_pos) = variant_name.rfind('.') {
                 let enum_type = &variant_name[..dot_pos];

@@ -1,7 +1,7 @@
 use crate::rs::init::{Context, SymbolInfo};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, FunctionType, SFuncDef,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
     value_type_to_str, get_combined_name,
 };
 use std::io;
@@ -146,7 +146,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 }
 
                 // Handle pattern matching with payload extraction
-                if let NodeType::Pattern(variant_name, binding_var) = &case.node_type {
+                if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case.node_type {
                     // Check if the switch value's enum variant matches the pattern
                     // The switch value should be an enum stored as EnumVal
                     // We need to extract the enum value - get the identifier name from to_switch
