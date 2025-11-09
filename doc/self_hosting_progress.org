@@ -11,12 +11,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | Component   | TIL Lines | Rust Lines | Completion | Status                       |
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| parser      |     1,471 |      1,389 | ~60%       | ⚠️ DIVERGED (INTENTIONAL)   |
+| parser      |     1,471 |      1,389 | ~65%       | ⚠️ DIVERGED - PLAN UPDATED  |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
 | typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       585 |      2,485 | 24%        | ⏳ TOP-DOWN IN PROGRESS     |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     4,396 |      7,437 | *52%*      | Lexer Complete ✅            |
+| *TOTAL*     |     4,396 |      7,437 | *53%*      | Parser: Bug #6 Fixed ✅      |
 
 * Architecture & Call Hierarchy
 
@@ -143,13 +143,19 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 
 *IMPORTANT:* parser.rs is the **source of truth**. parser.til must be updated to match it.
 
-*Current State (2025-11-09):*
+*Current State (2025-01-09):*
 The parsers have **unintentionally diverged** during recent StrMap→Map refactoring work.
 parser.til was updated to use generic Map structures, but should have maintained
 the same structure as parser.rs. Both currently produce valid ASTs and tests pass,
 but the data structures no longer match.
 
-*Detailed Homogenization Plan:* See =doc/parser_homogenization_plan.org=
+*Updated Analysis (2025-01-09 post Bug #6 fix):*
+Comprehensive comparison reveals **critical missing infrastructure** not in original plan:
+- ❌ Mode system completely missing (ModeDef, parse_mode, mode_from_name, can_be_imported)
+- ❌ parse_tokens() entry point missing (no public API to invoke parser)
+- ❌ func_proc_returns() and func_proc_throws() not extracted as separate functions
+- ⚠️ 13 out of 18 tests in test_parser.til now passing (after Bug #6 fix)
+- ⚠️ 3 tests skip due to stack overflow in parser.til itself (not rstil bugs)
 
 *Current TIL Implementation (1,471 lines) - NEEDS FIXES:*
 - ❌ Uses generic =Map= (string→string) for type storage (WRONG)
@@ -163,34 +169,55 @@ but the data structures no longer match.
 - ✅ Full type-correct representation with enum payloads
 - ✅ This is what parser.til needs to match
 
-*Critical Divergences That Must Be Fixed:*
+*Critical Missing Infrastructure (PHASE 0 - NEW):*
 
-1. **SStructDef struct** - MUST REVERT TIL
+0. **Mode System** - COMPLETELY MISSING FROM TIL
+   - Rust lines 222-322: ModeDef struct + 4 functions
+   - TIL: None of this exists
+   - Missing: =ModeDef= struct, =parse_mode()=, =mode_from_name()=, =can_be_imported()=
+   - Impact: BLOCKER - Cannot parse mode declarations at all
+   - Priority: CRITICAL - Must be added before any other work
+
+1. **Public Parser Entry Point** - MISSING FROM TIL
+   - Rust lines 1377-1402: =parse_tokens()= function
+   - TIL: No equivalent public API
+   - Impact: BLOCKER - No way to invoke parser from external code
+   - Priority: CRITICAL - Required for parser to be usable
+
+2. **Return/Throw Type Parsing Functions** - NOT EXTRACTED IN TIL
+   - Rust lines 514-604: Dedicated =func_proc_returns()= and =func_proc_throws()= functions
+   - TIL lines 1000-1093: Logic inlined in =parse_func_proc_definition=
+   - Impact: Code duplication, doesn't return properly typed arrays
+   - Priority: HIGH - Required for proper SFuncDef population
+
+*Critical Data Structure Divergences (EXISTING PLAN):*
+
+3. **SStructDef struct** - MUST REVERT TIL
    - TIL (WRONG): =Map= (string→string) + parallel =Arrays=
    - Rust (CORRECT): =Vec<(String, Declaration)>= + =HashMap<String, Expr>=
    - Fix: Revert TIL to use arrays/maps that mirror Rust's Vec/HashMap
 
-2. **SFuncDef struct** - MUST REVERT TIL
+4. **SFuncDef struct** - MUST REVERT TIL
    - TIL (WRONG): =Map= for args (string→string), generic =Array=
    - Rust (CORRECT): =Vec<Declaration>=, =Vec<ValueType>=
    - Fix: Store full Declaration/ValueType info in TIL
 
-3. **SEnumDef struct** - MUST FIX TIL
+5. **SEnumDef struct** - MUST FIX TIL
    - TIL (WRONG): Stores payload types as strings
    - Rust (CORRECT): =HashMap<String, Option<ValueType>>=
    - Fix: TIL needs to store ValueType enums, not strings
 
-4. **parse_func_proc_args** - MUST IMPLEMENT IN TIL
+6. **parse_func_proc_args** - MUST IMPLEMENT IN TIL
    - TIL (INCOMPLETE): Only validates, doesn't return data
    - Rust (CORRECT): Returns =Vec<Declaration>=
    - Fix: TIL must build and return Declaration array
 
-5. **parse_func_proc_definition** - MUST COMPLETE IN TIL
+7. **parse_func_proc_definition** - MUST COMPLETE IN TIL
    - TIL (INCOMPLETE): Creates stub =SFuncDef= with empty data
    - Rust (CORRECT): Fully populates =SFuncDef= with args/returns/throws
    - Fix: TIL must populate all SFuncDef fields
 
-6. **ValueType enum** - MUST ADD PAYLOADS IN TIL
+8. **ValueType enum** - MUST ADD PAYLOADS IN TIL
    - TIL (INCOMPLETE): Simple variants, missing payloads
    - Rust (CORRECT): =TFunction(FunctionType)=, =TType(TTypeDef)=
    - Fix: TIL enum variants must carry same payload data
@@ -208,19 +235,33 @@ generic Map class (replacing StrMap), but the structure wasn't kept aligned
 with parser.rs. The Map changes went beyond simple StrMap replacement and
 simplified the data structures in a way that broke homogenization.
 
-*Next Steps (PRIORITY):*
-1. Review =doc/parser_homogenization_plan.org= for detailed task breakdown
-2. Revert parser.til data structures to match parser.rs exactly
-3. Update parse functions to populate all required metadata
-4. Test that structures are byte-for-byte equivalent
-5. Verify all tests still pass after homogenization
+*Next Steps (UPDATED PRIORITY - 2025-01-09):*
+1. **PHASE 0 (NEW)**: Add missing critical infrastructure (~6 hours)
+   - Add Mode system (ModeDef, parse_mode, mode_from_name, can_be_imported)
+   - Add parse_tokens() public entry point
+   - Extract func_proc_returns() and func_proc_throws() as separate functions
+2. **PHASE 1**: Fix data structure definitions (~5 hours)
+   - ValueType enum payloads, SEnumDef, SStructDef, SFuncDef
+3. **PHASE 2**: Update helper functions (~4 hours)
+   - str_to_value_type, value_type_to_str, get_full_identifier_name
+4. **PHASE 3**: Update parse functions (~10 hours)
+   - parse_func_proc_args, parse_func_proc_definition, parse_struct_definition, enum_definition
+5. **PHASE 4**: Cleanup & documentation (~4 hours)
+   - Remove old bug workarounds, align comments
+6. **PHASE 5**: Validation & testing (~8 hours)
+   - Structural comparison, edge cases, full test suite
+
+***Total Estimated Time: 37 hours (5 days)*** - up from original 22 hours
 
 *** Homogenization Status
+- [X] Bug #6 FIXED (2025-01-09) - Enum payloads now reserve max variant size
+- [X] test_parser.til re-enabled with 13/18 tests passing (2025-01-09)
 - [X] Divergence discovered during analysis (2025-11-09)
-- [X] Documented divergence and created homogenization plan (2025-11-09)
-- [ ] NEXT: Execute parser_homogenization_plan.org (Rust→TIL direction)
-- [ ] Revert TIL data structures to match Rust
-- [ ] Complete TIL parse functions to match Rust behavior
+- [X] Comprehensive comparison completed (2025-01-09)
+- [X] Updated homogenization plan with Phase 0 (2025-01-09)
+- [ ] NEXT: Execute Phase 0 - Add missing infrastructure
+- [ ] Execute Phases 1-3 - Data structures and parse functions
+- [ ] Execute Phases 4-5 - Cleanup and validation
 - [ ] Validate homogenization with structural comparison
 - [ ] Mark parser homogenization complete
 
@@ -450,11 +491,15 @@ Using =TODO(loc(), "message")= from std.til allows tests to keep passing while b
 
 ** Week 5: Parser Homogenization - NEXT PRIORITY 🔥
 - [X] Parser divergence discovered during analysis (2025-11-09)
-- [X] Documented divergence and created detailed plan (2025-11-09)
-- [ ] NEXT UP: Execute parser_homogenization_plan.org (~3 days, 22 hours)
+- [X] Bug #6 FIXED: Enum payloads now reserve max variant size (2025-01-09)
+- [X] test_parser.til re-enabled: 13/18 tests passing (2025-01-09)
+- [X] Comprehensive analysis completed - found missing infrastructure (2025-01-09)
+- [X] Updated plan with Phase 0 and new time estimate (2025-01-09)
+- [ ] NEXT UP: Execute updated homogenization plan (~5 days, 37 hours)
 - [ ] Direction: Rust → TIL (parser.rs is source of truth)
-- [ ] Revert TIL data structures to match Rust exactly
-- [ ] Complete parse functions to populate full metadata
+- [ ] Phase 0: Add Mode system, parse_tokens(), func_proc_returns/throws (~6h)
+- [ ] Phases 1-3: Fix data structures and parse functions (~19h)
+- [ ] Phases 4-5: Cleanup and validation (~12h)
 - [ ] Validate structural equivalence
 
 ** Weeks 6-10: Init Homologization (MAJOR WORK)
