@@ -528,7 +528,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                     // Get struct variable name from the original expression or create temporary for literals
                                     let struct_var_name = match &payload_expr.node_type {
-                                        NodeType::Identifier(name) if struct_type_name == "Str" => {
+                                        NodeType::Identifier(_name) if struct_type_name == "Str" => {
                                             // For Str payloads with identifier expressions (like t.token_str),
                                             // create a temporary Str from the evaluated result value
                                             let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
