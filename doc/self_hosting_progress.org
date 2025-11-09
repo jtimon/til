@@ -11,12 +11,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | Component   | TIL Lines | Rust Lines | Completion | Status                       |
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| parser      |     1,471 |      1,389 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
+| parser      |     1,471 |      1,389 | ~60%       | ⚠️ DIVERGED (INTENTIONAL)   |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
 | typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       585 |      2,485 | 24%        | ⏳ TOP-DOWN IN PROGRESS     |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     4,396 |      7,437 | *59%*      | Lexer+Parser Complete ✅     |
+| *TOTAL*     |     4,396 |      7,437 | *52%*      | Lexer Complete ✅            |
 
 * Architecture & Call Hierarchy
 
@@ -139,60 +139,90 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - [ ] Consider string escape switch in Rust (TIL lines 394-415)
 
 ** Parser (parser.til vs src/rs/parser.rs)
-*** Status: HOMOLOGIZATION COMPLETE ✅ (2025-01-09)
+*** Status: ⚠️ DIVERGED - NEEDS HOMOGENIZATION (Next Priority)
 
-*TIL Implementation (1,471 lines):*
-- Full expression parsing (literals, identifiers, function calls)
-- Statement parsing (if/else-if, while, for, switch, return, throw, catch)
-- Nested block scopes (standalone ={ }= statements)
-- Function/procedure definitions with args/returns/throws
-- External function/procedure parsing (=func_ext=, =proc_ext=)
-- Enum and struct definitions
-- UFCS (Uniform Function Call Syntax) support
-- Method chaining (=a.method1().method2()=)
-- Range expressions for for loops (=0..5=)
-- Pattern matching in switch statements (=Color.Red(value)=)
+*IMPORTANT:* parser.rs is the **source of truth**. parser.til must be updated to match it.
 
-*Algorithmic Equivalence (2025-01-09):*
-- ✅ Both parsers produce identical AST structures
-- ✅ Both desugar =for= loops to while loops in parser
-- ✅ Both support full tagged union payloads
-- ✅ Both support pattern matching with payload extraction
-- ✅ Both support =else if= chains (not just nested else blocks)
-- ✅ Both parse external function/procedure declarations
-- ✅ Both support nested block scopes
+*Current State (2025-11-09):*
+The parsers have **unintentionally diverged** during recent StrMap→Map refactoring work.
+parser.til was updated to use generic Map structures, but should have maintained
+the same structure as parser.rs. Both currently produce valid ASTs and tests pass,
+but the data structures no longer match.
 
-*Changes Made for Homologization (2025-01-09):*
-1. Added =Pattern= variant to NodeType enum (line 94)
-2. Implemented pattern matching in =parse_case_expr= (lines 1168-1201)
-   - Detects =EnumVariant(binding)= syntax in switch cases
-   - Converts FCall nodes to Pattern nodes with payload binding
-3. Added =else if= chain support (lines 654-657)
-   - Recursively parses nested if statements after =else if=
-4. Added external function parsing (lines 321-322, 327-328, 941-942, 945-946)
-   - Handles =TokenType.FuncExt= and =TokenType.ProcExt= tokens
-5. Added nested block scope support (lines 590-593)
-   - Standalone ={ ... }= blocks parsed as statements
+*Detailed Homogenization Plan:* See =doc/parser_homogenization_plan.org=
 
-*Verification:*
-- All test suite passes (src/tests.til) ✅
-- Pattern matching test passes (=Color.Red(value)= extraction) ✅
-- else-if chain test passes (flat chains, no nesting required) ✅
-- Nested block scope test passes (multi-level scoping) ✅
-- Deep structural comparison confirms algorithmic equivalence ✅
+*Current TIL Implementation (1,471 lines) - NEEDS FIXES:*
+- ❌ Uses generic =Map= (string→string) for type storage (WRONG)
+- ❌ Uses =Array= for collections with string-based types (WRONG)
+- ❌ Simplified data structures don't match Rust (WRONG)
+- ⚠️ Recent change broke homogenization: Replaced StrMap with Map
 
-*** Homologization Tasks
-- [X] Fix tagged union support (BLOCKER #3) - COMPLETE
-- [X] Store Declaration info properly (lines 507, 754) - COMPLETE
-- [X] Sync for-loop desugaring approach - IDENTICAL (both desugar to while loops)
-- [X] Add Pattern variant to NodeType enum - COMPLETE
-- [X] Implement pattern matching in parse_case_expr - COMPLETE
-- [X] Add else-if chain support to parse_if_statement - COMPLETE
-- [X] Add external function/procedure token parsing - COMPLETE
-- [X] Add nested block scope statement support - COMPLETE
-- [X] Validate with comprehensive tests - ALL PASS ✅
-- [X] Deep structural comparison - NO DIFFERENCES ✅
-- [X] Mark complete - PARSER HOMOLOGIZATION COMPLETE ✅
+*Rust Implementation (1,389 lines) - CORRECT/TARGET:*
+- ✅ Uses strongly-typed =HashMap<String, Option<ValueType>>=
+- ✅ Uses =Vec<Declaration>=, =Vec<ValueType>= for proper type safety
+- ✅ Full type-correct representation with enum payloads
+- ✅ This is what parser.til needs to match
+
+*Critical Divergences That Must Be Fixed:*
+
+1. **SStructDef struct** - MUST REVERT TIL
+   - TIL (WRONG): =Map= (string→string) + parallel =Arrays=
+   - Rust (CORRECT): =Vec<(String, Declaration)>= + =HashMap<String, Expr>=
+   - Fix: Revert TIL to use arrays/maps that mirror Rust's Vec/HashMap
+
+2. **SFuncDef struct** - MUST REVERT TIL
+   - TIL (WRONG): =Map= for args (string→string), generic =Array=
+   - Rust (CORRECT): =Vec<Declaration>=, =Vec<ValueType>=
+   - Fix: Store full Declaration/ValueType info in TIL
+
+3. **SEnumDef struct** - MUST FIX TIL
+   - TIL (WRONG): Stores payload types as strings
+   - Rust (CORRECT): =HashMap<String, Option<ValueType>>=
+   - Fix: TIL needs to store ValueType enums, not strings
+
+4. **parse_func_proc_args** - MUST IMPLEMENT IN TIL
+   - TIL (INCOMPLETE): Only validates, doesn't return data
+   - Rust (CORRECT): Returns =Vec<Declaration>=
+   - Fix: TIL must build and return Declaration array
+
+5. **parse_func_proc_definition** - MUST COMPLETE IN TIL
+   - TIL (INCOMPLETE): Creates stub =SFuncDef= with empty data
+   - Rust (CORRECT): Fully populates =SFuncDef= with args/returns/throws
+   - Fix: TIL must populate all SFuncDef fields
+
+6. **ValueType enum** - MUST ADD PAYLOADS IN TIL
+   - TIL (INCOMPLETE): Simple variants, missing payloads
+   - Rust (CORRECT): =TFunction(FunctionType)=, =TType(TTypeDef)=
+   - Fix: TIL enum variants must carry same payload data
+
+*What Currently Works (Despite Divergence):*
+- ✅ Both produce valid ASTs for all test cases
+- ✅ All test suite passes (src/tests.til)
+- ✅ Pattern matching, switch statements work
+- ✅ External function/procedure parsing works
+- ✅ Tests pass because later stages compensate for incomplete parsing
+
+*Root Cause:*
+During recent Map implementation work, parser.til was updated to use the new
+generic Map class (replacing StrMap), but the structure wasn't kept aligned
+with parser.rs. The Map changes went beyond simple StrMap replacement and
+simplified the data structures in a way that broke homogenization.
+
+*Next Steps (PRIORITY):*
+1. Review =doc/parser_homogenization_plan.org= for detailed task breakdown
+2. Revert parser.til data structures to match parser.rs exactly
+3. Update parse functions to populate all required metadata
+4. Test that structures are byte-for-byte equivalent
+5. Verify all tests still pass after homogenization
+
+*** Homogenization Status
+- [X] Divergence discovered during analysis (2025-11-09)
+- [X] Documented divergence and created homogenization plan (2025-11-09)
+- [ ] NEXT: Execute parser_homogenization_plan.org (Rust→TIL direction)
+- [ ] Revert TIL data structures to match Rust
+- [ ] Complete TIL parse functions to match Rust behavior
+- [ ] Validate homogenization with structural comparison
+- [ ] Mark parser homogenization complete
 
 ** Init (init.til vs src/rs/init.rs)
 *** Status: 70% COMPLETE - TOP-DOWN IN PROGRESS ⏳ (2025-01-09)
@@ -418,12 +448,14 @@ Using =TODO(loc(), "message")= from std.til allows tests to keep passing while b
 - [ ] BLOCKER #3: Fix tagged union support in parser
 - [ ] Test fixes thoroughly
 
-** Week 5: Parser Homologization
-- [ ] Verify tagged union fix works
-- [ ] Compare for-loop desugaring approaches
-- [ ] Sync improvements bidirectionally
-- [ ] Validate with tests
-- [ ] Mark parser complete
+** Week 5: Parser Homogenization - NEXT PRIORITY 🔥
+- [X] Parser divergence discovered during analysis (2025-11-09)
+- [X] Documented divergence and created detailed plan (2025-11-09)
+- [ ] NEXT UP: Execute parser_homogenization_plan.org (~3 days, 22 hours)
+- [ ] Direction: Rust → TIL (parser.rs is source of truth)
+- [ ] Revert TIL data structures to match Rust exactly
+- [ ] Complete parse functions to populate full metadata
+- [ ] Validate structural equivalence
 
 ** Weeks 6-10: Init Homologization (MAJOR WORK)
 - [ ] Design struct serialization format
