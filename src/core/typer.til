@@ -6,61 +6,133 @@ import("src/core/init")
 // Corresponds to src/rs/typer.rs in the Rust implementation
 
 // Type check an AST expression
+// Returns array of error strings (empty if success)
 // Corresponds to check_types in typer.rs
-check_types := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
-    node_type_str := enum_to_str(e.node_type)
+check_types := proc(mut context: Context, e: Expr) returns Array throws Str, AllocError, IndexOutOfBoundsError {
+    mut errors := Array.new_dyn("Str", size_of(Str))
 
     // Match on node type
-    switch node_type_str {
-    case "NodeType.Body":
+    switch e.node_type {
+    case NodeType.Body:
         // Recursively check all children
-        i := 0
-        while i.lt(e.params.len) {
-            param := e.params.get(i)
-            check_types(context, param)
-            i = i.add(1)
+        mut params := e.params
+        mut i := 0
+        while lt(i, params.len) {
+            mut stmt := Expr()
+            params.get(i, stmt)
+            mut stmt_errors := check_types(context, stmt)
+            // Extend errors
+            mut j := 0
+            while lt(j, stmt_errors.len) {
+                mut err_str := ""
+                stmt_errors.get(j, err_str)
+                errors.push(err_str)
+                j = add(j, 1)
+            }
+            i = add(i, 1)
         }
-    case "NodeType.If":
-        check_if_statement(context, e)
-    case "NodeType.FCall":
-        check_fcall(context, e)
-    case "NodeType.FuncDef":
-        check_func_def(context, e)
-    case "NodeType.Declaration":
-        check_declaration(context, e)
-    case "NodeType.Assignment":
-        check_assignment(context, e)
-    case "NodeType.Identifier":
-        check_identifier(context, e)
-    case "NodeType.Return":
+
+    case NodeType.EnumDef(enum_def):
+        // TODO: check_enum_def
+        TODO(loc(), "check_enum_def not yet implemented")
+
+    case NodeType.StructDef(struct_def):
+        // TODO: check_struct_def
+        TODO(loc(), "check_struct_def not yet implemented")
+
+    case NodeType.If:
+        // TODO: check_if_statement
+        TODO(loc(), "check_if_statement not yet implemented")
+
+    case NodeType.While:
+        // TODO: check_while_statement
+        TODO(loc(), "check_while_statement not yet implemented")
+
+    case NodeType.Switch:
+        // TODO: check_switch_statement
+        TODO(loc(), "check_switch_statement not yet implemented")
+
+    case NodeType.Range:
+        // TODO: Check range start/end types match
+        TODO(loc(), "Range type checking not yet implemented")
+
+    case NodeType.FCall:
+        // TODO: check_fcall
+        TODO(loc(), "check_fcall not yet implemented")
+
+    case NodeType.FuncDef(func_def):
+        // TODO: check_func_proc_types
+        TODO(loc(), "check_func_proc_types not yet implemented")
+
+    case NodeType.Identifier(name):
+        // TODO: Check if symbol is defined
+        TODO(loc(), format("Identifier type checking not yet implemented for '", name, "'"))
+
+    case NodeType.Declaration(decl):
+        // TODO: check_declaration
+        TODO(loc(), format("Declaration type checking not yet implemented for '", decl.name, "'"))
+
+    case NodeType.Assignment(var_name):
+        // TODO: check_assignment
+        TODO(loc(), format("Assignment type checking not yet implemented for '", var_name, "'"))
+
+    case NodeType.Return:
         // Recursively check all return values
-        i := 0
-        while i.lt(e.params.len) {
-            param := e.params.get(i)
-            check_types(context, param)
-            i = i.add(1)
+        mut params := e.params
+        mut i := 0
+        while lt(i, params.len) {
+            mut stmt := Expr()
+            params.get(i, stmt)
+            mut stmt_errors := check_types(context, stmt)
+            // Extend errors
+            mut j := 0
+            while lt(j, stmt_errors.len) {
+                mut err_str := ""
+                stmt_errors.get(j, err_str)
+                errors.push(err_str)
+                j = add(j, 1)
+            }
+            i = add(i, 1)
         }
-    case "NodeType.Throw":
+
+    case NodeType.Throw:
         // Recursively check all throw values
-        i := 0
-        while i.lt(e.params.len) {
-            param := e.params.get(i)
-            check_types(context, param)
-            i = i.add(1)
+        mut params := e.params
+        mut i := 0
+        while lt(i, params.len) {
+            mut stmt := Expr()
+            params.get(i, stmt)
+            mut stmt_errors := check_types(context, stmt)
+            // Extend errors
+            mut j := 0
+            while lt(j, stmt_errors.len) {
+                mut err_str := ""
+                stmt_errors.get(j, err_str)
+                errors.push(err_str)
+                j = add(j, 1)
+            }
+            i = add(i, 1)
         }
-    case "NodeType.While":
-        check_while_statement(context, e)
-    case "NodeType.Range":
-        check_range(context, e)
-    case "NodeType.LLiteral":
+
+    case NodeType.Catch:
+        // TODO: check_catch_statement
+        TODO(loc(), "check_catch_statement not yet implemented")
+
+    case NodeType.Literal(_):
         // Literals are always valid, no checking needed
-    case "NodeType.DefaultCase":
+
+    case NodeType.DefaultCase:
         // Default case in switch, no checking needed
-    case "NodeType.Pattern":
+
+    case NodeType.Pattern(_, _):
         // Pattern in switch, no checking needed
+
     case:
-        TODO(loc(), format("check_types: Unimplemented node type ", node_type_str))
+        // Unhandled node type
+        TODO(loc(), format("check_types: Unhandled node type"))
     }
+
+    return errors
 }
 
 // Check if statement - condition must be Bool

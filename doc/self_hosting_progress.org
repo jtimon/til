@@ -13,10 +13,10 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
 | parser      |     1,471 |      1,389 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
-| typer       |       336 |      1,285 | 26%        | ⏳ STARTING TOP-DOWN        |
+| typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       475 |      2,485 | 19%        | ❌ PORT FROM RUST            |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     4,214 |      7,437 | *57%*      | Lexer+Parser Complete ✅     |
+| *TOTAL*     |     4,286 |      7,437 | *58%*      | Lexer+Parser Complete ✅     |
 
 * Architecture & Call Hierarchy
 
@@ -270,11 +270,32 @@ in maps. Full equivalence requires either JSON serialization or direct object st
 - [ ] Update maps to store actual type info (not placeholders)
 
 ** Typer (typer.til vs src/rs/typer.rs)
-*** Status: 26% COMPLETE ❌ SEVERELY BEHIND
+*** Status: 30% COMPLETE - TOP-DOWN IN PROGRESS ⏳ (2025-01-09)
 
-*TIL Implementation (336 lines - MINIMAL):*
+*TIL Implementation (408 lines):*
 
-*✅ Implemented:*
+*✅ COMPLETED (2025-01-09):*
+- =check_types= skeleton with TODO() placeholders (matches Rust signature)
+- Returns Array of error strings (not throws)
+- NodeType.Body: Recursively processes all statements
+- NodeType.Return/Throw: Recursively checks values
+- NodeType.Literal/DefaultCase/Pattern: No-op (already validated)
+- Uses pattern matching on NodeType enum (benefits from parser homologization)
+
+*⏳ TODO PLACEHOLDERS (incremental implementation):*
+- =check_enum_def= (enum payload validation)
+- =check_struct_def= (struct field validation)
+- =check_if_statement= (condition must be Bool)
+- =check_while_statement= (condition must be Bool)
+- =check_switch_statement= (switch value + case type matching)
+- =check_range= (start/end types must match)
+- =check_fcall= (function call validation)
+- =check_func_proc_types= (function body validation)
+- =check_declaration= (declaration type checking)
+- =check_assignment= (assignment type checking)
+- =check_catch_statement= (catch type validation)
+
+*Old Implementation (being replaced):*
 - Basic =check_types= dispatcher
 - =check_if_statement= (condition must be Bool)
 - =check_while_statement= (condition must be Bool)
