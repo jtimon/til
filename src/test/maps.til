@@ -1,0 +1,324 @@
+mode test
+
+Vec2 := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+
+    new := proc(x: I64, y: I64) returns Vec2 {
+        mut v := Vec2()
+        v.x = x
+        v.y = y
+        return v
+    }
+}
+
+// Test Map<I64, I64>
+test_map_i64_to_i64 := proc() {
+    mut ages := Map.new("I64", size_of(I64), "I64", size_of(I64))
+    ages.insert(100, 30)
+    ages.insert(200, 25)
+
+    mut age := 0
+    ages.get(100, age)
+    test(loc(), I64.eq(age, 30), "ID 100 should map to 30")
+    ages.get(200, age)
+    test(loc(), I64.eq(age, 25), "ID 200 should map to 25")
+
+    println("PASS: Map<I64, I64> works")
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map<I64, Str>
+test_map_i64_to_str := proc() {
+    mut names := Map.new("I64", size_of(I64), "Str", size_of(Str))
+    names.insert(100, "Alice")
+    names.insert(200, "Bob")
+    names.insert(300, "Charlie")
+
+    mut name := ""
+    names.get(100, name)
+    test(loc(), Str.eq(name, "Alice"), "ID 100 should map to Alice")
+    names.get(200, name)
+    test(loc(), Str.eq(name, "Bob"), "ID 200 should map to Bob")
+    names.get(300, name)
+    test(loc(), Str.eq(name, "Charlie"), "ID 300 should map to Charlie")
+
+    println("PASS: Map<I64, Str> works")
+    names.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map<Str, Bool>
+test_map_str_to_bool := proc() {
+    mut flags := Map.new("Str", size_of(Str), "Bool", size_of(Bool))
+    flags.insert("debug", true)
+    flags.insert("verbose", false)
+    flags.insert("production", false)
+
+    mut flag := false
+    flags.get("debug", flag)
+    test(loc(), flag.eq(true), "debug should be true")
+    flags.get("verbose", flag)
+    test(loc(), flag.eq(false), "verbose should be false")
+    flags.get("production", flag)
+    test(loc(), flag.eq(false), "production should be false")
+
+    println("PASS: Map<Str, Bool> works")
+    flags.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map<Str, Str>
+test_map_str_to_str := proc() {
+    mut capitals := Map.new("Str", size_of(Str), "Str", size_of(Str))
+    capitals.insert("France", "Paris")
+    capitals.insert("Japan", "Tokyo")
+    capitals.insert("Brazil", "Brasilia")
+
+    mut capital := ""
+    capitals.get("France", capital)
+    test(loc(), Str.eq(capital, "Paris"), "France's capital should be Paris")
+    capitals.get("Japan", capital)
+    test(loc(), Str.eq(capital, "Tokyo"), "Japan's capital should be Tokyo")
+    capitals.get("Brazil", capital)
+    test(loc(), Str.eq(capital, "Brasilia"), "Brazil's capital should be Brasilia")
+
+    println("PASS: Map<Str, Str> works")
+    capitals.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map<Str, U8>
+test_map_str_to_u8 := proc() {
+    mut grades := Map.new("Str", size_of(Str), "U8", size_of(U8))
+    grades.insert("Alice", U8.from_i64(90))
+    grades.insert("Bob", U8.from_i64(85))
+    grades.insert("Charlie", U8.from_i64(92))
+
+    mut grade := U8.from_i64(0)
+    grades.get("Alice", grade)
+    test(loc(), grade.eq(U8.from_i64(90)), "Alice's grade should be 90")
+    grades.get("Bob", grade)
+    test(loc(), grade.eq(U8.from_i64(85)), "Bob's grade should be 85")
+    grades.get("Charlie", grade)
+    test(loc(), grade.eq(U8.from_i64(92)), "Charlie's grade should be 92")
+
+    println("PASS: Map<Str, U8> works")
+    grades.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: U8_OverflowError) { exit(1) }
+}
+
+// Test Map<Str, Vec2>
+test_map_str_to_vec2 := proc() {
+    mut positions := Map.new("Str", size_of(Str), "Vec2", size_of(Vec2))
+    mut player_pos := Vec2.new(10, 20)
+    positions.insert("player", player_pos)
+    mut enemy_pos := Vec2.new(30, 40)
+    positions.insert("enemy", enemy_pos)
+    mut item_pos := Vec2.new(50, 60)
+    positions.insert("item", item_pos)
+
+    mut pos := Vec2()
+    positions.get("player", pos)
+    test(loc(), I64.eq(pos.x, 10), "player.x should be 10")
+    test(loc(), I64.eq(pos.y, 20), "player.y should be 20")
+    positions.get("enemy", pos)
+    test(loc(), I64.eq(pos.x, 30), "enemy.x should be 30")
+    test(loc(), I64.eq(pos.y, 40), "enemy.y should be 40")
+    positions.get("item", pos)
+    test(loc(), I64.eq(pos.x, 50), "item.x should be 50")
+    test(loc(), I64.eq(pos.y, 60), "item.y should be 60")
+
+    println("PASS: Map<Str, Vec2> works")
+    positions.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test Map<Str, Array<Str>>
+test_map_str_to_array_str := proc() {
+    mut lists := Map.new("Str", size_of(Str), "Array", size_of(Array))
+
+    mut fruits := Array.new_dyn("Str", size_of(Str))
+    fruits.push("apple")
+    fruits.push("banana")
+    fruits.push("orange")
+    lists.insert("fruits", fruits)
+
+    mut colors := Array.new_dyn("Str", size_of(Str))
+    colors.push("red")
+    colors.push("green")
+    colors.push("blue")
+    lists.insert("colors", colors)
+
+    mut arr := Array()
+    lists.get("fruits", arr)
+    test(loc(), I64.eq(arr.len, 3), "fruits array should have 3 elements")
+    mut item := ""
+    arr.get(0, item)
+    test(loc(), Str.eq(item, "apple"), "fruits[0] should be apple")
+
+    lists.get("colors", arr)
+    test(loc(), I64.eq(arr.len, 3), "colors array should have 3 elements")
+    arr.get(0, item)
+    test(loc(), Str.eq(item, "red"), "colors[0] should be red")
+
+    println("PASS: Map<Str, Array<Str>> works")
+    fruits.delete()
+    colors.delete()
+    lists.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: IndexOutOfBoundsError) { exit(1) }
+    catch (err: FullError) { exit(1) }
+    catch (err: Str) { exit(1) }
+}
+
+// Test Map<U8, Bool>
+test_map_u8_to_bool := proc() {
+    mut flags := Map.new("U8", size_of(U8), "Bool", size_of(Bool))
+    flags.insert(U8.from_i64(10), true)
+    flags.insert(U8.from_i64(20), false)
+    flags.insert(U8.from_i64(30), true)
+
+    mut flag := false
+    flags.get(U8.from_i64(10), flag)
+    test(loc(), flag.eq(true), "key 10 should be true")
+    flags.get(U8.from_i64(20), flag)
+    test(loc(), flag.eq(false), "key 20 should be false")
+    flags.get(U8.from_i64(30), flag)
+    test(loc(), flag.eq(true), "key 30 should be true")
+
+    println("PASS: Map<U8, Bool> works")
+    flags.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test insert() - should throw on duplicate keys
+test_map_insert_duplicate := proc() {
+    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    ages.insert("Alice", 30)
+    ages.insert("Alice", 35)
+    panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
+    catch (err: DuplicatedKeyError) {
+        println("PASS: insert() correctly throws DuplicatedKeyError on duplicate")
+    }
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+}
+
+// Test set() - should overwrite existing keys
+test_map_set := proc() {
+    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    ages.set("Alice", 30)
+    ages.set("Alice", 35)
+    test(loc(), I64.eq(ages.len(), 1), "Size should still be 1 after set update")
+
+    mut age := 0
+    ages.get("Alice", age)
+    test(loc(), I64.eq(age, 35), "Expected age 35 after update")
+
+    println("PASS: set() overwrites existing keys")
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: KeyNotFoundError) { exit(1) }
+}
+
+// Test get() with non-existent key
+test_map_get_missing := proc() {
+    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    ages.insert("Alice", 30)
+
+    mut age := 0
+    ages.get("Charlie", age)
+    panic(loc(), "Expected KeyNotFoundError for non-existent key")
+    catch (err: KeyNotFoundError) {
+        println("PASS: get() throws KeyNotFoundError for non-existent key")
+    }
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
+// Test contains_key()
+test_map_contains_key := proc() {
+    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    ages.insert("Alice", 30)
+    ages.insert("Bob", 25)
+
+    test(loc(), ages.contains_key("Alice"), "Should contain Alice")
+    test(loc(), ages.contains_key("Bob"), "Should contain Bob")
+    test(loc(), not(ages.contains_key("Charlie")), "Should not contain Charlie")
+
+    println("PASS: contains_key() works correctly")
+    ages.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
+// Test position() method
+test_map_position := proc() {
+    mut colors := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    colors.insert("red", 1)
+    colors.insert("green", 2)
+    colors.insert("blue", 3)
+
+    test(loc(), I64.eq(colors.position("red"), 0), "red should be at position 0")
+    test(loc(), I64.eq(colors.position("green"), 1), "green should be at position 1")
+    test(loc(), I64.eq(colors.position("blue"), 2), "blue should be at position 2")
+
+    mut pos := colors.position("yellow")
+    test(loc(), I64.eq(pos, sub(0, 1)), "non-existent key should return -1")
+
+    println("PASS: position() returns correct insertion order")
+    colors.delete()
+    catch (err: AllocError) { exit(1) }
+    catch (err: DuplicatedKeyError) { exit(1) }
+}
+
+// Test empty Map operations
+test_map_empty := proc() {
+    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    test(loc(), I64.eq(m.len(), 0), "Empty map should have size 0")
+    test(loc(), not(m.contains_key("anything")), "Empty map should not contain any key")
+    mut pos := m.position("anything")
+    test(loc(), I64.eq(pos, sub(0, 1)), "position in empty map should return -1")
+
+    println("PASS: Empty map operations work correctly")
+    m.delete()
+    catch (err: AllocError) { exit(1) }
+}
+
+// Run all tests
+test_map_i64_to_i64()
+test_map_i64_to_str()
+test_map_str_to_bool()
+test_map_str_to_str()
+test_map_str_to_u8()
+test_map_str_to_vec2()
+test_map_str_to_array_str()
+test_map_u8_to_bool()
+test_map_insert_duplicate()
+test_map_set()
+test_map_get_missing()
+test_map_contains_key()
+test_map_position()
+test_map_empty()
+
+println("All Map tests passed!")
