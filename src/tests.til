@@ -42,7 +42,7 @@ runfile("src/test/namespaces.til")
 runfile("src/test/pointers.til")
 runfile("src/test/strings.til")
 runfile("src/test/test_lexer.til")
-// TEMP: test_parser.til disabled until init.rs is updated to handle new parser data structures
+// test_parser.til disabled - blocked by missing enum-as-payload support (see doc/pre_self_hosting_todo.org)
 // runfile("src/test/test_parser.til")
 runfile("src/test/structs.til")
 runfile("src/test/func_purity.til")
