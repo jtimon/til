@@ -1,0 +1,269 @@
+#+TITLE: Pre-Self-Hosting TODO List
+#+AUTHOR: rstil Development
+#+DATE: 2025-01-09
+
+* Overview
+
+This document tracks TODOs in the *Rust implementation (rstil)* that must be completed before the self-hosted til interpreter can run successfully.
+
+*Current Status:* All documented bugs fixed (see [[file:rstil_bugs.md][rstil_bugs.md]]), but missing features and test gaps remain.
+
+*Scope:* This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
+
+* Progress Summary
+
+| Component           | Status                          | Notes                                  |
+|---------------------+---------------------------------+----------------------------------------|
+| Known Bugs          | ✅ ALL FIXED                    | See rstil_bugs.md                      |
+| Error Handling      | ⚠️ PARTIALLY IMPLEMENTED        | throw/throws/catch needs completion    |
+| Import System       | ⚠️ MODE ISSUES                  | lib mode imports cause test failures   |
+| Test Suite          | ⚠️ 4 TESTS DISABLED             | Mode inheritance, error handling       |
+| Type System         | ⚠️ MINOR GAPS                   | Variadic args, some edge cases         |
+
+* Critical: Missing rstil Features
+:PROPERTIES:
+:CATEGORY: Missing Features
+:END:
+
+** TODO Complete Error Handling System (throw/throws/catch)        :BLOCKER:
+:PROPERTIES:
+:FILE: src/rs/interpreter.rs, src/rs/typer.rs
+:STATUS: Partially implemented
+:END:
+
+*** Current State
+- Basic throw/catch works in some contexts
+- =src/tests.til:61= - errors.til test file commented out: "TODO implement, throw, throws and catch"
+- =src/core/interpreter.til:571= - Throw/catch mechanism needs implementation
+- =src/rs/typer.rs:1170= - "TODO: Implement special PanicError potentially thrown implicitly everywhere"
+
+*** What Works
+- Basic throw/catch syntax recognized
+- Simple error struct throwing/catching
+- Test cases in =src/test/errors.til= pass
+
+*** What's Missing
+- [ ] =throws= keyword fully implemented in lexer/parser
+- [ ] Type checker validation for throws declarations
+- [ ] PanicError implicit throwing mechanism
+- [ ] Throws propagation checking (all throwable calls marked with ?)
+- [ ] Better error messages with backtraces (src/rs/interpreter.rs:2545)
+
+*** Blockers for Self-Hosting
+The self-hosted code will need proper error handling for file I/O, parsing errors, type errors, etc.
+
+** TODO Fix Import/Module System for lib Mode                       :BLOCKER:
+:PROPERTIES:
+:FILE: src/rs/init.rs, src/tests.til:44-46
+:IMPACT: Blocks test_lexer.til and test_parser.til
+:END:
+
+*** Current State
+- Basic imports work in most modes
+- =src/tests.til:44-46= - test_lexer.til and test_parser.til disabled due to "mode inheritance issues with lib imports"
+- =src/rs/init.rs:786= - "TODO: Cached type should support import returning struct_def"
+- =README.org:208= - Import "useless" in lib mode (not fully implemented)
+
+*** Issues
+1. Mode inheritance not working correctly when importing lib files
+2. Type caching doesn't support imports returning struct definitions
+3. Circular dependency detection not robust
+
+*** What's Needed
+- [ ] Debug mode inheritance when importing from lib mode
+- [ ] Fix struct_def caching in imports
+- [ ] Test circular dependency detection (src/core/pure_std.til:3)
+- [ ] Re-enable test_lexer.til and test_parser.til
+- [ ] Document import behavior in different modes
+
+*** Why This Blocks Self-Hosting
+The self-hosted interpreter needs to import lexer.til, parser.til, etc. as libraries. If lib mode imports don't work, self-hosting can't work.
+
+* High Priority: Known Bugs & Workarounds
+:PROPERTIES:
+:CATEGORY: Bugs
+:END:
+
+** TODO Remove Workarounds for Fixed Enum Bugs                        :HIGH:
+:PROPERTIES:
+:FILE: src/core/parser.til:239, src/core/parser.til:320
+:STATUS: Bugs fixed, workarounds still in code
+:END:
+
+*** Current State
+All enum bugs are FIXED (see rstil_bugs.md), but workarounds remain:
+- =src/core/parser.til:239= - "Workaround for rstil bug - enum payloads must be variables"
+- =src/core/parser.til:320= - Same workaround repeated
+- =src/core/lexer.til:586= - "Workaround for rstil bug - return in methods returns from caller"
+
+*** Action Required
+- [ ] Verify bugs are truly fixed by testing without workarounds
+- [ ] Remove workaround code from parser.til (lines 239, 320)
+- [ ] Test direct nested enum construction works
+- [ ] Remove return workaround from lexer.til if bug #2 confirmed fixed
+- [ ] Update comments to reference historical bug fixes
+
+*** Why This Matters
+Workarounds add complexity and may hide issues. Clean code is easier to maintain during self-hosting transition.
+
+** TODO Fix Variadic Argument Handling                              :MEDIUM:
+:PROPERTIES:
+:FILE: src/rs/typer.rs:1175, src/core/typer.til:188
+:END:
+
+*** Current State
+- =src/rs/typer.rs:1175= - "TODO: Check the args too" for variadic functions
+- =src/core/typer.til:188= - Variadic args not properly handled
+- Tests in =src/test/variadic.til= and =src/test/variadic_type_check.til= pass but may not cover all cases
+
+*** What's Needed
+- [ ] Complete variadic argument type checking in typer.rs
+- [ ] Add comprehensive variadic tests
+- [ ] Document variadic function semantics
+- [ ] Handle edge cases (zero variadic args, type mismatches)
+
+*** Why This Matters for Self-Hosting
+Self-hosted code may need variadic functions for flexible APIs. Type checking must be complete.
+
+** TODO Improve Type Checking Edge Cases                            :MEDIUM:
+:PROPERTIES:
+:FILE: src/rs/typer.rs, src/rs/interpreter.rs
+:END:
+
+*** TODOs in Rust Type System
+- =src/rs/typer.rs:309= - "TODO: Check more type stuff"
+- =src/rs/typer.rs:984= - "Check types for members inside structs too"
+- =src/rs/typer.rs:1149= - "Default values could try to call procs"
+- =src/rs/typer.rs:1168= - "Arguments of function call can also call procedures"
+- =src/rs/init.rs:251= - "TODO: Handle enums too for TCustom"
+
+*** What's Needed
+- [ ] Add missing type checks identified in comments
+- [ ] Test struct member type checking
+- [ ] Validate default values don't call procs
+- [ ] Ensure function arguments don't call procs inappropriately
+- [ ] Handle enum types in TCustom context
+
+* Medium Priority: Test Suite Gaps
+:PROPERTIES:
+:CATEGORY: Tests
+:END:
+
+** TODO Re-enable tests_self_hosted.til                             :BLOCKER:
+:PROPERTIES:
+:FILE: src/tests.til:9
+:REASON: Type errors in lexer.til and parser.til
+:END:
+
+*** Current State
+Commented out: "TODO: Re-enable after fixing type errors in lexer.til and parser.til"
+
+*** Action Required
+- [ ] Run tests_self_hosted.til to see current failures
+- [ ] Identify specific type errors in lexer.til
+- [ ] Identify specific type errors in parser.til
+- [ ] Fix type errors (likely related to complex type serialization)
+- [ ] Re-enable in test suite
+- [ ] Ensure all self-hosted tests pass
+
+This is THE critical test for self-hosting readiness.
+
+** TODO Re-enable test_lexer.til and test_parser.til                :BLOCKER:
+:PROPERTIES:
+:FILE: src/tests.til:44-46
+:DEPENDS_ON: Import/module system fixes
+:END:
+
+*** Current State
+Commented out: "Mode inheritance issues with lib imports"
+
+*** Action Required
+- [ ] Fix lib mode import issues (see "Fix Import/Module System" above)
+- [ ] Test lexer as a library import
+- [ ] Test parser as a library import
+- [ ] Verify mode inheritance works correctly
+- [ ] Re-enable both tests
+- [ ] Ensure tests pass
+
+** TODO Implement hello_script_safe.til Test                         :MEDIUM:
+:PROPERTIES:
+:FILE: src/tests.til:20
+:STATUS: Not implemented
+:END:
+
+*** Current State
+Commented out: "TODO: This is much harder than it sounds"
+
+*** What's Needed
+- [ ] Design safe_script mode semantics
+- [ ] Implement user confirmation for unsafe operations
+- [ ] Add whitelist for safe commands
+- [ ] Create test case
+- [ ] Document safe_script mode
+
+*** Priority Note
+This is a nice-to-have feature for safety, not a blocker for basic self-hosting.
+
+** TODO Re-enable errors.til Test                                     :HIGH:
+:PROPERTIES:
+:FILE: src/tests.til:61
+:DEPENDS_ON: Error handling completion
+:END:
+
+*** Current State
+Commented out: "TODO: Implement throw, throws and catch, or at least try (multiple return values too, and rust_like Result)"
+
+*** Action Required
+- [ ] Complete error handling implementation (see above)
+- [ ] Implement multiple return value syntax (if decided)
+- [ ] Consider Result<T, E> pattern like Rust
+- [ ] Re-enable errors.til test
+- [ ] Add comprehensive error handling tests
+
+* Implementation Roadmap
+
+** Phase 1: Critical Blockers (Required for ANY self-hosting)
+1. [ ] Fix import/module system for lib mode
+2. [ ] Re-enable test_lexer.til and test_parser.til
+3. [ ] Fix type errors preventing tests_self_hosted.til
+4. [ ] Re-enable tests_self_hosted.til
+
+** Phase 2: Core Features (Required for ROBUST self-hosting)
+1. [ ] Complete error handling system (throw/throws/catch)
+2. [ ] Re-enable errors.til test
+3. [ ] Remove workarounds for fixed bugs
+
+** Phase 3: Polish (Nice to have before self-hosting)
+1. [ ] Fix variadic argument handling
+2. [ ] Improve type checking edge cases
+3. [ ] Better error messages and backtraces
+
+* Success Criteria
+
+Self-hosting is ready when:
+- [X] All documented bugs fixed (✅ DONE - see rstil_bugs.md)
+- [ ] All tests enabled and passing (4 currently disabled)
+- [ ] tests_self_hosted.til passes completely
+- [ ] src/til.til can interpret src/til.til (bootstrap test)
+- [ ] No critical TODOs remain in rstil implementation
+
+* References
+
+- [[file:rstil_bugs.md][rstil_bugs.md]] - Fixed bugs (all resolved as of Jan 2025)
+- [[file:self_hosting_progress.org][self_hosting_progress.org]] - Component completion status
+- [[file:design_notes.org][design_notes.org]] - Language design decisions
+- [[file:../src/tests.til][src/tests.til]] - Test suite with disabled tests marked
+- [[file:../src/test/todo.til][src/test/todo.til]] - Additional language TODOs
+
+* Notes
+
+** Focus on rstil, Not til Implementation
+This document tracks what the *Rust interpreter (rstil)* needs to support self-hosting.
+
+Completing interpreter.til, typer.til, etc. is a separate concern - those are the GOAL of self-hosting, not prerequisites.
+
+** Workarounds Are Okay Temporarily
+Some workarounds (like PatternInfo for tuples) are acceptable short-term. The priority is getting rstil stable enough to run the self-hosted code, even if that code has workarounds.
+
+** Test Suite Is Critical
+The 4 disabled tests are our canary in the coal mine. When they all pass, we're very close to self-hosting readiness.

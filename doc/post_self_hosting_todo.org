@@ -1,0 +1,416 @@
+#+TITLE: Post-Self-Hosting TODO List
+#+AUTHOR: rstil Development
+#+DATE: 2025-01-09
+
+* Overview
+
+This document tracks TODOs that can be deferred until *after* self-hosting is achieved.
+
+These are features, improvements, and optimizations that would be nice to have but are not blocking the ability to run the self-hosted til interpreter.
+
+* Language Features
+
+** TODO Implement List/Tuple Support                                   :LOW:
+:PROPERTIES:
+:FILE: src/rs/parser.rs:75, src/core/parser.til:78-80
+:IMPACT: Nicer syntax, not functionally necessary
+:END:
+
+*** Current State
+- Parser recognizes syntax but doesn't fully implement it
+- =src/rs/parser.rs:75= - "TODO: Could call it tuple, not tested yet"
+- Struct workarounds work fine (PatternInfo uses struct instead of tuple)
+- Arrays work fine instead of lists
+
+*** Why It's Not Blocking
+The only real use case found:
+- =src/core/parser.til:78-80= - PatternInfo struct is a workaround for =(Str, Str)= tuple
+- This works perfectly fine as a struct with two fields
+- No other significant usage of tuples/lists in self-hosting code
+
+*** Workarounds That Work Fine
+- PatternInfo struct instead of tuple
+- Arrays instead of lists
+- Function parameters already work with comma-separated syntax
+
+*** What Would Be Needed (Post-Self-Hosting)
+- [ ] Implement proper list literal parsing in parser.rs
+- [ ] Implement tuple types in type system
+- [ ] Add list/tuple evaluation in interpreter.rs
+- [ ] Test with pattern matching scenarios
+- [ ] Replace PatternInfo struct with tuple syntax
+
+*** Priority Note
+This is pure syntax sugar. Structs and Arrays cover all functionality needed.
+
+** TODO Support Negative Number Literals                               :LOW:
+:PROPERTIES:
+:FILE: src/core/core.til:26
+:IMPACT: Quality of life, not blocking
+:END:
+
+*** Current State
+- Negative literals not supported
+- All negative numbers use =sub(0, n)= workaround
+- Examples: =cNeg2 := sub(0, 2)=, =cNeg42 := sub(0, 42)=
+
+*** What's Needed
+- [ ] Extend lexer to recognize negative number tokens
+- [ ] Update parser to handle negative literals
+- [ ] Add test cases for negative number operations
+- [ ] Update core.til to use native negative literals
+
+*** Why It's Not Blocking
+The workaround is functional and self-hosting code can use =sub(0, n)= just fine.
+
+** TODO Implement Match Keyword                                      :MEDIUM:
+:PROPERTIES:
+:FILE: src/core/lexer.til:155, src/rs/lexer.rs:288
+:STATUS: Token recognized, not implemented
+:END:
+
+*** Description
+Like switch but for declarations/assignments.
+
+*** Current State
+- Token is recognized by lexer
+- Not implemented in parser/interpreter/typer
+
+*** What's Needed
+- [ ] Design match semantics (switch for expressions vs statements)
+- [ ] Implement in parser
+- [ ] Add type checking
+- [ ] Add evaluation support
+- [ ] Add test cases
+
+*** Why It's Post-Self-Hosting
+Switch statements work fine for now. This is a nice language feature but not essential.
+
+** TODO Implement Macro System                                         :LOW:
+:PROPERTIES:
+:FILE: src/core/lexer.til:144, src/rs/lexer.rs:277
+:STATUS: Token recognized, not implemented
+:END:
+
+*** Current State
+- =macro= keyword recognized
+- Comment says "Implement macro for real once we compile"
+- No macro expansion implemented
+
+*** What's Needed
+- [ ] Design macro syntax and semantics
+- [ ] Implement macro expansion in parser
+- [ ] Add hygiene rules
+- [ ] Test macro edge cases
+- [ ] Document macro system
+
+*** Why It's Post-Self-Hosting
+Macros are a power feature but not needed for basic self-hosting.
+
+** TODO Implement Default Keyword for Switch                           :LOW:
+:PROPERTIES:
+:FILE: src/core/lexer.til:157, src/rs/lexer.rs:290
+:STATUS: Syntax preference
+:END:
+
+*** Current State
+Using =case:= for default case, could use =default:= instead for more traditional syntax.
+
+*** Action
+- [ ] Decide on preferred syntax
+- [ ] Update parser if changing
+- [ ] Update all test cases
+- [ ] Document in language guide
+
+** TODO Support Struct Instantiation with Arguments                    :LOW:
+:PROPERTIES:
+:FILE: src/rs/interpreter.rs:464
+:END:
+
+*** Current vs Desired
+- Current: =Vec2()= initializes with defaults, must set fields afterward
+- Desired: =Vec2(10, 20)= initializes x and y directly
+
+*** What's Needed
+- [ ] Parse constructor call arguments
+- [ ] Map arguments to struct fields
+- [ ] Type check argument types match field types
+- [ ] Handle default values for missing arguments
+
+*** Why It's Post-Self-Hosting
+Current workaround (initialize then assign fields) works fine.
+
+* Type System Enhancements
+
+** TODO Implement Cast Operations                                      :LOW:
+:PROPERTIES:
+:FILE: src/core/core.til:319
+:END:
+
+*** What's Needed
+- [ ] Implement cast syntax
+- [ ] Start with U8 to I64
+- [ ] Expand to other type conversions
+- [ ] Add type checking for valid casts
+- [ ] Test cast operations
+
+*** Current Workaround
+Manual conversion functions work fine.
+
+** TODO Add More Operators & Overloading                             :MEDIUM:
+:PROPERTIES:
+:FILE: src/core/core.til:324-326, src/core/core.til:385
+:END:
+
+*** What's Needed
+- [ ] Rename add to i64_add or I64.add for consistency
+- [ ] Implement remaining arithmetic operations
+- [ ] Design operator overloading semantics (likely Python-style __add__ associated functions)
+- [ ] Allow custom types to define operators
+- [ ] Test operator precedence with overloads
+
+*** Current State
+Basic operators work. UFCS provides method-like syntax already.
+
+*** Implementation Approach
+Likely Python-style with special associated function names:
+- =__add__= for +
+- =__sub__= for -
+- =__mul__= for *
+- =__eq__= for ==
+- etc.
+
+** TODO Improve Type Checking Edge Cases                               :LOW:
+:PROPERTIES:
+:FILE: src/rs/typer.rs
+:END:
+
+*** TODOs in Rust Type System
+- =src/rs/typer.rs:309= - "TODO: Check more type stuff"
+- =src/rs/typer.rs:984= - "Check types for members inside structs too"
+- =src/rs/typer.rs:1149= - "Default values could try to call procs"
+- =src/rs/typer.rs:1168= - "Arguments of function call can also call procedures"
+- =src/rs/init.rs:251= - "TODO: Handle enums too for TCustom"
+
+*** Priority
+These are edge cases that rarely come up. Can be addressed after self-hosting.
+
+* Mode System Enhancements
+
+** TODO Implement safe_script Mode                                   :MEDIUM:
+:PROPERTIES:
+:FILE: README.org:183-193, src/tests.til:20
+:STATUS: Not implemented
+:END:
+
+*** Description
+Like script mode but unsafe actions (non-whitelisted commands, file I/O) require user confirmation. Idea from Roc.
+
+*** What's Needed
+- [ ] Design safe_script mode semantics
+- [ ] Implement user confirmation prompts
+- [ ] Add whitelist for safe commands
+- [ ] Create hello_script_safe.til test case
+- [ ] Document safe_script mode in README
+
+*** Why It's Post-Self-Hosting
+This is a safety feature for running untrusted scripts. Not needed for self-hosting the compiler itself.
+
+** TODO Implement pure Mode                                            :LOW:
+:PROPERTIES:
+:FILE: README.org:210-220
+:STATUS: Not implemented
+:END:
+
+*** Description
+Like lib but no proc declarations, calls, or imports. Ensures truly pure functional subset.
+
+*** What's Needed
+- [ ] Add mode validation for pure mode
+- [ ] Reject proc declarations
+- [ ] Reject proc calls
+- [ ] Reject imports
+- [ ] Add test cases
+- [ ] Document pure mode
+
+*** Why It's Post-Self-Hosting
+This is for ensuring functional purity. Nice to have but not essential for self-hosting.
+
+* Performance & Optimization
+
+** TODO Performance Optimizations                                       :LOW:
+:PROPERTIES:
+:FILE: src/core/core.til:95
+:END:
+
+*** Current State
+"Temporary optimization - many Array implementations slow"
+
+*** What's Needed
+- [ ] Profile array operations
+- [ ] Optimize hot paths
+- [ ] Consider better data structures
+- [ ] Benchmark improvements
+
+*** Why It's Post-Self-Hosting
+Self-hosting doesn't need to be fast initially. Correctness first, speed later.
+
+** TODO Optimize Memory Management                                      :LOW:
+:PROPERTIES:
+:FILE: src/rs/init.rs, src/rs/interpreter.rs
+:END:
+
+*** TODOs
+- =src/rs/init.rs:1021= - "All args should be passed as pointers/references"
+- =src/rs/interpreter.rs:1709= - "Simplify once we pass all args by reference"
+
+*** What's Needed
+- [ ] Analyze memory usage patterns
+- [ ] Implement reference passing where appropriate
+- [ ] Reduce unnecessary copies
+- [ ] Test for correctness
+
+*** Why It's Post-Self-Hosting
+Current memory management works. Optimization can come later.
+
+* Code Quality & Developer Experience
+
+** TODO Better Error Messages                                        :MEDIUM:
+:PROPERTIES:
+:FILE: Multiple locations
+:END:
+
+*** Improvements Needed
+- =src/rs/interpreter.rs:2545= - More detailed messages with backtraces for circular dependencies
+- =src/rs/lexer.rs:451= - Print warning with unknown escaped characters
+- =src/rs/typer.rs:1219= - Err(lang_error) here instead (better error propagation)
+
+*** What's Needed
+- [ ] Add source location tracking to more errors
+- [ ] Implement stack traces for runtime errors
+- [ ] Improve error message formatting
+- [ ] Add suggestions for common mistakes
+
+*** Why It's Post-Self-Hosting
+Errors work. Better errors are quality-of-life improvements.
+
+** TODO Code Quality Improvements                                       :LOW:
+:PROPERTIES:
+:FILE: Various
+:END:
+
+*** Refactoring TODOs
+- =src/rs/init.rs:60= - Find better way than type_str.to_string()
+- =src/rs/typer.rs:730, 747= - Move to init_context() - inner contexts not persisted
+- =src/rs/init.rs:759= - Use Context.path for eval errors (don't refactor whole eval phase)
+
+*** What's Needed
+- [ ] Clean up code duplication
+- [ ] Improve naming consistency
+- [ ] Refactor complex functions
+- [ ] Add more documentation
+
+*** Why It's Post-Self-Hosting
+Code works. Cleanliness is important but not blocking.
+
+** TODO Improve Memory Error Handling                                   :LOW:
+:PROPERTIES:
+:FILE: src/core/core.til:110
+:END:
+
+*** Current State
+Malloc returns 0 on failure instead of throwing error.
+
+*** What's Needed
+Use =throws= for memory operations instead of returning 0 from malloc.
+
+*** Why It's Post-Self-Hosting
+Current behavior is safe (null pointer detection). Better error handling can come later.
+
+* Documentation & Testing
+
+** TODO Add More Test Cases                                          :MEDIUM:
+:PROPERTIES:
+:FILE: Various test files
+:END:
+
+*** Areas Needing Tests
+- Edge cases in type checking
+- Complex pattern matching scenarios
+- Error recovery behavior
+- Memory edge cases
+
+*** What's Needed
+- [ ] Audit test coverage
+- [ ] Add missing test cases
+- [ ] Test error paths thoroughly
+- [ ] Add fuzzing tests
+
+** TODO Improve Documentation                                           :LOW:
+:PROPERTIES:
+:FILE: README.org, design_notes.org
+:END:
+
+*** What's Needed
+- [ ] Complete language reference
+- [ ] Add more examples
+- [ ] Document all modes
+- [ ] Explain design decisions
+- [ ] Add contributor guide
+
+* Feature Requests from TODO Comments
+
+** TODO Support Other Number Types                                      :LOW:
+:PROPERTIES:
+:FILE: src/rs/parser.rs:72
+:END:
+
+"TODO: Support more kinds of numbers"
+
+Currently only I64 supported. Could add:
+- [ ] F64 (floating point)
+- [ ] I32, I16, I8
+- [ ] U64, U32, U16, U8
+- [ ] BigInt for arbitrary precision
+
+** TODO Allow Unset Default Values in Structs                           :LOW:
+:PROPERTIES:
+:FILE: src/rs/parser.rs:731
+:END:
+
+"TODO: Allow not setting default values in struct members"
+
+Currently all fields need defaults. Could make them optional.
+
+** TODO Better Import Caching                                         :MEDIUM:
+:PROPERTIES:
+:FILE: src/rs/init.rs:786
+:END:
+
+"TODO: Cached type should support import returning struct_def"
+
+Type caching could be more sophisticated.
+
+* Notes
+
+** Why Defer These?
+All items in this document are either:
+1. Nice syntax improvements (tuples, negative literals)
+2. Performance optimizations (not needed for correctness)
+3. Advanced features (macros, additional modes)
+4. Code quality improvements (better errors, cleaner code)
+5. Documentation and testing enhancements
+
+None of these block the ability to bootstrap the self-hosted interpreter.
+
+** When to Tackle These?
+After self-hosting is working:
+1. First priority: Fix bugs found during self-hosted development
+2. Second priority: Performance issues that make development slow
+3. Third priority: Language features that improve code quality
+4. Fourth priority: Nice-to-haves and polish
+
+** Philosophy
+Get self-hosting working first with the minimal feature set. Then iterate and improve from a position of having a working self-hosted compiler.
+
+The self-hosted version can implement these features in til itself, which is part of the point of self-hosting!
