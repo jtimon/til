@@ -57,6 +57,26 @@ AllocError := struct {
     }
 }
 
+DuplicatedKeyError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns DuplicatedKeyError {
+        mut err := DuplicatedKeyError()
+        err.msg = msg
+        return err
+    }
+}
+
+KeyNotFoundError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns KeyNotFoundError {
+        mut err := KeyNotFoundError()
+        err.msg = msg
+        return err
+    }
+}
+
 // FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
@@ -684,6 +704,305 @@ StrMap := struct {
 
     // Delete the map and free memory
     delete := proc(mut self: StrMap) {
+        mut keys_arr := self.keys
+        keys_arr.delete()
+
+        mut values_arr := self.values
+        values_arr.delete()
+
+        self.size = 0
+    }
+}
+
+// Generic Map implementation - ordered, not hashed
+// Uses parallel arrays for keys and values (maintains insertion order)
+// Type parameters passed as strings (key_type_name, value_type_name)
+// No generics syntax needed - uses dynamic typing like Array
+//
+// Key type support:
+//   - Str: Fully supported (uses Str.eq() for content comparison)
+//   - I64, U8, Bool: Fully supported (uses memcmp for byte comparison)
+//   - Other primitives: Should work with memcmp
+//   - Structs: NOT recommended as keys (memcmp compares raw bytes including padding)
+//
+// Value type support:
+//   - Fully dynamic: Any type works (I64, Str, Bool, U8, Vec2, Array, etc.)
+//   - Uses memcpy for storage and retrieval
+Map := struct {
+    mut key_type_name: Str = ""       // e.g., "Str", "I64"
+    mut key_type_size: I64 = 0        // from size_of(KeyType)
+    mut value_type_name: Str = ""     // e.g., "Str", "Bool", "Expr"
+    mut value_type_size: I64 = 0      // from size_of(ValueType)
+    mut keys: Array = Array()         // Dynamic array of keys
+    mut values: Array = Array()       // Dynamic array of values (parallel)
+    mut size: I64 = 0                 // Number of entries
+
+    // Create new empty map with specified key and value types
+    // Example: Map.new("Str", size_of(Str), "I64", size_of(I64))
+    new := proc(key_type: Str, key_size: I64, value_type: Str, value_size: I64) returns Map throws AllocError {
+        mut m := Map()
+        m.key_type_name = key_type
+        m.key_type_size = key_size
+        m.value_type_name = value_type
+        m.value_type_size = value_size
+        m.keys = Array.new_dyn(key_type, key_size)
+        m.values = Array.new_dyn(value_type, value_size)
+        m.size = 0
+        return m
+    }
+
+    // Insert new key-value pair
+    // Throws DuplicatedKeyError if key already exists
+    // Use set() instead if you want to overwrite existing keys
+    insert := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError, DuplicatedKeyError {
+        // Check if key already exists
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self.size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if Str.eq(key_str, existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                // For other types, use memcmp
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                // Key already exists - throw error
+                throw DuplicatedKeyError.new("Key already exists in map")
+            }
+            i = add(i, 1)
+        }
+
+        // Key doesn't exist - add it
+        // Workaround for bug: pushing Dynamic parameters doesn't work
+        // Instead, manually grow the array and memcpy directly
+        if I64.eq(keys_arr.len, keys_arr.cap) {
+            // Need to grow
+            mut new_cap := mul(keys_arr.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
+            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+            free(keys_arr.ptr)
+            keys_arr.ptr = new_ptr
+            keys_arr.cap = new_cap
+        }
+        // Copy key directly into array memory
+        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+        memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
+        keys_arr.len = add(keys_arr.len, 1)
+        self.keys = keys_arr
+
+        // Same workaround for values
+        mut values_arr := self.values
+        if I64.eq(values_arr.len, values_arr.cap) {
+            mut new_cap := mul(values_arr.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
+            memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+            free(values_arr.ptr)
+            values_arr.ptr = new_ptr
+            values_arr.cap = new_cap
+        }
+        mut dest_ptr := add(values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+        memcpy(dest_ptr, to_ptr(value), values_arr.type_size)
+        values_arr.len = add(values_arr.len, 1)
+        self.values = values_arr
+
+        self.size = add(self.size, 1)
+    }
+
+    // Set key-value pair
+    // Overwrites value if key already exists
+    // Creates new entry if key doesn't exist
+    set := proc(mut self: Map, key: Dynamic, value: Dynamic) throws AllocError {
+        // Try to find existing key
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self.size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if Str.eq(key_str, existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                // Key found - update value
+                mut values_arr := self.values
+                mut value_ptr := add(values_arr.ptr, mul(i, self.value_type_size))
+                memcpy(value_ptr, to_ptr(value), self.value_type_size)
+                return
+            }
+            i = add(i, 1)
+        }
+
+        // Key not found - insert new entry (use same workaround as insert())
+        if I64.eq(keys_arr.len, keys_arr.cap) {
+            mut new_cap := mul(keys_arr.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
+            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+            free(keys_arr.ptr)
+            keys_arr.ptr = new_ptr
+            keys_arr.cap = new_cap
+        }
+        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+        memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
+        keys_arr.len = add(keys_arr.len, 1)
+        self.keys = keys_arr
+
+        mut values_arr := self.values
+        if I64.eq(values_arr.len, values_arr.cap) {
+            mut new_cap := mul(values_arr.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
+            memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+            free(values_arr.ptr)
+            values_arr.ptr = new_ptr
+            values_arr.cap = new_cap
+        }
+        mut dest_ptr2 := add(values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+        memcpy(dest_ptr2, to_ptr(value), values_arr.type_size)
+        values_arr.len = add(values_arr.len, 1)
+        self.values = values_arr
+
+        self.size = add(self.size, 1)
+    }
+
+    // Get value for given key
+    // Copies value into dest parameter
+    // Throws KeyNotFoundError if key doesn't exist
+    get := proc(self: Map, key: Dynamic, mut dest: Dynamic) throws KeyNotFoundError {
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self.size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if Str.eq(key_str, existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                // Key found - get value
+                mut values_arr := self.values
+                mut value_ptr := add(values_arr.ptr, mul(i, self.value_type_size))
+                memcpy(to_ptr(dest), value_ptr, self.value_type_size)
+                return
+            }
+            i = add(i, 1)
+        }
+
+        // Key not found
+        throw KeyNotFoundError.new("Key not found in map")
+    }
+
+    // Check if key exists in map
+    contains_key := proc(self: Map, key: Dynamic) returns Bool {
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self.size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if Str.eq(key_str, existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                return true
+            }
+            i = add(i, 1)
+        }
+        return false
+    }
+
+    // Get position (index) of key in insertion order
+    // Returns -1 if key not found
+    // Useful for enum variant tags which depend on insertion order
+    position := proc(self: Map, key: Dynamic) returns I64 {
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self.size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if Str.eq(key_str, existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                return i
+            }
+            i = add(i, 1)
+        }
+        return sub(0, 1)  // -1 for not found
+    }
+
+    // Get number of entries in map
+    len := proc(self: Map) returns I64 {
+        return self.size
+    }
+
+    // Free map memory and reset
+    delete := proc(mut self: Map) {
         mut keys_arr := self.keys
         keys_arr.delete()
 
