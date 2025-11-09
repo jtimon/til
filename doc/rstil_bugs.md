@@ -268,34 +268,41 @@ Current simplified approach sufficient for Phase 1 foundation work.
 
 **Goal**: Make init.til increasingly equivalent to init.rs
 
-**Recent improvements (Commit: d8a08ba):**
+**Recent improvements (Commit: 5d268f4):**
+- ✅ Implemented mode validation in process_declarations
+  - Checks context.mode_def.allows_base_anything and allows_base_calls
+  - Throws error if non-declaration nodes found at root when not allowed
+- ✅ Documented associated function registration with implementation plan
+  - Blocked on parser.til storing Expr objects in default_values
+  - Detailed TODO added for future implementation
+
+**Previous improvements (Commit: d8a08ba):**
 - ✅ Implemented get_payload_size_for_type properly
   - Returns correct sizes for Bool (1), I64 (8), structs (calculated), enums (8)
   - Handles TCustom types by looking up in symbol table
 - ✅ Removed unused get_ufcs_fcall_value_type stub
   - UFCS is already implemented in get_fcall_value_type (lines 1461-1518)
 
-**Previous improvements (Commit: a0f906c):**
+**Earlier improvements (Commit: a0f906c):**
 - ✅ Added Pattern node type handling in get_value_type
 - ✅ Improved member type resolution (parses struct definitions)
-- ✅ Updated implementation status to ~85% complete
-- ✅ Documented all completed phases in header comment
 
 **Current status of init.til:**
-- **~87% functionally equivalent to init.rs** (syntax aside)
+- **~89% functionally equivalent to init.rs** (syntax aside)
 - All core type inference working
 - All struct/enum/array operations implemented (simplified)
 - Using serialization formats for complex types
 - UFCS method resolution working
 - Payload size calculation working
+- Mode validation working
 
-**Remaining for full equivalence (~13%):**
-- init_import_declarations (file I/O, recursive imports) - complex
+**Remaining for full equivalence (~11%):**
+- init_import_declarations (file I/O, recursive imports) - complex, future work
 - Enum payloads (beyond basic tags) - needs byte-level storage
 - Array initialization with values - needs byte-level storage
 - Byte-level string storage (c_string/cap/len) - architectural change
-- Mode validation in declarations
-- Associated function registration
+- Associated function registration - needs parser changes first
+- SymbolInfo serialization - using simple string format currently
 
 ## Next Steps
 

@@ -5,7 +5,7 @@ import("src/core/parser")
 // Init phase: Context creation and symbol table management
 // Corresponds to src/rs/init.rs in the Rust implementation
 //
-// IMPLEMENTATION STATUS (~87% complete):
+// IMPLEMENTATION STATUS (~89% complete):
 //
 // COMPLETED:
 // Phase 1: Foundation
@@ -37,15 +37,15 @@ import("src/core/parser")
 //
 // Declaration Processing:
 // - process_declarations: registers funcs, enums, structs with serialization
+// - Mode validation: checks allows_base_anything and allows_base_calls
 // - Enum helpers: get_variant_pos, variant_pos_to_str
 //
-// NOT YET IMPLEMENTED (~13% remaining):
+// NOT YET IMPLEMENTED (~11% remaining):
 // - init_import_declarations: needs file I/O, lexing, parsing, recursive import handling
 // - Enum payload handling (basic tags only, no payload bytes)
 // - Array initialization with values (empty arrays only)
 // - Proper byte-level c_string/cap/len for strings (architectural change)
-// - Mode validation in declarations
-// - Associated function registration for structs
+// - Associated function registration (needs parser to store Expr in default_values)
 // - SymbolInfo serialization (currently using simple string format)
 //
 // KEY APPROACH:
