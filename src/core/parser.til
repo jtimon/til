@@ -123,11 +123,12 @@ parse_mode := func(path: Str, lexer: Lexer) returns ModeDef throws Str {
 // ==============================================================================
 
 // Represents the type of a value (mirrors parser.rs ValueType)
+// Note: All payload types must be same size (FunctionType, TTypeDef, Str are all pointer-sized)
 ValueType := enum {
-    TFunction,  // Function type
-    TType,      // Type itself (for type definitions)
-    TCustom: Str,  // Custom type (struct/enum) with name
-    TMulti,     // Multiple return values
+    TFunction: FunctionType,  // Function type (func/proc/macro)
+    TType: TTypeDef,          // Type definition (enum/struct)
+    TCustom: Str,             // Custom type name (user-defined struct/enum)
+    TMulti: Str,              // Multiple return values (comma-separated type names)
 }
 
 // Type of function/procedure
@@ -146,26 +147,39 @@ TTypeDef := enum {
     TStructDef,  // Struct definition
 }
 
+// Optional ValueType (workaround for lack of generic Option type)
+OptionValueType := enum {
+    None,                     // No value
+    Some: ValueType,         // Has a value
+}
+
 // Enum definition (variant name -> optional payload type)
+// Maps variant name (Str) to optional payload type (OptionValueType)
 SEnumDef := struct {
-    mut enum_map: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // variant_name -> payload_type_name (empty string = no payload)
+    mut enum_map: Map = Map.new("Str", size_of(Str), "OptionValueType", size_of(OptionValueType))
+}
+
+// Struct member info - workaround for lack of tuple syntax
+// Rust: Vec<(String, Declaration)>
+// TIL: Array of StructMember (since we can't do tuples yet)
+StructMember := struct {
+    mut name: Str = ""
+    mut declaration: Declaration = Declaration()
 }
 
 // Struct definition
 SStructDef := struct {
-    mut members: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // field_name -> type_name
-    mut default_value_fields: Array = Array()     // Array of field names that have default values
-    mut default_value_exprs: Array = Array()      // Array of Expr objects (parallel to default_value_fields)
-    mut default_values: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // DEPRECATED: kept for compatibility, not used
+    mut members: Array = Array()  // Array of StructMember (ordered field list)
+    mut default_values: Map = Map.new("Str", size_of(Str), "Expr", size_of(Expr))  // field_name -> default_value_expr
 }
 
 // Function/Procedure definition
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: Map = Map.new("Str", size_of(Str), "Str", size_of(Str))  // arg_name -> type_name
-    mut return_types: Array = Array() // return types (usually 0 or 1)
-    mut throw_types: Array = Array()  // exception types that can be thrown
-    mut body: Expr = Expr()           // function body expression
+    mut args: Array = Array()         // Array of Declaration (function arguments)
+    mut return_types: Array = Array() // Array of ValueType (return types) - "returns" is a keyword
+    mut throw_types: Array = Array()  // Array of ValueType (exception types) - "throws" is a keyword
+    mut body: Array = Array()         // Array of Expr (function body - Vec<Expr> in Rust)
 
     // Check if this is a procedure
     is_proc := func(self: SFuncDef) returns Bool {
@@ -189,7 +203,7 @@ LiteralNodeType := enum {
 
 Declaration := struct {
     mut name       : Str  = ""
-    mut value_type : Str  = ""
+    mut value_type : ValueType = ValueType.TCustom("auto")  // "auto" means type inference
     mut is_mut     : Bool = false
 }
 
@@ -302,34 +316,57 @@ Expr := struct {
     }
 }
 
-// Convert type name string to ValueType
+// Convert type name string to ValueType (mirrors parser.rs str_to_value_type)
 str_to_value_type := proc(type_name: Str) returns ValueType {
-    if type_name.eq("Function") {
-        return ValueType.TFunction
+    if type_name.eq("func") {
+        return ValueType.TFunction(FunctionType.FTFunc)
     }
-    if type_name.eq("Type") {
-        return ValueType.TType
+    if type_name.eq("proc") {
+        return ValueType.TFunction(FunctionType.FTProc)
     }
-    if type_name.eq("Multi") {
-        return ValueType.TMulti
+    if type_name.eq("macro") {
+        return ValueType.TFunction(FunctionType.FTMacro)
+    }
+    if type_name.eq("enum") {
+        return ValueType.TType(TTypeDef.TEnumDef)
+    }
+    if type_name.eq("struct") {
+        return ValueType.TType(TTypeDef.TStructDef)
     }
     // Everything else is a custom type
     return ValueType.TCustom(type_name)
 }
 
-// Convert ValueType to string representation
+// Convert ValueType to string representation (mirrors parser.rs value_type_to_str)
 value_type_to_str := proc(vtype: ValueType) returns Str {
     switch vtype {
-    case ValueType.TFunction:
-        return "Function"
-    case ValueType.TType:
-        return "Type"
-    case ValueType.TMulti:
-        return "Multi"
+    case ValueType.TFunction(ftype):
+        ft_str := enum_to_str(ftype)
+        if or(ft_str.eq("FunctionType.FTFunc"), ft_str.eq("FunctionType.FTFuncExt")) {
+            return "func"
+        }
+        if or(ft_str.eq("FunctionType.FTProc"), ft_str.eq("FunctionType.FTProcExt")) {
+            return "proc"
+        }
+        if ft_str.eq("FunctionType.FTMacro") {
+            return "macro"
+        }
+        return "func"  // Default fallback
+    case ValueType.TType(tdef):
+        td_str := enum_to_str(tdef)
+        if td_str.eq("TTypeDef.TEnumDef") {
+            return "enum"
+        }
+        if td_str.eq("TTypeDef.TStructDef") {
+            return "struct"
+        }
+        return "type"  // Default fallback
+    case ValueType.TMulti(type_name):
+        return type_name
     case ValueType.TCustom(type_name):
         return type_name
     case:
-        return "Unknown"
+        return "unknown"
     }
 }
 
@@ -965,11 +1002,12 @@ parse_for_statement := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutO
 }
 
 // Parse function/procedure arguments: (name: Type, mut name2: Type, variadic: ..Type)
-// Validates syntax - full Declaration array could be returned if needed in the future
-parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
+// Returns Array of Declaration (mirrors parser.rs parse_func_proc_args)
+parse_func_proc_args := proc(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     lexer_expect(lexer, TokenType.LeftParen)
 
     mut rightparen_found := false
+    mut args := Array()  // Array of Declaration
     mut t := lexer.peek()
     mut expect_comma := false
     mut expect_colon := false
@@ -1050,10 +1088,19 @@ parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError
                 expect_colon = true
                 expect_name = false
             } else {
-                // This is the type name - could be stored if needed
+                // This is the type name - create Declaration and add to args
+                mut decl := Declaration()
+                decl.name = arg_name
+                if is_variadic {
+                    decl.value_type = ValueType.TMulti(t.token_str)
+                    is_variadic = false
+                } else {
+                    decl.value_type = str_to_value_type(t.token_str)
+                }
+                decl.is_mut = is_mut
+                args.push(decl)
                 expect_comma = true
                 is_mut = false
-                is_variadic = false
             }
             lexer.advance(1)
             t = lexer.peek()
@@ -1073,14 +1120,14 @@ parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError
 
     switch t.token_type {
     case TokenType.RightParen:
-        return
+        return args
     case:
         throw t.error("Expected closing parentheses.")
     }
 }
 
 // Parse return types: returns Type1, Type2, ...
-// Returns Array of ValueType (currently stored as strings, will be ValueType in Phase 1)
+// Returns Array of ValueType
 func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
     mut end_found := false
     mut return_types := Array()
@@ -1117,8 +1164,9 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOf
             if expect_comma {
                 throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
             }
-            // TODO Phase 1: Store as ValueType instead of string
-            return_types.push(t.token_str)
+            // Convert type name string to ValueType and store it
+            vtype := str_to_value_type(t.token_str)
+            return_types.push(vtype)
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
@@ -1134,8 +1182,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOf
 }
 
 // Parse throw types: throws Error1, Error2, ...
-// Returns Array of ValueType (currently stored as strings, will be ValueType in Phase 1)
-// TODO DRY with func_proc_returns ?
+// Returns Array of ValueType
 func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
     mut end_found := false
     mut throw_types := Array()
@@ -1168,8 +1215,9 @@ func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfB
             if expect_comma {
                 throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
             }
-            // TODO Phase 1: Store as ValueType instead of string
-            throw_types.push(t.token_str)
+            // Convert type name string to ValueType and store it
+            vtype := str_to_value_type(t.token_str)
+            throw_types.push(vtype)
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
@@ -1216,8 +1264,8 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
         throw t.error(format("expected '(' after 'func', found '", enum_to_str(t.token_type), "'."))
     }
 
-    // Parse arguments (validates syntax but doesn't return metadata)
-    parse_func_proc_args(lexer)
+    // Parse arguments and get Declaration array
+    args := parse_func_proc_args(lexer)
 
     // Parse returns clause (if present)
     return_types := func_proc_returns(lexer)
@@ -1227,7 +1275,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
 
     // Check if this is a declaration (ends with semicolon) or definition (has body)
     prev_t = lexer.previous()
-    mut body := Expr()
+    mut body_expr := Expr()
     mut is_declaration := false
     switch prev_t.token_type {
     case TokenType.Semicolon:
@@ -1237,16 +1285,19 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     }
     if is_declaration {
         // Function declaration without body (e.g., external function)
-        body = Expr.new_explicit(NodeType.Body, new_expr_array(), initial_token.line, initial_token.col)
+        body_expr = Expr.new_explicit(NodeType.Body, new_expr_array(), initial_token.line, initial_token.col)
     } else {
         // Parse the function body
-        body = parse_body(lexer, TokenType.RightBrace)
+        body_expr = parse_body(lexer, TokenType.RightBrace)
     }
 
-    // Create SFuncDef and return as NodeType.FuncDef
+    // Create SFuncDef and populate all fields
     mut func_def := SFuncDef()
     func_def.function_type = func_type
-    func_def.body = body
+    func_def.args = args
+    func_def.return_types = return_types
+    func_def.throw_types = throw_types
+    func_def.body = body_expr.params  // Extract body statements from Expr.params
 
     mut params := new_expr_array()
     mut func_def_node := NodeType.FuncDef(func_def)
@@ -1533,10 +1584,9 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     lexer.advance(1)
     body := parse_body(lexer, TokenType.RightBrace)
 
-    // Extract declarations and build members/default_values maps
-    mut members := Map.new("Str", size_of(Str), "Str", size_of(Str))
-    mut default_value_fields := Array.new_dyn("Str", size_of(Str))
-    mut default_value_exprs := Array.new_dyn("Expr", size_of(Expr))
+    // Extract declarations and build members array and default_values map
+    mut members := Array()  // Array of StructMember
+    mut default_values := Map.new("Str", size_of(Str), "Expr", size_of(Expr))
 
     mut i := 0
     mut body_params := body.params
@@ -1552,21 +1602,17 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
             if not(param_count.eq(1)) {
                 throw t.error("all declarations inside struct definitions must have a value for now")
             }
-            // Extract field name, type, and is_mut from Declaration payload
-            // Format: "is_mut:type_name" or "const:type_name"
-            mut mut_prefix := ""
-            if decl.is_mut {
-                mut_prefix = "mut:"
-            } else {
-                mut_prefix = "const:"
-            }
-            members.set(decl.name, format(mut_prefix, value_type_to_str(decl.value_type)))
+
+            // Create StructMember and add to members array
+            mut member := StructMember()
+            member.name = decl.name
+            member.declaration = decl
+            members.push(member)
 
             // Store default value expression
             mut default_val := Expr()
             param_params.get(0, default_val)
-            default_value_fields.push(decl.name)
-            default_value_exprs.push(default_val)
+            default_values.insert(decl.name, default_val)
         case:
             throw t.error("expected only declarations inside struct definition")
         }
@@ -1576,8 +1622,7 @@ parse_struct_definition := proc(mut lexer: Lexer) returns Expr throws Str, Index
     // Create SStructDef and return as NodeType.StructDef
     mut struct_def := SStructDef()
     struct_def.members = members
-    struct_def.default_value_fields = default_value_fields
-    struct_def.default_value_exprs = default_value_exprs
+    struct_def.default_values = default_values
 
     mut params := new_expr_array()
     mut struct_def_node := NodeType.StructDef(struct_def)
@@ -1602,7 +1647,7 @@ enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     }
 
     lexer.advance(1) // consume '{'
-    mut enum_map := Map.new("Str", size_of(Str), "Str", size_of(Str))
+    mut enum_map := Map.new("Str", size_of(Str), "OptionValueType", size_of(OptionValueType))
     mut end_found := false
 
     while not(or(lexer.is_eof(0), end_found)) {
@@ -1627,16 +1672,18 @@ enum_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
                     throw next2_t.error(format("Expected type identifier after '", enum_val_name, " :', found '", enum_to_str(next2_t.token_type), "'."))
                 }
                 enum_val_type := next2_t.token_str
-                enum_map.insert(enum_val_name, enum_val_type)
+                vtype := str_to_value_type(enum_val_type)
+                opt_vtype := OptionValueType.Some(vtype)
+                enum_map.insert(enum_val_name, opt_vtype)
                 lexer.advance(2) // skip colon and type
 
             case TokenType.Comma:
                 // Variant without type, followed by comma
-                enum_map.insert(enum_val_name, "")
+                enum_map.insert(enum_val_name, OptionValueType.None)
 
             case TokenType.RightBrace:
                 // Variant without type, end of enum
-                enum_map.insert(enum_val_name, "")
+                enum_map.insert(enum_val_name, OptionValueType.None)
                 end_found = true
 
             case:

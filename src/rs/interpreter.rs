@@ -1730,8 +1730,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
 
     // If function returns a user-defined struct, copy fields back to context as temp return val
-    if func_def.returns.len() == 1 {
-        if let ValueType::TCustom(ref custom_type_name) = func_def.returns[0] {
+    if func_def.return_types.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
             // Skip core types like I64, Bool, String, U8
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },

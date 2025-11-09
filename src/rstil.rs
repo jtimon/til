@@ -173,7 +173,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         errors.extend(rs::typer::check_types(context, &e));
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
-        let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, returns: vec![], throws: vec![]};
+        let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![]};
         let mut thrown_types: Vec<(String, String)> = vec![];
         let mut return_found = false;
         errors.extend(rs::typer::check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_types, &mut return_found));

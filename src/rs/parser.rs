@@ -40,8 +40,8 @@ pub enum FunctionType {
 pub struct SFuncDef {
     pub function_type: FunctionType,
     pub args: Vec<Declaration>,
-    pub returns: Vec<ValueType>,
-    pub throws: Vec<ValueType>,
+    pub return_types: Vec<ValueType>,  // "returns" conflicts with TIL keyword
+    pub throw_types: Vec<ValueType>,   // "throws" conflicts with TIL keyword
     pub body: Vec<Expr>,
 }
 
@@ -628,7 +628,13 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
         },
     };
 
-    let func_def = SFuncDef{function_type: function_type, args: args, returns: returns, body: body, throws};
+    let func_def = SFuncDef{
+        function_type: function_type,
+        args: args,
+        return_types: returns,
+        throw_types: throws,
+        body: body,
+    };
     let params : Vec<Expr> = Vec::new();
     let e = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), params);
     Ok(e)

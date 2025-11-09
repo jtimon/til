@@ -333,7 +333,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
     // if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
-    //     if func_def.returns.len() == 0 && func_def.throws.len() == 0 {
+    //     if func_def.return_types.len() == 0 && func_def.throw_types.len() == 0 {
     //         errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
     //     }
     // }
@@ -359,18 +359,18 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     let mut thrown_types = Vec::new();
     errors.extend(check_body_returns_throws(context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found));
 
-    if !return_found && func_def.returns.len() > 0 {
+    if !return_found && func_def.return_types.len() > 0 {
         errors.push(e.error("type", "No return statments found in function that returns "));
     }
 
     // Filter and report only the thrown types that are not declared
     for (thrown_type, error_msg) in &thrown_types {
-        if !func_def.throws.iter().any(|declared| &value_type_to_str(declared) == thrown_type) {
+        if !func_def.throw_types.iter().any(|declared| &value_type_to_str(declared) == thrown_type) {
             errors.push(error_msg.to_string());
         }
     }
 
-    for declared_throw in &func_def.throws {
+    for declared_throw in &func_def.throw_types {
         let declared_str = value_type_to_str(declared_throw);
         if !thrown_types.iter().any(|(t, _)| t == &declared_str) {
             errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
@@ -384,7 +384,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
 pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_types: &mut Vec<(String, String)>, return_found: &mut bool) -> Vec<String> {
 
     let mut errors = vec![];
-    let returns_len = func_def.returns.len();
+    let returns_len = func_def.return_types.len();
 
     for p in body.iter() {
         match &p.node_type {
@@ -400,7 +400,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     errors.push(e.error("type", "Suggestion: Update returns section here"));
                 } else {
                     for i in 0..p.params.len() {
-                        let expected_value_type = match func_def.returns.get(i) {
+                        let expected_value_type = match func_def.return_types.get(i) {
                             Some(t) => t,
                             None => {
                                 errors.push(e.lang_error("type", &format!("Fewer return values than provided at position {}", i)));
@@ -495,7 +495,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             NodeType::FCall => {
                 match get_func_def_for_fcall(&context, p) {
                     Ok(Some(called_func_def)) => {
-                        for called_throw in &called_func_def.throws {
+                        for called_throw in &called_func_def.throw_types {
                             let called_throw_str = value_type_to_str(called_throw);
                             let error_msg = format!(
                                 "Function throws '{}', but it is not declared in this function's throws section.",
@@ -614,7 +614,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         }
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(called_func_def)) => {
-                                for called_throw in &called_func_def.throws {
+                                for called_throw in &called_func_def.throw_types {
                                     let called_throw_str = value_type_to_str(called_throw);
                                     let error_msg = format!(
                                         "Function throws '{}', but it is not declared in this function's throws section.",

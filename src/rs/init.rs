@@ -51,12 +51,12 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
 }
 
 fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
-    match func_def.returns.len() {
+    match func_def.return_types.len() {
         0 => {
             return Err(e.error("type", &format!("func '{}' does not return anything", name)));
         },
         1 => {
-            match func_def.returns.get(0) {
+            match func_def.return_types.get(0) {
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 Some(other) => Err(e.error("type", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
                 None => Err(e.lang_error("type", &format!("func '{}' has inconsistent return type info", name))),
