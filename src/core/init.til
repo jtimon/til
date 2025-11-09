@@ -40,16 +40,17 @@ import("src/core/parser")
 
 // Tracks information about a declared symbol (variable, constant, etc.)
 SymbolInfo := struct {
-    mut value_type: Str = ""     // Type of the symbol (e.g., "I64", "Str", "Bool")
-    mut is_mut: Bool = false     // Whether the symbol is mutable
+    mut value_type: ValueType = ValueType.TFunction  // Type of the symbol
+    mut is_mut: Bool = false                          // Whether the symbol is mutable
 }
 
 // Represents an enum value with its type, variant name, and optional payload
 EnumVal := struct {
-    mut enum_type: Str = ""      // The enum type name
-    mut enum_name: Str = ""      // The variant name
-    mut has_payload: Bool = false // Whether payload exists
-    mut payload: Str = ""         // Payload data (simplified as string for now)
+    mut enum_type: Str = ""                            // The enum type name
+    mut enum_name: Str = ""                            // The variant name
+    mut has_payload: Bool = false                      // Whether payload exists
+    mut payload: Str = ""                              // Payload data (simplified - Rust uses Vec<u8>)
+    mut payload_type: ValueType = ValueType.TFunction  // Payload type (TFunction = none)
 }
 
 // Context for type checking and evaluation
