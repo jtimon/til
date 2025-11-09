@@ -119,6 +119,45 @@ All workarounds are documented with comments in the code:
 
 These workarounds are necessary for self-hosted code to work and should NOT be removed even after rstil is fixed, as self-hosted code must run on current rstil.
 
+## Self-Hosted Test Attempts
+
+### Attempt: Copy Struct Before Switching on Enum Field (2025-01-09)
+
+**Goal**: Enable self-hosted hello_script.til test by applying struct copy workaround
+
+**Approach Tried**:
+```til
+// Instead of:
+switch e.node_type {
+
+// Use:
+mut e_copy := Expr()
+e_copy.node_type = e.node_type
+e_copy.params = e.params
+e_copy.line = e.line
+e_copy.col = e.col
+
+switch e_copy.node_type {
+```
+
+**Result**: Incomplete - still causes enum errors when run via `runfile("src/til.til", "src/test/hello/hello_script.til")`
+
+**Error**: `get_enum: Enum definition for 'Expr' not found` at various locations during self-hosted execution
+
+**Conclusion**: The "copy struct before switching" workaround doesn't fully solve the issue for self-hosted code execution. The problem appears to be more complex than simple field access - it may involve:
+- How enums are stored/retrieved during self-hosted interpretation
+- Interaction between rstil interpreter and self-hosted til interpreter
+- Deeper issues with enum handling in nested execution contexts
+
+**Status**: Reverted - needs deeper investigation into rstil's enum handling
+
+**Files Attempted**: init.til, interpreter.til, parser.til, typer.til
+
 ## Next Steps
 
-All critical rstil bugs blocking basic self-hosted evaluation have been fixed! The self-hosted parser works, and enum payload extraction works. Further self-hosting work may reveal additional bugs, but the fundamental infrastructure is now functional.
+Self-hosted execution is currently blocked by complex enum handling issues. Possible approaches:
+1. Investigate rstil's enum storage mechanism during self-hosted execution
+2. Focus on other language features first, return to self-hosting later
+3. Consider alternative self-hosting strategies (bootstrap from different base)
+
+The workarounds for bugs #1-3 continue to work for directly-executed til code. Self-hosting remains a future goal.
