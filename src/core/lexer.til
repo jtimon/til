@@ -441,7 +441,6 @@ scan_tokens := proc(source: Str) returns Array throws Str {
                         } else {
                             continue_id_scan = false
                         }
-                        // TODO fix literal strings with escape characters like in the rust implementation
                     }
                     pos.dec()
                     id_str := source.get_substr(start, pos.add(1))
