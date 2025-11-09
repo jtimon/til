@@ -876,6 +876,19 @@ get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, 
 
 // Get value type for function call expressions
 // Corresponds to get_fcall_value_type in init.rs
+// Parse serialized function definition to get return type
+// Format: "FUNC|<function_type>|<return_type>"
+parse_func_return_type := proc(serialized: Str) returns Str {
+    // Split by "|" to get parts
+    // Format: parts[0]="FUNC", parts[1]=function_type, parts[2]=return_type
+    mut parts := serialized.split("|")
+    mut return_type := ""
+    if gt(parts.len, 2) {
+        parts.get(2, return_type)
+    }
+    return return_type
+}
+
 get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
     // Get function name
     f_name := get_func_name_in_call(e)
@@ -913,9 +926,12 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
             mut funcs_map := context.funcs
             mut method_def_str := funcs_map.get(method_name)
             if not(method_def_str.eq("")) {
-                // TODO: Parse func_def and return its type
-                // For now, return TCustom placeholder
-                return ValueType.TCustom("MethodReturnType")
+                // Parse return type from serialized function definition
+                mut return_type := parse_func_return_type(method_def_str)
+                if return_type.eq("") {
+                    throw format(loc(), " ERROR: Method '", method_name, "' has no return type")
+                }
+                return ValueType.TCustom(return_type)
             }
         }
     }
@@ -924,9 +940,12 @@ get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws
     mut funcs_map := context.funcs
     mut func_def_str := funcs_map.get(f_name)
     if not(func_def_str.eq("")) {
-        // TODO: Parse SFuncDef from storage and call value_type_func_proc
-        // For now, return placeholder
-        return ValueType.TCustom("FunctionReturnType")
+        // Parse return type from serialized function definition
+        mut return_type := parse_func_return_type(func_def_str)
+        if return_type.eq("") {
+            throw format(loc(), " ERROR: Function '", f_name, "' has no return type")
+        }
+        return ValueType.TCustom(return_type)
     }
 
     // Check if it's a struct or enum constructor
