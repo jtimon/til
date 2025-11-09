@@ -469,3 +469,150 @@ test_array_dynamic_vec2 := proc() {
     }
 }
 test_array_dynamic_vec2()
+
+// Test Array growth/reallocation beyond initial capacity
+test_array_growth := proc() {
+    mut dyn := Array.new_dyn("I64", size_of(I64))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    initial_cap := dyn.cap
+    test(loc(), I64.eq(initial_cap, Array.INIT_DYN_CAP), "Initial capacity should be INIT_DYN_CAP")
+
+    // Push elements beyond initial capacity to trigger reallocation
+    mut i := 0
+    while lt(i, add(Array.INIT_DYN_CAP, 5)) {
+        dyn.push(mul(i, 10))
+        i = add(i, 1)
+    }
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown during growth:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown during growth:")
+        println(err.msg)
+        return
+    }
+    catch (err: Str) {
+        println(loc(), "Error thrown during growth:")
+        println(err)
+        return
+    }
+
+    test(loc(), I64.eq(dyn.len, add(Array.INIT_DYN_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
+    test(loc(), gt(dyn.cap, initial_cap), "Capacity should have grown beyond initial")
+    test(loc(), I64.eq(dyn.cap, mul(Array.INIT_DYN_CAP, 2)), "Capacity should have doubled")
+
+    // Verify all values are still correct after reallocation
+    mut val := 0
+    dyn.get(0, val)
+    test(loc(), I64.eq(val, 0), "First element should still be 0")
+    dyn.get(Array.INIT_DYN_CAP, val)
+    test(loc(), I64.eq(val, mul(Array.INIT_DYN_CAP, 10)), "Element after reallocation should be correct")
+
+    dyn.delete()
+
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+    }
+}
+test_array_growth()
+
+// Test IndexOutOfBoundsError for get
+test_array_get_out_of_bounds := proc() {
+    mut arr := Array.new_dyn("I64", size_of(I64))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    arr.push(42)
+    arr.push(84)
+    catch (err: AllocError) { return }
+    catch (err: FullError) { return }
+    catch (err: Str) { return }
+
+    // Try to get index that's out of bounds
+    mut val := 0
+    arr.get(10, val)
+    panic(loc(), "Expected IndexOutOfBoundsError for get with invalid index")
+
+    catch (err: IndexOutOfBoundsError) {
+        test(loc(), true, "IndexOutOfBoundsError correctly thrown for get")
+    }
+
+    arr.delete()
+}
+test_array_get_out_of_bounds()
+
+// Test IndexOutOfBoundsError for set
+test_array_set_out_of_bounds := proc() {
+    mut arr := Array.new_dyn("I64", size_of(I64))
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    arr.push(42)
+    catch (err: AllocError) { return }
+    catch (err: FullError) { return }
+    catch (err: Str) { return }
+
+    // Try to set index that's out of bounds
+    arr.set(10, 999)
+    panic(loc(), "Expected IndexOutOfBoundsError for set with invalid index")
+
+    catch (err: IndexOutOfBoundsError) {
+        test(loc(), true, "IndexOutOfBoundsError correctly thrown for set")
+    }
+
+    arr.delete()
+}
+test_array_set_out_of_bounds()
+
+// Test push on static array throws error
+test_array_static_push_error := proc() {
+    mut arr := Array.new("I64", size_of(I64), 3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    arr.set(0, 10)
+    arr.set(1, 20)
+    arr.set(2, 30)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown during set:")
+        println(err.msg)
+        arr.delete()
+        return
+    }
+
+    // Try to push to static array (should fail)
+    arr.push(40)
+    panic(loc(), "Expected error when pushing to static array")
+
+    catch (err: Str) {
+        test(loc(), true, "Error correctly thrown when pushing to static array")
+    }
+    catch (err: FullError) {
+        test(loc(), true, "FullError correctly thrown when pushing to static array")
+    }
+    catch (err: AllocError) {
+        println(loc(), "Unexpected AllocError")
+    }
+
+    arr.delete()
+}
+test_array_static_push_error()
+
+println("All Array tests passed!")
