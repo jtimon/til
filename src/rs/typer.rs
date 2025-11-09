@@ -211,9 +211,9 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
                                              f_name, func_def.args.len(), e.params.len() - 1)));
     }
-    if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
+    if has_multi_arg && func_def.args.len() - 1 > e.params.len() - 1 {
         errors.push(e.error("type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
-                                             f_name, func_def.args.len(), e.params.len() - 1)));
+                                             f_name, func_def.args.len() - 1, e.params.len() - 1)));
     }
 
     let max_arg_def = func_def.args.len();

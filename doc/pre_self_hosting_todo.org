@@ -18,7 +18,7 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional    |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes        |
 | Test Suite          | ⚠️ 2 TESTS DISABLED             | Missing throws declarations            |
-| Type System         | ⚠️ MINOR GAPS                   | Variadic args, some edge cases         |
+| Type System         | ✅ COMPLETE                     | Variadic args support zero arguments   |
 
 * Critical: Missing rstil Features
 :PROPERTIES:

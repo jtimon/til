@@ -78,8 +78,7 @@ test_i64_variadic := func(args: ..I64) returns I64 {
 // Test with different numbers of arguments
 assert_eq(loc(), 6, test_i64_variadic(1, 2, 3))
 assert_eq(loc(), 30, test_i64_variadic(10, 20))
-// TODO: Zero arguments not supported yet - type checker requires at least 1 arg
-// assert_eq(loc(), 0, test_i64_variadic())
+assert_eq(loc(), 0, test_i64_variadic())
 
 test_str_variadic := func(args: ..Str) returns Str {
     mut result := ""
@@ -102,8 +101,7 @@ test_str_variadic := func(args: ..Str) returns Str {
 }
 
 assert_eq_str(loc(), "hello world", test_str_variadic("hello", " ", "world"))
-// TODO: Zero arguments not supported yet
-// assert_eq_str(loc(), "", test_str_variadic())
+assert_eq_str(loc(), "", test_str_variadic())
 
 // Test: Edge cases for variadic arguments
 
@@ -134,8 +132,7 @@ test_bool_variadic := func(args: ..Bool) returns I64 {
 
 assert_eq(loc(), 3, test_bool_variadic(true, false, true, true, false))
 assert_eq(loc(), 0, test_bool_variadic(false, false, false))
-// TODO: Zero arguments not supported yet
-// assert_eq(loc(), 0, test_bool_variadic())
+assert_eq(loc(), 0, test_bool_variadic())
 
 // Type checking tests (these should fail at compile time if uncommented):
 // test_i64_variadic("string")  // Should fail: passing Str to ..I64

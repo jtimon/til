@@ -1467,9 +1467,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         return Err(e.lang_error("eval", &format!("func '{}' expected {} args, but {} were provided.",
                                                  name, func_def.args.len(), e.params.len() - 1)))
     }
-    if has_multi_arg && func_def.args.len() > e.params.len() - 1 {
+    if has_multi_arg && func_def.args.len() - 1 > e.params.len() - 1 {
         return Err(e.lang_error( "eval", &format!("func '{}' expected at least {} args, but {} were provided.",
-                                                  name, func_def.args.len(), e.params.len() - 1)));
+                                                  name, func_def.args.len() - 1, e.params.len() - 1)));
     }
 
     let mut param_index = 1;
