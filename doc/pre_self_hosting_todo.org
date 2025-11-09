@@ -16,8 +16,8 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 |---------------------+---------------------------------+----------------------------------------|
 | Known Bugs          | ✅ ALL FIXED                    | See rstil_bugs.md                      |
 | Error Handling      | ⚠️ PARTIALLY IMPLEMENTED        | throw/throws/catch needs completion    |
-| Import System       | ⚠️ MODE ISSUES                  | lib mode imports cause test failures   |
-| Test Suite          | ⚠️ 4 TESTS DISABLED             | Mode inheritance, error handling       |
+| Import System       | ✅ WORKING                      | Basic imports work in all modes        |
+| Test Suite          | ⚠️ 4 TESTS DISABLED             | Error handling, broken assertions      |
 | Type System         | ⚠️ MINOR GAPS                   | Variadic args, some edge cases         |
 
 * Critical: Missing rstil Features
@@ -52,32 +52,30 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 *** Blockers for Self-Hosting
 The self-hosted code will need proper error handling for file I/O, parsing errors, type errors, etc.
 
-** TODO Fix Import/Module System for lib Mode                       :BLOCKER:
+** TODO Fix Disabled Test Files                                      :HIGH:
 :PROPERTIES:
-:FILE: src/rs/init.rs, src/tests.til:44-46
-:IMPACT: Blocks test_lexer.til and test_parser.til
+:FILE: src/tests.til:44-46, src/tests.til:61
+:IMPACT: test_lexer.til and test_parser.til disabled
 :END:
 
 *** Current State
-- Basic imports work in most modes
-- =src/tests.til:44-46= - test_lexer.til and test_parser.til disabled due to "mode inheritance issues with lib imports"
-- =src/rs/init.rs:786= - "TODO: Cached type should support import returning struct_def"
-- =README.org:208= - Import "useless" in lib mode (not fully implemented)
+- =src/tests.til:44-46= - test_lexer.til and test_parser.til disabled (claimed "mode inheritance issues" but actually other problems)
+- =src/tests.til:61= - errors.til test file commented out: "TODO implement, throw, throws and catch"
+- Import system itself works fine in lib mode (tested and verified)
 
-*** Issues
-1. Mode inheritance not working correctly when importing lib files
-2. Type caching doesn't support imports returning struct definitions
-3. Circular dependency detection not robust
+*** Actual Issues
+1. test_lexer.til fails due to missing =throws= declarations in function signatures (24 type errors)
+2. test_parser.til fails due to broken assertions (e.g., line 121 expects 'foo', finds 'Expr')
+3. errors.til blocked by incomplete throw/throws/catch implementation
 
 *** What's Needed
-- [ ] Debug mode inheritance when importing from lib mode
-- [ ] Fix struct_def caching in imports
-- [ ] Test circular dependency detection (src/core/pure_std.til:3)
-- [ ] Re-enable test_lexer.til and test_parser.til
-- [ ] Document import behavior in different modes
+- [ ] Add =throws= declarations to functions in lexer.til that can throw errors
+- [ ] Fix broken assertions in test_parser.til (update expected values)
+- [ ] Re-enable test_lexer.til and test_parser.til in src/tests.til
+- [ ] Complete throw/throws/catch implementation to enable errors.til
 
-*** Why This Blocks Self-Hosting
-The self-hosted interpreter needs to import lexer.til, parser.til, etc. as libraries. If lib mode imports don't work, self-hosting can't work.
+*** Why This Matters
+These tests exercise critical lexer/parser functionality needed for self-hosting.
 
 * High Priority: Known Bugs & Workarounds
 :PROPERTIES:

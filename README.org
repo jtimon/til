@@ -205,7 +205,7 @@ itself to C and compile and link itself.
 *** lib
 
  Only allow constant declarations, not mut declarations.
- Currently it is useless, because "import" is not implemented yet.
+ Useful for defining libraries that can be imported by other files.
 
 *** TODO pure
 

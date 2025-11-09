@@ -10,6 +10,40 @@ These are features, improvements, and optimizations that would be nice to have b
 
 * Language Features
 
+** TODO Support Namespace-Style Imports                              :MEDIUM:
+:PROPERTIES:
+:FILE: src/rs/init.rs
+:IMPACT: Better code organization and namespace management
+:END:
+
+*** Description
+Allow imports to return module namespaces instead of just executing code.
+
+*** Current State
+- Imports execute the imported file and make its definitions available
+- No way to namespace imported definitions
+- Example: =import("src/core/lexer")= executes lexer.til but can't assign to variable
+
+*** Desired Behavior
+#+BEGIN_SRC til
+lexer := import("src/core/lexer")
+tokens := lexer.scan_tokens(source)
+
+parser := import("src/core/parser")
+ast := parser.parse(tokens)
+#+END_SRC
+
+*** What's Needed
+- [ ] Design module/namespace type system
+- [ ] Modify import to return struct-like namespace object
+- [ ] Allow dot notation access to module members
+- [ ] Update type checker to handle namespace types
+- [ ] Add test cases for namespace imports
+- [ ] Document namespace import syntax
+
+*** Why It's Post-Self-Hosting
+Current import system works for self-hosting. Namespacing is a quality-of-life improvement for larger codebases.
+
 ** TODO Implement List/Tuple Support                                   :LOW:
 :PROPERTIES:
 :FILE: src/rs/parser.rs:75, src/core/parser.til:78-80
