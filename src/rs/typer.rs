@@ -980,8 +980,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         return errors
     }
 
-    for (member_name, _member_decl) in &struct_def.members {
-        // TODO check types for members inside structs too
+    for (member_name, member_decl) in &struct_def.members {
         match struct_def.default_values.get(member_name) {
             Some(inner_e) => {
                 // println!("inner_e {:?}", inner_e);
@@ -991,15 +990,40 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                         let mut function_context = context.clone();
                         errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
                     },
-                    // For other types of members, check if default value calls procs
+                    // For other types of members, check type and purity
                     _ => {
                         // Check if default value calls procs (violates purity of constructors)
                         if is_expr_calling_procs(context, inner_e) {
                             errors.push(inner_e.exit_error("type",
                                 &format!("Struct field '{}' has default value that calls proc. Default values must be pure (can only call funcs, not procs).", member_name)));
                         }
-                        // println!("DEBUG: Check members that are NOT function definitions, got inner_e: {:?}", inner_e);
-                        // errors.extend(check_declaration(&mut context, &inner_e, &member_decl));
+
+                        // Check if default value type matches declared member type
+                        let expected_type = &member_decl.value_type;
+                        let found_type = match crate::rs::init::get_value_type(&context, inner_e) {
+                            Ok(val_type) => val_type,
+                            Err(error_string) => {
+                                errors.push(error_string);
+                                continue;
+                            },
+                        };
+
+                        // Check if the value is a numeric literal (for implicit conversion)
+                        let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(crate::rs::parser::Literal::Number(_)));
+
+                        match expected_type {
+                            ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic
+                            ValueType::TCustom(tn) if tn == INFER_TYPE => {}, // Type inference is OK
+                            // Allow implicit conversion from I64 literals to U8
+                            ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},
+                            _ if expected_type != &found_type => {
+                                errors.push(inner_e.error("type", &format!(
+                                    "Struct field '{}' declared as '{}' but default value has type '{}'.",
+                                    member_name, value_type_to_str(expected_type), value_type_to_str(&found_type)
+                                )));
+                            },
+                            _ => {} // types match; no error
+                        }
                     }
                 }
             },

@@ -143,3 +143,67 @@ test_structs := proc() {
 
 }
 test_structs()
+
+// Test that struct member default values match their declared types
+
+// Test 1: Correct types - should work
+GoodStruct := struct {
+    mut x: I64 = 42
+    mut y: I64 = 100
+}
+
+// Test 2: Numeric literals can be assigned to U8
+U8Struct := struct {
+    mut byte1: U8 = 0
+    mut byte2: U8 = 42
+    mut byte3: U8 = 255
+}
+
+// Test 3: Function return types must match
+returns_i64 := func() returns I64 {
+    return 123
+}
+
+FuncReturnStruct := struct {
+    mut value1: I64 = returns_i64()
+}
+
+test_struct_member_types := proc() {
+    mut good := GoodStruct()
+    assert_eq(loc(), 42, good.x)
+    assert_eq(loc(), 100, good.y)
+
+    mut u8_test := U8Struct()
+    assert_eq(loc(), 0, U8.to_i64(u8_test.byte1))
+    assert_eq(loc(), 42, U8.to_i64(u8_test.byte2))
+    assert_eq(loc(), 255, U8.to_i64(u8_test.byte3))
+
+    mut func_test := FuncReturnStruct()
+    assert_eq(loc(), 123, func_test.value1)
+
+    // Test 4: The following should fail type check (wrong literal type)
+    // Uncomment to test error detection:
+    //
+    // BadStruct1 := struct {
+    //     mut x: I64 = "not a number"  // ERROR: Str assigned to I64
+    // }
+
+    // Test 5: The following should fail type check (wrong function return type)
+    // Uncomment to test error detection:
+    //
+    // returns_str := func() returns Str {
+    //     return "string result"
+    // }
+    //
+    // BadStruct2 := struct {
+    //     mut x: I64 = returns_str()  // ERROR: Str assigned to I64
+    // }
+
+    // Test 6: The following should fail (non-literal I64 to U8 not allowed)
+    // Uncomment to test error detection:
+    //
+    // BadStruct3 := struct {
+    //     mut byte: U8 = returns_i64()  // ERROR: I64 func result can't convert to U8
+    // }
+}
+test_struct_member_types()
