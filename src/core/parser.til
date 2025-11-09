@@ -1079,6 +1079,111 @@ parse_func_proc_args := proc(mut lexer: Lexer) throws Str, IndexOutOfBoundsError
     }
 }
 
+// Parse return types: returns Type1, Type2, ...
+// Returns Array of ValueType (currently stored as strings, will be ValueType in Phase 1)
+func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
+    mut end_found := false
+    mut return_types := Array()
+    mut t := lexer.peek()
+    lexer.advance(1)
+
+    // Check if 'returns' keyword is present
+    if not(enum_to_str(t.token_type).eq("TokenType.Returns")) {
+        return return_types  // No returns clause
+    }
+
+    t = lexer.peek()
+    mut expect_comma := false
+    while not(or(lexer.is_eof(0), end_found)) {
+        switch t.token_type {
+        case TokenType.Throws:
+            end_found = true
+            lexer.advance(1)
+        case TokenType.LeftBrace:
+            end_found = true
+            lexer.advance(1)
+        case TokenType.Semicolon:
+            end_found = true
+            lexer.advance(1)
+        case TokenType.Comma:
+            if expect_comma {
+                lexer_expect(lexer, TokenType.Comma)
+                expect_comma = false
+                t = lexer.peek()
+            } else {
+                throw t.error("Unexpected ','.")
+            }
+        case TokenType.Identifier:
+            if expect_comma {
+                throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
+            }
+            // TODO Phase 1: Store as ValueType instead of string
+            return_types.push(t.token_str)
+            expect_comma = true
+            lexer.advance(1)
+            t = lexer.peek()
+        case:
+            throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc returns."))
+        }
+    }
+    if end_found {
+        return return_types
+    } else {
+        throw t.error("Expected '{{' or 'throws' after return values.")
+    }
+}
+
+// Parse throw types: throws Error1, Error2, ...
+// Returns Array of ValueType (currently stored as strings, will be ValueType in Phase 1)
+// TODO DRY with func_proc_returns ?
+func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
+    mut end_found := false
+    mut throw_types := Array()
+    mut t := lexer.previous()
+
+    // Check if 'throws' keyword is present
+    if not(enum_to_str(t.token_type).eq("TokenType.Throws")) {
+        return throw_types  // No throws clause
+    }
+
+    t = lexer.peek()
+    mut expect_comma := false
+    while not(or(lexer.is_eof(0), end_found)) {
+        switch t.token_type {
+        case TokenType.LeftBrace:
+            end_found = true
+            lexer.advance(1)
+        case TokenType.Semicolon:
+            end_found = true
+            lexer.advance(1)
+        case TokenType.Comma:
+            if expect_comma {
+                expect_comma = false
+                lexer.advance(1)
+                t = lexer.peek()
+            } else {
+                throw t.error("Unexpected ','.")
+            }
+        case TokenType.Identifier:
+            if expect_comma {
+                throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
+            }
+            // TODO Phase 1: Store as ValueType instead of string
+            throw_types.push(t.token_str)
+            expect_comma = true
+            lexer.advance(1)
+            t = lexer.peek()
+        case:
+            throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc throws."))
+        }
+    }
+    if end_found {
+        return throw_types
+    } else {
+        throw t.error("Expected '{{' after throw values.")
+    }
+}
+
 // Parse function/procedure definition: func/proc(args) returns Type throws Error { body }
 parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     initial_token := lexer.peek()
@@ -1115,100 +1220,10 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     parse_func_proc_args(lexer)
 
     // Parse returns clause (if present)
-    t = lexer.peek()
-    lexer.advance(1)
-    mut has_returns := false
-    switch t.token_type {
-    case TokenType.Returns:
-        has_returns = true
-    case:
-        has_returns = false
-    }
-    if has_returns {
-        t = lexer.peek()
-        mut returns_end_found := false
-        mut expect_comma := false
-        while not(or(lexer.is_eof(0), returns_end_found)) {
-            switch t.token_type {
-            case TokenType.Throws:
-                returns_end_found = true
-                lexer.advance(1)
-            case TokenType.LeftBrace:
-                returns_end_found = true
-                lexer.advance(1)
-            case TokenType.Semicolon:
-                returns_end_found = true
-                lexer.advance(1)
-            case TokenType.Comma:
-                if expect_comma {
-                    lexer_expect(lexer, TokenType.Comma)
-                    expect_comma = false
-                    t = lexer.peek()
-                } else {
-                    throw t.error("Unexpected ','.")
-                }
-            case TokenType.Identifier:
-                if expect_comma {
-                    throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
-                }
-                // Return type validated - could be stored if needed
-                expect_comma = true
-                lexer.advance(1)
-                t = lexer.peek()
-            case:
-                throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc returns."))
-            }
-        }
-        if not(returns_end_found) {
-            throw t.error("Expected '{{' or 'throws' after return values.")
-        }
-    }
+    return_types := func_proc_returns(lexer)
 
     // Parse throws clause (if present)
-    mut prev_t := lexer.previous()
-    mut has_throws := false
-    switch prev_t.token_type {
-    case TokenType.Throws:
-        has_throws = true
-    case:
-        has_throws = false
-    }
-    if has_throws {
-        t = lexer.peek()
-        mut throws_end_found := false
-        mut expect_comma := false
-        while not(or(lexer.is_eof(0), throws_end_found)) {
-            switch t.token_type {
-            case TokenType.LeftBrace:
-                throws_end_found = true
-                lexer.advance(1)
-            case TokenType.Semicolon:
-                throws_end_found = true
-                lexer.advance(1)
-            case TokenType.Comma:
-                if expect_comma {
-                    expect_comma = false
-                    lexer.advance(1)
-                    t = lexer.peek()
-                } else {
-                    throw t.error("Unexpected ','.")
-                }
-            case TokenType.Identifier:
-                if expect_comma {
-                    throw t.error(format("Expected ',', found '", enum_to_str(t.token_type), "'."))
-                }
-                // Throw type validated - could be stored if needed
-                expect_comma = true
-                lexer.advance(1)
-                t = lexer.peek()
-            case:
-                throw t.error(format("Unexpected '", enum_to_str(t.token_type), "' in func/proc throws."))
-            }
-        }
-        if not(throws_end_found) {
-            throw t.error("Expected '{{' or ';' after throw types.")
-        }
-    }
+    throw_types := func_proc_throws(lexer)
 
     // Check if this is a declaration (ends with semicolon) or definition (has body)
     prev_t = lexer.previous()
