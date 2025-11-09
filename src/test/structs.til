@@ -22,7 +22,6 @@ MyStruct := struct {
         self.string_field = string_field
         self.color_field = color_field
         self.vec2_field = vec2_field
-        println("Inside MyStruct.new(): self.string_field = '", self.string_field, "'")
         return self
     }
 
@@ -94,7 +93,6 @@ Vec2 := struct {
         mut v := Vec2()
         v.x = x
         v.y = y
-        println("Inside Vec2.new(): v.x = ", I64.to_str(v.x))
         return v
     }
 
@@ -125,7 +123,6 @@ test_structs := proc() {
     assert_eq(loc(), 42, my_vec3.z) // access to struct fields as arguments
 
     new_vec2 := Vec2.new(40, 2)
-    println("Outside Vec2.new(): new_vec2.x = ", I64.to_str(new_vec2.x))
 
     assert_eq(loc(), 40, my_vec2.x)
     assert_eq(loc(), 40, new_vec2.x)

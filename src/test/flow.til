@@ -1,6 +1,4 @@
-mode script
-// TODO use mode test and asserts instead of prints
-import("src/core/modes/test")
+mode test
 
 // Basic control flow (execution):
 
@@ -25,72 +23,94 @@ doesn't break with nesting like C // REM nested comments don't work properly in 
 
 // 'if' statements:
 
-if not(gt(4, 2)) {
-    panic(loc(), "'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
+test_if_statement := proc() {
+    if not(gt(4, 2)) {
+        panic(loc(), "'gt(4, 2)' (aka '4 > 2') is not true") // Obviously this should never happen
+    }
+    // If we reach here, the test passed
 }
+test_if_statement()
 
 // 'if/elif/else/' statements:
 
-// if 42 { // fails because ints are not allowed for conditions, only bool
-if gt(2, 4) {
-    println("'if' within if/else not acepting 2 is lesser than 4")
-} else if gt(3, 4) {
-    println("'if' within elif not acepting 3 is lesser than 4")
-} else {
-    println("else: 'else' is allowed and functional")
+test_if_elif_else := proc() {
+    mut result := ""
+    // if 42 { // fails because ints are not allowed for conditions, only bool
+    if gt(2, 4) {
+        result = "if branch"
+    } else if gt(3, 4) {
+        result = "elif branch"
+    } else {
+        result = "else branch"
+    }
+    assert_eq_str(loc(), "else branch", result)
 }
+test_if_elif_else()
 
 // while loops:
-{
+test_while_loop := proc() {
     mut it := 0 // one has to use the 'mut' keyword for actual variables, since all declarations are const by default
-    print("it: ")
+    mut count := 0
     // while 42 { // fails, because while expects a bool first, not an int
     while lt(it, 5) {
-        print(it.to_str(), " ")
+        count = add(count, 1)
         it = add(it, 1)
     }
-    print("\n")
+    assert_eq(loc(), 5, it)
+    assert_eq(loc(), 5, count)
 }
+test_while_loop()
 
 // for loops:
-{
-    print("i: ")
+test_for_loop := proc() {
+    mut sum := 0
     for i in 0..5 {
-        print(i.to_str(), " ")
+        sum = add(sum, i)
     }
-    print("\n")
+    assert_eq(loc(), 10, sum) // 0+1+2+3+4 = 10
 }
+test_for_loop()
 
 // switch statements:
 
-test_int_switch := proc (to_switch: I64) {
-    switch to_switch {
-    case add(40, 2):
-        println("in test_int_switch(): ", to_switch.to_str(), " is the answer."); // semicolons are optional here too
-    case:
-        println("in test_int_switch(): ", to_switch.to_str(), " is a wrong answer.");
+test_int_switch := proc() {
+    check_answer := proc(to_switch: I64) returns Bool {
+        switch to_switch {
+        case add(40, 2):
+            return true; // semicolons are optional here too
+        case:
+            return false;
+        }
+        return false
     }
-}
-test_int_switch(00);
-test_int_switch(42); // note the semicolon between statements is being ignored
-test_int_switch(69); // note the semicolon between statements is being ignored at the end of the file too
-// test_int_switch(69);; // fails because there's no need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
 
-test_int_range := proc(x: I64) {
-    switch x {
-    case 1..5:
-        println(x.to_str(), " is between 1 and 5")
-    case 10..20:
-        println(x.to_str(), " is between 10 and 20")
-    case:
-        println(x.to_str(), " is out of ranges")
-    }
+    test(loc(), not(check_answer(0)), "0 is not the answer")
+    test(loc(), check_answer(42), "42 is the answer")
+    test(loc(), not(check_answer(69)), "69 is not the answer")
+    // test_int_switch(69);; // fails because there's no need for ';;' (aka empty statements), try 'if true {}' instead, whatever you want that for.
 }
-test_int_range(3)
-test_int_range(10)
-test_int_range(19)
-test_int_range(20)
-test_int_range(42)
+test_int_switch()
+
+test_int_range := proc() {
+    classify_range := proc(x: I64) returns I64 {
+        switch x {
+        case 1..5:
+            return 1 // between 1 and 5
+        case 10..20:
+            return 2 // between 10 and 20
+        case:
+            return 0 // out of ranges
+        }
+        return 0
+    }
+
+    assert_eq(loc(), 1, classify_range(3))
+    assert_eq(loc(), 2, classify_range(10))
+    assert_eq(loc(), 2, classify_range(19))
+    assert_eq(loc(), 2, classify_range(20))
+    assert_eq(loc(), 0, classify_range(42))
+}
+test_int_range()
 
 test_for_loop_range := proc(min_range : I64, max_range : I64) {
 

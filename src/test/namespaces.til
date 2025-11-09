@@ -16,10 +16,13 @@ MyNamespace := struct {
     }
 }
 
-println("field 'field_static_str' in struct 'MyNamespace' is being accessed: ", MyNamespace.field_static_str)
-println("field 'field_static_int' in struct 'MyNamespace' is being accessed: ", I64.to_str(MyNamespace.field_static_int))
-println("field 'field_static_bool' in struct 'MyNamespace' is being accessed: ", Bool.to_str(MyNamespace.field_static_bool))
-// MyNamespace.proc_static() // TODO method calls as statements
-// temp_str := MyNamespace.func_static_str() // TODO method calls as primary expr in declaration
-// println(temp_str)
-// println(MyNamespace.func_static_str()) // TODO method calls as primary expr as argument
+test_namespace_fields := proc() {
+    assert_eq_str(loc(), "hello MyNamespace.field_static_str", MyNamespace.field_static_str)
+    assert_eq(loc(), 42, MyNamespace.field_static_int)
+    test(loc(), MyNamespace.field_static_bool, "field_static_bool should be true")
+    // MyNamespace.proc_static() // TODO method calls as statements
+    // temp_str := MyNamespace.func_static_str() // TODO method calls as primary expr in declaration
+    // println(temp_str)
+    // println(MyNamespace.func_static_str()) // TODO method calls as primary expr as argument
+}
+test_namespace_fields()

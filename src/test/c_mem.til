@@ -101,10 +101,6 @@ test_memcmp_str := proc() {
     mut s2 := "hello"
     mut s3 := "world"
 
-    // Debug: show what we're comparing
-    println("s1 ptr: ", to_ptr(s1).to_str(), " s2 ptr: ", to_ptr(s2).to_str())
-    println("size_of(Str): ", size_of(Str).to_str())
-
     // Note: memcmp compares the Str struct bytes (which contain pointers),
     // not the actual string content. Each string literal gets its own allocation.
     // So s1 and s2 will have different pointer values even if content is same.
@@ -112,7 +108,6 @@ test_memcmp_str := proc() {
 
     // Compare equal strings - these will have different pointers!
     mut result := memcmp(to_ptr(s1), to_ptr(s2), size_of(Str))
-    println("memcmp(s1, s2): ", result.to_str(), " (expected non-zero, different pointers)")
     test(loc(), not(result.eq(0)), "memcmp on Str structs compares pointers, not content")
 
     // Verify content equality works with .eq()

@@ -15,9 +15,10 @@ test_mut_struct := proc() {
     v.x = 1
     v.y = 2
 
-    println("Before modify: v.x=", I64.to_str(v.x), " v.y=", I64.to_str(v.y))
+    assert_eq(loc(), 1, v.x)
+    assert_eq(loc(), 2, v.y)
+
     modify_vec(v)
-    println("After modify: v.x=", I64.to_str(v.x), " v.y=", I64.to_str(v.y))
 
     assert_eq(loc(), 100, v.x)
     assert_eq(loc(), 200, v.y)
@@ -28,35 +29,29 @@ test_mut_struct()
 test_mut_array := proc() {
     mut arr := Array.new_dyn("I64", size_of(I64))
     catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
+        panic(loc(), "Unexpected AllocError")
     }
-    println("Initial: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
+
+    assert_eq(loc(), 0, arr.len)
+    assert_eq(loc(), 16, arr.cap)
 
     arr.push(10)
     catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
+        panic(loc(), "Unexpected AllocError")
     }
     catch (err: FullError) {
-        println(loc(), "FullError thrown:")
-        println(err.msg)
+        panic(loc(), "Unexpected FullError")
     }
     catch (err: Str) {
-        println(loc(), "Error thrown:")
-        println(err)
+        panic(loc(), "Unexpected error")
     }
 
-    println("After push: arr.len=", I64.to_str(arr.len), " arr.cap=", I64.to_str(arr.cap))
     assert_eq(loc(), 1, arr.len)
 
     mut value := 0
     arr.get(0, value)
     catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
+        panic(loc(), "Unexpected IndexOutOfBoundsError")
     }
 
     assert_eq(loc(), 10, value)

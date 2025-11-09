@@ -19,13 +19,15 @@ ErrorWithMessage := struct {
 
 test_catch_with_fields := proc() {
     mut caught_msg := ""
+    mut catched := false
     my_error := ErrorWithMessage()
     throw my_error
     catch (err: ErrorWithMessage) {
         caught_msg = err.msg
+        catched = true
     }
+    assert(loc(), catched)
     assert_eq_str(loc(), "default error message", caught_msg)
-    println("test_catch_with_fields: caught message: ", caught_msg)
 }
 test_catch_with_fields()
 
@@ -42,22 +44,32 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
 unsafe_div := proc(a: I64, b: I64) returns I64 {
     return safe_div(a, b)
     catch (err: DivideByZero) {
-        println("unsafe_div: Correctly catched thrown DivideByZero")
-        return 0 // REM Just return 0, why not? not expected to happen
+        return 0
     }
 }
-unsafe_div(42, 0) // This call is valid, the exception is caught locally
+
+test_unsafe_div := proc() {
+    mut result := unsafe_div(42, 0)
+    // If we get here without panic, the catch worked
+    assert_eq(loc(), 0, result)
+}
+test_unsafe_div()
 
 unsafe_div2 := proc(a: I64, b: I64) returns I64 {
-    result := safe_div(a, b)
+    res := safe_div(a, b)
     assertm(loc(), false, "DivideByZero should have been thrown")
     catch (err: DivideByZero) {
-        println("unsafe_div2: Correctly catched thrown DivideByZero")
-        return 0 // REM Just return 0, why not? not expected to happen
+        return 0
     }
-    return result
+    return res
 }
-unsafe_div2(42, 0)
+
+test_unsafe_div2 := proc() {
+    mut result := unsafe_div2(42, 0)
+    // If we get here without panic, the catch worked
+    assert_eq(loc(), 0, result)
+}
+test_unsafe_div2()
 
 // Only the selecter error can be thrown
 // REM Remove 'throws DivideByZero' to trigger a static type error
@@ -69,23 +81,27 @@ missing_throws := proc() throws DivideByZero {
 // All exceptions that are not catched must be declared in the throws section again
 // TODO: We should have a way to signal which calls can throw? perhaps not if the compiler errors are good enough?
 // perhaps try at the beginning of each statement that can throw or ? at the end
-example_catch := proc() {
+test_example_catch := proc() {
     a := 420
     mut b := 10
-    println(a.to_str(), " / ", b.to_str(), " = ", I64.to_str(safe_div(a, b))) // test fcalls as args
+    mut catched := false
+
+    // Test that division works when b is non-zero
+    mut result1 := safe_div(a, b)
+    assert_eq(loc(), 42, result1)
+
     b = 0
     result := I64.to_str(a.safe_div(b)) // test declaration
     mut result2 := "0"
     result2 = I64.to_str(a.safe_div(b)) // test assignment
-    println(a.to_str(), " / ", b.to_str(), " = ", result)
     catch (err: DivideByZero) {
-        println(a.to_str(), " / ", b.to_str(), " = ...")
-        println("example_catch: Correctly catched thrown DivideByZero")
+        catched = true
     }
+    assert(loc(), catched)
 
     // safe_div(a, b) // REM this one is not catched nor example_catch throws anything, should give error
 }
-example_catch()
+test_example_catch()
 
 ErrorUndeclaredInFunc := struct {}
 ErrorUndeclaredInMethod := struct {}
@@ -110,7 +126,7 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
     if true {
         another_func()
         catch (err: ErrorUndeclaredInFunc) {
-            println("undeclared_throws: Correctly catched thrown ErrorUndeclaredInFunc")
+            // Caught successfully
         }
     } else {
         throw "We can throw Str, but we have to declare it in throws"
@@ -124,18 +140,22 @@ undeclared_throws := proc() throws Str, I64, ErrorUndeclaredInAssoc, ErrorUndecl
 
     // another_func() // REM if uncommented, should ask undeclared_throws to throws ErrorUndeclaredInFunc
 }
+
 test_undeclared_throws := proc() {
+    mut catched_assoc := false
+
     undeclared_throws()
     catch (err: ErrorUndeclaredInAssoc) {
-        println("test_undeclared_throws: Correctly catched thrown ErrorUndeclaredInAssoc")
+        catched_assoc = true
     }
     catch (err: Str) {
     }
     catch (err: I64) {
     }
     catch (err: ErrorUndeclaredInFunc) {
-        println("test_undeclared_throws: Correctly catched thrown ErrorUndeclaredInFunc")
     }
+
+    assert(loc(), catched_assoc)
 }
 test_undeclared_throws()
 
