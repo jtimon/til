@@ -26,6 +26,40 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 :CATEGORY: Missing Features
 :END:
 
+** TODO Fix Str handling in catch blocks                                  :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Blocks error handling in catch blocks
+:RELATED: Error handling, String types
+:END:
+
+*** Problem
+When catching `err: Str` in a catch block, accessing the error value causes a runtime error:
+"missing field 'err.c_string'"
+
+This occurs even with simple operations like:
+- `println(err)`
+- Passing `err` to `panic(loc(), err)`
+- Using `err` in `format("Error: ", err)`
+
+*** Workaround
+Currently must use static strings in catch blocks:
+#+BEGIN_SRC til
+catch (err: Str) {
+    println("Parse error")  // Can't print the actual error message
+    exit(1)
+}
+#+END_SRC
+
+*** Expected Behavior
+Should be able to use the caught Str error value:
+#+BEGIN_SRC til
+catch (err: Str) {
+    println(err)  // Should work
+    panic(loc(), err)  // Should work
+}
+#+END_SRC
+
 ** DONE Support Recursive Enum Payloads (enums as payloads)              :HIGH:
 CLOSED: [2025-01-09]
 :PROPERTIES:

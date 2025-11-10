@@ -219,6 +219,18 @@ token_error := func(t: Token, msg: Str) returns Str throws I64_OverflowError, In
     return format(loc_str, ": ", msg)
 }
 
+// Helper to compare TokenType values
+token_type_eq := func(tt1: TokenType, tt2: TokenType) returns Bool {
+    mut result := false
+    switch tt1 {
+    case tt2:
+        result = true
+    case:
+        result = false
+    }
+    return result
+}
+
 is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
@@ -233,29 +245,40 @@ is_literal := func(t: Token) returns Bool {
     }
 }
 
-value_type_to_str := func(arg_type: ValueType) returns Str {
+value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
+    mut result := ""
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
-        return "enum"
+        result = "enum"
     case ValueType.TType(TTypeDef.TStructDef):
-        return "struct"
+        result = "struct"
     case ValueType.TFunction(FunctionType.FTFunc):
-        return "func"
+        result = "func"
     case ValueType.TFunction(FunctionType.FTFuncExt):
-        return "func"
+        result = "func"
     case ValueType.TFunction(FunctionType.FTProc):
-        return "proc"
+        result = "proc"
     case ValueType.TFunction(FunctionType.FTProcExt):
-        return "proc"
+        result = "proc"
     case ValueType.TFunction(FunctionType.FTMacro):
-        return "macro"
+        result = "macro"
     case ValueType.TMulti(type_name):
-        return type_name
+        result = format("{}", type_name)
     case ValueType.TCustom(type_name):
-        return type_name
+        result = format("{}", type_name)
     case:
-        return "unknown"
+        result = "unknown"
     }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    return result
 }
 
 str_to_value_type := func(arg_type: Str) returns ValueType {
@@ -461,7 +484,8 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
 parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     lexer_expect(lexer, TokenType.Equal)
     mut params := Array()
-    params.push(parse_primary(lexer))
+    value := parse_primary(lexer)
+    params.push(value)
     return Expr.new_parse(NodeType.Assignment(name), t, params)
 }
 
@@ -589,7 +613,10 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError
     mut t := lexer.peek()
     lexer.advance(1)
     tt := t.token_type
-    if not(tt.eq(TokenType.Returns)) {
+    switch tt {
+    case TokenType.Returns:
+        // Continue to parse return types
+    case:
         return return_types
     }
     t = lexer.peek()
@@ -639,9 +666,12 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError
 func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     mut end_found := false
     mut return_types := Array()  // Array of ValueType
-    mut t := lexer_previous(lexer)
+    mut t := lexer.previous()
     tt := t.token_type
-    if not(tt.eq(TokenType.Throws)) {
+    switch tt {
+    case TokenType.Throws:
+        // Continue to parse throw types
+    case:
         return return_types
     }
     t = lexer.peek()
@@ -691,14 +721,17 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
         throw token_error(t, "expected '(' after 'func' or 'proc', found EOF.")
     }
     tt := t.token_type
-    if not(tt.eq(TokenType.LeftParen)) {
+    switch tt {
+    case TokenType.LeftParen:
+        // Continue
+    case:
         throw token_error(t, format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
     }
     args := parse_func_proc_args(lexer)
     return_types := func_proc_returns(lexer)
     throw_types := func_proc_throws(lexer)
 
-    body := Array()
+    mut body := Array()
     if do_parse_body {
         body_expr := parse_body(lexer, TokenType.RightBrace)
         body = body_expr.params
@@ -724,7 +757,10 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
 
     t := lexer.peek()
     tt := t.token_type
-    if not(tt.eq(TokenType.LeftBrace)) {
+    switch tt {
+    case TokenType.LeftBrace:
+        // Continue
+    case:
         throw token_error(t, "Expected '{{' after 'enum'.")
     }
     if lexer.is_eof(1) {
@@ -743,13 +779,13 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
             end_found = true
         case TokenType.Identifier:
             enum_val_name := it_t.token_str
-            next_t := lexer_next(lexer)
+            next_t := lexer.next()
             ntt := next_t.token_type
             switch ntt {
             case TokenType.Colon:
-                next2_t := lexer_peek_ahead(lexer, 2)
+                next2_t := lexer.peek_ahead(2)
                 n2tt := next2_t.token_type
-                if not(n2tt.eq(TokenType.Identifier)) {
+                if not(token_type_eq(n2tt, TokenType.Identifier)) {
                     throw token_error(next2_t, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
                 enum_val_type := next2_t.token_str
@@ -785,7 +821,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     lexer_expect(lexer, TokenType.Struct)
     t := lexer.peek()
     tt := t.token_type
-    if not(tt.eq(TokenType.LeftBrace)) {
+    if not(token_type_eq(tt, TokenType.LeftBrace)) {
         throw token_error(t, "Expected '{{' after 'struct'.")
     }
     if lexer.is_eof(1) {
@@ -832,21 +868,21 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
 parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     initial_current := lexer.current
     t := lexer.peek()
-    mut next_t := lexer_next(lexer)
+    mut next_t := lexer.next()
     mut current_identifier := t.token_str
     mut params := Array()
 
-    while next_t.token_type.eq(TokenType.Dot) {
-        next2_t := lexer_peek_ahead(lexer, 2)
+    while token_type_eq(next_t.token_type, TokenType.Dot) {
+        next2_t := lexer.peek_ahead(2)
         n2tt := next2_t.token_type
-        if not(n2tt.eq(TokenType.Identifier)) {
+        if not(token_type_eq(n2tt, TokenType.Identifier)) {
             throw token_error(next2_t, format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
         }
 
         current_identifier = next2_t.token_str
         lexer.advance(2)
         params.push(Expr.new_parse(NodeType.Identifier(current_identifier), t, Array()))
-        next_t = lexer_next(lexer)
+        next_t = lexer.next()
     }
 
     initial_token := lexer.get_token(initial_current)
@@ -854,7 +890,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
     lexer.advance(1)
 
     ntt := next_t.token_type
-    if ntt.eq(TokenType.LeftParen) {
+    if token_type_eq(ntt, TokenType.LeftParen) {
         arg_list := parse_list(lexer)
         mut fcall_params := Array()
         fcall_params.push(e)
@@ -873,7 +909,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
         while continue_loop {
             peek_t := lexer.peek()
             ptt := peek_t.token_type
-            if not(ptt.eq(TokenType.Dot)) {
+            if not(token_type_eq(ptt, TokenType.Dot)) {
                 continue_loop = false
             } else {
                 // Consume the dot
@@ -882,7 +918,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                 // Expect an identifier for the next method name
                 method_t := lexer.peek()
                 mtt := method_t.token_type
-                if not(mtt.eq(TokenType.Identifier)) {
+                if not(token_type_eq(mtt, TokenType.Identifier)) {
                     throw token_error(method_t, "Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
                 }
                 method_name := method_t.token_str
@@ -891,7 +927,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                 // Check if it's a method call (has parentheses)
                 next_peek := lexer.peek()
                 nptt := next_peek.token_type
-                if not(nptt.eq(TokenType.LeftParen)) {
+                if not(token_type_eq(nptt, TokenType.LeftParen)) {
                     throw format(next_peek.line.to_str(), ":", next_peek.col.to_str(), ": Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'")
                 }
 
@@ -954,15 +990,15 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
 
 parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
-    mut next_t := lexer_next(lexer)
+    mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
 
     ntt := next_token_type
-    if ntt.eq(TokenType.LeftParen) {
+    if token_type_eq(ntt, TokenType.LeftParen) {
         return parse_primary_identifier(lexer)
     }
 
-    if ntt.eq(TokenType.Dot) {
+    if token_type_eq(ntt, TokenType.Dot) {
         e := parse_primary_identifier(lexer)
         ent := e.node_type
         if ent.tag().eq(NodeType.FCall.tag()) {
@@ -975,7 +1011,7 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
         next_t = lexer.peek()
         next_token_type = next_t.token_type
         ntt2 := next_token_type
-        if ntt2.eq(TokenType.Equal) {
+        if token_type_eq(ntt2, TokenType.Equal) {
             name := get_combined_name(e)
             return parse_assignment(lexer, t, name)
         } else {
@@ -983,22 +1019,22 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
         }
     }
 
-    if ntt.eq(TokenType.Equal) {
+    if token_type_eq(ntt, TokenType.Equal) {
         lexer.advance(1)
         return parse_assignment(lexer, t, t.token_str)
     }
 
-    if ntt.eq(TokenType.Colon) {
-        next_next_t := lexer_peek_ahead(lexer, 2)
+    if token_type_eq(ntt, TokenType.Colon) {
+        next_next_t := lexer.peek_ahead(2)
         next_next_token_type := next_next_t.token_type
         identifier := t.token_str
 
         nntt := next_next_token_type
-        if nntt.eq(TokenType.Identifier) {
+        if token_type_eq(nntt, TokenType.Identifier) {
             type_name := next_next_t.token_str
             return parse_declaration(lexer, false, type_name)
         }
-        if nntt.eq(TokenType.Equal) {
+        if token_type_eq(nntt, TokenType.Equal) {
             return parse_declaration(lexer, false, INFER_TYPE)
         }
         throw token_error(t, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
@@ -1014,31 +1050,31 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Ful
     }
 
     tt := t.token_type
-    if tt.eq(TokenType.Func) {
+    if token_type_eq(tt, TokenType.Func) {
         return parse_func_proc_definition(lexer, FunctionType.FTFunc, true)
     }
-    if tt.eq(TokenType.FuncExt) {
+    if token_type_eq(tt, TokenType.FuncExt) {
         return parse_func_proc_definition(lexer, FunctionType.FTFuncExt, false)
     }
-    if tt.eq(TokenType.Macro) {
+    if token_type_eq(tt, TokenType.Macro) {
         return parse_func_proc_definition(lexer, FunctionType.FTMacro, true)
     }
-    if tt.eq(TokenType.Proc) {
+    if token_type_eq(tt, TokenType.Proc) {
         return parse_func_proc_definition(lexer, FunctionType.FTProc, true)
     }
-    if tt.eq(TokenType.ProcExt) {
+    if token_type_eq(tt, TokenType.ProcExt) {
         return parse_func_proc_definition(lexer, FunctionType.FTProcExt, false)
     }
-    if tt.eq(TokenType.Enum) {
+    if token_type_eq(tt, TokenType.Enum) {
         return enum_definition(lexer)
     }
-    if tt.eq(TokenType.Struct) {
+    if token_type_eq(tt, TokenType.Struct) {
         return parse_struct_definition(lexer)
     }
-    if tt.eq(TokenType.LeftParen) {
+    if token_type_eq(tt, TokenType.LeftParen) {
         return parse_list(lexer)
     }
-    if tt.eq(TokenType.Identifier) {
+    if token_type_eq(tt, TokenType.Identifier) {
         return parse_primary_identifier(lexer)
     }
 
@@ -1061,7 +1097,7 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, 
     mut continue_loop := true
     while continue_loop {
         tt := t.token_type
-        if not(tt.eq(TokenType.Comma)) {
+        if not(token_type_eq(tt, TokenType.Comma)) {
             continue_loop = false
         } else {
             lexer.advance(1)
@@ -1091,7 +1127,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     mut continue_loop := true
     while continue_loop {
         tt := t.token_type
-        if not(tt.eq(TokenType.Comma)) {
+        if not(token_type_eq(tt, TokenType.Comma)) {
             continue_loop = false
         } else {
             lexer.advance(1)
@@ -1146,7 +1182,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
 
     t := lexer.peek()
     tt := t.token_type
-    if not(tt.eq(TokenType.LeftBrace)) {
+    if not(token_type_eq(tt, TokenType.LeftBrace)) {
         throw token_error(t, format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
     }
     lexer.advance(1)
@@ -1156,15 +1192,15 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
 
     t2 := lexer.peek()
     t2tt := t2.token_type
-    if t2tt.eq(TokenType.Else) {
+    if token_type_eq(t2tt, TokenType.Else) {
         lexer.advance(1)
         next := lexer.peek()
         ntt := next.token_type
-        if ntt.eq(TokenType.If) {
+        if token_type_eq(ntt, TokenType.If) {
             nested_if := if_statement(lexer)
             params.push(nested_if)
         } else {
-            if ntt.eq(TokenType.LeftBrace) {
+            if token_type_eq(ntt, TokenType.LeftBrace) {
                 lexer.advance(1)
                 else_body := parse_body(lexer, TokenType.RightBrace)
                 params.push(else_body)
@@ -1188,7 +1224,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
 
     t := lexer.peek()
     tt := t.token_type
-    if not(tt.eq(TokenType.LeftBrace)) {
+    if not(token_type_eq(tt, TokenType.LeftBrace)) {
         throw token_error(t, "Expected '{{' after condition in 'while' statement.")
     }
     lexer.advance(1)
@@ -1295,7 +1331,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     left := parse_primary(lexer)
     t := lexer.peek()
     tt := t.token_type
-    if tt.eq(TokenType.DoubleDot) {
+    if token_type_eq(tt, TokenType.DoubleDot) {
         lexer.advance(1)
         right := parse_primary(lexer)
         mut params := Array()
@@ -1342,7 +1378,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
 
     peek_t := lexer.peek()
     ptt := peek_t.token_type
-    if not(ptt.eq(TokenType.LeftBrace)) {
+    if not(token_type_eq(ptt, TokenType.LeftBrace)) {
         throw token_error(t, "Expected '{{' after primary expression in 'switch' statement.")
     }
     lexer.advance(1)
@@ -1356,14 +1392,14 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
 
         mut next_t := lexer.peek()
         ntt := next_t.token_type
-        if not(ntt.eq(TokenType.Case)) {
+        if not(token_type_eq(ntt, TokenType.Case)) {
             throw token_error(next_t, format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
         lexer.advance(1)
         next_t = lexer.peek()
         ntt2 := next_t.token_type
-        if ntt2.eq(TokenType.Colon) {
+        if token_type_eq(ntt2, TokenType.Colon) {
             params.push(Expr.new_parse(NodeType.DefaultCase, t, Array()))
         } else {
             prim2 := parse_case_expr(lexer)
@@ -1372,7 +1408,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
 
         next_t = lexer.peek()
         ntt3 := next_t.token_type
-        if not(ntt3.eq(TokenType.Colon)) {
+        if not(token_type_eq(ntt3, TokenType.Colon)) {
             throw token_error(next_t, format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
@@ -1386,14 +1422,14 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
             }
 
             ntt4 := next_t.token_type
-            if ntt4.eq(TokenType.RightBrace) {
+            if token_type_eq(ntt4, TokenType.RightBrace) {
                 params.push(Expr.new_parse(NodeType.Body, t, body_params))
                 end_found = true
                 lexer.advance(1)
                 continue_inner = false
                 continue_outer = false
             } else {
-                if ntt4.eq(TokenType.Case) {
+                if token_type_eq(ntt4, TokenType.Case) {
                     params.push(Expr.new_parse(NodeType.Body, t, body_params))
                     continue_inner = false
                 } else {
@@ -1401,7 +1437,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
                     body_params.push(stmt)
                     next_t = lexer.peek()
                     ntt5 := next_t.token_type
-                    if ntt5.eq(TokenType.Semicolon) {
+                    if token_type_eq(ntt5, TokenType.Semicolon) {
                         lexer.advance(1)
                         next_t = lexer.peek()
                     }
@@ -1428,7 +1464,8 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     }
 
     mut params := Array()
-    params.push(parse_primary(lexer))
+    value := parse_primary(lexer)
+    params.push(value)
 
     decl := Declaration.new(decl_name, str_to_value_type(explicit_type), is_mut)
     initial_token := lexer.get_token(initial_current)
@@ -1437,31 +1474,31 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
 
 parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
-    mut next_t := lexer_next(lexer)
+    mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
 
     ntt := next_token_type
-    if not(ntt.eq(TokenType.Identifier)) {
+    if not(token_type_eq(ntt, TokenType.Identifier)) {
         throw token_error(t, format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
     }
     identifier := next_t.token_str
     lexer.advance(1)
-    next_t = lexer_next(lexer)
+    next_t = lexer.next()
     next_token_type = next_t.token_type
 
     ntt2 := next_token_type
-    if not(ntt2.eq(TokenType.Colon)) {
+    if not(token_type_eq(ntt2, TokenType.Colon)) {
         throw token_error(t, format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
     }
-    next_next_t := lexer_peek_ahead(lexer, 2)
+    next_next_t := lexer.peek_ahead(2)
     next_next_token_type := next_next_t.token_type
 
     nntt := next_next_token_type
-    if nntt.eq(TokenType.Identifier) {
+    if token_type_eq(nntt, TokenType.Identifier) {
         type_name := next_next_t.token_str
         return parse_declaration(lexer, true, type_name)
     }
-    if nntt.eq(TokenType.Equal) {
+    if token_type_eq(nntt, TokenType.Equal) {
         return parse_declaration(lexer, true, INFER_TYPE)
     }
     throw token_error(t, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
@@ -1471,34 +1508,34 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     t := lexer.peek()
     tt := t.token_type
 
-    if tt.eq(TokenType.Return) {
+    if token_type_eq(tt, TokenType.Return) {
         return return_statement(lexer)
     }
-    if tt.eq(TokenType.Throw) {
+    if token_type_eq(tt, TokenType.Throw) {
         return parse_throw_statement(lexer)
     }
-    if tt.eq(TokenType.If) {
+    if token_type_eq(tt, TokenType.If) {
         return if_statement(lexer)
     }
-    if tt.eq(TokenType.While) {
+    if token_type_eq(tt, TokenType.While) {
         return while_statement(lexer)
     }
-    if tt.eq(TokenType.For) {
+    if token_type_eq(tt, TokenType.For) {
         return parse_for_statement(lexer)
     }
-    if tt.eq(TokenType.Switch) {
+    if token_type_eq(tt, TokenType.Switch) {
         return parse_switch_statement(lexer)
     }
-    if tt.eq(TokenType.Mut) {
+    if token_type_eq(tt, TokenType.Mut) {
         return parse_mut_declaration(lexer)
     }
-    if tt.eq(TokenType.Identifier) {
+    if token_type_eq(tt, TokenType.Identifier) {
         return parse_statement_identifier(lexer)
     }
-    if tt.eq(TokenType.Catch) {
+    if token_type_eq(tt, TokenType.Catch) {
         return parse_catch_statement(lexer)
     }
-    if tt.eq(TokenType.LeftBrace) {
+    if token_type_eq(tt, TokenType.LeftBrace) {
         lexer.advance(1) // Skip LeftBrace
         return parse_body(lexer, TokenType.RightBrace)
     }
@@ -1520,12 +1557,26 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
 
         t = lexer.peek() // update t with the current token
         token_type := t.token_type
-        if token_type.eq(end_token) {
+        mut matches_end := false
+        switch token_type {
+        case end_token:
+            matches_end = true
+        case:
+            matches_end = false
+        }
+        if matches_end {
             lexer.advance(1)
             end_found = true
             continue_loop = false
         } else {
-            if token_type.eq(TokenType.Semicolon) {
+            mut is_semicolon := false
+            switch token_type {
+            case TokenType.Semicolon:
+                is_semicolon = true
+            case:
+                is_semicolon = false
+            }
+            if is_semicolon {
                 lexer_expect(lexer, TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
             } else {
                 stmt := parse_statement(lexer)
