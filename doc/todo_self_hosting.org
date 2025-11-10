@@ -47,6 +47,36 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 └─────────────────────────────────────────────────────┘
 #+END_EXAMPLE
 
+** External Function Architecture (ext.rs → ext.c)
+
+*Current Implementation (Rust):*
+- =src/rs/ext.rs=: Contains implementations of all built-in primitives
+  - Functions like =func_malloc=, =func_add=, =func_lt=, =proc_print=
+  - All functions prefixed with =func_= (pure) or =proc_= (side effects)
+  - Functions are =pub= (not =pub(crate)=) for simplicity
+- =src/rs/interpreter.rs=: Contains the dispatcher
+  - =eval_core_func_proc_call=: Routes by name to ext.rs implementations
+  - Uses Rust's =match= statement for dispatching
+
+*TIL Mirror (for self-hosting):*
+- =src/core/interpreter.til=: Contains TIL dispatcher (lines 595-652)
+  - =eval_core_func_proc_call=: Mirrors Rust dispatcher using =switch=
+  - Same case ordering and structure as Rust implementation
+  - Currently has TODOs for extracting arguments from expr
+  - Not yet wired up (ext functions called directly for now)
+
+*Future Architecture (when self-hosted):*
+- TIL code will call ext functions through the TIL dispatcher
+- Compiled TIL will link to =ext.c= (C translation of ext.rs)
+- No =ext.til= file will exist - these are built-in primitives, not TIL code
+- The dispatcher in interpreter.til will become the active routing mechanism
+
+*Key Design Decisions:*
+1. *Dispatcher location*: Interpreter (routing logic) not ext (implementations)
+2. *No ext.til*: These are primitives, not library code to be imported
+3. *Naming convention*: All ext functions must start with =func_= or =proc_=
+4. *Simplicity over Rust idioms*: Use =pub= not =pub(crate)=, avoid =crate::= prefix
+
 * Critical Blockers
 
 ** All Enum-Related Blockers: ✅ RESOLVED (2025-01-10)
