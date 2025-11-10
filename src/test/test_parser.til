@@ -336,7 +336,7 @@ test_parse_body()
 
 // TODO: Re-enable after fixing parsing issues in parser.til
 // test_simple_expressions()  // eval error: Cannot use 'self' of type 'Array' as argument
-// test_declarations()  // memcpy error
+test_declarations()  // memcpy error
 // test_functions()  // memcpy error
 // test_control_flow()  // type error: Could not find function definition
 // test_enums()  // Parse error: "Expected statement, found }"

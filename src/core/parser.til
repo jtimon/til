@@ -934,10 +934,11 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                 mut new_params := Array.new_dyn("Expr", size_of(Expr))
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
+                mut method_params := method_args.params
                 mut j := 0
-                while j.lt(method_args.params.len) {
+                while j.lt(method_params.len) {
                     mut method_arg := Expr()
-                    method_args.params.get(j, method_arg)
+                    method_params.get(j, method_arg)
                     new_params.push(method_arg)
                     j = j.add(1)
                 }
