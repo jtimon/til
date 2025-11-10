@@ -591,3 +591,62 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
     // Return the last result (or empty string if no statements)
     return last_result
 }
+
+// ---------- Core function/procedure dispatcher
+// NOTE: This dispatcher is not yet used - it's here to establish the pattern for self-hosting
+// When self-hosted, this will route ext function calls, similar to the Rust dispatcher
+// For now, ext functions are called directly via the ext_func/ext_proc mechanism
+
+eval_core_func_proc_call := proc(name: Str, context: Dynamic, expr: Dynamic, is_proc: Bool) returns Str {
+    // Switch on function name to dispatch to ext functions
+    // Mirrors the Rust implementation's match statement
+    switch name {
+        // Type introspection functions
+        case "loc": return loc()
+        case "size_of": return size_of(I64).i64_to_str()  // TODO: Get type from expr
+        case "type_as_str": return type_as_str(I64)  // TODO: Get type from expr
+        case "to_ptr": return to_ptr(name).i64_to_str()  // TODO: Get var from expr
+
+        // Memory functions
+        case "malloc": return malloc(0)  // TODO: Get size from expr
+        case "free": free(0)  // TODO: Get ptr from expr
+        case "memset": memset(0, 0, 0)  // TODO: Get args from expr
+        case "memcpy": memcpy(0, 0, 0)  // TODO: Get args from expr
+        case "memcmp": return memcmp(0, 0, 0).i64_to_str()  // TODO: Get args from expr
+
+        // Comparison and arithmetic functions
+        case "lt": return lt(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "gt": return gt(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "add": return add(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "sub": return sub(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "mul": return mul(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "div": return div(0, 0).i64_to_str()  // TODO: Get args from expr
+        case "mod": return mod(0, 0).i64_to_str()  // TODO: Get args from expr
+
+        // Type conversion functions
+        case "str_to_i64": return str_to_i64("0").i64_to_str()  // TODO: Get str from expr
+        case "i64_to_str": return i64_to_str(0)  // TODO: Get i64 from expr
+        case "enum_to_str": return enum_to_str(name)  // TODO: Get enum from expr
+        case "u8_to_i64": return u8_to_i64(0).i64_to_str()  // TODO: Get u8 from expr
+        case "i64_to_u8": return i64_to_u8(0).i64_to_str()  // TODO: Get i64 from expr
+
+        // Procedures
+        case "single_print": single_print("")  // TODO: Get args from expr
+        case "print_flush": print_flush()
+        case "input_read_line": return input_read_line("")  // TODO: Get prompt from expr
+        case "eval_to_str": return eval_to_str("")  // TODO: Get source from expr
+        case "exit": exit(0)  // TODO: Get code from expr
+        case "import": import("")  // TODO: Get path from expr
+        case "readfile": return readfile("")  // TODO: Get path from expr
+        case "runfile": runfile("")  // TODO: Get args from expr
+        case "rsonly_enum_extract_payload": rsonly_enum_extract_payload(name, name)  // TODO: Get args from expr
+
+        // Default case - error
+        case: {
+            if is_proc {
+                panic(loc(), format("Core procedure '", name, "' not implemented"))
+            }
+            panic(loc(), format("Core function '", name, "' not implemented"))
+        }
+    }
+}
