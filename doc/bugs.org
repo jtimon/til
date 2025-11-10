@@ -1,6 +1,6 @@
 #+TITLE: rstil Bug Fixes - Historical Reference
 #+AUTHOR: rstil Development
-#+DATE: 2025-01-10
+#+DATE: 2025-11-10
 
 * Overview
 
@@ -8,63 +8,11 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #8: Uncaptured Return Values Propagate Up Call Stack (CRITICAL)
-
-- *Status*: ❌ ACTIVE - Not a priority to fix yet, but blocks parser.til
-- *Discovery*: 2025-01-10 during parser.til investigation
-- *Impact*: CRITICAL - Cannot call ANY function/method that returns without capturing
-
-*** Problem
-When you call a function or method that returns a value but DON'T capture the return value, it causes the calling function to return early with that function/method's return value. This affects BOTH methods AND standalone functions.
-
-*** Evidence
-**Method example:**
-```til
-parse_func_proc_args := func(mut lexer: Lexer) returns Array {
-    println("[DEBUG 1] Before expect")     // ✅ Prints
-    lexer.expect(TokenType.LeftParen)      // ❌ Causes function to return!
-    println("[DEBUG 2] After expect")      // ❌ Never executes
-}
-```
-
-**Standalone function example:**
-```til
-parse_func_proc_args := func(mut lexer: Lexer) returns Array {
-    lexer_expect(lexer, TokenType.LeftParen)  // ❌ Also causes return!
-    println("[DEBUG] After lexer_expect")     // ❌ Never executes
-}
-```
-
-Debug output shows `lexer_expect` completes and returns, but the caller never continues after the call.
-
-**Workaround that works:**
-```til
-    _ := lexer.expect(TokenType.LeftParen)  // ✅ Works when captured
-```
-
-*** Root Cause
-Currently, when a function/method returns a value that is not captured in an assignment, that value propagates up the call stack, causing the caller to also return with that value. This was not implemented as a deliberate design choice - it simply wasn't a priority to fix yet. The desired behavior is for uncaptured return values to be discarded.
-
-*** Why This Is Problematic
-- **Extremely unintuitive** - violates principle of least surprise
-- **Makes code verbose** - must capture every return value even when not needed
-- **Blocks natural code patterns** - can't call functions for side effects if they return values
-- **Hard to debug** - causes mysterious early returns
-
-*** Impact
-- **BLOCKS** parser.til homogenization (requires `_ := func()` workarounds everywhere)
-- Makes TIL code unnatural and verbose
-- This bug needs to be fixed in rstil
-
-*** Workaround
-Always capture return values with `_ := func()` or `result := func()`, even when the value isn't needed.
-
-*** What Needs to be Fixed
-In rstil's interpreter.rs, function/method calls that return values should discard the return value if it's not being assigned to a variable, instead of propagating it up the call stack.
+No active bugs at this time.
 
 * Fixed Bugs Summary
 
-Bugs #1-#7 have been fixed and their tests integrated into the regular test suite (=enums.til=, =flow.til=, =arithmetics.til=).
+Bugs #1-#8 have been fixed and their tests integrated into the regular test suite (=enums.til=, =flow.til=, =arithmetics.til=, =return_value_usage.til=).
 
 * Bug #1: Enum Comparison in Switch/Case
 
@@ -126,33 +74,92 @@ Bugs #1-#7 have been fixed and their tests integrated into the regular test suit
 - *Commit*: 576a7fe
 - *Note*: Users can implement custom error handling with throw/catch if needed
 
-* Bug #8: Method Return Causes Caller to Return (FALSE POSITIVE)
+* Bug #8: Uncaptured Return Values Propagate Up Call Stack
 
-- *Status*: ❌ NOT A BUG - False positive from incorrect usage
-- *Discovery*: 2025-01-10 during parser.til work
-- *Investigation*: 2025-01-10
-- *Resolution*: Methods that return values work correctly
+- *Status*: ✅ FIXED - Compile-time enforcement of return value usage
+- *Discovery*: 2025-11-10 during parser.til investigation
+- *Fixed*: 2025-11-10 with type checker enhancements
+- *Commit*: [current]
 
-*** Original Symptom
-When calling `lexer.expect(TokenType.LeftParen)` from parser.til, the calling function would return immediately.
+*** Problem
+When you call a function or method that returns a value but DON'T capture the return value, it causes the calling function to return early with that function/method's return value. This affects BOTH methods AND standalone functions.
 
-*** Root Cause
-The issue was not a bug in method returns, but incorrect function signatures after a global find-and-replace:
-- Changed `lexer_expect(lexer, TokenType.LeftParen)` to `lexer.expect(lexer, TokenType.LeftParen)`
-- The `lexer` parameter should have been removed when switching to method syntax
-- Correct method call: `lexer.expect(TokenType.LeftParen)`
+*** Original Behavior
+```til
+parse_func_proc_args := func(mut lexer: Lexer) returns Array {
+    println("[DEBUG 1] Before expect")     // ✅ Prints
+    lexer.expect(TokenType.LeftParen)      // ❌ Causes function to return!
+    println("[DEBUG 2] After expect")      // ❌ Never executes
+}
+```
 
-*** Testing
-Created test cases confirming that:
-1. Methods returning I64 work correctly
-2. Methods returning struct types (Token) work correctly
-3. The `Lexer.expect()` method works when called correctly
+The uncaptured return value would propagate up the call stack, causing mysterious early returns.
 
-*** Workaround (Unnecessary)
-The standalone `lexer_expect()` function was used temporarily during investigation, but methods work fine when called correctly.
+*** Solution
+Rather than fixing the runtime propagation behavior, we implemented **compile-time enforcement** that requires return values to be explicitly used or discarded. This is a better approach because:
+1. Catches errors at compile time instead of runtime
+2. Makes code intent explicit
+3. Follows best practices from Rust (#[must_use]), Swift (@discardableResult), etc.
+
+*** Implementation
+Added context tracking to the type checker (typer.rs):
+- Created =ExprContext= enum (ValueUsed vs ValueDiscarded)
+- Modified =check_types_with_context()= to propagate context through type checking
+- Added =check_fcall_return_usage()= to validate return value handling
+- Updated all helper functions to pass appropriate contexts
+
+*** Type Checking Rules
+- **ValueUsed contexts**: Variable declarations, assignments, function arguments, return/throw statements
+- **ValueDiscarded contexts**: Top-level statements in function bodies, if/while/switch/catch bodies
+
+When a function returning a value is called in a ValueDiscarded context, the compiler produces:
+```
+type ERROR: Function 'func_name' returns a value that is not being used.
+Hint: Capture the return value with '_ := func_name(...)' or use it in an expression.
+```
+
+*** Valid Code Patterns
+```til
+// ✅ Capture the return value
+result := my_add(1, 2)
+
+// ✅ Use as argument to another function
+double(my_add(3, 4))
+
+// ✅ Explicitly discard with _
+_ := get_value()
+
+// ✅ Procs don't return values, no capture needed
+print_hello()
+
+// ❌ ERROR: Return value not captured
+my_add(1, 2)
+```
+
+*** Files Modified
+- =src/rs/typer.rs=: Added ExprContext tracking and return value usage checking
+- =src/test/errors.til=: Fixed one instance of uncaptured return value
+- =src/test/return_value_usage.til=: Created comprehensive test suite
+
+*** Tests
+All existing tests pass. New test file demonstrates:
+1. Return values captured in declarations work
+2. Return values used as arguments work
+3. Explicit discard with =_= works
+4. Procs without return values work
+5. Uncaptured return values produce helpful compile errors
+
+*** Design Decision
+This decision was made to:
+1. Fix Bug #8 at compile time instead of runtime
+2. Make TIL code more explicit and safer
+3. Align with modern language best practices
+4. Prevent subtle bugs from uncaptured return values
+
+After self-hosting is complete, we may reconsider whether to relax this requirement for certain cases, but the explicit approach is the safer default.
 
 * Summary
 
-*All historical bugs (#1-#7) fixed as of January 2025.*
+*All historical bugs (#1-#8) fixed as of November 2025.*
 
 For implementation details and self-hosting progress, see git history and commit messages.

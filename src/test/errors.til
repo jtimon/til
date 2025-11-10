@@ -74,7 +74,7 @@ test_unsafe_div2()
 // Only the selecter error can be thrown
 // REM Remove 'throws DivideByZero' to trigger a static type error
 missing_throws := proc() throws DivideByZero {
-    safe_div(42, 0)
+    _ := safe_div(42, 0)
 }
 // missing_throws() // REM Gives an error if uncommented
 

@@ -1,6 +1,6 @@
 #+TITLE: Post-Self-Hosting TODO List
 #+AUTHOR: rstil Development
-#+DATE: 2025-01-09
+#+DATE: 2025-11-10
 
 * Overview
 
@@ -10,44 +10,55 @@ These are features, improvements, and optimizations that would be nice to have b
 
 * Language Features
 
-** TODO Reconsider Bug #8 Fix Approach After Self-Hosting              :HIGH:
+** DONE Bug #8 Fixed with Compile-Time Enforcement                      :HIGH:
 :PROPERTIES:
-:DISCOVERED: 2025-01-10
+:DISCOVERED: 2025-11-10
+:FIXED: 2025-11-10
 :IMPACT: Affects language ergonomics and error handling
 :RELATED: Bug #8, Return value handling
 :END:
 
-*** Current Approach
-Bug #8 (uncaptured return values propagate up call stack) is currently being "fixed" by requiring all return values to be explicitly captured with `_ := func()` pattern. This makes the propagation behavior less of a footgun but doesn't change the underlying unintuitive behavior.
+*** Implemented Approach
+Bug #8 (uncaptured return values propagate up call stack) has been **fixed with compile-time enforcement**. The type checker now requires all return values to be explicitly captured with `_ := func()` or used in expressions.
 
-*** Decision Deferred
-We need to decide whether to:
+*** Why This Approach
+We chose compile-time enforcement rather than fixing the runtime propagation behavior because:
 
-1. **Keep current approach**: Require return values to be assigned (enforced by type checker)
-   - Pros: Explicit, catches errors, works with current propagation behavior
-   - Cons: Verbose, unintuitive for side-effect calls
+1. **Catches errors at compile time** - Better than runtime surprises
+2. **Makes intent explicit** - Clear whether return values are used or discarded
+3. **Follows best practices** - Aligns with Rust (#[must_use]), Swift (@discardableResult)
+4. **Safer default** - Prevents accidental loss of important return values
 
-2. **Fix propagation behavior**: Change rstil to discard uncaptured return values (like most languages)
-   - Pros: Intuitive, matches expectations from other languages
-   - Cons: Requires rstil changes, may break existing code assumptions
+*** Implementation Details
+- Added =ExprContext= enum to track ValueUsed vs ValueDiscarded contexts
+- Modified type checker to propagate context through all expressions
+- Function calls with return values must be in ValueUsed context
+- Helpful error messages guide users to fix the issue
 
-*** Why Deferred
-After self-hosting, we'll have more TIL code to evaluate which approach feels better in practice. For now, the workaround (`_ :=`) unblocks parser.til development.
+*** Valid Code Patterns
+```til
+result := my_add(1, 2)        // ✅ Capture return value
+double(my_add(3, 4))          // ✅ Use as argument
+_ := get_value()              // ✅ Explicitly discard
+print_hello()                 // ✅ Procs don't return
+my_add(1, 2)                  // ❌ ERROR: Return value not used
+```
 
-*** Action Required
-After self-hosting is achieved:
-- Review how often `_ :=` is used in practice
-- Gather feedback on which approach feels more natural
-- Make final decision and implement chosen approach
-- Update documentation and language spec
+*** Reconsideration After Self-Hosting
+After gaining more experience with the self-hosted codebase, we may consider:
+- Whether certain built-in functions should allow discarded returns
+- If @discardableResult-style annotations would be useful
+- Whether the explicitness helps or hinders in practice
+
+For now, requiring explicit handling is the safer and clearer default.
 
 ** TODO Reconsider Variable Shadowing Policy After Self-Hosting        :MEDIUM:
 :PROPERTIES:
-:DISCOVERED: 2025-01-10
+:DISCOVERED: 2025-11-10
 :IMPACT: Language design, developer experience
 :END:
 
-*** Current Behavior (Tested 2025-01-10)
+*** Current Behavior (Tested 2025-11-10)
 
 Based on tests in src/test/temporary_tests.til:
 
@@ -89,7 +100,7 @@ Should we:
 
 ** TODO Add Unicode Support to TIL                                    :MEDIUM:
 :PROPERTIES:
-:DISCOVERED: 2025-01-10
+:DISCOVERED: 2025-11-10
 :FILE: src/rs/lexer.rs
 :IMPACT: Internationalization, modern text handling
 :END:

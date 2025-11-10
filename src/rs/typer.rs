@@ -10,6 +10,15 @@ use crate::rs::parser::{
 // This module handles the type checking phase that runs after init.
 // No eval, no arena access - pure type analysis.
 
+// Context tracking for return value usage enforcement (Bug #8 fix)
+#[derive(Clone, Copy, PartialEq)]
+enum ExprContext {
+    // Return value is being used (assigned, passed as arg, returned, etc)
+    ValueUsed,
+    // Return value is discarded (statement in Body)
+    ValueDiscarded,
+}
+
 fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
@@ -34,12 +43,19 @@ fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     return errors;
 }
 
+// Public entry point: assumes Body-level context (return values discarded at statement level)
 pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
+    return check_types_with_context(context, e, ExprContext::ValueDiscarded);
+}
+
+// Internal type checker with context tracking for return value usage
+fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprContext) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     match &e.node_type {
         NodeType::Body => {
+            // Statements in Body discard return values
             for p in e.params.iter() {
-                errors.extend(check_types(context, &p));
+                errors.extend(check_types_with_context(context, &p, ExprContext::ValueDiscarded));
             }
         },
         NodeType::EnumDef(enum_def) => {
@@ -63,6 +79,10 @@ pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
                 return errors;
             }
 
+            // Range operands are used
+            errors.extend(check_types_with_context(context, &e.params[0], ExprContext::ValueUsed));
+            errors.extend(check_types_with_context(context, &e.params[1], ExprContext::ValueUsed));
+
             let left_type = crate::rs::init::get_value_type(context, &e.params[0]);
             if let Err(err) = &left_type {
                 errors.push(err.clone());
@@ -81,6 +101,8 @@ pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::FCall => {
             errors.extend(check_fcall(context, &e));
+            // Check if return value usage is correct for this context
+            errors.extend(check_fcall_return_usage(context, &e, expr_context));
         },
         NodeType::FuncDef(func_def) => {
             let mut function_context = context.clone();
@@ -98,8 +120,9 @@ pub fn check_types(context: &mut Context, e: &Expr) -> Vec<String> {
             errors.extend(check_assignment(context, &e, var_name));
         },
         NodeType::Return | NodeType::Throw => {
+            // Return/throw values are used
             for return_val in &e.params {
-                errors.extend(check_types(context, &return_val));
+                errors.extend(check_types_with_context(context, &return_val, ExprContext::ValueUsed));
             }
         },
         NodeType::Catch => {
@@ -144,8 +167,10 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     if !first_is_condition {
         errors.push(inner_e.error("type", &format!("'if' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
-    for p in e.params.iter() {
-        errors.extend(check_types(context, &p));
+    // First param (condition) is used, remaining params (then/else bodies) discard values
+    for (i, p) in e.params.iter().enumerate() {
+        let ctx = if i == 0 { ExprContext::ValueUsed } else { ExprContext::ValueDiscarded };
+        errors.extend(check_types_with_context(context, &p, ctx));
     }
     return errors;
 }
@@ -182,8 +207,10 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     if !first_is_condition {
         errors.push(inner_e.error("type", &format!("'while' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
-    for p in e.params.iter() {
-        errors.extend(check_types(context, &p));
+    // First param (condition) is used, second param (body) discards values
+    for (i, p) in e.params.iter().enumerate() {
+        let ctx = if i == 0 { ExprContext::ValueUsed } else { ExprContext::ValueDiscarded };
+        errors.extend(check_types_with_context(context, &p, ctx));
     }
     return errors;
 }
@@ -236,7 +263,8 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                 return errors;
             }
         };
-        errors.extend(check_types(context, &arg_expr));
+        // Function call arguments are being used (passed to the function)
+        errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed));
 
         let found_type = match crate::rs::init::get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
@@ -267,6 +295,33 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     return errors
+}
+
+// Check if a function call's return value is being used correctly (Bug #8 fix)
+fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprContext) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // Get the function definition to check if it returns a value
+    let func_def = match get_func_def_for_fcall(&context, e) {
+        Ok(Some(func_def_)) => func_def_,
+        Ok(None) => return errors, // Struct/enum constructor, no return value check needed
+        Err(_) => return errors, // Error already reported by check_fcall
+    };
+
+    // Check if this function returns a value
+    let returns_value = func_def.return_types.len() > 0;
+
+    if returns_value && expr_context == ExprContext::ValueDiscarded {
+        let f_name = crate::rs::init::get_func_name_in_call(e);
+
+        errors.push(e.error("type", &format!(
+            "Function '{}' returns a value that is not being used.\n\
+             Hint: Capture the return value with '_ := {}(...)' or use it in an expression.",
+            f_name, f_name
+        )));
+    }
+
+    return errors;
 }
 
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
@@ -351,8 +406,9 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
             }
         }
     }
+    // Function body statements discard return values at the top level
     for p in &func_def.body {
-        errors.extend(check_types(context, &p));
+        errors.extend(check_types_with_context(context, &p, ExprContext::ValueDiscarded));
     }
 
     let mut return_found = false;
@@ -705,7 +761,8 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         }
     }
 
-    errors.extend(check_types(&mut temp_context, body_expr));
+    // Catch body statements discard return values
+    errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
 
     return errors
 }
@@ -766,7 +823,8 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             _ => {},
         }
     }
-    errors.extend(check_types(context, &inner_e));
+    // The RHS of a declaration is being used (assigned to the variable)
+    errors.extend(check_types_with_context(context, &inner_e, ExprContext::ValueUsed));
 
     return errors
 }
@@ -797,8 +855,9 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
                                              var_name, var_name, var_name)));
     }
 
+    // The RHS of an assignment is being used (assigned to the variable)
     match e.get(0) {
-        Ok(inner_e) => errors.extend(check_types(context, inner_e)),
+        Ok(inner_e) => errors.extend(check_types_with_context(context, inner_e, ExprContext::ValueUsed)),
         Err(err) => errors.push(err),
     }
     return errors;
@@ -894,24 +953,25 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                                     is_mut: false,
                                 }
                             );
-                            errors.extend(check_types(&mut temp_context, body_expr));
+                            // Switch case body statements discard return values
+                            errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
                         } else {
                             // Variant exists but has no payload
                             errors.push(case_expr.error("type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
-                            errors.extend(check_types(context, body_expr));
+                            errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                         }
                     } else {
                         errors.push(case_expr.error("type", &format!("Unknown variant '{}'", variant)));
-                        errors.extend(check_types(context, body_expr));
+                        errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                     }
                 } else {
-                    errors.extend(check_types(context, body_expr));
+                    errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                 }
             } else {
-                errors.extend(check_types(context, body_expr));
+                errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
             }
         } else {
-            errors.extend(check_types(context, body_expr));
+            errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
         }
 
         i += 1;
