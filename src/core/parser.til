@@ -148,6 +148,26 @@ is_literal := func(t: Token) returns Bool {
     }
 }
 
+str_to_value_type := func(arg_type: Str) returns ValueType {
+    if arg_type.eq("func") {
+        return ValueType.TFunction(FunctionType.FTFunc)
+    }
+    if arg_type.eq("proc") {
+        return ValueType.TFunction(FunctionType.FTProc)
+    }
+    if arg_type.eq("macro") {
+        return ValueType.TFunction(FunctionType.FTMacro)
+    }
+    if arg_type.eq("enum") {
+        return ValueType.TType(TTypeDef.TEnumDef)
+    }
+    if arg_type.eq("struct") {
+        return ValueType.TType(TTypeDef.TStructDef)
+    }
+    // Default: custom type
+    return ValueType.TCustom(arg_type)
+}
+
 ModeDef := struct {
     mut name: Str = ""
     mut allows_procs: Bool = false
