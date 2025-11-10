@@ -11,12 +11,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | Component   | TIL Lines | Rust Lines | Completion | Status                       |
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| parser      |     1,471 |      1,389 | ~65%       | ⚠️ DIVERGED - PLAN UPDATED  |
+| parser      |        50 |      1,389 | ~3%        | 🔄 CLEAN RESTART - PHASE 1  |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
 | typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       585 |      2,485 | 24%        | ⏳ TOP-DOWN IN PROGRESS     |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     4,396 |      7,437 | *53%*      | Parser: Bug #6 Fixed ✅      |
+| *TOTAL*     |     2,975 |      7,437 | *40%*      | Parser: Clean Restart ✅     |
 
 * Architecture & Call Hierarchy
 
@@ -139,36 +139,33 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - [ ] Consider string escape switch in Rust (TIL lines 394-415)
 
 ** Parser (parser.til vs src/rs/parser.rs)
-*** Status: 85% COMPLETE - PHASES 0-3 DONE ✅ (2025-01-09)
+*** Status: 🔄 CLEAN RESTART - INCREMENTAL APPROACH (2025-01-10)
 
-*IMPORTANT:* parser.rs is the **source of truth**. parser.til has been updated to match it.
+*IMPORTANT:* parser.rs is the **source of truth**. Starting fresh with incremental copying.
 
-*Current State (2025-01-09):*
-Parser homogenization Phases 0-3 **COMPLETED**. Data structures and parse functions
-now match between parser.til and parser.rs. All tests pass. Remaining work is
-cleanup, documentation, and validation (Phases 4-5).
+*New Approach (2025-01-10):*
+Previous implementation (1,750+ lines) had grown complex with workarounds and type errors.
+**Restarting clean** with incremental copying from parser.rs:
+1. Add one feature at a time from parser.rs
+2. Write test immediately in test_parser.til
+3. Run `make` to verify
+4. Commit if passing
+5. Repeat
 
-*Analysis History:*
-Comprehensive comparison (2025-01-09) revealed critical missing infrastructure:
-- ✅ Mode system (COMPLETED)
-- ✅ parse_tokens() entry point (COMPLETED)
-- ✅ func_proc_returns() and func_proc_throws() extraction (COMPLETED)
-- ✅ All data structures homogenized (COMPLETED)
-- ✅ All parse functions homogenized (COMPLETED)
-- ⚠️ test_parser.til temporarily disabled pending init.rs updates
-
-*Current TIL Implementation (1,750+ lines) - PHASES 0-3 COMPLETE:*
-- ✅ Uses proper ValueType enums with payloads
-- ✅ Uses Declaration structs with full metadata
-- ✅ Uses OptionValueType for enum variant payloads
-- ✅ Data structures match Rust (parser.rs is source of truth)
-- ✅ Parse functions fully populate metadata
+*Current TIL Implementation (50 lines) - PHASE 1 FOUNDATION:*
+- ✅ Basic ValueType enum (TFunction, TProc, TMacro, TType, TMulti, TCustom)
+- ✅ Declaration struct (name, value_type, is_mut)
+- ✅ NodeType enum (Body, Literal)
+- ✅ Expr struct (node_type, params, line, col)
+- ✅ Stub parse_tokens() that throws error
+- ✅ test_parser.til with 3 foundation tests
+- ✅ All tests pass
 
 *Rust Implementation (1,389 lines) - SOURCE OF TRUTH:*
 - ✅ Uses strongly-typed =HashMap<String, Option<ValueType>>=
 - ✅ Uses =Vec<Declaration>=, =Vec<ValueType>= for proper type safety
 - ✅ Full type-correct representation with enum payloads
-- ✅ This is what parser.til needs to match
+- ✅ This is what parser.til will incrementally match
 
 *Critical Missing Infrastructure (PHASE 0 - NEW):*
 

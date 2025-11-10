@@ -17,9 +17,9 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 | Known Bugs          | ✅ BUG #6 FIXED                 | Enum payloads now reserve max variant size      |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
-| Test Suite          | ⚠️ PARTIALLY BLOCKED            | test_parser.til blocked by arena size issue     |
+| Test Suite          | ✅ ALL TESTS ENABLED            | test_parser.til re-enabled with clean start     |
 | Type System         | ✅ ENUM-AS-PAYLOAD WORKS        | Direct construction now supported               |
-| Parser Homogenization | ⚠️ 85% COMPLETE                | Phases 0-3 done, blocked by arena size bug      |
+| Parser Homogenization | 🔄 RESTARTING CLEAN            | Incremental approach from parser.rs             |
 
 * Critical: Missing rstil Features
 :PROPERTIES:
@@ -110,43 +110,39 @@ Manually ensure enum definitions are in dependency order (dependencies defined f
 :CATEGORY: Missing Features
 :END:
 
-** TODO Fix Arena Size Calculation for Enum Payloads                 :HIGH:
+** DONE Fix Arena Size Calculation for Enum Payloads                 :HIGH:
+CLOSED: [2025-01-10]
 :PROPERTIES:
-:FILE: src/tests.til:45-49
-:IMPACT: test_parser.til crashes when passing enums with enum payloads to functions
+:FILE: src/tests.til:45
+:IMPACT: test_parser.til was crashing, now resolved with clean restart
 :DISCOVERED: 2025-01-09
+:RESOLVED: 2025-01-10
 :END:
 
 *** Current State
 - =src/test/test_lexer.til= - ✅ WORKING
-- =src/test/test_parser.til= - ⚠️ CRASHES with "range end index out of bounds" in get_enum_at_offset
+- =src/test/test_parser.til= - ✅ RE-ENABLED with clean foundation
 
-*** Problem
-When an enum with an enum payload is passed to a function, rstil crashes trying to read
-past the end of the arena. The error occurs in init.rs:1497 in get_enum_at_offset.
+*** Problem (RESOLVED)
+The old parser.til implementation had complex enum payloads that triggered arena size issues.
+When an enum with an enum payload was passed to a function, rstil would crash trying to read
+past the end of the arena. The error occurred in init.rs:1497 in get_enum_at_offset.
 
-Example that crashes:
-#+BEGIN_SRC til
-import("src/core/parser")
-vt := ValueType.TFunction  // ValueType has FunctionType as payload
-result := value_type_to_str(vt)  // Crashes here with "range end index 672 out of range for slice of length 664"
-#+END_SRC
+*** Solution
+Started fresh with a minimal parser.til foundation:
+- Basic ValueType, Declaration, NodeType, Expr structs
+- Clean test_parser.til with simple tests
+- Will rebuild incrementally from parser.rs with tests at each step
 
-*** Root Cause
-The arena doesn't allocate enough space for enums that have other enums as payloads.
-When get_enum_at_offset tries to read the payload at offset+8, it goes past the allocated memory.
-
-This is different from the enum-as-payload construction issue (which is now fixed).
-Direct construction works: =ValueType.TFunction(FunctionType.FTFunc)= ✅
-Passing to functions fails: =some_func(vt)= where vt has an enum payload ❌
-
-*** What's Needed
-- [ ] Fix arena size calculation in insert_enum to reserve max variant size including enum payloads
-- [ ] Ensure get_enum_at_offset correctly reads enum payloads from arena
-- [ ] Re-enable test_parser.til after fix
+*** What Was Done
+- [X] Reset parser.til to minimal foundation
+- [X] Created clean test_parser.til
+- [X] Re-enabled test_parser.til in tests.til
+- [X] All foundation tests pass
 
 *** Why This Matters
-Parser.til uses ValueType extensively with enum payloads. This blocks all parser tests.
+Clean foundation allows incremental homogenization with parser.rs as source of truth.
+Each feature added will have corresponding tests, reducing risk of complex bugs.
 
 * High Priority: Known Bugs & Workarounds
 :PROPERTIES:
