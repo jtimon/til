@@ -26,14 +26,61 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 :CATEGORY: Missing Features
 :END:
 
-** TODO Fix Str handling in catch blocks                                  :HIGH:
+** DONE Fix Str handling in catch blocks                                  :HIGH:
+CLOSED: [2025-01-10]
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
+:FIXED: 2025-01-10
 :IMPACT: Blocks error handling in catch blocks
 :RELATED: Error handling, String types
 :END:
 
+Fixed in interpreter.rs lines 1359-1363. When catching Str with no arena_index, now calls insert_string() to create proper Str struct.
+
+** BUG Method return causes early return from caller                      :CRITICAL:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Cannot use methods that return values
+:RELATED: Methods, Return statements
+:STATUS: DOCUMENTED
+:END:
+
 *** Problem
+When a method returns a value, it causes the CALLING function to return instead of just the method.
+
+Example:
+#+BEGIN_SRC til
+Lexer := struct {
+    expect := func(mut self: Lexer, expected: TokenType) returns Token {
+        // ... code that returns a Token
+        return token
+    }
+}
+
+parse_func := func(mut lexer: Lexer) {
+    println("Before expect")
+    lexer.expect(TokenType.LeftParen)  // This line causes parse_func to return!
+    println("After expect")  // This line never executes
+}
+#+END_SRC
+
+*** Workaround
+Use standalone functions instead of methods:
+#+BEGIN_SRC til
+lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token {
+    // Same implementation
+}
+
+// Call as: lexer_expect(lexer, TokenType.LeftParen)
+// Instead of: lexer.expect(TokenType.LeftParen)
+#+END_SRC
+
+*** Impact
+- Cannot use Lexer.expect() method in parser.til
+- Must use standalone lexer_expect() function
+- Affects any method that needs to return a value
+
+*** Old Problem (NOW FIXED)
 When catching `err: Str` in a catch block, accessing the error value causes a runtime error:
 "missing field 'err.c_string'"
 
