@@ -192,21 +192,6 @@ Expr := struct {
     }
 }
 
-// Helper to format token location string
-token_loc := func(t: Token) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-    line_val := t.line
-    col_val := t.col
-    line_str := line_val.to_str()
-    col_str := col_val.to_str()
-    return format(line_str, ":", col_str)
-}
-
-// Helper to format token error message
-token_error := func(t: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-    loc_str := token_loc(t)
-    return format(loc_str, ": ", msg)
-}
-
 is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
@@ -412,7 +397,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, Alloc
     case TokenType.True:
         node_type = NodeType.LLiteral(Literal.Bool(t.token_str))
     case:
-        throw token_error(t, format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
     }
 
     e := Expr.new_parse(node_type, t, params)
@@ -440,11 +425,11 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
                 expect_comma = false
                 list_t = lexer.peek()
             } else {
-                throw token_error(list_t, "Unexpected ','.")
+                throw list_t.error("Unexpected ','.")
             }
         case:
             if expect_comma {
-                throw token_error(list_t, format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
+                throw list_t.error(format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
             }
             expect_comma = true
             prim := parse_primary(lexer)
@@ -460,7 +445,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
     case:
-        throw token_error(list_t, "Expected closing parentheses.")
+        throw list_t.error("Expected closing parentheses.")
     }
 }
 
@@ -490,15 +475,15 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
         case TokenType.RightParen:
             rightparent_found = true
             if expect_colon {
-                throw token_error(t, format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
             }
             lexer.advance(1)
         case TokenType.Comma:
             if expect_colon {
-                throw token_error(t, format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
             }
             if expect_name {
-                throw token_error(t, "Expected arg name before ','.")
+                throw t.error("Expected arg name before ','.")
             }
             if expect_comma {
                 expect_comma = false
@@ -508,7 +493,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
                 _ := lexer_expect(lexer, TokenType.Comma)
                 t = lexer.peek()
             } else {
-                throw token_error(t, "Unexpected ','.")
+                throw t.error("Unexpected ','.")
             }
         case TokenType.Colon:
             if expect_colon {
@@ -524,30 +509,30 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
                 case TokenType.DoubleDot:
                     // continue
                 case:
-                    throw token_error(t, format("Expected type after '", arg_name, ":', but found '", t.token_str, "'."))
+                    throw t.error(format("Expected type after '", arg_name, ":', but found '", t.token_str, "'."))
                 }
             } else {
-                throw token_error(t, "Unexpected ':'.")
+                throw t.error("Unexpected ':'.")
             }
         case TokenType.DoubleDot:
             if expect_colon {
-                throw token_error(t, format("Expected ': Type' after arg name '", arg_name, "', but found '..'."))
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '..'."))
             }
             if expect_comma {
-                throw token_error(t, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             if expect_name {
-                throw token_error(t, format("Expected arg name, found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(format("Expected arg name, found '", token_type_to_str(t.token_type), "'."))
             }
             is_variadic = true
             lexer.advance(1)
             t = lexer.peek()
         case TokenType.Identifier:
             if expect_colon {
-                throw token_error(t, format("Expected ': Type' after arg name '", arg_name, "', but found '", t.token_str, "'."))
+                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '", t.token_str, "'."))
             }
             if expect_comma {
-                throw token_error(t, format("Expected ',', found identifier '", t.token_str, "'."))
+                throw t.error(format("Expected ',', found identifier '", t.token_str, "'."))
             }
             if expect_name {
                 arg_name = t.token_str
@@ -571,13 +556,13 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
             t = lexer.peek()
         case TokenType.Mut:
             if not(expect_name) {
-                throw token_error(t, "Unexpected 'mut' in argument list.")
+                throw t.error("Unexpected 'mut' in argument list.")
             }
             is_mut = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw token_error(t, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc args."))
+            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc args."))
         }
     }
 
@@ -586,7 +571,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
     case TokenType.RightParen:
         return args
     case:
-        throw token_error(t, "Expected closing parentheses.")
+        throw t.error("Expected closing parentheses.")
     }
 }
 
@@ -623,25 +608,25 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError
                 expect_comma = false
                 t = lexer.peek()
             } else {
-                throw token_error(t, "Unexpected ','.")
+                throw t.error("Unexpected ','.")
             }
         case TokenType.Identifier:
             if expect_comma {
-                throw token_error(t, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw token_error(t, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
+            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
         }
     }
 
     if end_found {
         return return_types
     } else {
-        throw token_error(t, "Expected '{{' or 'throws' after return values.")
+        throw t.error("Expected '{{' or 'throws' after return values.")
     }
 }
 
@@ -675,25 +660,25 @@ func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, AllocError,
                 lexer.advance(1)
                 t = lexer.peek()
             } else {
-                throw token_error(t, "Unexpected ','.")
+                throw t.error("Unexpected ','.")
             }
         case TokenType.Identifier:
             if expect_comma {
-                throw token_error(t, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw token_error(t, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc throws."))
+            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc throws."))
         }
     }
 
     if end_found {
         return return_types
     } else {
-        throw token_error(t, "Expected '{{' after throw values.")
+        throw t.error("Expected '{{' after throw values.")
     }
 }
 
@@ -701,14 +686,14 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     lexer.advance(1)
     t := lexer.peek()
     if lexer.is_eof(1) {
-        throw token_error(t, "expected '(' after 'func' or 'proc', found EOF.")
+        throw t.error("expected '(' after 'func' or 'proc', found EOF.")
     }
     tt := t.token_type
     switch tt {
     case TokenType.LeftParen:
         // Continue
     case:
-        throw token_error(t, format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
     }
     args := parse_func_proc_args(lexer)
     return_types := func_proc_returns(lexer)
@@ -744,7 +729,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     case TokenType.LeftBrace:
         // Continue
     case:
-        throw token_error(t, "Expected '{{' after 'enum'.")
+        throw t.error("Expected '{{' after 'enum'.")
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
@@ -774,7 +759,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                     enum_map.set(enum_val_name, str_to_value_type(enum_val_type))
                     lexer.advance(2)
                 case:
-                    throw token_error(next2_t, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
+                    throw next2_t.error(format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
             case TokenType.Comma:
                 enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
@@ -783,17 +768,17 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                 enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
                 end_found = true
             case:
-                throw token_error(next_t, format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
+                throw next_t.error(format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
             }
         case TokenType.Comma:
             // Skip comma
         case:
-            throw token_error(it_t, "Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'.")
+            throw it_t.error("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'.")
         }
         lexer.advance(1)
     }
     if not(end_found) {
-        throw token_error(t, "Expected '}}' to end enum.")
+        throw t.error("Expected '}}' to end enum.")
     }
     params := Array.new_dyn("Expr", size_of(Expr))
     mut enum_def := SEnumDef()
@@ -810,7 +795,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     case TokenType.LeftBrace:
         // Continue parsing struct
     case:
-        throw token_error(t, "Expected '{{' after 'struct'.")
+        throw t.error("Expected '{{' after 'struct'.")
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
@@ -838,10 +823,10 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
                 default_values.insert(decl.name, val)
             } else {
                 // TODO allow not setting default values in struct members
-                throw token_error(t, "all declarations inside struct definitions must have a value for now")
+                throw t.error("all declarations inside struct definitions must have a value for now")
             }
         } else {
-            throw token_error(t, "expected only declarations inside struct definition")
+            throw t.error("expected only declarations inside struct definition")
         }
         i = i.add(1)
     }
@@ -870,12 +855,12 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
             case TokenType.Identifier:
                 current_identifier = next2_t.token_str
                 lexer.advance(2)
-                empty_params := empty_expr_array()
+                empty_params := Array.new_dyn("Expr", size_of(Expr))
                 ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier), t, empty_params)
                 params.push(ident_expr)
                 next_t = lexer.next()
             case:
-                throw token_error(next2_t, format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
+                throw next2_t.error(format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
             }
         case:
             continue_dot_loop = false
@@ -931,7 +916,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                         throw format(next_peek.line.to_str(), ":", next_peek.col.to_str(), ": Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'")
                     }
                 case:
-                    throw token_error(method_t, "Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
+                    throw method_t.error("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
                 }
             case:
                 continue_loop = false
@@ -944,7 +929,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
 
                 // Create a new FCall with the method name as identifier and previous result as first arg
                 // This represents: method_name(result, args...)
-                empty_params := empty_expr_array()
+                empty_params := Array.new_dyn("Expr", size_of(Expr))
                 method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, empty_params)
                 mut new_params := Array.new_dyn("Expr", size_of(Expr))
                 new_params.push(method_id)
@@ -1043,10 +1028,10 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
         case TokenType.Equal:
             return parse_declaration(lexer, false, INFER_TYPE)
         case:
-            throw token_error(t, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+            throw t.error(format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
     case:
-        throw token_error(t, format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))
+        throw t.error(format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))
     }
 }
 
@@ -1077,7 +1062,7 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Ful
     case TokenType.Identifier:
         return parse_primary_identifier(lexer)
     case:
-        throw token_error(t, format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
     }
 }
 
@@ -1152,14 +1137,14 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     // Parse the error variable name
     name_token := lexer_expect(lexer, TokenType.Identifier)
     name := name_token.token_str
-    empty_params := empty_expr_array()
+    empty_params := Array.new_dyn("Expr", size_of(Expr))
     name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, empty_params)
 
     _ := lexer_expect(lexer, TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer_expect(lexer, TokenType.Identifier)
-    empty_params2 := empty_expr_array()
+    empty_params2 := Array.new_dyn("Expr", size_of(Expr))
     type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, empty_params2)
 
     _ := lexer_expect(lexer, TokenType.RightParen) // expect ')'
@@ -1190,7 +1175,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw token_error(t, format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
     }
 
     body := parse_body(lexer, TokenType.RightBrace)
@@ -1212,7 +1197,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
             else_body := parse_body(lexer, TokenType.RightBrace)
             params.push(else_body)
         case:
-            throw token_error(t2, format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
+            throw t2.error(format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
         }
     case:
         // No else clause
@@ -1236,7 +1221,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw token_error(t, "Expected '{{' after condition in 'while' statement.")
+        throw t.error("Expected '{{' after condition in 'while' statement.")
     }
 
     body := parse_body(lexer, TokenType.RightBrace)
@@ -1260,7 +1245,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     range_expr := parse_case_expr(lexer)
     rent := range_expr.node_type
     if not(rent.eq(NodeType.Range)) {
-        throw token_error(ident_token, "Expected range expression (start..end) after 'in'")
+        throw ident_token.error("Expected range expression (start..end) after 'in'")
     }
     start_expr := range_expr.get(0)
     end_expr := range_expr.get(1)
@@ -1280,7 +1265,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     // while <loop_var> < <end_expr> {
     // Create: loop_var.lt(end_expr)
     mut lt_ident_params := Array.new_dyn("Expr", size_of(Expr))
-    empty_params := empty_expr_array()
+    empty_params := Array.new_dyn("Expr", size_of(Expr))
     lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token, empty_params)
     lt_ident_params.push(lt_expr)
     loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, lt_ident_params)
@@ -1292,7 +1277,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 
     // Create: loop_var.inc()
     mut inc_ident_params := Array.new_dyn("Expr", size_of(Expr))
-    empty_params2 := empty_expr_array()
+    empty_params2 := Array.new_dyn("Expr", size_of(Expr))
     inc_expr := Expr.new_parse(NodeType.Identifier("inc"), initial_token, empty_params2)
     inc_ident_params.push(inc_expr)
     mut inc_params := Array.new_dyn("Expr", size_of(Expr))
@@ -1405,7 +1390,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw token_error(t, "Expected '{{' after primary expression in 'switch' statement.")
+        throw t.error("Expected '{{' after primary expression in 'switch' statement.")
     }
 
     mut end_found := false
@@ -1421,7 +1406,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         case TokenType.Case:
             // Continue parsing case
         case:
-            throw token_error(next_t, format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
+            throw next_t.error(format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
         lexer.advance(1)
@@ -1429,7 +1414,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         ntt2 := next_t.token_type
         switch ntt2 {
         case TokenType.Colon:
-            empty_params := empty_expr_array()
+            empty_params := Array.new_dyn("Expr", size_of(Expr))
             default_case_expr := Expr.new_parse(NodeType.DefaultCase, t, empty_params)
             params.push(default_case_expr)
         case:
@@ -1443,7 +1428,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         case TokenType.Colon:
             // Continue parsing case body
         case:
-            throw token_error(next_t, format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
+            throw next_t.error(format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
         lexer.advance(1)
@@ -1488,7 +1473,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.Switch, initial_token, params)
     }
-    throw token_error(t, "Expected '}}' to end switch.")
+    throw t.error("Expected '}}' to end switch.")
 }
 
 parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
@@ -1540,13 +1525,13 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
             case TokenType.Equal:
                 return parse_declaration(lexer, true, INFER_TYPE)
             case:
-                throw token_error(t, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+                throw t.error(format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }
         case:
-            throw token_error(t, format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
+            throw t.error(format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
         }
     case:
-        throw token_error(t, format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
+        throw t.error(format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
     }
 }
 
@@ -1577,7 +1562,7 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
         lexer.advance(1) // Skip LeftBrace
         return parse_body(lexer, TokenType.RightBrace)
     case:
-        throw token_error(t, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
+        throw t.error(format("Expected statement, found ", token_type_to_str(t.token_type), "."))
     }
 }
 
@@ -1627,7 +1612,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.Body, initial_token, params)
     }
-    throw token_error(t, format("Expected '", token_type_to_str(end_token), "' to end body."))
+    throw t.error(format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
 parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
