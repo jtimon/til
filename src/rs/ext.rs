@@ -1,9 +1,9 @@
 // External/Core functions for TIL interpreter
 // This module contains all built-in core functions and procedures.
 
-use crate::rs::init::{Context, SymbolInfo};
+use crate::rs::init::Context;
 use crate::rs::parser::{
-    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration,
+    Expr, NodeType, Literal, ValueType, TTypeDef,
     value_type_to_str, get_combined_name,
 };
 use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
