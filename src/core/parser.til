@@ -164,12 +164,10 @@ value_type_to_str := func(arg_type: ValueType) returns Str {
         return "proc"
     case ValueType.TFunction(FunctionType.FTMacro):
         return "macro"
-    case ValueType.TMulti:
-        // TODO: need to extract string payload
-        return "multi"
-    case ValueType.TCustom:
-        // TODO: need to extract string payload
-        return "custom"
+    case ValueType.TMulti(payload):
+        return payload
+    case ValueType.TCustom(payload):
+        return payload
     case:
         return "unknown"
     }
@@ -719,12 +717,19 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     while i.lt(body.params.len()) {
         p := body.params.get(i)
         nt := p.node_type
-        switch nt {
-        case NodeType.Declaration:
-            // Extract Declaration from payload - TODO: need rsonly_enum_extract_payload
-            // For now, this is a stub
-            throw "parse_struct_definition: Declaration extraction not yet implemented"
-        case:
+        if nt.tag().eq(NodeType.Declaration(Declaration.new("", ValueType.TCustom(""), false)).tag()) {
+            // Extract Declaration from payload
+            decl := rsonly_enum_extract_payload(nt)
+            members.push(decl)
+
+            if p.params.len().eq(1) {
+                val := p.params.get(0)
+                default_values.insert(decl.name, val)
+            } else {
+                // TODO allow not setting default values in struct members
+                throw format(t.line.to_str(), ":", t.col.to_str(), ": all declarations inside struct definitions must have a value for now")
+            }
+        } else {
             throw format(t.line.to_str(), ":", t.col.to_str(), ": expected only declarations inside struct definition")
         }
         i = i.add(1)
@@ -1471,34 +1476,3 @@ parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
 
     return e
 }
-
-// Translation from parser.rs complete up to line 1408 (parse_tokens)
-// This completes the parser translation!
-//
-// What's translated:
-// - All data structures (lines 7-231)
-// - Expr constructors: expr_new_parse, expr_new_explicit, expr_new_clone (109-129)
-// - is_literal (174-181)
-// - value_type_to_str (197-209) - TODO: extract TMulti/TCustom string payloads
-// - str_to_value_type (211-220)
-// - ModeDef, can_be_imported, mode_from_name, parse_mode (222-322)
-// - parse_literal (324-341)
-// - parse_list (343-386)
-// - parse_assignment (388-393)
-// - parse_func_proc_args (395-512)
-// - func_proc_returns (514-558)
-// - func_proc_throws (561-604)
-// - parse_func_proc_definition (606-641) - NOTE: "returns" renamed to "return_types" (keyword conflict)
-// - enum_definition (643-706) - NOTE: None represented as ValueType.TCustom("")
-// - parse_struct_definition (708-747) - TODO: needs rsonly_enum_extract_payload for Declaration
-//
-// Missing from lines 1-747:
-// - Expr methods: get, exit_error, lang_error, todo_error, error (131-172)
-//   (Complex format calls, will add when needed)
-// - parse_body (stub, will be translated later)
-// - parse_primary (stub, will be translated later)
-//
-// TIL-specific changes to port back to Rust:
-// - Variable "returns" renamed to "return_types" in parse_func_proc_definition (TIL keyword conflict)
-//
-// Next to translate: parse_primary_identifier (line 749)
