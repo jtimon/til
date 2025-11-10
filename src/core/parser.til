@@ -148,6 +148,33 @@ is_literal := func(t: Token) returns Bool {
     }
 }
 
+value_type_to_str := func(arg_type: ValueType) returns Str {
+    switch arg_type {
+    case ValueType.TType(TTypeDef.TEnumDef):
+        return "enum"
+    case ValueType.TType(TTypeDef.TStructDef):
+        return "struct"
+    case ValueType.TFunction(FunctionType.FTFunc):
+        return "func"
+    case ValueType.TFunction(FunctionType.FTFuncExt):
+        return "func"
+    case ValueType.TFunction(FunctionType.FTProc):
+        return "proc"
+    case ValueType.TFunction(FunctionType.FTProcExt):
+        return "proc"
+    case ValueType.TFunction(FunctionType.FTMacro):
+        return "macro"
+    case ValueType.TMulti:
+        // TODO: need to extract string payload
+        return "multi"
+    case ValueType.TCustom:
+        // TODO: need to extract string payload
+        return "custom"
+    case:
+        return "unknown"
+    }
+}
+
 str_to_value_type := func(arg_type: Str) returns ValueType {
     if arg_type.eq("func") {
         return ValueType.TFunction(FunctionType.FTFunc)
@@ -282,6 +309,18 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     return m
 }
 
-// Translation from parser.rs complete up to line 322
-// Next: parse_literal (line 324), parse_list (343), parse_assignment (388)
-// Blocked by: enum constructor with payload type checking issue
+// Translation from parser.rs complete up to line 322 (parse_mode)
+//
+// What's translated:
+// - All data structures (lines 7-231)
+// - Expr constructors: expr_new_parse, expr_new_explicit, expr_new_clone (109-129)
+// - is_literal (174-181)
+// - value_type_to_str (197-209) - TODO: extract TMulti/TCustom string payloads
+// - str_to_value_type (211-220)
+// - ModeDef, can_be_imported, mode_from_name, parse_mode (222-322)
+//
+// Missing from lines 1-322:
+// - Expr methods: get, exit_error, lang_error, todo_error, error (131-172)
+//   (Complex format calls, will add when needed)
+//
+// Next to translate: parse_literal (line 324)
