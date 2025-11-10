@@ -11,12 +11,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | Component   | TIL Lines | Rust Lines | Completion | Status                       |
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| parser      |       327 |      1,389 | ~23%       | 🔄 IN PROGRESS - Line 322   |
+| parser      |     1,479 |      1,408 | 100%       | ✅ TRANSLATION COMPLETE     |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
 | typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       585 |      2,485 | 24%        | ⏳ TOP-DOWN IN PROGRESS     |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     3,252 |      7,437 | *44%*      | Parser: Lines 1-322 ✅      |
+| *TOTAL*     |     4,404 |      7,456 | *59%*      | Lexer & Parser Complete ✅  |
 
 * Architecture & Call Hierarchy
 
@@ -142,153 +142,37 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - [ ] Consider string escape switch in Rust (TIL lines 394-415)
 
 ** Parser (parser.til vs src/rs/parser.rs)
-*** Status: 🔄 CLEAN RESTART - INCREMENTAL APPROACH (2025-01-10)
+*** Status: ✅ TRANSLATION COMPLETE (2025-01-10)
+*** Homologization Status: COMPLETE ✅
 
-*IMPORTANT:* parser.rs is the **source of truth**. Starting fresh with incremental copying.
+*Translation Completed:* 100% of parser.rs (1,408 lines) translated to parser.til (1,479 lines)
 
-*New Approach (2025-01-10):*
-Previous implementation (1,750+ lines) had grown complex with workarounds and type errors.
-**Restarting clean** with incremental copying from parser.rs:
-1. Add one feature at a time from parser.rs
-2. Write test immediately in test_parser.til
-3. Run `make` to verify
-4. Commit if passing
-5. Repeat
+*TIL Implementation (1,479 lines):*
+- ✅ All data structures (ValueType, Declaration, NodeType, Expr, etc.)
+- ✅ All parse functions (parse_primary, parse_statement, parse_body, etc.)
+- ✅ Mode system (ModeDef, parse_mode, can_be_imported)
+- ✅ Function/proc/macro parsing with full type annotations
+- ✅ Enum and struct definition parsing
+- ✅ Control flow parsing (if/while/for/switch/catch)
+- ✅ Pattern matching and case expressions
+- ✅ Full expression parsing with method chaining
+- ✅ Public API: parse_tokens() entry point
+- ✅ All TODOs resolved
+- ✅ All tests passing
 
-*Current TIL Implementation (50 lines) - PHASE 1 FOUNDATION:*
-- ✅ Basic ValueType enum (TFunction, TProc, TMacro, TType, TMulti, TCustom)
-- ✅ Declaration struct (name, value_type, is_mut)
-- ✅ NodeType enum (Body, Literal)
-- ✅ Expr struct (node_type, params, line, col)
-- ✅ Stub parse_tokens() that throws error
-- ✅ test_parser.til with 3 foundation tests
-- ✅ All tests pass
+*Key Translation Patterns:*
+- Used `catch (err: Type)` syntax instead of Rust's try/catch
+- Converted nested loops with manual continue flags
+- Used `.to_str()` for I64 conversions
+- Used `not()` function instead of `!` operator  
+- Renamed "returns"/"throws" variables to "return_types"/"throw_types" (keyword conflicts)
 
-*Rust Implementation (1,389 lines) - SOURCE OF TRUTH:*
-- ✅ Uses strongly-typed =HashMap<String, Option<ValueType>>=
-- ✅ Uses =Vec<Declaration>=, =Vec<ValueType>= for proper type safety
-- ✅ Full type-correct representation with enum payloads
-- ✅ This is what parser.til will incrementally match
+*Translation Timeline (2025-01-10):*
+- Lines 1-747: Data structures, mode system, and basic parsing functions
+- Lines 749-1408: Control flow, statements, and parse_tokens entry point
+- All TODOs resolved (value_type_to_str payloads, struct Declaration extraction)
+- Documentation cleaned up
 
-*Critical Missing Infrastructure (PHASE 0 - NEW):*
-
-0. **Mode System** - COMPLETELY MISSING FROM TIL
-   - Rust lines 222-322: ModeDef struct + 4 functions
-   - TIL: None of this exists
-   - Missing: =ModeDef= struct, =parse_mode()=, =mode_from_name()=, =can_be_imported()=
-   - Impact: BLOCKER - Cannot parse mode declarations at all
-   - Priority: CRITICAL - Must be added before any other work
-
-1. **Public Parser Entry Point** - MISSING FROM TIL
-   - Rust lines 1377-1402: =parse_tokens()= function
-   - TIL: No equivalent public API
-   - Impact: BLOCKER - No way to invoke parser from external code
-   - Priority: CRITICAL - Required for parser to be usable
-
-2. **Return/Throw Type Parsing Functions** - NOT EXTRACTED IN TIL
-   - Rust lines 514-604: Dedicated =func_proc_returns()= and =func_proc_throws()= functions
-   - TIL lines 1000-1093: Logic inlined in =parse_func_proc_definition=
-   - Impact: Code duplication, doesn't return properly typed arrays
-   - Priority: HIGH - Required for proper SFuncDef population
-
-*Critical Data Structure Divergences (EXISTING PLAN):*
-
-3. **SStructDef struct** - MUST REVERT TIL
-   - TIL (WRONG): =Map= (string→string) + parallel =Arrays=
-   - Rust (CORRECT): =Vec<(String, Declaration)>= + =HashMap<String, Expr>=
-   - Fix: Revert TIL to use arrays/maps that mirror Rust's Vec/HashMap
-
-4. **SFuncDef struct** - MUST REVERT TIL
-   - TIL (WRONG): =Map= for args (string→string), generic =Array=
-   - Rust (CORRECT): =Vec<Declaration>=, =Vec<ValueType>=
-   - Fix: Store full Declaration/ValueType info in TIL
-
-5. **SEnumDef struct** - MUST FIX TIL
-   - TIL (WRONG): Stores payload types as strings
-   - Rust (CORRECT): =HashMap<String, Option<ValueType>>=
-   - Fix: TIL needs to store ValueType enums, not strings
-
-6. **parse_func_proc_args** - MUST IMPLEMENT IN TIL
-   - TIL (INCOMPLETE): Only validates, doesn't return data
-   - Rust (CORRECT): Returns =Vec<Declaration>=
-   - Fix: TIL must build and return Declaration array
-
-7. **parse_func_proc_definition** - MUST COMPLETE IN TIL
-   - TIL (INCOMPLETE): Creates stub =SFuncDef= with empty data
-   - Rust (CORRECT): Fully populates =SFuncDef= with args/returns/throws
-   - Fix: TIL must populate all SFuncDef fields
-
-8. **ValueType enum** - MUST ADD PAYLOADS IN TIL
-   - TIL (INCOMPLETE): Simple variants, missing payloads
-   - Rust (CORRECT): =TFunction(FunctionType)=, =TType(TTypeDef)=
-   - Fix: TIL enum variants must carry same payload data
-
-*What Currently Works (Despite Divergence):*
-- ✅ Both produce valid ASTs for all test cases
-- ✅ All test suite passes (src/tests.til)
-- ✅ Pattern matching, switch statements work
-- ✅ External function/procedure parsing works
-- ✅ Tests pass because later stages compensate for incomplete parsing
-
-*Root Cause:*
-During recent Map implementation work, parser.til was updated to use the new
-generic Map class (replacing StrMap), but the structure wasn't kept aligned
-with parser.rs. The Map changes went beyond simple StrMap replacement and
-simplified the data structures in a way that broke homogenization.
-
-*Completed Work (2025-01-09):*
-
-**PHASE 0 - Critical Infrastructure (COMPLETED):**
-- ✅ Added Mode system (ModeDef struct, parse_mode, mode_from_name, can_be_imported)
-- ✅ Added parse_tokens() public entry point
-- ✅ Extracted func_proc_returns() and func_proc_throws() as separate functions
-- ✅ Renamed field names in Rust to match TIL (mode_def, m variables)
-
-**PHASE 1 - Data Structure Definitions (COMPLETED):**
-- ✅ ValueType: Added payloads (TFunction: FunctionType, TType: TTypeDef, TCustom/TMulti: Str)
-- ✅ Declaration: Changed value_type from Str to ValueType
-- ✅ OptionValueType: Added as workaround for Option<ValueType>
-- ✅ SEnumDef: Changed enum_map to Map<Str, OptionValueType>
-- ✅ SStructDef: Added StructMember helper, changed to Array of StructMember + Map for defaults
-- ✅ SFuncDef: Changed args to Array of Declaration, return_types/throw_types to Array of ValueType
-- ✅ Renamed Rust fields: returns → return_types, throws → throw_types (keyword conflicts)
-
-**PHASE 2 - Helper Functions (COMPLETED):**
-- ✅ str_to_value_type: Now creates proper ValueType variants (func/proc/macro/enum/struct)
-- ✅ value_type_to_str: Now extracts and converts ValueType payloads to strings
-
-**PHASE 3 - Parse Functions (COMPLETED):**
-- ✅ func_proc_returns/throws: Now return Array of ValueType
-- ✅ parse_func_proc_args: Now returns Array of Declaration
-- ✅ parse_func_proc_definition: Populates all SFuncDef fields
-- ✅ enum_definition: Stores OptionValueType in enum_map
-- ✅ parse_struct_definition: Creates Array of StructMember
-
-**Test Status:**
-- ✅ All tests pass (except test_parser.til)
-- ⚠️  test_parser.til temporarily disabled - requires init.rs updates to handle new data structures
-- This is expected: parser homogenization is prerequisite for init homogenization
-
-*Next Steps (UPDATED PRIORITY - 2025-01-09):*
-1. **PHASE 4**: Cleanup & documentation (~4 hours)
-   - Remove old bug workarounds, align comments
-2. **PHASE 5**: Validation & testing (~8 hours)
-   - Structural comparison, edge cases, full test suite
-
-***Actual Time Spent: ~25 hours (Phases 0-3)***
-***Remaining Time: ~12 hours (Phases 4-5)***
-
-*** Homogenization Status
-- [X] Bug #6 FIXED (2025-01-09) - Enum payloads now reserve max variant size
-- [X] test_parser.til re-enabled with 13/18 tests passing (2025-01-09)
-- [X] Divergence discovered during analysis (2025-11-09)
-- [X] Comprehensive comparison completed (2025-01-09)
-- [X] Updated homogenization plan with Phase 0 (2025-01-09)
-- [X] COMPLETED (2025-01-09): Phase 0 - Add missing infrastructure
-- [X] COMPLETED (2025-01-09): Phases 1-3 - Data structures and parse functions
-- [ ] NEXT: Execute Phases 4-5 - Cleanup and validation
-- [ ] Validate homogenization with structural comparison
-- [ ] Mark parser homogenization complete
 
 ** Init (init.til vs src/rs/init.rs)
 *** Status: 70% COMPLETE - TOP-DOWN IN PROGRESS ⏳ (2025-01-09)
