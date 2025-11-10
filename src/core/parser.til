@@ -261,3 +261,7 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
     return m
 }
+
+// Translation from parser.rs complete up to line 322
+// Next: parse_literal (line 324), parse_list (343), parse_assignment (388)
+// Blocked by: enum constructor with payload type checking issue
