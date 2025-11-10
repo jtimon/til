@@ -309,7 +309,85 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     return m
 }
 
-// Translation from parser.rs complete up to line 322 (parse_mode)
+parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, FullError {
+    params := Array()
+    tt := t.token_type
+    node_type := NodeType.Body  // Default, will be overwritten
+
+    switch tt {
+    case TokenType.String:
+        node_type = NodeType.LLiteral(Literal.Str(t.token_str))
+    case TokenType.Number:
+        // TODO: parse and validate number
+        node_type = NodeType.LLiteral(Literal.Number(t.token_str))
+    case TokenType.True:
+        node_type = NodeType.LLiteral(Literal.Bool(t.token_str))
+    case:
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'.")
+    }
+
+    e := expr_new_parse(node_type, t, params)
+    lexer_advance(lexer, 1)
+    return e
+}
+
+parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError, AllocError, FullError, IndexOutOfBoundsError {
+    mut rightparent_found := false
+    mut params := Array()
+    initial_current := lexer.current
+    lexer_expect(lexer, TokenType.LeftParen)
+    mut list_t := lexer.peek()
+    mut expect_comma := false
+
+    while not(lexer_is_eof(lexer, 0)).and(not(rightparent_found)) {
+        lt := list_t.token_type
+        switch lt {
+        case TokenType.RightParen:
+            lexer_expect(lexer, TokenType.RightParen)
+            rightparent_found = true
+        case TokenType.Comma:
+            if expect_comma {
+                lexer_expect(lexer, TokenType.Comma)
+                expect_comma = false
+                list_t = lexer.peek()
+            } else {
+                throw format(list_t.line.to_str(), ":", list_t.col.to_str(), ": Unexpected ','.")
+            }
+        case:
+            if expect_comma {
+                throw format(list_t.line.to_str(), ":", list_t.col.to_str(), ": Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'.")
+            }
+            expect_comma = true
+            prim := parse_primary(lexer)
+            params.push(prim)
+            list_t = lexer.peek()
+        }
+    }
+
+    lt := list_t.token_type
+    switch lt {
+    case TokenType.RightParen:
+        // TODO properly parse lists besides function definition arguments
+        initial_token := lexer_get_token(lexer, initial_current)
+        return expr_new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
+    case:
+        throw format(list_t.line.to_str(), ":", list_t.col.to_str(), ": Expected closing parentheses.")
+    }
+}
+
+parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    lexer_expect(lexer, TokenType.Equal)
+    mut params := Array()
+    params.push(parse_primary(lexer))
+    return expr_new_parse(NodeType.Assignment(name), t, params)
+}
+
+// Stub for parse_primary - will be translated later
+parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    throw "parse_primary not yet implemented"
+}
+
+// Translation from parser.rs complete up to line 394 (parse_assignment)
 //
 // What's translated:
 // - All data structures (lines 7-231)
@@ -318,9 +396,13 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
 // - value_type_to_str (197-209) - TODO: extract TMulti/TCustom string payloads
 // - str_to_value_type (211-220)
 // - ModeDef, can_be_imported, mode_from_name, parse_mode (222-322)
+// - parse_literal (324-341)
+// - parse_list (343-386)
+// - parse_assignment (388-393)
 //
-// Missing from lines 1-322:
+// Missing from lines 1-394:
 // - Expr methods: get, exit_error, lang_error, todo_error, error (131-172)
 //   (Complex format calls, will add when needed)
+// - parse_primary (referenced but not yet translated)
 //
-// Next to translate: parse_literal (line 324)
+// Next to translate: parse_func_proc_args (line 395)
