@@ -1,0 +1,20 @@
+mode test
+
+// The exact example from todo_pre.org that was supposed to fail
+ValueType := enum {
+    TFunction: FunctionType,  // Forward reference - FunctionType not defined yet
+    TCustom: Str,
+}
+
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+}
+
+// Test usage
+test_original_case := proc() {
+    vt := ValueType.TFunction(FunctionType.FTFunc)
+    println("Original example works!")
+}
+
+test_original_case()

@@ -1,0 +1,151 @@
+mode test
+
+// Test 1: Enum with forward reference to another enum (should error)
+ValueType1 := enum {
+    TFunction: FunctionType1,
+    TCustom: Str,
+}
+
+FunctionType1 := enum {
+    FTFunc,
+    FTProc,
+}
+
+// Test 2: Enum with forward reference to struct (should error)
+Result1 := enum {
+    Ok: SuccessData1,
+    Err: Str,
+}
+
+SuccessData1 := struct {
+    mut value: I64 = 0
+}
+
+// Test 3: Struct with forward reference to enum (should error)
+Container1 := struct {
+    mut status: Status1 = Status1.Ready
+}
+
+Status1 := enum {
+    Ready,
+    Processing,
+}
+
+// Test 4: Struct with forward reference to another struct (should error)
+Outer1 := struct {
+    mut inner: Inner1 = Inner1()
+}
+
+Inner1 := struct {
+    mut x: I64 = 0
+}
+
+// Test 5: VALID - Backward references (should work)
+FunctionType2 := enum {
+    FTFunc,
+    FTProc,
+}
+
+ValueType2 := enum {
+    TFunction: FunctionType2,
+    TCustom: Str,
+}
+
+// Test 6: Function forward references (should work - already supported)
+test_forward_func := proc() {
+    result := my_func()
+}
+
+my_func := func() returns I64 {
+    return 42
+}
+
+// Test 8: Function with forward-referenced enum return type
+func_returning_forward_enum := func() returns FunctionType3 {
+    return FunctionType3.FTFunc
+}
+
+FunctionType3 := enum {
+    FTFunc,
+    FTProc,
+}
+
+// Test 9: Function with forward-referenced struct parameter
+func_with_forward_struct_param := func(data: DataStruct1) returns I64 {
+    return data.value
+}
+
+DataStruct1 := struct {
+    mut value: I64 = 10
+}
+
+// Test 10: Struct method with forward-referenced return type
+MyStruct1 := struct {
+    mut x: I64 = 0
+
+    get_status := func(self: MyStruct1) returns ForwardStatus1 {
+        return ForwardStatus1.Active
+    }
+}
+
+ForwardStatus1 := enum {
+    Active,
+    Inactive,
+}
+
+// Test 7: Actually USE the forward-referenced enums
+test_forward_enum_usage := proc() {
+    // This should trigger the error since FunctionType1 was forward-referenced
+    vt1 := ValueType1.TFunction(FunctionType1.FTFunc)
+    println("Test 1 passed (unexpected!)")
+}
+
+test_forward_struct_in_enum := proc() {
+    // This should trigger error since SuccessData1 was forward-referenced
+    data := SuccessData1()
+    r1 := Result1.Ok(data)
+    println("Test 2 passed (unexpected!)")
+}
+
+test_forward_enum_in_struct := proc() {
+    // This should trigger error since Status1 was forward-referenced
+    c1 := Container1()
+    println("Test 3 passed (unexpected!)")
+}
+
+test_forward_struct_in_struct := proc() {
+    // This should trigger error since Inner1 was forward-referenced
+    o1 := Outer1()
+    println("Test 4 passed (unexpected!)")
+}
+
+// Test that valid backward references work
+test_backward_refs := proc() {
+    vt := ValueType2.TFunction(FunctionType2.FTFunc)
+    println("Test 5 (backward ref) passed - as expected")
+}
+
+test_forward_func_types := proc() {
+    // Test function with forward-referenced enum return
+    ft3 := func_returning_forward_enum()
+    println("Test 8 (func with forward enum return) passed")
+
+    // Test function with forward-referenced struct param
+    ds := DataStruct1()
+    val := func_with_forward_struct_param(ds)
+    println("Test 9 (func with forward struct param) passed")
+
+    // Test struct method with forward-referenced return
+    ms := MyStruct1()
+    status := ms.get_status()
+    println("Test 10 (method with forward return) passed")
+}
+
+// Run the tests
+println("Running forward reference tests...")
+test_forward_enum_usage()
+test_forward_struct_in_enum()
+test_forward_enum_in_struct()
+test_forward_struct_in_struct()
+test_backward_refs()
+test_forward_func_types()

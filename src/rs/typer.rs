@@ -19,19 +19,42 @@ enum ExprContext {
     ValueDiscarded,
 }
 
-fn check_enum_def(e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
+fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
         errors.push(e.exit_error("type", "in check_enum_def(): enum declarations don't have any parameters in the tree."));
         return errors
     }
 
-    for (_enum_val_name, enum_opt) in &enum_def.enum_map {
+    for (enum_val_name, enum_opt) in &enum_def.enum_map {
         match &enum_opt {
             None => {},
             Some(value_type) => {
                 match value_type {
-                    ValueType::TCustom(ref _custom_type_name) => {},
+                    ValueType::TCustom(ref custom_type_name) => {
+                        // Validate that the custom type exists
+                        if !context.symbols.contains_key(custom_type_name) {
+                            errors.push(e.error("type", &format!(
+                                "Enum variant '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this enum.",
+                                enum_val_name, custom_type_name, custom_type_name
+                            )));
+                        } else {
+                            // Validate it's actually a type (enum or struct), not a value
+                            let symbol_info = context.symbols.get(custom_type_name).unwrap();
+                            match &symbol_info.value_type {
+                                ValueType::TType(TTypeDef::TEnumDef) |
+                                ValueType::TType(TTypeDef::TStructDef) => {
+                                    // Valid type
+                                },
+                                _ => {
+                                    errors.push(e.error("type", &format!(
+                                        "Enum variant '{}' payload type '{}' is not a valid type (expected enum or struct, found {}).",
+                                        enum_val_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
+                                    )));
+                                }
+                            }
+                        }
+                    },
                     _ => {
                         errors.push(e.todo_error("type", &format!("'enum' does not support payloads of value type '{}' yet",
                                                                   value_type_to_str(&value_type))));
@@ -59,7 +82,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             }
         },
         NodeType::EnumDef(enum_def) => {
-            errors.extend(check_enum_def(&e, enum_def));
+            errors.extend(check_enum_def(context, &e, enum_def));
         },
         NodeType::StructDef(struct_def) => {
             errors.extend(check_struct_def(context, &e, struct_def));
@@ -1051,6 +1074,39 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
     }
 
     for (member_name, member_decl) in &struct_def.members {
+        // Validate that the member's declared type exists (if it's a custom type)
+        match &member_decl.value_type {
+            ValueType::TCustom(ref custom_type_name) => {
+                // Skip built-in types and special types
+                if custom_type_name != "Dynamic" && custom_type_name != INFER_TYPE {
+                    // Check if the type exists
+                    if !context.symbols.contains_key(custom_type_name) {
+                        errors.push(e.error("type", &format!(
+                            "Struct member '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this struct.",
+                            member_name, custom_type_name, custom_type_name
+                        )));
+                    } else {
+                        // Validate it's actually a type (enum or struct), not a value
+                        let symbol_info = context.symbols.get(custom_type_name).unwrap();
+                        match &symbol_info.value_type {
+                            ValueType::TType(TTypeDef::TEnumDef) |
+                            ValueType::TType(TTypeDef::TStructDef) |
+                            ValueType::TCustom(_) => {
+                                // Valid type (TCustom covers built-in types like I64, Str, etc.)
+                            },
+                            _ => {
+                                errors.push(e.error("type", &format!(
+                                    "Struct member '{}' type '{}' is not a valid type (expected enum, struct, or primitive, found {}).",
+                                    member_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
+                                )));
+                            }
+                        }
+                    }
+                }
+            },
+            _ => {} // Non-custom types (like functions) are handled elsewhere
+        }
+
         match struct_def.default_values.get(member_name) {
             Some(inner_e) => {
                 // println!("inner_e {:?}", inner_e);

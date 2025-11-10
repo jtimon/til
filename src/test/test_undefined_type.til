@@ -1,0 +1,12 @@
+mode test
+
+// This should error - NonExistentType is never defined
+BadEnum := enum {
+    Variant: NonExistentType,
+}
+
+test_undefined := proc() {
+    println("Should not reach here")
+}
+
+test_undefined()
