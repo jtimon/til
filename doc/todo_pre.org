@@ -23,20 +23,32 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
-** TODO Improve Forward Reference Error Messages                         :MEDIUM:
+No active TODOs at this time. All critical features for pre-self-hosting are complete.
+
+* Recently Completed
+
+** DONE Improve Forward Reference Error Messages                         :MEDIUM:
+CLOSED: [2025-11-10]
 :PROPERTIES:
 :DISCOVERED: 2025-01-09
+:FIXED: 2025-11-10
 :IMPACT: Developer experience, debugging
+:COMMIT: 7bfec12
 :END:
 
-*** Problem
-When an enum references another enum that hasn't been defined yet (forward reference),
-rstil gives an unclear error message at runtime instead of a clear parse-time error.
+*** Solution Implemented
+Forward declarations already worked! The real issue was that completely undefined types were silently accepted.
 
-Example:
+Added compile-time validation in typer.rs:
+- check_enum_def() now validates custom types exist in context
+- check_struct_def() now validates member types exist in context
+- Both check that types are actually enums/structs, not values
+
+*** Key Discovery
+The original example from the TODO already works:
 #+BEGIN_SRC til
 ValueType := enum {
-    TFunction: FunctionType,  // Forward reference - FunctionType not defined yet
+    TFunction: FunctionType,  // Forward reference - works!
 }
 
 FunctionType := enum {
@@ -45,20 +57,25 @@ FunctionType := enum {
 }
 #+END_SRC
 
-Current error (at runtime):
-: get_enum: 'FunctionType' is not a custom enum type
+Forward references work for:
+- Enum payloads (enum -> enum, enum -> struct)
+- Struct members (struct -> enum, struct -> struct)
+- Function parameters and return types
+- Struct method return types
 
-Better error (at parse time):
-: Forward reference: 'FunctionType' used in ValueType definition before being defined
-: Hint: Move FunctionType definition before ValueType
+*** Error Messages
+Now gives clear compile-time errors for truly undefined types:
+#+BEGIN_EXAMPLE
+src/test/test_undefined_type.til:4:12: type ERROR: Enum variant 'Variant' uses undefined type 'NonExistentType'.
+Hint: Make sure 'NonExistentType' is defined before this enum.
+#+END_EXAMPLE
 
-*** What's Needed
-- [ ] Add forward reference detection in parser.rs during enum definition parsing
-- [ ] Provide clear error message with line numbers and helpful suggestion
-- [ ] Document enum definition ordering requirements in language docs
-
-*** Workaround
-Manually ensure enum definitions are in dependency order (dependencies defined first).
+*** Test Coverage
+Added comprehensive tests:
+- forward_declarations.til: Tests all forward reference scenarios
+- test_undefined_type.til: Verifies undefined enum types error properly
+- test_undefined_struct_type.til: Verifies undefined struct member types error
+- test_original_forward_ref.til: Original example works as expected
 
 * References
 
