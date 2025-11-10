@@ -8,18 +8,23 @@ parse_source := proc(source: Str) {
     mut lexer := Lexer.new_from_src(source)
     ast := parse_tokens(lexer)
     catch (err: Str) {
+        println("Parse error in parse_source (cannot print error due to Str bug)")
         exit(1)
     }
     catch (err: AllocError) {
+        println("AllocError in parse_source")
         exit(1)
     }
     catch (err: FullError) {
+        println("FullError in parse_source")
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError in parse_source")
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("I64_OverflowError in parse_source")
         exit(1)
     }
 }
@@ -313,15 +318,17 @@ test_is_literal()
 test_parse_mode()
 test_parse_literal()
 test_parse_list()
+test_parse_declaration()
+test_parse_statement_identifier()
 // TODO: Debug memcpy error in parse_primary_identifier
 // test_parse_primary_identifier_fcall()
-// TODO: Debug why parse_declaration fails
-// test_parse_declaration()
-// test_parse_statement_identifier()
-// test_parse_statement()
-// test_parse_body()
+test_parse_statement()
+test_parse_body()
 
 // TODO: Re-enable after fixing runtime parsing issues in parser.til
+// NOTE: These tests fail due to Str handling bug in catch blocks (see todo_pre.org)
+// Cannot print error messages from parse_tokens() because println(err) where err: Str
+// causes "missing field 'err.c_string'" error
 // test_simple_expressions()
 // test_declarations()
 // test_functions()
