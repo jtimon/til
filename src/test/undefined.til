@@ -1,0 +1,17 @@
+mode test
+
+// Test 1: Enum with undefined payload type (should error)
+BadEnum := enum {
+    Variant: NonExistentType,
+}
+
+// Test 2: Struct with undefined member type (should error)
+BadStruct := struct {
+    mut status: UndefinedEnum = UndefinedEnum.Active
+}
+
+test_undefined := proc() {
+    println("Should not reach here - undefined types should cause compile error")
+}
+
+test_undefined()
