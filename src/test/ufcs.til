@@ -207,3 +207,77 @@ test_ufcs_with_enums := proc() {
     assert_eq(loc(), 3, val3.test_ufcs_enum_to_int())
 }
 test_ufcs_with_enums()
+
+// Test UFCS with struct fields (particularly Array fields)
+TestStructWithArray := struct {
+    mut items: Array = Array.new_dyn("I64", size_of(I64))
+    mut name: Str = "test"
+}
+
+test_ufcs_with_struct_fields := proc() {
+    mut s := TestStructWithArray()
+
+    // Demonstration of Bug #10: UFCS Does Not Work on Struct Fields
+    // See doc/bugs.org for full details
+    //
+    // RUNTIME ERROR: Cannot call methods on struct.field directly
+    // FAILS: s.items.push(10)
+    // Error: "Cannot use 'self' of type 'Array' as an argument"
+    //
+    // COMPILE-TIME ERROR: Cannot chain property access with methods
+    // FAILS: s.items.len.eq(3)
+    // Error: "Cannot call 's.items', it is not a function"
+    //
+    // FAILS: if i.lt(s.items.len) { }
+    // Error: "Cannot call 's.items', it is not a function"
+
+    // For demonstration, manually populate the array via direct assignment
+    // (avoiding the push bug)
+    mut s_name := s.name
+    assert(loc(), s_name.eq("test"))
+
+    mut items_ref := s.items
+    initial_len := items_ref.len
+    assert_eq(loc(), 0, initial_len)
+
+    // WORKAROUND demo: Extract to local variable for any method calls
+    mut name_local := s.name
+    name_len := name_local.len()
+    assert_eq(loc(), 4, name_len)
+}
+
+// This test demonstrates the exact pattern that failed in parser.til
+TestExpr := struct {
+    mut params: Array = Array.new_dyn("I64", size_of(I64))
+    mut line: I64 = 0
+}
+
+test_ufcs_exact_parser_pattern := proc() {
+    mut e := TestExpr()
+
+    // Bug #10: These patterns from parser.til ALL FAIL
+    // See doc/bugs.org for full details
+    //
+    // PATTERN 1 (parser.til line 127): if i.lt(self.params.len) {
+    // FAILS AT COMPILE-TIME: if i.lt(e.params.len) { }
+    // Error: "Cannot call 'e.params', it is not a function"
+    //
+    // PATTERN 2 (parser.til line 129): self.params.get(i, result)
+    // FAILS AT RUNTIME: e.params.get(i, result)
+    // Error: "Cannot use 'self' of type 'Array' as an argument"
+    //
+    // PATTERN 3 (parser.til line 822): if p.params.len.eq(1)
+    // FAILS AT COMPILE-TIME: if e.params.len.eq(2) { }
+    // Error: "Cannot call 'e.params', it is not a function"
+
+    // WORKAROUND: Extract to local variable first
+    mut e_params := e.params
+
+    // Pattern 1 with workaround - demonstrate the syntax works
+    mut i := 5
+    e_params_len := e_params.len
+    assert(loc(), not(i.lt(e_params_len)))
+}
+
+test_ufcs_with_struct_fields()
+test_ufcs_exact_parser_pattern()

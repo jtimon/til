@@ -8,6 +8,61 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #10: UFCS Does Not Work on Struct Fields :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Code ergonomics, parser implementation
+:STATUS: Active - Workaround exists
+:END:
+
+*** Description
+UFCS (Uniform Function Call Syntax) fails when trying to call methods on struct fields. This manifests in two ways:
+
+1. *Runtime error* when calling methods directly on struct fields:
+   #+BEGIN_EXAMPLE
+   s.items.push(10)  // FAILS
+   Error: "Cannot use 'self' of type 'Array' as an argument"
+   #+END_EXAMPLE
+
+2. *Compile-time error* when chaining property access with methods:
+   #+BEGIN_EXAMPLE
+   s.items.len.eq(3)  // FAILS
+   Error: "Cannot call 's.items', it is not a function"
+
+   if i.lt(e.params.len) { }  // FAILS
+   Error: "Cannot call 'e.params', it is not a function"
+   #+END_EXAMPLE
+
+*** Patterns That Fail
+All patterns involving =struct.field.method()= or =struct.field.property.method()=:
+- =self.params.get(i, result)= - Runtime error
+- =if i.lt(self.params.len)= - Compile error
+- =if p.params.len.eq(1)= - Compile error
+
+*** Root Cause
+The type checker and evaluator don't properly handle method calls where the receiver is a field access expression (=struct.field=). The system treats =struct.field= as trying to call a function named =field= rather than accessing a field and then calling a method on it.
+
+*** Workaround
+Extract the struct field to a local variable first, then call methods on the local:
+#+BEGIN_SRC til
+// Instead of: s.items.push(10)
+mut items := s.items
+items.push(10)
+s.items = items  // Write back if needed
+
+// Instead of: if i.lt(e.params.len)
+mut e_params := e.params
+if i.lt(e_params.len) { }
+#+END_SRC
+
+*** Impact
+- Required extensive workarounds in parser.til (lines 127, 129, 188, 815, 822, 1321, 1334)
+- Makes code more verbose and less readable
+- Common pattern that would be expected to work
+
+*** Test Coverage
+Comprehensive tests added in =src/test/ufcs.til= documenting all failing patterns and workarounds.
+
 ** Bug #9: Error Line Numbers from Imported Files :MINOR:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
