@@ -324,7 +324,7 @@ test_parse_primary_identifier_fcall := proc() {
 // test_token_type_eq()  // Removed - token_type_eq function no longer exists
 test_str_to_value_type()
 test_is_literal()
-// test_parse_mode()  // memcpy error
+test_parse_mode()
 test_parse_literal()
 test_parse_list()
 test_parse_declaration()
