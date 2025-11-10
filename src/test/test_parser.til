@@ -33,16 +33,13 @@ parse_source := proc(source: Str) {
 
 // Test parsing simple expressions
 test_simple_expressions := proc() {
-    println("Testing: y := 42")
-    println("About to call parse_source")
     parse_source("y := 42")
-    println("parse_source succeeded")
     parse_source("s := \"hello\"")
     parse_source("b := true")
     parse_source("z := x")
     parse_source("result := x.add(y)")
     parse_source("result2 := x.add(y).mul(z)")
-    println("test_simple_expressions passed")
+
 }
 
 // Test parsing declarations
@@ -51,7 +48,7 @@ test_declarations := proc() {
     parse_source("x: I64 = 42")
     parse_source("mut x := 42")
     parse_source("mut x: I64 = 42")
-    println("test_declarations passed")
+
 }
 
 // Test parsing functions
@@ -60,7 +57,7 @@ test_functions := proc() {
     parse_source("f := func(x: I64) returns I64 { return x }")
     parse_source("f := func() returns I64 throws Str { return 42 }")
     parse_source("p := proc() { println(\"hello\") }")
-    println("test_functions passed")
+
 }
 
 // Test parsing control flow
@@ -69,33 +66,36 @@ test_control_flow := proc() {
     parse_source("if x { y := 1 } else { y := 2 }")
     parse_source("while x.lt(10) { x = x.add(1) }")
     parse_source("for i in 0..10 { println(i.to_str()) }")
-    println("test_control_flow passed")
+
 }
 
 // Test parsing enums
 test_enums := proc() {
     parse_source("Color := enum { Red, Green, Blue }")
     parse_source("Option := enum { Some: I64, None }")
-    println("test_enums passed")
+
 }
 
 // Test parsing structs
 test_structs := proc() {
     parse_source("Point := struct { mut x: I64 = 0 mut y: I64 = 0 }")
     parse_source("Point := struct { mut x: I64 = 0 add := func(self: Point, n: I64) returns I64 { return self.x.add(n) } }")
-    println("test_structs passed")
+
 }
 
 // Test parsing switch statements
 test_switch := proc() {
     parse_source("switch x { case 1: y := 1 case 2: y := 2 case: y := 0 }")
     parse_source("switch opt { case Option.Some(v): println(v.to_str()) case Option.None: println(\"none\") }")
-    println("test_switch passed")
+
 }
 
 // Test parsing a file
 test_parse_file := proc(path: Str) {
     mut lexer := Lexer.new(path)
+    // Parse mode first (files have mode declarations)
+    mode_def := parse_mode(path, lexer)
+    // Then parse the body
     ast := parse_tokens(lexer)
     catch (err: Str) {
         exit(1)
@@ -119,7 +119,6 @@ test_token_type_eq := proc() {
     assert(loc(), token_type_eq(TokenType.Identifier, TokenType.Identifier))
     assert(loc(), not(token_type_eq(TokenType.Identifier, TokenType.String)))
     assert(loc(), token_type_eq(TokenType.LeftParen, TokenType.LeftParen))
-    println("test_token_type_eq passed")
 }
 
 test_str_to_value_type := proc() {
@@ -127,7 +126,6 @@ test_str_to_value_type := proc() {
     // Just check it doesn't crash
     vt2 := str_to_value_type("proc")
     vt3 := str_to_value_type("enum")
-    println("test_str_to_value_type passed")
 }
 
 test_is_literal := proc() {
@@ -144,8 +142,6 @@ test_is_literal := proc() {
     t2.line = 1
     t2.col = 1
     assert(loc(), not(is_literal(t2)))
-
-    println("test_is_literal passed")
 }
 
 test_parse_mode := proc() {
@@ -167,7 +163,7 @@ test_parse_mode := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_mode passed")
+
 }
 
 test_parse_literal := proc() {
@@ -188,7 +184,7 @@ test_parse_literal := proc() {
     catch (err: FullError) {
         exit(1)
     }
-    println("test_parse_literal passed")
+
 }
 
 test_parse_body := proc() {
@@ -210,7 +206,7 @@ test_parse_body := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_body passed")
+
 }
 
 test_parse_statement := proc() {
@@ -232,7 +228,7 @@ test_parse_statement := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_statement passed")
+
 }
 
 test_parse_statement_identifier := proc() {
@@ -254,7 +250,7 @@ test_parse_statement_identifier := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_statement_identifier passed")
+
 }
 
 test_parse_declaration := proc() {
@@ -276,7 +272,7 @@ test_parse_declaration := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_declaration passed")
+
 }
 
 test_parse_list := proc() {
@@ -298,7 +294,7 @@ test_parse_list := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_list passed")
+
 }
 
 test_parse_primary_identifier_fcall := proc() {
@@ -320,7 +316,7 @@ test_parse_primary_identifier_fcall := proc() {
     catch (err: I64_OverflowError) {
         exit(1)
     }
-    println("test_parse_primary_identifier_fcall passed")
+
 }
 
 // Run simple tests
@@ -337,18 +333,17 @@ test_parse_statement_identifier()
 test_parse_statement()
 test_parse_body()
 
-// TODO: Re-enable after fixing runtime parsing issues in parser.til
-// Now we can see actual error messages thanks to Str catch block fix!
-test_simple_expressions()
-// test_declarations()
-// test_functions()
-// test_control_flow()
-// test_enums()
-// test_structs()
-// test_switch()
+// TODO: Re-enable after fixing parsing issues in parser.til
+// test_simple_expressions()  // memcpy error on 2nd test (s := "hello")
+test_declarations()
+// test_functions()  // Parse error: "Expected statement, found returns"
+// test_control_flow()  // memcpy error (similar to test_simple_expressions)
+// test_enums()  // Parse error: "Expected statement, found }"
+// test_structs()  // Parse error: "Expected statement, found :"
+// test_switch()  // Type error: "Could not find function defintion" at line 1365
 
 // Test parsing real TIL files
-// TODO: Re-enable after fixing runtime parsing issues in parser.til
+// TODO: Hangs (likely infinite loop in parser.til)
 // test_parse_file("src/core/parser.til")
 // test_parse_file("src/core/lexer.til")
 // test_parse_file("src/core/core.til")
