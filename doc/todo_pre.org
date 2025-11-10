@@ -23,6 +23,46 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
+** TODO Improve Test Error Handling with ERROR: Prefix                  :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Test suite quality, debugging
+:PRIORITY: Low (doesn't block self-hosting)
+:END:
+
+*** Problem
+Test catch blocks should print "ERROR: " prefix for unexpected errors to make test failures more visible, while still using `return` to continue to the next test instead of aborting the entire test suite.
+
+*** Current Pattern
+#+BEGIN_SRC til
+catch (err: AllocError) {
+    println(loc(), "AllocError thrown:")
+    println(err.msg)
+    return
+}
+#+END_SRC
+
+*** Suggested Pattern
+#+BEGIN_SRC til
+catch (err: AllocError) {
+    println("ERROR:", loc(), "Unexpected AllocError thrown:")
+    println(err.msg)
+    return
+}
+#+END_SRC
+
+*** Benefits
+- "ERROR: " prefix makes failures immediately visible in test output
+- Using `return` instead of `exit(1)` allows remaining tests to run
+- Helps distinguish expected errors from unexpected ones in test logs
+
+*** Scope
+Review and update catch blocks throughout test files:
+- src/test/arrays.til
+- src/test/dynamic_arrays.til
+- src/test/test_parser.til
+- Other test files with similar patterns
+
 ** TODO Fix Error Line Numbers from Imported Files                      :LOW:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
