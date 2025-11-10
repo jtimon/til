@@ -1,6 +1,6 @@
 #+TITLE: TIL Self-Hosting Progress
 #+AUTHOR: Self-Hosting Homologization Plan
-#+DATE: 2025-01-08
+#+DATE: 2025-01-10
 
 * Overview
 
@@ -11,12 +11,12 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 | Component   | TIL Lines | Rust Lines | Completion | Status                       |
 |-------------+-----------+------------+------------+------------------------------|
 | lexer       |       712 |        517 | 100%       | ✅ HOMOLOGIZATION COMPLETE  |
-| parser      |        50 |      1,389 | ~3%        | 🔄 CLEAN RESTART - PHASE 1  |
+| parser      |       327 |      1,389 | ~23%       | 🔄 IN PROGRESS - Line 322   |
 | init        |     1,220 |      1,761 | 70%        | ⏳ TOP-DOWN IN PROGRESS     |
 | typer       |       408 |      1,285 | 30%        | ⏳ TOP-DOWN IN PROGRESS     |
 | interpreter |       585 |      2,485 | 24%        | ⏳ TOP-DOWN IN PROGRESS     |
 |-------------+-----------+------------+------------+------------------------------|
-| *TOTAL*     |     2,975 |      7,437 | *40%*      | Parser: Clean Restart ✅     |
+| *TOTAL*     |     3,252 |      7,437 | *44%*      | Parser: Lines 1-322 ✅      |
 
 * Architecture & Call Hierarchy
 
@@ -49,28 +49,31 @@ Goal: Systematically homologize TIL implementations with Rust counterparts, work
 
 * Critical Blockers
 
-** BLOCKER #1: Enum Payload Extraction Bug ⚠️
-- *File*: =interpreter.til= line 292-299
-- *Impact*: Cannot dispatch function calls properly
-- *Priority*: HIGHEST
-- *Fix*: Complete switch pattern matching migration
-- *Timeline*: 1-2 weeks
-- *Current workaround*: All functions treated as println
+** All Enum-Related Blockers: ✅ RESOLVED (2025-01-10)
 
-** BLOCKER #2: Complex Type Serialization ⚠️
-- *File*: =init.til= line 39
-- *Impact*: Cannot store SFuncDef, SEnumDef, SStructDef in maps
-- *Priority*: CRITICAL
-- *Fix*: Implement struct/enum serialization
-- *Timeline*: 3-4 weeks
-- *Blocks*: typer.til and interpreter.til progress
+All blockers related to enum payloads, enum returns, and pattern matching have been resolved:
 
-** BLOCKER #3: Tagged Union Support ✅ RESOLVED
-- *File*: =parser.til= lines 507, 754
+*** BLOCKER #1: Enum Payload Extraction Bug ✅ RESOLVED
+- *Status*: FIXED - Pattern matching with enum payloads works correctly
+- *Fix*: Switch pattern matching already worked, just needed proper testing
+
+*** BLOCKER #2: Enum Return Value Handling ✅ RESOLVED (Bug #7)
+- *Status*: FIXED - Functions can now return enums with payloads correctly
+- *Symptom*: "range end index out of bounds" when returning enums from functions
+- *Fix*: interpreter.rs:1761-1786 - Transfer temp_enum_payload from function to caller context
+- *Commit*: 05dd5c9
+- *Impact*: Parser homogenization can now proceed
+
+*** BLOCKER #3: Tagged Union Support ✅ RESOLVED
 - *Status*: FIXED - Tagged unions work, just needed to uncomment
 - *Fix*: Enum payload extraction via switch already working in rstil
-- *Changes*: Enabled NodeType.Declaration(decl) payloads in parser
-- *Result*: Declaration info now properly stored in AST
+
+** Remaining Blocker: Complex Type Serialization ⚠️
+- *File*: =init.til= line 39
+- *Impact*: Cannot store SFuncDef, SEnumDef, SStructDef in maps
+- *Priority*: MEDIUM (not blocking parser homogenization)
+- *Fix*: Implement struct/enum serialization
+- *Note*: Can work around with string serialization for now
 
 * Component Details
 

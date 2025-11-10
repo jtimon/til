@@ -1,6 +1,6 @@
 #+TITLE: Pre-Self-Hosting TODO List
 #+AUTHOR: rstil Development
-#+DATE: 2025-01-09
+#+DATE: 2025-01-10
 
 * Overview
 
@@ -14,12 +14,12 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 | Component           | Status                          | Notes                                           |
 |---------------------+---------------------------------+-------------------------------------------------|
-| Known Bugs          | ✅ BUG #6 FIXED                 | Enum payloads now reserve max variant size      |
+| Known Bugs          | ✅ BUG #7 FIXED                 | Enum return values now handled correctly        |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
-| Test Suite          | ✅ ALL TESTS ENABLED            | test_parser.til re-enabled with clean start     |
-| Type System         | ✅ ENUM-AS-PAYLOAD WORKS        | Direct construction now supported               |
-| Parser Homogenization | 🔄 RESTARTING CLEAN            | Incremental approach from parser.rs             |
+| Test Suite          | ✅ ALL TESTS PASSING            | All tests pass including enum payloads          |
+| Type System         | ✅ ENUM RETURNS WORK            | Functions can return enums with payloads        |
+| Parser Homogenization | 🔄 IN PROGRESS                 | Translating from parser.rs line by line         |
 
 * Critical: Missing rstil Features
 :PROPERTIES:
@@ -63,10 +63,9 @@ Fixed in interpreter.rs:
 - Line 615: Use eval_expr instead of eval_func_proc_call to handle both FCall and Identifier nodes
 - Line 1118: Added safety check to prevent get_enum on type names
 
-*** Remaining Issue
-test_parser.til still crashes with "range end index out of bounds" in get_enum_at_offset.
-This is a separate arena size calculation issue when passing enums with enum payloads to functions.
-See new TODO below.
+*** Follow-up Issue (NOW FIXED)
+This revealed Bug #7: enum return value handling (see below).
+Functions returning enums with payloads now work correctly.
 
 ** TODO Improve Forward Reference Error Messages                         :MEDIUM:
 :PROPERTIES:
@@ -110,39 +109,52 @@ Manually ensure enum definitions are in dependency order (dependencies defined f
 :CATEGORY: Missing Features
 :END:
 
-** DONE Fix Arena Size Calculation for Enum Payloads                 :HIGH:
+** DONE Fix Enum Return Value Handling (Bug #7)                      :HIGH:
 CLOSED: [2025-01-10]
 :PROPERTIES:
-:FILE: src/tests.til:45
-:IMPACT: test_parser.til was crashing, now resolved with clean restart
-:DISCOVERED: 2025-01-09
-:RESOLVED: 2025-01-10
+:FILE: src/rs/interpreter.rs:1761-1786
+:IMPACT: Functions can now return enums with payloads correctly
+:DISCOVERED: 2025-01-10
+:FIXED: 2025-01-10
+:COMMIT: 05dd5c9
 :END:
 
 *** Current State
-- =src/test/test_lexer.til= - ✅ WORKING
-- =src/test/test_parser.til= - ✅ RE-ENABLED with clean foundation
+- =src/test/enums.til= - ✅ ALL TESTS PASSING including enum return tests
 
-*** Problem (RESOLVED)
-The old parser.til implementation had complex enum payloads that triggered arena size issues.
-When an enum with an enum payload was passed to a function, rstil would crash trying to read
-past the end of the arena. The error occurred in init.rs:1497 in get_enum_at_offset.
+*** Problem (FIXED)
+When a function returned an enum value (especially with enum payloads), the payload data was lost.
+This caused "range end index out of bounds" errors when the returned enum was used.
+
+Example that failed:
+#+BEGIN_SRC til
+get_nested := proc() returns OuterType {
+    inner := InnerType.TypeA
+    return OuterType.Nested(inner)  // Payload was lost here!
+}
+
+outer := get_nested()  // Would crash or have wrong payload
+#+END_SRC
+
+*** Root Cause
+Enums were not being properly transferred from the function's context to the caller's context.
+The =temp_enum_payload= stored in the function context was discarded when the function returned.
 
 *** Solution
-Started fresh with a minimal parser.til foundation:
-- Basic ValueType, Declaration, NodeType, Expr structs
-- Clean test_parser.til with simple tests
-- Will rebuild incrementally from parser.rs with tests at each step
+Added special handling for enum return values in =eval_func_proc_call=:
+1. For constructor expressions (e.g., =OuterType.Nested=), transfer =temp_enum_payload= from function context to caller context
+2. For variable returns, copy the enum value with its payload to caller context using =get_enum= and =insert_enum=
 
 *** What Was Done
-- [X] Reset parser.til to minimal foundation
-- [X] Created clean test_parser.til
-- [X] Re-enabled test_parser.til in tests.til
-- [X] All foundation tests pass
+- [X] Added enum return handling in interpreter.rs:1761-1786
+- [X] Transfer temp_enum_payload for constructor expression returns
+- [X] Copy enum with payload for variable returns
+- [X] Added comprehensive tests in enums.til:test_enum_constructor_in_function
+- [X] All tests pass including returning enums with enum payloads
 
 *** Why This Matters
-Clean foundation allows incremental homogenization with parser.rs as source of truth.
-Each feature added will have corresponding tests, reducing risk of complex bugs.
+This was blocking parser.til homogenization. Parser functions need to return enums with enum payloads
+(e.g., =ValueType.TFunction(FunctionType.FTFunc)=). Now this works correctly.
 
 * High Priority: Known Bugs & Workarounds
 :PROPERTIES:
@@ -173,10 +185,11 @@ Workarounds add complexity and may hide issues. Clean code is easier to maintain
 
 * References
 
-- [[file:rstil_bugs.md][rstil_bugs.md]] - Fixed bugs (all resolved as of Jan 2025)
-- [[file:self_hosting_progress.org][self_hosting_progress.org]] - Component completion status
+- [[file:rstil_bugs.md][rstil_bugs.md]] - Fixed bugs (Bugs #1-#7 all resolved as of Jan 2025)
+- [[file:todo_self_hosting.org][todo_self_hosting.org]] - Component completion status
+- [[file:todo_post.org][todo_post.org]] - Post self-hosting TODOs
 - [[file:design_notes.org][design_notes.org]] - Language design decisions
-- [[file:../src/tests.til][src/tests.til]] - Test suite with disabled tests marked
+- [[file:../src/tests.til][src/tests.til]] - Test suite (all tests passing)
 - [[file:../src/test/todo.til][src/test/todo.til]] - Additional language TODOs
 
 * Notes
