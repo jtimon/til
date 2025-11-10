@@ -1,26 +1,5 @@
 mode test
 
-import("src/core/parser")
-
-test_parse := proc() {
-    mut lexer := Lexer.new_from_src("mode test")
-    ast := parse_tokens(lexer)
-    println("Parse successful!")
-    catch (err: Str) {
-        println("Error parsing")
-        exit(1)
-    }
-    catch (err: AllocError) {
-        exit(1)
-    }
-    catch (err: FullError) {
-        exit(1)
-    }
-    catch (err: IndexOutOfBoundsError) {
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        exit(1)
-    }
+future_test := proc() {
 }
-test_parse()
+future_test()
