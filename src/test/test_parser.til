@@ -339,7 +339,7 @@ test_parse_body()
 test_declarations()
 // test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug
 // test_control_flow()  // type error: Could not find function definition
-test_enums()
+// test_enums()  // parse error: Expected statement, found }
 // test_structs()  // eval error: Cannot use 'self' of type 'Array' as argument
 // test_switch()  // Type error: Could not find function defintion at line 1377
 

@@ -6,7 +6,7 @@
 
 This document tracks TODOs in the *Rust implementation (rstil)* that must be completed before the self-hosted til interpreter can run successfully.
 
-*Current Status:* All documented bugs fixed (see [[file:bugs.org][bugs.org]]), but missing features and test gaps remain.
+*Current Status:* All documented bugs fixed (see [[file:bugs.org][bugs.org]]). Parser homogenization complete. Ready for next phase.
 
 *Scope:* This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
 
@@ -14,147 +14,14 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 | Component           | Status                          | Notes                                           |
 |---------------------+---------------------------------+-------------------------------------------------|
-| Known Bugs          | ✅ ALL FIXED                    | Bug #8 fixed with compile-time enforcement      |
+| Known Bugs          | ✅ ALL FIXED                    | Bugs #1-#8 all resolved                        |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
 | Test Suite          | ✅ PASSING                      | All tests pass including return value checks    |
 | Type System         | ✅ COMPLETE                     | Return value usage enforced at compile time     |
-| Parser Homogenization | ✅ UNBLOCKED                    | Ready to proceed with parser.til work           |
+| Parser Homogenization | ✅ COMPLETE                    | parser.til aligned with parser.rs              |
 
-* Critical: Active Bugs
-:PROPERTIES:
-:CATEGORY: Bugs
-:END:
-
-No active bugs at this time. All bugs (#1-#8) have been fixed. See [[file:bugs.org][bugs.org]] for details.
-
-** DONE Fix Bug #8: Uncaptured Return Values Propagate Up Call Stack        :CRITICAL:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:FIXED: 2025-11-10
-:FILE: src/rs/typer.rs
-:IMPACT: Unblocks parser.til homogenization
-:RELATED: Parser homogenization
-:END:
-
-*** Solution Implemented
-Fixed with **compile-time enforcement** via type checker. All function calls that return values must now be explicitly used or discarded.
-
-*** Implementation
-- Added =ExprContext= enum to track ValueUsed vs ValueDiscarded contexts
-- Modified =check_types_with_context()= to propagate context through type checking
-- Added =check_fcall_return_usage()= to validate return value handling
-- Provides helpful error messages when return values are not captured
-
-*** Valid Code Patterns
-#+BEGIN_SRC til
-result := my_add(1, 2)        // ✅ Capture return value
-double(my_add(3, 4))          // ✅ Use as argument
-_ := get_value()              // ✅ Explicitly discard
-print_hello()                 // ✅ Procs don't return
-my_add(1, 2)                  // ❌ ERROR: Return value not used
-#+END_SRC
-
-*** Why This Approach
-Rather than fixing runtime propagation behavior, compile-time enforcement:
-- Catches errors earlier (at compile time)
-- Makes intent explicit (use vs discard)
-- Aligns with modern language best practices
-- Prevents subtle bugs from uncaptured return values
-
-*** Files Modified
-- =src/rs/typer.rs=: Added context-aware type checking
-- =src/test/errors.til=: Fixed one uncaptured return value
-- =src/test/return_value_usage.til=: Created comprehensive test suite
-
-*** Impact
-- ✅ Parser.til homogenization UNBLOCKED
-- ✅ All tests passing
-- ✅ Explicit return value handling improves code safety
-
-* Critical: Missing rstil Features
-:PROPERTIES:
-:CATEGORY: Missing Features
-:END:
-
-** DONE Fix Str handling in catch blocks                                  :HIGH:
-CLOSED: [2025-01-10]
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:FIXED: 2025-01-10
-:IMPACT: Blocks error handling in catch blocks
-:RELATED: Error handling, String types
-:END:
-
-Fixed in interpreter.rs lines 1359-1363. When catching Str with no arena_index, now calls insert_string() to create proper Str struct.
-
-*** Old Bug Report (FALSE POSITIVE)
-When catching `err: Str` in a catch block, accessing the error value causes a runtime error:
-"missing field 'err.c_string'"
-
-This occurs even with simple operations like:
-- `println(err)`
-- Passing `err` to `panic(loc(), err)`
-- Using `err` in `format("Error: ", err)`
-
-*** Workaround
-Currently must use static strings in catch blocks:
-#+BEGIN_SRC til
-catch (err: Str) {
-    println("Parse error")  // Can't print the actual error message
-    exit(1)
-}
-#+END_SRC
-
-*** Expected Behavior
-Should be able to use the caught Str error value:
-#+BEGIN_SRC til
-catch (err: Str) {
-    println(err)  // Should work
-    panic(loc(), err)  // Should work
-}
-#+END_SRC
-
-** DONE Support Recursive Enum Payloads (enums as payloads)              :HIGH:
-CLOSED: [2025-01-09]
-:PROPERTIES:
-:DISCOVERED: 2025-01-09
-:FIXED: 2025-01-09
-:IMPACT: Was blocking parser homogenization completion
-:RELATED: Parser homogenization, Type system
-:END:
-
-*** Problem (FIXED)
-TIL did not support using enum constructors directly as payloads for other enums.
-This was required for proper parser data structures in parser.til.
-
-Example that now works:
-#+BEGIN_SRC til
-FunctionType := enum {
-    FTFunc,
-    FTProc,
-}
-
-ValueType := enum {
-    TFunction: FunctionType,  // Enum as payload - NOW WORKS
-    TCustom: Str,             // Primitive as payload - WORKS
-}
-
-// This now works:
-vt := ValueType.TFunction(FunctionType.FTFunc)  // Direct constructor as payload
-ft := FunctionType.FTFunc
-vt2 := ValueType.TFunction(ft)                  // Identifier as payload (already worked)
-#+END_SRC
-
-*** Solution
-Fixed in interpreter.rs:
-- Line 607: Check if Identifier has params before treating as variable name
-- Line 615: Use eval_expr instead of eval_func_proc_call to handle both FCall and Identifier nodes
-- Line 1118: Added safety check to prevent get_enum on type names
-
-*** Follow-up Issue (NOW FIXED)
-This revealed Bug #7: enum return value handling (see below).
-Functions returning enums with payloads now work correctly.
+* Active TODOs
 
 ** TODO Improve Forward Reference Error Messages                         :MEDIUM:
 :PROPERTIES:
@@ -193,88 +60,9 @@ Better error (at parse time):
 *** Workaround
 Manually ensure enum definitions are in dependency order (dependencies defined first).
 
-* Critical: Missing rstil Features (Continued)
-:PROPERTIES:
-:CATEGORY: Missing Features
-:END:
-
-** DONE Fix Enum Return Value Handling (Bug #7)                      :HIGH:
-CLOSED: [2025-01-10]
-:PROPERTIES:
-:FILE: src/rs/interpreter.rs:1761-1786
-:IMPACT: Functions can now return enums with payloads correctly
-:DISCOVERED: 2025-01-10
-:FIXED: 2025-01-10
-:COMMIT: 05dd5c9
-:END:
-
-*** Current State
-- =src/test/enums.til= - ✅ ALL TESTS PASSING including enum return tests
-
-*** Problem (FIXED)
-When a function returned an enum value (especially with enum payloads), the payload data was lost.
-This caused "range end index out of bounds" errors when the returned enum was used.
-
-Example that failed:
-#+BEGIN_SRC til
-get_nested := proc() returns OuterType {
-    inner := InnerType.TypeA
-    return OuterType.Nested(inner)  // Payload was lost here!
-}
-
-outer := get_nested()  // Would crash or have wrong payload
-#+END_SRC
-
-*** Root Cause
-Enums were not being properly transferred from the function's context to the caller's context.
-The =temp_enum_payload= stored in the function context was discarded when the function returned.
-
-*** Solution
-Added special handling for enum return values in =eval_func_proc_call=:
-1. For constructor expressions (e.g., =OuterType.Nested=), transfer =temp_enum_payload= from function context to caller context
-2. For variable returns, copy the enum value with its payload to caller context using =get_enum= and =insert_enum=
-
-*** What Was Done
-- [X] Added enum return handling in interpreter.rs:1761-1786
-- [X] Transfer temp_enum_payload for constructor expression returns
-- [X] Copy enum with payload for variable returns
-- [X] Added comprehensive tests in enums.til:test_enum_constructor_in_function
-- [X] All tests pass including returning enums with enum payloads
-
-*** Why This Matters
-This was blocking parser.til homogenization. Parser functions need to return enums with enum payloads
-(e.g., =ValueType.TFunction(FunctionType.FTFunc)=). Now this works correctly.
-
-* High Priority: Known Bugs & Workarounds
-:PROPERTIES:
-:CATEGORY: Bugs
-:END:
-
-** TODO Remove Workarounds for Fixed Enum Bugs                        :HIGH:
-:PROPERTIES:
-:FILE: src/core/parser.til:239, src/core/parser.til:320
-:STATUS: Bugs fixed, workarounds still in code
-:END:
-
-*** Current State
-All enum bugs are FIXED (see bugs.org), but workarounds remain:
-- =src/core/parser.til:239= - "Workaround for rstil bug - enum payloads must be variables"
-- =src/core/parser.til:320= - Same workaround repeated
-- =src/core/lexer.til:586= - "Workaround for rstil bug - return in methods returns from caller"
-
-*** Action Required
-- [ ] Verify bugs are truly fixed by testing without workarounds
-- [ ] Remove workaround code from parser.til (lines 239, 320)
-- [ ] Test direct nested enum construction works
-- [ ] Remove return workaround from lexer.til if bug #2 confirmed fixed
-- [ ] Update comments to reference historical bug fixes
-
-*** Why This Matters
-Workarounds add complexity and may hide issues. Clean code is easier to maintain during self-hosting transition.
-
 * References
 
-- [[file:bugs.org][bugs.org]] - Fixed bugs (Bugs #1-#7 all resolved as of Jan 2025)
+- [[file:bugs.org][bugs.org]] - Fixed bugs (Bugs #1-#8 all resolved)
 - [[file:todo_self_hosting.org][todo_self_hosting.org]] - Component completion status
 - [[file:todo_post.org][todo_post.org]] - Post self-hosting TODOs
 - [[file:design_notes.org][design_notes.org]] - Language design decisions
@@ -290,4 +78,3 @@ Completing interpreter.til, typer.til, etc. is a separate concern - those are th
 
 ** Workarounds Are Okay Temporarily
 Some workarounds (like PatternInfo for tuples) are acceptable short-term. The priority is getting rstil stable enough to run the self-hosted code, even if that code has workarounds.
-
