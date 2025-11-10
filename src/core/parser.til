@@ -4,33 +4,8 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
-// Helper to create empty dynamic Expr array
-empty_expr_array := func() returns Array {
-    return Array.new_dyn("Expr", size_of(Expr))
-}
-
-FunctionType := enum {
-    FTFunc,
-    FTProc,
-    FTMacro,
-    FTFuncExt,
-    FTProcExt,
-}
-
-TTypeDef := enum {
-    TEnumDef,
-    TStructDef,
-}
-
-ValueType := enum {
-    TFunction: FunctionType,
-    TType: TTypeDef,
-    TCustom: Str,
-    TMulti: Str,
-}
-
 SEnumDef := struct {
-    mut enum_map: Map = Map()  // Map<Str, ValueType> - variant name to optional payload type
+    mut enum_map: Map = Map()
 }
 
 Declaration := struct {
@@ -47,12 +22,20 @@ PatternInfo := struct {
     mut binding_var: Str = ""
 }
 
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+    FTMacro,
+    FTFuncExt,
+    FTProcExt,
+}
+
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: Array = Array()              // Array of Declaration
-    mut return_types: Array = Array()      // Array of ValueType - "returns" conflicts with TIL keyword
-    mut throw_types: Array = Array()       // Array of ValueType - "throws" conflicts with TIL keyword
-    mut body: Array = Array()              // Array of Expr
+    mut args: Array = Array()
+    mut return_types: Array = Array()  // "returns" conflicts with TIL keyword
+    mut throw_types: Array = Array()   // "throws" conflicts with TIL keyword
+    mut body: Array = Array()
 
     is_proc := func(self: SFuncDef) returns Bool {
         ft := self.function_type
@@ -80,8 +63,8 @@ SFuncDef := struct {
 }
 
 SStructDef := struct {
-    mut members: Array = Array()           // Array of (Str, Declaration) - field name, declaration
-    mut default_values: Map = Map()        // Map<Str, Expr> - field name to default value expression
+    mut members: Array = Array()
+    mut default_values: Map = Map()
 }
 
 Literal := enum {
@@ -238,6 +221,18 @@ is_literal := func(t: Token) returns Bool {
     }
 }
 
+TTypeDef := enum {
+    TEnumDef,
+    TStructDef,
+}
+
+ValueType := enum {
+    TFunction: FunctionType,
+    TType: TTypeDef,
+    TCustom: Str,
+    TMulti: Str,
+}
+
 value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
     mut result := ""
     switch arg_type {
@@ -301,7 +296,7 @@ ModeDef := struct {
     mut allows_base_calls: Bool = false
     mut allows_base_anything: Bool = false
     mut needs_main_proc: Bool = false
-    mut imports: Array = Array()  // Array of Str
+    mut imports: Array = Array()
 }
 
 can_be_imported := func(mode_def: ModeDef) returns Bool {
