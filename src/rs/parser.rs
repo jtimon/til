@@ -614,8 +614,8 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
         return Err(t.error(&format!("expected '(' after 'func', found '{:?}'.", t.token_type)));
     }
     let args = parse_func_proc_args(lexer)?;
-    let returns = func_proc_returns(lexer)?;
-    let throws = func_proc_throws(lexer)?;
+    let return_types = func_proc_returns(lexer)?;
+    let throw_types = func_proc_throws(lexer)?;
 
     let body = match do_parse_body {
         false => {
@@ -631,8 +631,8 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
     let func_def = SFuncDef{
         function_type: function_type,
         args: args,
-        return_types: returns,
-        throw_types: throws,
+        return_types: return_types,
+        throw_types: throw_types,
         body: body,
     };
     let params : Vec<Expr> = Vec::new();

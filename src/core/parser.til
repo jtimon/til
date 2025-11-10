@@ -601,12 +601,153 @@ func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, AllocError,
     }
 }
 
+parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType, do_parse_body: Bool) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    lexer_advance(lexer, 1)
+    t := lexer.peek()
+    if lexer_is_eof(lexer, 1) {
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": expected '(' after 'func' or 'proc', found EOF.")
+    }
+    tt := t.token_type
+    if not(tt.eq(TokenType.LeftParen)) {
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": expected '(' after 'func', found '", token_type_to_str(t.token_type), "'.")
+    }
+    args := parse_func_proc_args(lexer)
+    return_types := func_proc_returns(lexer)
+    throw_types := func_proc_throws(lexer)
+
+    body := Array()
+    if do_parse_body {
+        body_expr := parse_body(lexer, TokenType.RightBrace)
+        body = body_expr.params
+    } else {
+        lexer_go_back(lexer, 1)  // Discount the closing brace we won't need
+    }
+
+    mut func_def := SFuncDef()
+    func_def.function_type = function_type
+    func_def.args = args
+    func_def.return_types = return_types
+    func_def.throw_types = throw_types
+    func_def.body = body
+
+    params := Array()
+    e := expr_new_parse(NodeType.FuncDef(func_def), t, params)
+    return e
+}
+
+enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+
+    t := lexer.peek()
+    tt := t.token_type
+    if not(tt.eq(TokenType.LeftBrace)) {
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": Expected '{{' after 'enum'.")
+    }
+    if lexer_is_eof(lexer, 1) {
+        t2 := lexer.peek()
+        throw format(t2.line.to_str(), ":", t2.col.to_str(), ": expected identifier after 'enum {{', found EOF.")
+    }
+    lexer_advance(lexer, 1)
+    enum_map := Map()
+
+    mut end_found := false
+    while lexer.current.lt(lexer_len(lexer)).and(not(end_found)) {
+        it_t := lexer.peek()
+        itt := it_t.token_type
+        switch itt {
+        case TokenType.RightBrace:
+            end_found = true
+        case TokenType.Identifier:
+            enum_val_name := it_t.token_str
+            next_t := lexer_next(lexer)
+            ntt := next_t.token_type
+            switch ntt {
+            case TokenType.Colon:
+                next2_t := lexer_peek_ahead(lexer, 2)
+                n2tt := next2_t.token_type
+                if not(n2tt.eq(TokenType.Identifier)) {
+                    throw format(next2_t.line.to_str(), ":", next2_t.col.to_str(), ": Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'.")
+                }
+                enum_val_type := next2_t.token_str
+                enum_map.set(enum_val_name, str_to_value_type(enum_val_type))
+                lexer_advance(lexer, 2)
+            case TokenType.Comma:
+                enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
+                // Continue
+            case TokenType.RightBrace:
+                enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
+                end_found = true
+            case:
+                throw format(next_t.line.to_str(), ":", next_t.col.to_str(), ": Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'.")
+            }
+        case TokenType.Comma:
+            // Skip comma
+        case:
+            throw format(it_t.line.to_str(), ":", it_t.col.to_str(), ": Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'.")
+        }
+        lexer_advance(lexer, 1)
+    }
+    if not(end_found) {
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": Expected '}}' to end enum.")
+    }
+    params := Array()
+    mut enum_def := SEnumDef()
+    enum_def.enum_map = enum_map
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.EnumDef(enum_def), initial_token, params)
+}
+
+parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    lexer_expect(lexer, TokenType.Struct)
+    t := lexer.peek()
+    tt := t.token_type
+    if not(tt.eq(TokenType.LeftBrace)) {
+        throw format(t.line.to_str(), ":", t.col.to_str(), ": Expected '{{' after 'struct'.")
+    }
+    if lexer_is_eof(lexer, 1) {
+        t2 := lexer.peek()
+        throw format(t2.line.to_str(), ":", t2.col.to_str(), ": expected 'identifier' after 'struct {{', found EOF.")
+    }
+    lexer_advance(lexer, 1)
+    body := parse_body(lexer, TokenType.RightBrace)
+
+    mut members := Array()  // Array of (Str, Declaration)
+    mut default_values := Map()  // Map<Str, Expr>
+
+    mut i := 0
+    while i.lt(body.params.len()) {
+        p := body.params.get(i)
+        nt := p.node_type
+        switch nt {
+        case NodeType.Declaration:
+            // Extract Declaration from payload - TODO: need rsonly_enum_extract_payload
+            // For now, this is a stub
+            throw "parse_struct_definition: Declaration extraction not yet implemented"
+        case:
+            throw format(t.line.to_str(), ":", t.col.to_str(), ": expected only declarations inside struct definition")
+        }
+        i = i.add(1)
+    }
+
+    mut struct_def := SStructDef()
+    struct_def.members = members
+    struct_def.default_values = default_values
+    params := Array()
+    return expr_new_parse(NodeType.StructDef(struct_def), t, params)
+}
+
+// Stub for parse_body - will be translated later
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    throw "parse_body not yet implemented"
+}
+
 // Stub for parse_primary - will be translated later
 parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     throw "parse_primary not yet implemented"
 }
 
-// Translation from parser.rs complete up to line 604 (func_proc_throws)
+// Translation from parser.rs complete up to line 747 (parse_struct_definition)
 //
 // What's translated:
 // - All data structures (lines 7-231)
@@ -621,10 +762,17 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Ful
 // - parse_func_proc_args (395-512)
 // - func_proc_returns (514-558)
 // - func_proc_throws (561-604)
+// - parse_func_proc_definition (606-641) - NOTE: "returns" renamed to "return_types" (keyword conflict)
+// - enum_definition (643-706) - NOTE: None represented as ValueType.TCustom("")
+// - parse_struct_definition (708-747) - TODO: needs rsonly_enum_extract_payload for Declaration
 //
-// Missing from lines 1-604:
+// Missing from lines 1-747:
 // - Expr methods: get, exit_error, lang_error, todo_error, error (131-172)
 //   (Complex format calls, will add when needed)
-// - parse_primary (referenced but not yet translated)
+// - parse_body (stub, will be translated later)
+// - parse_primary (stub, will be translated later)
 //
-// Next to translate: parse_func_proc_definition (line 606)
+// TIL-specific changes to port back to Rust:
+// - Variable "returns" renamed to "return_types" in parse_func_proc_definition (TIL keyword conflict)
+//
+// Next to translate: parse_primary_identifier (line 749)
