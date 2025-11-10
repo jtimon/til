@@ -12,6 +12,10 @@ test_newline_escape := proc() {
         println("Error scanning newline: ", err)
         exit(1)
     }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
+        exit(1)
+    }
 
     mut tok := Token()
     tokens.get(0, tok)
@@ -29,6 +33,10 @@ test_tab_escape := proc() {
     mut tokens := scan_tokens(source)
     catch (err: Str) {
         println("Error scanning tab: ", err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
         exit(1)
     }
 
@@ -50,6 +58,10 @@ test_carriage_return_escape := proc() {
         println("Error scanning carriage return: ", err)
         exit(1)
     }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
+        exit(1)
+    }
 
     mut tok := Token()
     tokens.get(0, tok)
@@ -67,6 +79,10 @@ test_null_escape := proc() {
     mut tokens := scan_tokens(source)
     catch (err: Str) {
         println("Error scanning null: ", err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
         exit(1)
     }
 
@@ -88,6 +104,10 @@ test_multiple_escapes := proc() {
         println("Error scanning multi-escape string: ", err)
         exit(1)
     }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
+        exit(1)
+    }
 
     mut tok := Token()
     tokens.get(0, tok)
@@ -106,6 +126,10 @@ test_unknown_escape := proc() {
     mut tokens := scan_tokens(source)
     catch (err: Str) {
         println("Error scanning unknown escape: ", err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR: AllocError in scan_tokens")
         exit(1)
     }
 

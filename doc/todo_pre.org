@@ -23,6 +23,36 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
+** TODO Improve Type Checking for Struct Type Mismatches                :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Type safety, bug prevention
+:PRIORITY: Medium
+:END:
+
+*** Problem
+The type checker does not catch when a value of one struct type is passed to a function expecting a different struct type. During the Array/Vec refactor, passing a Vec to a function expecting Array parameter was silently accepted, leading to runtime errors instead of compile-time errors.
+
+*** Example
+#+BEGIN_SRC til
+scan_push_token := proc(mut tokens: Array, ...) { ... }
+
+scan_tokens := proc(source: Str) returns Vec {
+    mut tokens := Vec.new(...)
+    scan_push_token(tokens, ...)  // Should error: Vec passed where Array expected
+}
+#+END_SRC
+
+The call to `scan_push_token(tokens, ...)` passed a Vec where Array was expected, but the type checker did not complain. This caused runtime errors when Array.push was called on what was actually a Vec.
+
+*** Expected Behavior
+The type checker should reject passing Vec where Array is expected, or vice versa, since they are different struct types.
+
+*** Impact
+- Allows type mismatches to slip through to runtime
+- Makes refactoring error-prone
+- Reduces type safety guarantees
+
 ** TODO Improve Test Error Handling with ERROR: Prefix                  :LOW:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

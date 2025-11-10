@@ -87,7 +87,7 @@ Token := struct {
     }
 }
 
-scan_push_token := proc(mut tokens: Array, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
+scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, line: I64, col: I64) throws Str {
     mut t := Token()
     t.token_type = token_type
     t.token_str = token_str
@@ -181,8 +181,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_tokens := proc(source: Str) returns Array throws Str {
-    mut tokens := Array.new_dyn("Token", size_of(Token))
+scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
+    mut tokens := Vec.new("Token", size_of(Token))
 
     eof_pos := source.len()
     mut pos := 0
@@ -470,7 +470,7 @@ scan_tokens := proc(source: Str) returns Array throws Str {
 /** An interface for the Lexer */
 Lexer := struct {
     mut path: Str = ""
-    mut tokens: Array = Array.new_dyn("Token", size_of(Token))
+    mut tokens: Vec = Vec.new("Token", size_of(Token))
     mut current: I64 = 0
 
     new := proc(path: Str) returns Lexer throws Str {

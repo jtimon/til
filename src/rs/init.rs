@@ -1082,8 +1082,14 @@ impl Context {
             let src_key = format!("{}.{}", src, field_name);
             let dest_key = format!("{}.{}", dest, field_name);
 
-            let src_offset = *self.arena_index.get(&src_key)
-                .ok_or_else(|| e.lang_error("context", &format!("copy_fields: source offset for '{}' not found", src_key)))?;
+            // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+            let src_offset = match self.arena_index.get(&src_key) {
+                Some(offset) => *offset,
+                None => {
+                    current_offset += field_size;
+                    continue;
+                }
+            };
 
             let dest_offset = dest_base_offset + current_offset;
 
@@ -1792,10 +1798,9 @@ impl Context {
             }
         }
 
+        // is_dyn field is only present in Array, not in Vec (Vec is always dynamic)
         if let Some(is_dyn_offset) = self.arena_index.get(&format!("{}.is_dyn", name)) {
             Arena::g().memory[*is_dyn_offset] = 0; // false
-        } else {
-            return Err(e.lang_error("context", "insert_array: missing .is_dyn field offset"))
         }
 
         // For generic Array, also set type_name and type_size fields
