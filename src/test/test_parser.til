@@ -6,6 +6,36 @@ import("src/core/parser")
 // Foundation Tests
 // ==============================================================================
 
+test_function_type_func := proc() {
+    ft := FunctionType.FTFunc
+    println("test_function_type_func: PASS")
+}
+test_function_type_func()
+
+test_function_type_proc := proc() {
+    ft := FunctionType.FTProc
+    println("test_function_type_proc: PASS")
+}
+test_function_type_proc()
+
+test_function_type_macro := proc() {
+    ft := FunctionType.FTMacro
+    println("test_function_type_macro: PASS")
+}
+test_function_type_macro()
+
+test_function_type_func_ext := proc() {
+    ft := FunctionType.FTFuncExt
+    println("test_function_type_func_ext: PASS")
+}
+test_function_type_func_ext()
+
+test_function_type_proc_ext := proc() {
+    ft := FunctionType.FTProcExt
+    println("test_function_type_proc_ext: PASS")
+}
+test_function_type_proc_ext()
+
 test_value_type_custom := proc() {
     vt := ValueType.TCustom("MyType")
     println("test_value_type_custom: PASS")

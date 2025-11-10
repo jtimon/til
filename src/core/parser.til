@@ -8,6 +8,15 @@ INFER_TYPE := "auto"
 // Data Structures
 // ==============================================================================
 
+// Function/procedure type
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+    FTMacro,
+    FTFuncExt,
+    FTProcExt,
+}
+
 // Value types that can be inferred or declared
 ValueType := enum {
     TFunction,
