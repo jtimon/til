@@ -998,3 +998,70 @@ test_struct_copy_various_payloads := proc() {
     }
 }
 test_struct_copy_various_payloads()
+
+// ==============================================================================
+// Test: Enum constructor as function return value (parser.til blocker)
+// ==============================================================================
+
+// This tests the specific pattern that's blocking parser.til translation:
+// Returning an enum variant with a payload constructed from another enum
+
+InnerType := enum {
+    TypeA,
+    TypeB,
+}
+
+OuterType := enum {
+    Nested: InnerType,
+    Value: I64,
+}
+
+// Test: Can we construct enum variant with enum payload inside a function?
+test_enum_constructor_in_function := proc() {
+    // Test 1: Using a variable (this works)
+    inner := InnerType.TypeA
+    outer1 := OuterType.Nested(inner)
+
+    mut extracted1 := InnerType.TypeB
+    switch outer1 {
+    case OuterType.Nested(i):
+        extracted1 = i
+    case:
+        panic(loc(), "Failed to match Nested variant")
+    }
+    assert(loc(), enum_to_str(extracted1).eq("InnerType.TypeA"))
+
+    // Test 2: Direct construction in return position
+    get_nested_a := func() returns OuterType {
+        inner_temp := InnerType.TypeA
+        return OuterType.Nested(inner_temp)
+    }
+
+    outer2 := get_nested_a()
+    mut extracted2 := InnerType.TypeB
+    switch outer2 {
+    case OuterType.Nested(i):
+        extracted2 = i
+    case:
+        panic(loc(), "Failed to match Nested variant in returned value")
+    }
+    assert(loc(), enum_to_str(extracted2).eq("InnerType.TypeA"))
+
+    // Test 3: Can we do it inline? (THIS is what parser.til needs)
+    // This would be: return OuterType.Nested(InnerType.TypeA)
+    get_nested_b := func() returns OuterType {
+        // Try inline construction
+        return OuterType.Nested(InnerType.TypeB)
+    }
+
+    outer3 := get_nested_b()
+    mut extracted3 := InnerType.TypeA
+    switch outer3 {
+    case OuterType.Nested(i):
+        extracted3 = i
+    case:
+        panic(loc(), "Failed to match inline nested construction")
+    }
+    assert(loc(), enum_to_str(extracted3).eq("InnerType.TypeB"))
+}
+test_enum_constructor_in_function()

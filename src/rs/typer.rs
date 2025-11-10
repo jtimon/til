@@ -515,7 +515,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         thrown_types.extend(temp_thrown_types);
                                     },
                                     Ok(None) => {
-                                        errors.push(arg.error("type", "Could not resolve function definition for nested call."));
+                                        // Ok(None) is returned for enum constructors and struct instantiation
+                                        // These are valid and don't throw errors, so we don't add an error here
                                     },
                                     Err(reason) => {
                                         errors.push(arg.error("type", &format!("Failed to resolve nested function call: {}", reason)));
@@ -525,7 +526,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         }
                     },
                     Ok(None) => {
-                        errors.push(p.error("type", "Could not resolve function definition for call."));
+                        // Ok(None) is returned for enum constructors and struct instantiation
+                        // These are valid and don't throw errors, so we don't add an error here
                     },
                     Err(reason) => {
                         errors.push(p.error("type", &reason));
