@@ -8,6 +8,7 @@ mod rs {
     pub mod init;
     pub mod typer;
     pub mod interpreter;
+    pub mod ext;
 }
 use rs::lexer::{LANG_NAME, lexer_from_source};
 use rs::parser::{
@@ -131,7 +132,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
-        match rs::interpreter::eval_core_proc_import(context, &import_fcall_expr) {
+        match rs::ext::proc_import(context, &import_fcall_expr) {
             Ok(_) => {},
             Err(error_string) => {
                 return Err(format!("{}:{}", &path, error_string));
@@ -207,7 +208,7 @@ fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String>
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/core".to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
-        rs::interpreter::eval_core_proc_import(&mut context, &import_fcall_expr)?;
+        rs::ext::proc_import(&mut context, &import_fcall_expr)?;
     }
     return run_file_with_context(false, &mut context, &path, main_args)
 }
