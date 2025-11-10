@@ -8,6 +8,21 @@ INFER_TYPE := "auto"
 // Data Structures
 // ==============================================================================
 
+// PatternInfo: workaround for TIL's lack of tuple syntax (String, String)
+// Used for switch case pattern matching with payload extraction
+PatternInfo := struct {
+    mut variant_name: Str = ""
+    mut binding_var: Str = ""
+}
+
+// Literal types
+Literal := enum {
+    Number: Str,
+    Str: Str,
+    Bool: Str,
+    List: Str,
+}
+
 // Function/procedure type
 FunctionType := enum {
     FTFunc,
@@ -57,7 +72,23 @@ Declaration := struct {
 // AST node types
 NodeType := enum {
     Body,
-    Literal,
+    LLiteral: Literal,
+    FCall,
+    Identifier: Str,
+    Declaration: Declaration,
+    Assignment: Str,
+    FuncDef: SFuncDef,
+    EnumDef: SEnumDef,
+    StructDef: SStructDef,
+    Return,
+    Throw,
+    Catch,
+    If,
+    While,
+    Switch,
+    DefaultCase,
+    Range,
+    Pattern: PatternInfo,
 }
 
 // Expression node in AST

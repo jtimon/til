@@ -11,16 +11,31 @@ test_data_structures := proc() {
     ft_func := FunctionType.FTFunc
     ft_proc := FunctionType.FTProc
 
+    // Test Literal enum variants
+    lit_num := Literal.Number("42")
+    lit_str := Literal.Str("hello")
+    lit_bool := Literal.Bool("true")
+    lit_list := Literal.List("[]")
+
+    // Test PatternInfo struct
+    pi := PatternInfo()
+
     // Test struct creations
     ed := SEnumDef()
     sd := SStructDef()
     fd := SFuncDef()
     vt := ValueType.TCustom("I64")
     decl := Declaration()
+
+    // Test NodeType enum variants
+    nt_body := NodeType.Body
+    nt_lit := NodeType.LLiteral(lit_num)
+    nt_fcall := NodeType.FCall
+    nt_id := NodeType.Identifier("x")
+    nt_return := NodeType.Return
+
+    // Test Expr struct
     e := Expr()
 
-    println("test_data_structures: PASS")
 }
 test_data_structures()
-
-println("All parser foundation tests passed!")
