@@ -839,7 +839,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
         mut p := Expr()
         body.params.get(i, p)
         nt := p.node_type
-        if nt.tag().eq(NodeType.Declaration(Declaration.new("", ValueType.TCustom(""), false)).tag()) {
+        if nt.tag().eq(NodeType.Declaration(Declaration()).tag()) {
             // Extract Declaration from payload
             decl := rsonly_enum_extract_payload(nt)
             members.push(decl)
@@ -1259,7 +1259,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     body_expr := parse_body(lexer, TokenType.RightBrace)
 
     // let loop_var := <start_expr>
-    decl := Declaration.new(loop_var_name, str_to_value_type(INFER_TYPE), true)
+    mut decl := Declaration()
+    decl.name = loop_var_name
+    decl.value_type = str_to_value_type(INFER_TYPE)
+    decl.is_mut = true
     mut decl_params := Array()
     decl_params.push(start_expr)
     decl_expr := Expr.new_parse(NodeType.Declaration(decl), initial_token, decl_params)
@@ -1358,7 +1361,9 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
             if p1nt.tag().eq(NodeType.Identifier("").tag()) {
                 binding_var := rsonly_enum_extract_payload(p1nt)
                 // Convert FCall to Pattern
-                pattern_info := PatternInfo.new(variant_name, binding_var)
+                mut pattern_info := PatternInfo()
+                pattern_info.variant_name = variant_name
+                pattern_info.binding_var = binding_var
                 return Expr.new_explicit(NodeType.Pattern(pattern_info), Array(), left.line, left.col)
             }
         }
@@ -1467,7 +1472,10 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     value := parse_primary(lexer)
     params.push(value)
 
-    decl := Declaration.new(decl_name, str_to_value_type(explicit_type), is_mut)
+    mut decl := Declaration()
+    decl.name = decl_name
+    decl.value_type = str_to_value_type(explicit_type)
+    decl.is_mut = is_mut
     initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
