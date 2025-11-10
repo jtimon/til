@@ -1,0 +1,684 @@
+#+TITLE: TIL DRY Refactoring Opportunities
+#+AUTHOR: TIL Development Team
+#+DATE: 2025-01-10
+
+* Overview
+
+This document tracks DRY (Don't Repeat Yourself) refactoring opportunities in the TIL codebase. Each opportunity represents repeated code patterns that could be consolidated into helper functions, macros, or improved abstractions.
+
+Issue numbers are shared across all tracking documents (bugs.org, dry.org, etc.) using =doc/next_issue_num.txt= to prevent number collisions.
+
+* Active DRY Opportunities
+
+** DRY #11: Error Message Construction                              :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 100+ locations across all files
+:EFFORT: 4-6 hours
+:LOCATIONS: typer.rs, init.rs, interpreter.rs, parser.rs, ext.rs
+:BENEFIT: Eliminate 100-200 lines, improve consistency
+:END:
+
+*** Description
+Repeated error formatting with =e.error("type", &format!(...))=, =e.lang_error(...)=, =e.exit_error(...)= patterns appear throughout the codebase.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated in 100+ locations:
+return Err(e.error("type", &format!("Function '{}' expects {} args, but {} were provided.",
+    func_name, expected, actual)));
+
+return Err(e.lang_error("eval", &format!("Core func '{}' not implemented.", name)));
+
+return Err(e.exit_error("type", &format!("Expected {}, found {}.", expected_type, actual_type)));
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+// Add helper methods to Expr impl:
+impl Expr {
+    fn type_error(&self, msg: impl AsRef<str>) -> String {
+        self.error("type", msg.as_ref())
+    }
+
+    fn eval_error(&self, msg: impl AsRef<str>) -> String {
+        self.error("eval", msg.as_ref())
+    }
+
+    fn arg_count_error(&self, func_name: &str, expected: usize, actual: usize) -> String {
+        self.error("type", &format!(
+            "Function/procedure '{}' expects {} args, but {} were provided.",
+            func_name, expected, actual
+        ))
+    }
+
+    fn type_mismatch_error(&self, expected: &str, actual: &str) -> String {
+        self.error("type", &format!("Expected {}, found {}.", expected, actual))
+    }
+}
+
+// Usage becomes:
+return Err(e.arg_count_error(func_name, expected, actual));
+return Err(e.eval_error(&format!("Core func '{}' not implemented.", name)));
+#+END_SRC
+
+*** Affected Files
+- typer.rs: 25+ locations
+- init.rs: 20+ locations
+- interpreter.rs: 25+ locations
+- ext.rs: 15+ locations
+- parser.rs: 10+ locations
+
+*** Estimated Savings
+100-200 lines of repetitive formatting code
+
+** DRY #12: Argument Count Validation in ext.rs                     :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 30+ functions in ext.rs
+:EFFORT: 2-3 hours
+:LOCATIONS: ext.rs lines 17-20, 30-33, 56-59, 70-73, 123-126, 172-175, etc.
+:BENEFIT: Eliminate ~90 lines, centralize validation logic
+:END:
+
+*** Description
+Every external function in ext.rs duplicates the same argument count validation pattern, checking =e.params.len()= and returning identical error messages.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated in 30+ functions:
+if e.params.len() != 2 {
+    return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
+}
+
+if e.params.len() != 3 {
+    return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
+}
+
+if e.params.len() != 4 {
+    return Err(e.lang_error("eval", "Core proc 'memcpy' takes exactly 3 arguments"))
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+// Add helper function at top of ext.rs:
+fn validate_arg_count(e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
+    let actual = e.params.len() - 1; // First param is function name
+    if actual != expected {
+        let func_type = if is_proc { "proc" } else { "func" };
+        let plural = if expected == 1 { "" } else { "s" };
+        return Err(e.lang_error("eval", &format!(
+            "Core {} '{}' takes exactly {} argument{}",
+            func_type, func_name, expected, plural
+        )));
+    }
+    Ok(())
+}
+
+// Usage in every ext function:
+pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(e, "malloc", 1, false)?;
+    // ... rest of implementation
+}
+
+pub fn proc_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(e, "memcpy", 3, true)?;
+    // ... rest of implementation
+}
+#+END_SRC
+
+*** Affected Files
+- ext.rs: 30+ function definitions
+
+*** Estimated Savings
+~90 lines (3 lines reduced to 1 in each function)
+
+** DRY #13: Eval + Throw Propagation Pattern                        :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 50+ locations in interpreter.rs and ext.rs
+:EFFORT: 3-4 hours
+:LOCATIONS: interpreter.rs, ext.rs (throughout)
+:BENEFIT: Eliminate ~150 lines, reduce error-prone boilerplate
+:END:
+
+*** Description
+Repeated sequence of calling =eval_expr=, checking for throw, and propagating it appears in nearly every function that evaluates sub-expressions.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated 50+ times:
+let result = eval_expr(context, e.get(1)?)?;
+if result.is_throw {
+    return Ok(result); // Propagate throw
+}
+let value = result.value;
+
+// Sometimes with multiple evaluations:
+let result1 = eval_expr(context, e.get(1)?)?;
+if result1.is_throw {
+    return Ok(result1);
+}
+let result2 = eval_expr(context, e.get(2)?)?;
+if result2.is_throw {
+    return Ok(result2);
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+// Option 1: Macro
+macro_rules! eval_or_throw {
+    ($context:expr, $expr:expr) => {{
+        let result = eval_expr($context, $expr)?;
+        if result.is_throw {
+            return Ok(result);
+        }
+        result.value
+    }};
+}
+
+// Usage:
+let value = eval_or_throw!(context, e.get(1)?);
+let value2 = eval_or_throw!(context, e.get(2)?);
+
+// Option 2: Helper function returning Result with custom error type
+fn eval_and_propagate(
+    context: &mut Context,
+    e: &Expr
+) -> Result<String, EvalResult> {
+    let result = eval_expr(context, e)?;
+    if result.is_throw {
+        Err(result)
+    } else {
+        Ok(result.value)
+    }
+}
+
+// Usage with ? operator:
+let value = eval_and_propagate(context, e.get(1)?)
+    .or_else(|throw_result| Ok(throw_result))?;
+#+END_SRC
+
+*** Affected Files
+- interpreter.rs: 25+ locations
+- ext.rs: 20+ locations
+
+*** Estimated Savings
+~150 lines of repetitive throw propagation code
+
+** DRY #14: Type Insertion Pattern                                :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 20+ blocks in interpreter.rs
+:EFFORT: 2-3 hours
+:LOCATIONS: interpreter.rs lines 849-857, 859-867, 869-877, 879-887, 968-999
+:BENEFIT: Consolidate ~60 lines, improve type safety
+:END:
+
+*** Description
+Repeated pattern of inserting primitive values into context with nearly identical code for I64, U8, Bool, and Str types.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Pattern repeated for each type:
+ValueType::TCustom(type_name) if type_name == "I64" => {
+    context.insert_i64(var_name, &value, e)?;
+}
+ValueType::TCustom(type_name) if type_name == "U8" => {
+    context.insert_u8(var_name, &value, e)?;
+}
+ValueType::TCustom(type_name) if type_name == "Bool" => {
+    context.insert_bool(var_name, &value, e)?;
+}
+ValueType::TCustom(type_name) if type_name == "Str" => {
+    context.insert_string(var_name, &value, e)?;
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+enum PrimitiveValue {
+    I64(String),
+    U8(String),
+    Bool(String),
+    Str(String),
+}
+
+impl Context {
+    fn insert_primitive(
+        &mut self,
+        var_name: &str,
+        value_type: &ValueType,
+        value: &str,
+        e: &Expr
+    ) -> Result<(), String> {
+        match value_type {
+            ValueType::TCustom(type_name) if type_name == "I64" => {
+                self.insert_i64(var_name, value, e)
+            },
+            ValueType::TCustom(type_name) if type_name == "U8" => {
+                self.insert_u8(var_name, value, e)
+            },
+            ValueType::TCustom(type_name) if type_name == "Bool" => {
+                self.insert_bool(var_name, value, e)
+            },
+            ValueType::TCustom(type_name) if type_name == "Str" => {
+                self.insert_string(var_name, value, e)
+            },
+            _ => Err(e.error("eval", &format!("Unsupported type for insertion: {:?}", value_type)))
+        }
+    }
+}
+
+// Usage:
+context.insert_primitive(var_name, &value_type, &value, e)?;
+#+END_SRC
+
+*** Affected Files
+- interpreter.rs: 20+ match arms
+
+*** Estimated Savings
+~60 lines of repetitive type insertion code
+
+** DRY #15: Variadic Function Argument Handling                   :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 6+ locations in typer.rs and interpreter.rs
+:EFFORT: 2 hours
+:LOCATIONS: typer.rs lines 259-267, 356-369; interpreter.rs lines 1469, 1474-1507
+:BENEFIT: Consolidate validation logic, eliminate ~30 lines
+:END:
+
+*** Description
+Checking for multi-arg (variadic) function parameters involves similar validation logic repeated across type checking and interpretation.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated pattern:
+let has_multi_arg = func_proc_has_multi_arg(&func_def);
+let provided_args = call_expr.params.len() - 1;
+
+if !has_multi_arg && func_def.args.len() != provided_args {
+    return Err(/* standard error */);
+}
+if has_multi_arg && func_def.args.len() - 1 > provided_args {
+    return Err(/* variadic error */);
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn validate_func_args(
+    func_def: &SFuncDef,
+    call_expr: &Expr,
+    func_name: &str
+) -> Result<(), String> {
+    let has_multi_arg = func_proc_has_multi_arg(&func_def);
+    let provided_args = call_expr.params.len() - 1;
+    let expected_args = if has_multi_arg {
+        func_def.args.len() - 1
+    } else {
+        func_def.args.len()
+    };
+
+    if !has_multi_arg && func_def.args.len() != provided_args {
+        return Err(call_expr.error("type", &format!(
+            "Function '{}' expects {} args, but {} were provided.",
+            func_name, expected_args, provided_args
+        )));
+    }
+    if has_multi_arg && expected_args > provided_args {
+        return Err(call_expr.error("type", &format!(
+            "Function '{}' expects at least {} args, but {} were provided.",
+            func_name, expected_args, provided_args
+        )));
+    }
+    Ok(())
+}
+#+END_SRC
+
+*** Affected Files
+- typer.rs: 3+ locations
+- interpreter.rs: 3+ locations
+
+*** Estimated Savings
+~30 lines of validation logic
+
+** DRY #16: Struct Member Lookup Pattern                          :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 15+ locations across init.rs, typer.rs, interpreter.rs
+:EFFORT: 2 hours
+:LOCATIONS: init.rs lines 161-164, 298-309, 351-361; typer.rs 1088-1094; interpreter.rs 1088-1095, 1146-1152
+:BENEFIT: Eliminate ~45 lines, improve safety
+:END:
+
+*** Description
+Finding struct members and extracting declarations uses verbose iterator chains repeated throughout the codebase.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated pattern:
+match struct_def.members.iter().find(|(k, _)| k == member_name).map(|(_, v)| v) {
+    Some(member_decl) => {
+        // use member_decl
+    },
+    None => {
+        return Err(e.error("type", &format!(
+            "Struct '{}' has no member '{}'", struct_name, member_name
+        )))
+    }
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+impl SStructDef {
+    fn get_member(&self, member_name: &str) -> Option<&Declaration> {
+        self.members.iter()
+            .find(|(k, _)| k == member_name)
+            .map(|(_, v)| v)
+    }
+
+    fn get_member_or_err(
+        &self,
+        member_name: &str,
+        struct_name: &str,
+        e: &Expr
+    ) -> Result<&Declaration, String> {
+        self.get_member(member_name)
+            .ok_or_else(|| e.error("type", &format!(
+                "Struct '{}' has no member '{}'", struct_name, member_name
+            )))
+    }
+}
+
+// Usage:
+let member_decl = struct_def.get_member_or_err(member_name, struct_name, e)?;
+#+END_SRC
+
+*** Affected Files
+- init.rs: 5+ locations
+- typer.rs: 5+ locations
+- interpreter.rs: 5+ locations
+
+*** Estimated Savings
+~45 lines of lookup boilerplate
+
+** DRY #17: Enum Payload Extraction Pattern                       :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Major duplication in interpreter.rs and ext.rs
+:EFFORT: 4-5 hours
+:LOCATIONS: interpreter.rs lines 165-247, 248-356, 509-664; ext.rs lines 491-606
+:BENEFIT: Consolidate complex payload handling logic
+:END:
+
+*** Description
+Extracting and handling enum payload data involves repetitive type matching and byte extraction across switch statements and catch blocks.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated in switch cases and catch blocks:
+match payload_type {
+    ValueType::TCustom(type_name) if type_name == "Bool" => {
+        let bool_val = payload_bytes[0] != 0;
+        context.insert_bool(binding_var, &bool_val.to_string(), e)?;
+    },
+    ValueType::TCustom(type_name) if type_name == "I64" => {
+        let i64_bytes: [u8; 8] = payload_bytes[..8].try_into().unwrap();
+        let i64_val = i64::from_le_bytes(i64_bytes);
+        context.insert_i64(binding_var, &i64_val.to_string(), e)?;
+    },
+    ValueType::TCustom(type_name) if type_name == "Str" => {
+        // ... complex string extraction
+    },
+    // ... many more cases
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn extract_enum_payload(
+    context: &mut Context,
+    binding_var: &str,
+    payload_bytes: &[u8],
+    payload_type: &ValueType,
+    e: &Expr
+) -> Result<(), String> {
+    match payload_type {
+        ValueType::TCustom(type_name) if type_name == "Bool" => {
+            let bool_val = payload_bytes[0] != 0;
+            context.insert_bool(binding_var, &bool_val.to_string(), e)
+        },
+        ValueType::TCustom(type_name) if type_name == "I64" => {
+            let i64_bytes: [u8; 8] = payload_bytes[..8].try_into()
+                .map_err(|_| e.error("eval", "Invalid I64 payload bytes"))?;
+            let i64_val = i64::from_le_bytes(i64_bytes);
+            context.insert_i64(binding_var, &i64_val.to_string(), e)
+        },
+        ValueType::TCustom(type_name) if type_name == "Str" => {
+            // Consolidated string extraction
+            extract_string_payload(context, binding_var, payload_bytes, e)
+        },
+        ValueType::TCustom(type_name) => {
+            // Handle custom struct types
+            extract_custom_payload(context, binding_var, payload_bytes, type_name, e)
+        },
+        _ => Err(e.error("eval", &format!("Unsupported payload type: {:?}", payload_type)))
+    }
+}
+#+END_SRC
+
+*** Affected Files
+- interpreter.rs: Multiple locations in eval_switch and eval_catch
+- ext.rs: rsonly_enum_extract_payload function
+
+*** Estimated Savings
+Significant consolidation of complex payload handling (100+ lines)
+
+** DRY #18: Conditional Parameter Validation                        :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 4 locations in typer.rs and interpreter.rs
+:EFFORT: 1 hour
+:LOCATIONS: typer.rs lines 163-166, 202-206; interpreter.rs lines 80-82, 98-100
+:BENEFIT: Consistency improvement, minimal line savings
+:END:
+
+*** Description
+Similar parameter count validation for if/while statements repeated in both type checker and interpreter.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// In typer.rs and interpreter.rs:
+if e.params.len() != 2 {
+    return Err(e.exit_error("type", "If nodes must have exactly 2 parameters."))
+}
+
+if e.params.len() != 2 {
+    return Err(e.exit_error("type", "While nodes must have exactly 2 parameters."))
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn validate_conditional_params(
+    e: &Expr,
+    stmt_type: &str,
+    expected: usize
+) -> Result<(), String> {
+    if e.params.len() != expected {
+        return Err(e.exit_error("type", &format!(
+            "{} nodes must have exactly {} parameters.", stmt_type, expected
+        )));
+    }
+    Ok(())
+}
+
+// Usage:
+validate_conditional_params(e, "If", 2)?;
+validate_conditional_params(e, "While", 2)?;
+#+END_SRC
+
+*** Affected Files
+- typer.rs: 2 locations
+- interpreter.rs: 2 locations
+
+*** Estimated Savings
+~10 lines (minimal, but improves consistency)
+
+** DRY #19: Boolean Condition Type Checking                         :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 2 locations in typer.rs
+:EFFORT: 1 hour
+:LOCATIONS: typer.rs lines 183-192 (if), 223-232 (while)
+:BENEFIT: Code consistency
+:END:
+
+*** Description
+Checking if first parameter is Bool type is duplicated between if and while statement type checking.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated for if and while:
+let inner_e = e.get(0)?;
+let value_type = get_value_type(context, inner_e)?;
+
+let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
+
+if !is_bool {
+    return Err(vec![inner_e.error("type", &format!(
+        "'if' can only accept a bool condition first, found {:?}.",
+        inner_e.node_type
+    ))]);
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn validate_bool_condition(
+    context: &Context,
+    e: &Expr,
+    stmt_type: &str
+) -> Result<(), Vec<String>> {
+    let inner_e = e.get(0)?;
+    let value_type = get_value_type(context, inner_e)?;
+
+    let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
+
+    if !is_bool {
+        return Err(vec![inner_e.error("type", &format!(
+            "'{}' can only accept a bool condition first, found {:?}.",
+            stmt_type, inner_e.node_type
+        ))]);
+    }
+    Ok(())
+}
+
+// Usage:
+validate_bool_condition(context, e, "if")?;
+validate_bool_condition(context, e, "while")?;
+#+END_SRC
+
+*** Affected Files
+- typer.rs: 2 locations
+
+*** Estimated Savings
+~15 lines (improves consistency)
+
+** DRY #20: Context Symbol Lookup with Type Validation              :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: ~10 locations across init.rs, typer.rs, interpreter.rs
+:EFFORT: 2 hours
+:LOCATIONS: init.rs lines 380-405, 891-894; typer.rs lines 135-137, 760-764; interpreter.rs lines 1001-1004, 1588-1590
+:BENEFIT: Safer symbol access
+:END:
+
+*** Description
+Getting symbols from context and validating they match expected types involves repetitive lookup and error handling patterns.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated pattern:
+let symbol = context.symbols.get(name)
+    .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
+
+if symbol.value_type != expected_type {
+    return Err(e.error("type", &format!(
+        "Expected type {}, found {}",
+        value_type_to_str(&expected_type),
+        value_type_to_str(&symbol.value_type)
+    )));
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+impl Context {
+    fn get_symbol_of_type(
+        &self,
+        name: &str,
+        expected_type: &ValueType,
+        e: &Expr
+    ) -> Result<&SymbolInfo, String> {
+        let symbol = self.symbols.get(name)
+            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
+
+        if &symbol.value_type != expected_type {
+            return Err(e.error("type", &format!(
+                "Expected type {}, found {}",
+                value_type_to_str(expected_type),
+                value_type_to_str(&symbol.value_type)
+            )));
+        }
+
+        Ok(symbol)
+    }
+
+    fn require_symbol(&self, name: &str, e: &Expr) -> Result<&SymbolInfo, String> {
+        self.symbols.get(name)
+            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))
+    }
+}
+
+// Usage:
+let symbol = context.get_symbol_of_type(name, &expected_type, e)?;
+let any_symbol = context.require_symbol(name, e)?;
+#+END_SRC
+
+*** Affected Files
+- init.rs: 3+ locations
+- typer.rs: 4+ locations
+- interpreter.rs: 3+ locations
+
+*** Estimated Savings
+~30 lines of repetitive lookup code
+
+* Fixed DRY Refactorings
+
+(Empty - refactorings will be moved here as they are completed)
+
+* Statistics
+
+| Priority | Count | Estimated Total Effort | Estimated Savings |
+|----------+-------+------------------------+-------------------|
+| HIGH     |     3 | 9-13 hours             | 340-440 lines     |
+| MEDIUM   |     5 | 12-16 hours            | 265+ lines        |
+| LOW      |     3 | 4 hours                | ~55 lines         |
+|----------+-------+------------------------+-------------------|
+| TOTAL    |    10 | 25-33 hours            | 660-760 lines     |
+
+* Notes
+
+- Created: 2025-01-10
+- Issue numbers start at #11 (continuing from bugs.org which ends at #10)
+- Next available issue number tracked in =doc/next_issue_num.txt= (currently: 21)
+- Priority guidelines:
+  - HIGH: 20+ instances, high impact on maintainability
+  - MEDIUM: 10-20 instances, moderate impact
+  - LOW: <10 instances, consistency improvement
