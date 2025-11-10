@@ -12,12 +12,27 @@ use std::io::{ErrorKind, Write};
 use std::fs;
 use crate::{main_run, run_file, run_file_with_context};
 
-// Core functions - called from interpreter.rs dispatcher
+// ---------- Helper functions
+
+/// Validates that a function/procedure call has the expected number of arguments.
+/// The e.params.len() includes the function name as the first parameter, so we subtract 1.
+fn validate_arg_count(e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
+    let actual = e.params.len() - 1; // First param is function name
+    if actual != expected {
+        let func_type = if is_proc { "proc" } else { "func" };
+        let plural = if expected == 1 { "" } else { "s" };
+        return Err(e.lang_error("eval", &format!(
+            "Core {} '{}' takes exactly {} argument{}",
+            func_type, func_name, expected, plural
+        )));
+    }
+    Ok(())
+}
+
+// ---------- Core functions - called from interpreter.rs dispatcher
 
 pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 1 {
-        return Err(e.lang_error("eval", "Core func 'loc' doesn't take arguments"))
-    }
+    validate_arg_count(e, "loc", 0, false)?;
     let file = context.path.clone();
     let line = e.line;
     let col = e.col;
@@ -28,9 +43,7 @@ pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 // ---------- eval memory
 
 pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "malloc", 1, false)?;
 
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
@@ -53,9 +66,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'free' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "free", 1, false)?;
 
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
@@ -68,9 +79,7 @@ pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 }
 
 pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 4 {
-        return Err(e.lang_error("eval", "Core func 'memset' takes exactly 3 arguments"))
-    }
+    validate_arg_count(e, "memset", 3, false)?;
 
     let dest_result = eval_expr(context, e.get(1)?)?;
     if dest_result.is_throw {
@@ -121,9 +130,7 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 4 {
-        return Err(e.lang_error("eval", "Core func 'memcpy' takes exactly 3 arguments"))
-    }
+    validate_arg_count(e, "memcpy", 3, false)?;
 
     let dest_result = eval_expr(context, e.get(1)?)?;
     if dest_result.is_throw {
@@ -170,9 +177,7 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 4 {
-        return Err(e.lang_error("eval", "Core func 'memcmp' takes exactly 3 arguments"))
-    }
+    validate_arg_count(e, "memcmp", 3, false)?;
 
     let ptr1_result = eval_expr(context, e.get(1)?)?;
     if ptr1_result.is_throw {
@@ -227,9 +232,7 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'to_ptr' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "to_ptr", 1, false)?;
 
     let identifier_expr = e.get(1)?;
     let combined_name = get_combined_name(identifier_expr)?;
@@ -240,9 +243,7 @@ pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'size_of' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "size_of", 1, false)?;
 
     let type_expr = e.get(1)?;
     match &type_expr.node_type {
@@ -258,9 +259,7 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 }
 
 pub fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'type_as_str' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "type_as_str", 1, false)?;
 
     let type_expr = e.get(1)?;
     match &type_expr.node_type {
@@ -273,9 +272,7 @@ pub fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, 
 }
 
 pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'lt' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "lt", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -292,9 +289,7 @@ pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'gt' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "gt", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -311,9 +306,7 @@ pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "add", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -330,9 +323,7 @@ pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'sub' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "sub", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -349,9 +340,7 @@ pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'mul' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "mul", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -368,9 +357,7 @@ pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'div' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "div", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -391,9 +378,7 @@ pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-   if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core func 'mod' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "mod", 2, false)?;
     let a_result = eval_expr(context, e.get(1)?)?;
     if a_result.is_throw {
         return Ok(a_result); // Propagate throw
@@ -414,9 +399,7 @@ pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 }
 
 pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'str_to_i64' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "str_to_i64", 1, false)?;
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
         return Ok(result); // Propagate throw
@@ -428,9 +411,7 @@ pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 }
 
 pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'i64_to_str' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "i64_to_str", 1, false)?;
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
         return Ok(result); // Propagate throw
@@ -440,9 +421,7 @@ pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, St
 }
 
 pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'enum_to_str' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "enum_to_str", 1, false)?;
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
         return Ok(result); // Propagate throw
@@ -453,9 +432,7 @@ pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
 
 
 pub fn proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 3 {
-        return Err(e.lang_error("eval", "Core proc 'rsonly_enum_extract_payload' takes exactly 2 arguments"))
-    }
+    validate_arg_count(e, "rsonly_enum_extract_payload", 2, true)?;
 
     // First argument: enum variable
     let enum_expr = e.get(1)?;
@@ -614,9 +591,7 @@ pub fn proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<Eval
 }
 
 pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "u8_to_i64", 1, false)?;
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
         return Ok(result); // Propagate throw
@@ -628,9 +603,7 @@ pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 }
 
 pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core func 'i64_to_u8' takes exactly 1 argument"))
-    }
+    validate_arg_count(e, "i64_to_u8", 1, false)?;
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
         return Ok(result); // Propagate throw
@@ -642,9 +615,7 @@ pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 // ---------- core procs implementations for eval
 
 pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'single_print' takes exactly 1 argument"));
-    }
+    validate_arg_count(e, "single_print", 1, true)?;
 
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
@@ -656,18 +627,14 @@ pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, 
 }
 
 pub fn proc_print_flush(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 1 {
-        return Err(e.lang_error("eval", "Core proc 'print_flush' takes 0 arguments"));
-    }
+    validate_arg_count(e, "print_flush", 0, true)?;
 
     io::stdout().flush().map_err(|err| e.lang_error("eval", &format!("Failed to flush stdout: {}", err)))?;
     Ok(EvalResult::new(""))
 }
 
 pub fn proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'input_read_line' takes exactly 1 argument"));
-    }
+    validate_arg_count(e, "input_read_line", 1, true)?;
 
     let first_param = e.get(1)?;
     let read_line_error_msg = match &first_param.node_type {
@@ -685,9 +652,7 @@ pub fn proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResu
 }
 
 pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'eval_to_str' takes exactly 1 argument"));
-    }
+    validate_arg_count(e, "eval_to_str", 1, true)?;
 
     let path = "eval".to_string(); // Placeholder path
     let source_expr = eval_expr(context, e.get(1)?)?;
@@ -726,9 +691,7 @@ pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 }
 
 pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'import' expects a single parameter"));
-    }
+    validate_arg_count(e, "import", 1, true)?;
 
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
@@ -773,9 +736,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'readfile' expects a single parameter"));
-    }
+    validate_arg_count(e, "readfile", 1, true)?;
 
     let result = eval_expr(context, e.get(1)?)?;
     if result.is_throw {
@@ -795,9 +756,7 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
 }
 
 pub fn func_exit(e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() != 2 {
-        return Err(e.lang_error("eval", "Core proc 'exit' expects a single parameter"));
-    }
+    validate_arg_count(e, "exit", 1, false)?;
 
     let e_exit_code = e.get(1)?;
     let exit_code = match &e_exit_code.node_type {
