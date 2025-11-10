@@ -1128,7 +1128,7 @@ parse_func_proc_args := proc(mut lexer: Lexer) returns Array throws Str, IndexOu
 
 // Parse return types: returns Type1, Type2, ...
 // Returns Array of ValueType
-func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
+func_proc_returns := proc(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
     mut end_found := false
     mut return_types := Array()
     mut t := lexer.peek()
@@ -1183,7 +1183,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, IndexOutOf
 
 // Parse throw types: throws Error1, Error2, ...
 // Returns Array of ValueType
-func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
+func_proc_throws := proc(mut lexer: Lexer) returns Array throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
     mut end_found := false
     mut throw_types := Array()
     mut t := lexer.previous()
@@ -1748,7 +1748,7 @@ parse_body := proc(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
 
 // Parse tokens from lexer into AST
 // This is the main entry point for parsing
-parse_tokens := func(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
+parse_tokens := proc(lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError, AllocError, FullError, I64_OverflowError {
     e := parse_body(lexer, TokenType.Eof)
 
     // Check for unparsed tokens
