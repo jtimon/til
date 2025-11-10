@@ -14,7 +14,7 @@ simplest_catch()
 
 // Test catch block with error that has fields
 ErrorWithMessage := struct {
-    msg: Str = "default error message"
+    mut msg: Str = "default error message"
 }
 
 test_catch_with_fields := proc() {
@@ -158,6 +158,46 @@ test_undeclared_throws := proc() {
     assert(loc(), catched_assoc)
 }
 test_undeclared_throws()
+
+// Test catching and printing Str errors
+test_catch_str_error := proc() {
+    mut caught := false
+    mut error_msg := ""
+
+    throw "This is a test error message"
+    catch (err: Str) {
+        caught = true
+        println("Caught error:")
+        println(err)
+        error_msg = err
+    }
+
+    assert(loc(), caught)
+    assert_eq_str(loc(), "This is a test error message", error_msg)
+}
+test_catch_str_error()
+
+// Test catching errors with Str fields in structs
+test_catch_error_with_str_field := proc() {
+    mut caught := false
+    mut caught_msg := ""
+
+    mut my_error := ErrorWithMessage()
+    // Change the message before throwing
+    my_error.msg = "Custom error message"
+    throw my_error
+    catch (err: ErrorWithMessage) {
+        caught = true
+        // Test accessing Str field in caught struct
+        println("Caught error with message:")
+        println(err.msg)
+        caught_msg = err.msg
+    }
+
+    assert(loc(), caught)
+    assert_eq_str(loc(), "Custom error message", caught_msg)
+}
+test_catch_error_with_str_field()
 
 // ==============================================================================
 // TODO: Features that could be added to error handling

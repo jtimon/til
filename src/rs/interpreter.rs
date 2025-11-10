@@ -1355,9 +1355,14 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             } else {
                                 // Fallback: try to map fields from the thrown value or type
                                 // This happens when throwing inline struct constructors or when arena_index lookup fails
-                                let source_name = &throw_result.value;
 
-                                if let Some(struct_def) = context.struct_defs.get(thrown_type) {
+                                // Special handling for Str: when throwing a string literal, we need to create a proper Str struct
+                                if thrown_type == "Str" {
+                                    // The thrown value is the actual string content, not a struct instance name
+                                    // Create a proper Str struct for the catch variable
+                                    context.insert_string(var_name, &throw_result.value, stmt)?;
+                                } else if let Some(struct_def) = context.struct_defs.get(thrown_type) {
+                                    let source_name = &throw_result.value;
                                     for (field_name, field_decl) in &struct_def.members {
                                         let src_instance_field = format!("{}.{}", source_name, field_name);
                                         let src_type_field = format!("{}.{}", thrown_type, field_name);

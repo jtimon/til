@@ -4,6 +4,11 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
+// Helper to create empty dynamic Expr array
+empty_expr_array := func() returns Array {
+    return Array.new_dyn("Expr", size_of(Expr))
+}
+
 FunctionType := enum {
     FTFunc,
     FTProc,
@@ -881,7 +886,9 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
 
         current_identifier = next2_t.token_str
         lexer.advance(2)
-        params.push(Expr.new_parse(NodeType.Identifier(current_identifier), t, Array()))
+        empty_params := empty_expr_array()
+        ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier), t, empty_params)
+        params.push(ident_expr)
         next_t = lexer.next()
     }
 
@@ -937,7 +944,8 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
 
                 // Create a new FCall with the method name as identifier and previous result as first arg
                 // This represents: method_name(result, args...)
-                method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, Array())
+                empty_params := empty_expr_array()
+                method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, empty_params)
                 mut new_params := Array.new_dyn("Expr", size_of(Expr))
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
@@ -1151,13 +1159,15 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     // Parse the error variable name
     name_token := lexer_expect(lexer, TokenType.Identifier)
     name := name_token.token_str
-    name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, Array())
+    empty_params := empty_expr_array()
+    name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, empty_params)
 
     lexer_expect(lexer, TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer_expect(lexer, TokenType.Identifier)
-    type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, Array())
+    empty_params2 := empty_expr_array()
+    type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, empty_params2)
 
     lexer_expect(lexer, TokenType.RightParen) // expect ')'
 
@@ -1271,7 +1281,9 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     // while <loop_var> < <end_expr> {
     // Create: loop_var.lt(end_expr)
     mut lt_ident_params := Array.new_dyn("Expr", size_of(Expr))
-    lt_ident_params.push(Expr.new_parse(NodeType.Identifier("lt"), initial_token, Array()))
+    empty_params := empty_expr_array()
+    lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token, empty_params)
+    lt_ident_params.push(lt_expr)
     loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, lt_ident_params)
 
     mut cond_params := Array.new_dyn("Expr", size_of(Expr))
@@ -1281,9 +1293,12 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 
     // Create: loop_var.inc()
     mut inc_ident_params := Array.new_dyn("Expr", size_of(Expr))
-    inc_ident_params.push(Expr.new_parse(NodeType.Identifier("inc"), initial_token, Array()))
+    empty_params2 := empty_expr_array()
+    inc_expr := Expr.new_parse(NodeType.Identifier("inc"), initial_token, empty_params2)
+    inc_ident_params.push(inc_expr)
     mut inc_params := Array.new_dyn("Expr", size_of(Expr))
-    inc_params.push(Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params))
+    loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params)
+    inc_params.push(loop_var_inc_expr)
     inc_expr := Expr.new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
 
     // Add inc_expr to body
@@ -1406,7 +1421,9 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         next_t = lexer.peek()
         ntt2 := next_t.token_type
         if token_type_eq(ntt2, TokenType.Colon) {
-            params.push(Expr.new_parse(NodeType.DefaultCase, t, Array()))
+            empty_params := empty_expr_array()
+            default_case_expr := Expr.new_parse(NodeType.DefaultCase, t, empty_params)
+            params.push(default_case_expr)
         } else {
             prim2 := parse_case_expr(lexer)
             params.push(prim2)
@@ -1429,14 +1446,16 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
 
             ntt4 := next_t.token_type
             if token_type_eq(ntt4, TokenType.RightBrace) {
-                params.push(Expr.new_parse(NodeType.Body, t, body_params))
+                body_expr := Expr.new_parse(NodeType.Body, t, body_params)
+                params.push(body_expr)
                 end_found = true
                 lexer.advance(1)
                 continue_inner = false
                 continue_outer = false
             } else {
                 if token_type_eq(ntt4, TokenType.Case) {
-                    params.push(Expr.new_parse(NodeType.Body, t, body_params))
+                    body_expr := Expr.new_parse(NodeType.Body, t, body_params)
+                params.push(body_expr)
                     continue_inner = false
                 } else {
                     stmt := parse_statement(lexer)

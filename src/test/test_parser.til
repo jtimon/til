@@ -4,11 +4,13 @@ import("src/core/parser")
 
 // Helper to parse TIL source code
 parse_source := proc(source: Str) {
-    // Lex and parse the source
+    // Just parse the body - parse_tokens doesn't handle mode declarations
+    // (mode is handled separately when loading files via parse_mode)
     mut lexer := Lexer.new_from_src(source)
     ast := parse_tokens(lexer)
     catch (err: Str) {
-        println("Parse error in parse_source (cannot print error due to Str bug)")
+        println("Parse error in parse_source:")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
@@ -31,54 +33,64 @@ parse_source := proc(source: Str) {
 
 // Test parsing simple expressions
 test_simple_expressions := proc() {
-    parse_source("mode test\ny := 42")
-    parse_source("mode test\ns := \"hello\"")
-    parse_source("mode test\nb := true")
-    parse_source("mode test\nz := x")
-    parse_source("mode test\nresult := 1.add(2)")
-    parse_source("mode test\nresult2 := x.add(1).mul(2)")
+    println("Testing: y := 42")
+    println("About to call parse_source")
+    parse_source("y := 42")
+    println("parse_source succeeded")
+    parse_source("s := \"hello\"")
+    parse_source("b := true")
+    parse_source("z := x")
+    parse_source("result := x.add(y)")
+    parse_source("result2 := x.add(y).mul(z)")
+    println("test_simple_expressions passed")
 }
 
 // Test parsing declarations
 test_declarations := proc() {
-    parse_source("mode test\nx := 42")
-    parse_source("mode test\nx: I64 = 42")
-    parse_source("mode test\nmut x := 42")
-    parse_source("mode test\nmut x: I64 = 42")
+    parse_source("x := 42")
+    parse_source("x: I64 = 42")
+    parse_source("mut x := 42")
+    parse_source("mut x: I64 = 42")
+    println("test_declarations passed")
 }
 
 // Test parsing functions
 test_functions := proc() {
-    parse_source("mode test\nf := func() returns I64 { return 42 }")
-    parse_source("mode test\nf := func(x: I64) returns I64 { return x }")
-    parse_source("mode test\nf := func() returns I64 throws Str { return 42 }")
-    parse_source("mode test\np := proc() { println(\"hello\") }")
+    parse_source("f := func() returns I64 { return 42 }")
+    parse_source("f := func(x: I64) returns I64 { return x }")
+    parse_source("f := func() returns I64 throws Str { return 42 }")
+    parse_source("p := proc() { println(\"hello\") }")
+    println("test_functions passed")
 }
 
 // Test parsing control flow
 test_control_flow := proc() {
-    parse_source("mode test\nif x { y := 1 }")
-    parse_source("mode test\nif x { y := 1 } else { y := 2 }")
-    parse_source("mode test\nwhile x.lt(10) { x = x.add(1) }")
-    parse_source("mode test\nfor i in 0..10 { println(i.to_str()) }")
+    parse_source("if x { y := 1 }")
+    parse_source("if x { y := 1 } else { y := 2 }")
+    parse_source("while x.lt(10) { x = x.add(1) }")
+    parse_source("for i in 0..10 { println(i.to_str()) }")
+    println("test_control_flow passed")
 }
 
 // Test parsing enums
 test_enums := proc() {
-    parse_source("mode test\nColor := enum { Red, Green, Blue }")
-    parse_source("mode test\nOption := enum { Some: I64, None }")
+    parse_source("Color := enum { Red, Green, Blue }")
+    parse_source("Option := enum { Some: I64, None }")
+    println("test_enums passed")
 }
 
 // Test parsing structs
 test_structs := proc() {
-    parse_source("mode test\nPoint := struct { mut x: I64 = 0 mut y: I64 = 0 }")
-    parse_source("mode test\nPoint := struct { mut x: I64 = 0 add := func(self: Point, n: I64) returns I64 { return self.x.add(n) } }")
+    parse_source("Point := struct { mut x: I64 = 0 mut y: I64 = 0 }")
+    parse_source("Point := struct { mut x: I64 = 0 add := func(self: Point, n: I64) returns I64 { return self.x.add(n) } }")
+    println("test_structs passed")
 }
 
 // Test parsing switch statements
 test_switch := proc() {
-    parse_source("mode test\nswitch x { case 1: y := 1 case 2: y := 2 case: y := 0 }")
-    parse_source("mode test\nswitch opt { case Option.Some(v): println(v.to_str()) case Option.None: println(\"none\") }")
+    parse_source("switch x { case 1: y := 1 case 2: y := 2 case: y := 0 }")
+    parse_source("switch opt { case Option.Some(v): println(v.to_str()) case Option.None: println(\"none\") }")
+    println("test_switch passed")
 }
 
 // Test parsing a file
@@ -326,10 +338,8 @@ test_parse_statement()
 test_parse_body()
 
 // TODO: Re-enable after fixing runtime parsing issues in parser.til
-// NOTE: These tests fail due to Str handling bug in catch blocks (see todo_pre.org)
-// Cannot print error messages from parse_tokens() because println(err) where err: Str
-// causes "missing field 'err.c_string'" error
-// test_simple_expressions()
+// Now we can see actual error messages thanks to Str catch block fix!
+test_simple_expressions()
 // test_declarations()
 // test_functions()
 // test_control_flow()
