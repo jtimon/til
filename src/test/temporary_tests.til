@@ -1,0 +1,5 @@
+mode test
+
+temporary_test := proc() {
+}
+temporary_test()

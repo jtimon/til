@@ -1,5 +1,0 @@
-mode test
-
-future_test := proc() {
-}
-future_test()

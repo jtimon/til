@@ -2,7 +2,7 @@ mode test
 
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
-runfile("src/test/future.til")
+runfile("src/test/temporary_tests.til")
 
 // Self-hosting interpreter tests
 // TODO: Re-enable after fixing type errors in lexer.til and parser.til
