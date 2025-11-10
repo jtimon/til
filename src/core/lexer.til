@@ -606,8 +606,8 @@ token_type_eq := func(tt1: TokenType, tt2: TokenType) returns Bool {
     return result
 }
 
-// Workaround for rstil bug: return in methods returns from caller
-// So we make expect a standalone function instead of a method
+// Workaround for Bug #8: Uncaptured return values propagate up call stack
+// This standalone function allows callers to capture the return value with _ := lexer_expect(...)
 lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
     p := lexer.peek()
     if token_type_eq(p.token_type, expected) {

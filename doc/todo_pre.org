@@ -14,12 +14,64 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 | Component           | Status                          | Notes                                           |
 |---------------------+---------------------------------+-------------------------------------------------|
-| Known Bugs          | ✅ BUG #7 FIXED                 | Enum return values now handled correctly        |
+| Known Bugs          | ❌ BUG #8 ACTIVE                | Uncaptured returns propagate up call stack      |
 | Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
 | Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
-| Test Suite          | ✅ ALL TESTS PASSING            | All tests pass including enum payloads          |
+| Test Suite          | ⚠️ PARTIAL                     | Core tests pass, parser blocked by Bug #8       |
 | Type System         | ✅ ENUM RETURNS WORK            | Functions can return enums with payloads        |
-| Parser Homogenization | 🔄 IN PROGRESS                 | Translating from parser.rs line by line         |
+| Parser Homogenization | ❌ BLOCKED                     | Blocked by Bug #8 (return propagation)          |
+
+* Critical: Active Bugs
+:PROPERTIES:
+:CATEGORY: Bugs
+:END:
+
+** TODO Fix Bug #8: Uncaptured Return Values Propagate Up Call Stack        :CRITICAL:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:FILE: src/rs/interpreter.rs
+:IMPACT: Blocks parser.til and requires workarounds everywhere
+:RELATED: Parser homogenization
+:END:
+
+*** Problem
+When calling a function/method that returns a value without capturing that value in an assignment, the return value propagates up the call stack, causing the CALLER to also return with that value.
+
+Example that fails:
+#+BEGIN_SRC til
+parse_func_proc_args := func(mut lexer: Lexer) returns Array {
+    lexer_expect(lexer, TokenType.LeftParen)  // Returns Token, not captured
+    // Function returns HERE with the Token value!
+    println("This never executes")
+    ...
+}
+#+END_SRC
+
+*** Desired Behavior
+Uncaptured return values should be discarded:
+#+BEGIN_SRC til
+parse_func_proc_args := func(mut lexer: Lexer) returns Array {
+    lexer_expect(lexer, TokenType.LeftParen)  // Should discard Token return value
+    println("This should execute")            // Should continue normally
+    ...
+}
+#+END_SRC
+
+*** Current Workaround
+Must capture ALL return values, even when not needed:
+#+BEGIN_SRC til
+    _ := lexer_expect(lexer, TokenType.LeftParen)  // Works
+#+END_SRC
+
+*** What Needs to be Fixed
+- Modify rstil's interpreter.rs to check if a function/method call is part of an assignment
+- If NOT part of an assignment, discard the return value instead of propagating it
+- This is the desired behavior and was simply not a priority to implement yet
+
+*** Impact
+- Blocks parser.til homogenization completely
+- Requires verbose `_ := func()` workarounds throughout codebase
+- Makes TIL code unintuitive and hard to debug
 
 * Critical: Missing rstil Features
 :PROPERTIES:
@@ -37,50 +89,7 @@ CLOSED: [2025-01-10]
 
 Fixed in interpreter.rs lines 1359-1363. When catching Str with no arena_index, now calls insert_string() to create proper Str struct.
 
-** BUG Method return causes early return from caller                      :CRITICAL:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: Cannot use methods that return values
-:RELATED: Methods, Return statements
-:STATUS: DOCUMENTED
-:END:
-
-*** Problem
-When a method returns a value, it causes the CALLING function to return instead of just the method.
-
-Example:
-#+BEGIN_SRC til
-Lexer := struct {
-    expect := func(mut self: Lexer, expected: TokenType) returns Token {
-        // ... code that returns a Token
-        return token
-    }
-}
-
-parse_func := func(mut lexer: Lexer) {
-    println("Before expect")
-    lexer.expect(TokenType.LeftParen)  // This line causes parse_func to return!
-    println("After expect")  // This line never executes
-}
-#+END_SRC
-
-*** Workaround
-Use standalone functions instead of methods:
-#+BEGIN_SRC til
-lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token {
-    // Same implementation
-}
-
-// Call as: lexer_expect(lexer, TokenType.LeftParen)
-// Instead of: lexer.expect(TokenType.LeftParen)
-#+END_SRC
-
-*** Impact
-- Cannot use Lexer.expect() method in parser.til
-- Must use standalone lexer_expect() function
-- Affects any method that needs to return a value
-
-*** Old Problem (NOW FIXED)
+*** Old Bug Report (FALSE POSITIVE)
 When catching `err: Str` in a catch block, accessing the error value causes a runtime error:
 "missing field 'err.c_string'"
 

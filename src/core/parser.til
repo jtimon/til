@@ -388,7 +388,7 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
 }
 
 parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
-    lexer_expect(lexer,  TokenType.Mode)  // Add one for mode
+    _ := lexer_expect(lexer, TokenType.Mode)  // Add one for mode
 
     t := lexer.peek()
     tt := t.token_type
@@ -406,7 +406,7 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
         throw format(path, ":0:0: mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead")
     }
 
-    lexer_expect(lexer,  TokenType.Identifier)  // Add one for the identifier of the mode
+    _ := lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
     return m
 }
 
@@ -436,7 +436,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
     mut rightparent_found := false
     mut params := Array.new_dyn("Expr", size_of(Expr))
     initial_current := lexer.current
-    lexer_expect(lexer,  TokenType.LeftParen)
+    _ := lexer_expect(lexer, TokenType.LeftParen)
     mut list_t := lexer.peek()
     mut expect_comma := false
 
@@ -444,11 +444,11 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
         lt := list_t.token_type
         switch lt {
         case TokenType.RightParen:
-            lexer_expect(lexer,  TokenType.RightParen)
+            _ := lexer_expect(lexer, TokenType.RightParen)
             rightparent_found = true
         case TokenType.Comma:
             if expect_comma {
-                lexer_expect(lexer,  TokenType.Comma)
+                _ := lexer_expect(lexer, TokenType.Comma)
                 expect_comma = false
                 list_t = lexer.peek()
             } else {
@@ -477,7 +477,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
 }
 
 parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
-    lexer_expect(lexer,  TokenType.Equal)
+    _ := lexer_expect(lexer, TokenType.Equal)
     mut params := Array.new_dyn("Expr", size_of(Expr))
     value := parse_primary(lexer)
     params.push(value)
@@ -485,7 +485,7 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
 }
 
 parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
-    lexer_expect(lexer, TokenType.LeftParen)
+    _ := lexer_expect(lexer, TokenType.LeftParen)
     mut rightparent_found := false
     mut args := Array.new_dyn("Declaration", size_of(Declaration))
     mut t := lexer.peek()
@@ -517,7 +517,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
                 expect_colon = false
                 expect_name = true
                 is_mut = false
-                lexer_expect(lexer,  TokenType.Comma)
+                _ := lexer_expect(lexer, TokenType.Comma)
                 t = lexer.peek()
             } else {
                 throw token_error(t, "Unexpected ','.")
@@ -631,7 +631,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError
             lexer.advance(1)
         case TokenType.Comma:
             if expect_comma {
-                lexer_expect(lexer,  TokenType.Comma)
+                _ := lexer_expect(lexer, TokenType.Comma)
                 expect_comma = false
                 t = lexer.peek()
             } else {
@@ -813,7 +813,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
 }
 
 parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
-    lexer_expect(lexer,  TokenType.Struct)
+    _ := lexer_expect(lexer, TokenType.Struct)
     t := lexer.peek()
     tt := t.token_type
     if not(token_type_eq(tt, TokenType.LeftBrace)) {
@@ -1144,24 +1144,24 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     initial_current := lexer.current
     lexer.advance(1) // consume 'catch'
 
-    lexer_expect(lexer,  TokenType.LeftParen) // expect '('
+    _ := lexer_expect(lexer, TokenType.LeftParen) // expect '('
 
     // Parse the error variable name
-    name_token := lexer_expect(lexer,  TokenType.Identifier)
+    name_token := lexer_expect(lexer, TokenType.Identifier)
     name := name_token.token_str
     empty_params := empty_expr_array()
     name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, empty_params)
 
-    lexer_expect(lexer,  TokenType.Colon) // expect ':'
+    _ := lexer_expect(lexer, TokenType.Colon) // expect ':'
 
     // Parse the exception type
-    type_token := lexer_expect(lexer,  TokenType.Identifier)
+    type_token := lexer_expect(lexer, TokenType.Identifier)
     empty_params2 := empty_expr_array()
     type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, empty_params2)
 
-    lexer_expect(lexer,  TokenType.RightParen) // expect ')'
+    _ := lexer_expect(lexer, TokenType.RightParen) // expect ')'
 
-    lexer_expect(lexer,  TokenType.LeftBrace) // expect '{'
+    _ := lexer_expect(lexer, TokenType.LeftBrace) // expect '{'
     body_expr := parse_body(lexer, TokenType.RightBrace)
 
     mut params := Array.new_dyn("Expr", size_of(Expr))
@@ -1242,10 +1242,10 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     lexer.advance(1) // consume 'for'
 
     // Expect loop variable name
-    ident_token := lexer_expect(lexer,  TokenType.Identifier)
+    ident_token := lexer_expect(lexer, TokenType.Identifier)
     loop_var_name := ident_token.token_str
 
-    lexer_expect(lexer,  TokenType.In)
+    _ := lexer_expect(lexer, TokenType.In)
 
     // Parse the range expression (e.g., 1..10)
     range_expr := parse_case_expr(lexer)
@@ -1256,7 +1256,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     start_expr := range_expr.get(0)
     end_expr := range_expr.get(1)
 
-    lexer_expect(lexer,  TokenType.LeftBrace)
+    _ := lexer_expect(lexer, TokenType.LeftBrace)
     body_expr := parse_body(lexer, TokenType.RightBrace)
 
     // let loop_var := <start_expr>
@@ -1595,7 +1595,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
                 is_semicolon = false
             }
             if is_semicolon {
-                lexer_expect(lexer,  TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
+                _ := lexer_expect(lexer, TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
             } else {
                 stmt := parse_statement(lexer)
                 params.push(stmt)
