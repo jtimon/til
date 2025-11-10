@@ -1,0 +1,49 @@
+#+TITLE: TIL Terminology Guide
+#+AUTHOR: TIL Development Team
+#+DATE: 2025-01-10
+
+* Overview
+
+This document defines terminology used in TIL documentation and codebase to maintain consistency and clarity.
+
+* Function vs Func/Proc/Macro
+
+** "Functions" (general term)
+When used generically, "functions" refers to ALL callable constructs in TIL, including:
+- =func= (pure functions)
+- =proc= (procedures with side effects)
+- =macro= (future: compile-time code generation)
+
+** "Func" and "Proc" (specific terms)
+When being specific about which type of callable:
+- Use =func= for pure functions (no side effects, must return a value)
+- Use =proc= for procedures (may have side effects, may or may not return)
+- Use =func/proc= when discussing both explicitly
+- Future: =funcs/procs/macros= when all three are relevant
+
+** Usage Examples
+
+*Generic (includes all types):*
+- "User-defined functions support variadic arguments"
+- "This function takes two parameters"
+- "Functions must explicitly declare what they can throw"
+
+*Specific (distinguishes types):*
+- "Core func 'malloc' takes exactly 1 argument"
+- "Core proc 'single_print' takes exactly 1 argument"
+- "The validate_arg_count helper is only for ext funcs/procs"
+- "Future: funcs/procs/macros will have different call conventions"
+
+** Rationale
+
+Using "functions" as the generic term aligns with common programming terminology while maintaining precision when needed. The =func/proc= distinction is critical for:
+
+1. **Type checking**: Funcs must return, procs may not
+2. **Side effects**: Funcs are pure, procs may mutate state
+3. **Error messages**: Users need to know which type they're calling
+4. **Future extensibility**: Clear pattern for adding macros
+
+* Notes
+
+- Created: 2025-01-10
+- This terminology guide will be integrated into a more comprehensive documentation structure in the future
