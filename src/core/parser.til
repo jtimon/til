@@ -2,6 +2,15 @@ mode lib
 
 import("src/core/lexer")
 
+// Translation status from parser.rs:
+// [x] Data structures: All enums and structs (lines 1-231)
+// [x] Basic helpers: is_literal, value_type_to_str, can_be_imported
+// [x] Mode functions: mode_from_name, parse_mode
+// [x] parse_literal
+// [ ] str_to_value_type - Blocked by type checker issue with enum constructors
+// [ ] Parse functions - Most depend on parse_primary and each other
+// [ ] Expression parsing - Needs full interdependent implementation
+
 INFER_TYPE := "auto"
 
 FunctionType := enum {
@@ -207,26 +216,10 @@ value_type_to_str := func(arg_type: ValueType) returns Str {
     }
 }
 
-// TODO: Type checker sees enum constructors as function calls
-// str_to_value_type := func(arg_type: Str) returns ValueType {
-//     if arg_type.eq("func") {
-//         return ValueType.TFunction(FunctionType.FTFunc)
-//     }
-//     if arg_type.eq("proc") {
-//         return ValueType.TFunction(FunctionType.FTProc)
-//     }
-//     if arg_type.eq("macro") {
-//         return ValueType.TFunction(FunctionType.FTMacro)
-//     }
-//     if arg_type.eq("enum") {
-//         return ValueType.TType(TTypeDef.TEnumDef)
-//     }
-//     if arg_type.eq("struct") {
-//         return ValueType.TType(TTypeDef.TStructDef)
-//     }
-//     // Default: custom type
-//     return ValueType.TCustom(arg_type)
-// }
+// TODO: Implement str_to_value_type
+// Blocked by type checker seeing enum constructors with payloads as function calls
+// This is needed for func_proc_returns and func_proc_throws
+// Workaround: might need to refactor how ValueType is used in parsing
 
 ModeDef := struct {
     mut name: Str = ""
