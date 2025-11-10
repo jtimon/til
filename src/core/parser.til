@@ -17,6 +17,11 @@ FunctionType := enum {
     FTProcExt,
 }
 
+// Enum definition
+SEnumDef := struct {
+    mut enum_map: Map = Map()              // Map<Str, ValueType> - variant name to optional payload type
+}
+
 // Function/procedure definition
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc

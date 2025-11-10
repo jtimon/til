@@ -36,6 +36,12 @@ test_function_type_proc_ext := proc() {
 }
 test_function_type_proc_ext()
 
+test_senumdef_creation := proc() {
+    mut ed := SEnumDef()
+    println("test_senumdef_creation: PASS")
+}
+test_senumdef_creation()
+
 test_sfuncdef_creation := proc() {
     mut fd := SFuncDef()
     fd.function_type = FunctionType.FTProc
