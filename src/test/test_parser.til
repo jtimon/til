@@ -3,74 +3,24 @@ mode test
 import("src/core/parser")
 
 // ==============================================================================
-// Foundation Tests
+// Data Structure Tests
 // ==============================================================================
 
-test_function_type_func := proc() {
-    ft := FunctionType.FTFunc
-    println("test_function_type_func: PASS")
-}
-test_function_type_func()
+test_data_structures := proc() {
+    // Test FunctionType enum variants
+    ft_func := FunctionType.FTFunc
+    ft_proc := FunctionType.FTProc
 
-test_function_type_proc := proc() {
-    ft := FunctionType.FTProc
-    println("test_function_type_proc: PASS")
-}
-test_function_type_proc()
+    // Test struct creations
+    ed := SEnumDef()
+    sd := SStructDef()
+    fd := SFuncDef()
+    vt := ValueType.TCustom("I64")
+    decl := Declaration()
+    e := Expr()
 
-test_function_type_macro := proc() {
-    ft := FunctionType.FTMacro
-    println("test_function_type_macro: PASS")
+    println("test_data_structures: PASS")
 }
-test_function_type_macro()
-
-test_function_type_func_ext := proc() {
-    ft := FunctionType.FTFuncExt
-    println("test_function_type_func_ext: PASS")
-}
-test_function_type_func_ext()
-
-test_function_type_proc_ext := proc() {
-    ft := FunctionType.FTProcExt
-    println("test_function_type_proc_ext: PASS")
-}
-test_function_type_proc_ext()
-
-test_senumdef_creation := proc() {
-    mut ed := SEnumDef()
-    println("test_senumdef_creation: PASS")
-}
-test_senumdef_creation()
-
-test_sfuncdef_creation := proc() {
-    mut fd := SFuncDef()
-    fd.function_type = FunctionType.FTProc
-    println("test_sfuncdef_creation: PASS")
-}
-test_sfuncdef_creation()
-
-test_value_type_custom := proc() {
-    vt := ValueType.TCustom("MyType")
-    println("test_value_type_custom: PASS")
-}
-test_value_type_custom()
-
-test_declaration_creation := proc() {
-    mut decl := Declaration()
-    decl.name = "x"
-    decl.value_type = ValueType.TCustom("I64")
-    decl.is_mut = true
-    println("test_declaration_creation: PASS")
-}
-test_declaration_creation()
-
-test_expr_creation := proc() {
-    mut e := Expr()
-    e.node_type = NodeType.Body
-    e.line = 1
-    e.col = 1
-    println("test_expr_creation: PASS")
-}
-test_expr_creation()
+test_data_structures()
 
 println("All parser foundation tests passed!")

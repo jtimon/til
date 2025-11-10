@@ -22,6 +22,12 @@ SEnumDef := struct {
     mut enum_map: Map = Map()              // Map<Str, ValueType> - variant name to optional payload type
 }
 
+// Struct definition
+SStructDef := struct {
+    mut members: Array = Array()           // Array of (Str, Declaration) tuples (field name, declaration)
+    mut default_values: Map = Map()        // Map<Str, Expr> - field name to default value expression
+}
+
 // Function/procedure definition
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
