@@ -143,11 +143,11 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 
 ** Parser (parser.til vs src/rs/parser.rs)
 *** Status: ✅ TRANSLATION COMPLETE (2025-01-10)
-*** Homologization Status: COMPLETE ✅
+*** Runtime Status: ⏳ TESTING IN PROGRESS (2025-01-10)
 
-*Translation Completed:* 100% of parser.rs (1,408 lines) translated to parser.til (1,479 lines)
+*Translation Completed:* 100% of parser.rs (1,408 lines) translated to parser.til (1,527 lines)
 
-*TIL Implementation (1,479 lines):*
+*TIL Implementation (1,527 lines):*
 - ✅ All data structures (ValueType, Declaration, NodeType, Expr, etc.)
 - ✅ All parse functions (parse_primary, parse_statement, parse_body, etc.)
 - ✅ Mode system (ModeDef, parse_mode, can_be_imported)
@@ -158,19 +158,40 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - ✅ Full expression parsing with method chaining
 - ✅ Public API: parse_tokens() entry point
 - ✅ All TODOs resolved
-- ✅ All tests passing
+- ✅ All type errors fixed (194 type errors → 0)
+- ✅ Helper functions added (empty_expr_array, token_type_eq)
+- ✅ Fixed Array/Map/struct constructors to use proper dynamic initialization
 
 *Key Translation Patterns:*
 - Used `catch (err: Type)` syntax instead of Rust's try/catch
 - Converted nested loops with manual continue flags
 - Used `.to_str()` for I64 conversions
-- Used `not()` function instead of `!` operator  
+- Used `not()` function instead of `!` operator
 - Renamed "returns"/"throws" variables to "return_types"/"throw_types" (keyword conflicts)
+- Fixed TIL limitation: can't pass function return values (structs) directly as args
+- All Expr.new_parse() calls now assign to variable first, then pass variable
+
+*Runtime Testing Status (2025-01-10):*
+- ✅ 11 parser tests passing (10 lower-level + test_declarations)
+- ❌ test_simple_expressions: memcpy error on 2nd test
+- ❌ test_functions: Parse error "Expected statement, found returns"
+- ❌ test_control_flow: memcpy error
+- ❌ test_enums: Parse error "Expected statement, found }"
+- ❌ test_structs: Parse error "Expected statement, found :"
+- ❌ test_switch: Type error "Could not find function defintion"
+- ❌ test_parse_file: Hangs (infinite loop)
+
+*Critical Fixes Needed:*
+1. Debug memcpy errors (likely in complex expression handling)
+2. Fix parsing of function definitions, enums, structs
+3. Fix infinite loop in parse_tokens for real files
+4. Investigate type error in switch statement parsing
 
 *Translation Timeline (2025-01-10):*
 - Lines 1-747: Data structures, mode system, and basic parsing functions
 - Lines 749-1408: Control flow, statements, and parse_tokens entry point
 - All TODOs resolved (value_type_to_str payloads, struct Declaration extraction)
+- Array/Map/struct constructor fixes
 - Documentation cleaned up
 
 
