@@ -337,11 +337,11 @@ test_parse_body()
 // TODO: Re-enable after fixing parsing issues in parser.til
 test_simple_expressions()
 test_declarations()
-// test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug
+// test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug (not Bug #10 related)
 test_control_flow()
-// test_enums()  // parse error: Expected statement, found } - parser bug with enum parsing
+test_enums()
 test_structs()
-// test_switch()  // Type error: Could not find function defintion at line 1377
+// test_switch()  // FullError - likely array size issue, not Bug #10 related
 
 // Test parsing real TIL files
 // TODO: Hangs (likely infinite loop in parser.til)

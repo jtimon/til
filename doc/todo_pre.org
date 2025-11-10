@@ -23,46 +23,6 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
-** TODO Consider Implementing Enum Tag Comparison Feature               :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:IMPACT: Code quality, parser implementation
-:PRIORITY: Low (workaround exists)
-:END:
-
-*** Problem
-Rust has an enum `.tag()` method that returns the discriminant (variant identifier) as an integer, allowing comparison of enum variants without caring about payloads. TIL doesn't have this feature.
-
-Current parser.til has many uses of `.tag().eq()` pattern from the Rust version that don't work in TIL:
-#+BEGIN_SRC til
-// Rust pattern (doesn't work in TIL):
-if nt.tag().eq(NodeType.Identifier("").tag()) { ... }
-
-// TIL workaround (what we must use):
-mut is_identifier := false
-switch nt {
-    case NodeType.Identifier:
-        is_identifier = true
-}
-if is_identifier { ... }
-#+END_SRC
-
-*** Current Workaround
-Use switch statements to check enum variants. This works but is more verbose.
-
-*** Potential Solutions
-1. Implement `.tag()` method for all enums that returns I64 discriminant
-2. Implement direct enum comparison with `==` that compares only variants (not payloads)
-3. Keep using switch statements (current approach)
-4. Check if `enum_to_str()` or similar function already exists that could help
-
-*** Remaining `.tag()` Uses in parser.til
-Lines: 971, 984, 1011, 1014, 1329, 1338, 1345, 1376, 1388
-These will fail if those code paths are executed.
-
-*** Impact on Self-Hosting
-Low - The switch statement workaround is sufficient. This is a nice-to-have feature for cleaner code.
-
 ** TODO Fix Error Line Numbers from Imported Files                      :LOW:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

@@ -10,6 +10,45 @@ These are features, improvements, and optimizations that would be nice to have b
 
 * Language Features
 
+** TODO Consider Implementing Enum Tag Comparison Feature               :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Code quality, parser implementation
+:PRIORITY: Low (workaround exists, not needed for self-hosting)
+:END:
+
+*** Problem
+Rust has an enum `.tag()` method that returns the discriminant (variant identifier), allowing comparison of enum variants without caring about payloads. TIL doesn't have this feature.
+
+*** Investigation Results (2025-11-10)
+Attempted to implement an `enum_tag()` helper function but discovered a `Dynamic` type limitation:
+- When an enum is passed through a `Dynamic` parameter to a TIL function, `enum_to_str()` returns the parameter name instead of evaluating the enum value
+- This makes it impossible to create a reusable `enum_tag()` helper function
+- Core functions in Rust (like `rsonly_enum_extract_payload`) can handle `Dynamic`, but user-defined TIL functions cannot
+
+*** Current Workaround
+Use switch statements to check enum variants. This works and is actually quite clean:
+
+#+BEGIN_SRC til
+// Instead of Rust's: if nt.tag().eq(NodeType.Identifier("").tag())
+switch nt {
+    case NodeType.Identifier:
+        // Handle Identifier case directly
+}
+#+END_SRC
+
+*** Potential Future Solutions
+1. Implement `.tag()` as a core function in Rust (like `enum_to_str`)
+2. Fix `Dynamic` type handling so user-defined functions can properly receive enums
+3. Implement direct enum variant comparison with `==` operator
+4. Keep using switch statements (current approach - works well)
+
+*** Documentation
+Added note in `src/core/pure_std.til` explaining the Dynamic limitation and recommending switch statements for enum pattern matching.
+
+*** Impact on Self-Hosting
+None - The switch statement workaround is sufficient and readable. This would be a nice-to-have for slightly cleaner code, but is not essential.
+
 ** DONE Bug #8 Fixed with Compile-Time Enforcement                      :HIGH:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

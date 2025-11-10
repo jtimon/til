@@ -1379,10 +1379,13 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     // Check if this is a pattern match: EnumVariant(binding_var)
     // This would have been parsed as FCall with one Identifier parameter
     lnt := left.node_type
-    if lnt.tag().eq(NodeType.FCall.tag()) {
-        // Bug #10: Extract struct field to local variable before calling methods
-        mut left_params := left.params
-        if left_params.len.eq(2) {
+
+    // Check if node type is FCall using switch (tag() doesn't exist in TIL)
+    switch lnt {
+        case NodeType.FCall:
+            // Bug #10: Extract struct field to local variable before calling methods
+            mut left_params := left.params
+            if left_params.len.eq(2) {
             // FCall params are: [function_name, arg1, arg2, ...]
             // For pattern matching, we expect: [variant_identifier, binding_identifier]
             // Note: variant_identifier might be a dotted name like "Color.Green" which could be
@@ -1393,18 +1396,21 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
             left_params.get(0, p0)
             variant_name := get_full_identifier_name(p0)
 
-            mut p1 := Expr()
-            left_params.get(1, p1)
-            p1nt := p1.node_type
-            if p1nt.tag().eq(NodeType.Identifier("").tag()) {
-                binding_var := rsonly_enum_extract_payload(p1nt)
-                // Convert FCall to Pattern
-                mut pattern_info := PatternInfo()
-                pattern_info.variant_name = variant_name
-                pattern_info.binding_var = binding_var
-                return Expr.new_explicit(NodeType.Pattern(pattern_info), Array.new_dyn("Expr", size_of(Expr)), left.line, left.col)
+                mut p1 := Expr()
+                left_params.get(1, p1)
+                p1nt := p1.node_type
+
+                // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
+                switch p1nt {
+                    case NodeType.Identifier:
+                        binding_var := rsonly_enum_extract_payload(p1nt)
+                        // Convert FCall to Pattern
+                        mut pattern_info := PatternInfo()
+                        pattern_info.variant_name = variant_name
+                        pattern_info.binding_var = binding_var
+                        return Expr.new_explicit(NodeType.Pattern(pattern_info), Array.new_dyn("Expr", size_of(Expr)), left.line, left.col)
+                }
             }
-        }
     }
 
     return left
