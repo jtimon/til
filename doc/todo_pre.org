@@ -31,35 +31,40 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 :END:
 
 *** Problem
-Test catch blocks should print "ERROR: " prefix for unexpected errors to make test failures more visible, while still using `return` to continue to the next test instead of aborting the entire test suite.
+Test catch blocks should print "ERROR: " prefix for unexpected errors to make test failures more visible.
+
+*** Current Status
+Partially implemented in dynamic_arrays.til. Currently using `exit(1)` to abort on unexpected errors, but may want to consider using `return` to allow remaining tests to continue running.
 
 *** Current Pattern
 #+BEGIN_SRC til
 catch (err: AllocError) {
-    println(loc(), "AllocError thrown:")
+    println("ERROR:", loc(), "Unexpected AllocError during push")
     println(err.msg)
-    return
+    exit(1)
 }
 #+END_SRC
 
-*** Suggested Pattern
+*** Alternative Pattern to Consider
+Using `return` instead of `exit(1)` to continue to next test:
 #+BEGIN_SRC til
 catch (err: AllocError) {
     println("ERROR:", loc(), "Unexpected AllocError thrown:")
     println(err.msg)
-    return
+    return  // Skip this test but continue with remaining tests
 }
 #+END_SRC
 
 *** Benefits
 - "ERROR: " prefix makes failures immediately visible in test output
-- Using `return` instead of `exit(1)` allows remaining tests to run
+- `exit(1)`: Fails fast, prevents cascading failures
+- `return`: Allows test suite to continue, shows all failures at once
 - Helps distinguish expected errors from unexpected ones in test logs
 
 *** Scope
-Review and update catch blocks throughout test files:
+Review and decide on approach, then update catch blocks throughout test files:
 - src/test/arrays.til
-- src/test/dynamic_arrays.til
+- src/test/dynamic_arrays.til (partially done with exit(1))
 - src/test/test_parser.til
 - Other test files with similar patterns
 

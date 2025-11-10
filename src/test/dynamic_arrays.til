@@ -366,12 +366,12 @@ test_vec_get_out_of_bounds := proc() {
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError during push")
         println(err.msg)
-        return
+        exit(1)
     }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError during push")
         println(err.msg)
-        return
+        exit(1)
     }
 
     // Try to get index that's out of bounds
@@ -400,12 +400,12 @@ test_vec_set_out_of_bounds := proc() {
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError during push")
         println(err.msg)
-        return
+        exit(1)
     }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError during push")
         println(err.msg)
-        return
+        exit(1)
     }
 
     // Try to set index that's out of bounds
