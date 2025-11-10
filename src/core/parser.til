@@ -2,15 +2,6 @@ mode lib
 
 import("src/core/lexer")
 
-// Translation status from parser.rs:
-// [x] Data structures: All enums and structs (lines 1-231)
-// [x] Basic helpers: is_literal, value_type_to_str, can_be_imported
-// [x] Mode functions: mode_from_name, parse_mode
-// [x] parse_literal
-// [ ] str_to_value_type - Blocked by type checker issue with enum constructors
-// [ ] Parse functions - Most depend on parse_primary and each other
-// [ ] Expression parsing - Needs full interdependent implementation
-
 INFER_TYPE := "auto"
 
 FunctionType := enum {
@@ -143,26 +134,6 @@ expr_new_clone := func(node_type: NodeType, e: Expr, params: Array) returns Expr
     return expr_new_explicit(node_type, params, e.line, e.col)
 }
 
-// Stub - Array.get doesn't return typed values
-// expr_get := func(e_param: Expr, i: I64) returns Expr throws IndexOutOfBoundsError {
-//     params_arr := e_param.params
-//     return params_arr.get(i)
-// }
-
-// Stub - complex format calls
-// expr_lang_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
-//     return format("lang_error: ", msg)
-// }
-
-// Stub - complex format calls
-// expr_todo_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
-//     return format("todo_error: ", msg)
-// }
-
-// Stub - complex format calls
-// expr_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
-//     return format("error: ", msg)
-// }
 is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
@@ -176,50 +147,6 @@ is_literal := func(t: Token) returns Bool {
         return false
     }
 }
-
-value_type_to_str := func(arg_type: ValueType) returns Str {
-    switch arg_type {
-    case ValueType.TType:
-        // Extract TTypeDef payload
-        switch arg_type {
-        case ValueType.TType(TTypeDef.TEnumDef):
-            return "enum"
-        case ValueType.TType(TTypeDef.TStructDef):
-            return "struct"
-        case:
-            return "unknown_type"
-        }
-    case ValueType.TFunction:
-        // Extract FunctionType payload
-        switch arg_type {
-        case ValueType.TFunction(FunctionType.FTFunc):
-            return "func"
-        case ValueType.TFunction(FunctionType.FTFuncExt):
-            return "func"
-        case ValueType.TFunction(FunctionType.FTProc):
-            return "proc"
-        case ValueType.TFunction(FunctionType.FTProcExt):
-            return "proc"
-        case ValueType.TFunction(FunctionType.FTMacro):
-            return "macro"
-        case:
-            return "unknown_function"
-        }
-    case ValueType.TMulti:
-        // TODO: need to extract string payload
-        return "multi"
-    case ValueType.TCustom:
-        // TODO: need to extract string payload
-        return "custom"
-    case:
-        return "unknown"
-    }
-}
-
-// TODO: Implement str_to_value_type
-// Blocked by type checker seeing enum constructors with payloads as function calls
-// This is needed for func_proc_returns and func_proc_throws
-// Workaround: might need to refactor how ValueType is used in parsing
 
 ModeDef := struct {
     mut name: Str = ""
@@ -334,32 +261,3 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
     return m
 }
-
-parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
-    params := Array()
-    tt := t.token_type
-    mut node_type := NodeType.Body
-    switch tt {
-    case TokenType.String:
-        node_type = NodeType.LLiteral(Literal.Str(t.token_str))
-    case TokenType.Number:
-        // TODO: Add number parsing validation
-        node_type = NodeType.LLiteral(Literal.Number(t.token_str))
-    case TokenType.True:
-        node_type = NodeType.LLiteral(Literal.Bool(t.token_str))
-    case:
-        // TODO: proper error formatting with token type
-        throw "Trying to parse a token that's not a literal as a literal"
-    }
-    e := expr_new_parse(node_type, t, params)
-    lexer.advance(1)
-    return e
-}
-
-// Stub - needs parse_primary
-// parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
-//     lexer_expect(lexer, TokenType.Equal)
-//     mut params := Array()
-//     params.push(parse_primary(lexer))
-//     return expr_new_parse(NodeType.Assignment(name), t, params)
-// }
