@@ -12,49 +12,9 @@ use std::io::{ErrorKind, Write};
 use std::fs;
 use crate::{main_run, run_file, run_file_with_context};
 
-pub fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
-    return match name {
-        "loc" => func_loc(context, e),
-        "size_of" => func_size_of(context, &e),
-        "type_as_str" => func_type_as_str(context, &e),
-        "to_ptr" => func_to_ptr(context, &e),
-        "malloc" => func_malloc(context, &e),
-        "free" => func_free(context, &e),
-        "memset" => func_memset(context, &e),
-        "memcpy" => func_memcpy(context, &e),
-        "memcmp" => func_memcmp(context, &e),
-        "lt" => func_lt(context, &e),
-        "gt" => func_gt(context, &e),
-        "add" => func_add(context, &e),
-        "sub" => func_sub(context, &e),
-        "mul" => func_mul(context, &e),
-        "div" => func_div(context, &e),
-        "mod" => func_mod(context, &e),
-        "str_to_i64" => func_str_to_i64(context, &e),
-        "i64_to_str" => func_i64_to_str(context, &e),
-        "enum_to_str" => func_enum_to_str(context, &e),
-        "rsonly_enum_extract_payload" => proc_enum_extract_payload(context, &e),
-        "u8_to_i64" => func_u8_to_i64(context, &e),
-        "i64_to_u8" => func_i64_to_u8(context, &e),
-        "eval_to_str" => proc_eval_to_str(context, &e),
-        "exit" => exit(&e),
-        "import" => proc_import(context, &e), // Phase 2: Initialize imported values
-        "input_read_line" => proc_input_read_line(context, &e),
-        "single_print" => proc_single_print(context, &e),
-        "print_flush" => proc_print_flush(context, &e),
-        "readfile" => proc_readfile(context, &e),
-        "runfile" => proc_runfile(context, &e),
-        _ => {
-            if is_proc {
-                Err(e.lang_error("eval", &format!("Core procedure '{}' not implemented.", name)))
-            } else {
-                Err(e.lang_error("eval", &format!("Core function '{}' not implemented.", name)))
-            }
-        },
-    }
-}
+// Core functions - called from interpreter.rs dispatcher
 
-fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 1 {
         return Err(e.lang_error("eval", "Core func 'loc' doesn't take arguments"))
     }
@@ -67,7 +27,7 @@ fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
 // ---------- eval memory
 
-fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
     }
@@ -92,7 +52,7 @@ fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     return Ok(EvalResult::new(&offset.to_string()))
 }
 
-fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'free' takes exactly 1 argument"))
     }
@@ -107,7 +67,7 @@ fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     return Ok(EvalResult::new(""))
 }
 
-fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 4 {
         return Err(e.lang_error("eval", "Core func 'memset' takes exactly 3 arguments"))
     }
@@ -160,7 +120,7 @@ fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(""))
 }
 
-fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 4 {
         return Err(e.lang_error("eval", "Core func 'memcpy' takes exactly 3 arguments"))
     }
@@ -209,7 +169,7 @@ fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(""))
 }
 
-fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 4 {
         return Err(e.lang_error("eval", "Core func 'memcmp' takes exactly 3 arguments"))
     }
@@ -266,7 +226,7 @@ fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new("0"))
 }
 
-fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'to_ptr' takes exactly 1 argument"))
     }
@@ -279,7 +239,7 @@ fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     }
 }
 
-fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'size_of' takes exactly 1 argument"))
     }
@@ -297,7 +257,7 @@ fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     }
 }
 
-fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'type_as_str' takes exactly 1 argument"))
     }
@@ -312,7 +272,7 @@ fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     }
 }
 
-fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'lt' takes exactly 2 arguments"))
     }
@@ -331,7 +291,7 @@ fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a < b).to_string()))
 }
 
-fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'gt' takes exactly 2 arguments"))
     }
@@ -350,7 +310,7 @@ fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a > b).to_string()))
 }
 
-fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
     }
@@ -369,7 +329,7 @@ fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a + b).to_string()))
 }
 
-fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'sub' takes exactly 2 arguments"))
     }
@@ -388,7 +348,7 @@ fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a - b).to_string()))
 }
 
-fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'mul' takes exactly 2 arguments"))
     }
@@ -407,7 +367,7 @@ fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a * b).to_string()))
 }
 
-fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'div' takes exactly 2 arguments"))
     }
@@ -430,7 +390,7 @@ fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a / b).to_string()))
 }
 
-fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
    if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core func 'mod' takes exactly 2 arguments"))
     }
@@ -453,7 +413,7 @@ fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&(a % b).to_string()))
 }
 
-fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'str_to_i64' takes exactly 1 argument"))
     }
@@ -467,7 +427,7 @@ fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     Ok(EvalResult::new(&a.to_string()))
 }
 
-fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_str' takes exactly 1 argument"))
     }
@@ -479,7 +439,7 @@ fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     Ok(EvalResult::new(&val))
 }
 
-fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'enum_to_str' takes exactly 1 argument"))
     }
@@ -492,7 +452,7 @@ fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 }
 
 
-fn proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 3 {
         return Err(e.lang_error("eval", "Core proc 'rsonly_enum_extract_payload' takes exactly 2 arguments"))
     }
@@ -653,7 +613,7 @@ fn proc_enum_extract_payload(context: &mut Context, e: &Expr) -> Result<EvalResu
     Ok(EvalResult::new(""))
 }
 
-fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'u8_to_i64' takes exactly 1 argument"))
     }
@@ -667,7 +627,7 @@ fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
     Ok(EvalResult::new(&a.to_string()))
 }
 
-fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core func 'i64_to_u8' takes exactly 1 argument"))
     }
@@ -681,7 +641,7 @@ fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String>
 
 // ---------- core procs implementations for eval
 
-fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'single_print' takes exactly 1 argument"));
     }
@@ -695,7 +655,7 @@ fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     Ok(EvalResult::new(""))
 }
 
-fn proc_print_flush(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_print_flush(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 1 {
         return Err(e.lang_error("eval", "Core proc 'print_flush' takes 0 arguments"));
     }
@@ -704,7 +664,7 @@ fn proc_print_flush(_context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     Ok(EvalResult::new(""))
 }
 
-fn proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'input_read_line' takes exactly 1 argument"));
     }
@@ -724,7 +684,7 @@ fn proc_input_read_line(_context: &mut Context, e: &Expr) -> Result<EvalResult, 
     Ok(EvalResult::new(&line))
 }
 
-fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'eval_to_str' takes exactly 1 argument"));
     }
@@ -739,7 +699,7 @@ fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     return main_run(false, false, context, &path, str_source, Vec::new())
 }
 
-fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() < 2 {
         return Err(e.lang_error("eval", "Core proc 'runfile' expects at least 1 parameter"));
     }
@@ -812,7 +772,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     return result
 }
 
-fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'readfile' expects a single parameter"));
     }
@@ -834,7 +794,7 @@ fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
     Ok(EvalResult::new(&source))
 }
 
-fn exit(e: &Expr) -> Result<EvalResult, String> {
+pub fn func_exit(e: &Expr) -> Result<EvalResult, String> {
     if e.params.len() != 2 {
         return Err(e.lang_error("eval", "Core proc 'exit' expects a single parameter"));
     }

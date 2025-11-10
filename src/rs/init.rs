@@ -9,7 +9,7 @@ use crate::rs::parser::{
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, ModeDef, Declaration, PatternInfo,
     can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens, mode_from_name,
 };
-use crate::rs::interpreter::{Arena, EvalResult};
+use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
@@ -1227,7 +1227,7 @@ impl Context {
             let default_expr = struct_def.default_values.get(member_name);
             let default_value = match default_expr {
                 Some(e2) => {
-                    let res = crate::rs::interpreter::eval_expr(self, e2)?;
+                    let res = eval_expr(self, e2)?;
                     if res.is_throw {
                         return Err(e.lang_error("context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
                     }

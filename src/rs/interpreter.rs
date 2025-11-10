@@ -1,9 +1,10 @@
-use crate::rs::init::{Context, SymbolInfo};
+use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
     value_type_to_str, get_combined_name,
 };
+use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg};
 use crate::rs::ext;
 
 // Interpreter/Eval phase: Runtime evaluation and execution
@@ -65,7 +66,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
         NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
         NodeType::FCall => {
-            let f_name = crate::rs::init::get_func_name_in_call(&e);
+            let f_name = get_func_name_in_call(&e);
             eval_func_proc_call(&f_name, context, &e)
         },
         NodeType::Declaration(declaration) => {
@@ -121,7 +122,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 return Err(e.lang_error("eval", "switch nodes must have at least 3 parameters."));
             }
             let to_switch = e.get(0)?;
-            let value_type = crate::rs::init::get_value_type(&context, &to_switch)?;
+            let value_type = get_value_type(&context, &to_switch)?;
             let result_to_switch = eval_expr(context, &to_switch)?;
             if result_to_switch.is_throw {
                 return Ok(result_to_switch);
@@ -135,7 +136,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     return eval_expr(context, e.get(param_it)?);
                 }
 
-                let case_type = crate::rs::init::get_value_type(&context, &case)?;
+                let case_type = get_value_type(&context, &case)?;
                 let vt_str = value_type_to_str(&value_type);
                 let ct_str = value_type_to_str(&case_type);
                 if ct_str != vt_str && ct_str != format!("{}Range", vt_str) {
@@ -176,7 +177,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         // First add the symbol to context
                                         context.symbols.insert(
                                             binding_var.clone(),
-                                            crate::rs::init::SymbolInfo {
+                                            SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
                                                 is_mut: false,
                                             }
@@ -196,7 +197,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         // First add the symbol to context
                                         context.symbols.insert(
                                             binding_var.clone(),
-                                            crate::rs::init::SymbolInfo {
+                                            SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
                                             }
@@ -223,7 +224,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         // First add the symbol to context
                                         context.symbols.insert(
                                             binding_var.clone(),
-                                            crate::rs::init::SymbolInfo {
+                                            SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
                                             }
@@ -256,7 +257,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 // First add the symbol to context
                                                 context.symbols.insert(
                                                     binding_var.clone(),
-                                                    crate::rs::init::SymbolInfo {
+                                                    SymbolInfo {
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
                                                     }
@@ -330,7 +331,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 // Add symbol to context first
                                                 context.symbols.insert(
                                                     binding_var.clone(),
-                                                    crate::rs::init::SymbolInfo {
+                                                    SymbolInfo {
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
                                                     }
@@ -437,7 +438,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                 if result.is_throw {
                     return Ok(result)
                 }
-                let thrown_type = crate::rs::init::get_value_type(context, param_expr)?;
+                let thrown_type = get_value_type(context, param_expr)?;
                 return Ok(EvalResult::new_throw(&result.value, thrown_type))
             }
         },
@@ -682,7 +683,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     }
 
     let mut new_fcall_e = e.clone();
-    let func_def = match crate::rs::typer::get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
+    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
         Some(func_def_) => func_def_,
         None  => {
             return Err(e.lang_error("eval", "eval_func_proc_call: Instantiations should be handled already"))
@@ -698,14 +699,14 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 return Err(e.lang_error("eval", "Somehow function without name"))
             }
         };
-        return ext::eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
+        return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
     }
     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
 }
 
 fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     let inner_e = e.get(0)?;
-    let mut value_type = match crate::rs::init::get_value_type(&context, &inner_e) {
+    let mut value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             return Err(e.lang_error("eval", &error_string));
@@ -756,7 +757,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             };
                             let member_value_type = match &member_decl.value_type {
                                 ValueType::TCustom(s) if s == INFER_TYPE => {
-                                    match crate::rs::init::get_value_type(&context, &default_value) {
+                                    match get_value_type(&context, &default_value) {
                                         Ok(val_type) => val_type,
                                         Err(error_string) => {
                                             return Err(e.lang_error("eval", &error_string));
@@ -951,7 +952,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     }
 
     let inner_e = e.get(0)?;
-    let value_type = match crate::rs::init::get_value_type(&context, &inner_e) {
+    let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             return Err(e.lang_error("eval", &error_string));
@@ -1465,7 +1466,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
     let mut function_context = context.clone();
-    let has_multi_arg = crate::rs::typer::func_proc_has_multi_arg(func_def);
+    let has_multi_arg = func_proc_has_multi_arg(func_def);
     if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
         return Err(e.lang_error("eval", &format!("func '{}' expected {} args, but {} were provided.",
                                                  name, func_def.args.len(), e.params.len() - 1)))
@@ -1554,7 +1555,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 // Resolve Dynamic to actual type first
                 let custom_type_name = &match custom_type_name.as_str() {
-                    "Dynamic" => value_type_to_str(&crate::rs::init::get_value_type(context, &current_arg)?),
+                    "Dynamic" => value_type_to_str(&get_value_type(context, &current_arg)?),
                     _ => custom_type_name.clone(),
                 };
 
@@ -1798,5 +1799,49 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
 
     return Ok(EvalResult::new(&result_str))
+}
+
+// ---------- Core function/procedure dispatcher
+
+fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
+    return match name {
+        "loc" => ext::func_loc(context, e),
+        "size_of" => ext::func_size_of(context, &e),
+        "type_as_str" => ext::func_type_as_str(context, &e),
+        "to_ptr" => ext::func_to_ptr(context, &e),
+        "malloc" => ext::func_malloc(context, &e),
+        "free" => ext::func_free(context, &e),
+        "memset" => ext::func_memset(context, &e),
+        "memcpy" => ext::func_memcpy(context, &e),
+        "memcmp" => ext::func_memcmp(context, &e),
+        "lt" => ext::func_lt(context, &e),
+        "gt" => ext::func_gt(context, &e),
+        "add" => ext::func_add(context, &e),
+        "sub" => ext::func_sub(context, &e),
+        "mul" => ext::func_mul(context, &e),
+        "div" => ext::func_div(context, &e),
+        "mod" => ext::func_mod(context, &e),
+        "str_to_i64" => ext::func_str_to_i64(context, &e),
+        "i64_to_str" => ext::func_i64_to_str(context, &e),
+        "enum_to_str" => ext::func_enum_to_str(context, &e),
+        "rsonly_enum_extract_payload" => ext::proc_enum_extract_payload(context, &e),
+        "u8_to_i64" => ext::func_u8_to_i64(context, &e),
+        "i64_to_u8" => ext::func_i64_to_u8(context, &e),
+        "eval_to_str" => ext::proc_eval_to_str(context, &e),
+        "exit" => ext::func_exit(&e),
+        "import" => ext::proc_import(context, &e),
+        "input_read_line" => ext::proc_input_read_line(context, &e),
+        "single_print" => ext::proc_single_print(context, &e),
+        "print_flush" => ext::proc_print_flush(context, &e),
+        "readfile" => ext::proc_readfile(context, &e),
+        "runfile" => ext::proc_runfile(context, &e),
+        _ => {
+            if is_proc {
+                Err(e.lang_error("eval", &format!("Core procedure '{}' not implemented.", name)))
+            } else {
+                Err(e.lang_error("eval", &format!("Core function '{}' not implemented.", name)))
+            }
+        },
+    }
 }
 

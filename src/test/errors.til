@@ -207,6 +207,9 @@ test_catch_error_with_str_field()
 // This would allow functions to panic without declaring throws PanicError
 // Currently panic() is special-cased but doesn't actually throw
 //
+// Related: exit() is currently ext_func (not ext_proc) because funcs need a way to
+// exit/panic without returning. With PanicError, funcs could throw it implicitly.
+//
 // PanicError := struct {
 //     msg: Str = "panic"
 //     location: Str = ""

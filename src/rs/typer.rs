@@ -1,7 +1,7 @@
 use crate::Context;
-use crate::rs::init::SymbolInfo;
+use crate::rs::init::{SymbolInfo, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
-    INFER_TYPE,
+    INFER_TYPE, Literal,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
     value_type_to_str, str_to_value_type,
 };
@@ -106,11 +106,11 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             errors.extend(check_types_with_context(context, &e.params[0], ExprContext::ValueUsed));
             errors.extend(check_types_with_context(context, &e.params[1], ExprContext::ValueUsed));
 
-            let left_type = crate::rs::init::get_value_type(context, &e.params[0]);
+            let left_type = get_value_type(context, &e.params[0]);
             if let Err(err) = &left_type {
                 errors.push(err.clone());
             }
-            let right_type = crate::rs::init::get_value_type(context, &e.params[1]);
+            let right_type = get_value_type(context, &e.params[1]);
             if let Err(err) = &right_type {
                 errors.push(err.clone());
             }
@@ -172,7 +172,7 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             return errors
         },
     };
-    let value_type = match crate::rs::init::get_value_type(&context, &inner_e) {
+    let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             errors.push(error_string);
@@ -212,7 +212,7 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             return errors
         },
     };
-    let value_type = match crate::rs::init::get_value_type(&context, &inner_e) {
+    let value_type = match get_value_type(&context, &inner_e) {
         Ok(val_type) => val_type,
         Err(error_string) => {
             errors.push(error_string);
@@ -239,7 +239,7 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
-    let f_name = crate::rs::init::get_func_name_in_call(e);
+    let f_name = get_func_name_in_call(e);
     let mut e = e.clone();
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut e) {
         Ok(func_def_) => match func_def_ {
@@ -289,7 +289,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         // Function call arguments are being used (passed to the function)
         errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed));
 
-        let found_type = match crate::rs::init::get_value_type(&context, arg_expr) {
+        let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
             Err(error_string) => {
                 errors.push(error_string);
@@ -335,7 +335,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
     let returns_value = func_def.return_types.len() > 0;
 
     if returns_value && expr_context == ExprContext::ValueDiscarded {
-        let f_name = crate::rs::init::get_func_name_in_call(e);
+        let f_name = get_func_name_in_call(e);
 
         errors.push(e.error("type", &format!(
             "Function '{}' returns a value that is not being used.\n\
@@ -498,7 +498,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         errors.extend(
                             check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_types, return_found));
 
-                        match crate::rs::init::get_value_type(&context, return_val_e) {
+                        match get_value_type(&context, return_val_e) {
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
                                     errors.push(return_val_e.error(
@@ -524,7 +524,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     // errors.extend(
                     //     check_body_returns_throws(context, throw_param, func_def, std::slice::from_ref(throw_param), thrown_types, return_found));
 
-                    match crate::rs::init::get_value_type(&context, throw_param) {
+                    match get_value_type(&context, throw_param) {
                         Ok(thrown_type) => {
                             if thrown_type == ValueType::TType(TTypeDef::TStructDef) {
                                 errors.push(throw_param.error("type", "Cannot throw a struct definition.\nSuggestion: Create an instance by adding parentheses at the end."));
@@ -809,7 +809,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
     if !context.symbols.contains_key(&decl.name) {
         let mut value_type = decl.value_type.clone();
         if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
-            value_type = match crate::rs::init::get_value_type(&context, &inner_e) {
+            value_type = match get_value_type(&context, &inner_e) {
                 Ok(val_type) => val_type,
                 Err(error_string) => {
                     errors.push(error_string);
@@ -890,7 +890,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors: Vec<String> = Vec::new();
 
     let switch_expr_type = match e.get(0) {
-        Ok(expr) => match crate::rs::init::get_value_type(context, expr) {
+        Ok(expr) => match get_value_type(context, expr) {
             Ok(t) => t,
             Err(err) => {
                 errors.push(err);
@@ -926,7 +926,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             _ => {
                 case_found = true;
 
-                match crate::rs::init::get_value_type(context, case_expr) {
+                match get_value_type(context, case_expr) {
                     Ok(case_type) => {
                         let switch_type_str = value_type_to_str(&switch_expr_type);
                         let case_type_str = value_type_to_str(&case_type);
@@ -971,7 +971,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                             let mut temp_context = context.clone();
                             temp_context.symbols.insert(
                                 binding_var.clone(),
-                                crate::rs::init::SymbolInfo {
+                                SymbolInfo {
                                     value_type: payload_type.clone(),
                                     is_mut: false,
                                 }
@@ -1126,7 +1126,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 
                         // Check if default value type matches declared member type
                         let expected_type = &member_decl.value_type;
-                        let found_type = match crate::rs::init::get_value_type(&context, inner_e) {
+                        let found_type = match get_value_type(&context, inner_e) {
                             Ok(val_type) => val_type,
                             Err(error_string) => {
                                 errors.push(error_string);
@@ -1135,7 +1135,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                         };
 
                         // Check if the value is a numeric literal (for implicit conversion)
-                        let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(crate::rs::parser::Literal::Number(_)));
+                        let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(Literal::Number(_)));
 
                         match expected_type {
                             ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic
@@ -1181,7 +1181,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             if fcall_expr.params.len() >= 2 {
                 let first_arg = fcall_expr.get(1)?;
                 // Try to get the type of the first argument
-                if let Ok(target_type) = crate::rs::init::get_value_type(context, first_arg) {
+                if let Ok(target_type) = get_value_type(context, first_arg) {
                     if let ValueType::TCustom(custom_type_name) = target_type {
                         // Check if this type has an associated method
                         let method_name = format!("{}.{}", custom_type_name, combined_name);
@@ -1326,7 +1326,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
         },
         NodeType::FCall => {
             // Check if the function being called is a proc
-            let f_name = crate::rs::init::get_func_name_in_call(e);
+            let f_name = get_func_name_in_call(e);
             // TODO Temp: In the future, implement a special PanicError that's potentially  thrown implicitly everywhere
             if f_name == "panic" {
                 return false
@@ -1420,7 +1420,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                     },
                     NodeType::FCall => {
                         if !context.mode.allows_base_calls {
-                            let f_name = crate::rs::init::get_func_name_in_call(&p);
+                            let f_name = get_func_name_in_call(&p);
                             if f_name != "import" {
                                 errors.push(e.error("mode", &format!("mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
                                                                      context.mode.name, f_name)));

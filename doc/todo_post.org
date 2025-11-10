@@ -394,6 +394,10 @@ See =src/test/errors.til= for detailed TODO examples with code.
 **** 1. PanicError - Implicit Error Type
 Currently =panic()= is special-cased but doesn't actually throw a catchable error.
 
+Related: =exit()= is currently an ext_func (not ext_proc) because funcs need a way to
+exit/panic without returning. This is a temporary solution until PanicError is implemented.
+With PanicError, funcs could throw it implicitly, and exit() might become a proc.
+
 #+BEGIN_SRC til
 // Proposed: PanicError that doesn't need declaration
 test_implicit_panic := proc() {
