@@ -23,7 +23,20 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
-No active TODOs at this time. All critical features for pre-self-hosting are complete.
+** TODO Fix Error Line Numbers from Imported Files                      :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Developer experience, debugging
+:PRIORITY: Low (doesn't block self-hosting)
+:END:
+
+*** Problem
+Error messages from imported files show incorrect/duplicated file paths and misleading line numbers.
+
+See Bug #9 in [[file:bugs.org][bugs.org]] for details and examples.
+
+*** Impact on Self-Hosting
+Low - This is a quality-of-life issue that makes debugging harder but doesn't prevent the self-hosted interpreter from running.
 
 * Recently Completed
 

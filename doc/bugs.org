@@ -8,7 +8,31 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-No active bugs at this time.
+** Bug #9: Error Line Numbers from Imported Files :MINOR:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: Developer experience, debugging
+:STATUS: Active
+:END:
+
+*** Description
+When errors occur in imported files (e.g., parser.til imported by test_parser.til), the error messages show incorrect line numbers and file paths.
+
+*** Example
+#+BEGIN_EXAMPLE
+ERROR: While running file src/test/test_parser.til:
+src/test/test_parser.til:src/test/test_parser.til:129:13: rstil eval ERROR: ...
+#+END_EXAMPLE
+
+Note the duplicated file path and the line number (129) referring to the calling file rather than the actual error location in the imported file.
+
+*** Impact
+- Makes debugging harder when errors occur in imported modules
+- Line numbers may not correspond to the actual error location
+- File paths are duplicated and unclear
+
+*** Workaround
+When debugging, add print statements or trace through the call stack manually to find the actual error location.
 
 * Fixed Bugs Summary
 

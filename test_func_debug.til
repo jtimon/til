@@ -1,0 +1,92 @@
+mode test
+
+import("src/core/parser")
+
+test_str_to_value_type := proc() {
+    println("Testing str_to_value_type")
+    vt := str_to_value_type("func")
+    println("func worked")
+    vt2 := str_to_value_type("proc")
+    println("proc worked")
+    vt3 := str_to_value_type("enum")
+    println("enum worked")
+}
+
+test_debug := proc() {
+    println("Test 1: func with no params and returns")
+    mut lexer := Lexer.new_from_src("f := func() returns I64 { return 42 }")
+    ast := parse_tokens(lexer)
+    catch (err: Str) {
+        println("Parse error:")
+        println(err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("AllocError")
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("FullError")
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError")
+        exit(1)
+    }
+    catch (err: I64_OverflowError) {
+        println("I64_OverflowError")
+        exit(1)
+    }
+    println("Success!")
+}
+
+parse_source := proc(source: Str) {
+    mut lexer := Lexer.new_from_src(source)
+    ast := parse_tokens(lexer)
+    catch (err: Str) {
+        println("Parse error in parse_source:")
+        println(err)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("AllocError in parse_source")
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("FullError in parse_source")
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("IndexOutOfBoundsError in parse_source")
+        exit(1)
+    }
+    catch (err: I64_OverflowError) {
+        println("I64_OverflowError in parse_source")
+        exit(1)
+    }
+}
+
+test_control_flow := proc() {
+    println("Test 1: if")
+    parse_source("if x { y := 1 }")
+    println("Test 2: if/else")
+    parse_source("if x { y := 1 } else { y := 2 }")
+    println("Test 3: while")
+    parse_source("while x.lt(10) { x = x.add(1) }")
+    println("Test 4: for")
+    parse_source("for i in 0..10 { println(i.to_str()) }")
+    println("All control flow tests passed!")
+}
+
+test_structs := proc() {
+    println("Test 1: Simple struct")
+    parse_source("Point := struct { mut x: I64 = 0 mut y: I64 = 0 }")
+    println("Test 2: Struct with method")
+    parse_source("Point := struct { mut x: I64 = 0 add := func(self: Point, n: I64) returns I64 { return self.x.add(n) } }")
+    println("All struct tests passed!")
+}
+
+test_structs()
+// test_control_flow()
+// test_str_to_value_type()
+// test_debug()
