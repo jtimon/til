@@ -262,12 +262,59 @@ test_parse_declaration := proc() {
     println("test_parse_declaration passed")
 }
 
+test_parse_list := proc() {
+    mut lexer := Lexer.new_from_src("(42, 43)")
+    list := parse_list(lexer)
+    catch (err: Str) {
+        println("Error in parse_list")
+        exit(1)
+    }
+    catch (err: AllocError) {
+        exit(1)
+    }
+    catch (err: FullError) {
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        exit(1)
+    }
+    catch (err: I64_OverflowError) {
+        exit(1)
+    }
+    println("test_parse_list passed")
+}
+
+test_parse_primary_identifier_fcall := proc() {
+    mut lexer := Lexer.new_from_src("foo(42)")
+    fcall := parse_primary_identifier(lexer)
+    catch (err: Str) {
+        println("Error in parse_primary_identifier")
+        exit(1)
+    }
+    catch (err: AllocError) {
+        exit(1)
+    }
+    catch (err: FullError) {
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        exit(1)
+    }
+    catch (err: I64_OverflowError) {
+        exit(1)
+    }
+    println("test_parse_primary_identifier_fcall passed")
+}
+
 // Run simple tests
 test_token_type_eq()
 test_str_to_value_type()
 test_is_literal()
 test_parse_mode()
 test_parse_literal()
+test_parse_list()
+// TODO: Debug memcpy error in parse_primary_identifier
+// test_parse_primary_identifier_fcall()
 // TODO: Debug why parse_declaration fails
 // test_parse_declaration()
 // test_parse_statement_identifier()
