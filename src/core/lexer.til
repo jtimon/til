@@ -583,39 +583,30 @@ Lexer := struct {
 
     expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
         p := self.peek()
-        if token_type_eq(p.token_type, expected) {
+        switch p.token_type {
+        case expected:
             self.advance(1)
             return p
+        case:
+            throw format(
+                "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
         }
-        throw format(
-            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
     }
 
-}
-
-// Compare two TokenType enums for equality using switch
-// (Rust uses ==, but TIL needs switch for enum comparison)
-token_type_eq := func(tt1: TokenType, tt2: TokenType) returns Bool {
-    mut result := false
-    switch tt1 {
-    case tt2:
-        result = true
-    case:
-        result = false
-    }
-    return result
 }
 
 // Workaround for Bug #8: Uncaptured return values propagate up call stack
 // This standalone function allows callers to capture the return value with _ := lexer_expect(...)
 lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
     p := lexer.peek()
-    if token_type_eq(p.token_type, expected) {
+    switch p.token_type {
+    case expected:
         lexer.advance(1)
         return p
+    case:
+        throw format(
+            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
     }
-    throw format(
-        "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
 }
 
 token_type_to_str := func(tt: TokenType) returns Str {

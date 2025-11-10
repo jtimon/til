@@ -115,11 +115,12 @@ test_parse_file := proc(path: Str) {
 }
 
 // Test simple helper functions
-test_token_type_eq := proc() {
-    assert(loc(), token_type_eq(TokenType.Identifier, TokenType.Identifier))
-    assert(loc(), not(token_type_eq(TokenType.Identifier, TokenType.String)))
-    assert(loc(), token_type_eq(TokenType.LeftParen, TokenType.LeftParen))
-}
+// token_type_eq has been removed - now we use switch statements directly
+// test_token_type_eq := proc() {
+//     assert(loc(), token_type_eq(TokenType.Identifier, TokenType.Identifier))
+//     assert(loc(), not(token_type_eq(TokenType.Identifier, TokenType.String)))
+//     assert(loc(), token_type_eq(TokenType.LeftParen, TokenType.LeftParen))
+// }
 
 test_str_to_value_type := proc() {
     vt := str_to_value_type("func")
@@ -320,7 +321,7 @@ test_parse_primary_identifier_fcall := proc() {
 }
 
 // Run simple tests
-test_token_type_eq()
+// test_token_type_eq()  // Removed - token_type_eq function no longer exists
 test_str_to_value_type()
 test_is_literal()
 test_parse_mode()
