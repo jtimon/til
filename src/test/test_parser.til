@@ -86,8 +86,11 @@ test_structs := proc() {
 
 // Test parsing switch statements
 test_switch := proc() {
+    println("test_switch: parsing simple switch...")
     parse_source("switch x { case 1: y := 1 case 2: y := 2 case: y := 0 }")
+    println("test_switch: parsing switch with pattern matching...")
     parse_source("switch opt { case Option.Some(v): println(v.to_str()) case Option.None: println(\"none\") }")
+    println("test_switch: done")
 
 }
 
@@ -342,7 +345,7 @@ test_declarations()
 test_control_flow()
 // test_enums()  // parse error: Expected statement, found } - parser bug with enum bodies
 test_structs()
-// test_switch()  // FullError - likely array size issue, not Bug #10 related
+test_switch()  // FullError - likely array size issue, not Bug #10 related
 
 // Test parsing real TIL files
 // TODO: Hangs (likely infinite loop in parser.til)
