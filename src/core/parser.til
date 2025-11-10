@@ -1274,7 +1274,7 @@ parse_func_proc_definition := proc(mut lexer: Lexer) returns Expr throws Str, In
     throw_types := func_proc_throws(lexer)
 
     // Check if this is a declaration (ends with semicolon) or definition (has body)
-    prev_t = lexer.previous()
+    prev_t := lexer.previous()
     mut body_expr := Expr()
     mut is_declaration := false
     switch prev_t.token_type {
