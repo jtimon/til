@@ -1,5 +1,16 @@
 mode test
 
+// Test 0: Original example from todo_pre.org (the exact case that prompted this work)
+ValueType := enum {
+    TFunction: FunctionType,  // Forward reference - FunctionType not defined yet
+    TCustom: Str,
+}
+
+FunctionType := enum {
+    FTFunc,
+    FTProc,
+}
+
 // Test 1: Enum with forward reference to another enum (should error)
 ValueType1 := enum {
     TFunction: FunctionType1,
@@ -93,6 +104,12 @@ ForwardStatus1 := enum {
     Inactive,
 }
 
+// Test 0: Use the original example
+test_original_case := proc() {
+    vt := ValueType.TFunction(FunctionType.FTFunc)
+    println("Test 0 (original example) passed")
+}
+
 // Test 7: Actually USE the forward-referenced enums
 test_forward_enum_usage := proc() {
     // This should trigger the error since FunctionType1 was forward-referenced
@@ -143,6 +160,7 @@ test_forward_func_types := proc() {
 
 // Run the tests
 println("Running forward reference tests...")
+test_original_case()
 test_forward_enum_usage()
 test_forward_struct_in_enum()
 test_forward_enum_in_struct()
