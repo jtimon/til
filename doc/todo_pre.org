@@ -6,7 +6,7 @@
 
 This document tracks TODOs in the *Rust implementation (rstil)* that must be completed before the self-hosted til interpreter can run successfully.
 
-*Current Status:* All documented bugs fixed (see [[file:rstil_bugs.md][rstil_bugs.md]]), but missing features and test gaps remain.
+*Current Status:* All documented bugs fixed (see [[file:bugs.org][bugs.org]]), but missing features and test gaps remain.
 
 *Scope:* This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
 
@@ -168,7 +168,7 @@ This was blocking parser.til homogenization. Parser functions need to return enu
 :END:
 
 *** Current State
-All enum bugs are FIXED (see rstil_bugs.md), but workarounds remain:
+All enum bugs are FIXED (see bugs.org), but workarounds remain:
 - =src/core/parser.til:239= - "Workaround for rstil bug - enum payloads must be variables"
 - =src/core/parser.til:320= - Same workaround repeated
 - =src/core/lexer.til:586= - "Workaround for rstil bug - return in methods returns from caller"
@@ -185,7 +185,7 @@ Workarounds add complexity and may hide issues. Clean code is easier to maintain
 
 * References
 
-- [[file:rstil_bugs.md][rstil_bugs.md]] - Fixed bugs (Bugs #1-#7 all resolved as of Jan 2025)
+- [[file:bugs.org][bugs.org]] - Fixed bugs (Bugs #1-#7 all resolved as of Jan 2025)
 - [[file:todo_self_hosting.org][todo_self_hosting.org]] - Component completion status
 - [[file:todo_post.org][todo_post.org]] - Post self-hosting TODOs
 - [[file:design_notes.org][design_notes.org]] - Language design decisions
