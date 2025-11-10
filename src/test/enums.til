@@ -1031,41 +1031,37 @@ test_enum_constructor_in_function := proc() {
     }
     assert(loc(), enum_to_str(extracted1).eq("InnerType.TypeA"))
 
-    // TODO: Test 2 and 3 below fail at runtime with payload extraction issues
-    // The type checker fix allows these to compile, which unblocks parser.til
-    // But runtime extraction of enum-from-enum payloads needs more work
+    // Test 2: Direct construction in return position
+    get_nested_a := proc() returns OuterType {
+        inner_temp := InnerType.TypeA
+        return OuterType.Nested(inner_temp)
+    }
 
-    // // Test 2: Direct construction in return position
-    // get_nested_a := func() returns OuterType {
-    //     inner_temp := InnerType.TypeA
-    //     return OuterType.Nested(inner_temp)
-    // }
-    //
-    // outer2 := get_nested_a()
-    // mut extracted2 := InnerType.TypeB
-    // switch outer2 {
-    // case OuterType.Nested(i):
-    //     extracted2 = i
-    // case:
-    //     panic(loc(), "Failed to match Nested variant in returned value")
-    // }
-    // assert(loc(), enum_to_str(extracted2).eq("InnerType.TypeA"))
-    //
-    // // Test 3: Can we do it inline? (THIS is what parser.til needs)
-    // // This would be: return OuterType.Nested(InnerType.TypeA)
-    // get_nested_b := func() returns OuterType {
-    //     // Try inline construction
-    //     return OuterType.Nested(InnerType.TypeB)
-    // }
-    //
-    // outer3 := get_nested_b()
-    // mut extracted3 := InnerType.TypeA
-    // switch outer3 {
-    // case OuterType.Nested(i):
-    //     extracted3 = i
-    // case:
-    //     panic(loc(), "Failed to match inline nested construction")
-    // }
-    // assert(loc(), enum_to_str(extracted3).eq("InnerType.TypeB"))
+    outer2 := get_nested_a()
+    mut extracted2 := InnerType.TypeB
+    switch outer2 {
+    case OuterType.Nested(i):
+        extracted2 = i
+    case:
+        panic(loc(), "Failed to match Nested variant in returned value")
+    }
+    assert(loc(), enum_to_str(extracted2).eq("InnerType.TypeA"))
+
+    // Test 3: Can we do it inline? (THIS is what parser.til needs)
+    // This would be: return OuterType.Nested(InnerType.TypeA)
+    get_nested_b := proc() returns OuterType {
+        // Try inline construction
+        return OuterType.Nested(InnerType.TypeB)
+    }
+
+    outer3 := get_nested_b()
+    mut extracted3 := InnerType.TypeA
+    switch outer3 {
+    case OuterType.Nested(i):
+        extracted3 = i
+    case:
+        panic(loc(), "Failed to match inline nested construction")
+    }
+    assert(loc(), enum_to_str(extracted3).eq("InnerType.TypeB"))
 }
 test_enum_constructor_in_function()

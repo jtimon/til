@@ -1730,7 +1730,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         }
     }
 
-    // If function returns a user-defined struct, copy fields back to context as temp return val
+    // If function returns a user-defined struct or enum, copy it back to context as temp return val
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
             // Skip core types like I64, Bool, String, U8
@@ -1758,8 +1758,34 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 context.map_instance_fields(custom_type_name, &return_instance, e)?;
                                 return Ok(EvalResult::new_return(&return_instance))
                             },
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                // For enum returns, check if result_str is a constructor expression or a variable
+                                // Constructor expressions like "ExampleEnum.B" can be returned as-is
+                                // But variables need to be copied from function context to caller context
+                                if result_str.contains('.') {
+                                    // This is a constructor expression
+                                    // Transfer temp_enum_payload from function context to caller context
+                                    if let Some((payload_data, payload_type)) = function_context.temp_enum_payload.take() {
+                                        context.temp_enum_payload = Some((payload_data, payload_type));
+                                    }
+                                    return Ok(EvalResult::new(&result_str));
+                                }
+
+                                // This is a variable, copy it from function context to caller context
+                                let val = function_context.get_enum(&result_str, e)?;
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
+                                Arena::g().temp_id_counter += 1;
+
+                                // Set temp_enum_payload if the enum has a payload
+                                if let (Some(payload_data), Some(payload_type)) = (val.payload, val.payload_type) {
+                                    context.temp_enum_payload = Some((payload_data, payload_type));
+                                }
+
+                                context.insert_enum(&return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                                return Ok(EvalResult::new_return(&return_instance))
+                            },
                             _ => {
-                                // Not a struct return, ignore
+                                // Not a struct or enum return, ignore
                             }
                         }
                     }
