@@ -27,7 +27,7 @@ test_mut_struct := proc() {
 test_mut_struct()
 
 test_mut_array := proc() {
-    mut arr := Array.new_dyn("I64", size_of(I64))
+    mut arr := Vec.new("I64", size_of(I64))
     catch (err: AllocError) {
         panic(loc(), "Unexpected AllocError")
     }
@@ -41,9 +41,6 @@ test_mut_array := proc() {
     }
     catch (err: FullError) {
         panic(loc(), "Unexpected FullError")
-    }
-    catch (err: Str) {
-        panic(loc(), "Unexpected error")
     }
 
     assert_eq(loc(), 1, arr.len)

@@ -23,6 +23,32 @@ This document tracks TODOs in the *Rust implementation (rstil)* that must be com
 
 * Active TODOs
 
+** TODO Standardize len/cap API Across Collections                      :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-11-10
+:IMPACT: API consistency, developer experience
+:PRIORITY: Low (doesn't block self-hosting)
+:END:
+
+*** Problem
+Collections are inconsistent about whether size is exposed as a field or method:
+- Array: has `len` field (removed `cap` during Vec refactor)
+- Vec: has `len` field and `cap` field
+- Map: has `size` field
+- Str: has `len()` method
+
+This inconsistency can be confusing, especially coming from other languages.
+
+*** Consideration
+Some languages expose capacity as a field and length as a method. This might be more consistent:
+- `cap` field: allocated capacity (direct field access)
+- `len()` method: current count (computed or simple field access)
+
+However, changing this now would be disruptive since `len` field is widely used.
+
+*** Current Decision
+Keep `len` field for now since it's what's exposed and changing it would require updating many call sites. Document this for post-self-hosting consideration.
+
 ** TODO Improve Type Checking for Struct Type Mismatches                :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

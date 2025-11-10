@@ -146,13 +146,13 @@ test_map_str_to_vec2 := proc() {
 test_map_str_to_array_str := proc() {
     mut lists := Map.new("Str", size_of(Str), "Array", size_of(Array))
 
-    mut fruits := Array.new_dyn("Str", size_of(Str))
+    mut fruits := Vec.new("Str", size_of(Str))
     fruits.push("apple")
     fruits.push("banana")
     fruits.push("orange")
     lists.insert("fruits", fruits)
 
-    mut colors := Array.new_dyn("Str", size_of(Str))
+    mut colors := Vec.new("Str", size_of(Str))
     colors.push("red")
     colors.push("green")
     colors.push("blue")
@@ -178,7 +178,6 @@ test_map_str_to_array_str := proc() {
     catch (err: KeyNotFoundError) { exit(1) }
     catch (err: IndexOutOfBoundsError) { exit(1) }
     catch (err: FullError) { exit(1) }
-    catch (err: Str) { exit(1) }
 }
 
 // Test Map<U8, Bool>

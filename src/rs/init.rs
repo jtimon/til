@@ -1780,7 +1780,7 @@ impl Context {
             }
         }
 
-        // Write ptr, len, cap, is_dyn using arena_index
+        // Write ptr, len (and cap for Vec) using arena_index
         let ptr_offset = match self.arena_index.get(&format!("{}.ptr", name)) {
             Some(o) => *o,
             None => {
@@ -1789,18 +1789,17 @@ impl Context {
         };
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
 
+        // Set len field (required for both Array and Vec)
         let len_bytes = len.to_ne_bytes();
-        for field in &["len", "cap"] {
-            if let Some(field_offset) = self.arena_index.get(&format!("{}.{}", name, field)) {
-                Arena::g().memory[*field_offset..*field_offset+8].copy_from_slice(&len_bytes);
-            } else {
-                return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .{} field offset", field)))
-            }
+        if let Some(len_offset) = self.arena_index.get(&format!("{}.len", name)) {
+            Arena::g().memory[*len_offset..*len_offset+8].copy_from_slice(&len_bytes);
+        } else {
+            return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .len field offset")))
         }
 
-        // is_dyn field is only present in Array, not in Vec (Vec is always dynamic)
-        if let Some(is_dyn_offset) = self.arena_index.get(&format!("{}.is_dyn", name)) {
-            Arena::g().memory[*is_dyn_offset] = 0; // false
+        // Set cap field (only exists in Vec, not in Array)
+        if let Some(cap_offset) = self.arena_index.get(&format!("{}.cap", name)) {
+            Arena::g().memory[*cap_offset..*cap_offset+8].copy_from_slice(&len_bytes);
         }
 
         // For generic Array, also set type_name and type_size fields

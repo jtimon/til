@@ -210,7 +210,7 @@ test_ufcs_with_enums()
 
 // Test UFCS with struct fields (particularly Array fields)
 TestStructWithArray := struct {
-    mut items: Array = Array.new_dyn("I64", size_of(I64))
+    mut items: Array = Vec.new("I64", size_of(I64))
     mut name: Str = "test"
 }
 
@@ -248,7 +248,7 @@ test_ufcs_with_struct_fields := proc() {
 
 // This test demonstrates the exact pattern that failed in parser.til
 TestExpr := struct {
-    mut params: Array = Array.new_dyn("I64", size_of(I64))
+    mut params: Array = Vec.new("I64", size_of(I64))
     mut line: I64 = 0
 }
 

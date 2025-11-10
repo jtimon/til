@@ -8,8 +8,6 @@ test_array_static_u8 := proc() {
         return
     }
     assert_eq(loc(), 3, stat.len)       // Static array len equals cap
-    assert_eq(loc(), stat.cap, stat.len) // Static array len equals cap
-    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
     stat.set(0, U8.from_i64(10))
     stat.set(1, U8.from_i64(20))
     stat.set(2, U8.from_i64(30))
@@ -41,8 +39,6 @@ test_array_static_str := proc() {
         return
     }
     assert_eq(loc(), 3, stat.len)
-    assert_eq(loc(), stat.cap, stat.len)
-    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
 
     stat.set(0, "hello")
     stat.set(1, "world")
@@ -67,8 +63,6 @@ test_array_static_bool := proc() {
         return
     }
     assert_eq(loc(), 3, stat.len)
-    assert_eq(loc(), stat.cap, stat.len)
-    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
 
     stat.set(0, true)
     stat.set(1, false)
@@ -93,8 +87,6 @@ test_array_static_i64 := proc() {
         return
     }
     assert_eq(loc(), 3, stat.len)
-    assert_eq(loc(), stat.cap, stat.len)
-    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
 
     stat.set(0, 100)
     stat.set(1, 200)
@@ -131,8 +123,6 @@ test_array_static_vec2 := proc() {
         return
     }
     assert_eq(loc(), 3, stat.len)
-    assert_eq(loc(), stat.cap, stat.len)
-    test(loc(), not(stat.is_dyn), "Static array should not be dynamic")
 
     // v1 = Vec2.new(1, 2) // TODO FIX
     // v2 = Vec2.new(3, 4) // TODO FIX
@@ -159,39 +149,5 @@ test_array_static_vec2 := proc() {
 }
 test_array_static_vec2()
 
-// Test push on static array throws error
-test_array_static_push_error := proc() {
-    mut arr := Array.new("I64", size_of(I64), 3)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
-
-    arr.set(0, 10)
-    arr.set(1, 20)
-    arr.set(2, 30)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown during set:")
-        println(err.msg)
-        arr.delete()
-        return
-    }
-
-    // Try to push to static array (should fail)
-    arr.push(40)
-    panic(loc(), "Expected error when pushing to static array")
-
-    catch (err: Str) {
-        test(loc(), true, "Error correctly thrown when pushing to static array")
-    }
-    catch (err: FullError) {
-        test(loc(), true, "FullError correctly thrown when pushing to static array")
-    }
-    catch (err: AllocError) {
-        println(loc(), "Unexpected AllocError")
-    }
-
-    arr.delete()
-}
-test_array_static_push_error()
+// Test push on static array removed - Array.push no longer exists
+// Use Vec for dynamic arrays instead

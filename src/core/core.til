@@ -492,11 +492,6 @@ Array := struct {
     mut type_size : I64  = 0
     mut ptr       : I64  = 0
     mut len       : I64  = 0
-    mut cap       : I64  = 0
-    mut is_dyn    : Bool = false
-
-    INIT_DYN_CAP : I64 = 16
-    MAX_CAP      : I64 = 1024
 
     new := proc(T_str: Str, type_size: I64, capacity: I64) returns Array throws AllocError {
         mut arr := Array()
@@ -508,48 +503,7 @@ Array := struct {
         arr.ptr = malloc(size_bytes)
         memset(arr.ptr, U8.from_i64(0), size_bytes)
         arr.len = capacity
-        arr.cap = capacity
-        arr.is_dyn = false
         return arr
-    }
-
-    new_dyn := proc(T_str: Str, type_size: I64) returns Array throws AllocError {
-        mut arr := Array()
-        arr.type_name = T_str
-        arr.type_size = type_size
-        size_bytes := mul(Array.INIT_DYN_CAP, arr.type_size)
-        arr.ptr = malloc(size_bytes)
-        arr.len = 0
-        arr.cap = Array.INIT_DYN_CAP
-        arr.is_dyn = true
-        return arr
-    }
-
-    push := proc(mut self: Array, value: Dynamic) throws FullError, Str, AllocError {
-        if not(self.is_dyn) {
-            throw format(loc(), "Array.push: push is not allowed for static arrays")
-        }
-
-        // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
-        //     throw format(loc(), "Array.push: value type mismatch")
-        // }
-
-        if I64.eq(self.len, self.cap) {
-            new_cap := mul(self.cap, 2)
-            if gt(new_cap, Array.MAX_CAP) {
-                throw FullError.new(format(loc(), "Array.push: capacity exceeded Array.MAX_CAP"))
-            }
-
-            new_ptr := malloc(mul(new_cap, self.type_size))
-            memcpy(new_ptr, self.ptr, mul(self.len, self.type_size))
-            free(self.ptr)
-            self.ptr = new_ptr
-            self.cap = new_cap
-        }
-
-        dest := add(self.ptr, mul(self.len, self.type_size))
-        memcpy(dest, to_ptr(value), self.type_size)
-        self.len = add(self.len, 1)
     }
 
     get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
@@ -583,8 +537,6 @@ Array := struct {
         free(self.ptr)
         self.ptr = 0
         self.len = 0
-        self.cap = 0
-        self.is_dyn = false
     }
 }
 
@@ -687,8 +639,8 @@ Map := struct {
     mut key_type_size: I64 = 0        // from size_of(KeyType)
     mut value_type_name: Str = ""     // e.g., "Str", "Bool", "Expr"
     mut value_type_size: I64 = 0      // from size_of(ValueType)
-    mut keys: Array = Array()         // Dynamic array of keys
-    mut values: Array = Array()       // Dynamic array of values (parallel)
+    mut keys: Vec = Vec()         // Dynamic array of keys
+    mut values: Vec = Vec()       // Dynamic array of values (parallel)
     mut size: I64 = 0                 // Number of entries
 
     // Create new empty map with specified key and value types
@@ -699,8 +651,8 @@ Map := struct {
         m.key_type_size = key_size
         m.value_type_name = value_type
         m.value_type_size = value_size
-        m.keys = Array.new_dyn(key_type, key_size)
-        m.values = Array.new_dyn(value_type, value_size)
+        m.keys = Vec.new(key_type, key_size)
+        m.values = Vec.new(value_type, value_size)
         m.size = 0
         return m
     }

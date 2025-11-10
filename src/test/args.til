@@ -245,7 +245,7 @@ test_non_mut_isolation()
 
 // === Test arrays with mut arguments ===
 
-push_value := proc(mut arr: Array, value: I64) {
+push_value := proc(mut arr: Vec, value: I64) {
     arr.push(value)
     catch (err: AllocError) {
         println(loc(), "AllocError thrown:")
@@ -255,14 +255,10 @@ push_value := proc(mut arr: Array, value: I64) {
         println(loc(), "FullError thrown:")
         println(err.msg)
     }
-    catch (err: Str) {
-        println(loc(), "Error thrown:")
-        println(err)
-    }
 }
 
 test_mut_array := proc() {
-    mut numbers := Array.new_dyn("I64", size_of(I64))
+    mut numbers := Vec.new("I64", size_of(I64))
     catch (err: AllocError) {
         println(loc(), "AllocError thrown:")
         println(err.msg)
