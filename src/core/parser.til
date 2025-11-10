@@ -4,26 +4,7 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
-// ==============================================================================
-// Data Structures
-// ==============================================================================
-
-// PatternInfo: workaround for TIL's lack of tuple syntax (String, String)
-// Used for switch case pattern matching with payload extraction
-PatternInfo := struct {
-    mut variant_name: Str = ""
-    mut binding_var: Str = ""
-}
-
-// Literal types
-Literal := enum {
-    Number: Str,
-    Str: Str,
-    Bool: Str,
-    List: Str,
-}
-
-// Function/procedure type
+// FunctionType - lines 31-37
 FunctionType := enum {
     FTFunc,
     FTProc,
@@ -32,44 +13,88 @@ FunctionType := enum {
     FTProcExt,
 }
 
-// Enum definition
-SEnumDef := struct {
-    mut enum_map: Map = Map()              // Map<Str, ValueType> - variant name to optional payload type
+// TTypeDef - lines 184-187
+TTypeDef := enum {
+    TEnumDef,
+    TStructDef,
 }
 
-// Struct definition
-SStructDef := struct {
-    mut members: Array = Array()           // Array of (Str, Declaration) tuples (field name, declaration)
-    mut default_values: Map = Map()        // Map<Str, Expr> - field name to default value expression
-}
-
-// Function/procedure definition
-SFuncDef := struct {
-    mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: Array = Array()              // Array of Declaration
-    mut return_types: Array = Array()      // Array of ValueType (named return_types not "returns" - keyword conflict)
-    mut throw_types: Array = Array()       // Array of ValueType (named throw_types not "throws" - keyword conflict)
-    mut body: Array = Array()              // Array of Expr
-}
-
-// Value types that can be inferred or declared
+// ValueType - lines 190-195
 ValueType := enum {
-    TFunction,
-    TProc,
-    TMacro,
-    TType,
-    TMulti,
+    TFunction: FunctionType,
+    TType: TTypeDef,
     TCustom: Str,
+    TMulti: Str,
 }
 
-// Variable/parameter declaration
+// SEnumDef - lines 10-12
+SEnumDef := struct {
+    mut enum_map: Map = Map()  // Map<Str, ValueType> - variant name to optional payload type
+}
+
+// Declaration - lines 15-19
 Declaration := struct {
     mut name: Str = ""
     mut value_type: ValueType = ValueType.TCustom("")
     mut is_mut: Bool = false
 }
 
-// AST node types
+// PatternInfo - lines 25-28
+// Workaround for TIL's lack of tuple syntax (String, String)
+PatternInfo := struct {
+    mut variant_name: Str = ""
+    mut binding_var: Str = ""
+}
+
+// SFuncDef - lines 40-46
+SFuncDef := struct {
+    mut function_type: FunctionType = FunctionType.FTFunc
+    mut args: Array = Array()              // Array of Declaration
+    mut return_types: Array = Array()      // Array of ValueType - "returns" conflicts with TIL keyword
+    mut throw_types: Array = Array()       // Array of ValueType - "throws" conflicts with TIL keyword
+    mut body: Array = Array()              // Array of Expr
+}
+
+// SFuncDef methods - lines 49-62
+sfuncdef_is_proc := func(self: SFuncDef) returns Bool {
+    ft := self.function_type
+    switch ft {
+    case FunctionType.FTProc:
+        return true
+    case FunctionType.FTProcExt:
+        return true
+    case:
+        return false
+    }
+}
+
+sfuncdef_is_ext := func(self: SFuncDef) returns Bool {
+    ft := self.function_type
+    switch ft {
+    case FunctionType.FTFuncExt:
+        return true
+    case FunctionType.FTProcExt:
+        return true
+    case:
+        return false
+    }
+}
+
+// SStructDef - lines 65-68
+SStructDef := struct {
+    mut members: Array = Array()           // Array of (Str, Declaration) - field name, declaration
+    mut default_values: Map = Map()        // Map<Str, Expr> - field name to default value expression
+}
+
+// Literal - lines 71-76
+Literal := enum {
+    Number: Str,
+    Str: Str,
+    Bool: Str,
+    List: Str,
+}
+
+// NodeType - lines 79-98
 NodeType := enum {
     Body,
     LLiteral: Literal,
@@ -91,7 +116,7 @@ NodeType := enum {
     Pattern: PatternInfo,
 }
 
-// Expression node in AST
+// Expr - lines 101-106
 Expr := struct {
     mut node_type: NodeType = NodeType.Body
     mut params: Array = Array()
@@ -99,11 +124,51 @@ Expr := struct {
     mut col: I64 = 0
 }
 
-// ==============================================================================
-// Helper Functions
-// ==============================================================================
+// Expr methods - lines 109-172
+expr_new_parse := func(node_type: NodeType, token: Token, params: Array) returns Expr {
+    mut e := Expr()
+    e.node_type = node_type
+    e.params = params
+    e.line = token.line
+    e.col = token.col
+    return e
+}
 
-// Check if a token is a literal
+expr_new_explicit := func(node_type: NodeType, params: Array, line: I64, col: I64) returns Expr {
+    mut e := Expr()
+    e.node_type = node_type
+    e.params = params
+    e.line = line
+    e.col = col
+    return e
+}
+
+expr_new_clone := func(node_type: NodeType, e: Expr, params: Array) returns Expr {
+    return expr_new_explicit(node_type, params, e.line, e.col)
+}
+
+// Stub - Array.get doesn't return typed values
+// expr_get := func(e_param: Expr, i: I64) returns Expr throws IndexOutOfBoundsError {
+//     params_arr := e_param.params
+//     return params_arr.get(i)
+// }
+
+// Stub - complex format calls
+// expr_lang_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
+//     return format("lang_error: ", msg)
+// }
+
+// Stub - complex format calls
+// expr_todo_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
+//     return format("todo_error: ", msg)
+// }
+
+// Stub - complex format calls
+// expr_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
+//     return format("error: ", msg)
+// }
+
+// is_literal - lines 174-181
 is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
@@ -118,7 +183,62 @@ is_literal := func(t: Token) returns Bool {
     }
 }
 
-// Placeholder for future implementation
-parse_tokens := proc(lexer: Lexer) returns Expr throws Str {
-    throw "parse_tokens not yet implemented"
+value_type_to_str := func(arg_type: ValueType) returns Str {
+    switch arg_type {
+    case ValueType.TType:
+        // Extract TTypeDef payload
+        switch arg_type {
+        case ValueType.TType(TTypeDef.TEnumDef):
+            return "enum"
+        case ValueType.TType(TTypeDef.TStructDef):
+            return "struct"
+        case:
+            return "unknown_type"
+        }
+    case ValueType.TFunction:
+        // Extract FunctionType payload
+        switch arg_type {
+        case ValueType.TFunction(FunctionType.FTFunc):
+            return "func"
+        case ValueType.TFunction(FunctionType.FTFuncExt):
+            return "func"
+        case ValueType.TFunction(FunctionType.FTProc):
+            return "proc"
+        case ValueType.TFunction(FunctionType.FTProcExt):
+            return "proc"
+        case ValueType.TFunction(FunctionType.FTMacro):
+            return "macro"
+        case:
+            return "unknown_function"
+        }
+    case ValueType.TMulti:
+        // TODO: need to extract string payload
+        return "multi"
+    case ValueType.TCustom:
+        // TODO: need to extract string payload
+        return "custom"
+    case:
+        return "unknown"
+    }
 }
+
+// TODO: Type checker sees enum constructors as function calls
+// str_to_value_type := func(arg_type: Str) returns ValueType {
+//     if arg_type.eq("func") {
+//         return ValueType.TFunction(FunctionType.FTFunc)
+//     }
+//     if arg_type.eq("proc") {
+//         return ValueType.TFunction(FunctionType.FTProc)
+//     }
+//     if arg_type.eq("macro") {
+//         return ValueType.TFunction(FunctionType.FTMacro)
+//     }
+//     if arg_type.eq("enum") {
+//         return ValueType.TType(TTypeDef.TEnumDef)
+//     }
+//     if arg_type.eq("struct") {
+//         return ValueType.TType(TTypeDef.TStructDef)
+//     }
+//     // Default: custom type
+//     return ValueType.TCustom(arg_type)
+// }
