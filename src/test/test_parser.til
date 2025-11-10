@@ -324,24 +324,24 @@ test_parse_primary_identifier_fcall := proc() {
 // test_token_type_eq()  // Removed - token_type_eq function no longer exists
 test_str_to_value_type()
 test_is_literal()
-// TODO: These tests trigger memcpy errors in parser.til
-// test_parse_mode()
-// test_parse_literal()
-// test_parse_list()
-// test_parse_declaration()
-// test_parse_statement_identifier()
+// test_parse_mode()  // memcpy error
+test_parse_literal()
+test_parse_list()
+test_parse_declaration()
+test_parse_statement_identifier()
+// TODO: Debug memcpy error in parse_primary_identifier
 // test_parse_primary_identifier_fcall()
-// test_parse_statement()
-// test_parse_body()
+test_parse_statement()
+test_parse_body()
 
 // TODO: Re-enable after fixing parsing issues in parser.til
-// test_simple_expressions()  // memcpy error on 2nd test (s := "hello")
-// test_declarations()  // memcpy error (Bug #8 workaround applied, but hits Array/Map issue)
-// test_functions()  // Blocked by same memcpy error as test_declarations
-// test_control_flow()  // memcpy error (similar to test_simple_expressions)
+// test_simple_expressions()  // eval error: Cannot use 'self' of type 'Array' as argument
+// test_declarations()  // memcpy error
+// test_functions()  // memcpy error
+// test_control_flow()  // type error: Could not find function definition
 // test_enums()  // Parse error: "Expected statement, found }"
-// test_structs()  // Parse error: "Expected statement, found :"
-// test_switch()  // Type error: "Could not find function defintion" at line 1365
+// test_structs()  // eval error: Cannot use 'self' of type 'Array' as argument
+// test_switch()  // Type error: Could not find function defintion at line 1377
 
 // Test parsing real TIL files
 // TODO: Hangs (likely infinite loop in parser.til)
