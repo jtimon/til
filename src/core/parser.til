@@ -737,17 +737,743 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     return expr_new_parse(NodeType.StructDef(struct_def), t, params)
 }
 
-// Stub for parse_body - will be translated later
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
-    throw "parse_body not yet implemented"
+parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    t := lexer.peek()
+    mut next_t := lexer_next(lexer)
+    mut current_identifier := t.token_str
+    mut params := Array()
+
+    while next_t.token_type.eq(TokenType.Dot) {
+        next2_t := lexer_peek_ahead(lexer, 2)
+        n2tt := next2_t.token_type
+        if not(n2tt.eq(TokenType.Identifier)) {
+            throw format(next2_t.line.to_str(), ":", next2_t.col.to_str(), ": expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'.")
+        }
+
+        current_identifier = next2_t.token_str
+        lexer_advance(lexer, 2)
+        params.push(expr_new_parse(NodeType.Identifier(current_identifier), t, Array()))
+        next_t = lexer_next(lexer)
+    }
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    e := expr_new_parse(NodeType.Identifier(t.token_str), initial_token, params)
+    lexer_advance(lexer, 1)
+
+    ntt := next_t.token_type
+    if ntt.eq(TokenType.LeftParen) {
+        arg_list := parse_list(lexer)
+        mut fcall_params := Array()
+        fcall_params.push(e)
+        mut i := 0
+        while i.lt(arg_list.params.len()) {
+            fcall_params.push(arg_list.params.get(i))
+            i = i.add(1)
+        }
+        initial_token2 := lexer_get_token(lexer, initial_current)
+        mut result := expr_new_parse(NodeType.FCall, initial_token2, fcall_params)
+
+        // Handle chained method calls: a.method1().method2().method3()
+        mut continue_loop := true
+        while continue_loop {
+            peek_t := lexer.peek()
+            ptt := peek_t.token_type
+            if not(ptt.eq(TokenType.Dot)) {
+                continue_loop = false
+            } else {
+                // Consume the dot
+                lexer_advance(lexer, 1)
+
+                // Expect an identifier for the next method name
+                method_t := lexer.peek()
+                mtt := method_t.token_type
+                if not(mtt.eq(TokenType.Identifier)) {
+                    throw format(method_t.line.to_str(), ":", method_t.col.to_str(), ": Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
+                }
+                method_name := method_t.token_str
+                lexer_advance(lexer, 1)
+
+                // Check if it's a method call (has parentheses)
+                next_peek := lexer.peek()
+                nptt := next_peek.token_type
+                if not(nptt.eq(TokenType.LeftParen)) {
+                    throw format(next_peek.line.to_str(), ":", next_peek.col.to_str(), ": Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'")
+                }
+
+                // Parse the argument list
+                method_args := parse_list(lexer)
+
+                // Create a new FCall with the method name as identifier and previous result as first arg
+                // This represents: method_name(result, args...)
+                method_id := expr_new_parse(NodeType.Identifier(method_name), method_t, Array())
+                mut new_params := Array()
+                new_params.push(method_id)
+                new_params.push(result)  // Previous call result becomes first argument
+                mut j := 0
+                while j.lt(method_args.params.len()) {
+                    new_params.push(method_args.params.get(j))
+                    j = j.add(1)
+                }
+
+                result = expr_new_parse(NodeType.FCall, method_t, new_params)
+            }
+        }
+
+        return result
+    }
+    return e
 }
 
-// Stub for parse_primary - will be translated later
+get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    mut to_return := ""
+    nt := e.node_type
+    if nt.tag().eq(NodeType.Identifier("").tag()) {
+        id_str := rsonly_enum_extract_payload(nt)
+        to_return = id_str
+        to_return = to_return.add(".")
+    } else {
+        throw expr_lang_error(e, "parse", "get_combined_name() is to be called with Identifier expressions only")
+    }
+
+    mut i := 0
+    while i.lt(e.params.len()) {
+        p := e.params.get(i)
+        pnt := p.node_type
+        if pnt.tag().eq(NodeType.Identifier("").tag()) {
+            id_str := rsonly_enum_extract_payload(pnt)
+            to_return = to_return.add(id_str)
+            to_return = to_return.add(".")
+        } else {
+            throw expr_lang_error(e, "parse", "the params of an identifier expression must be Identifier expressions only")
+        }
+        i = i.add(1)
+    }
+
+    // Remove the last '.'
+    to_return = to_return.substring(0, to_return.len().sub(1))
+    return to_return
+}
+
+parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+    mut next_t := lexer_next(lexer)
+    mut next_token_type := next_t.token_type
+
+    ntt := next_token_type
+    if ntt.eq(TokenType.LeftParen) {
+        return parse_primary_identifier(lexer)
+    }
+
+    if ntt.eq(TokenType.Dot) {
+        e := parse_primary_identifier(lexer)
+        ent := e.node_type
+        if ent.tag().eq(NodeType.FCall.tag()) {
+            return e
+        }
+        if not(ent.tag().eq(NodeType.Identifier("").tag())) {
+            throw token_lang_error(t, "a series of identifiers and dots should have been parsed as identifier or function call")
+        }
+
+        next_t = lexer.peek()
+        next_token_type = next_t.token_type
+        ntt2 := next_token_type
+        if ntt2.eq(TokenType.Equal) {
+            name := get_combined_name(e)
+            return parse_assignment(lexer, t, name)
+        } else {
+            throw token_lang_error(t, "While parsing a '.', this should never happen")
+        }
+    }
+
+    if ntt.eq(TokenType.Equal) {
+        lexer_advance(lexer, 1)
+        return parse_assignment(lexer, t, t.token_str)
+    }
+
+    if ntt.eq(TokenType.Colon) {
+        next_next_t := lexer_peek_ahead(lexer, 2)
+        next_next_token_type := next_next_t.token_type
+        identifier := t.token_str
+
+        nntt := next_next_token_type
+        if nntt.eq(TokenType.Identifier) {
+            type_name := next_next_t.token_str
+            return parse_declaration(lexer, false, type_name)
+        }
+        if nntt.eq(TokenType.Equal) {
+            return parse_declaration(lexer, false, INFER_TYPE)
+        }
+        throw token_error(t, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+    }
+
+    throw token_error(t, format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))
+}
+
 parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
-    throw "parse_primary not yet implemented"
+    t := lexer.peek()
+    if is_literal(t) {
+        return parse_literal(lexer, t)
+    }
+
+    tt := t.token_type
+    if tt.eq(TokenType.Func) {
+        return parse_func_proc_definition(lexer, FunctionType.FTFunc, true)
+    }
+    if tt.eq(TokenType.FuncExt) {
+        return parse_func_proc_definition(lexer, FunctionType.FTFuncExt, false)
+    }
+    if tt.eq(TokenType.Macro) {
+        return parse_func_proc_definition(lexer, FunctionType.FTMacro, true)
+    }
+    if tt.eq(TokenType.Proc) {
+        return parse_func_proc_definition(lexer, FunctionType.FTProc, true)
+    }
+    if tt.eq(TokenType.ProcExt) {
+        return parse_func_proc_definition(lexer, FunctionType.FTProcExt, false)
+    }
+    if tt.eq(TokenType.Enum) {
+        return enum_definition(lexer)
+    }
+    if tt.eq(TokenType.Struct) {
+        return parse_struct_definition(lexer)
+    }
+    if tt.eq(TokenType.LeftParen) {
+        return parse_list(lexer)
+    }
+    if tt.eq(TokenType.Identifier) {
+        return parse_primary_identifier(lexer)
+    }
+
+    throw token_error(t, format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
 }
 
-// Translation from parser.rs complete up to line 747 (parse_struct_definition)
+return_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+    mut params := Array()
+
+    // Try to parse first primary expression
+    prim := parse_primary(lexer)
+    params.push(prim)
+    catch (err: Str) {
+        // No primary expression found, that's okay for return statements
+    }
+
+    mut t := lexer.peek()
+    mut continue_loop := true
+    while continue_loop {
+        tt := t.token_type
+        if not(tt.eq(TokenType.Comma)) {
+            continue_loop = false
+        } else {
+            lexer_advance(lexer, 1)
+            prim2 := parse_primary(lexer)
+            params.push(prim2)
+            t = lexer.peek()
+        }
+    }
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.Return, initial_token, params)
+}
+
+parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+    mut params := Array()
+
+    // Try to parse first primary expression
+    prim := parse_primary(lexer)
+    params.push(prim)
+    catch (err: Str) {
+        // No primary expression found, that's okay for throw statements
+    }
+
+    mut t := lexer.peek()
+    mut continue_loop := true
+    while continue_loop {
+        tt := t.token_type
+        if not(tt.eq(TokenType.Comma)) {
+            continue_loop = false
+        } else {
+            lexer_advance(lexer, 1)
+            prim2 := parse_primary(lexer)
+            params.push(prim2)
+            t = lexer.peek()
+        }
+    }
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.Throw, initial_token, params)
+}
+
+parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1) // consume 'catch'
+
+    lexer_expect(lexer, TokenType.LeftParen) // expect '('
+
+    // Parse the error variable name
+    name_token := lexer_expect(lexer, TokenType.Identifier)
+    name := name_token.token_str
+    name_expr := expr_new_parse(NodeType.Identifier(name), name_token, Array())
+
+    lexer_expect(lexer, TokenType.Colon) // expect ':'
+
+    // Parse the exception type
+    type_token := lexer_expect(lexer, TokenType.Identifier)
+    type_expr := expr_new_parse(NodeType.Identifier(type_token.token_str), type_token, Array())
+
+    lexer_expect(lexer, TokenType.RightParen) // expect ')'
+
+    lexer_expect(lexer, TokenType.LeftBrace) // expect '{'
+    body_expr := parse_body(lexer, TokenType.RightBrace)
+
+    mut params := Array()
+    params.push(name_expr)
+    params.push(type_expr)
+    params.push(body_expr)
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.Catch, initial_token, params)
+}
+
+if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+    mut params := Array()
+
+    prim := parse_primary(lexer)
+    params.push(prim)
+
+    t := lexer.peek()
+    tt := t.token_type
+    if not(tt.eq(TokenType.LeftBrace)) {
+        throw token_error(t, format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
+    }
+    lexer_advance(lexer, 1)
+
+    body := parse_body(lexer, TokenType.RightBrace)
+    params.push(body)
+
+    t2 := lexer.peek()
+    t2tt := t2.token_type
+    if t2tt.eq(TokenType.Else) {
+        lexer_advance(lexer, 1)
+        next := lexer.peek()
+        ntt := next.token_type
+        if ntt.eq(TokenType.If) {
+            nested_if := if_statement(lexer)
+            params.push(nested_if)
+        } else {
+            if ntt.eq(TokenType.LeftBrace) {
+                lexer_advance(lexer, 1)
+                else_body := parse_body(lexer, TokenType.RightBrace)
+                params.push(else_body)
+            } else {
+                throw token_error(t2, format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
+            }
+        }
+    }
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.If, initial_token, params)
+}
+
+while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+    mut params := Array()
+
+    prim := parse_primary(lexer)
+    params.push(prim)
+
+    t := lexer.peek()
+    tt := t.token_type
+    if not(tt.eq(TokenType.LeftBrace)) {
+        throw token_error(t, "Expected '{{' after condition in 'while' statement.")
+    }
+    lexer_advance(lexer, 1)
+
+    body := parse_body(lexer, TokenType.RightBrace)
+    params.push(body)
+
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.While, initial_token, params)
+}
+
+parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_token := lexer.peek()
+    lexer_advance(lexer, 1) // consume 'for'
+
+    // Expect loop variable name
+    ident_token := lexer_expect(lexer, TokenType.Identifier)
+    loop_var_name := ident_token.token_str
+
+    lexer_expect(lexer, TokenType.In)
+
+    // Parse the range expression (e.g., 1..10)
+    range_expr := parse_case_expr(lexer)
+    rent := range_expr.node_type
+    if not(rent.eq(NodeType.Range)) {
+        throw token_error(ident_token, "Expected range expression (start..end) after 'in'")
+    }
+    start_expr := expr_get(range_expr, 0)
+    end_expr := expr_get(range_expr, 1)
+
+    lexer_expect(lexer, TokenType.LeftBrace)
+    body_expr := parse_body(lexer, TokenType.RightBrace)
+
+    // let loop_var := <start_expr>
+    decl := Declaration.new(loop_var_name, str_to_value_type(INFER_TYPE), true)
+    mut decl_params := Array()
+    decl_params.push(start_expr)
+    decl_expr := expr_new_parse(NodeType.Declaration(decl), initial_token, decl_params)
+
+    // while <loop_var> < <end_expr> {
+    // Create: loop_var.lt(end_expr)
+    mut lt_ident_params := Array()
+    lt_ident_params.push(expr_new_parse(NodeType.Identifier("lt"), initial_token, Array()))
+    loop_var_ident := expr_new_parse(NodeType.Identifier(loop_var_name), initial_token, lt_ident_params)
+
+    mut cond_params := Array()
+    cond_params.push(loop_var_ident)
+    cond_params.push(end_expr)
+    cond_expr := expr_new_explicit(NodeType.FCall, cond_params, initial_token.line, initial_token.col)
+
+    // Create: loop_var.inc()
+    mut inc_ident_params := Array()
+    inc_ident_params.push(expr_new_parse(NodeType.Identifier("inc"), initial_token, Array()))
+    mut inc_params := Array()
+    inc_params.push(expr_new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params))
+    inc_expr := expr_new_explicit(NodeType.FCall, inc_params, initial_token.line, initial_token.col)
+
+    // Add inc_expr to body
+    mut while_body_params := expr_params_clone(body_expr)
+    while_body_params.push(inc_expr)
+    while_body := expr_new_explicit(NodeType.Body, while_body_params, body_expr.line, body_expr.col)
+
+    // Create while expression
+    mut while_params := Array()
+    while_params.push(cond_expr)
+    while_params.push(while_body)
+    while_expr := expr_new_explicit(NodeType.While, while_params, initial_token.line, initial_token.col)
+
+    // Return body with declaration and while loop
+    mut final_params := Array()
+    final_params.push(decl_expr)
+    final_params.push(while_expr)
+    return expr_new_explicit(NodeType.Body, final_params, initial_token.line, initial_token.col)
+}
+
+// Helper function to extract full identifier name from an expression
+// Handles both simple identifiers and dotted names (represented as FCall)
+get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    ent := e.node_type
+    if ent.tag().eq(NodeType.Identifier("").tag()) {
+        name := rsonly_enum_extract_payload(ent)
+        // Check if this is a dotted name: Identifier with params
+        // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
+        if e.params.len().eq(1) {
+            p0 := e.params.get(0)
+            p0nt := p0.node_type
+            if p0nt.tag().eq(NodeType.Identifier("").tag()) {
+                param_name := rsonly_enum_extract_payload(p0nt)
+                return format(name, ".", param_name)
+            }
+        }
+        return name
+    }
+    if ent.tag().eq(NodeType.FCall.tag()) {
+        if e.params.len().gte(1) {
+            // For FCall, try to extract the function name
+            return get_full_identifier_name(e.params.get(0))
+        }
+    }
+    return ""
+}
+
+parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    left := parse_primary(lexer)
+    t := lexer.peek()
+    tt := t.token_type
+    if tt.eq(TokenType.DoubleDot) {
+        lexer_advance(lexer, 1)
+        right := parse_primary(lexer)
+        mut params := Array()
+        params.push(left)
+        params.push(right)
+        return expr_new_parse(NodeType.Range, t, params)
+    }
+
+    // Check if this is a pattern match: EnumVariant(binding_var)
+    // This would have been parsed as FCall with one Identifier parameter
+    lnt := left.node_type
+    if lnt.tag().eq(NodeType.FCall.tag()) {
+        if left.params.len().eq(2) {
+            // FCall params are: [function_name, arg1, arg2, ...]
+            // For pattern matching, we expect: [variant_identifier, binding_identifier]
+            // Note: variant_identifier might be a dotted name like "Color.Green" which could be
+            // represented as an FCall itself (for the dot access)
+
+            // Get the full variant name (handling dotted names)
+            variant_name := get_full_identifier_name(left.params.get(0))
+
+            p1 := left.params.get(1)
+            p1nt := p1.node_type
+            if p1nt.tag().eq(NodeType.Identifier("").tag()) {
+                binding_var := rsonly_enum_extract_payload(p1nt)
+                // Convert FCall to Pattern
+                pattern_info := PatternInfo.new(variant_name, binding_var)
+                return expr_new_explicit(NodeType.Pattern(pattern_info), Array(), left.line, left.col)
+            }
+        }
+    }
+
+    return left
+}
+
+parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+    initial_current := lexer.current
+    lexer_advance(lexer, 1)
+    mut params := Array()
+
+    prim := parse_primary(lexer)
+    params.push(prim)
+
+    peek_t := lexer.peek()
+    ptt := peek_t.token_type
+    if not(ptt.eq(TokenType.LeftBrace)) {
+        throw token_error(t, "Expected '{{' after primary expression in 'switch' statement.")
+    }
+    lexer_advance(lexer, 1)
+
+    mut end_found := false
+    mut continue_outer := true
+    while lexer.current.lt(lexer_len(lexer)).and(not(end_found)) {
+        if not(continue_outer) {
+            continue_outer = true
+        }
+
+        mut next_t := lexer.peek()
+        ntt := next_t.token_type
+        if not(ntt.eq(TokenType.Case)) {
+            throw token_error(next_t, format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
+        }
+
+        lexer_advance(lexer, 1)
+        next_t = lexer.peek()
+        ntt2 := next_t.token_type
+        if ntt2.eq(TokenType.Colon) {
+            params.push(expr_new_parse(NodeType.DefaultCase, t, Array()))
+        } else {
+            prim2 := parse_case_expr(lexer)
+            params.push(prim2)
+        }
+
+        next_t = lexer.peek()
+        ntt3 := next_t.token_type
+        if not(ntt3.eq(TokenType.Colon)) {
+            throw token_error(next_t, format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
+        }
+
+        lexer_advance(lexer, 1)
+        next_t = lexer.peek()
+        mut body_params := Array()
+        mut continue_inner := true
+        while lexer.current.lt(lexer_len(lexer)) {
+            if not(continue_inner) {
+                continue_inner = true
+            }
+
+            ntt4 := next_t.token_type
+            if ntt4.eq(TokenType.RightBrace) {
+                params.push(expr_new_parse(NodeType.Body, t, body_params))
+                end_found = true
+                lexer_advance(lexer, 1)
+                continue_inner = false
+                continue_outer = false
+            } else {
+                if ntt4.eq(TokenType.Case) {
+                    params.push(expr_new_parse(NodeType.Body, t, body_params))
+                    continue_inner = false
+                } else {
+                    stmt := parse_statement(lexer)
+                    body_params.push(stmt)
+                    next_t = lexer.peek()
+                    ntt5 := next_t.token_type
+                    if ntt5.eq(TokenType.Semicolon) {
+                        lexer_advance(lexer, 1)
+                        next_t = lexer.peek()
+                    }
+                }
+            }
+        }
+    }
+
+    if end_found {
+        initial_token := lexer_get_token(lexer, initial_current)
+        return expr_new_parse(NodeType.Switch, initial_token, params)
+    }
+    throw token_error(t, "Expected '}}' to end switch.")
+}
+
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+    decl_name := t.token_str
+    initial_current := lexer.current
+
+    lexer_advance(lexer, 3) // skip identifier, colon and equal
+    if not(explicit_type.eq(INFER_TYPE)) {
+        lexer_advance(lexer, 1) // skip type identifier
+    }
+
+    mut params := Array()
+    params.push(parse_primary(lexer))
+
+    decl := Declaration.new(decl_name, str_to_value_type(explicit_type), is_mut)
+    initial_token := lexer_get_token(lexer, initial_current)
+    return expr_new_parse(NodeType.Declaration(decl), initial_token, params)
+}
+
+parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+    mut next_t := lexer_next(lexer)
+    mut next_token_type := next_t.token_type
+
+    ntt := next_token_type
+    if not(ntt.eq(TokenType.Identifier)) {
+        throw token_error(t, format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
+    }
+    identifier := next_t.token_str
+    lexer_advance(lexer, 1)
+    next_t = lexer_next(lexer)
+    next_token_type = next_t.token_type
+
+    ntt2 := next_token_type
+    if not(ntt2.eq(TokenType.Colon)) {
+        throw token_error(t, format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
+    }
+    next_next_t := lexer_peek_ahead(lexer, 2)
+    next_next_token_type := next_next_t.token_type
+
+    nntt := next_next_token_type
+    if nntt.eq(TokenType.Identifier) {
+        type_name := next_next_t.token_str
+        return parse_declaration(lexer, true, type_name)
+    }
+    if nntt.eq(TokenType.Equal) {
+        return parse_declaration(lexer, true, INFER_TYPE)
+    }
+    throw token_error(t, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+}
+
+parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    t := lexer.peek()
+    tt := t.token_type
+
+    if tt.eq(TokenType.Return) {
+        return return_statement(lexer)
+    }
+    if tt.eq(TokenType.Throw) {
+        return parse_throw_statement(lexer)
+    }
+    if tt.eq(TokenType.If) {
+        return if_statement(lexer)
+    }
+    if tt.eq(TokenType.While) {
+        return while_statement(lexer)
+    }
+    if tt.eq(TokenType.For) {
+        return parse_for_statement(lexer)
+    }
+    if tt.eq(TokenType.Switch) {
+        return parse_switch_statement(lexer)
+    }
+    if tt.eq(TokenType.Mut) {
+        return parse_mut_declaration(lexer)
+    }
+    if tt.eq(TokenType.Identifier) {
+        return parse_statement_identifier(lexer)
+    }
+    if tt.eq(TokenType.Catch) {
+        return parse_catch_statement(lexer)
+    }
+    if tt.eq(TokenType.LeftBrace) {
+        lexer_advance(lexer, 1) // Skip LeftBrace
+        return parse_body(lexer, TokenType.RightBrace)
+    }
+
+    throw token_error(t, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
+}
+
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    initial_current := lexer.current
+    mut params := Array()
+    mut end_found := false
+    mut t := lexer.peek() // track last token for error reporting
+
+    mut continue_loop := true
+    while lexer.current.lt(lexer_len(lexer)).and(not(end_found)) {
+        if not(continue_loop) {
+            continue_loop = true
+        }
+
+        t = lexer.peek() // update t with the current token
+        token_type := t.token_type
+        if token_type.eq(end_token) {
+            lexer_advance(lexer, 1)
+            end_found = true
+            continue_loop = false
+        } else {
+            if token_type.eq(TokenType.Semicolon) {
+                lexer_expect(lexer, TokenType.Semicolon) // REM: This is suboptimal but more clear in grep
+            } else {
+                stmt := parse_statement(lexer)
+                params.push(stmt)
+            }
+        }
+    }
+
+    if end_found {
+        initial_token := lexer_get_token(lexer, initial_current)
+        return expr_new_parse(NodeType.Body, initial_token, params)
+    }
+    throw token_error(t, format("Expected '", token_type_to_str(end_token), "' to end body."))
+}
+
+parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    e := parse_body(lexer, TokenType.Eof)
+
+    mut i := lexer.current
+    mut unparsed_tokens := 0
+    lexer_len_val := lexer_len(lexer)
+
+    if i.lt(lexer_len_val) {
+        unparsed_tokens = lexer_len_val.sub(i)
+    }
+
+    if unparsed_tokens.gt(0) {
+        println(format("Total tokens parsed: ", lexer.current.to_str(), "/", lexer_len_val.to_str()))
+    }
+
+    while i.lt(lexer_len_val) {
+        t := lexer_get_token(lexer, i)
+        println(format("Token: ", token_to_str(t)))
+        i = i.add(1)
+    }
+
+    if unparsed_tokens.gt(0) {
+        throw format("Total unparsed tokens: ", unparsed_tokens.to_str(), "/", lexer_len_val.to_str())
+    }
+
+    return e
+}
+
+// Translation from parser.rs complete up to line 1408 (parse_tokens)
+// This completes the parser translation!
 //
 // What's translated:
 // - All data structures (lines 7-231)
