@@ -5,7 +5,7 @@ import("src/core/lexer")
 INFER_TYPE := "auto"
 
 SEnumDef := struct {
-    mut enum_map: Map = Map()
+    mut enum_map: Map = Map.new("Str", size_of(Str), "ValueType", size_of(ValueType))
 }
 
 Declaration := struct {
@@ -32,10 +32,10 @@ FunctionType := enum {
 
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
-    mut args: Array = Array()
-    mut return_types: Array = Array()  // "returns" conflicts with TIL keyword
-    mut throw_types: Array = Array()   // "throws" conflicts with TIL keyword
-    mut body: Array = Array()
+    mut args: Array = Array.new_dyn("Declaration", size_of(Declaration))
+    mut return_types: Array = Array.new_dyn("ValueType", size_of(ValueType))  // "returns" conflicts with TIL keyword
+    mut throw_types: Array = Array.new_dyn("ValueType", size_of(ValueType))   // "throws" conflicts with TIL keyword
+    mut body: Array = Array.new_dyn("Expr", size_of(Expr))
 
     is_proc := func(self: SFuncDef) returns Bool {
         ft := self.function_type
@@ -63,8 +63,8 @@ SFuncDef := struct {
 }
 
 SStructDef := struct {
-    mut members: Array = Array()
-    mut default_values: Map = Map()
+    mut members: Array = Array.new_dyn("Declaration", size_of(Declaration))
+    mut default_values: Map = Map.new("Str", size_of(Str), "Expr", size_of(Expr))
 }
 
 Literal := enum {
@@ -97,7 +97,7 @@ NodeType := enum {
 
 Expr := struct {
     mut node_type: NodeType = NodeType.Body
-    mut params: Array = Array()
+    mut params: Array = Array.new_dyn("Expr", size_of(Expr))
     mut line: I64 = 0
     mut col: I64 = 0
 
@@ -296,7 +296,7 @@ ModeDef := struct {
     mut allows_base_calls: Bool = false
     mut allows_base_anything: Bool = false
     mut needs_main_proc: Bool = false
-    mut imports: Array = Array()
+    mut imports: Array = Array.new_dyn("Str", size_of(Str))
 }
 
 can_be_imported := func(mode_def: ModeDef) returns Bool {
@@ -316,7 +316,6 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         m.allows_base_mut = false
         m.allows_base_anything = false
         m.needs_main_proc = false
-        m.imports = Array()
         return m
     }
     if mode_name.eq("pure") {
@@ -327,7 +326,6 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         m.allows_base_mut = false
         m.allows_base_anything = false
         m.needs_main_proc = false
-        m.imports = Array()
         return m
     }
     if mode_name.eq("script") {
@@ -338,7 +336,6 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         m.allows_base_mut = true
         m.allows_base_anything = true
         m.needs_main_proc = false
-        m.imports = Array()
         return m
     }
     if mode_name.eq("safe_script") {
@@ -349,7 +346,6 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         m.allows_base_mut = true
         m.allows_base_anything = true
         m.needs_main_proc = false
-        m.imports = Array()
         return m
     }
     if mode_name.eq("cli") {
@@ -360,7 +356,6 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         m.allows_base_mut = true
         m.allows_base_anything = false
         m.needs_main_proc = true
-        m.imports = Array()
         return m
     }
     if mode_name.eq("test") {
@@ -404,7 +399,7 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
 }
 
 parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, FullError {
-    params := Array()
+    params := Array.new_dyn("Expr", size_of(Expr))
     tt := t.token_type
     mut node_type := NodeType.Body  // Default, will be overwritten
 
@@ -734,7 +729,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     func_def.throw_types = throw_types
     func_def.body = body
 
-    params := Array()
+    params := Array.new_dyn("Expr", size_of(Expr))
     e := Expr.new_parse(NodeType.FuncDef(func_def), t, params)
     return e
 }
@@ -800,7 +795,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     if not(end_found) {
         throw token_error(t, "Expected '}}' to end enum.")
     }
-    params := Array()
+    params := Array.new_dyn("Expr", size_of(Expr))
     mut enum_def := SEnumDef()
     enum_def.enum_map = enum_map
     initial_token := lexer.get_token(initial_current)
@@ -854,7 +849,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     mut struct_def := SStructDef()
     struct_def.members = members
     struct_def.default_values = default_values
-    params := Array()
+    params := Array.new_dyn("Expr", size_of(Expr))
     return Expr.new_parse(NodeType.StructDef(struct_def), t, params)
 }
 
@@ -1387,7 +1382,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                 mut pattern_info := PatternInfo()
                 pattern_info.variant_name = variant_name
                 pattern_info.binding_var = binding_var
-                return Expr.new_explicit(NodeType.Pattern(pattern_info), Array(), left.line, left.col)
+                return Expr.new_explicit(NodeType.Pattern(pattern_info), Array.new_dyn("Expr", size_of(Expr)), left.line, left.col)
             }
         }
     }
