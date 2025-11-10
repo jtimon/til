@@ -4,7 +4,6 @@ import("src/core/lexer")
 
 INFER_TYPE := "auto"
 
-// FunctionType - lines 31-37
 FunctionType := enum {
     FTFunc,
     FTProc,
@@ -13,13 +12,11 @@ FunctionType := enum {
     FTProcExt,
 }
 
-// TTypeDef - lines 184-187
 TTypeDef := enum {
     TEnumDef,
     TStructDef,
 }
 
-// ValueType - lines 190-195
 ValueType := enum {
     TFunction: FunctionType,
     TType: TTypeDef,
@@ -27,26 +24,24 @@ ValueType := enum {
     TMulti: Str,
 }
 
-// SEnumDef - lines 10-12
 SEnumDef := struct {
     mut enum_map: Map = Map()  // Map<Str, ValueType> - variant name to optional payload type
 }
 
-// Declaration - lines 15-19
 Declaration := struct {
     mut name: Str = ""
     mut value_type: ValueType = ValueType.TCustom("")
     mut is_mut: Bool = false
 }
 
-// PatternInfo - lines 25-28
-// Workaround for TIL's lack of tuple syntax (String, String)
+// TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
+// Once TIL supports tuple notation like (Str, Str), this can be replaced with:
+// Pattern(String, String)  // Pattern(variant_name, binding_var)
 PatternInfo := struct {
     mut variant_name: Str = ""
     mut binding_var: Str = ""
 }
 
-// SFuncDef - lines 40-46
 SFuncDef := struct {
     mut function_type: FunctionType = FunctionType.FTFunc
     mut args: Array = Array()              // Array of Declaration
@@ -54,8 +49,6 @@ SFuncDef := struct {
     mut throw_types: Array = Array()       // Array of ValueType - "throws" conflicts with TIL keyword
     mut body: Array = Array()              // Array of Expr
 }
-
-// SFuncDef methods - lines 49-62
 sfuncdef_is_proc := func(self: SFuncDef) returns Bool {
     ft := self.function_type
     switch ft {
@@ -80,21 +73,18 @@ sfuncdef_is_ext := func(self: SFuncDef) returns Bool {
     }
 }
 
-// SStructDef - lines 65-68
 SStructDef := struct {
     mut members: Array = Array()           // Array of (Str, Declaration) - field name, declaration
     mut default_values: Map = Map()        // Map<Str, Expr> - field name to default value expression
 }
 
-// Literal - lines 71-76
 Literal := enum {
-    Number: Str,
+    Number: Str,  // TODO support more kinds of numbers
     Str: Str,
     Bool: Str,
-    List: Str,
+    List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
-// NodeType - lines 79-98
 NodeType := enum {
     Body,
     LLiteral: Literal,
@@ -113,18 +103,15 @@ NodeType := enum {
     Switch,
     DefaultCase,
     Range,
-    Pattern: PatternInfo,
+    Pattern: PatternInfo,  // Pattern matching for switch case with payload extraction
 }
 
-// Expr - lines 101-106
 Expr := struct {
     mut node_type: NodeType = NodeType.Body
     mut params: Array = Array()
     mut line: I64 = 0
     mut col: I64 = 0
 }
-
-// Expr methods - lines 109-172
 expr_new_parse := func(node_type: NodeType, token: Token, params: Array) returns Expr {
     mut e := Expr()
     e.node_type = node_type
@@ -167,8 +154,6 @@ expr_new_clone := func(node_type: NodeType, e: Expr, params: Array) returns Expr
 // expr_error := func(e_param: Expr, phase: Str, msg: Str) returns Str {
 //     return format("error: ", msg)
 // }
-
-// is_literal - lines 174-181
 is_literal := func(t: Token) returns Bool {
     tt := t.token_type
     switch tt {
@@ -241,4 +226,147 @@ value_type_to_str := func(arg_type: ValueType) returns Str {
 //     }
 //     // Default: custom type
 //     return ValueType.TCustom(arg_type)
+// }
+
+ModeDef := struct {
+    mut name: Str = ""
+    mut allows_procs: Bool = false
+    mut allows_base_mut: Bool = false
+    mut allows_base_calls: Bool = false
+    mut allows_base_anything: Bool = false
+    mut needs_main_proc: Bool = false
+    mut imports: Array = Array()  // Array of Str
+}
+
+can_be_imported := func(mode_def: ModeDef) returns Bool {
+    if mode_def.needs_main_proc { return false }  // TODO think harder, why not?
+    if mode_def.allows_base_mut { return false }
+    if mode_def.allows_base_calls { return false }
+    if mode_def.allows_base_anything { return false }
+    return true
+}
+
+mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, AllocError {
+    if mode_name.eq("lib") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = true
+        m.allows_base_calls = false
+        m.allows_base_mut = false
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        m.imports = Array()
+        return m
+    }
+    if mode_name.eq("pure") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = false
+        m.allows_base_calls = false
+        m.allows_base_mut = false
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        m.imports = Array()
+        return m
+    }
+    if mode_name.eq("script") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = true
+        m.needs_main_proc = false
+        m.imports = Array()
+        return m
+    }
+    if mode_name.eq("safe_script") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = true
+        m.needs_main_proc = false
+        m.imports = Array()
+        return m
+    }
+    if mode_name.eq("cli") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = true
+        m.allows_base_calls = false
+        m.allows_base_mut = true
+        m.allows_base_anything = false
+        m.needs_main_proc = true
+        m.imports = Array()
+        return m
+    }
+    if mode_name.eq("test") {
+        mut m := ModeDef()
+        m.name = mode_name
+        m.allows_procs = true
+        m.allows_base_calls = true
+        m.allows_base_mut = true
+        m.allows_base_anything = false
+        m.needs_main_proc = false
+        mut test_imports := Array()
+        test_imports.push("src/core/modes/test")
+        m.imports = test_imports
+        return m
+    }
+
+    throw format("0:0: ", LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'")
+}
+
+parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
+    lexer_expect(lexer, TokenType.Mode)  // Add one for mode
+
+    t := lexer.peek()
+    tt := t.token_type
+    switch tt {
+    case TokenType.Identifier:
+        // continue
+    case:
+        throw "0:0: Expected identifier after 'mode'"
+    }
+    mode_name := t.token_str
+    m := mode_from_name(mode_name)
+
+    m_name := m.name
+    if m_name.eq("safe_script") {
+        throw format(path, ":0:0: mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead")
+    }
+
+    lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
+    return m
+}
+
+parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
+    params := Array()
+    tt := t.token_type
+    mut node_type := NodeType.Body
+    switch tt {
+    case TokenType.String:
+        node_type = NodeType.LLiteral(Literal.Str(t.token_str))
+    case TokenType.Number:
+        // TODO: Add number parsing validation
+        node_type = NodeType.LLiteral(Literal.Number(t.token_str))
+    case TokenType.True:
+        node_type = NodeType.LLiteral(Literal.Bool(t.token_str))
+    case:
+        // TODO: proper error formatting with token type
+        throw "Trying to parse a token that's not a literal as a literal"
+    }
+    e := expr_new_parse(node_type, t, params)
+    lexer.advance(1)
+    return e
+}
+
+// Stub - needs parse_primary
+// parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
+//     lexer_expect(lexer, TokenType.Equal)
+//     mut params := Array()
+//     params.push(parse_primary(lexer))
+//     return expr_new_parse(NodeType.Assignment(name), t, params)
 // }
