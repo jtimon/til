@@ -39,3 +39,20 @@ test_data_structures := proc() {
 
 }
 test_data_structures()
+
+test_is_literal := proc() {
+    mut t := Token()
+
+    t.token_type = TokenType.String
+    assert(loc(), is_literal(t))
+
+    t.token_type = TokenType.Number
+    assert(loc(), is_literal(t))
+
+    t.token_type = TokenType.True
+    assert(loc(), is_literal(t))
+
+    t.token_type = TokenType.Identifier
+    assert(loc(), not(is_literal(t)))
+}
+test_is_literal()

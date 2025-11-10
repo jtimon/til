@@ -103,6 +103,21 @@ Expr := struct {
 // Helper Functions
 // ==============================================================================
 
+// Check if a token is a literal
+is_literal := func(t: Token) returns Bool {
+    tt := t.token_type
+    switch tt {
+    case TokenType.String:
+        return true
+    case TokenType.Number:
+        return true
+    case TokenType.True:
+        return true
+    case:
+        return false
+    }
+}
+
 // Placeholder for future implementation
 parse_tokens := proc(lexer: Lexer) returns Expr throws Str {
     throw "parse_tokens not yet implemented"
