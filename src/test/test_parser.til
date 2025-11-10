@@ -36,6 +36,13 @@ test_function_type_proc_ext := proc() {
 }
 test_function_type_proc_ext()
 
+test_sfuncdef_creation := proc() {
+    mut fd := SFuncDef()
+    fd.function_type = FunctionType.FTProc
+    println("test_sfuncdef_creation: PASS")
+}
+test_sfuncdef_creation()
+
 test_value_type_custom := proc() {
     vt := ValueType.TCustom("MyType")
     println("test_value_type_custom: PASS")

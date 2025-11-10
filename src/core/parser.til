@@ -17,6 +17,15 @@ FunctionType := enum {
     FTProcExt,
 }
 
+// Function/procedure definition
+SFuncDef := struct {
+    mut function_type: FunctionType = FunctionType.FTFunc
+    mut args: Array = Array()              // Array of Declaration
+    mut return_types: Array = Array()      // Array of ValueType (named return_types not "returns" - keyword conflict)
+    mut throw_types: Array = Array()       // Array of ValueType (named throw_types not "throws" - keyword conflict)
+    mut body: Array = Array()              // Array of Expr
+}
+
 // Value types that can be inferred or declared
 ValueType := enum {
     TFunction,
