@@ -10,6 +10,114 @@ These are features, improvements, and optimizations that would be nice to have b
 
 * Language Features
 
+** TODO Reconsider Bug #8 Fix Approach After Self-Hosting              :HIGH:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Affects language ergonomics and error handling
+:RELATED: Bug #8, Return value handling
+:END:
+
+*** Current Approach
+Bug #8 (uncaptured return values propagate up call stack) is currently being "fixed" by requiring all return values to be explicitly captured with `_ := func()` pattern. This makes the propagation behavior less of a footgun but doesn't change the underlying unintuitive behavior.
+
+*** Decision Deferred
+We need to decide whether to:
+
+1. **Keep current approach**: Require return values to be assigned (enforced by type checker)
+   - Pros: Explicit, catches errors, works with current propagation behavior
+   - Cons: Verbose, unintuitive for side-effect calls
+
+2. **Fix propagation behavior**: Change rstil to discard uncaptured return values (like most languages)
+   - Pros: Intuitive, matches expectations from other languages
+   - Cons: Requires rstil changes, may break existing code assumptions
+
+*** Why Deferred
+After self-hosting, we'll have more TIL code to evaluate which approach feels better in practice. For now, the workaround (`_ :=`) unblocks parser.til development.
+
+*** Action Required
+After self-hosting is achieved:
+- Review how often `_ :=` is used in practice
+- Gather feedback on which approach feels more natural
+- Make final decision and implement chosen approach
+- Update documentation and language spec
+
+** TODO Reconsider Variable Shadowing Policy After Self-Hosting        :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Language design, developer experience
+:END:
+
+*** Current Behavior (Tested 2025-01-10)
+
+Based on tests in src/test/temporary_tests.til:
+
+1. **`_` reuse in same scope**: ✅ ALLOWED
+   - `_ := 5` followed by `_ := 10` works
+   - Universal in all languages - `_` is special
+
+2. **Regular variable same-scope shadowing**: ✅ ALLOWED
+   - `x := 5` followed by `x := 10` works
+   - Creates new binding, not reassignment (tested with `let` keyword behavior)
+
+3. **Type-change shadowing**: ❌ NOT ALLOWED
+   - `y := 5` followed by `y := "hello"` fails type checking
+   - Treated as reassignment to existing variable, not new binding
+
+4. **Nested-scope shadowing**: ⚠️ PARTIALLY WORKS
+   - Inner `z := 10` is allowed after outer `z := 5`
+   - BUT: Inner declaration MUTATES outer variable (z=10 after inner scope!)
+   - This is likely a bug - should create new binding in inner scope
+
+*** Issues with Current Behavior
+
+- Inconsistent: Allows same-scope shadowing but not type changes
+- Nested scope behavior is buggy (mutates instead of shadowing)
+- Different from most languages (Rust allows type changes, Go/Haskell prohibit same-scope)
+
+*** Decision Needed After Self-Hosting
+
+Should we:
+1. Allow full shadowing like Rust (including type changes)?
+2. Prohibit same-scope shadowing like Go/Haskell (except for `_`)?
+3. Fix nested-scope shadowing to create new bindings (not mutate)?
+
+*** Action Required
+- Fix nested-scope shadowing bug (high priority)
+- Evaluate shadowing usage in self-hosted codebase
+- Choose consistent shadowing policy
+- Implement in type checker
+
+** TODO Add Unicode Support to TIL                                    :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:FILE: src/rs/lexer.rs
+:IMPACT: Internationalization, modern text handling
+:END:
+
+*** Problem
+TIL currently does not support Unicode characters in source code. The lexer panics when encountering multi-byte UTF-8 characters like checkmarks, emoji, or non-ASCII text.
+
+Example error:
+: byte index 368 is not a char boundary; it is inside '✓' (bytes 367..370)
+
+*** Current Limitation
+Until Unicode is supported:
+- **NO Unicode characters** should be used anywhere in the project
+- This includes: source code, documentation files, comments, test files
+- Use ASCII-only characters (e.g., [PASS] instead of ✓, [FAIL] instead of ✗)
+
+*** What Needs to be Fixed
+- Update lexer.rs to handle UTF-8 character boundaries correctly
+- Use Rust's `chars()` iterator instead of byte indexing where appropriate
+- Add comprehensive Unicode tests
+- Update documentation about supported character sets
+
+*** Action Required After Self-Hosting
+- Implement proper UTF-8 handling in lexer
+- Add Unicode test suite
+- Update all documentation to reflect Unicode support
+- Consider which Unicode features to support (identifiers, strings, etc.)
+
 ** TODO Support Namespace-Style Imports                              :MEDIUM:
 :PROPERTIES:
 :FILE: src/rs/init.rs
