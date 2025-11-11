@@ -34,7 +34,7 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - List also needs runtime_size_of() for Dynamic parameters (separate but related issue)
 
 - [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
-- [ ] Improve test error handling with ERROR: prefix (IN PROGRESS - dynamic_arrays.til, mut_test.til, pointers.til, enums.til, arrays.til, args.til, ufcs.til, editor_mode_test.til, and test_lexer.til completed; errors.til requires no changes (all catches test expected errors); larger test files remain: test_parser.til, maps.til, lists.til)
+- [ ] Improve test error handling with ERROR: prefix (IN PROGRESS - COMPLETED: dynamic_arrays.til, mut_test.til, pointers.til, enums.til, arrays.til, args.til, ufcs.til, editor_mode_test.til, maps.til (also removed 4 redundant tests); PARTIAL: test_lexer.til (6/28 functions); SKIP: errors.til (all catches test expected errors); REMAINING: test_parser.til, lists.til)
 - [ ] Fix error line numbers from imported files (show correct file paths and line numbers)
 
 * Completed Items
