@@ -4,15 +4,13 @@
 
 * TODO Forbid additional keywords
 
-Additional keywords from other languages that could be forbidden with helpful error messages.
+Keywords from other languages that could be forbidden with helpful error messages:
 
-Currently implemented (4):
 - [X] const -> "Variables are immutable by default"
 - [X] var -> "Use 'mut' instead"
 - [X] fn -> "Use 'func' instead"
-- [X] try -> (error message exists)
-
-Proposed additions:
+- [X] function -> "Use 'func' or 'proc' instead"
+- [X] try -> "TIL uses 'catch' blocks without 'try'"
 - [X] let -> "Use ':=' for declaration"
 - [X] class -> "Use 'struct' instead"
 - [ ] interface -> "TIL doesn't have interfaces"
@@ -21,8 +19,5 @@ Proposed additions:
 - [ ] public -> "TIL doesn't have visibility modifiers"
 - [ ] private -> "TIL doesn't have visibility modifiers"
 - [ ] protected -> "TIL doesn't have visibility modifiers"
-- [X] function -> "Use 'func' or 'proc' instead"
-- [ ] global -> (already returns Invalid token)
-- [ ] static -> (already returns Invalid token)
-
-Note: function, global, static already return TokenType.Invalid but could have better error messages.
+- [ ] global -> "Use mut declaration at file root"
+- [ ] static -> "Use struct/impl organization"
