@@ -25,9 +25,23 @@ test_map_i64_to_i64 := proc() {
     test(loc(), age.eq(25), "ID 200 should map to 25")
 
     ages.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test Map<Str, Vec2>
@@ -52,9 +66,21 @@ test_map_str_to_vec2 := proc() {
     test(loc(), pos.y.eq(60), "item.y should be 60")
 
     positions.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test Map<Str, Array<Str>>
@@ -88,11 +114,31 @@ test_map_str_to_array_str := proc() {
     fruits.delete()
     colors.delete()
     lists.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
-    catch (err: IndexOutOfBoundsError) { exit(1) }
-    catch (err: FullError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test Map<U8, Bool>
@@ -111,9 +157,21 @@ test_map_u8_to_bool := proc() {
     test(loc(), flag.eq(true), "key 30 should be true")
 
     flags.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test insert() - should throw on duplicate keys
@@ -124,7 +182,11 @@ test_map_insert_duplicate := proc() {
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
     catch (err: DuplicatedKeyError) {}
     ages.delete()
-    catch (err: AllocError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test set() - should overwrite existing keys
@@ -139,8 +201,16 @@ test_map_set := proc() {
     test(loc(), age.eq(35), "Expected age 35 after update")
 
     ages.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test get() with non-existent key
@@ -153,8 +223,16 @@ test_map_get_missing := proc() {
     panic(loc(), "Expected KeyNotFoundError for non-existent key")
     catch (err: KeyNotFoundError) {}
     ages.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test contains_key()
@@ -168,8 +246,16 @@ test_map_contains_key := proc() {
     test(loc(), not(ages.contains_key("Charlie")), "Should not contain Charlie")
 
     ages.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test position() method
@@ -187,8 +273,16 @@ test_map_position := proc() {
     test(loc(), pos.eq(sub(0, 1)), "non-existent key should return -1")
 
     colors.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test empty Map operations
@@ -200,7 +294,11 @@ test_map_empty := proc() {
     test(loc(), pos.eq(sub(0, 1)), "position in empty map should return -1")
 
     m.delete()
-    catch (err: AllocError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test Map growth/reallocation beyond initial capacity
@@ -231,9 +329,21 @@ test_map_growth := proc() {
     test(loc(), not(ages.contains_key(25)), "Should not contain key 25")
 
     ages.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test Map.delete() properly resets size
@@ -248,8 +358,16 @@ test_map_delete := proc() {
     m.delete()
     test(loc(), m.len().eq(0), "Map size should be 0 after delete")
 
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test len() tracks correctly through various operations
@@ -274,8 +392,16 @@ test_map_len_tracking := proc() {
     test(loc(), m.len().eq(4), "Map len should be 4 after set() with new key")
 
     m.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test multiple set() overwrites
@@ -298,8 +424,16 @@ test_map_multiple_overwrites := proc() {
     test(loc(), m.len().eq(1), "Multiple overwrites should keep len at 1")
 
     m.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: KeyNotFoundError) {
+        println("ERROR:", loc(), "Unexpected KeyNotFoundError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Test insertion order is preserved after growth
@@ -321,8 +455,16 @@ test_map_order_after_growth := proc() {
     test(loc(), m.position(100).eq(sub(0, 1)), "Non-existent key should return -1")
 
     m.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 // Run all tests
