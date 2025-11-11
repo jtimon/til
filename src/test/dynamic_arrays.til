@@ -25,15 +25,15 @@ test_vec_u8 := proc() {
     assert_eq(loc(), 2, dyn.len)
     mut val0 := U8.from_i64(0)
     dyn.get(0, val0)
-    test(loc(), U8.eq(val0, U8.from_i64(42)), "Value at index 0")
+    test(loc(), val0.eq(U8.from_i64(42)), "Value at index 0")
     mut val1 := U8.from_i64(0)
     dyn.get(1, val1)
-    test(loc(), U8.eq(val1, U8.from_i64(255)), "Value at index 1")
+    test(loc(), val1.eq(U8.from_i64(255)), "Value at index 1")
 
     dyn.set(0, U8.from_i64(99))
     mut val := U8.from_i64(0)
     dyn.get(0, val)
-    test(loc(), U8.eq(val, U8.from_i64(99)), "Set and get index 0")
+    test(loc(), val.eq(U8.from_i64(99)), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
@@ -148,15 +148,15 @@ test_vec_bool := proc() {
     assert_eq(loc(), 2, dyn.len)
     mut val0 := false
     dyn.get(0, val0)
-    test(loc(), Bool.eq(val0, true), "Value at index 0")
+    test(loc(), val0.eq(true), "Value at index 0")
     mut val1 := false
     dyn.get(1, val1)
-    test(loc(), Bool.eq(val1, false), "Value at index 1")
+    test(loc(), val1.eq(false), "Value at index 1")
 
     dyn.set(0, false)
     mut val := false
     dyn.get(0, val)
-    test(loc(), Bool.eq(val, false), "Set and get index 0")
+    test(loc(), val.eq(false), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
@@ -199,15 +199,15 @@ test_vec_i64 := proc() {
     assert_eq(loc(), 2, dyn.len)
     mut val0 := 0
     dyn.get(0, val0)
-    test(loc(), I64.eq(val0, 42), "Value at index 0")
+    test(loc(), val0.eq(42), "Value at index 0")
     mut val1 := 0
     dyn.get(1, val1)
-    test(loc(), I64.eq(val1, 84), "Value at index 1")
+    test(loc(), val1.eq(84), "Value at index 1")
 
     dyn.set(0, 123)
     mut val := 0
     dyn.get(0, val)
-    test(loc(), I64.eq(val, 123), "Set and get index 0")
+    test(loc(), val.eq(123), "Set and get index 0")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
@@ -272,8 +272,8 @@ test_vec_vec2 := proc() {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
-    test(loc(), I64.eq(v0.x, 10), "v0.x should be 10")
-    test(loc(), I64.eq(v0.y, 20), "v0.y should be 20")
+    test(loc(), v0.x.eq(10), "v0.x should be 10")
+    test(loc(), v0.y.eq(20), "v0.y should be 20")
 
     v3 := Vec2.new(50, 60)
     dyn.set(0, v3)
@@ -288,8 +288,8 @@ test_vec_vec2 := proc() {
         println(loc(), "IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
-    test(loc(), I64.eq(v_after_set.x, 50), "v_after_set.x should be 50")
-    test(loc(), I64.eq(v_after_set.y, 60), "v_after_set.y should be 60")
+    test(loc(), v_after_set.x.eq(50), "v_after_set.x should be 50")
+    test(loc(), v_after_set.y.eq(60), "v_after_set.y should be 60")
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
@@ -313,7 +313,7 @@ test_vec_growth := proc() {
     }
 
     initial_cap := dyn.cap
-    test(loc(), I64.eq(initial_cap, Vec.INIT_CAP), "Initial capacity should be INIT_DYN_CAP")
+    test(loc(), initial_cap.eq(Vec.INIT_CAP), "Initial capacity should be INIT_DYN_CAP")
 
     // Push elements beyond initial capacity to trigger reallocation
     mut i := 0
@@ -332,16 +332,16 @@ test_vec_growth := proc() {
         return
     }
 
-    test(loc(), I64.eq(dyn.len, add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
+    test(loc(), dyn.len.eq(add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
     test(loc(), gt(dyn.cap, initial_cap), "Capacity should have grown beyond initial")
-    test(loc(), I64.eq(dyn.cap, mul(Vec.INIT_CAP, 2)), "Capacity should have doubled")
+    test(loc(), dyn.cap.eq(mul(Vec.INIT_CAP, 2)), "Capacity should have doubled")
 
     // Verify all values are still correct after reallocation
     mut val := 0
     dyn.get(0, val)
-    test(loc(), I64.eq(val, 0), "First element should still be 0")
+    test(loc(), val.eq(0), "First element should still be 0")
     dyn.get(Vec.INIT_CAP, val)
-    test(loc(), I64.eq(val, mul(Vec.INIT_CAP, 10)), "Element after reallocation should be correct")
+    test(loc(), val.eq(mul(Vec.INIT_CAP, 10)), "Element after reallocation should be correct")
 
     dyn.delete()
 

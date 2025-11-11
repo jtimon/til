@@ -20,9 +20,9 @@ test_map_i64_to_i64 := proc() {
 
     mut age := 0
     ages.get(100, age)
-    test(loc(), I64.eq(age, 30), "ID 100 should map to 30")
+    test(loc(), age.eq(30), "ID 100 should map to 30")
     ages.get(200, age)
-    test(loc(), I64.eq(age, 25), "ID 200 should map to 25")
+    test(loc(), age.eq(25), "ID 200 should map to 25")
 
     ages.delete()
     catch (err: AllocError) { exit(1) }
@@ -127,14 +127,14 @@ test_map_str_to_vec2 := proc() {
 
     mut pos := Vec2()
     positions.get("player", pos)
-    test(loc(), I64.eq(pos.x, 10), "player.x should be 10")
-    test(loc(), I64.eq(pos.y, 20), "player.y should be 20")
+    test(loc(), pos.x.eq(10), "player.x should be 10")
+    test(loc(), pos.y.eq(20), "player.y should be 20")
     positions.get("enemy", pos)
-    test(loc(), I64.eq(pos.x, 30), "enemy.x should be 30")
-    test(loc(), I64.eq(pos.y, 40), "enemy.y should be 40")
+    test(loc(), pos.x.eq(30), "enemy.x should be 30")
+    test(loc(), pos.y.eq(40), "enemy.y should be 40")
     positions.get("item", pos)
-    test(loc(), I64.eq(pos.x, 50), "item.x should be 50")
-    test(loc(), I64.eq(pos.y, 60), "item.y should be 60")
+    test(loc(), pos.x.eq(50), "item.x should be 50")
+    test(loc(), pos.y.eq(60), "item.y should be 60")
 
     positions.delete()
     catch (err: AllocError) { exit(1) }
@@ -160,13 +160,13 @@ test_map_str_to_array_str := proc() {
 
     mut arr := Array()
     lists.get("fruits", arr)
-    test(loc(), I64.eq(arr.len, 3), "fruits array should have 3 elements")
+    test(loc(), arr.len.eq(3), "fruits array should have 3 elements")
     mut item := ""
     arr.get(0, item)
     test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
     lists.get("colors", arr)
-    test(loc(), I64.eq(arr.len, 3), "colors array should have 3 elements")
+    test(loc(), arr.len.eq(3), "colors array should have 3 elements")
     arr.get(0, item)
     test(loc(), item.eq("red"), "colors[0] should be red")
 
@@ -217,11 +217,11 @@ test_map_set := proc() {
     mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
     ages.set("Alice", 30)
     ages.set("Alice", 35)
-    test(loc(), I64.eq(ages.len(), 1), "Size should still be 1 after set update")
+    test(loc(), ages.len().eq(1), "Size should still be 1 after set update")
 
     mut age := 0
     ages.get("Alice", age)
-    test(loc(), I64.eq(age, 35), "Expected age 35 after update")
+    test(loc(), age.eq(35), "Expected age 35 after update")
 
     ages.delete()
     catch (err: AllocError) { exit(1) }
@@ -264,12 +264,12 @@ test_map_position := proc() {
     colors.insert("green", 2)
     colors.insert("blue", 3)
 
-    test(loc(), I64.eq(colors.position("red"), 0), "red should be at position 0")
-    test(loc(), I64.eq(colors.position("green"), 1), "green should be at position 1")
-    test(loc(), I64.eq(colors.position("blue"), 2), "blue should be at position 2")
+    test(loc(), colors.position("red").eq(0), "red should be at position 0")
+    test(loc(), colors.position("green").eq(1), "green should be at position 1")
+    test(loc(), colors.position("blue").eq(2), "blue should be at position 2")
 
     mut pos := colors.position("yellow")
-    test(loc(), I64.eq(pos, sub(0, 1)), "non-existent key should return -1")
+    test(loc(), pos.eq(sub(0, 1)), "non-existent key should return -1")
 
     colors.delete()
     catch (err: AllocError) { exit(1) }
@@ -279,10 +279,10 @@ test_map_position := proc() {
 // Test empty Map operations
 test_map_empty := proc() {
     mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
-    test(loc(), I64.eq(m.len(), 0), "Empty map should have size 0")
+    test(loc(), m.len().eq(0), "Empty map should have size 0")
     test(loc(), not(m.contains_key("anything")), "Empty map should not contain any key")
     mut pos := m.position("anything")
-    test(loc(), I64.eq(pos, sub(0, 1)), "position in empty map should return -1")
+    test(loc(), pos.eq(sub(0, 1)), "position in empty map should return -1")
 
     m.delete()
     catch (err: AllocError) { exit(1) }
@@ -299,16 +299,16 @@ test_map_growth := proc() {
         i = add(i, 1)
     }
 
-    test(loc(), I64.eq(ages.len(), 20), "Map should have 20 entries after growth")
+    test(loc(), ages.len().eq(20), "Map should have 20 entries after growth")
 
     // Verify all values are still correct after reallocation
     mut val := 0
     ages.get(0, val)
-    test(loc(), I64.eq(val, 0), "First element should still be 0")
+    test(loc(), val.eq(0), "First element should still be 0")
     ages.get(10, val)
-    test(loc(), I64.eq(val, 1000), "Middle element should be 1000")
+    test(loc(), val.eq(1000), "Middle element should be 1000")
     ages.get(19, val)
-    test(loc(), I64.eq(val, 1900), "Last element should be 1900")
+    test(loc(), val.eq(1900), "Last element should be 1900")
 
     // Verify contains_key still works after reallocation
     test(loc(), ages.contains_key(5), "Should contain key 5 after growth")
@@ -328,10 +328,10 @@ test_map_delete := proc() {
     m.insert("a", 1)
     m.insert("b", 2)
     m.insert("c", 3)
-    test(loc(), I64.eq(m.len(), 3), "Map should have 3 entries")
+    test(loc(), m.len().eq(3), "Map should have 3 entries")
 
     m.delete()
-    test(loc(), I64.eq(m.len(), 0), "Map size should be 0 after delete")
+    test(loc(), m.len().eq(0), "Map size should be 0 after delete")
 
     catch (err: AllocError) { exit(1) }
     catch (err: DuplicatedKeyError) { exit(1) }
@@ -341,22 +341,22 @@ test_map_delete := proc() {
 test_map_len_tracking := proc() {
     mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
 
-    test(loc(), I64.eq(m.len(), 0), "Empty map should have len 0")
+    test(loc(), m.len().eq(0), "Empty map should have len 0")
 
     m.insert("a", 1)
-    test(loc(), I64.eq(m.len(), 1), "Map should have len 1 after first insert")
+    test(loc(), m.len().eq(1), "Map should have len 1 after first insert")
 
     m.insert("b", 2)
     m.insert("c", 3)
-    test(loc(), I64.eq(m.len(), 3), "Map should have len 3 after three inserts")
+    test(loc(), m.len().eq(3), "Map should have len 3 after three inserts")
 
     // set() with existing key should not change len
     m.set("a", 100)
-    test(loc(), I64.eq(m.len(), 3), "Map len should stay 3 after set() on existing key")
+    test(loc(), m.len().eq(3), "Map len should stay 3 after set() on existing key")
 
     // set() with new key should increase len
     m.set("d", 4)
-    test(loc(), I64.eq(m.len(), 4), "Map len should be 4 after set() with new key")
+    test(loc(), m.len().eq(4), "Map len should be 4 after set() with new key")
 
     m.delete()
     catch (err: AllocError) { exit(1) }
@@ -370,17 +370,17 @@ test_map_multiple_overwrites := proc() {
     m.set("key", 1)
     mut val := 0
     m.get("key", val)
-    test(loc(), I64.eq(val, 1), "First set should store 1")
+    test(loc(), val.eq(1), "First set should store 1")
 
     m.set("key", 2)
     m.get("key", val)
-    test(loc(), I64.eq(val, 2), "Second set should overwrite to 2")
+    test(loc(), val.eq(2), "Second set should overwrite to 2")
 
     m.set("key", 3)
     m.get("key", val)
-    test(loc(), I64.eq(val, 3), "Third set should overwrite to 3")
+    test(loc(), val.eq(3), "Third set should overwrite to 3")
 
-    test(loc(), I64.eq(m.len(), 1), "Multiple overwrites should keep len at 1")
+    test(loc(), m.len().eq(1), "Multiple overwrites should keep len at 1")
 
     m.delete()
     catch (err: AllocError) { exit(1) }
@@ -399,11 +399,11 @@ test_map_order_after_growth := proc() {
     }
 
     // Verify position() still returns correct insertion order
-    test(loc(), I64.eq(m.position(0), 0), "Key 0 should be at position 0")
-    test(loc(), I64.eq(m.position(5), 5), "Key 5 should be at position 5")
-    test(loc(), I64.eq(m.position(10), 10), "Key 10 should be at position 10")
-    test(loc(), I64.eq(m.position(19), 19), "Key 19 should be at position 19")
-    test(loc(), I64.eq(m.position(100), sub(0, 1)), "Non-existent key should return -1")
+    test(loc(), m.position(0).eq(0), "Key 0 should be at position 0")
+    test(loc(), m.position(5).eq(5), "Key 5 should be at position 5")
+    test(loc(), m.position(10).eq(10), "Key 10 should be at position 10")
+    test(loc(), m.position(19).eq(19), "Key 19 should be at position 19")
+    test(loc(), m.position(100).eq(sub(0, 1)), "Non-existent key should return -1")
 
     m.delete()
     catch (err: AllocError) { exit(1) }
