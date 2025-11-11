@@ -218,14 +218,21 @@ test_str_payloads := proc() {
     number_color := Color.Number(255)
     assert(loc(), test_color_name_match(number_color).eq("color code: 255"))
 
+    // Catch unexpected errors at end
     catch (err: AllocError) {
-        panic(loc(), format("Unexpected AllocError: ", err.msg))
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
-        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch (err: I64_OverflowError) {
-        panic(loc(), format("Unexpected I64_OverflowError: ", err.msg))
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_str_payloads()
