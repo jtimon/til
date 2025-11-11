@@ -97,6 +97,72 @@ Note the duplicated file path and the line number (129) referring to the calling
 *** Workaround
 When debugging, add print statements or trace through the call stack manually to find the actual error location.
 
+*** Investigation (2025-11-11)
+
+*Root Cause Analysis:*
+
+The problem stems from multiple layers of error message prefixing and incorrect context.path tracking:
+
+1. *Expr only stores line/col, not file path*
+   - Location: src/rs/parser.rs:101-106
+   - The Expr struct only stores line and col from tokens, no file path
+   - When AST is parsed from imported file, line/col are correct but no file association
+
+2. *Context.path exists but errors don't use it*
+   - Location: src/rs/init.rs:834-835
+   - TODO comment acknowledges issue: "use Context.path to properly report eval errors"
+   - context.path is updated on import (ext.rs:721) but not propagated to errors
+
+3. *Error methods only use Expr's line/col*
+   - Location: src/rs/parser.rs:166-171
+   - error() and lang_error() only use self.line and self.col
+   - No access to file path information
+
+4. *Multiple prefixing layers cause duplication*
+   - First prefix: rstil.rs:199 in main_run() adds format!("{}:{}", path, err)
+   - Second prefix: ext.rs:727-728 in proc_import() wraps error again
+   - Result: path appears twice in error message
+
+5. *loc() function works correctly*
+   - Location: ext.rs:34-41
+   - Combines context.path with e.line and e.col
+   - This mechanism could be model for error messages
+
+*Potential Fix Approaches:*
+
+Option 1: Store file path in Expr (Most Robust)
+- Add file: String field to Expr struct
+- Update all Expr creation to include file path
+- Update error methods to use self.file
+- Pros: Complete fix, correct attribution
+- Cons: Memory overhead, requires updating all Expr construction
+
+Option 2: Pass Context to error methods
+- Change error() signature to accept &Context parameter
+- Use context.path in error messages
+- Pros: No AST changes needed
+- Cons: Context not always available, requires signature changes
+
+Option 3: Avoid double-prefixing (Quick Fix)
+- Remove one layer of path prefixing
+- Only prefix at outermost level (main_run)
+- Pros: Simple, fixes duplication
+- Cons: Doesn't fix attribution across file boundaries
+
+Option 4: Use context.path consistently (Recommended)
+- Make error methods take optional file path parameter
+- If not provided, format as just "line:col:"
+- Always prefix at outermost level with actual file path
+- Update proc_import to not re-prefix errors
+- Pros: Balanced approach, maintains backward compatibility
+- Cons: Still requires some refactoring
+
+*Relevant Code Locations:*
+- Error generation: src/rs/parser.rs:150-171, src/rs/ext.rs:34-41
+- Import handling: src/rs/ext.rs:693-736, src/rs/init.rs:542-625
+- Error prefixing: src/rstil.rs:199, src/rs/ext.rs:727-728
+- Context path: src/rs/ext.rs:721,726,734
+
 * Fixed Bugs Summary
 
 Bugs #1-#8 have been fixed and their tests integrated into the regular test suite (=enums.til=, =flow.til=, =arithmetics.til=, =return_value_usage.til=).
