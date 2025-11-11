@@ -1563,10 +1563,28 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 if arg.is_mut {
                     match &current_arg.node_type {
                         NodeType::Identifier(id_) => {
-                            mut_args.push((arg.name.clone(), id_.clone(), ValueType::TCustom(custom_type_name.clone())));
+                            // Bug #10 fix: Build full path for field access
+                            let full_id = if current_arg.params.len() > 0 {
+                                let mut full_path = id_.clone();
+                                for param in &current_arg.params {
+                                    match &param.node_type {
+                                        NodeType::Identifier(field_name) => {
+                                            full_path.push('.');
+                                            full_path.push_str(field_name);
+                                        },
+                                        _ => {
+                                            return Err(e.lang_error("eval", "Field access must use identifiers"));
+                                        }
+                                    }
+                                }
+                                full_path
+                            } else {
+                                id_.clone()
+                            };
+                            mut_args.push((arg.name.clone(), full_id, ValueType::TCustom(custom_type_name.clone())));
                         },
                         _ => {
-                            return Err(e.lang_error("eval", "mut arguments must be passed as identifiers"))
+                            return Err(e.lang_error("eval", "mut arguments must be passed as identifiers or field access"))
                         }
                     }
                 }
@@ -1595,12 +1613,41 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                if current_arg.params.len() > 0 {
-                                    return Err(e.todo_error("eval", &format!("Cannot use '{}' of type '{}' as an argument. Only name of struct instances allowed for struct arguments for now.",
-                                                                             &arg.name, &custom_type_name)))
-                                }
+                                // Bug #10 fix: Handle field access chains like s.items
+                                let source_id = if current_arg.params.len() > 0 {
+                                    // Build the full path for field access: "s.items"
+                                    match &current_arg.node_type {
+                                        NodeType::Identifier(base_id) => {
+                                            let mut full_path = base_id.clone();
+                                            for param in &current_arg.params {
+                                                match &param.node_type {
+                                                    NodeType::Identifier(field_name) => {
+                                                        full_path.push('.');
+                                                        full_path.push_str(field_name);
+                                                    },
+                                                    _ => {
+                                                        return Err(e.lang_error("eval", "Field access must use identifiers"));
+                                                    }
+                                                }
+                                            }
+                                            full_path
+                                        },
+                                        _ => {
+                                            return Err(e.lang_error("eval", "Struct argument must be an identifier or field access"));
+                                        }
+                                    }
+                                } else {
+                                    match &current_arg.node_type {
+                                        NodeType::Identifier(id_) => id_.clone(),
+                                        _ => {
+                                            return Err(e.lang_error("eval", "Struct argument must be an identifier"));
+                                        }
+                                    }
+                                };
+
                                 match &current_arg.node_type {
                                     NodeType::Identifier(id_) => {
+                                        let id_ = &source_id; // Use the full path we calculated
                                         // If source and dest have the same name, we need to save the source offsets
                                         // before insert_struct overwrites them
                                         let (saved_offsets, temp_src_key) = if id_ == &arg.name {

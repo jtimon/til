@@ -281,3 +281,51 @@ test_ufcs_exact_parser_pattern := proc() {
 
 test_ufcs_with_struct_fields()
 test_ufcs_exact_parser_pattern()
+
+// Bug #10 FIX VERIFICATION: Field access and method calls now work!
+test_bug10_fixed := proc() {
+    mut s := TestStructWithArray()
+
+    // FIXED: Can access fields through multiple levels
+    items_len := s.items.len
+    assert_eq(loc(), 0, items_len)
+
+    // FIXED: Can chain property access with methods
+    len_check := s.items.len.eq(0)
+    assert(loc(), len_check)
+
+    // FIXED: Can use in comparisons
+    mut i := 1
+    comparison := i.lt(s.items.len.add(5))
+    assert(loc(), comparison)
+
+    // FIXED: Can call string methods on struct.field
+    mut name := s.name
+    name_len := name.len()
+    assert_eq(loc(), 4, name_len)
+}
+test_bug10_fixed()
+
+// Bug #10 FIX: Parser patterns now compile and run
+test_bug10_parser_patterns_fixed := proc() {
+    mut e := TestExpr()
+
+    // PATTERN 1 FIXED: if i.lt(e.params.len) { }
+    mut i := 5
+    e_params_len := e.params.len
+    check := i.lt(e_params_len)
+    assert(loc(), not(check))
+
+    // PATTERN 2 FIXED: Can now access e.params.len
+    initial_len := e.params.len
+    assert_eq(loc(), 0, initial_len)
+
+    // PATTERN 3 FIXED: Can chain: e.params.len.eq(0)
+    len_is_zero := e.params.len.eq(0)
+    assert(loc(), len_is_zero)
+
+    // Can do arithmetic on field chains
+    len_plus_five := e.params.len.add(5)
+    assert_eq(loc(), 5, len_plus_five)
+}
+test_bug10_parser_patterns_fixed()

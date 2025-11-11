@@ -8,60 +8,68 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #10: UFCS Does Not Work on Struct Fields :MEDIUM:
+** Bug #10: UFCS Does Not Work on Struct Fields :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
+:FIXED: 2025-11-11
 :IMPACT: Code ergonomics, parser implementation
-:STATUS: Active - Workaround exists
+:STATUS: Fixed - Field access and method calls work
 :END:
 
 *** Description
-UFCS (Uniform Function Call Syntax) fails when trying to call methods on struct fields. This manifests in two ways:
+UFCS (Uniform Function Call Syntax) failed when trying to call methods on struct fields. This manifested in two ways:
 
 1. *Runtime error* when calling methods directly on struct fields:
    #+BEGIN_EXAMPLE
-   s.items.push(10)  // FAILS
+   s.items.push(10)  // FAILED
    Error: "Cannot use 'self' of type 'Array' as an argument"
    #+END_EXAMPLE
 
 2. *Compile-time error* when chaining property access with methods:
    #+BEGIN_EXAMPLE
-   s.items.len.eq(3)  // FAILS
+   s.items.len.eq(3)  // FAILED
    Error: "Cannot call 's.items', it is not a function"
 
-   if i.lt(e.params.len) { }  // FAILS
+   if i.lt(e.params.len) { }  // FAILED
    Error: "Cannot call 'e.params', it is not a function"
    #+END_EXAMPLE
 
-*** Patterns That Fail
-All patterns involving =struct.field.method()= or =struct.field.property.method()=:
-- =self.params.get(i, result)= - Runtime error
-- =if i.lt(self.params.len)= - Compile error
-- =if p.params.len.eq(1)= - Compile error
+*** Fix (2025-11-11)
+Fixed both type checker and interpreter to handle multi-level field access chains:
 
-*** Root Cause
-The type checker and evaluator don't properly handle method calls where the receiver is a field access expression (=struct.field=). The system treats =struct.field= as trying to call a function named =field= rather than accessing a field and then calling a method on it.
+*Type Checker (src/rs/init.rs):*
+- Modified get_fcall_value_type() to decompose field+method chains
+- When encountering struct.field.method, resolve field access first, then method lookup
+- Check for methods on all types (I64.eq, etc.) not just structs in struct_defs
 
-*** Workaround
-Extract the struct field to a local variable first, then call methods on the local:
+*Interpreter (src/rs/interpreter.rs):*
+- Handle field access chains in struct arguments (not just simple identifiers)
+- Build full arena paths like "s.items" for field lookups
+- Support field access in mut arguments for proper write-back
+
+*Now works:*
+#+BEGIN_EXAMPLE
+s.items.len              // Multi-level field access
+s.items.len.eq(3)        // 4-level chain with method call
+if i.lt(e.params.len) {} // Field access in comparisons
+#+END_EXAMPLE
+
+*** Known Limitation
+While field access and read-only methods work, modifying struct fields through mut methods has remaining issues:
+#+BEGIN_EXAMPLE
+s.items.push(42)  // Length increases but values not stored correctly
+#+END_EXAMPLE
+
+This is a deeper issue with struct field pass-by-value vs pass-by-reference semantics.
+Workaround: Extract to local variable, modify, write back:
 #+BEGIN_SRC til
-// Instead of: s.items.push(10)
 mut items := s.items
-items.push(10)
-s.items = items  // Write back if needed
-
-// Instead of: if i.lt(e.params.len)
-mut e_params := e.params
-if i.lt(e_params.len) { }
+items.push(42)
+s.items = items
 #+END_SRC
 
-*** Impact
-- Required extensive workarounds in parser.til (lines 127, 129, 188, 815, 822, 1321, 1334)
-- Makes code more verbose and less readable
-- Common pattern that would be expected to work
-
 *** Test Coverage
-Comprehensive tests added in =src/test/ufcs.til= documenting all failing patterns and workarounds.
+Comprehensive tests in =src/test/ufcs.til= verify field access and method calls work correctly.
 
 ** Bug #9: Error Line Numbers from Imported Files :MINOR:
 :PROPERTIES:

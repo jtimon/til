@@ -295,6 +295,49 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
+                        // Bug #10 fix: Check if we have a multi-level chain like struct.field.method
+                        // If id_expr.params has 2+ elements, try to resolve all-but-last as field access
+                        if id_expr.params.len() >= 2 {
+                            // Try to resolve the field access chain (all params except the last)
+                            // Example: for e.params.len, resolve "e.params" to get its type
+                            let mut field_access_expr = id_expr.clone();
+                            field_access_expr.params.pop(); // Remove the last element (method/property name)
+
+                            if let Ok(intermediate_type) = get_value_type(context, &field_access_expr) {
+                                // Successfully resolved intermediate field access
+                                // Now check if the last param is a member/method of that type
+                                let last_param = id_expr.params.last().unwrap();
+                                if let NodeType::Identifier(final_member_name) = &last_param.node_type {
+                                    match &intermediate_type {
+                                        ValueType::TCustom(intermediate_type_name) => {
+                                            // First check if it's a method on this type
+                                            let method_name = format!("{}.{}", intermediate_type_name, final_member_name);
+                                            if let Some(func_def) = context.funcs.get(&method_name) {
+                                                return value_type_func_proc(&e, &method_name, func_def);
+                                            }
+
+                                            // Try UFCS: standalone function with intermediate type as first arg
+                                            if let Some(func_def) = context.funcs.get(final_member_name) {
+                                                return value_type_func_proc(&e, final_member_name, func_def);
+                                            }
+
+                                            // Check if it's a struct with this member as a field
+                                            if let Some(intermediate_struct_def) = context.struct_defs.get(intermediate_type_name) {
+                                                if let Some(member_decl) = intermediate_struct_def.members.iter().find(|(k, _)| k == final_member_name).map(|(_, v)| v) {
+                                                    // It's a field access - return the field's type
+                                                    return Ok(member_decl.value_type.clone());
+                                                }
+                                            }
+                                        },
+                                        _ => {
+                                            // Intermediate type is not a custom type, fall through
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Original logic: single-level access (struct.member)
                         let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
                             Some(_member) => _member,
                             None => {
