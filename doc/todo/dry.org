@@ -147,13 +147,14 @@ let value = eval_and_propagate(context, e.get(1)?)
 *** Estimated Savings
 ~150 lines of repetitive throw propagation code
 
-** DRY #14: Type Insertion Pattern                                :MEDIUM:
+** FIXED DRY #14: Type Insertion Pattern                                :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
-:IMPACT: 20+ blocks in interpreter.rs
-:EFFORT: 2-3 hours
-:LOCATIONS: interpreter.rs lines 849-857, 859-867, 869-877, 879-887, 968-999
-:BENEFIT: Consolidate ~60 lines, improve type safety
+:COMPLETED: 2025-01-11
+:IMPACT: 3 blocks in interpreter.rs
+:EFFORT: 2 hours (actual)
+:LOCATIONS: interpreter.rs lines 877-916, 966-997, 810-820
+:BENEFIT: Consolidated 3 blocks of duplicated code, saved 45 lines net
 :END:
 
 *** Description
@@ -630,11 +631,11 @@ validate_arg_count(e, "malloc", 1, false)?;
 | Priority | Count | Estimated Total Effort | Estimated Savings |
 |----------+-------+------------------------+-------------------|
 | HIGH     |     2 | 7-10 hours             | 250-350 lines     |
-| MEDIUM   |     4 | 10-14 hours            | 235+ lines        |
+| MEDIUM   |     3 | 8-11 hours             | 175+ lines        |
 | LOW      |     2 | 3 hours                | ~45 lines         |
 |----------+-------+------------------------+-------------------|
-| TOTAL    |     8 | 20-27 hours            | 530-630 lines     |
-| FIXED    |     4 | 7 hours                | 91 lines          |
+| TOTAL    |     7 | 18-24 hours            | 470-570 lines     |
+| FIXED    |     5 | 9 hours                | 136 lines         |
 
 * Notes
 

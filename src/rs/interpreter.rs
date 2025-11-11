@@ -800,24 +800,15 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                     return Err(e.lang_error("eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
                                                                              &declaration.name, &member_decl.name)));
                                 },
-                                ValueType::TCustom(type_name) => {
+                                ValueType::TCustom(ref type_name) => {
                                     let result = eval_expr(context, default_value)?;
                                     if result.is_throw {
                                         return Ok(result); // Propagate throw
                                     }
                                     let expr_result_str = result.value;
                                     match type_name.as_str() {
-                                        "I64" => {
-                                            context.insert_i64(&combined_name, &expr_result_str, e)?;
-                                        },
-                                        "U8" => {
-                                            context.insert_u8(&combined_name, &expr_result_str, e)?;
-                                        },
-                                        "Bool" => {
-                                            context.insert_bool(&combined_name, &expr_result_str, e)?;
-                                        },
-                                        "Str" => {
-                                            context.insert_string(&combined_name, &expr_result_str, e)?;
+                                        "I64" | "U8" | "Bool" | "Str" => {
+                                            context.insert_primitive(&combined_name, &member_value_type, &expr_result_str, e)?;
                                         },
                                         _ => {
                                             return Err(e.todo_error("eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
@@ -874,44 +865,14 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
-                "I64" => {
+                "I64" | "U8" | "Bool" | "Str" => {
                     let result = eval_expr(context, inner_e)?;
                     if result.is_throw {
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
                     context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_i64(&declaration.name, &expr_result_str, e)?;
-                    return Ok(EvalResult::new(""))
-                },
-                "U8" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_u8(&declaration.name, &expr_result_str, e)?;
-                    return Ok(EvalResult::new(""))
-                },
-                "Bool" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_bool(&declaration.name, &expr_result_str, e)?;
-                    return Ok(EvalResult::new(""))
-                },
-                "Str" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
-                    context.insert_string(&declaration.name, &expr_result_str, e)?;
+                    context.insert_primitive(&declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
@@ -993,37 +954,13 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
-                "I64" => {
+                "I64" | "U8" | "Bool" | "Str" => {
                     let result = eval_expr(context, inner_e)?;
                     if result.is_throw {
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_i64(var_name, &expr_result_str, e)?;
-                },
-                "U8" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.insert_u8(var_name, &expr_result_str, e)?;
-                },
-                "Bool" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.insert_bool(var_name, &expr_result_str, e)?;
-                },
-                "Str" => {
-                    let result = eval_expr(context, inner_e)?;
-                    if result.is_throw {
-                        return Ok(result); // Propagate throw
-                    }
-                    let expr_result_str = result.value;
-                    context.insert_string(var_name, &expr_result_str, e)?;
+                    context.insert_primitive(var_name, &value_type, &expr_result_str, e)?;
                 },
                 _ => {
                     let custom_symbol_info = match context.symbols.get(custom_type_name) {

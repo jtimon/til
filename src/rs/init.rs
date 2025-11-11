@@ -1541,6 +1541,31 @@ impl Context {
         return Ok(())
     }
 
+    /// Helper function to insert primitive types (I64, U8, Bool, Str) based on value_type
+    pub fn insert_primitive(
+        &mut self,
+        var_name: &str,
+        value_type: &ValueType,
+        value: &str,
+        e: &Expr
+    ) -> Result<(), String> {
+        match value_type {
+            ValueType::TCustom(type_name) if type_name == "I64" => {
+                self.insert_i64(var_name, &value.to_string(), e)
+            },
+            ValueType::TCustom(type_name) if type_name == "U8" => {
+                self.insert_u8(var_name, &value.to_string(), e)
+            },
+            ValueType::TCustom(type_name) if type_name == "Bool" => {
+                self.insert_bool(var_name, &value.to_string(), e)
+            },
+            ValueType::TCustom(type_name) if type_name == "Str" => {
+                self.insert_string(var_name, &value.to_string(), e)
+            },
+            _ => Err(e.lang_error("eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
+        }
+    }
+
     pub fn get_enum_at_offset(&self, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
         // Read enum from a specific offset (used for nested enum payloads)
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
