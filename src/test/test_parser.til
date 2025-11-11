@@ -333,8 +333,7 @@ test_parse_literal()
 test_parse_list()
 test_parse_declaration()
 test_parse_statement_identifier()
-// TODO: Debug memcpy error in parse_primary_identifier
-// test_parse_primary_identifier_fcall()
+test_parse_primary_identifier_fcall()
 test_parse_statement()
 test_parse_body()
 
