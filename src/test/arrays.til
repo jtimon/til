@@ -2,11 +2,6 @@ mode test
 
 test_array_static_u8 := proc() {
     mut stat := Array.new("U8", size_of(U8), 3)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 3, stat.len)       // Static array len equals cap
     stat.set(0, U8.from_i64(10))
     stat.set(1, U8.from_i64(20))
@@ -20,24 +15,27 @@ test_array_static_u8 := proc() {
 
     stat.delete()
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_u8: IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch(err: U8_OverflowError) {
-        println(loc(), "test_array_static_u8: U8_OverflowError thrown:")
+        println("ERROR:", loc(), "Unexpected U8_OverflowError")
         println(err.msg)
+        exit(1)
     }
 }
 test_array_static_u8()
 
 test_array_static_str := proc() {
     mut stat := Array.new("Str", size_of(Str), 3)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 3, stat.len)
 
     stat.set(0, "hello")
@@ -48,20 +46,23 @@ test_array_static_str := proc() {
     test(loc(), val.eq("!"), "Get after set at index 2")
 
     stat.delete()
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_str: IndexOutOfBoundsError thrown:")
+
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_array_static_str()
 
 test_array_static_bool := proc() {
     mut stat := Array.new("Bool", size_of(Bool), 3)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 3, stat.len)
 
     stat.set(0, true)
@@ -72,20 +73,23 @@ test_array_static_bool := proc() {
     test(loc(), val.eq(true), "Get after set at index 2")
 
     stat.delete()
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_bool: IndexOutOfBoundsError thrown:")
+
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_array_static_bool()
 
 test_array_static_i64 := proc() {
     mut stat := Array.new("I64", size_of(I64), 3)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 3, stat.len)
 
     stat.set(0, 100)
@@ -96,9 +100,17 @@ test_array_static_i64 := proc() {
     test(loc(), val.eq(300), "Get after set at index 2")
 
     stat.delete()
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_i64: IndexOutOfBoundsError thrown:")
+
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_array_static_i64()
@@ -117,11 +129,6 @@ Vec2 := struct {
 
 test_array_static_vec2 := proc() {
     mut stat := Array.new("Vec2", size_of(Vec2), 3) // TODO More ergonomic constructor
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 3, stat.len)
 
     // v1 = Vec2.new(1, 2) // TODO FIX
@@ -142,9 +149,17 @@ test_array_static_vec2 := proc() {
     // stat.push(Vec2.new(7, 8)) // Should panic if uncommented
 
     stat.delete()
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_vec2: IndexOutOfBoundsError thrown:")
+
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_array_static_vec2()
