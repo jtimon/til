@@ -8,6 +8,71 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #11: Cannot Access String Fields in Caught Error Structs :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-11-11
+:FIXED: 2025-11-11
+:IMPACT: Error handling, test code quality
+:STATUS: Fixed
+:END:
+
+*** Description
+When catching an error in a catch block, accessing string fields of the error struct fails with "missing field 'err.msg.c_string'" error.
+
+*** Example
+#+BEGIN_EXAMPLE
+arr.set(999, 84)
+catch (err: IndexOutOfBoundsError) {
+    println(err.msg)  // FAILS: missing field 'err.msg.c_string'
+}
+#+END_EXAMPLE
+
+*** Error Message
+#+BEGIN_EXAMPLE
+rstil context ERROR: missing field 'err.msg.c_string'
+Explanation: This should never happen, this is a bug in the language.
+#+END_EXAMPLE
+
+*** Root Cause (FOUND!)
+The bug ONLY occurs when errors are thrown from UFCS method calls. When an error is thrown from a method and caught, the string fields' arena_index entries (like `.msg.c_string`) are not being properly propagated from the method's local context to the calling context.
+
+Working cases:
+- Direct throw: `throw IndexOutOfBounds Error.new("msg")` ✅
+- Throw with format: `throw IndexOutOfBoundsError.new(format(...))` ✅
+- Throw from regular function ✅
+
+Failing case:
+- Throw from UFCS method: `s.throws_error()` where method does `throw` ❌
+
+The issue is in how the throw result is handled when returning from a method call. The arena_index entries for the error struct's string fields exist in the method's context but aren't being copied back to the caller's context.
+
+*** Impact
+- Cannot access error messages from built-in collection methods (Array.set, Vec.push, etc.)
+- Forces workarounds like hardcoded error strings
+- Prevents implementing the desired panic(loc(), format("ERROR:", err.msg)) pattern
+- Makes test error handling less informative
+
+*** Test Cases
+- src/test/tmp/test_err_simple.til - Direct throw (WORKS)
+- src/test/tmp/test_err_format_call.til - Throw with format (WORKS)
+- src/test/tmp/test_err_ufcs.til - Throw from UFCS method (FAILS)
+- src/test/tmp/test_err_array.til - Array.set error (FAILS)
+
+*** Fix (2025-11-11)
+Fixed in src/rs/interpreter.rs:1686-1720 in eval_user_func_proc_call().
+
+When a function/method throws an error, we now check if the thrown value is a struct type. If it is, we copy all arena_index and symbol entries for the struct's fields (including nested fields like `.msg.c_string`) from the function's local context to the calling context.
+
+This mirrors the logic already in place for returning struct values, but applies it to thrown values as well.
+
+*Now works:*
+#+BEGIN_EXAMPLE
+arr.set(999, 84)
+catch (err: IndexOutOfBoundsError) {
+    println(err.msg)  // ✅ Works! Prints the error message
+}
+#+END_EXAMPLE
+
 ** Bug #10: UFCS Does Not Work on Struct Fields :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10

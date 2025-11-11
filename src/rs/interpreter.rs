@@ -1684,6 +1684,39 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     let result = eval_body(&mut function_context, &func_def.body)?;
     if result.is_throw {
+        // When throwing from a method, we need to copy the thrown struct's arena_index entries
+        // from the function context to the calling context so that catch blocks can access fields
+        if let Some(thrown_type_name) = &result.thrown_type {
+            // Check if this is a custom type (struct)
+            if let Some(type_symbol) = function_context.symbols.get(thrown_type_name) {
+                if type_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                    // Copy arena_index and symbol entries for the thrown instance's fields
+                    let source_prefix = format!("{}.", &result.value);
+
+                    // Copy arena_index entries (including nested fields like .msg.c_string)
+                    let keys_to_copy: Vec<String> = function_context.arena_index.keys()
+                        .filter(|k| k.starts_with(&source_prefix))
+                        .cloned()
+                        .collect();
+                    for src_key in keys_to_copy {
+                        if let Some(&src_offset) = function_context.arena_index.get(&src_key) {
+                            context.arena_index.insert(src_key, src_offset);
+                        }
+                    }
+
+                    // Copy symbol entries for fields
+                    let symbol_keys_to_copy: Vec<String> = function_context.symbols.keys()
+                        .filter(|k| k.starts_with(&source_prefix))
+                        .cloned()
+                        .collect();
+                    for src_key in symbol_keys_to_copy {
+                        if let Some(src_symbol) = function_context.symbols.get(&src_key) {
+                            context.symbols.insert(src_key, src_symbol.clone());
+                        }
+                    }
+                }
+            }
+        }
         return Ok(result); // Propagate throw
     }
     let result_str = result.value;
