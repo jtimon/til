@@ -39,11 +39,11 @@ test_map_i64_to_str := proc() {
 
     mut name := ""
     names.get(100, name)
-    test(loc(), Str.eq(name, "Alice"), "ID 100 should map to Alice")
+    test(loc(), name.eq("Alice"), "ID 100 should map to Alice")
     names.get(200, name)
-    test(loc(), Str.eq(name, "Bob"), "ID 200 should map to Bob")
+    test(loc(), name.eq("Bob"), "ID 200 should map to Bob")
     names.get(300, name)
-    test(loc(), Str.eq(name, "Charlie"), "ID 300 should map to Charlie")
+    test(loc(), name.eq("Charlie"), "ID 300 should map to Charlie")
 
     names.delete()
     catch (err: AllocError) { exit(1) }
@@ -81,11 +81,11 @@ test_map_str_to_str := proc() {
 
     mut capital := ""
     capitals.get("France", capital)
-    test(loc(), Str.eq(capital, "Paris"), "France's capital should be Paris")
+    test(loc(), capital.eq("Paris"), "France's capital should be Paris")
     capitals.get("Japan", capital)
-    test(loc(), Str.eq(capital, "Tokyo"), "Japan's capital should be Tokyo")
+    test(loc(), capital.eq("Tokyo"), "Japan's capital should be Tokyo")
     capitals.get("Brazil", capital)
-    test(loc(), Str.eq(capital, "Brasilia"), "Brazil's capital should be Brasilia")
+    test(loc(), capital.eq("Brasilia"), "Brazil's capital should be Brasilia")
 
     capitals.delete()
     catch (err: AllocError) { exit(1) }
@@ -163,12 +163,12 @@ test_map_str_to_array_str := proc() {
     test(loc(), I64.eq(arr.len, 3), "fruits array should have 3 elements")
     mut item := ""
     arr.get(0, item)
-    test(loc(), Str.eq(item, "apple"), "fruits[0] should be apple")
+    test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
     lists.get("colors", arr)
     test(loc(), I64.eq(arr.len, 3), "colors array should have 3 elements")
     arr.get(0, item)
-    test(loc(), Str.eq(item, "red"), "colors[0] should be red")
+    test(loc(), item.eq("red"), "colors[0] should be red")
 
     fruits.delete()
     colors.delete()

@@ -674,7 +674,7 @@ Map := struct {
                 memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
                 mut key_str := ""
                 memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
-                if Str.eq(key_str, existing_key) {
+                if key_str.eq(existing_key) {
                     keys_match = 0
                 } else {
                     keys_match = 1
@@ -745,7 +745,7 @@ Map := struct {
                 memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
                 mut key_str := ""
                 memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
-                if Str.eq(key_str, existing_key) {
+                if key_str.eq(existing_key) {
                     keys_match = 0
                 } else {
                     keys_match = 1
@@ -812,7 +812,7 @@ Map := struct {
                 memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
                 mut key_str := ""
                 memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
-                if Str.eq(key_str, existing_key) {
+                if key_str.eq(existing_key) {
                     keys_match = 0
                 } else {
                     keys_match = 1
@@ -850,7 +850,7 @@ Map := struct {
                 memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
                 mut key_str := ""
                 memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
-                if Str.eq(key_str, existing_key) {
+                if key_str.eq(existing_key) {
                     keys_match = 0
                 } else {
                     keys_match = 1
@@ -884,7 +884,7 @@ Map := struct {
                 memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
                 mut key_str := ""
                 memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
-                if Str.eq(key_str, existing_key) {
+                if key_str.eq(existing_key) {
                     keys_match = 0
                 } else {
                     keys_match = 1

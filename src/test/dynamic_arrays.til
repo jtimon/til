@@ -80,15 +80,15 @@ test_vec_str := proc() {
     assert_eq(loc(), 2, dyn.len)
     mut val0 := ""
     dyn.get(0, val0)
-    test(loc(), Str.eq(val0, "foo"), "Value at index 0")
+    test(loc(), val0.eq("foo"), "Value at index 0")
     mut val1 := ""
     dyn.get(1, val1)
-    test(loc(), Str.eq(val1, "bar"), "Value at index 1")
+    test(loc(), val1.eq("bar"), "Value at index 1")
 
     dyn.set(0, "baz")
     mut val := ""
     dyn.get(0, val)
-    test(loc(), Str.eq(val, "baz"), "Set and get index 0")
+    test(loc(), val.eq("baz"), "Set and get index 0")
 
     mut combined_str := ""
     // for s in dyn { // TODO support for loops for Arrays
