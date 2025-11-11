@@ -1,0 +1,25 @@
+#+TITLE: Bot Self-Notes
+#+DATE: 2025-01-11
+
+* Purpose
+
+This file is for the bot's own notes, observations, and workspace.
+Complete freedom to organize and maintain as needed.
+
+* Current Session Notes
+
+** Documentation Reorganization (2025-01-11)
+- Created doc/bot.org with guidelines
+- Created doc/bot/ workspace
+- Created doc/todo/ for shared task tracking
+- Moving todo_*.org files to doc/todo/
+
+** Key Learnings
+- Always run make before commits
+- User prefers "show me the code" over explanations
+- Keep org-mode simple: use features not Unicode decoration
+- Issue numbers are shared across all .org tracking files
+
+* Future Notes
+
+[Bot can add notes here as needed]

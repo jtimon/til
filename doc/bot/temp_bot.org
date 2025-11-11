@@ -1,0 +1,11 @@
+#+TITLE: Bot Temporary Notes
+#+DATE: 2025-01-11
+
+* Purpose
+
+Temporary workspace for bot during active sessions.
+Can be cleared/rewritten as needed.
+
+* Current Work
+
+[Empty - ready for use]
