@@ -12,6 +12,27 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 
 * TODO Active Items
 
+- [ ] #21 Simplify collection constructor APIs - Type identifiers as Dynamic parameters fail
+  - **Current API** (verbose, redundant):
+    #+BEGIN_SRC til
+    mut vec := Vec.new("Str", size_of(Str))
+    mut arr := Array.new("I64", size_of(I64), 10)
+    mut map := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut ptr := Ptr.new("I64", size_of(I64))
+    #+END_SRC
+  - **Desired API** (clean, ergonomic):
+    #+BEGIN_SRC til
+    mut vec := Vec.new(Str)
+    mut arr := Array.new(I64, 10)
+    mut map := Map.new(Str, I64)
+    mut ptr := Ptr.new(I64)
+    #+END_SRC
+  - **Blocker**: Type identifiers passed as Dynamic parameters cause "Expr index 0 out of bounds" error
+  - **Root cause**: When calling type_as_str(T) or size_of(T) where T is a Dynamic parameter containing a type identifier, the function receives an empty Expr
+  - **Potential solutions**: (1) Runtime type introspection functions, (2) Compile-time type parameter capture syntax, (3) Quote/unquote mechanism, (4) Keep current API
+  - **Test case**: src/test/tmp/test_array_new.til reproduces the issue
+  - List also needs runtime_size_of() for Dynamic parameters (separate but related issue)
+
 - [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
 - [ ] Improve type checking for struct type mismatches (passing Vec where Array expected should error at compile time)
 - [ ] Improve test error handling with ERROR: prefix (make unexpected errors more visible in test output)
