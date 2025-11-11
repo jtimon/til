@@ -9,24 +9,28 @@ parse_source := proc(source: Str) {
     mut lexer := Lexer.new_from_src(source)
     ast := parse_tokens(lexer)
     catch (err: Str) {
-        println("Parse error in parse_source:")
+        println("ERROR:", loc(), "Parse error in parse_source")
         println(err)
         exit(1)
     }
     catch (err: AllocError) {
-        println("AllocError in parse_source")
+        println("ERROR:", loc(), "Unexpected AllocError in parse_source")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
-        println("FullError in parse_source")
+        println("ERROR:", loc(), "Unexpected FullError in parse_source")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
-        println("IndexOutOfBoundsError in parse_source")
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError in parse_source")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
-        println("I64_OverflowError in parse_source")
+        println("ERROR:", loc(), "Unexpected I64_OverflowError in parse_source")
+        println(err.msg)
         exit(1)
     }
 }
@@ -105,15 +109,23 @@ test_parse_file := proc(path: Str) {
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 }
@@ -153,19 +165,28 @@ test_parse_mode := proc() {
     mut lexer := Lexer.new_from_src("mode test")
     mode_def := parse_mode("test.til", lexer)
     catch (err: Str) {
-        println("Error in parse_mode")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -180,13 +201,18 @@ test_parse_literal := proc() {
     t.col = 1
     expr := parse_literal(lexer, t)
     catch (err: Str) {
-        println("Error in parse_literal")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
 
@@ -196,19 +222,28 @@ test_parse_body := proc() {
     mut lexer := Lexer.new_from_src("x := 42")
     body := parse_body(lexer, TokenType.Eof)
     catch (err: Str) {
-        println("Error in parse_body")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -218,19 +253,28 @@ test_parse_statement := proc() {
     mut lexer := Lexer.new_from_src("x := 42")
     stmt := parse_statement(lexer)
     catch (err: Str) {
-        println("Error in parse_statement")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -240,19 +284,28 @@ test_parse_statement_identifier := proc() {
     mut lexer := Lexer.new_from_src("x := 42")
     stmt := parse_statement_identifier(lexer)
     catch (err: Str) {
-        println("Error in parse_statement_identifier")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -262,19 +315,28 @@ test_parse_declaration := proc() {
     mut lexer := Lexer.new_from_src("x := 42")
     decl := parse_declaration(lexer, false, INFER_TYPE)
     catch (err: Str) {
-        println("Error in parse_declaration")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -284,19 +346,28 @@ test_parse_list := proc() {
     mut lexer := Lexer.new_from_src("(42, 43)")
     list := parse_list(lexer)
     catch (err: Str) {
-        println("Error in parse_list")
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
@@ -310,15 +381,23 @@ test_parse_primary_identifier_fcall := proc() {
         exit(1)
     }
     catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
     catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
         exit(1)
     }
 
