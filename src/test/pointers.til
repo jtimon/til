@@ -24,14 +24,15 @@ test_pointers := proc() {
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
     p.delete()
-    catch (err: AllocError) {
-        panic(loc(), "Unexpected AllocError deleting p")
-    }
 
     q.delete()
-    catch (err: AllocError) {
-        panic(loc(), "Unexpected AllocError deleting q")
-    }
     // No need to free 'r', it shares memory with 'p'
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
 }
 test_pointers()
