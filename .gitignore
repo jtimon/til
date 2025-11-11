@@ -1,6 +1,7 @@
 bin/*
 scratch/*
 doc/bot/*
+src/test/tmp/*
 *~
 \#*\#
 .\#*
