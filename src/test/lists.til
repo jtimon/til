@@ -1,0 +1,529 @@
+mode test
+
+// NOTE: List implementation is currently blocked by a fundamental limitation in TIL
+//
+// PROBLEM: size_of(value) does not work for Dynamic parameters
+//
+// The List.push() method needs to know the size of each element at runtime to:
+// 1. Calculate where to write it in the data blob (offset calculation)
+// 2. Use memcpy to copy the right number of bytes
+//
+// Currently we have:
+// - type_as_str(value: Dynamic) returns Str  // Works - gets type name at runtime
+// - size_of(type: Dynamic) returns I64       // Does NOT work - compile-time only
+//
+// SOLUTION NEEDED: Add runtime type introspection function
+// - runtime_size_of(value: Dynamic) returns I64  // New ext function needed
+// - OR: type_info(value: Dynamic) returns TypeInfo struct with name and size
+//
+// This same issue affects any heterogeneous collection where element sizes
+// vary and aren't known until runtime.
+//
+// WORKAROUND: Could hardcode size lookups for known types (I64=8, Bool=1, etc)
+// but this doesn't scale to user-defined structs and is unmaintainable.
+//
+// Until this is resolved, List tests are disabled (commented in tests.til)
+
+// Test creating empty list
+test_list_new := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    assert_eq(loc(), 0, list.len)
+
+    list.delete()
+}
+test_list_new()
+
+// Test pushing heterogeneous types
+test_list_push_heterogeneous := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Push I64
+    list.push(42)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Push Str
+    list.push("hello")
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Push Bool
+    list.push(true)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    assert_eq(loc(), 3, list.len)
+
+    list.delete()
+}
+test_list_push_heterogeneous()
+
+// Test getting elements
+test_list_get := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    list.push(100)
+    list.push("world")
+    list.push(false)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Get I64 at index 0
+    mut val0 := 0
+    list.get(0, val0)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val0.eq(100), "Value at index 0")
+
+    // Get Str at index 1
+    mut val1 := ""
+    list.get(1, val1)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val1.eq("world"), "Value at index 1")
+
+    // Get Bool at index 2
+    mut val2 := true
+    list.get(2, val2)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val2.eq(false), "Value at index 2")
+
+    list.delete()
+}
+test_list_get()
+
+// Test setting elements (same size)
+test_list_set_same_size := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    list.push(10)
+    list.push(20)
+    list.push(30)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Set index 1 to new I64
+    list.set(1, 999)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    mut val := 0
+    list.get(1, val)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val.eq(999), "Set and get index 1")
+
+    list.delete()
+}
+test_list_set_same_size()
+
+// Test setting elements (different size)
+test_list_set_different_size := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    list.push(1)
+    list.push(2)
+    list.push(3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Replace I64 at index 1 with Str (different size)
+    list.set(1, "replaced")
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Verify element at index 1 is now Str
+    mut val := ""
+    list.get(1, val)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val.eq("replaced"), "Set different size at index 1")
+
+    // Verify element at index 2 is still correct
+    mut val2 := 0
+    list.get(2, val2)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val2.eq(3), "Element at index 2 after set")
+
+    list.delete()
+}
+test_list_set_different_size()
+
+// Test with user-defined struct
+Vec2 := struct {
+    mut x : I64 = 0
+    mut y : I64 = 0
+}
+
+test_list_with_struct := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    mut v1 := Vec2()
+    v1.x = 10
+    v1.y = 20
+
+    mut v2 := Vec2()
+    v2.x = 30
+    v2.y = 40
+
+    list.push(v1)
+    list.push(42)
+    list.push(v2)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    assert_eq(loc(), 3, list.len)
+
+    // Get Vec2 at index 0
+    mut result := Vec2()
+    list.get(0, result)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), result.x.eq(10), "Vec2.x at index 0")
+    test(loc(), result.y.eq(20), "Vec2.y at index 0")
+
+    // Get I64 at index 1
+    mut num := 0
+    list.get(1, num)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), num.eq(42), "I64 at index 1")
+
+    list.delete()
+}
+test_list_with_struct()
+
+// Test len field
+test_list_len := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    test(loc(), list.len.eq(0), "Empty list length")
+
+    list.push(1)
+    list.push(2)
+    list.push(3)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    test(loc(), list.len.eq(3), "List length after 3 pushes")
+
+    list.delete()
+}
+test_list_len()
+
+// Test index out of bounds error
+test_list_out_of_bounds := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    list.push(10)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    mut val := 0
+    list.get(5, val)
+    panic(loc(), "Expected IndexOutOfBoundsError")
+
+    catch (err: IndexOutOfBoundsError) {
+        test(loc(), true, "IndexOutOfBoundsError correctly thrown")
+    }
+
+    list.delete()
+}
+test_list_out_of_bounds()
+
+// Test multiple pushes
+test_list_multiple_pushes := proc() {
+    mut list := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    // Push several elements
+    mut i := 0
+    while lt(i, 10) {
+        list.push(i)
+        i = add(i, 1)
+    }
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    test(loc(), list.len.eq(10), "List holds 10 elements")
+
+    // Verify values are correct
+    mut val := 0
+    list.get(0, val)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val.eq(0), "First element")
+
+    list.get(9, val)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), val.eq(9), "Last element")
+
+    list.delete()
+}
+test_list_multiple_pushes()
+
+// Test nested lists
+test_nested_lists := proc() {
+    mut inner := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    inner.push(1)
+    inner.push(2)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    mut outer := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    outer.push(inner)
+    outer.push(99)
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+    catch (err: FullError) {
+        println(loc(), "FullError thrown:")
+        println(err.msg)
+        return
+    }
+
+    assert_eq(loc(), 2, outer.len)
+
+    // Get the nested list
+    mut retrieved_inner := List.new()
+    catch (err: AllocError) {
+        println(loc(), "AllocError thrown:")
+        println(err.msg)
+        return
+    }
+
+    outer.get(0, retrieved_inner)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+
+    test(loc(), retrieved_inner.len.eq(2), "Nested list length")
+
+    // Get value from nested list
+    mut nested_val := 0
+    retrieved_inner.get(0, nested_val)
+    catch (err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError thrown:")
+        println(err.msg)
+        return
+    }
+    test(loc(), nested_val.eq(1), "Value from nested list")
+
+    retrieved_inner.delete()
+    inner.delete()
+    outer.delete()
+}
+test_nested_lists()

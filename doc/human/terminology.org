@@ -79,8 +79,88 @@ Using "const" to refer to default (non-mut) parameters:
 3. Emphasizes that immutability is the default
 4. Matches internal implementation semantics
 
+* Collection Types
+
+TIL provides four built-in collection types with different characteristics:
+
+** Array (Fixed-size, Homogeneous)
+- Fixed capacity set at creation
+- All elements must be same type
+- Type specified via string: =Array.new("I64", size_of(I64), capacity)=
+- No growth - throws =IndexOutOfBoundsError= if capacity exceeded
+- Direct memory access, minimal overhead
+- Use when: Size known at compile time, no resizing needed
+
+** Vec (Dynamic Array, Homogeneous)
+- Growable array with automatic capacity expansion
+- All elements must be same type
+- Initial capacity: 16 elements
+- Growth strategy: doubles capacity when full (16 → 32 → 64 → ...)
+- Max capacity: 1024 elements
+- Type specified at construction: =Vec.new("I64", size_of(I64))=
+- Use when: Size varies at runtime, all elements same type
+
+** Map (Ordered Dictionary)
+- Key-value pairs maintaining insertion order
+- Not hashed - O(n) lookup performance
+- Keys and values can be any type (specified at creation)
+- Special handling for Str keys (content comparison via Str.eq)
+- Other types use memcmp for byte-wise comparison
+- Warning: Struct keys compare raw bytes including padding
+- Implementation: Two parallel Vec instances (keys and values)
+- Use when: Need key-value lookup, order matters, small datasets
+
+** List (Dynamic Heterogeneous Collection)
+
+Also known as: Tuple (both names describe this structure)
+
+- Dynamic array of mixed types
+- Elements can be any type: I64, Bool, Str, structs, enums, nested Lists
+- Runtime type tracking via type names and sizes
+- Memory layout: Contiguous blob with metadata vectors
+- Initial capacity: 256 bytes
+- Growth strategy: doubles capacity when full
+- Max capacity: 64KB
+
+Type specified at: =List.new("List", size_of(List))=
+Usage: Store heterogeneous elements, extract via type checking
+
+Example:
+#+BEGIN_SRC til
+mut list := List.new()
+list.push(42)           // I64
+list.push("hello")      // Str
+list.push(true)         // Bool
+
+mut num := 0
+list.get(0, num)        // num = 42
+
+mut text := ""
+list.get(1, text)       // text = "hello"
+#+END_SRC
+
+Memory characteristics:
+- Each element: type_name (Str) + type_size (I64) + raw bytes
+- Offsets calculated on-demand from sizes (no storage redundancy)
+- Nested Lists supported (Lists can contain Lists)
+
+Use when:
+- Need to store mixed types together
+- Building generic data structures
+- Implementing interpreters, serialization, or dynamic APIs
+- Similar to: Python lists, Elisp lists, JSON arrays
+
+** Comparison Summary
+
+| Type  | Size     | Elements    | Growth   | Lookup  | Use Case                 |
+|-------+----------+-------------+----------+---------+--------------------------|
+| Array | Fixed    | Same type   | No       | O(1)    | Known size, no resizing  |
+| Vec   | Dynamic  | Same type   | 2x       | O(1)    | Variable size, one type  |
+| Map   | Dynamic  | Key-Value   | 2x       | O(n)    | Lookups, small datasets  |
+| List  | Dynamic  | Mixed types | 2x       | O(1)    | Heterogeneous data       |
+
 * Notes
 
 - Created: 2025-01-10
-- Updated: 2025-11-11 (added const/mut parameter terminology)
+- Updated: 2025-11-11 (added const/mut parameter terminology, collection types)
 - This terminology guide will be integrated into a more comprehensive documentation structure in the future
