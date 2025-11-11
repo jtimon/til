@@ -1,28 +1,28 @@
 #+TITLE: TIL Wishlist
 #+AUTHOR: TIL Development Team
-#+DATE: 2025-01-11
+#+DATE: 2025-11-11
 
 * TODO Forbid additional keywords
 
 Additional keywords from other languages that could be forbidden with helpful error messages.
 
 Currently implemented (4):
-- const -> "Variables are immutable by default"
-- var -> "Use 'mut' instead"
-- fn -> "Use 'func' instead"
-- try -> (error message exists)
+- [X] const -> "Variables are immutable by default"
+- [X] var -> "Use 'mut' instead"
+- [X] fn -> "Use 'func' instead"
+- [X] try -> (error message exists)
 
 Proposed additions:
-- let -> "Use ':=' for declaration"
-- class -> "Use 'struct' instead"
-- interface -> "TIL doesn't have interfaces"
-- implements -> "TIL doesn't have interfaces"
-- extends -> "TIL doesn't have inheritance"
-- public -> "TIL doesn't have visibility modifiers"
-- private -> "TIL doesn't have visibility modifiers"
-- protected -> "TIL doesn't have visibility modifiers"
-- function -> (already returns Invalid token)
-- global -> (already returns Invalid token)
-- static -> (already returns Invalid token)
+- [ ] let -> "Use ':=' for declaration"
+- [ ] class -> "Use 'struct' instead"
+- [ ] interface -> "TIL doesn't have interfaces"
+- [ ] implements -> "TIL doesn't have interfaces"
+- [ ] extends -> "TIL doesn't have inheritance"
+- [ ] public -> "TIL doesn't have visibility modifiers"
+- [ ] private -> "TIL doesn't have visibility modifiers"
+- [ ] protected -> "TIL doesn't have visibility modifiers"
+- [ ] function -> (already returns Invalid token)
+- [ ] global -> (already returns Invalid token)
+- [ ] static -> (already returns Invalid token)
 
 Note: function, global, static already return TokenType.Invalid but could have better error messages.
