@@ -13,7 +13,7 @@ test_array_static_u8 := proc() {
     stat.set(2, U8.from_i64(30))
     mut val := U8.from_i64(0)
     stat.get(2, val)
-    test(loc(), U8.eq(U8.from_i64(30), val), "Get after set at index 2")
+    test(loc(), U8.from_i64(30).eq(val), "Get after set at index 2")
 
     // Uncomment to test panic behavior
     // stat.push(U8.from_i64(77)) // Should panic
@@ -45,7 +45,7 @@ test_array_static_str := proc() {
     stat.set(2, "!")
     mut val := ""
     stat.get(2, val)
-    test(loc(), Str.eq("!", val), "Get after set at index 2")
+    test(loc(), val.eq("!"), "Get after set at index 2")
 
     stat.delete()
     catch(err: IndexOutOfBoundsError) {
@@ -69,7 +69,7 @@ test_array_static_bool := proc() {
     stat.set(2, true)
     mut val := false
     stat.get(2, val)
-    test(loc(), Bool.eq(true, val), "Get after set at index 2")
+    test(loc(), val.eq(true), "Get after set at index 2")
 
     stat.delete()
     catch(err: IndexOutOfBoundsError) {
@@ -93,7 +93,7 @@ test_array_static_i64 := proc() {
     stat.set(2, 300)
     mut val := 0
     stat.get(2, val)
-    test(loc(), I64.eq(300, val), "Get after set at index 2")
+    test(loc(), val.eq(300), "Get after set at index 2")
 
     stat.delete()
     catch(err: IndexOutOfBoundsError) {
