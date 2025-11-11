@@ -158,11 +158,23 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
     return errors
 }
 
+// Helper function to validate conditional statement parameters
+fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize) -> Option<String> {
+    if e.params.len() < min || e.params.len() > max {
+        if min == max {
+            return Some(e.exit_error("type", &format!("{} nodes must have exactly {} parameters.", stmt_type, min)));
+        } else {
+            return Some(e.exit_error("type", &format!("{} nodes must have {} or {} parameters.", stmt_type, min, max)));
+        }
+    }
+    None
+}
+
 fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    if e.params.len() != 2 && e.params.len() != 3 {
-        errors.push(e.exit_error("type", "if nodes must have 2 or 3 parameters."));
-        return errors
+    if let Some(err) = validate_conditional_params(e, "if", 2, 3) {
+        errors.push(err);
+        return errors;
     }
 
     let inner_e = match e.get(0) {
@@ -200,9 +212,9 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
 fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    if e.params.len() != 2 {
-        errors.push(e.exit_error("type", "while nodes must have exactly 2 parameters."));
-        return errors
+    if let Some(err) = validate_conditional_params(e, "while", 2, 2) {
+        errors.push(err);
+        return errors;
     }
 
     let inner_e = match e.get(0) {

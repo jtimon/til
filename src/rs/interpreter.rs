@@ -58,6 +58,18 @@ impl EvalResult {
     }
 }
 
+// Helper function to validate conditional statement parameters
+fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize) -> Result<(), String> {
+    if e.params.len() < min || e.params.len() > max {
+        if min == max {
+            return Err(e.lang_error("eval", &format!("{} nodes must have exactly {} parameters.", stmt_type, min)));
+        } else {
+            return Err(e.lang_error("eval", &format!("{} nodes must have {} or {} parameters.", stmt_type, min, max)));
+        }
+    }
+    Ok(())
+}
+
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {
         NodeType::Body => eval_body(context, &e.params),
@@ -77,9 +89,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
         },
         NodeType::Identifier(name) => eval_identifier_expr(&name, context, &e),
         NodeType::If => {
-            if e.params.len() != 2 && e.params.len() != 3 {
-                return Err(e.lang_error("eval", "if nodes must have 2 or 3 parameters."))
-            }
+            validate_conditional_params(e, "if", 2, 3)?;
             let cond_expr = e.get(0)?;
             let result_cond = eval_expr(context, cond_expr)?;
             if result_cond.is_throw {
@@ -95,9 +105,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             }
         },
         NodeType::While => {
-            if e.params.len() != 2 {
-                return Err(e.lang_error("eval", "while nodes must have exactly 2 parameters."))
-            }
+            validate_conditional_params(e, "while", 2, 2)?;
             let mut cond_expr = e.get(0)?;
             let mut result_cond = eval_expr(context, cond_expr)?;
             if result_cond.is_throw {
