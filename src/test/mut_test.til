@@ -57,3 +57,14 @@ test_mut_array := proc() {
 }
 
 test_mut_array()
+
+test_const_to_const := proc() {
+    read := proc(v: Vec2) {
+        assert_eq(loc(), 0, v.x)
+        assert_eq(loc(), 0, v.y)
+    }
+    v := Vec2()
+    read(v)
+}
+
+test_const_to_const()
