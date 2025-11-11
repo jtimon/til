@@ -1,20 +1,20 @@
 mode test
 
 test_strings := proc() {
-    test(loc(), Str.eq(format("Hello, ", "world!"), "Hello, world!"), "format('Hello, ', 'world!') = 'Hello, world!'")
+    test(loc(), format("Hello, ", "world!").eq("Hello, world!"), "format('Hello, ', 'world!') = 'Hello, world!'")
     assert_eq_str(loc(), "abc", format("a", "b", "c"))
-    test(loc(), I64.eq(I64.from_str("123"), 123), "I64.from_str('123') = 123")
-    test(loc(), I64.eq(I64.from_str("0"), 0), "I64.from_str('0') = 0")
+    test(loc(), I64.from_str("123").eq(123), "I64.from_str('123') = 123")
+    test(loc(), I64.from_str("0").eq(0), "I64.from_str('0') = 0")
     // TODO: Test with invalid strings for I64.from_str, e.g., I64.from_str("abc") // Expected: error or undefined behavior
-    test(loc(), Str.eq(I64.to_str(456), "456"), "I64.to_str(456) = '456'")
-    test(loc(), Str.eq(I64.to_str(0), "0"), "I64.to_str(0) = '0'")
+    test(loc(), I64.to_str(456).eq("456"), "I64.to_str(456) = '456'")
+    test(loc(), I64.to_str(0).eq("0"), "I64.to_str(0) = '0'")
 
     empty_str := ""
     len3_str := "012"
     len5_str := "01234"
-    test(loc(), I64.eq(empty_str.len(), 0), "Str.len('') = 0")
-    test(loc(), I64.eq(len3_str.len(), 3), "Str.len('012') = 3")
-    test(loc(), I64.eq(len5_str.len(), 5), "Str.len('01234') = 5")
+    test(loc(), empty_str.len().eq(0), "Str.len('') = 0")
+    test(loc(), len3_str.len().eq(3), "Str.len('012') = 3")
+    test(loc(), len5_str.len().eq(5), "Str.len('01234') = 5")
 
     assert_eq_str(loc(), "0",   get_substr("01234", 0, 1))
     assert_eq_str(loc(), "012", get_substr("01234", 0, 3))
