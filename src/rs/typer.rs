@@ -873,6 +873,24 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         if !symbol_info.is_mut {
             errors.push(e.error("type", &format!("Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", var_name)));
         }
+        // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
+        if var_name.contains('.') {
+            let base_var = var_name.split('.').next().unwrap();
+            if let Some(base_info) = context.symbols.get(base_var) {
+                if !base_info.is_mut {
+                    errors.push(e.error("type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
+                }
+            }
+        }
+    } else if var_name.contains('.') {
+        // Field access assignment where the field itself isn't registered in symbols
+        // Extract the base variable name to provide better error message
+        let base_var = var_name.split('.').next().unwrap();
+        if context.symbols.contains_key(base_var) {
+            errors.push(e.error("type", &format!("Cannot assign to '{}' (field may not exist or base is const)", var_name)));
+        } else {
+            errors.push(e.error("type", &format!("Undefined symbol '{}'", base_var)));
+        }
     } else {
         errors.push(e.error("type", &format!("Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                                              var_name, var_name, var_name)));
