@@ -170,6 +170,32 @@ fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize
     None
 }
 
+// Helper function to validate function/procedure argument counts
+fn validate_func_arg_count(e: &Expr, f_name: &str, func_def: &SFuncDef) -> Option<String> {
+    let provided_args = e.params.len() - 1;
+
+    // Check zero-arg functions
+    if func_def.args.len() == 0 && provided_args > 0 {
+        return Some(e.error("type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, provided_args)));
+    }
+
+    let has_multi_arg = func_proc_has_multi_arg(&func_def);
+
+    // Check exact count for non-variadic functions
+    if !has_multi_arg && func_def.args.len() != provided_args {
+        return Some(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
+                                             f_name, func_def.args.len(), provided_args)));
+    }
+
+    // Check minimum count for variadic functions
+    if has_multi_arg && func_def.args.len() - 1 > provided_args {
+        return Some(e.error("type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
+                                             f_name, func_def.args.len() - 1, provided_args)));
+    }
+
+    None
+}
+
 fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if let Some(err) = validate_conditional_params(e, "if", 2, 3) {
@@ -264,18 +290,9 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         },
     };
 
-    if func_def.args.len() == 0 && e.params.len() - 1 > 0 {
-        errors.push(e.error("type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, e.params.len() - 1)));
+    if let Some(err) = validate_func_arg_count(&e, &f_name, &func_def) {
+        errors.push(err);
         return errors;
-    }
-    let has_multi_arg = func_proc_has_multi_arg(&func_def);
-    if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
-        errors.push(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
-                                             f_name, func_def.args.len(), e.params.len() - 1)));
-    }
-    if has_multi_arg && func_def.args.len() - 1 > e.params.len() - 1 {
-        errors.push(e.error("type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
-                                             f_name, func_def.args.len() - 1, e.params.len() - 1)));
     }
 
     let max_arg_def = func_def.args.len();

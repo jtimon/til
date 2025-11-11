@@ -283,13 +283,14 @@ context.insert_primitive(var_name, &value_type, &value, e)?;
 *** Estimated Savings
 ~60 lines of repetitive type insertion code
 
-** DRY #15: Variadic Function Argument Handling                   :MEDIUM:
+** FIXED DRY #15: Variadic Function Argument Handling                   :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
-:IMPACT: 6+ locations in typer.rs and interpreter.rs
-:EFFORT: 2 hours
-:LOCATIONS: typer.rs lines 259-267, 356-369; interpreter.rs lines 1469, 1474-1507
-:BENEFIT: Consolidate validation logic, eliminate ~30 lines
+:COMPLETED: 2025-01-11
+:IMPACT: 2 locations in typer.rs and interpreter.rs
+:EFFORT: 2 hours (actual)
+:LOCATIONS: typer.rs lines 267-279, interpreter.rs lines 1477-1485
+:BENEFIT: Consolidated validation logic, eliminated ~17 lines
 :END:
 
 *** Description
@@ -691,11 +692,11 @@ validate_arg_count(e, "malloc", 1, false)?;
 | Priority | Count | Estimated Total Effort | Estimated Savings |
 |----------+-------+------------------------+-------------------|
 | HIGH     |     3 | 9-13 hours             | 340-440 lines     |
-| MEDIUM   |     5 | 12-16 hours            | 265+ lines        |
+| MEDIUM   |     4 | 10-14 hours            | 235+ lines        |
 | LOW      |     2 | 3 hours                | ~45 lines         |
 |----------+-------+------------------------+-------------------|
-| TOTAL    |     9 | 24-32 hours            | 650-750 lines     |
-| FIXED    |     2 | 3 hours                | Consolidation     |
+| TOTAL    |     9 | 22-30 hours            | 620-720 lines     |
+| FIXED    |     3 | 5 hours                | 47 lines          |
 
 * Notes
 

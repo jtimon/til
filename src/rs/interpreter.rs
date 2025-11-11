@@ -70,6 +70,26 @@ fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize
     Ok(())
 }
 
+// Helper function to validate function/procedure argument counts
+fn validate_func_arg_count(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<(), String> {
+    let provided_args = e.params.len() - 1;
+    let has_multi_arg = func_proc_has_multi_arg(func_def);
+
+    // Check exact count for non-variadic functions
+    if !has_multi_arg && func_def.args.len() != provided_args {
+        return Err(e.lang_error("eval", &format!("func '{}' expected {} args, but {} were provided.",
+                                                 name, func_def.args.len(), provided_args)));
+    }
+
+    // Check minimum count for variadic functions
+    if has_multi_arg && func_def.args.len() - 1 > provided_args {
+        return Err(e.lang_error("eval", &format!("func '{}' expected at least {} args, but {} were provided.",
+                                                 name, func_def.args.len() - 1, provided_args)));
+    }
+
+    Ok(())
+}
+
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {
         NodeType::Body => eval_body(context, &e.params),
@@ -1474,15 +1494,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
     let mut function_context = context.clone();
-    let has_multi_arg = func_proc_has_multi_arg(func_def);
-    if !has_multi_arg && func_def.args.len() != e.params.len() - 1 {
-        return Err(e.lang_error("eval", &format!("func '{}' expected {} args, but {} were provided.",
-                                                 name, func_def.args.len(), e.params.len() - 1)))
-    }
-    if has_multi_arg && func_def.args.len() - 1 > e.params.len() - 1 {
-        return Err(e.lang_error( "eval", &format!("func '{}' expected at least {} args, but {} were provided.",
-                                                  name, func_def.args.len() - 1, e.params.len() - 1)));
-    }
+    validate_func_arg_count(e, name, func_def)?;
 
     let mut param_index = 1;
     let mut mut_args: Vec<(String, String, ValueType)> = Vec::new(); // (arg_name, source_name, type)
