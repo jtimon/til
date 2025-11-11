@@ -1,0 +1,104 @@
+#+TITLE: UFCS Migration Plan
+#+DATE: 2025-11-11
+
+* Overview
+
+Migrate ~260-280 method calls from =Type.method(var, ...)= to =var.method(...)= syntax across the codebase.
+
+This takes advantage of Bug #10 (UFCS on struct fields) being fully fixed.
+
+* Progress Tracking
+
+** Phase 1: Test Files - I64.eq() conversions (~40 instances) [0/4]
+- [ ] src/test/arithmetics.til (31 conversions)
+- [ ] src/test/comparisons.til (2 conversions)
+- [ ] src/test/intro.til (2 conversions)
+- [ ] src/test/fibonacci.til (3 conversions)
+
+Pattern: =I64.eq(a, b)= → =a.eq(b)=
+Risk: Low - straightforward test assertions
+Verification: Run =make tests= after changes
+
+** Phase 2: Test Files - U8 and Bool methods (~25 instances) [0/4]
+- [ ] src/test/u8.til (5 conversions)
+- [ ] src/test/boolean.til (12 conversions)
+- [ ] src/test/arrays.til (6 conversions)
+- [ ] src/test/branchless.til (3 conversions)
+
+Patterns:
+- =U8.from_i64(x)= → =x.from_i64()=
+- =U8.to_i64(x)= → =x.to_i64()=
+- =Bool.to_i64(x)= → =x.to_i64()=
+- =Bool.eq(a, b)= → =a.eq(b)=
+
+Risk: Low-Medium
+Verification: Run =make tests= after changes
+
+** Phase 3: Test Files - Remaining Str.eq() (~12 instances) [0/3]
+- [ ] src/test/strings.til (6 conversions)
+- [ ] src/test/boolean.til (5 conversions)
+- [ ] src/test/hello/hello_test.til (1 conversion)
+
+Pattern: =Str.eq(a, b)= → =a.eq(b)= (continuing previous work)
+Risk: Medium
+Verification: Run =make tests= after changes
+
+** Phase 4: Test Files - Collections (~75 instances) [0/2]
+- [ ] src/test/dynamic_arrays.til (25 conversions: I64.eq, U8 methods, Bool.eq)
+- [ ] src/test/maps.til (50 conversions: I64.eq, U8 methods)
+
+Patterns: Mix of I64.eq(), U8.from_i64(), U8.eq()
+Risk: Medium-High - complex test scenarios
+Verification: Run =make tests= after changes
+
+** Phase 5: Core Library - Map implementation (~17 instances) [0/1]
+- [ ] src/core/core.til (Map key type checks and logic only, ~17 conversions)
+
+Patterns:
+- =Str.eq(self.key_type_name, "Str")= → =self.key_type_name.eq("Str")=
+- =I64.eq(a, b)= → =a.eq(b)= in Map logic
+
+Risk: High - core data structure implementation
+Verification: Run =make tests= with focus on map tests
+
+** Phase 6 (OPTIONAL): Error Messages in Core (~13 instances) [0/3]
+- [ ] src/core/core.til (4 I64.to_str in error messages)
+- [ ] src/core/lexer.til (7 I64.to_str in error messages)
+- [ ] src/core/modes/test.til (2 I64.to_str in assertions)
+
+Pattern: =I64.to_str(value)= → =value.to_str()= in error formatting
+Risk: Low impact, but consider leaving for clarity
+Decision needed: Keep type prefixes in error messages for clarity?
+
+** Phase 7 (HIGH RISK): Enums with Pattern Matching (~3-9 instances) [0/1]
+- [ ] src/test/enums.til (9 potential conversions, but skip pattern-matched cases)
+
+Risk: VERY HIGH - known issues with pattern-matched variables
+Strategy:
+1. Skip pattern-matched cases (lines 708, 722, 773, 809)
+2. Only convert non-pattern-matched variables (3-4 safe instances)
+Verification: Test after EACH conversion individually
+
+* Exclusions (DO NOT Convert)
+
+- All constructor calls (~210 instances): =Vec.new()=, =Lexer.new()=, etc.
+- Commented code (~24 instances): Leave as documentation
+- Pattern-matched variables in enums.til: Known to cause type resolution errors
+
+* Execution Strategy
+
+1. One phase per commit with descriptive commit message
+2. Run =make tests= after each phase
+3. If tests fail, revert and investigate before proceeding
+4. Track progress: ~260-280 total conversions across 7 phases
+5. Stop at any phase if issues arise - each phase is independently valuable
+
+* Estimated Total Time
+
+30-45 minutes for all phases (or stop after Phase 5 for core improvements)
+
+* Notes
+
+This migration improves code readability by using the more idiomatic UFCS
+syntax throughout the codebase. Each phase is designed to be independently
+valuable, so we can stop at any point and still have meaningful improvements.
