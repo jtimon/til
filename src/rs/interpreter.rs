@@ -1050,14 +1050,8 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
     let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
-            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v.clone()) {
-                Some(member_decl) => {
-                    return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
-                },
-                None => {
-                    return Err(e.lang_error("eval", &format!("struct '{}' has no member '{}' j", name, inner_name)));
-                },
-            }
+            let member_decl = struct_def.get_member_or_err(inner_name, name, e)?;
+            return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
         },
         _ => {
             return Err(e.lang_error("eval", &format!("identifier '{}' should only have identifiers inside.", name)));
@@ -1108,13 +1102,9 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                                 Some(def) => def,
                                                 None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", custom_type_name))),
                                             };
-                                            match struct_def.members.iter().find(|(k, _)| k == inner_name).map(|(_, v)| v) {
-                                                Some(member_decl) => {
-                                                    current_type = member_decl.value_type.clone();
-                                                    current_name = format!("{}.{}", current_name, inner_name);
-                                                },
-                                                None => return Err(inner_e.lang_error("eval", &format!("Struct '{}' has no member '{}' k", value_type_to_str(&current_type), inner_name))),
-                                            }
+                                            let member_decl = struct_def.get_member_or_err(inner_name, custom_type_name, inner_e)?;
+                                            current_type = member_decl.value_type.clone();
+                                            current_name = format!("{}.{}", current_name, inner_name);
                                         },
                                         ValueType::TType(TTypeDef::TEnumDef) => {
                                             return Err(inner_e.lang_error("eval", &format!("Enum '{}' does not support nested members", current_name)));

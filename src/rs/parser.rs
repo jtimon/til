@@ -67,6 +67,28 @@ pub struct SStructDef {
     pub default_values : HashMap<String, Expr>,
 }
 
+impl SStructDef {
+    /// Helper to find a member by name
+    pub fn get_member(&self, member_name: &str) -> Option<&Declaration> {
+        self.members.iter()
+            .find(|(k, _)| k == member_name)
+            .map(|(_, v)| v)
+    }
+
+    /// Helper to find a member by name or return an error
+    pub fn get_member_or_err(
+        &self,
+        member_name: &str,
+        struct_name: &str,
+        e: &Expr
+    ) -> Result<&Declaration, String> {
+        self.get_member(member_name)
+            .ok_or_else(|| e.error("type", &format!(
+                "Struct '{}' has no member '{}'", struct_name, member_name
+            )))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Number(String), // TODO support more kinds of numbers

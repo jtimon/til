@@ -158,12 +158,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
-                            Some(_member) => _member,
-                            None => {
-                                return Err(e.error("type", &format!("struct '{}' has no member '{}' a", f_name, after_dot_name)));
-                            },
-                        };
+                        let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, e)?;
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
@@ -323,7 +318,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
                                             // Check if it's a struct with this member as a field
                                             if let Some(intermediate_struct_def) = context.struct_defs.get(intermediate_type_name) {
-                                                if let Some(member_decl) = intermediate_struct_def.members.iter().find(|(k, _)| k == final_member_name).map(|(_, v)| v) {
+                                                if let Some(member_decl) = intermediate_struct_def.get_member(final_member_name) {
                                                     // It's a field access - return the field's type
                                                     return Ok(member_decl.value_type.clone());
                                                 }
@@ -338,7 +333,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         }
 
                         // Original logic: single-level access (struct.member)
-                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
+                        let member_decl = match struct_def.get_member(after_dot_name) {
                             Some(_member) => _member,
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
@@ -391,7 +386,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
-                        let member_decl = match struct_def.members.iter().find(|(k, _)| k == after_dot_name).map(|(_, v)| v) {
+                        let member_decl = match struct_def.get_member(after_dot_name) {
                             Some(_member) => _member,
                             None => {
                                 match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
@@ -478,12 +473,8 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                         let struct_def = context.struct_defs.get(name)
                             .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", name)))?;
 
-                        match struct_def.members.iter().find(|(k, _)| k == member_name).map(|(_, v)| v) {
-                            Some(decl) => {
-                                current_type = decl.value_type.clone();
-                            },
-                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' e", name, member_name))),
-                        }
+                        let decl = struct_def.get_member_or_err(member_name, name, e)?;
+                        current_type = decl.value_type.clone();
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // If it's an enum, resolve the variant
@@ -501,12 +492,8 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                         let struct_def = context.struct_defs.get(custom_type_name)
                             .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", custom_type_name)))?;
 
-                        match struct_def.members.iter().find(|(k, _)| k == member_name).map(|(_, v)| v) {
-                            Some(decl) => {
-                                current_type = decl.value_type.clone();
-                            },
-                            None => return Err(e.error("type", &format!("Struct '{}' has no member '{}' f", custom_type_name, member_name))),
-                        }
+                        let decl = struct_def.get_member_or_err(member_name, custom_type_name, e)?;
+                        current_type = decl.value_type.clone();
                     },
                     ValueType::TMulti(_variadic_type_name) => {
                         // Variadic parameters are implemented as Array at runtime

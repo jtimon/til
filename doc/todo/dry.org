@@ -287,13 +287,14 @@ fn validate_func_args(
 *** Estimated Savings
 ~30 lines of validation logic
 
-** DRY #16: Struct Member Lookup Pattern                          :MEDIUM:
+** FIXED DRY #16: Struct Member Lookup Pattern                          :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
-:IMPACT: 15+ locations across init.rs, typer.rs, interpreter.rs
-:EFFORT: 2 hours
-:LOCATIONS: init.rs lines 161-164, 298-309, 351-361; typer.rs 1088-1094; interpreter.rs 1088-1095, 1146-1152
-:BENEFIT: Eliminate ~45 lines, improve safety
+:COMPLETED: 2025-01-11
+:IMPACT: 8 locations across init.rs and interpreter.rs
+:EFFORT: 1.5 hours (actual)
+:LOCATIONS: init.rs lines 161, 321, 336, 389, 476, 495; interpreter.rs lines 1053, 1105
+:BENEFIT: Eliminated 14 lines net, improved consistency and safety
 :END:
 
 *** Description
@@ -631,11 +632,11 @@ validate_arg_count(e, "malloc", 1, false)?;
 | Priority | Count | Estimated Total Effort | Estimated Savings |
 |----------+-------+------------------------+-------------------|
 | HIGH     |     2 | 7-10 hours             | 250-350 lines     |
-| MEDIUM   |     3 | 8-11 hours             | 175+ lines        |
+| MEDIUM   |     2 | 6.5-9 hours            | 130+ lines        |
 | LOW      |     2 | 3 hours                | ~45 lines         |
 |----------+-------+------------------------+-------------------|
-| TOTAL    |     7 | 18-24 hours            | 470-570 lines     |
-| FIXED    |     5 | 9 hours                | 136 lines         |
+| TOTAL    |     6 | 16.5-22 hours          | 425-525 lines     |
+| FIXED    |     6 | 10.5 hours             | 150 lines         |
 
 * Notes
 
