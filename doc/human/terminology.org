@@ -43,7 +43,44 @@ Using "functions" as the generic term aligns with common programming terminology
 3. **Error messages**: Users need to know which type they're calling
 4. **Future extensibility**: Clear pattern for adding macros
 
+* Const vs Mut Parameters
+
+** "Const parameters" (default, implicit)
+When we say "const parameters" or "const arguments", we refer to function parameters that do NOT have the 'mut' keyword:
+- No keyword needed - const is the implicit default
+- Parameters are immutable (cannot be modified)
+- Passed by reference for efficiency
+- Example: ~func(x: I64)~ - x is a const parameter
+
+** "Mut parameters" (explicit)
+When we say "mut parameters" or "mut arguments", we refer to function parameters declared with 'mut':
+- Requires explicit 'mut' keyword
+- Parameters can be modified, affecting the caller's value
+- Passed by reference (required for modifications to propagate)
+- Example: ~func(mut x: I64)~ - x is a mut parameter
+
+** Usage Examples
+
+*Const parameters (default):*
+- "Const parameters are passed by reference for zero-copy efficiency"
+- "This function takes three const arguments"
+- "Const parameters are safe to reference because they cannot be modified"
+
+*Mut parameters (explicit):*
+- "Mut parameters must be passed by reference"
+- "This function modifies its mut argument in place"
+- "Copy-modify-copyback would be wasteful for mut parameters"
+
+** Rationale
+
+Using "const" to refer to default (non-mut) parameters:
+1. Makes discussion clearer when contrasting with mut
+2. Aligns with common terminology (const vs mutable)
+3. Emphasizes that immutability is the default
+4. Matches internal implementation semantics
+
 * Notes
 
 - Created: 2025-01-10
+- Updated: 2025-11-11 (added const/mut parameter terminology)
 - This terminology guide will be integrated into a more comprehensive documentation structure in the future

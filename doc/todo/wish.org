@@ -21,6 +21,7 @@ Keywords from other languages that could be forbidden with helpful error message
 - [ ] protected -> "TIL doesn't have visibility modifiers"
 - [ ] global -> "Use mut declaration at file root"
 - [ ] static -> "Use struct/impl organization"
+- [ ] own -> "Reserved for future ownership semantics"
 
 * TODO More dynamic error messages
 

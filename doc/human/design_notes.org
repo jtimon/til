@@ -9,6 +9,47 @@
 - There is no syntax noise like '&' or '*' in function calls or definitions.
 - Mutability is controlled explicitly with 'mut'.
 
+** Ownership and Parameter Passing Semantics
+
+*** Const Parameters (Immutable Borrow)
+- Function arguments are const (immutable) and passed by reference by default.
+- No keyword needed - const is the implicit default behavior.
+- When we say "const parameters" or "const arguments", we mean parameters without 'mut'.
+- Safe to pass by reference because:
+  - Arguments are const (cannot be modified)
+  - Arena allocation model never deletes memory
+  - No dangling reference risk
+- Zero copy overhead for const parameters.
+
+*** Mut Parameters (Mutable Borrow)
+- Declared with 'mut' keyword: ~func(mut x: I64)~
+- MUST be passed by reference so modifications affect the caller's value.
+- Copy-modify-copyback semantics would be:
+  - Wasteful (unnecessary copy overhead)
+  - Semantically incorrect (caller expects modifications to original)
+- Currently has limitations with struct field modifications (see Bug #10).
+
+*** Own Keyword (Future - Ownership Transfer)
+- Syntax: ~func(own x: MyStruct)~
+- Transfers ownership from caller to callee (move semantics).
+- Caller loses access to the value after the call.
+- Callee takes full ownership and can consume/modify/return it.
+- Solves struct field modification issues by avoiding borrow semantics.
+- Similar to Rust's move semantics.
+
+*** Copy Keyword (Future - Explicit Copy)
+- Syntax: ~func(copy x: MyStruct)~
+- Creates an independent copy of the argument.
+- Rarely needed - use cases unclear.
+- Caller retains original, callee gets independent copy.
+- Both can modify their own version without affecting the other.
+
+*** Implementation Status
+- Current: Internally doing copies for all arguments (temporary implementation).
+- Target: Reference-transparent by default (pass everything by reference unless 'copy').
+- Arena model: All allocations in arena, deletion is placeholder functionality (never tested).
+- Migration path: Moving towards zero-copy reference semantics for performance.
+
 ** Structs and Pointers
 - Structs are value types, but passed by reference by default.
 - Field access always uses the dot '.' operator, regardless of whether the struct is a reference or a pointer (like in Odin or Zig).

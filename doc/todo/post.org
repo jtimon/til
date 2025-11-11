@@ -383,6 +383,60 @@ case Color.RGB(r, g, b) if gt(r, 200):
 *** Priority
 Very low. The if-statement workaround is actually clearer and more flexible than special guard syntax.
 
+** TODO Implement Own Keyword for Function Arguments               :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-11-11
+:IMPACT: Memory semantics, function ownership
+:RELATED: Bug #10, pass-by-value vs pass-by-reference
+:END:
+
+*** Problem
+Currently has limitations with struct field modifications through mut methods. This was discovered during Bug #10 (UFCS on struct fields) where operations like `s.items.push(42)` don't properly modify struct fields.
+
+Note: Arguments are already passed by reference by default (see design_notes.org), but there are borrow checking limitations.
+
+*** Proposed Solution
+Add an `own` keyword for function arguments to indicate ownership transfer/move semantics:
+
+#+BEGIN_SRC til
+// Current (borrow semantics with mut)
+modify_struct := proc(mut s: MyStruct) {
+    s.field = 42  // Works, but has limitations with nested field modifications
+}
+
+// With own keyword (move/ownership transfer)
+modify_struct := proc(own mut s: MyStruct) {
+    s.field = 42  // Takes ownership, caller loses access
+    s.items.push(42)  // Can modify nested fields freely
+    // Caller's s is now moved, cannot be used after this call
+}
+
+// Taking ownership without modification
+take_ownership := proc(own s: MyStruct) {
+    // s is moved into this function
+    // Caller can no longer use it
+    // Useful for consuming values or transferring to other owners
+}
+#+END_SRC
+
+*** Benefits
+- Explicit ownership transfer like Rust's move semantics
+- Solves struct field modification issues
+- Makes it clear when values are consumed vs copied
+- Enables zero-copy patterns for large structs
+
+*** What's Needed
+- [ ] Design own keyword semantics (move vs borrow)
+- [ ] Update parser to recognize own in parameter lists
+- [ ] Implement ownership tracking in type checker
+- [ ] Modify interpreter to handle moved values
+- [ ] Add compiler errors for use-after-move
+- [ ] Test with struct field modifications
+- [ ] Document ownership model
+
+*** Why It's Post-Self-Hosting
+The current copy semantics work for self-hosting, albeit with some limitations. The `own` keyword would be a significant language enhancement that requires careful design and implementation.
+
 ** TODO Add Optional Error Handling Enhancements                    :MEDIUM:
 :PROPERTIES:
 :FILE: src/rs/typer.rs:1212, src/test/errors.til
