@@ -94,6 +94,18 @@ Bot can edit these with normal workflow rules.
 Files:
 - doc/todo/todo_*.org files (moved from doc/)
 
+** doc/log/ - Completed Plan Archive
+Completed plan files from doc/todo/ are moved here for reference.
+This directory is ignored by .gitignore.
+
+When a plan is completed:
+1. Use `mv doc/todo/plan.org doc/log/` to move the file
+2. Use `git add doc/todo/plan.org` to stage the removal
+3. Commit the removal (git sees it as deleted from tracked location)
+
+Files:
+- doc/log/ufcs.org - Completed UFCS migration plan
+
 ** src/test/tmp/ - Temporary Test Files
 For test files that are NOT part of the test suite.
 Use this for quick experiments, debugging, or one-off tests.
