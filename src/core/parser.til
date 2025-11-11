@@ -808,9 +808,8 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
         mut is_declaration := false
         mut decl := Declaration()
         switch nt {
-            case NodeType.Declaration:
+            case NodeType.Declaration(decl):
                 is_declaration = true
-                rsonly_enum_extract_payload(nt, decl)
         }
 
         if is_declaration {
@@ -953,12 +952,12 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
 get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     mut to_return := ""
     nt := e.node_type
-    if nt.tag().eq(NodeType.Identifier("").tag()) {
-        id_str := rsonly_enum_extract_payload(nt)
-        to_return = id_str
-        to_return = to_return.add(".")
-    } else {
-        throw e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only")
+    switch nt {
+        case NodeType.Identifier(id_str):
+            to_return = id_str
+            to_return = to_return.add(".")
+        case:
+            throw e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only")
     }
 
     mut i := 0
@@ -966,12 +965,12 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
         mut p := Expr()
         e.params.get(i, p)
         pnt := p.node_type
-        if pnt.tag().eq(NodeType.Identifier("").tag()) {
-            id_str := rsonly_enum_extract_payload(pnt)
-            to_return = to_return.add(id_str)
-            to_return = to_return.add(".")
-        } else {
-            throw e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only")
+        switch pnt {
+            case NodeType.Identifier(id_str):
+                to_return = to_return.add(id_str)
+                to_return = to_return.add(".")
+            case:
+                throw e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only")
         }
         i = i.add(1)
     }
@@ -1311,20 +1310,20 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 // Handles both simple identifiers and dotted names (represented as FCall)
 get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     ent := e.node_type
-    if ent.tag().eq(NodeType.Identifier("").tag()) {
-        name := rsonly_enum_extract_payload(ent)
-        // Check if this is a dotted name: Identifier with params
-        // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
-        if e.params.len.eq(1) {
-            mut p0 := Expr()
-            e.params.get(0, p0)
-            p0nt := p0.node_type
-            if p0nt.tag().eq(NodeType.Identifier("").tag()) {
-                param_name := rsonly_enum_extract_payload(p0nt)
-                return format(name, ".", param_name)
+    switch ent {
+        case NodeType.Identifier(name):
+            // Check if this is a dotted name: Identifier with params
+            // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
+            if e.params.len.eq(1) {
+                mut p0 := Expr()
+                e.params.get(0, p0)
+                p0nt := p0.node_type
+                switch p0nt {
+                    case NodeType.Identifier(param_name):
+                        return format(name, ".", param_name)
+                }
             }
-        }
-        return name
+            return name
     }
     if ent.tag().eq(NodeType.FCall.tag()) {
         if e.params.len.gte(1) {
@@ -1377,8 +1376,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
 
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
                 switch p1nt {
-                    case NodeType.Identifier:
-                        binding_var := rsonly_enum_extract_payload(p1nt)
+                    case NodeType.Identifier(binding_var):
                         // Convert FCall to Pattern
                         mut pattern_info := PatternInfo()
                         pattern_info.variant_name = variant_name

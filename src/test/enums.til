@@ -399,38 +399,49 @@ Result := enum {
 }
 
 test_nested_enum_payloads := proc() {
-    // NOTE: Pattern matching not yet supported for enum payloads, using rsonly_enum_extract_payload
     red := SimpleColor.Red
     some_red := Option.Some(red)
     result_ok := Result.Ok(some_red)
 
-    mut extracted_option := Option.None
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(result_ok, extracted_option)
-    assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
+    // Extract Option from Result using switch pattern matching
+    switch result_ok {
+        case Result.Ok(extracted_option):
+            assert(loc(), enum_to_str(extracted_option).eq("Option.Some"))
 
-    // Extract the color from the option
-    mut extracted_color := SimpleColor.Blue
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(extracted_option, extracted_color)
-    assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
+            // Extract the color from the option
+            switch extracted_option {
+                case Option.Some(extracted_color):
+                    assert(loc(), enum_to_str(extracted_color).eq("SimpleColor.Red"))
+                case Option.None:
+                    // Not expected in this branch
+                    assert(loc(), false)
+            }
+        case Result.Err:
+            // Not expected for result_ok
+            assert(loc(), false)
+    }
 
     // Test Ok(None)
     none_opt := Option.None
     result_ok_none := Result.Ok(none_opt)
-    green_temp := SimpleColor.Green
-    mut extracted_option2 := Option.Some(green_temp)
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(result_ok_none, extracted_option2)
-    assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
+    switch result_ok_none {
+        case Result.Ok(extracted_option2):
+            assert(loc(), enum_to_str(extracted_option2).eq("Option.None"))
+        case Result.Err:
+            // Not expected
+            assert(loc(), false)
+    }
 
     // Test Err variant
     error := ErrorType.NotFound
     result_err := Result.Err(error)
-    mut extracted_error := ErrorType.Invalid
-    // TODO: Use switch instead of rsonly_enum_extract_payload
-    rsonly_enum_extract_payload(result_err, extracted_error)
-    assert(loc(), enum_to_str(extracted_error).eq("ErrorType.NotFound"))
+    switch result_err {
+        case Result.Err(extracted_error):
+            assert(loc(), enum_to_str(extracted_error).eq("ErrorType.NotFound"))
+        case Result.Ok:
+            // Not expected
+            assert(loc(), false)
+    }
 }
 test_nested_enum_payloads()
 
@@ -833,60 +844,7 @@ test_enum_payload_copy := proc() {
 }
 test_enum_payload_copy()
 
-// Test: rsonly_enum_extract_payload function
-TestPayloadEnum := enum {
-    IntValue: I64,
-    StrValue: Str,
-    NoValue,
-}
-
-TestPerson := struct {
-    mut name: Str = ""
-    mut age: I64 = 0
-}
-
-TestStructPayload := enum {
-    PersonData: TestPerson,
-    Count: I64,
-}
-
-TestNestedPayload := enum {
-    Inner: TestPayloadEnum,
-    Direct: I64,
-}
-
-test_rsonly_extract_payload := proc() {
-    // Extract I64 payload
-    mut val_i64 := TestPayloadEnum.IntValue(42)
-    mut extracted_i64: I64 = 0
-    rsonly_enum_extract_payload(val_i64, extracted_i64)
-    assert_eq(loc(), 42, extracted_i64)
-
-    // Extract Str payload
-    mut val_str := TestPayloadEnum.StrValue("hello")
-    mut extracted_str: Str = ""
-    rsonly_enum_extract_payload(val_str, extracted_str)
-    assert(loc(), Str.eq(extracted_str, "hello"))
-
-    // Extract struct payload
-    mut p := TestPerson()
-    p.name = "Alice"
-    p.age = 30
-    mut val_struct := TestStructPayload.PersonData(p)
-    mut extracted_person := TestPerson()
-    rsonly_enum_extract_payload(val_struct, extracted_person)
-    assert(loc(), Str.eq(extracted_person.name, "Alice"))
-    assert_eq(loc(), 30, extracted_person.age)
-
-    // Extract nested enum payload
-    mut val_nested := TestNestedPayload.Inner(TestPayloadEnum.IntValue(99))
-    mut extracted_inner := TestPayloadEnum.NoValue
-    rsonly_enum_extract_payload(val_nested, extracted_inner)
-    mut final_value: I64 = 0
-    rsonly_enum_extract_payload(extracted_inner, final_value)
-    assert_eq(loc(), 99, final_value)
-}
-test_rsonly_extract_payload()
+// Note: rsonly_enum_extract_payload has been removed in favor of switch pattern matching
 
 // ==============================================================================
 // Regression tests for enum payloads in struct fields (Bug #6)

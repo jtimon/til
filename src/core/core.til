@@ -1082,7 +1082,3 @@ List := struct {
     }
 }
 
-// Tagged union payload extraction function
-// NOTE: rsonly_ prefix means this is ONLY for the Rust interpreter (rstil)
-// DO NOT use in self-hosted TIL code - use switch pattern matching instead
-rsonly_enum_extract_payload := ext_proc(enum_val: Dynamic, mut dest: Dynamic);
