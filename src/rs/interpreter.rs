@@ -1646,7 +1646,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 };
 
                                 match &current_arg.node_type {
-                                    NodeType::Identifier(id_) => {
+                                    NodeType::Identifier(_id_) => {
                                         let id_ = &source_id; // Use the full path we calculated
                                         // If source and dest have the same name, we need to save the source offsets
                                         // before insert_struct overwrites them
