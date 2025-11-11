@@ -14,6 +14,17 @@ use crate::{main_run, run_file, run_file_with_context};
 
 // ---------- Helper functions
 
+/// Macro to evaluate an expression and propagate throws early
+macro_rules! eval_or_throw {
+    ($context:expr, $expr:expr) => {{
+        let result = eval_expr($context, $expr)?;
+        if result.is_throw {
+            return Ok(result);
+        }
+        result.value
+    }};
+}
+
 /// Validates that a function/procedure call has the expected number of arguments.
 /// The e.params.len() includes the function name as the first parameter, so we subtract 1.
 fn validate_arg_count(e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
@@ -45,11 +56,7 @@ pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(e, "malloc", 1, false)?;
 
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let size_str = result.value;
+    let size_str = eval_or_throw!(context, e.get(1)?);
     let size = size_str.parse::<usize>().map_err(|err| {
         e.lang_error("eval", &format!("Invalid size for 'malloc': {}", err))
     })?;
@@ -68,11 +75,7 @@ pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(e, "free", 1, false)?;
 
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let _ptr_str = result.value;
+    let _ptr_str = eval_or_throw!(context, e.get(1)?);
     // REM: Free does nothing in arena model (for now).
 
     return Ok(EvalResult::new(""))
@@ -81,24 +84,9 @@ pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(e, "memset", 3, false)?;
 
-    let dest_result = eval_expr(context, e.get(1)?)?;
-    if dest_result.is_throw {
-        return Ok(dest_result); // Propagate throw
-    }
-
-    let value_result = eval_expr(context, e.get(2)?)?;
-    if value_result.is_throw {
-        return Ok(value_result); // Propagate throw
-    }
-
-    let size_result = eval_expr(context, e.get(3)?)?;
-    if size_result.is_throw {
-        return Ok(size_result); // Propagate throw
-    }
-
-    let dest_str = dest_result.value;
-    let value_str = value_result.value;
-    let size_str = size_result.value;
+    let dest_str = eval_or_throw!(context, e.get(1)?);
+    let value_str = eval_or_throw!(context, e.get(2)?);
+    let size_str = eval_or_throw!(context, e.get(3)?);
 
     let dest = match dest_str.trim().parse::<i64>() {
         Ok(v) => v as usize,

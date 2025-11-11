@@ -9,9 +9,9 @@ This document tracks DRY (Don't Repeat Yourself) refactoring opportunities in th
 
 Issue numbers are shared across all tracking documents (bugs.org, dry.org, etc.) using =doc/next_issue_num.txt= to prevent number collisions.
 
-* Active DRY Opportunities
+* DRY Opportunities
 
-** DRY #11: Error Message Construction                              :HIGH:
+** TODO DRY #11: Error Message Construction                            :HIGH:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
 :IMPACT: 100+ locations across all files
@@ -73,13 +73,14 @@ return Err(e.eval_error(&format!("Core func '{}' not implemented.", name)));
 *** Estimated Savings
 100-200 lines of repetitive formatting code
 
-** DRY #13: Eval + Throw Propagation Pattern                        :HIGH:
+** TODO DRY #13: Eval + Throw Propagation Pattern (PARTIAL)            :HIGH:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
-:IMPACT: 50+ locations in interpreter.rs and ext.rs
-:EFFORT: 3-4 hours
-:LOCATIONS: interpreter.rs, ext.rs (throughout)
-:BENEFIT: Eliminate ~150 lines, reduce error-prone boilerplate
+:IMPACT: 25 locations total (14 in interpreter.rs, 11 in ext.rs)
+:EFFORT: 3-4 hours (estimated), 1 hour (partial progress)
+:LOCATIONS: interpreter.rs (14 remaining), ext.rs (4 replaced, 7 remaining)
+:BENEFIT: Eliminate ~75 lines total, reduce error-prone boilerplate
+:PROGRESS: eval_or_throw! macro created, 4/25 locations replaced (16%), 17 net lines saved
 :END:
 
 *** Description
@@ -145,7 +146,236 @@ let value = eval_and_propagate(context, e.get(1)?)
 - ext.rs: 20+ locations
 
 *** Estimated Savings
-~150 lines of repetitive throw propagation code
+~75 lines of repetitive throw propagation code (revised from initial ~150 estimate)
+
+*** Partial Implementation Notes (2025-01-11)
+Created =eval_or_throw!= macro in both interpreter.rs and ext.rs that consolidates the pattern:
+#+BEGIN_SRC rust
+let result = eval_expr(context, e)?;
+if result.is_throw { return Ok(result); }
+let value = result.value;
+#+END_SRC
+
+Into a single macro call:
+#+BEGIN_SRC rust
+let value = eval_or_throw!(context, e);
+#+END_SRC
+
+Completed 4 replacements in ext.rs (func_malloc, func_free, func_memset).
+Remaining: 7 in ext.rs + 14 in interpreter.rs = 21 locations.
+
+**Next Steps:** Continue replacing remaining patterns systematically. Each replacement saves 3 lines and improves code readability by making the throw propagation intent explicit.
+
+** TODO DRY #17: Enum Payload Extraction Pattern                     :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: Major duplication in interpreter.rs and ext.rs
+:EFFORT: 4-5 hours
+:LOCATIONS: interpreter.rs lines 165-247, 248-356, 509-664; ext.rs lines 491-606
+:BENEFIT: Consolidate complex payload handling logic
+:END:
+
+*** Description
+Extracting and handling enum payload data involves repetitive type matching and byte extraction across switch statements and catch blocks.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated in switch cases and catch blocks:
+match payload_type {
+    ValueType::TCustom(type_name) if type_name == "Bool" => {
+        let bool_val = payload_bytes[0] != 0;
+        context.insert_bool(binding_var, &bool_val.to_string(), e)?;
+    },
+    ValueType::TCustom(type_name) if type_name == "I64" => {
+        let i64_bytes: [u8; 8] = payload_bytes[..8].try_into().unwrap();
+        let i64_val = i64::from_le_bytes(i64_bytes);
+        context.insert_i64(binding_var, &i64_val.to_string(), e)?;
+    },
+    ValueType::TCustom(type_name) if type_name == "Str" => {
+        // ... complex string extraction
+    },
+    // ... many more cases
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn extract_enum_payload(
+    context: &mut Context,
+    binding_var: &str,
+    payload_bytes: &[u8],
+    payload_type: &ValueType,
+    e: &Expr
+) -> Result<(), String> {
+    match payload_type {
+        ValueType::TCustom(type_name) if type_name == "Bool" => {
+            let bool_val = payload_bytes[0] != 0;
+            context.insert_bool(binding_var, &bool_val.to_string(), e)
+        },
+        ValueType::TCustom(type_name) if type_name == "I64" => {
+            let i64_bytes: [u8; 8] = payload_bytes[..8].try_into()
+                .map_err(|_| e.error("eval", "Invalid I64 payload bytes"))?;
+            let i64_val = i64::from_le_bytes(i64_bytes);
+            context.insert_i64(binding_var, &i64_val.to_string(), e)
+        },
+        ValueType::TCustom(type_name) if type_name == "Str" => {
+            // Consolidated string extraction
+            extract_string_payload(context, binding_var, payload_bytes, e)
+        },
+        ValueType::TCustom(type_name) => {
+            // Handle custom struct types
+            extract_custom_payload(context, binding_var, payload_bytes, type_name, e)
+        },
+        _ => Err(e.error("eval", &format!("Unsupported payload type: {:?}", payload_type)))
+    }
+}
+#+END_SRC
+
+*** Affected Files
+- interpreter.rs: Multiple locations in eval_switch and eval_catch
+- ext.rs: rsonly_enum_extract_payload function
+
+*** Estimated Savings
+Significant consolidation of complex payload handling (100+ lines)
+
+*** Implementation Notes
+This is a substantial refactoring task requiring:
+- Careful analysis of existing enum payload extraction patterns across switch statements and catch blocks
+- Complex byte array manipulation and type conversion logic
+- Integration with the arena memory model
+- Handling of nested enum types and custom struct payloads
+- Extensive testing due to the critical nature of payload extraction
+
+Given the complexity, this task should be tackled in a dedicated session with sufficient context budget. The refactoring involves restructuring core interpreter functionality that handles runtime enum value extraction, which requires careful attention to edge cases and error handling.
+
+** TODO DRY #19: Boolean Condition Type Checking                        :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: 2 locations in typer.rs
+:EFFORT: 1 hour
+:LOCATIONS: typer.rs lines 183-192 (if), 223-232 (while)
+:BENEFIT: Code consistency
+:END:
+
+*** Description
+Checking if first parameter is Bool type is duplicated between if and while statement type checking.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated for if and while:
+let inner_e = e.get(0)?;
+let value_type = get_value_type(context, inner_e)?;
+
+let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
+
+if !is_bool {
+    return Err(vec![inner_e.error("type", &format!(
+        "'if' can only accept a bool condition first, found {:?}.",
+        inner_e.node_type
+    ))]);
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+fn validate_bool_condition(
+    context: &Context,
+    e: &Expr,
+    stmt_type: &str
+) -> Result<(), Vec<String>> {
+    let inner_e = e.get(0)?;
+    let value_type = get_value_type(context, inner_e)?;
+
+    let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
+
+    if !is_bool {
+        return Err(vec![inner_e.error("type", &format!(
+            "'{}' can only accept a bool condition first, found {:?}.",
+            stmt_type, inner_e.node_type
+        ))]);
+    }
+    Ok(())
+}
+
+// Usage:
+validate_bool_condition(context, e, "if")?;
+validate_bool_condition(context, e, "while")?;
+#+END_SRC
+
+*** Affected Files
+- typer.rs: 2 locations
+
+*** Estimated Savings
+~15 lines (improves consistency)
+
+** TODO DRY #20: Context Symbol Lookup with Type Validation             :LOW:
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:IMPACT: ~10 locations across init.rs, typer.rs, interpreter.rs
+:EFFORT: 2 hours
+:LOCATIONS: init.rs lines 380-405, 891-894; typer.rs lines 135-137, 760-764; interpreter.rs lines 1001-1004, 1588-1590
+:BENEFIT: Safer symbol access
+:END:
+
+*** Description
+Getting symbols from context and validating they match expected types involves repetitive lookup and error handling patterns.
+
+*** Current Pattern
+#+BEGIN_SRC rust
+// Repeated pattern:
+let symbol = context.symbols.get(name)
+    .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
+
+if symbol.value_type != expected_type {
+    return Err(e.error("type", &format!(
+        "Expected type {}, found {}",
+        value_type_to_str(&expected_type),
+        value_type_to_str(&symbol.value_type)
+    )));
+}
+#+END_SRC
+
+*** Proposed Refactoring
+#+BEGIN_SRC rust
+impl Context {
+    fn get_symbol_of_type(
+        &self,
+        name: &str,
+        expected_type: &ValueType,
+        e: &Expr
+    ) -> Result<&SymbolInfo, String> {
+        let symbol = self.symbols.get(name)
+            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
+
+        if &symbol.value_type != expected_type {
+            return Err(e.error("type", &format!(
+                "Expected type {}, found {}",
+                value_type_to_str(expected_type),
+                value_type_to_str(&symbol.value_type)
+            )));
+        }
+
+        Ok(symbol)
+    }
+
+    fn require_symbol(&self, name: &str, e: &Expr) -> Result<&SymbolInfo, String> {
+        self.symbols.get(name)
+            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))
+    }
+}
+
+// Usage:
+let symbol = context.get_symbol_of_type(name, &expected_type, e)?;
+let any_symbol = context.require_symbol(name, e)?;
+#+END_SRC
+
+*** Affected Files
+- init.rs: 3+ locations
+- typer.rs: 4+ locations
+- interpreter.rs: 3+ locations
+
+*** Estimated Savings
+~30 lines of repetitive lookup code
 
 ** FIXED DRY #14: Type Insertion Pattern                                :MEDIUM:
 :PROPERTIES:
@@ -348,219 +578,6 @@ let member_decl = struct_def.get_member_or_err(member_name, struct_name, e)?;
 
 *** Estimated Savings
 ~45 lines of lookup boilerplate
-
-** DRY #17: Enum Payload Extraction Pattern                       :MEDIUM:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: Major duplication in interpreter.rs and ext.rs
-:EFFORT: 4-5 hours
-:LOCATIONS: interpreter.rs lines 165-247, 248-356, 509-664; ext.rs lines 491-606
-:BENEFIT: Consolidate complex payload handling logic
-:END:
-
-*** Description
-Extracting and handling enum payload data involves repetitive type matching and byte extraction across switch statements and catch blocks.
-
-*** Current Pattern
-#+BEGIN_SRC rust
-// Repeated in switch cases and catch blocks:
-match payload_type {
-    ValueType::TCustom(type_name) if type_name == "Bool" => {
-        let bool_val = payload_bytes[0] != 0;
-        context.insert_bool(binding_var, &bool_val.to_string(), e)?;
-    },
-    ValueType::TCustom(type_name) if type_name == "I64" => {
-        let i64_bytes: [u8; 8] = payload_bytes[..8].try_into().unwrap();
-        let i64_val = i64::from_le_bytes(i64_bytes);
-        context.insert_i64(binding_var, &i64_val.to_string(), e)?;
-    },
-    ValueType::TCustom(type_name) if type_name == "Str" => {
-        // ... complex string extraction
-    },
-    // ... many more cases
-}
-#+END_SRC
-
-*** Proposed Refactoring
-#+BEGIN_SRC rust
-fn extract_enum_payload(
-    context: &mut Context,
-    binding_var: &str,
-    payload_bytes: &[u8],
-    payload_type: &ValueType,
-    e: &Expr
-) -> Result<(), String> {
-    match payload_type {
-        ValueType::TCustom(type_name) if type_name == "Bool" => {
-            let bool_val = payload_bytes[0] != 0;
-            context.insert_bool(binding_var, &bool_val.to_string(), e)
-        },
-        ValueType::TCustom(type_name) if type_name == "I64" => {
-            let i64_bytes: [u8; 8] = payload_bytes[..8].try_into()
-                .map_err(|_| e.error("eval", "Invalid I64 payload bytes"))?;
-            let i64_val = i64::from_le_bytes(i64_bytes);
-            context.insert_i64(binding_var, &i64_val.to_string(), e)
-        },
-        ValueType::TCustom(type_name) if type_name == "Str" => {
-            // Consolidated string extraction
-            extract_string_payload(context, binding_var, payload_bytes, e)
-        },
-        ValueType::TCustom(type_name) => {
-            // Handle custom struct types
-            extract_custom_payload(context, binding_var, payload_bytes, type_name, e)
-        },
-        _ => Err(e.error("eval", &format!("Unsupported payload type: {:?}", payload_type)))
-    }
-}
-#+END_SRC
-
-*** Affected Files
-- interpreter.rs: Multiple locations in eval_switch and eval_catch
-- ext.rs: rsonly_enum_extract_payload function
-
-*** Estimated Savings
-Significant consolidation of complex payload handling (100+ lines)
-
-*** Implementation Notes
-This is a substantial refactoring task requiring:
-- Careful analysis of existing enum payload extraction patterns across switch statements and catch blocks
-- Complex byte array manipulation and type conversion logic
-- Integration with the arena memory model
-- Handling of nested enum types and custom struct payloads
-- Extensive testing due to the critical nature of payload extraction
-
-Given the complexity, this task should be tackled in a dedicated session with sufficient context budget. The refactoring involves restructuring core interpreter functionality that handles runtime enum value extraction, which requires careful attention to edge cases and error handling.
-
-** DRY #19: Boolean Condition Type Checking                         :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: 2 locations in typer.rs
-:EFFORT: 1 hour
-:LOCATIONS: typer.rs lines 183-192 (if), 223-232 (while)
-:BENEFIT: Code consistency
-:END:
-
-*** Description
-Checking if first parameter is Bool type is duplicated between if and while statement type checking.
-
-*** Current Pattern
-#+BEGIN_SRC rust
-// Repeated for if and while:
-let inner_e = e.get(0)?;
-let value_type = get_value_type(context, inner_e)?;
-
-let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
-
-if !is_bool {
-    return Err(vec![inner_e.error("type", &format!(
-        "'if' can only accept a bool condition first, found {:?}.",
-        inner_e.node_type
-    ))]);
-}
-#+END_SRC
-
-*** Proposed Refactoring
-#+BEGIN_SRC rust
-fn validate_bool_condition(
-    context: &Context,
-    e: &Expr,
-    stmt_type: &str
-) -> Result<(), Vec<String>> {
-    let inner_e = e.get(0)?;
-    let value_type = get_value_type(context, inner_e)?;
-
-    let is_bool = matches!(value_type, ValueType::TCustom(type_name) if type_name == "Bool");
-
-    if !is_bool {
-        return Err(vec![inner_e.error("type", &format!(
-            "'{}' can only accept a bool condition first, found {:?}.",
-            stmt_type, inner_e.node_type
-        ))]);
-    }
-    Ok(())
-}
-
-// Usage:
-validate_bool_condition(context, e, "if")?;
-validate_bool_condition(context, e, "while")?;
-#+END_SRC
-
-*** Affected Files
-- typer.rs: 2 locations
-
-*** Estimated Savings
-~15 lines (improves consistency)
-
-** DRY #20: Context Symbol Lookup with Type Validation              :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: ~10 locations across init.rs, typer.rs, interpreter.rs
-:EFFORT: 2 hours
-:LOCATIONS: init.rs lines 380-405, 891-894; typer.rs lines 135-137, 760-764; interpreter.rs lines 1001-1004, 1588-1590
-:BENEFIT: Safer symbol access
-:END:
-
-*** Description
-Getting symbols from context and validating they match expected types involves repetitive lookup and error handling patterns.
-
-*** Current Pattern
-#+BEGIN_SRC rust
-// Repeated pattern:
-let symbol = context.symbols.get(name)
-    .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
-
-if symbol.value_type != expected_type {
-    return Err(e.error("type", &format!(
-        "Expected type {}, found {}",
-        value_type_to_str(&expected_type),
-        value_type_to_str(&symbol.value_type)
-    )));
-}
-#+END_SRC
-
-*** Proposed Refactoring
-#+BEGIN_SRC rust
-impl Context {
-    fn get_symbol_of_type(
-        &self,
-        name: &str,
-        expected_type: &ValueType,
-        e: &Expr
-    ) -> Result<&SymbolInfo, String> {
-        let symbol = self.symbols.get(name)
-            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))?;
-
-        if &symbol.value_type != expected_type {
-            return Err(e.error("type", &format!(
-                "Expected type {}, found {}",
-                value_type_to_str(expected_type),
-                value_type_to_str(&symbol.value_type)
-            )));
-        }
-
-        Ok(symbol)
-    }
-
-    fn require_symbol(&self, name: &str, e: &Expr) -> Result<&SymbolInfo, String> {
-        self.symbols.get(name)
-            .ok_or_else(|| e.error("type", &format!("Undefined symbol '{}'", name)))
-    }
-}
-
-// Usage:
-let symbol = context.get_symbol_of_type(name, &expected_type, e)?;
-let any_symbol = context.require_symbol(name, e)?;
-#+END_SRC
-
-*** Affected Files
-- init.rs: 3+ locations
-- typer.rs: 4+ locations
-- interpreter.rs: 3+ locations
-
-*** Estimated Savings
-~30 lines of repetitive lookup code
-
-* Fixed DRY Refactorings
 
 ** FIXED DRY #18: Conditional Parameter Validation
 :PROPERTIES:

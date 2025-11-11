@@ -11,6 +11,17 @@ use crate::rs::ext;
 // This module handles the eval phase that runs after type checking.
 // Manages arena, memory allocation, and actual program execution.
 
+/// Macro to evaluate an expression and propagate throws early
+macro_rules! eval_or_throw {
+    ($context:expr, $expr:expr) => {{
+        let result = eval_expr($context, $expr)?;
+        if result.is_throw {
+            return Ok(result);
+        }
+        result.value
+    }};
+}
+
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 
 pub struct Arena {
