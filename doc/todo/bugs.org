@@ -167,35 +167,35 @@ Option 4: Use context.path consistently (Recommended)
 
 Bugs #1-#8 have been fixed and their tests integrated into the regular test suite (=enums.til=, =flow.til=, =arithmetics.til=, =return_value_usage.til=).
 
-* Bug #1: Enum Comparison in Switch/Case
+** Bug #1: Enum Comparison in Switch/Case
 
 - *Status*: ❌ NOT PRESENT - Type system prevents this issue
 - *Workaround*: Commit 46a00bc (string comparison)
 
-* Bug #2: Return Statement Stack Frame Handling
+** Bug #2: Return Statement Stack Frame Handling
 
 - *Status*: ❌ NOT PRESENT - All nested return tests pass
 - *Workaround*: Commit 46a00bc (function inlining)
 
-* Bug #3: Nested Enum Payloads
+** Bug #3: Nested Enum Payloads
 
 - *Status*: ✅ FIXED - Direct nested enum construction works
 - *Fix*: interpreter.rs:607-633 (recursive enum constructor evaluation)
 - *Commit*: b75c886
 
-* Bug #4: Enum Payload Copy
+** Bug #4: Enum Payload Copy
 
 - *Status*: ✅ FIXED - Payloads preserved when copying between variables
 - *Fix*: interpreter.rs:1125-1135, 1214-1224 (temp_enum_payload handling)
 - *Commit*: 6b1702a
 
-* Bug #5: rsonly_enum_extract_payload Function
+** Bug #5: rsonly_enum_extract_payload Function
 
 - *Status*: ✅ FIXED - All payload types (I64, Str, Struct, Nested) work
 - *Fix*: interpreter.rs:2346 (map_instance_fields for struct payloads)
 - *Commit*: 4676a6b
 
-* Bug #6: Enum Payloads Lost in Struct-to-Struct Copy
+** Bug #6: Enum Payloads Lost in Struct-to-Struct Copy
 
 - *Status*: ✅ FIXED - Enum fields now reserve maximum variant size
 - *Symptom*: When copying a struct that contains enum fields with payloads, the payloads were lost or corrupted
@@ -206,7 +206,7 @@ Bugs #1-#8 have been fixed and their tests integrated into the regular test suit
 - *Discovery*: 2025-01-09 during test_parser.til investigation
 - *Fixed*: 2025-01-09
 
-* Bug #7: Enum Return Value Handling
+** Bug #7: Enum Return Value Handling
 
 - *Status*: ✅ FIXED - Functions can now return enums with payloads correctly
 - *Symptom*: When a function returned an enum value (especially with enum payloads), the payload data was lost, causing "range end index out of bounds" errors or incorrect values
@@ -220,24 +220,17 @@ Bugs #1-#8 have been fixed and their tests integrated into the regular test suit
 - *Fixed*: 2025-01-10
 - *Commit*: 05dd5c9
 
-* Division/Modulo by Zero
-
-- *Status*: ✅ FIXED - Returns 0 instead of panicking (safe default)
-- *Fix*: interpreter.rs (zero checks in div/mod operations)
-- *Commit*: 576a7fe
-- *Note*: Users can implement custom error handling with throw/catch if needed
-
-* Bug #8: Uncaptured Return Values Propagate Up Call Stack
+** Bug #8: Uncaptured Return Values Propagate Up Call Stack
 
 - *Status*: ✅ FIXED - Compile-time enforcement of return value usage
 - *Discovery*: 2025-11-10 during parser.til investigation
 - *Fixed*: 2025-11-10 with type checker enhancements
 - *Commit*: [current]
 
-*** Problem
+**** Problem
 When you call a function or method that returns a value but DON'T capture the return value, it causes the calling function to return early with that function/method's return value. This affects BOTH methods AND standalone functions.
 
-*** Original Behavior
+**** Original Behavior
 ```til
 parse_func_proc_args := func(mut lexer: Lexer) returns Array {
     println("[DEBUG 1] Before expect")     // ✅ Prints
@@ -248,20 +241,20 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array {
 
 The uncaptured return value would propagate up the call stack, causing mysterious early returns.
 
-*** Solution
+**** Solution
 Rather than fixing the runtime propagation behavior, we implemented **compile-time enforcement** that requires return values to be explicitly used or discarded. This is a better approach because:
 1. Catches errors at compile time instead of runtime
 2. Makes code intent explicit
 3. Follows best practices from Rust (#[must_use]), Swift (@discardableResult), etc.
 
-*** Implementation
+**** Implementation
 Added context tracking to the type checker (typer.rs):
 - Created =ExprContext= enum (ValueUsed vs ValueDiscarded)
 - Modified =check_types_with_context()= to propagate context through type checking
 - Added =check_fcall_return_usage()= to validate return value handling
 - Updated all helper functions to pass appropriate contexts
 
-*** Type Checking Rules
+**** Type Checking Rules
 - **ValueUsed contexts**: Variable declarations, assignments, function arguments, return/throw statements
 - **ValueDiscarded contexts**: Top-level statements in function bodies, if/while/switch/catch bodies
 
@@ -271,7 +264,7 @@ type ERROR: Function 'func_name' returns a value that is not being used.
 Hint: Capture the return value with '_ := func_name(...)' or use it in an expression.
 ```
 
-*** Valid Code Patterns
+**** Valid Code Patterns
 ```til
 // ✅ Capture the return value
 result := my_add(1, 2)
@@ -289,12 +282,12 @@ print_hello()
 my_add(1, 2)
 ```
 
-*** Files Modified
+**** Files Modified
 - =src/rs/typer.rs=: Added ExprContext tracking and return value usage checking
 - =src/test/errors.til=: Fixed one instance of uncaptured return value
 - =src/test/return_value_usage.til=: Created comprehensive test suite
 
-*** Tests
+**** Tests
 All existing tests pass. New test file demonstrates:
 1. Return values captured in declarations work
 2. Return values used as arguments work
@@ -302,7 +295,7 @@ All existing tests pass. New test file demonstrates:
 4. Procs without return values work
 5. Uncaptured return values produce helpful compile errors
 
-*** Design Decision
+**** Design Decision
 This decision was made to:
 1. Fix Bug #8 at compile time instead of runtime
 2. Make TIL code more explicit and safer
@@ -310,6 +303,13 @@ This decision was made to:
 4. Prevent subtle bugs from uncaptured return values
 
 After self-hosting is complete, we may reconsider whether to relax this requirement for certain cases, but the explicit approach is the safer default.
+
+** Division/Modulo by Zero
+
+- *Status*: ✅ FIXED - Returns 0 instead of panicking (safe default)
+- *Fix*: interpreter.rs (zero checks in div/mod operations)
+- *Commit*: 576a7fe
+- *Note*: Users can implement custom error handling with throw/catch if needed
 
 * Summary
 
