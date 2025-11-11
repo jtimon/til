@@ -312,7 +312,7 @@ U8 := struct {
     }
 
     eq := func(self: U8, other: U8) returns Bool {
-        return I64.eq(U8.to_i64(self), U8.to_i64(other))
+        return U8.to_i64(self).eq(U8.to_i64(other))
     }
 
     to_i64 := func(self: U8) returns I64 {
@@ -399,7 +399,7 @@ Str := struct {
     }
 
     eq := func(self: Str, other: Str) returns Bool {
-        if not(I64.eq(self.cap, other.cap)) {
+        if not(self.cap.eq(other.cap)) {
             return false
         }
 
@@ -567,7 +567,7 @@ Vec := struct {
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
 
-        if I64.eq(self.len, self.cap) {
+        if self.len.eq(self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Vec.MAX_CAP) {
                 throw FullError.new(format(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP"))
@@ -695,7 +695,7 @@ Map := struct {
         // Key doesn't exist - add it
         // Workaround for bug: pushing Dynamic parameters doesn't work
         // Instead, manually grow the array and memcpy directly
-        if I64.eq(keys_arr.len, keys_arr.cap) {
+        if keys_arr.len.eq(keys_arr.cap) {
             // Need to grow
             mut new_cap := mul(keys_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
@@ -712,7 +712,7 @@ Map := struct {
 
         // Same workaround for values
         mut values_arr := self.values
-        if I64.eq(values_arr.len, values_arr.cap) {
+        if values_arr.len.eq(values_arr.cap) {
             mut new_cap := mul(values_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
             memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
@@ -766,7 +766,7 @@ Map := struct {
         }
 
         // Key not found - insert new entry (use same workaround as insert())
-        if I64.eq(keys_arr.len, keys_arr.cap) {
+        if keys_arr.len.eq(keys_arr.cap) {
             mut new_cap := mul(keys_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
             memcpy(new_ptr, keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
@@ -780,7 +780,7 @@ Map := struct {
         self.keys = keys_arr
 
         mut values_arr := self.values
-        if I64.eq(values_arr.len, values_arr.cap) {
+        if values_arr.len.eq(values_arr.cap) {
             mut new_cap := mul(values_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
             memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
