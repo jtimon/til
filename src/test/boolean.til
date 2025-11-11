@@ -78,7 +78,7 @@ test(loc(), Bool.eq(false, false), "false BOOL.eq false = true")
 // Test Bool.to_str()
 aaa := true
 test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
-test(loc(), Str.eq("true", Bool.to_str(aaa)), "'true' = Bool.to_str(true)")
+test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)")
 test(loc(), Str.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
 test(loc(), Str.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")
-test(loc(), Str.eq("false", Bool.to_str(and(false, false))), "'false' = Bool.to_str(and(false, false)))")
+test(loc(), Str.eq("false", and(false, false).to_str()), "'false' = Bool.to_str(and(false, false)))")
