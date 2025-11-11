@@ -3,7 +3,7 @@
 
 use crate::rs::init::Context;
 use crate::rs::parser::{
-    Expr, NodeType, Literal,
+    Expr, NodeType, Literal, ValueType,
     get_combined_name,
 };
 use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
@@ -236,7 +236,26 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     let type_expr = e.get(1)?;
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
-            match context.get_type_size(type_name) {
+            // Check if this identifier is a string variable (Dynamic parameter storing a type name)
+            let actual_type_name = if let Some(sym) = context.symbols.get(type_name) {
+                if let ValueType::TCustom(ref custom_type) = sym.value_type {
+                    if custom_type == "Str" {
+                        // This might be a Dynamic parameter - try to get its string value
+                        match context.get_string(type_name, e) {
+                            Ok(stored_type_name) => stored_type_name,
+                            Err(_) => type_name.to_string(),
+                        }
+                    } else {
+                        type_name.to_string()
+                    }
+                } else {
+                    type_name.to_string()
+                }
+            } else {
+                type_name.to_string()
+            };
+
+            match context.get_type_size(&actual_type_name) {
                 Ok(size) => Ok(EvalResult::new(&format!("{}", size))),
                 Err(msg) => Err(e.lang_error("eval", &format!("calling core func size: {}", msg))),
             }
@@ -246,13 +265,32 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     }
 }
 
-pub fn func_type_as_str(_context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(e, "type_as_str", 1, false)?;
 
     let type_expr = e.get(1)?;
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
-            Ok(EvalResult::new(&format!("{}", type_name)))
+            // Check if this identifier is a string variable (Dynamic parameter storing a type name)
+            let actual_type_name = if let Some(sym) = context.symbols.get(type_name) {
+                if let ValueType::TCustom(ref custom_type) = sym.value_type {
+                    if custom_type == "Str" {
+                        // This might be a Dynamic parameter - try to get its string value
+                        match context.get_string(type_name, e) {
+                            Ok(stored_type_name) => stored_type_name,
+                            Err(_) => type_name.to_string(),
+                        }
+                    } else {
+                        type_name.to_string()
+                    }
+                } else {
+                    type_name.to_string()
+                }
+            } else {
+                type_name.to_string()
+            };
+
+            Ok(EvalResult::new(&actual_type_name))
         },
         node_type => Err(e.lang_error("eval", &format!("calling core func type_as_str, but found '{:?}' instead of identifier.",
                                                        node_type))),

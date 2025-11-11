@@ -1456,6 +1456,27 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
 
+                // Special handling for Dynamic parameters: don't evaluate, just copy the value
+                // When a type like I64, U8, Str is passed to a Dynamic parameter,
+                // store the type name as a string so size_of(T) and type_as_str(T) can use it
+                if custom_type_name == "Dynamic" {
+                    if let NodeType::Identifier(id_name) = &current_arg.node_type {
+                        if let Some(sym) = context.symbols.get(id_name) {
+                            if let ValueType::TType(_) = &sym.value_type {
+                                // This is a type identifier - store the type name as a string
+                                function_context.symbols.insert(arg.name.clone(), SymbolInfo {
+                                    value_type: ValueType::TCustom("Str".to_string()),
+                                    is_mut: false,
+                                });
+                                function_context.insert_string(&arg.name, id_name, e)?;
+                                param_index += 1;
+                                continue; // Skip eval_expr for this parameter
+                            }
+                        }
+                    }
+                    // If it's not a type identifier, fall through to normal evaluation
+                }
+
                 // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
                 let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
                     if let Some(sym) = context.symbols.get(id_name) {
