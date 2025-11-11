@@ -8,6 +8,73 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #22: Dynamic Type Parameters Not Working in User Functions :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-11-11
+:FIXED: 2025-11-11
+:IMPACT: API ergonomics, collection constructors
+:STATUS: Fixed
+:COMMIT: 2138e15
+:END:
+
+*** Description
+When type identifiers (I64, U8, Str, etc.) were passed as Dynamic parameters to user-defined functions, the interpreter tried to evaluate them as expressions, causing "Expr index 0 out of bounds" errors.
+
+This prevented the desired ergonomic API for collection constructors:
+#+BEGIN_EXAMPLE
+Array.new(U8, 3)      // DESIRED - clean and simple
+Array.new("U8", size_of(U8), 3)  // OLD - verbose and redundant
+#+END_EXAMPLE
+
+*** Example Error
+#+BEGIN_EXAMPLE
+ERROR: While running file src/test/tmp/test_array_new.til:
+src/test/tmp/test_array_new.til:9:26: rstil assert ERROR: Expr index 0 out of bounds (len: 0).
+Explanation: This should never happen, this is a bug in the language.
+#+END_EXAMPLE
+
+*** Root Cause
+The interpreter was attempting to evaluate all arguments before passing them to user-defined functions (line 1492 in interpreter.rs). When a type identifier like `I64` was encountered, it tried to evaluate it as a struct constructor, which expected parameters (e.g., `I64()`), but the bare identifier had no parameters, causing the "index 0 out of bounds" error.
+
+The key difference:
+- **Values** (like `42`, `"hello"`) can be evaluated
+- **Type identifiers** (like `I64`, `U8`) should NOT be evaluated when passed to Dynamic parameters
+
+*** Solution (2025-11-11)
+Fixed in commit 2138e15 with a three-part approach:
+
+1. **Skip evaluation** (src/rs/interpreter.rs:1459-1478):
+   When a type identifier is passed to a Dynamic parameter, detect it and skip the eval_expr() call entirely.
+
+2. **Store type name as string** (src/rs/interpreter.rs:1467-1471):
+   Store the type name (e.g., "U8") as a string value for the parameter name (e.g., "T").
+
+3. **Resolve in introspection functions** (src/rs/ext.rs:239-256, 274-291):
+   Modified size_of() and type_as_str() to check if the identifier is a string variable (Dynamic parameter), and if so, use that string value to look up the type.
+
+*** Now Works
+#+BEGIN_SRC til
+// Clean API for all collection constructors
+mut arr := Array.new(U8, 3)
+mut vec := Vec.new(I64)
+mut map := Map.new(Str, I64)
+mut ptr := Ptr.new(I64)
+
+// Inside the constructor, introspection works correctly
+new := proc(T: Dynamic, capacity: I64) returns Array throws AllocError {
+    mut arr := Array()
+    arr.type_name = type_as_str(T)  // Returns "U8"
+    arr.type_size = size_of(T)       // Returns 1
+    // ...
+}
+#+END_SRC
+
+*** Impact
+This enables the planned refactor to simplify all collection constructor APIs across the codebase (124 call sites: 15 Array, 73 Vec, 36 Map).
+
+*** Related
+See doc/todo/pre.org item #21 for the API refactor plan.
+
 ** Bug #11: Cannot Access String Fields in Caught Error Structs :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-11
