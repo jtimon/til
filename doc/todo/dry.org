@@ -73,68 +73,6 @@ return Err(e.eval_error(&format!("Core func '{}' not implemented.", name)));
 *** Estimated Savings
 100-200 lines of repetitive formatting code
 
-** DRY #12: Argument Count Validation in ext.rs                     :HIGH:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: 30+ functions in ext.rs
-:EFFORT: 2-3 hours
-:LOCATIONS: ext.rs lines 17-20, 30-33, 56-59, 70-73, 123-126, 172-175, etc.
-:BENEFIT: Eliminate ~90 lines, centralize validation logic
-:END:
-
-*** Description
-Every external function in ext.rs duplicates the same argument count validation pattern, checking =e.params.len()= and returning identical error messages.
-
-*** Current Pattern
-#+BEGIN_SRC rust
-// Repeated in 30+ functions:
-if e.params.len() != 2 {
-    return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
-}
-
-if e.params.len() != 3 {
-    return Err(e.lang_error("eval", "Core func 'add' takes exactly 2 arguments"))
-}
-
-if e.params.len() != 4 {
-    return Err(e.lang_error("eval", "Core proc 'memcpy' takes exactly 3 arguments"))
-}
-#+END_SRC
-
-*** Proposed Refactoring
-#+BEGIN_SRC rust
-// Add helper function at top of ext.rs:
-fn validate_arg_count(e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
-    let actual = e.params.len() - 1; // First param is function name
-    if actual != expected {
-        let func_type = if is_proc { "proc" } else { "func" };
-        let plural = if expected == 1 { "" } else { "s" };
-        return Err(e.lang_error("eval", &format!(
-            "Core {} '{}' takes exactly {} argument{}",
-            func_type, func_name, expected, plural
-        )));
-    }
-    Ok(())
-}
-
-// Usage in every ext function:
-pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(e, "malloc", 1, false)?;
-    // ... rest of implementation
-}
-
-pub fn proc_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(e, "memcpy", 3, true)?;
-    // ... rest of implementation
-}
-#+END_SRC
-
-*** Affected Files
-- ext.rs: 30+ function definitions
-
-*** Estimated Savings
-~90 lines (3 lines reduced to 1 in each function)
-
 ** DRY #13: Eval + Throw Propagation Pattern                        :HIGH:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
@@ -691,12 +629,12 @@ validate_arg_count(e, "malloc", 1, false)?;
 
 | Priority | Count | Estimated Total Effort | Estimated Savings |
 |----------+-------+------------------------+-------------------|
-| HIGH     |     3 | 9-13 hours             | 340-440 lines     |
+| HIGH     |     2 | 7-10 hours             | 250-350 lines     |
 | MEDIUM   |     4 | 10-14 hours            | 235+ lines        |
 | LOW      |     2 | 3 hours                | ~45 lines         |
 |----------+-------+------------------------+-------------------|
-| TOTAL    |     9 | 22-30 hours            | 620-720 lines     |
-| FIXED    |     3 | 5 hours                | 47 lines          |
+| TOTAL    |     8 | 20-27 hours            | 530-630 lines     |
+| FIXED    |     4 | 7 hours                | 91 lines          |
 
 * Notes
 
