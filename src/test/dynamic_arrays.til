@@ -1,7 +1,7 @@
 mode test
 
 test_vec_u8 := proc() {
-    mut dyn := Vec.new("U8", size_of(U8))
+    mut dyn := Vec.new(U8)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
@@ -50,7 +50,7 @@ test_vec_u8 := proc() {
 test_vec_u8()
 
 test_vec_str := proc() {
-    mut dyn := Vec.new("Str", size_of(Str))
+    mut dyn := Vec.new(Str)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
@@ -108,7 +108,7 @@ test_vec_str := proc() {
 test_vec_str()
 
 test_vec_bool := proc() {
-    mut dyn := Vec.new("Bool", size_of(Bool))
+    mut dyn := Vec.new(Bool)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
@@ -152,7 +152,7 @@ test_vec_bool := proc() {
 test_vec_bool()
 
 test_vec_i64 := proc() {
-    mut dyn := Vec.new("I64", size_of(I64))
+    mut dyn := Vec.new(I64)
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
@@ -208,7 +208,7 @@ Vec2 := struct {
 }
 
 test_vec_vec2 := proc() {
-    mut dyn := Vec.new("Vec2", size_of(Vec2)) // TODO More ergonomic constructor
+    mut dyn := Vec.new(Vec2) // TODO More ergonomic constructor
     assert_eq(loc(), 0, dyn.len)
 
     v1 := Vec2.new(10, 20)
@@ -257,7 +257,7 @@ test_vec_vec2()
 
 // Test Array growth/reallocation beyond initial capacity
 test_vec_growth := proc() {
-    mut dyn := Vec.new("I64", size_of(I64))
+    mut dyn := Vec.new(I64)
 
     initial_cap := dyn.cap
     test(loc(), initial_cap.eq(Vec.INIT_CAP), "Initial capacity should be INIT_DYN_CAP")
@@ -303,7 +303,7 @@ test_vec_growth()
 
 // Test IndexOutOfBoundsError for get
 test_vec_get_out_of_bounds := proc() {
-    mut arr := Vec.new("I64", size_of(I64))
+    mut arr := Vec.new(I64)
 
     arr.push(42)
     arr.push(84)
@@ -335,7 +335,7 @@ test_vec_get_out_of_bounds()
 
 // Test IndexOutOfBoundsError for set
 test_vec_set_out_of_bounds := proc() {
-    mut arr := Vec.new("I64", size_of(I64))
+    mut arr := Vec.new(I64)
 
     arr.push(42)
 

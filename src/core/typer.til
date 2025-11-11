@@ -9,7 +9,7 @@ import("src/core/init")
 // Returns array of error strings (empty if success)
 // Corresponds to check_types in typer.rs
 check_types := proc(mut context: Context, e: Expr) returns Array throws Str, AllocError, IndexOutOfBoundsError {
-    mut errors := Vec.new("Str", size_of(Str))
+    mut errors := Vec.new(Str)
 
     // Match on node type
     switch e.node_type {

@@ -14,7 +14,7 @@ Arena := struct {
     // Create new arena
     new := proc() returns Arena throws AllocError {
         mut a := Arena()
-        a.memory = Vec.new("U8", size_of(U8))
+        a.memory = Vec.new(U8)
         a.next_offset = 1  // Reserve 0 as invalid/NULL
         return a
     }

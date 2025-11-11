@@ -179,7 +179,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
 }
 
 scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
-    mut tokens := Vec.new("Token", size_of(Token))
+    mut tokens := Vec.new(Token)
 
     eof_pos := source.len()
     mut pos := 0
@@ -467,7 +467,7 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
 /** An interface for the Lexer */
 Lexer := struct {
     mut path: Str = ""
-    mut tokens: Vec = Vec.new("Token", size_of(Token))
+    mut tokens: Vec = Vec.new(Token)
     mut current: I64 = 0
 
     new := proc(path: Str) returns Lexer throws Str {

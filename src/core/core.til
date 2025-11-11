@@ -549,9 +549,22 @@ Vec := struct {
     INIT_CAP : I64 = 16
     MAX_CAP  : I64 = 1024
 
-    new := proc(T_str: Str, type_size: I64) returns Vec throws AllocError {
+    new := proc(T: Dynamic) returns Vec throws AllocError {
         mut vec := Vec()
-        vec.type_name = T_str
+        vec.type_name = type_as_str(T)
+        vec.type_size = size_of(T)
+        size_bytes := mul(Vec.INIT_CAP, vec.type_size)
+        vec.ptr = malloc(size_bytes)
+        vec.len = 0
+        vec.cap = Vec.INIT_CAP
+        return vec
+    }
+
+    // Helper for cases where type name is a string variable (e.g., in Map.new)
+    // TODO: Remove this once Map.new is refactored to use Dynamic parameters
+    new_by_name := proc(type_name: Str, type_size: I64) returns Vec throws AllocError {
+        mut vec := Vec()
+        vec.type_name = type_name
         vec.type_size = type_size
         size_bytes := mul(Vec.INIT_CAP, vec.type_size)
         vec.ptr = malloc(size_bytes)
@@ -649,8 +662,8 @@ Map := struct {
         m.key_type_size = key_size
         m.value_type_name = value_type
         m.value_type_size = value_size
-        m.keys = Vec.new(key_type, key_size)
-        m.values = Vec.new(value_type, value_size)
+        m.keys = Vec.new_by_name(key_type, key_size)
+        m.values = Vec.new_by_name(value_type, value_size)
         m.size = 0
         return m
     }
@@ -937,8 +950,8 @@ List := struct {
         }
 
         list.len = 0
-        list.type_names = Vec.new("Str", size_of(Str))
-        list.type_sizes = Vec.new("I64", size_of(I64))
+        list.type_names = Vec.new(Str)
+        list.type_sizes = Vec.new(I64)
 
         return list
     }

@@ -1530,7 +1530,7 @@ str_to_value_type := proc(s: Str) returns ValueType throws Str, IndexOutOfBounds
     // Handle TMulti
     if s.contains("ValueType.TMulti") {
         // Simplified - just return empty TMulti
-        mut empty_arr := Vec.new("Str", size_of(Str))
+        mut empty_arr := Vec.new(Str)
         return ValueType.TMulti(empty_arr)
     }
 
@@ -1934,7 +1934,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path: Str
 // Returns array of error strings (empty if success)
 // Corresponds to init_context in init.rs
 init_context := proc(mut context: Context, e: Expr) returns Array throws Str, AllocError, IndexOutOfBoundsError {
-    mut errors := Vec.new("Str", size_of(Str))
+    mut errors := Vec.new(Str)
 
     // Match on node type
     switch e.node_type {

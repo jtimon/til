@@ -27,7 +27,7 @@ test_mut_struct := proc() {
 test_mut_struct()
 
 test_mut_array := proc() {
-    mut arr := Vec.new("I64", size_of(I64))
+    mut arr := Vec.new(I64)
 
     assert_eq(loc(), 0, arr.len)
     assert_eq(loc(), 16, arr.cap)
