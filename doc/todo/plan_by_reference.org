@@ -1,0 +1,160 @@
+#+TITLE: Plan: Implement Const Parameters by Reference
+#+AUTHOR: TIL Development Team
+#+DATE: 2025-11-11
+
+* Goal
+
+Change const (non-mut) parameters from copy-based to reference-based implementation for structs and primitives.
+
+* Implementation Strategy
+
+** Phase 1: Const Struct Parameters by Reference
+
+*** Modify eval_user_func_proc_call() in interpreter.rs (lines 1615-1700)
+- Replace current logic: insert_struct() + copy_fields() for const params
+- New logic: Share arena offset directly (like mut write-back does)
+- Get source offset from caller context
+- Insert offset into function_context.arena_index
+- Call map_instance_fields() to register field offsets
+
+** Phase 2: Const Primitive Parameters by Reference
+
+*** Modify primitive handling in interpreter.rs (lines 1593-1604)
+- Replace: insert_i64(), insert_bool(), etc. (which allocate new arena space)
+- New: Share arena offset from caller context
+- For literals: Still need arena allocation (caller evaluates these)
+
+** Phase 3: Type Checker Enforcement (CRITICAL)
+
+*** Add immutability checking in typer.rs
+- Prevent assignment to const parameters
+- Track which symbols are mut vs const
+- Error on: param = value when param is const
+- Allow: Reading const params (no change)
+
+** Phase 4: Test and Fix
+
+*** Known test that will need updating
+- src/test/args.til:225-244 - test_non_mut_isolation()
+- Currently tests that modifying struct inside function doesn't affect caller
+- With type checker enforcement, this code should become illegal
+- Update test to expect compile error instead of runtime isolation
+
+*** Run full test suite to find any other assumptions
+
+* Files to Modify
+
+** src/rs/interpreter.rs (lines 1615-1700, 1593-1604)
+Replace copy logic with reference sharing for const params
+
+** src/rs/typer.rs (assignment checking section)
+Add checks to prevent assignment to const parameters
+Enforce read-only semantics
+
+** src/test/args.til (lines 225-244)
+Update test_non_mut_isolation() test expectations
+
+* Key Insights from Investigation
+
+** Current State
+- Const params: Deep copy via copy_fields()
+- Mut params: Already use references for structs (arena offset sharing)
+- Primitives: Copied for both const and mut
+
+** After Change
+- Const params: Reference (arena offset sharing)
+- Mut params: Reference (no change needed)
+- Both enforced at type-checker level (const = read-only, mut = read-write)
+
+* Risks and Mitigations
+
+** Risk: Breaking existing code that relies on const param isolation
+Mitigation: Type checker must prevent modifications to const params
+
+** Risk: Arena lifetime/sharing issues
+Mitigation: Arena never deletes, so references always valid
+
+** Risk: Nested function calls with shared references
+Mitigation: Read-only semantics mean sharing is safe
+
+* Benefits
+
+- Performance: No more copy_fields() overhead
+- Consistency: All params passed by reference
+- Removes TODOs at init.rs:1096 and interpreter.rs:1760
+- Aligns implementation with documented semantics
+
+* Implementation Details from Investigation
+
+** Current Implementation
+
+*** Function Call Entry Point
+File: src/rs/interpreter.rs:452-705
+- eval_func_proc_call() is the main dispatcher
+- Routes to eval_user_func_proc_call() for user-defined functions (line 704)
+
+*** Core Parameter Handling
+File: src/rs/interpreter.rs:1466-1725
+
+For CONST parameters (lines 1509-1714):
+1. Argument is evaluated in the caller's context (line 1545)
+2. A NEW function_context is created (cloned from caller, line 1468)
+3. For structs (lines 1615-1700):
+   - insert_struct() allocates NEW space in arena (line 1670)
+   - copy_fields() COPIES all field values from source to dest (line 1699)
+   - This is a DEEP COPY of all mutable fields
+
+For MUT parameters (lines 1563-1590, 1733-1781):
+1. Stores tuple: (arg_name, source_name, type) in mut_args vector
+2. STILL does the copy into function context initially (same as const)
+3. After function execution (lines 1733-1781):
+   - For primitive types: Reads value and re-inserts to caller context
+   - For structs (lines 1759-1767): Uses arena offset sharing
+   - This POINTS the caller's variable to the SAME arena location
+
+*** Critical TODOs Found
+- Line 1096 in init.rs: "TODO all args should be passed as pointers/references and we wouldn't need this"
+- Line 1760 in interpreter.rs: "TODO this can be simplified once we pass all args by reference"
+
+** Arena/Memory Management
+
+*** Arena Structure
+File: src/rs/interpreter.rs:16-37
+- Global singleton accessed via Arena::g() (unsafe static)
+- Memory starts at offset 1 (offset 0 reserved as "null")
+- All values stored as raw bytes in single Vec<u8>
+
+*** Context Structure
+File: src/rs/init.rs:832-862
+- arena_index: HashMap<String, usize> maps var names to arena offsets
+- symbols: HashMap<String, SymbolInfo> maps var names to type info
+
+*** How Values Are Stored
+Storing a value (e.g., insert_i64() line 913-935):
+1. Allocate space: offset = Arena::g().memory.len()
+2. Append bytes: Arena::g().memory.extend_from_slice(&bytes)
+3. Record offset: self.arena_index.insert(id.to_string(), offset)
+
+Storing a reference (used for mut struct returns, line 1762):
+1. Just update arena_index: context.arena_index.insert(source_name, *offset)
+2. No new arena allocation, points to existing data
+
+*** The copy_fields() Function
+File: src/rs/init.rs:1097-1159
+- Gets source field offset from arena_index
+- Calculates dest offset
+- Performs memory copy: Arena::g().memory.copy_within(...)
+- Recursively copies nested structs
+- This is why const params cause full copies
+
+** Type System
+
+File: src/rs/typer.rs:360-410
+- Type checker validates that types match
+- is_mut flag is preserved but not deeply checked at type level
+- No special type-level distinction between const and mut (just a flag)
+- Mut arguments must be identifiers or field access
+
+* Status
+
+Not started - planning phase complete
