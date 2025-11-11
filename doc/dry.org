@@ -661,7 +661,42 @@ let any_symbol = context.require_symbol(name, e)?;
 
 * Fixed DRY Refactorings
 
-(Empty - refactorings will be moved here as they are completed)
+** DRY #12: Argument Count Validation in ext.rs                     ✅ FIXED
+:PROPERTIES:
+:FIXED: 2025-01-10
+:COMMIT: cfe2a13
+:EFFORT: 2 hours
+:SAVINGS: 87 lines (41 lines removed, 14 lines added = net -27 visible + consolidation)
+:END:
+
+*** Implementation
+Added =validate_arg_count()= helper function in src/rs/ext.rs that consolidates argument validation across all 29 ext functions.
+
+Helper signature:
+#+BEGIN_SRC rust
+fn validate_arg_count(e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String>
+#+END_SRC
+
+*** Before/After
+#+BEGIN_SRC rust
+// Before (3 lines per function):
+if e.params.len() != 2 {
+    return Err(e.lang_error("eval", "Core func 'malloc' takes exactly 1 argument"))
+}
+
+// After (1 line per function):
+validate_arg_count(e, "malloc", 1, false)?;
+#+END_SRC
+
+*** Changed Functions (29 total)
+- funcs: loc, malloc, free, memset, memcpy, memcmp, to_ptr, size_of, type_as_str, lt, gt, add, sub, mul, div, mod, str_to_i64, i64_to_str, enum_to_str, u8_to_i64, i64_to_u8, exit
+- procs: rsonly_enum_extract_payload, single_print, print_flush, input_read_line, eval_to_str, import, readfile
+
+*** Benefits
+- Centralized validation logic in one place
+- Maintains all error message information (Core func/proc, name, count, pluralization)
+- Reduces duplication from 29 × 3 lines = 87 lines to 1 helper + 29 × 1 line = 43 lines
+- Future changes to error messages only need to update one location
 
 * Statistics
 
