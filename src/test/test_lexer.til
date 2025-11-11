@@ -8,115 +8,140 @@ import("src/core/lexer")
 test_newline_escape := proc() {
     mut source := "\"\\n\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning newline: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "\n", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_newline_escape()
 
 test_tab_escape := proc() {
     mut source := "\"\\t\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning tab: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "\t", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_tab_escape()
 
 test_carriage_return_escape := proc() {
     mut source := "\"\\r\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning carriage return: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "\r", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_carriage_return_escape()
 
 test_null_escape := proc() {
     mut source := "\"\\0\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning null: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "\0", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_null_escape()
 
 test_multiple_escapes := proc() {
     mut source := "\"hello\\nworld\\ttab\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning multi-escape string: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_multiple_escapes()
 
@@ -124,23 +149,28 @@ test_unknown_escape := proc() {
     // Unknown escape sequences should keep the backslash
     mut source := "\"\\x\""
     mut tokens := scan_tokens(source)
-    catch (err: Str) {
-        println("Error scanning unknown escape: ", err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR: AllocError in scan_tokens")
-        exit(1)
-    }
 
     mut tok := Token()
     tokens.get(0, tok)
-    catch (err: IndexOutOfBoundsError) {
-        println("Failed to get token")
-        exit(1)
-    }
 
     assert_eq_str(loc(), "\\x", tok.token_str)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
 }
 test_unknown_escape()
 
