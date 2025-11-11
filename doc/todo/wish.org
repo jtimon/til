@@ -21,3 +21,15 @@ Keywords from other languages that could be forbidden with helpful error message
 - [ ] protected -> "TIL doesn't have visibility modifiers"
 - [ ] global -> "Use mut declaration at file root"
 - [ ] static -> "Use struct/impl organization"
+
+* TODO More dynamic error messages
+
+Error messages that could include the user's identifier and value for easier copy-paste:
+
+- [X] "'foo' already declared" (includes the actual identifier)
+- [X] "func 'bar' does not return anything" (includes the function name)
+- [X] "struct 'MyStruct' has no member 'baz'" (includes struct and member names)
+- [X] "enum 'Status' has no variant 'Done'" (includes enum and variant names)
+- [ ] var aaa = 5 -> "mut aaa := 5"
+- [ ] let my_global = 42 -> "my_global := 42"
+- [ ] global my_counter = 0 -> "mut my_counter := 0" (+ note about root-level declarations being globals in certain modes)
