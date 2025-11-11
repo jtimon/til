@@ -4,208 +4,28 @@
 
 * Overview
 
-This document tracks TODOs in the *Rust implementation (rstil)* that must be completed before the self-hosted til interpreter can run successfully.
+This document tracks TODOs in the Rust implementation (rstil) that must be completed before the self-hosted til interpreter can run successfully.
 
-*Current Status:* All documented bugs fixed (see [[file:bugs.org][bugs.org]]). Parser homogenization complete. Ready for next phase.
+Current Status: All documented bugs fixed. Parser homogenization complete. Ready for next phase.
 
-*Scope:* This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
+Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
 
-* Progress Summary
+* TODO Active Items
 
-| Component           | Status                          | Notes                                           |
-|---------------------+---------------------------------+-------------------------------------------------|
-| Known Bugs          | ✅ ALL FIXED                    | Bugs #1-#8 all resolved                        |
-| Error Handling      | ✅ WORKING                      | throw/throws/catch fully functional             |
-| Import System       | ✅ WORKING                      | Basic imports work in all modes                 |
-| Test Suite          | ✅ PASSING                      | All tests pass including return value checks    |
-| Type System         | ✅ COMPLETE                     | Return value usage enforced at compile time     |
-| Parser Homogenization | ✅ COMPLETE                    | parser.til aligned with parser.rs              |
+- [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
+- [ ] Improve type checking for struct type mismatches (passing Vec where Array expected should error at compile time)
+- [ ] Improve test error handling with ERROR: prefix (make unexpected errors more visible in test output)
+- [ ] Fix error line numbers from imported files (show correct file paths and line numbers)
 
-* Active TODOs
+* Completed Items
 
-** TODO Standardize len/cap API Across Collections                      :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:IMPACT: API consistency, developer experience
-:PRIORITY: Low (doesn't block self-hosting)
-:END:
-
-*** Problem
-Collections are inconsistent about whether size is exposed as a field or method:
-- Array: has `len` field (removed `cap` during Vec refactor)
-- Vec: has `len` field and `cap` field
-- Map: has `size` field
-- Str: has `len()` method
-
-This inconsistency can be confusing, especially coming from other languages.
-
-*** Consideration
-Some languages expose capacity as a field and length as a method. This might be more consistent:
-- `cap` field: allocated capacity (direct field access)
-- `len()` method: current count (computed or simple field access)
-
-However, changing this now would be disruptive since `len` field is widely used.
-
-*** Current Decision
-Keep `len` field for now since it's what's exposed and changing it would require updating many call sites. Document this for post-self-hosting consideration.
-
-** TODO Improve Type Checking for Struct Type Mismatches                :MEDIUM:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:IMPACT: Type safety, bug prevention
-:PRIORITY: Medium
-:END:
-
-*** Problem
-The type checker does not catch when a value of one struct type is passed to a function expecting a different struct type. During the Array/Vec refactor, passing a Vec to a function expecting Array parameter was silently accepted, leading to runtime errors instead of compile-time errors.
-
-*** Example
-#+BEGIN_SRC til
-scan_push_token := proc(mut tokens: Array, ...) { ... }
-
-scan_tokens := proc(source: Str) returns Vec {
-    mut tokens := Vec.new(...)
-    scan_push_token(tokens, ...)  // Should error: Vec passed where Array expected
-}
-#+END_SRC
-
-The call to `scan_push_token(tokens, ...)` passed a Vec where Array was expected, but the type checker did not complain. This caused runtime errors when Array.push was called on what was actually a Vec.
-
-*** Expected Behavior
-The type checker should reject passing Vec where Array is expected, or vice versa, since they are different struct types.
-
-*** Impact
-- Allows type mismatches to slip through to runtime
-- Makes refactoring error-prone
-- Reduces type safety guarantees
-
-** TODO Improve Test Error Handling with ERROR: Prefix                  :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:IMPACT: Test suite quality, debugging
-:PRIORITY: Low (doesn't block self-hosting)
-:END:
-
-*** Problem
-Test catch blocks should print "ERROR: " prefix for unexpected errors to make test failures more visible.
-
-*** Current Status
-Partially implemented in dynamic_arrays.til. Currently using `exit(1)` to abort on unexpected errors, but may want to consider using `return` to allow remaining tests to continue running.
-
-*** Current Pattern
-#+BEGIN_SRC til
-catch (err: AllocError) {
-    println("ERROR:", loc(), "Unexpected AllocError during push")
-    println(err.msg)
-    exit(1)
-}
-#+END_SRC
-
-*** Alternative Pattern to Consider
-Using `return` instead of `exit(1)` to continue to next test:
-#+BEGIN_SRC til
-catch (err: AllocError) {
-    println("ERROR:", loc(), "Unexpected AllocError thrown:")
-    println(err.msg)
-    return  // Skip this test but continue with remaining tests
-}
-#+END_SRC
-
-*** Benefits
-- "ERROR: " prefix makes failures immediately visible in test output
-- `exit(1)`: Fails fast, prevents cascading failures
-- `return`: Allows test suite to continue, shows all failures at once
-- Helps distinguish expected errors from unexpected ones in test logs
-
-*** Scope
-Review and decide on approach, then update catch blocks throughout test files:
-- src/test/arrays.til
-- src/test/dynamic_arrays.til (partially done with exit(1))
-- src/test/test_parser.til
-- Other test files with similar patterns
-
-** TODO Fix Error Line Numbers from Imported Files                      :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:IMPACT: Developer experience, debugging
-:PRIORITY: Low (doesn't block self-hosting)
-:END:
-
-*** Problem
-Error messages from imported files show incorrect/duplicated file paths and misleading line numbers.
-
-See Bug #9 in [[file:bugs.org][bugs.org]] for details and examples.
-
-*** Impact on Self-Hosting
-Low - This is a quality-of-life issue that makes debugging harder but doesn't prevent the self-hosted interpreter from running.
-
-* Recently Completed
-
-** DONE Improve Forward Reference Error Messages                         :MEDIUM:
-CLOSED: [2025-11-10]
-:PROPERTIES:
-:DISCOVERED: 2025-01-09
-:FIXED: 2025-11-10
-:IMPACT: Developer experience, debugging
-:COMMIT: 7bfec12
-:END:
-
-*** Solution Implemented
-Forward declarations already worked! The real issue was that completely undefined types were silently accepted.
-
-Added compile-time validation in typer.rs:
-- check_enum_def() now validates custom types exist in context
-- check_struct_def() now validates member types exist in context
-- Both check that types are actually enums/structs, not values
-
-*** Key Discovery
-The original example from the TODO already works:
-#+BEGIN_SRC til
-ValueType := enum {
-    TFunction: FunctionType,  // Forward reference - works!
-}
-
-FunctionType := enum {
-    FTFunc,
-    FTProc,
-}
-#+END_SRC
-
-Forward references work for:
-- Enum payloads (enum -> enum, enum -> struct)
-- Struct members (struct -> enum, struct -> struct)
-- Function parameters and return types
-- Struct method return types
-
-*** Error Messages
-Now gives clear compile-time errors for truly undefined types:
-#+BEGIN_EXAMPLE
-src/test/test_undefined_type.til:4:12: type ERROR: Enum variant 'Variant' uses undefined type 'NonExistentType'.
-Hint: Make sure 'NonExistentType' is defined before this enum.
-#+END_EXAMPLE
-
-*** Test Coverage
-Added comprehensive tests:
-- forward_declarations.til: Tests all forward reference scenarios
-- test_undefined_type.til: Verifies undefined enum types error properly
-- test_undefined_struct_type.til: Verifies undefined struct member types error
-- test_original_forward_ref.til: Original example works as expected
-
-* References
-
-- [[file:bugs.org][bugs.org]] - Fixed bugs (Bugs #1-#8 all resolved)
-- [[file:todo_self_hosting.org][todo_self_hosting.org]] - Component completion status
-- [[file:todo_post.org][todo_post.org]] - Post self-hosting TODOs
-- [[file:design_notes.org][design_notes.org]] - Language design decisions
-- [[file:../src/tests.til][src/tests.til]] - Test suite (all tests passing)
-- [[file:../src/test/todo.til][src/test/todo.til]] - Additional language TODOs
+- [X] Improve forward reference error messages (added compile-time validation for undefined types, commit 7bfec12)
 
 * Notes
 
-** Focus on rstil, Not til Implementation
-This document tracks what the *Rust interpreter (rstil)* needs to support self-hosting.
+Focus on rstil, Not til Implementation:
+This tracks what the Rust interpreter (rstil) needs to support self-hosting.
+Completing interpreter.til, typer.til, etc. is the GOAL of self-hosting, not prerequisites.
 
-Completing interpreter.til, typer.til, etc. is a separate concern - those are the GOAL of self-hosting, not prerequisites.
-
-** Workarounds Are Okay Temporarily
-Some workarounds (like PatternInfo for tuples) are acceptable short-term. The priority is getting rstil stable enough to run the self-hosted code, even if that code has workarounds.
+Workarounds Are Okay Temporarily:
+Some workarounds are acceptable short-term. Priority is getting rstil stable enough to run the self-hosted code.
