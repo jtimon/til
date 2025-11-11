@@ -7,21 +7,32 @@ Migrate ~260-280 method calls from =Type.method(var, ...)= to =var.method(...)= 
 
 This takes advantage of Bug #10 (UFCS on struct fields) being fully fixed.
 
+* IMPORTANT LIMITATION
+
+UFCS does NOT work with literals:
+- Numeric literals: (0).eq(1) FAILS - use I64.eq(0, 1)
+- Bool literals: true.to_i64() FAILS - use Bool.to_i64(true)
+- String literals: "a".eq("b") FAILS - use Str.eq("a", "b")
+
+Only convert when at least one argument is a variable or expression result.
+
 * Progress Tracking
 
-** Phase 1: Test Files - I64.eq() conversions (~40 instances) [0/4]
-- [ ] src/test/arithmetics.til (31 conversions)
-- [ ] src/test/comparisons.til (2 conversions)
-- [ ] src/test/intro.til (2 conversions)
-- [ ] src/test/fibonacci.til (3 conversions)
+** Phase 0: Smallest test file (COMPLETED)
+- [X] src/test/intro.til (2 conversions)
+
+** Phase 1: Test Files - I64.eq() conversions (~40 instances) [3/3] COMPLETED
+- [X] src/test/arithmetics.til (31 conversions)
+- [X] src/test/fibonacci.til (3 conversions)
+- [X] src/test/comparisons.til (skipped - both args are literals)
 
 Pattern: =I64.eq(a, b)= → =a.eq(b)=
 Risk: Low - straightforward test assertions
 Verification: Run =make tests= after changes
 
-** Phase 2: Test Files - U8 and Bool methods (~25 instances) [0/4]
-- [ ] src/test/u8.til (5 conversions)
-- [ ] src/test/boolean.til (12 conversions)
+** Phase 2: Test Files - U8 and Bool methods (~25 instances) [2/4] IN PROGRESS
+- [X] src/test/u8.til (5 conversions - completed)
+- [X] src/test/boolean.til (2 conversions - most skipped due to bool literals)
 - [ ] src/test/arrays.til (6 conversions)
 - [ ] src/test/branchless.til (3 conversions)
 
