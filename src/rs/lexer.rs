@@ -504,15 +504,32 @@ fn print_lex_error(path: &String, t: &Token, errors_found: &mut usize, msg: &str
     *errors_found += 1;
 }
 
+fn build_var_suggestion(tokens: &Vec<Token>, var_index: usize) -> String {
+    // Check if pattern is: var <identifier> = <value>
+    if var_index + 3 < tokens.len() {
+        let ident_token = &tokens[var_index + 1];
+        let equals_token = &tokens[var_index + 2];
+        let value_token = &tokens[var_index + 3];
+
+        if ident_token.token_type == TokenType::Identifier
+            && equals_token.token_type == TokenType::Equal {
+            return format!("Suggestion: mut {} := {}",
+                          ident_token.token_str,
+                          value_token.token_str);
+        }
+    }
+    return "Suggestion: use 'mut' instead".to_string();
+}
+
 pub fn print_lex_errors(tokens: &Vec<Token>, path: &String) -> usize {
     let mut errors_found = 0;
-    for t in tokens {
-        print_if_lex_error(path, t, &mut errors_found);
+    for (index, t) in tokens.iter().enumerate() {
+        print_if_lex_error(path, tokens, index, t, &mut errors_found);
     }
     return errors_found;
 }
 
-fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
+fn print_if_lex_error(path: &String, tokens: &Vec<Token>, index: usize, t: &Token, errors_found: &mut usize) {
     match t.token_type {
         TokenType::Invalid => {
             print_lex_error(path, t, errors_found, "Invalid character");
@@ -527,7 +544,8 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
             print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used");
         },
         TokenType::Var => {
-            print_lex_error(path, t, errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead");
+            let suggestion = build_var_suggestion(tokens, index);
+            print_lex_error(path, t, errors_found, &format!("Keyword 'var' is not supported\n{}", suggestion));
         },
         TokenType::Fn => {
             print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
