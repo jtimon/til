@@ -28,32 +28,37 @@ test_mut_struct()
 
 test_mut_array := proc() {
     mut arr := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        panic(loc(), "Unexpected AllocError")
-    }
 
     assert_eq(loc(), 0, arr.len)
     assert_eq(loc(), 16, arr.cap)
 
     arr.push(10)
-    catch (err: AllocError) {
-        panic(loc(), "Unexpected AllocError")
-    }
-    catch (err: FullError) {
-        panic(loc(), "Unexpected FullError")
-    }
 
     assert_eq(loc(), 1, arr.len)
 
     mut value := 0
     arr.get(0, value)
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), "Unexpected IndexOutOfBoundsError")
-    }
 
     assert_eq(loc(), 10, value)
 
     arr.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
 }
 
 test_mut_array()
