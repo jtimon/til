@@ -479,57 +479,6 @@ fn extract_enum_payload(
 *** Estimated Savings
 Significant consolidation of complex payload handling (100+ lines)
 
-** DRY #18: Conditional Parameter Validation                        :LOW:
-:PROPERTIES:
-:DISCOVERED: 2025-01-10
-:IMPACT: 4 locations in typer.rs and interpreter.rs
-:EFFORT: 1 hour
-:LOCATIONS: typer.rs lines 163-166, 202-206; interpreter.rs lines 80-82, 98-100
-:BENEFIT: Consistency improvement, minimal line savings
-:END:
-
-*** Description
-Similar parameter count validation for if/while statements repeated in both type checker and interpreter.
-
-*** Current Pattern
-#+BEGIN_SRC rust
-// In typer.rs and interpreter.rs:
-if e.params.len() != 2 {
-    return Err(e.exit_error("type", "If nodes must have exactly 2 parameters."))
-}
-
-if e.params.len() != 2 {
-    return Err(e.exit_error("type", "While nodes must have exactly 2 parameters."))
-}
-#+END_SRC
-
-*** Proposed Refactoring
-#+BEGIN_SRC rust
-fn validate_conditional_params(
-    e: &Expr,
-    stmt_type: &str,
-    expected: usize
-) -> Result<(), String> {
-    if e.params.len() != expected {
-        return Err(e.exit_error("type", &format!(
-            "{} nodes must have exactly {} parameters.", stmt_type, expected
-        )));
-    }
-    Ok(())
-}
-
-// Usage:
-validate_conditional_params(e, "If", 2)?;
-validate_conditional_params(e, "While", 2)?;
-#+END_SRC
-
-*** Affected Files
-- typer.rs: 2 locations
-- interpreter.rs: 2 locations
-
-*** Estimated Savings
-~10 lines (minimal, but improves consistency)
-
 ** DRY #19: Boolean Condition Type Checking                         :LOW:
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
@@ -661,6 +610,44 @@ let any_symbol = context.require_symbol(name, e)?;
 
 * Fixed DRY Refactorings
 
+** DRY #18: Conditional Parameter Validation                  ✅ FIXED
+:PROPERTIES:
+:DISCOVERED: 2025-01-10
+:FIXED: 2025-11-11
+:COMMIT: e9d6c26
+:EFFORT: 1 hour
+:SAVINGS: Net +20 lines but consolidates logic into reusable helpers
+:END:
+
+*** Implementation
+Added =validate_conditional_params()= helper function in both interpreter.rs and typer.rs to consolidate if/while parameter validation.
+
+Helper signature:
+#+BEGIN_SRC rust
+// In interpreter.rs (returns Result):
+fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize) -> Result<(), String>
+
+// In typer.rs (returns Option):
+fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize) -> Option<String>
+#+END_SRC
+
+*** Before/After
+#+BEGIN_SRC rust
+// Before (3 lines per statement):
+if e.params.len() != 2 && e.params.len() != 3 {
+    return Err(e.lang_error("eval", "if nodes must have 2 or 3 parameters."))
+}
+
+// After (1 line per statement):
+validate_conditional_params(e, "if", 2, 3)?;
+#+END_SRC
+
+*** Benefits
+- Centralized validation logic for if/while statements
+- Consistent error messages across type checker and interpreter
+- Handles both exact count and range validation in single helper
+- Future parameter validation changes only need update in two places
+
 ** DRY #12: Argument Count Validation in ext.rs                     ✅ FIXED
 :PROPERTIES:
 :FIXED: 2025-01-10
@@ -704,9 +691,10 @@ validate_arg_count(e, "malloc", 1, false)?;
 |----------+-------+------------------------+-------------------|
 | HIGH     |     3 | 9-13 hours             | 340-440 lines     |
 | MEDIUM   |     5 | 12-16 hours            | 265+ lines        |
-| LOW      |     3 | 4 hours                | ~55 lines         |
+| LOW      |     2 | 3 hours                | ~45 lines         |
 |----------+-------+------------------------+-------------------|
-| TOTAL    |    10 | 25-33 hours            | 660-760 lines     |
+| TOTAL    |     9 | 24-32 hours            | 650-750 lines     |
+| FIXED    |     2 | 3 hours                | Consolidation     |
 
 * Notes
 
