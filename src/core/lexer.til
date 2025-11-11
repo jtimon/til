@@ -66,25 +66,19 @@ Token := struct {
     mut col: I64 = 0
 
     lang_error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        mut line_copy := self.line
-        mut col_copy := self.col
-        return format(line_copy.to_str(), ":", col_copy.to_str(), ": ",
+        return format(self.line.to_str(), ":", self.col.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
             "Explanation: This is not your fault as a user, this is a bug in the language.")
     }
 
     todo_error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        mut line_copy := self.line
-        mut col_copy := self.col
-        return format(line_copy.to_str(), ":", col_copy.to_str(), ": ",
+        return format(self.line.to_str(), ":", self.col.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
             "Explanation: Not implemented yet, this is a missing feature in the language.")
     }
 
     error := func(self: Token, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        mut line_copy := self.line
-        mut col_copy := self.col
-        return format(line_copy.to_str(), ":", col_copy.to_str(), ": parse ERROR: ", msg)
+        return format(self.line.to_str(), ":", self.col.to_str(), ": parse ERROR: ", msg)
     }
 }
 
@@ -491,19 +485,17 @@ Lexer := struct {
     }
 
     len := func(self: Lexer) returns I64 {
-        self_tokens := self.tokens
-        return self_tokens.len
+        return self.tokens.len
     }
 
     is_eof := func(self: Lexer, offset: I64) returns Bool throws IndexOutOfBoundsError {
-        self_tokens := self.tokens
         current := self.current
         i := add(current, offset)
-        if gteq(i, self_tokens.len) {
+        if gteq(i, self.tokens.len) {
             return true
         }
         mut t := Token()
-        self_tokens.get(i, t)
+        self.tokens.get(i, t)
         // Compare TokenType using switch
         mut is_eof := false
         switch t.token_type {
@@ -516,29 +508,26 @@ Lexer := struct {
     }
 
     get_token := func(self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
-        self_tokens := self.tokens
         mut t := Token()
-        self_tokens.get(index, t)
+        self.tokens.get(index, t)
         return t
     }
 
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        self_tokens := self.tokens
         mut t := Token()
-        self_tokens.get(self.current, t)
+        self.tokens.get(self.current, t)
         return t
     }
 
     peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         index := add(self.current, offset)
-        self_tokens := self.tokens
-        if gteq(index, self_tokens.len) {
+        if gteq(index, self.tokens.len) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Peek ahead by ", I64.to_str(offset), " is out of bounds")
             throw err
         }
         mut t := Token()
-        self_tokens.get(index, t)
+        self.tokens.get(index, t)
         return t
     }
 
@@ -553,14 +542,13 @@ Lexer := struct {
             throw err
         }
         index := sub(self.current, 1)
-        self_tokens := self.tokens
-        if gteq(index, self_tokens.len) {
+        if gteq(index, self.tokens.len) {
             mut err := IndexOutOfBoundsError()
             err.msg = "Previous token is out of bounds"
             throw err
         }
         mut t := Token()
-        self_tokens.get(index, t)
+        self.tokens.get(index, t)
         return t
     }
 
