@@ -51,8 +51,9 @@ TokenType := enum {
 
     // Errors (unsupported tokens)
     Const, Var,
-    Fn,
+    Fn, Function,
     Try,
+    Let, Class,
     Invalid,
     UnterminatedString,
     UnterminatedComment,
@@ -165,8 +166,10 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
     case "fn": return TokenType.Fn
+    case "function": return TokenType.Function
     case "try": return TokenType.Try // TIL uses catch without try (forbidden for users from other languages)
-    case "function": return TokenType.Invalid
+    case "let": return TokenType.Let
+    case "class": return TokenType.Class
     case "global": return TokenType.Invalid // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
     case "const": return TokenType.Const
@@ -694,8 +697,17 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
     case TokenType.Fn:
         print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead")
 
+    case TokenType.Function:
+        print_lex_error(path, t, errors_found, "Keyword 'function' is not supported\nSuggestion: use 'func' or 'proc' instead")
+
     case TokenType.Try:
         print_lex_error(path, t, errors_found, "Keyword 'try' is not supported\nSuggestion: TIL uses 'catch' blocks without 'try' (just use throw/catch)")
+
+    case TokenType.Let:
+        print_lex_error(path, t, errors_found, "Keyword 'let' is not supported\nSuggestion: use ':=' for declaration")
+
+    case TokenType.Class:
+        print_lex_error(path, t, errors_found, "Keyword 'class' is not supported\nSuggestion: use 'struct' instead")
 
     case TokenType.DoubleSemicolon:
         print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for")

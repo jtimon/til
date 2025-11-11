@@ -44,8 +44,9 @@ pub enum TokenType {
 
     // Errors
     Const, Var,
-    Fn,
+    Fn, Function,
     Try,
+    Let, Class,
     Invalid,
     UnterminatedString,
     UnterminatedComment,
@@ -297,8 +298,10 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // TODO intentionally unsupport more reserved words
         // TODO nicer messages for forbidden words
         "fn" => TokenType::Fn,
+        "function" => TokenType::Function,
         "try" => TokenType::Try, // TIL uses catch without try (try is forbidden for users from other languages)
-        "function" => TokenType::Invalid,
+        "let" => TokenType::Let,
+        "class" => TokenType::Class,
         "global" => TokenType::Invalid, // just use mut declaration in the root of the file, but they're not allowed in all modes
         // const/vars are the most abstract types, you can't even explicitly declare them
         "const" => TokenType::Const,
@@ -529,8 +532,17 @@ fn print_if_lex_error(path: &String, t: &Token, errors_found: &mut usize) {
         TokenType::Fn => {
             print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead");
         },
+        TokenType::Function => {
+            print_lex_error(path, t, errors_found, "Keyword 'function' is not supported\nSuggestion: use 'func' or 'proc' instead");
+        },
         TokenType::Try => {
             print_lex_error(path, t, errors_found, "Keyword 'try' is not supported\nSuggestion: TIL uses 'catch' blocks without 'try' (just use throw/catch)");
+        },
+        TokenType::Let => {
+            print_lex_error(path, t, errors_found, "Keyword 'let' is not supported\nSuggestion: use ':=' for declaration");
+        },
+        TokenType::Class => {
+            print_lex_error(path, t, errors_found, "Keyword 'class' is not supported\nSuggestion: use 'struct' instead");
         },
         TokenType::DoubleSemicolon => {
             print_lex_error(path, t, errors_found, "No need for ';;' (aka empty statements)\nSuggestion: try 'if true {}' instead, whatever you want that for");

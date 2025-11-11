@@ -13,15 +13,15 @@ Currently implemented (4):
 - [X] try -> (error message exists)
 
 Proposed additions:
-- [ ] let -> "Use ':=' for declaration"
-- [ ] class -> "Use 'struct' instead"
+- [X] let -> "Use ':=' for declaration"
+- [X] class -> "Use 'struct' instead"
 - [ ] interface -> "TIL doesn't have interfaces"
 - [ ] implements -> "TIL doesn't have interfaces"
 - [ ] extends -> "TIL doesn't have inheritance"
 - [ ] public -> "TIL doesn't have visibility modifiers"
 - [ ] private -> "TIL doesn't have visibility modifiers"
 - [ ] protected -> "TIL doesn't have visibility modifiers"
-- [ ] function -> (already returns Invalid token)
+- [X] function -> "Use 'func' or 'proc' instead"
 - [ ] global -> (already returns Invalid token)
 - [ ] static -> (already returns Invalid token)
 
