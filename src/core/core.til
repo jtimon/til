@@ -516,7 +516,7 @@ Array := struct {
         // }
 
         src := add(self.ptr, mul(index, self.type_size))
-        dest := to_ptr(T)
+        mut dest := to_ptr(T)
         memcpy(dest, src, self.type_size)
     }
 
@@ -529,7 +529,7 @@ Array := struct {
         //     throw format(loc(), "Array.set: value type mismatch")
         // }
 
-        dest := add(self.ptr, mul(index, self.type_size))
+        mut dest := add(self.ptr, mul(index, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
     }
 
@@ -573,14 +573,14 @@ Vec := struct {
                 throw FullError.new(format(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP"))
             }
 
-            new_ptr := malloc(mul(new_cap, self.type_size))
+            mut new_ptr := malloc(mul(new_cap, self.type_size))
             memcpy(new_ptr, self.ptr, mul(self.len, self.type_size))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        dest := add(self.ptr, mul(self.len, self.type_size))
+        mut dest := add(self.ptr, mul(self.len, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
         self.len = add(self.len, 1)
     }
@@ -595,7 +595,7 @@ Vec := struct {
         // }
 
         src := add(self.ptr, mul(index, self.type_size))
-        dest := to_ptr(T)
+        mut dest := to_ptr(T)
         memcpy(dest, src, self.type_size)
     }
 
@@ -608,7 +608,7 @@ Vec := struct {
         //     throw format(loc(), "Vec.set: value type mismatch")
         // }
 
-        dest := add(self.ptr, mul(index, self.type_size))
+        mut dest := add(self.ptr, mul(index, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
     }
 

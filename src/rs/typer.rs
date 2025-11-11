@@ -289,6 +289,31 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         // Function call arguments are being used (passed to the function)
         errors.extend(check_types_with_context(context, &arg_expr, ExprContext::ValueUsed));
 
+        // Check mut parameter requirements
+        if arg.is_mut {
+            // The parameter expects mut, so the argument must be a mutable variable
+            match &arg_expr.node_type {
+                NodeType::Identifier(var_name) => {
+                    // Simple variable - check if it's mut
+                    if let Some(symbol_info) = context.symbols.get(var_name) {
+                        if !symbol_info.is_mut {
+                            errors.push(arg_expr.error("type", &format!(
+                                "Cannot pass const variable '{}' to mut parameter '{}' of function '{}'.\n\
+                                 Suggestion: declare '{}' as 'mut {}'.",
+                                var_name, arg.name, f_name, var_name, var_name
+                            )));
+                        }
+                    }
+                },
+                _ => {
+                    // For other expressions (literals, function calls, field access, etc.)
+                    // Try to determine if it's a valid mut target
+                    // For now, we allow non-identifier expressions (this could be tightened later)
+                    // TODO: add stricter checking for field access and other complex expressions
+                }
+            }
+        }
+
         let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
             Err(error_string) => {

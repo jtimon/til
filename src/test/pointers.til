@@ -8,12 +8,12 @@ test_pointers := proc() {
     }
     test(loc(), got_error, "Expecter AllocError when calling Ptr.new_by_size(0)")
 
-    p := Ptr.new_by_size(32) // allocate 32 bytes
+    mut p := Ptr.new_by_size(32) // allocate 32 bytes
     test(loc(), gt(p.data, 0), "Pointer address should be non-zero")
 
     Ptr.set_zero(p, 32)
 
-    q := Ptr.new_by_size(32)
+    mut q := Ptr.new_by_size(32)
 
     Ptr.copy_to(p, q, 32)
 
