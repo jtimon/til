@@ -961,12 +961,10 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
         throw e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only")
     }
 
-    // Bug #10: Extract struct field to local variable before calling methods
-    mut e_params := e.params
     mut i := 0
-    while i.lt(e_params.len) {
+    while i.lt(e.params.len) {
         mut p := Expr()
-        e_params.get(i, p)
+        e.params.get(i, p)
         pnt := p.node_type
         if pnt.tag().eq(NodeType.Identifier("").tag()) {
             id_str := rsonly_enum_extract_payload(pnt)
@@ -979,9 +977,7 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
     }
 
     // Remove the last '.'
-    // Bug #10: Extract property before calling method
-    to_return_len := to_return.len
-    to_return = to_return.substring(0, to_return_len.sub(1))
+    to_return = to_return.substring(0, to_return.len.sub(1))
     return to_return
 }
 
@@ -1364,9 +1360,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     // Check if node type is FCall using switch (tag() doesn't exist in TIL)
     switch lnt {
         case NodeType.FCall:
-            // Bug #10: Extract struct field to local variable before calling methods
-            mut left_params := left.params
-            if left_params.len.eq(2) {
+            if left.params.len.eq(2) {
             // FCall params are: [function_name, arg1, arg2, ...]
             // For pattern matching, we expect: [variant_identifier, binding_identifier]
             // Note: variant_identifier might be a dotted name like "Color.Green" which could be
@@ -1374,11 +1368,11 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
 
             // Get the full variant name (handling dotted names)
             mut p0 := Expr()
-            left_params.get(0, p0)
+            left.params.get(0, p0)
             variant_name := get_full_identifier_name(p0)
 
                 mut p1 := Expr()
-                left_params.get(1, p1)
+                left.params.get(1, p1)
                 p1nt := p1.node_type
 
                 // Check if p1 is an Identifier using switch (tag() doesn't exist in TIL)
@@ -1417,9 +1411,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
 
     mut end_found := false
     mut continue_outer := true
-    // Bug #10: Extract struct field to local variable before calling methods
-    mut lexer_current := lexer.current
-    while and(lexer_current.lt(lexer.len()), not(end_found)) {
+    while and(lexer.current.lt(lexer.len()), not(end_found)) {
         if not(continue_outer) {
             continue_outer = true
         }
@@ -1459,9 +1451,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         next_t = lexer.peek()
         mut body_params := Vec.new("Expr", size_of(Expr))
         mut continue_inner := true
-        // Bug #10: Extract struct field to local variable before calling methods
-        mut lexer_current_inner := lexer.current
-        while lexer_current_inner.lt(lexer.len()) {
+        while lexer.current.lt(lexer.len()) {
             if not(continue_inner) {
                 continue_inner = true
             }
@@ -1599,9 +1589,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     mut t := lexer.peek() // track last token for error reporting
 
     mut continue_loop := true
-    // Bug #10: Extract struct field to local variable before calling methods
-    mut lexer_current := lexer.current
-    while and(lexer_current.lt(lexer.len()), not(end_found)) {
+    while and(lexer.current.lt(lexer.len()), not(end_found)) {
         if not(continue_loop) {
             continue_loop = true
         }
@@ -1655,9 +1643,7 @@ parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
     }
 
     if unparsed_tokens.gt(0) {
-        // Bug #10: Extract struct field to local variable before calling methods
-        lexer_current_val := lexer.current
-        println(format("Total tokens parsed: ", lexer_current_val.to_str(), "/", lexer_len_val.to_str()))
+        println(format("Total tokens parsed: ", lexer.current.to_str(), "/", lexer_len_val.to_str()))
     }
 
     while i.lt(lexer_len_val) {
