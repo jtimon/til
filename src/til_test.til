@@ -56,7 +56,7 @@ test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_O
     mut println_call := Expr()
     println_call.node_type = NodeType.FCall
     println("  4h: Creating params array...")
-    mut call_params := Array.new("Expr", size_of(Expr), 2)
+    mut call_params := Array.new(Expr, 2)
     println("  4i: Setting param 0 (println_id)...")
     call_params.set(0, println_id)
     println("  4j: Setting param 1 (hello_lit)...")
@@ -71,7 +71,7 @@ test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_O
     mut ast := Expr()
     ast.node_type = NodeType.Body
     println("  4n: Creating body params array...")
-    mut body_params := Array.new("Expr", size_of(Expr), 1)
+    mut body_params := Array.new(Expr, 1)
     println("  4o: Setting println_call in body...")
     body_params.set(0, println_call)
     body_params.len = 1
