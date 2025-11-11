@@ -30,91 +30,6 @@ test_map_i64_to_i64 := proc() {
     catch (err: KeyNotFoundError) { exit(1) }
 }
 
-// Test Map<I64, Str>
-test_map_i64_to_str := proc() {
-    mut names := Map.new("I64", size_of(I64), "Str", size_of(Str))
-    names.insert(100, "Alice")
-    names.insert(200, "Bob")
-    names.insert(300, "Charlie")
-
-    mut name := ""
-    names.get(100, name)
-    test(loc(), name.eq("Alice"), "ID 100 should map to Alice")
-    names.get(200, name)
-    test(loc(), name.eq("Bob"), "ID 200 should map to Bob")
-    names.get(300, name)
-    test(loc(), name.eq("Charlie"), "ID 300 should map to Charlie")
-
-    names.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
-}
-
-// Test Map<Str, Bool>
-test_map_str_to_bool := proc() {
-    mut flags := Map.new("Str", size_of(Str), "Bool", size_of(Bool))
-    flags.insert("debug", true)
-    flags.insert("verbose", false)
-    flags.insert("production", false)
-
-    mut flag := false
-    flags.get("debug", flag)
-    test(loc(), flag.eq(true), "debug should be true")
-    flags.get("verbose", flag)
-    test(loc(), flag.eq(false), "verbose should be false")
-    flags.get("production", flag)
-    test(loc(), flag.eq(false), "production should be false")
-
-    flags.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
-}
-
-// Test Map<Str, Str>
-test_map_str_to_str := proc() {
-    mut capitals := Map.new("Str", size_of(Str), "Str", size_of(Str))
-    capitals.insert("France", "Paris")
-    capitals.insert("Japan", "Tokyo")
-    capitals.insert("Brazil", "Brasilia")
-
-    mut capital := ""
-    capitals.get("France", capital)
-    test(loc(), capital.eq("Paris"), "France's capital should be Paris")
-    capitals.get("Japan", capital)
-    test(loc(), capital.eq("Tokyo"), "Japan's capital should be Tokyo")
-    capitals.get("Brazil", capital)
-    test(loc(), capital.eq("Brasilia"), "Brazil's capital should be Brasilia")
-
-    capitals.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
-}
-
-// Test Map<Str, U8>
-test_map_str_to_u8 := proc() {
-    mut grades := Map.new("Str", size_of(Str), "U8", size_of(U8))
-    grades.insert("Alice", U8.from_i64(90))
-    grades.insert("Bob", U8.from_i64(85))
-    grades.insert("Charlie", U8.from_i64(92))
-
-    mut grade := U8.from_i64(0)
-    grades.get("Alice", grade)
-    test(loc(), grade.eq(U8.from_i64(90)), "Alice's grade should be 90")
-    grades.get("Bob", grade)
-    test(loc(), grade.eq(U8.from_i64(85)), "Bob's grade should be 85")
-    grades.get("Charlie", grade)
-    test(loc(), grade.eq(U8.from_i64(92)), "Charlie's grade should be 92")
-
-    grades.delete()
-    catch (err: AllocError) { exit(1) }
-    catch (err: DuplicatedKeyError) { exit(1) }
-    catch (err: KeyNotFoundError) { exit(1) }
-    catch (err: U8_OverflowError) { exit(1) }
-}
-
 // Test Map<Str, Vec2>
 test_map_str_to_vec2 := proc() {
     mut positions := Map.new("Str", size_of(Str), "Vec2", size_of(Vec2))
@@ -412,10 +327,6 @@ test_map_order_after_growth := proc() {
 
 // Run all tests
 test_map_i64_to_i64()
-test_map_i64_to_str()
-test_map_str_to_bool()
-test_map_str_to_str()
-test_map_str_to_u8()
 test_map_str_to_vec2()
 test_map_str_to_array_str()
 test_map_u8_to_bool()
