@@ -11,19 +11,19 @@ test_pointers := proc() {
     mut p := Ptr.new_by_size(32) // allocate 32 bytes
     test(loc(), gt(p.data, 0), "Pointer address should be non-zero")
 
-    Ptr.set_zero(p, 32)
+    p.set_zero(32)
 
     mut q := Ptr.new_by_size(32)
 
-    Ptr.copy_to(p, q, 32)
+    p.copy_to(q, 32)
 
-    r := Ptr.offset(p, 16)
+    r := p.offset(16)
     test(loc(), gt(r.data, p.data), "Offset pointer should be greater than base pointer")
 
     // s := Ptr.new2(I64) // TODO FIX
 
     // TODO actually free things after self hosting, when we move on from an interpreted arena (very wasteful, but feels like garbage collection for free)
-    Ptr.delete(p)
+    p.delete()
     catch (err: AllocError) {
         panic(loc(), "Unexpected AllocError deleting p")
     }
