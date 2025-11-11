@@ -2,26 +2,11 @@ mode test
 
 test_vec_u8 := proc() {
     mut dyn := Vec.new("U8", size_of(U8))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(U8.from_i64(42))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     dyn.push(U8.from_i64(255))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := U8.from_i64(0)
     dyn.get(0, val0)
@@ -40,43 +25,37 @@ test_vec_u8 := proc() {
     assert_eq(loc(), 0, dyn.len) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_array_static_u8: IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch(err: U8_OverflowError) {
-        println(loc(), "test_array_static_u8: U8_OverflowError thrown:")
+        println("ERROR:", loc(), "Unexpected U8_OverflowError")
         println(err.msg)
+        exit(1)
     }
     catch(err: FullError) {
-        println(loc(), "test_array_static_u8: FullError thrown:")
+        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
+        exit(1)
     }
 }
 test_vec_u8()
 
 test_vec_str := proc() {
     mut dyn := Vec.new("Str", size_of(Str))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push("foo")
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     dyn.push("bar")
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := ""
     dyn.get(0, val0)
@@ -104,47 +83,37 @@ test_vec_str := proc() {
     assert_eq(loc(), 0, dyn.len) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch(err: I64_OverflowError) {
-        println(loc(), "I64_OverflowError thrown:")
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
         println(err.msg)
+        exit(1)
     }
     catch(err: FullError) {
-        println(loc(), "FullError thrown:")
+        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
-    }
-    catch(err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
+        exit(1)
     }
 }
 test_vec_str()
 
 test_vec_bool := proc() {
     mut dyn := Vec.new("Bool", size_of(Bool))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(true)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     dyn.push(false)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := false
     dyn.get(0, val0)
@@ -163,39 +132,32 @@ test_vec_bool := proc() {
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_vec_bool: IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch(err: FullError) {
-        println(loc(), "test_vec_bool: FullError thrown:")
+        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
+        exit(1)
     }
 }
 test_vec_bool()
 
 test_vec_i64 := proc() {
     mut dyn := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(42)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     dyn.push(84)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 2, dyn.len)
     mut val0 := 0
     dyn.get(0, val0)
@@ -214,13 +176,21 @@ test_vec_i64 := proc() {
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
 
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_vec_i64: IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
     catch(err: FullError) {
-        println(loc(), "test_vec_i64: FullError thrown:")
+        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
+        exit(1)
     }
 }
 test_vec_i64()
@@ -239,55 +209,25 @@ Vec2 := struct {
 
 test_vec_vec2 := proc() {
     mut dyn := Vec.new("Vec2", size_of(Vec2)) // TODO More ergonomic constructor
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     assert_eq(loc(), 0, dyn.len)
-    // assert_eq(loc(), Vec.INIT_CAP, dyn.cap) // Optional: verify cap
 
-    // dyn.push(Vec2.new(10, 20)) // TODO FIX
-    // dyn.push(Vec2.new(30, 40)) // TODO FIX
     v1 := Vec2.new(10, 20)
     dyn.push(v1)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
     v2 := Vec2.new(30, 40)
     dyn.push(v2)
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
 
     assert_eq(loc(), 2, dyn.len)
 
     mut v0 := Vec2()
     dyn.get(0, v0)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
     test(loc(), v0.x.eq(10), "v0.x should be 10")
     test(loc(), v0.y.eq(20), "v0.y should be 20")
 
     v3 := Vec2.new(50, 60)
     dyn.set(0, v3)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
 
     mut v_after_set := Vec2()
     dyn.get(0, v_after_set)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
     test(loc(), v_after_set.x.eq(50), "v_after_set.x should be 50")
     test(loc(), v_after_set.y.eq(60), "v_after_set.y should be 60")
 
@@ -296,9 +236,21 @@ test_vec_vec2 := proc() {
     assert_eq(loc(), 0, dyn.len)
     assert_eq(loc(), 0, dyn.cap)
 
-    catch(err: FullError) {
-        println(loc(), "test_array_static_u8: FullError thrown:")
+    // Catch unexpected errors at end
+    catch(err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_vec_vec2()
@@ -306,11 +258,6 @@ test_vec_vec2()
 // Test Array growth/reallocation beyond initial capacity
 test_vec_growth := proc() {
     mut dyn := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
 
     initial_cap := dyn.cap
     test(loc(), initial_cap.eq(Vec.INIT_CAP), "Initial capacity should be INIT_DYN_CAP")
@@ -320,16 +267,6 @@ test_vec_growth := proc() {
     while lt(i, add(Vec.INIT_CAP, 5)) {
         dyn.push(mul(i, 10))
         i = add(i, 1)
-    }
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown during growth:")
-        println(err.msg)
-        return
-    }
-    catch (err: FullError) {
-        println(loc(), "FullError thrown during growth:")
-        println(err.msg)
-        return
     }
 
     test(loc(), dyn.len.eq(add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
@@ -345,9 +282,21 @@ test_vec_growth := proc() {
 
     dyn.delete()
 
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_vec_growth()
@@ -355,24 +304,9 @@ test_vec_growth()
 // Test IndexOutOfBoundsError for get
 test_vec_get_out_of_bounds := proc() {
     mut arr := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
 
     arr.push(42)
     arr.push(84)
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError during push")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError during push")
-        println(err.msg)
-        exit(1)
-    }
 
     // Try to get index that's out of bounds
     mut val := 0
@@ -384,29 +318,26 @@ test_vec_get_out_of_bounds := proc() {
     }
 
     arr.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
 }
 test_vec_get_out_of_bounds()
 
 // Test IndexOutOfBoundsError for set
 test_vec_set_out_of_bounds := proc() {
     mut arr := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
 
     arr.push(42)
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError during push")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError during push")
-        println(err.msg)
-        exit(1)
-    }
 
     // Try to set index that's out of bounds
     arr.set(10, 999)
@@ -417,5 +348,17 @@ test_vec_set_out_of_bounds := proc() {
     }
 
     arr.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
 }
 test_vec_set_out_of_bounds()
