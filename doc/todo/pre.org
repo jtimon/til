@@ -34,13 +34,13 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - List also needs runtime_size_of() for Dynamic parameters (separate but related issue)
 
 - [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
-- [ ] Improve type checking for struct type mismatches (passing Vec where Array expected should error at compile time)
 - [ ] Improve test error handling with ERROR: prefix (make unexpected errors more visible in test output)
 - [ ] Fix error line numbers from imported files (show correct file paths and line numbers)
 
 * Completed Items
 
 - [X] Improve forward reference error messages (added compile-time validation for undefined types, commit 7bfec12)
+- [X] Improve type checking for struct type mismatches (type checking already works correctly - passing Point3D where Point2D expected produces clear compile-time error with actual struct names)
 
 * Notes
 
