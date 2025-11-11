@@ -5,5 +5,5 @@ hello := func() returns Str {
 }
 
 assert_eq_str(loc(), hello(), "Hello World!")
-test(loc(), Str.eq(hello(), "Hello World!"), "hello() should return 'Hello World!'")
+test(loc(), hello().eq("Hello World!"), "hello() should return 'Hello World!'")
 test(loc(), not(I64.eq(42, 43)), "42 != 42")
