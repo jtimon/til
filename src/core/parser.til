@@ -124,21 +124,17 @@ Expr := struct {
     }
 
     get := func(self: Expr, i: I64) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
-        mut self_params := self.params  // Extract to local variable
-        if i.lt(self_params.len) {
+        if i.lt(self.params.len) {
             mut result := Expr()
-            self_params.get(i, result)
+            self.params.get(i, result)
             return result
         }
-        len_val := self_params.len
-        throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", len_val.to_str(), ")."))
+        throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len.to_str(), ")."))
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {
-        line_val := self.line
-        col_val := self.col
-        line_str := line_val.to_str()
-        col_str := col_val.to_str()
+        line_str := self.line.to_str()
+        col_str := self.col.to_str()
         if phase.eq("warning") {
             println(format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language."))
         } else {
@@ -148,10 +144,8 @@ Expr := struct {
     }
 
     lang_error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        line_val := self.line
-        col_val := self.col
-        line_str := line_val.to_str()
-        col_str := col_val.to_str()
+        line_str := self.line.to_str()
+        col_str := self.col.to_str()
         if phase.eq("warning") {
             return format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
         }
@@ -159,10 +153,8 @@ Expr := struct {
     }
 
     todo_error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        line_val := self.line
-        col_val := self.col
-        line_str := line_val.to_str()
-        col_str := col_val.to_str()
+        line_str := self.line.to_str()
+        col_str := self.col.to_str()
         if phase.eq("warning") {
             return format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
         }
@@ -170,10 +162,8 @@ Expr := struct {
     }
 
     error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
-        line_val := self.line
-        col_val := self.col
-        line_str := line_val.to_str()
-        col_str := col_val.to_str()
+        line_str := self.line.to_str()
+        col_str := self.col.to_str()
         if phase.eq("warning") {
             return format(line_str, ":", col_str, ": WARNING: ", msg)
         }
@@ -183,10 +173,9 @@ Expr := struct {
     params_clone := func(self: Expr) returns Vec throws AllocError, FullError, IndexOutOfBoundsError {
         mut cloned := Vec.new("Expr", size_of(Expr))
         mut i := 0
-        mut self_params := self.params  // Extract to local variable
-        while i.lt(self_params.len) {
+        while i.lt(self.params.len) {
             mut elem := Expr()
-            self_params.get(i, elem)
+            self.params.get(i, elem)
             cloned.push(elem)
             i = i.add(1)
         }
@@ -741,9 +730,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     enum_map := Map.new("Str", size_of(Str), "ValueType", size_of(ValueType))
 
     mut end_found := false
-    // Bug #10: Extract struct field to local variable before calling methods
-    mut lexer_current := lexer.current
-    while and(lexer_current.lt(lexer.len()), not(end_found)) {
+    while and(lexer.current.lt(lexer.len()), not(end_found)) {
         it_t := lexer.peek()
         itt := it_t.token_type
         switch itt {
@@ -812,10 +799,9 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     mut default_values := Map.new("Str", size_of(Str), "Expr", size_of(Expr))  // Map<Str, Expr>
 
     mut i := 0
-    mut body_params := body.params  // Extract to local variable
-    while i.lt(body_params.len) {
+    while i.lt(body.params.len) {
         mut p := Expr()
-        body_params.get(i, p)
+        body.params.get(i, p)
         nt := p.node_type
 
         // Use switch to check if it's a Declaration
@@ -830,10 +816,9 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
         if is_declaration {
             members.push(decl)
 
-            mut p_params := p.params  // Extract to local variable
-            if p_params.len.eq(1) {
+            if p.params.len.eq(1) {
                 mut val := Expr()
-                p_params.get(0, val)
+                p.params.get(0, val)
                 default_values.insert(decl.name, val)
             } else {
                 // TODO allow not setting default values in struct members
@@ -892,10 +877,9 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
         mut fcall_params := Vec.new("Expr", size_of(Expr))
         fcall_params.push(e)
         mut i := 0
-        params_ref := arg_list.params
-        while i.lt(params_ref.len) {
+        while i.lt(arg_list.params.len) {
             mut arg := Expr()
-            params_ref.get(i, arg)
+            arg_list.params.get(i, arg)
             fcall_params.push(arg)
             i = i.add(1)
         }
@@ -948,11 +932,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                 mut new_params := Vec.new("Expr", size_of(Expr))
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
-                mut method_params := method_args.params
                 mut j := 0
-                while j.lt(method_params.len) {
+                while j.lt(method_args.params.len) {
                     mut method_arg := Expr()
-                    method_params.get(j, method_arg)
+                    method_args.params.get(j, method_arg)
                     new_params.push(method_arg)
                     j = j.add(1)
                 }
@@ -1336,10 +1319,9 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
         name := rsonly_enum_extract_payload(ent)
         // Check if this is a dotted name: Identifier with params
         // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
-        mut e_params := e.params  // Extract to local variable
-        if e_params.len.eq(1) {
+        if e.params.len.eq(1) {
             mut p0 := Expr()
-            e_params.get(0, p0)
+            e.params.get(0, p0)
             p0nt := p0.node_type
             if p0nt.tag().eq(NodeType.Identifier("").tag()) {
                 param_name := rsonly_enum_extract_payload(p0nt)
@@ -1349,11 +1331,10 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
         return name
     }
     if ent.tag().eq(NodeType.FCall.tag()) {
-        mut e_params2 := e.params  // Extract to local variable
-        if e_params2.len.gte(1) {
+        if e.params.len.gte(1) {
             // For FCall, try to extract the function name
             mut p0_fcall := Expr()
-            e_params2.get(0, p0_fcall)
+            e.params.get(0, p0_fcall)
             return get_full_identifier_name(p0_fcall)
         }
     }
