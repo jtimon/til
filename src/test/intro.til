@@ -52,8 +52,8 @@ exit_early_return := proc(a: Bool) returns I64 {
     }
     return 2
 }
-test(loc(), I64.eq(exit_early_return(false), 2), "should not exit early")
-test(loc(), I64.eq(exit_early_return(true), 1), "should exit early")
+test(loc(), exit_early_return(false).eq(2), "should not exit early")
+test(loc(), exit_early_return(true).eq(1), "should exit early")
 
 // Functions can return multiple values
 my_func_multi := func(a: Bool, b: Bool) returns Bool, Bool {
