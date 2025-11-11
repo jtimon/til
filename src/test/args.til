@@ -44,17 +44,22 @@ test_bool_args()
 
 test_str_arg := proc(s: Str) returns Str {
     result := format(s, " world")
-    catch (err: I64_OverflowError) {
-        println(loc(), "I64_OverflowError thrown:")
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
+        exit(1)
     }
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
         println(err.msg)
+        exit(1)
     }
     return result
 }
@@ -120,17 +125,22 @@ test_mut_bool()
 
 append_str := proc(mut s: Str, suffix: Str) {
     s = format(s, suffix)
-    catch (err: I64_OverflowError) {
-        println(loc(), "I64_OverflowError thrown:")
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
+        exit(1)
     }
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
         println(err.msg)
+        exit(1)
     }
 }
 
@@ -247,23 +257,22 @@ test_non_mut_isolation()
 
 push_value := proc(mut arr: Vec, value: I64) {
     arr.push(value)
+
+    // Catch unexpected errors at end
     catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
+        exit(1)
     }
     catch (err: FullError) {
-        println(loc(), "FullError thrown:")
+        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
+        exit(1)
     }
 }
 
 test_mut_array := proc() {
     mut numbers := Vec.new("I64", size_of(I64))
-    catch (err: AllocError) {
-        println(loc(), "AllocError thrown:")
-        println(err.msg)
-        return
-    }
 
     assert_eq(loc(), 0, numbers.len)
 
@@ -275,21 +284,25 @@ test_mut_array := proc() {
 
     mut val0 := 0
     numbers.get(0, val0)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
     assert_eq(loc(), 42, val0)
 
     mut val1 := 0
     numbers.get(1, val1)
-    catch (err: IndexOutOfBoundsError) {
-        println(loc(), "IndexOutOfBoundsError thrown:")
-        println(err.msg)
-    }
     assert_eq(loc(), 84, val1)
 
     numbers.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
 }
 test_mut_array()
 
