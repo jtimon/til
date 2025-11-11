@@ -1,6 +1,7 @@
 #+TITLE: TIL DRY Refactoring Opportunities
 #+AUTHOR: TIL Development Team
 #+DATE: 2025-01-10
+#+TODO: TODO | DONE FIXED
 
 * Overview
 
@@ -610,7 +611,7 @@ let any_symbol = context.require_symbol(name, e)?;
 
 * Fixed DRY Refactorings
 
-** DRY #18: Conditional Parameter Validation                  ✅ FIXED
+** FIXED DRY #18: Conditional Parameter Validation
 :PROPERTIES:
 :DISCOVERED: 2025-01-10
 :FIXED: 2025-11-11
@@ -648,7 +649,7 @@ validate_conditional_params(e, "if", 2, 3)?;
 - Handles both exact count and range validation in single helper
 - Future parameter validation changes only need update in two places
 
-** DRY #12: Argument Count Validation in ext.rs                     ✅ FIXED
+** FIXED DRY #12: Argument Count Validation in ext.rs
 :PROPERTIES:
 :FIXED: 2025-01-10
 :COMMIT: cfe2a13
