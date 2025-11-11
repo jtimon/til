@@ -78,13 +78,6 @@ test_ufcs_on_function_results := proc () {
     assert(loc(), source.get_substr(6, 11).eq("world"))
     assert(loc(), not(source.get_substr(0, 5).eq("world")))
 
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
-    }
-    catch (err: AllocError) {
-        panic(loc(), format("Unexpected AllocError: ", err.msg))
-    }
-
     // Test with I64 methods on function results
     assert(loc(), add(10, 20).eq(30))
     assert(loc(), add(5, 10).lt(20))
@@ -96,6 +89,18 @@ test_ufcs_on_function_results := proc () {
     assert(loc(), and(true, true).or(false))
     assert(loc(), or(false, false).not())
     assert(loc(), not(and(true, false).or(false)))
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
 }
 test_ufcs_on_function_results()
 
@@ -142,11 +147,16 @@ test_ufcs_str_chains := proc () {
     hello_len := text.get_substr(0, 5).len()
     assert_eq(loc(), 5, hello_len)
 
-    catch (err: IndexOutOfBoundsError) {
-        panic(loc(), format("Unexpected IndexOutOfBoundsError: ", err.msg))
-    }
+    // Catch unexpected errors at end
     catch (err: AllocError) {
-        panic(loc(), format("Unexpected AllocError: ", err.msg))
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_ufcs_str_chains()
