@@ -3,8 +3,8 @@
 
 use crate::rs::init::Context;
 use crate::rs::parser::{
-    Expr, NodeType, Literal, ValueType, TTypeDef,
-    value_type_to_str, get_combined_name,
+    Expr, NodeType, Literal,
+    get_combined_name,
 };
 use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
 use std::io;
