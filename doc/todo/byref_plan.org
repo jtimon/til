@@ -338,21 +338,343 @@ context.arena_index.remove(source_var);
 
 ** Are These Real Blockers?
 
-The issues listed above assume incorrect usage. However:
+*CLARIFICATION*: Most of these are NOT actual blockers! The type checker already prevents the problematic scenarios.
 
-*** Type Checker Should Prevent Most Issues
+*** Type Checker Already Enforces Safety
 
 1. **Cannot modify const parameters**: Type checker already enforces immutability (typer.rs:933)
-2. **Cannot pass const to mut**: Type checker should enforce (may need enhancement)
+   - Attempting ~x.field = value~ on const parameter → type error
+   - Attempting ~x = value~ on const parameter → type error
+   - *This is already working correctly*
+
+2. **Cannot pass const to mut parameter**: Type checker should already enforce this
+   - Passing const variable to ~mut~ parameter → type error
+   - *Need to verify this is enforced, may need enhancement*
+
 3. **Arena reallocation**: Vec growth preserves existing data, offsets remain valid
+   - Rust's Vec::push reallocates but copies existing data
+   - All existing offsets remain valid after reallocation
+   - *This is not a blocker*
 
-*** Remaining Concerns
+4. **Mut parameters SHOULD modify caller**: That's the feature!
+   - When passing to ~mut~ parameter, modifications apply to caller's data
+   - Both contexts point to same arena location
+   - Type checker ensures only mutable variables can be passed to ~mut~ parameters
+   - *This is the intended behavior, not a bug*
 
-1. **Debugging complexity**: When both contexts share offsets, bugs harder to trace
-2. **Future features**: Move-only types, lifetime tracking become harder
-3. **Self-hosting**: Easier to implement with TIL's own memory model
+*** What Are the Actual Concerns?
 
-* Why Deferred Until Self-Hosting
+The "arena singleton aliasing" concerns appear to be mostly theoretical. The real issues are:
+
+1. **Debugging complexity**: When both contexts share offsets, bugs are harder to trace
+   - Current copy-based approach: Each context has independent data
+   - Reference-based approach: Contexts share data, mutations harder to track
+   - *This is a tooling/debugging issue, not a correctness issue*
+
+2. **Field registration complexity**: Current system pre-registers all fields
+   - Complicates sharing offsets (see Field Registration Technical Debt below)
+   - Need to re-register fields with new parameter name
+   - *This IS a real blocker - but solvable with field offset refactoring*
+
+3. **Self-hosting benefits**: Easier to implement and debug in TIL itself
+   - Better debugging tools in native TIL
+   - Can implement lifetime tracking in TIL's type system
+   - *This is a practical choice, not a technical requirement*
+
+* Field Registration Technical Debt (Actual Blocker)
+
+** Current System: Eager Field Pre-Registration
+
+The REAL complexity blocking pass-by-reference is the current field registration system.
+
+*** How It Works
+
+Location: init.rs:1009-1089 (~map_instance_fields()~)
+
+When a struct instance is created, ALL fields are eagerly registered in ~arena_index~:
+
+#+BEGIN_SRC rust
+// For instance "person" of type "Person" with fields {name: Str, age: I64}
+arena_index["person"] = 1000                // Base offset
+arena_index["person.name"] = 1000           // Field at offset 0
+arena_index["person.name.c_string"] = 1000  // Str sub-field
+arena_index["person.name.cap"] = 1008       // Str sub-field
+arena_index["person.age"] = 1016            // Field at offset 16
+#+END_SRC
+
+Each struct instance creates O(n) entries in ~arena_index~, where n = number of fields (including nested).
+
+*** The Problem for Pass-by-Reference
+
+When passing by reference, we want to share the base offset:
+
+#+BEGIN_SRC til
+person := Person { name: "Alice", age: 30 }
+// Caller has: arena_index["person"] = 1000, arena_index["person.name"] = 1000, etc.
+
+func(p: Person) {
+    println(p.name)  // Should access same memory as person.name
+}
+#+END_SRC
+
+But the current system expects fields to be registered with the parameter name:
+
+#+BEGIN_SRC rust
+// Function context needs:
+arena_index["p"] = 1000              // Shared base offset ✓
+arena_index["p.name"] = 1000         // Must re-register with "p" prefix
+arena_index["p.name.c_string"] = 1000
+arena_index["p.name.cap"] = 1008
+arena_index["p.age"] = 1016
+#+END_SRC
+
+This requires calling ~map_instance_fields()~ to re-register all fields with the new name.
+
+*** Why This Is Complex
+
+1. **Redundant storage**: Same offset stored multiple times under different keys
+2. **Re-registration overhead**: Must traverse all fields and create new entries
+3. **Name dependency**: Field access depends on full dotted path as HashMap key
+4. **Special cases**: Str fields require manual sub-field copying (init.rs:1060-1086)
+
+** Alternative: Dynamic Offset Calculation
+
+*** The Better Approach
+
+Instead of pre-registering all fields, calculate offsets dynamically:
+
+#+BEGIN_SRC rust
+// Only store base offset
+arena_index["person"] = 1000
+
+// Calculate field offset on access
+fn get_field_offset(base: usize, type_name: &str, field_path: &[&str]) -> usize {
+    let mut offset = base;
+    let mut current_type = type_name;
+
+    for field_name in field_path {
+        let struct_def = self.struct_defs.get(current_type)?;
+
+        // Iterate through fields until we find the target
+        let mut field_offset = 0;
+        for (member_name, decl) in &struct_def.members {
+            if !decl.is_mut { continue; }
+
+            if member_name == field_name {
+                offset += field_offset;
+                current_type = extract_type(&decl.value_type);
+                break;
+            }
+
+            field_offset += get_type_size(&decl.value_type)?;
+        }
+    }
+
+    return offset;
+}
+
+// Usage: person.name.c_string
+let offset = get_field_offset(1000, "Person", &["name", "c_string"]);
+#+END_SRC
+
+*** Infrastructure Already Exists
+
+The system ALREADY calculates offsets dynamically in ~get_type_size()~ (init.rs:1189-1214):
+
+#+BEGIN_SRC rust
+pub fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
+    if let Some(struct_def) = self.struct_defs.get(type_name) {
+        let mut total_size = 0;
+
+        for (field_name, decl) in &struct_def.members {
+            if !decl.is_mut { continue; }
+            let field_size = /* recursive calculation */;
+            total_size += field_size;
+        }
+        Ok(total_size)
+    }
+}
+#+END_SRC
+
+The same traversal logic can calculate field offsets!
+
+** Benefits of Dynamic Offset Calculation
+
+1. **Sparse arena_index**: Only O(1) entry per struct (just base offset)
+2. **No re-registration**: Sharing base offset is enough for pass-by-reference
+3. **Uniform handling**: All structs (including Str) use same logic
+4. **Cleaner code**: Field layout in StructDef, access logic in one place
+5. **Memory savings**: Fewer HashMap entries
+
+** Pass-by-Reference Becomes Trivial
+
+With dynamic offsets, sharing is just:
+
+#+BEGIN_SRC rust
+// Variable case - share base offset only
+NodeType::Identifier(id_) => {
+    if let Some(base_offset) = context.arena_index.get(id_) {
+        function_context.arena_index.insert(arg.name.clone(), *base_offset);
+        // Done! No field re-registration needed
+    }
+}
+#+END_SRC
+
+Field access inside function:
+- Looks up ~arena_index["p"]~ → gets 1000
+- Calculates ~p.name.cap~ → 1000 + offset_of("name") + offset_of("cap") = 1008
+- Accesses arena memory at offset 1008
+
+** Str Special Case Handling
+
+*** Current Special Case
+
+Location: init.rs:1060-1086
+
+Immutable Str fields require special handling to copy sub-field (~.c_string~, ~.cap~) arena_index entries from type definition to instance.
+
+This is because:
+1. Str is a struct with mutable fields
+2. But when used as immutable field of another struct, its sub-fields need registration
+3. Done by copying arena_index entries from struct type to instance
+
+*** With Dynamic Offsets
+
+Str becomes a regular struct - no special case needed:
+
+#+BEGIN_SRC til
+Person := struct {
+    name: Str,  // Immutable Str field
+    age: I64
+}
+
+person := Person { name: "Alice", age: 30 }
+// Only stores: arena_index["person"] = 1000
+
+// Access person.name.cap
+// Calculate: base=1000 + offset_of("name" in Person) + offset_of("cap" in Str)
+//          = 1000 + 0 + 8 = 1008
+#+END_SRC
+
+No special Str handling required!
+
+** Other Technical Debt Removed
+
+*** 1. copy_fields() Mostly Unnecessary
+
+Current: init.rs:1091
+#+BEGIN_SRC rust
+// TODO all args should be passed as pointers/references and we wouldn't need this
+pub fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, ...)
+#+END_SRC
+
+With dynamic offsets + pass-by-reference:
+- Default params: Share base offset (no copy)
+- ~copy~ keyword: Allocate and copy bytes (no field registration)
+- Only needed for explicit ~copy~ parameters
+
+*** 2. mut Parameter Writeback Simplified
+
+Current: interpreter.rs:1867-1875
+#+BEGIN_SRC rust
+// TODO this can be simplified once we pass all args by reference
+if let Some(offset) = function_context.arena_index.get(&arg_name) {
+    context.arena_index.insert(source_name.to_string(), *offset);
+    context.map_instance_fields(type_name, &source_name, e)?;  // Re-register fields
+}
+#+END_SRC
+
+With dynamic offsets:
+#+BEGIN_SRC rust
+// Just share the base offset back
+if let Some(offset) = function_context.arena_index.get(&arg_name) {
+    context.arena_index.insert(source_name.to_string(), *offset);
+    // Done! No field re-registration
+}
+#+END_SRC
+
+*** 3. own Parameter Simplified
+
+Current: interpreter.rs:1621-1630
+#+BEGIN_SRC rust
+// Transfer all field entries
+let prefix = format!("{}.", source_var);
+let keys_to_transfer: Vec<String> = context.arena_index.keys()
+    .filter(|k| k.starts_with(&prefix))
+    .cloned()
+    .collect();
+
+for key in &keys_to_transfer {
+    // Transfer each field entry...
+}
+#+END_SRC
+
+With dynamic offsets:
+#+BEGIN_SRC rust
+// Just transfer base offset
+if let Some(offset) = context.arena_index.get(source_var).copied() {
+    function_context.arena_index.insert(arg.name.clone(), offset);
+    context.arena_index.remove(source_var);
+    // Done! No field transfer loop
+}
+#+END_SRC
+
+** Implementation Complexity
+
+*** For Dynamic Offset Calculation
+
+Estimated effort: ~100-150 LOC
+
+1. Implement ~get_field_offset()~ helper (similar to ~get_type_size()~)
+2. Update field access in ~eval_custom_expr()~ to use dynamic calculation
+3. Remove ~map_instance_fields()~ calls (except for backward compat?)
+4. Remove Str special-case handling
+5. Test thoroughly with nested structs
+
+*** For Pass-by-Reference (After Dynamic Offsets)
+
+Estimated effort: ~50 LOC
+
+1. Detect variable vs expression in parameter passing
+2. Share base offset for variables
+3. Allocate fresh for expressions
+4. Update ~mut~ writeback (simpler now)
+5. Test thoroughly
+
+** Prerequisite: Verify Str Handling
+
+Before removing Str special case, verify:
+
+1. Is Str's memory layout stable? (c_string at offset 0, cap at offset 8)
+2. Do all Str operations assume this layout?
+3. Are there other types with similar special handling?
+
+If Str has other special cases (insert_string(), get_string(), etc.), those might need updates.
+
+** Recommendation: Tackle Field Offset Refactoring First
+
+*** Rationale
+
+1. **Simplifies byref implementation**: Reduces complexity significantly
+2. **Independent value**: Dynamic offsets improve code quality regardless of byref
+3. **Memory savings**: Fewer arena_index entries
+4. **Removes technical debt**: Eliminates Str special case, simplifies many functions
+
+*** Sequence
+
+1. **Phase 3a**: Implement dynamic field offset calculation
+   - Keep eager registration for backward compat initially
+   - Add dynamic calculation path
+   - Test both paths give same results
+   - Gradually migrate field access to dynamic path
+   - Remove eager registration
+
+2. **Phase 3b**: Implement pass-by-reference
+   - Now trivial with dynamic offsets
+   - Just share base offsets
+   - Update ~copy~, ~mut~, ~own~ to use simpler logic
+
+* Why Deferred Until Self-Hosting (Updated)
 
 From doc/human/ownership.org:218-221:
 
@@ -363,12 +685,51 @@ From doc/human/ownership.org:218-221:
 - Can revisit post self-hosting with better debugging tools
 #+END_QUOTE
 
-** Rationale for Deferring
+** Updated Understanding
+
+The original reasoning about "arena singleton corruption" was based on a misunderstanding. The real situation:
+
+*** NOT Actually Blockers
+1. **"Cannot modify const parameters"**: Type checker already prevents this ✓
+2. **"Arena reallocation breaks offsets"**: Vec growth preserves existing data ✓
+3. **"Aliasing causes corruption"**: Only if type checker fails (it doesn't) ✓
+
+*** ACTUAL Blocker
+- **Field registration complexity**: Current eager pre-registration system complicates offset sharing
+- Must re-register all fields when parameter name changes
+- Requires calling ~map_instance_fields()~ which has bugs (see own parameter infinite loop)
+
+*** Actual Reason for Deferring
+
+**Choice 1**: Implement dynamic field offset calculation first (Phase 3a)
+- Removes the real blocker (field registration complexity)
+- Independent value (memory savings, code simplification)
+- Makes pass-by-reference trivial to implement afterward
+- Estimated ~100-150 LOC
+
+**Choice 2**: Defer until self-hosting
+- Better debugging tools
+- Can implement in TIL itself with lifetime tracking
+- Lower risk of introducing subtle bugs
+
+** Rationale for Current Deferral
 
 1. **Current system works correctly**: All tests pass, copy semantics are safe
-2. **Debugging tools inadequate**: Rust-based interpreter hard to debug arena corruption
-3. **Self-hosting benefits**: TIL's own memory model can track references properly
-4. **Explicit copy keyword exists**: Users can optimize hot paths with manual ~copy~ avoidance
+2. **Field offset refactoring is significant**: Touches many parts of codebase
+3. **Self-hosting is near**: Better to wait for improved tooling
+4. **Explicit copy keyword exists**: Performance optimization available if needed
+
+** Recommended Sequence (Future)
+
+1. **Option A**: Do Phase 3a (dynamic offsets) before self-hosting
+   - Simplifies codebase regardless of byref
+   - Fixes ~own~ parameter bugs (infinite loop, field access)
+   - Makes Phase 3b (byref) trivial
+
+2. **Option B**: Defer both to self-hosting
+   - Implement dynamic offsets in TIL itself
+   - Implement byref in TIL itself
+   - Lower risk, better debugging
 
 ** Post Self-Hosting Advantages
 
@@ -376,6 +737,7 @@ From doc/human/ownership.org:218-221:
 2. **Lifetime tracking**: Can implement borrow-checker-like lifetime analysis
 3. **Reference visualization**: Can inspect reference graph in native TIL
 4. **Incremental approach**: Can test reference semantics in TIL codebase first
+5. **Fix own parameter bugs**: Dynamic offsets will resolve current infinite loop issue
 
 * Comparison with Mojo
 
