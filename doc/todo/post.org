@@ -10,6 +10,60 @@ These are features, improvements, and optimizations that would be nice to have b
 
 * Language Features
 
+** TODO Enable Field and Method Access on Dynamic Parameters          :MEDIUM:
+:PROPERTIES:
+:DISCOVERED: 2025-11-12
+:IMPACT: Dynamic typing, Python-like features, code flexibility
+:PRIORITY: Medium (would enable true dynamic typing, but workarounds exist)
+:END:
+
+*** Problem
+Currently, `Dynamic` parameters skip type checking when **passed** to functions, but once inside the function, any field access or method call on the Dynamic value is still type-checked and fails.
+
+*** Current Behavior
+#+BEGIN_SRC til
+test_field_access := proc(obj: Dynamic) returns I64 {
+    return obj.x  // ERROR: Struct 'Dynamic' has no member 'x'
+}
+
+test_method_call := proc(obj: Dynamic) returns I64 {
+    return obj.sum()  // ERROR: Type 'Dynamic' has no method 'sum'
+}
+#+END_SRC
+
+The type checker treats `Dynamic` as a concrete struct type and validates member/method access, which fails because `Dynamic` itself has no members or methods.
+
+*** What Works Now
+1. **Skipped type checking when passing arguments** - you can pass any type to a `Dynamic` parameter
+2. **Type introspection functions** - `size_of(T)` and `type_as_str(T)` work when used with type identifiers
+
+*** What Doesn't Work
+- Accessing fields on `Dynamic` values (e.g., `obj.x`)
+- Calling methods on `Dynamic` values (e.g., `obj.sum()`)
+- Any operations on the Dynamic value itself
+
+*** Desired Behavior
+For true Python-like dynamic typing, the type checker should skip validation for operations on `Dynamic` values, allowing:
+- Field access to be checked at runtime
+- Method calls to be resolved at runtime
+- Duck typing patterns
+
+*** Implementation Notes
+The type checker would need to:
+1. Recognize when an expression involves a `Dynamic` type
+2. Skip member/method existence validation for Dynamic expressions
+3. Defer these checks to runtime (eval phase)
+4. Handle runtime errors gracefully when members/methods don't exist
+
+*** Use Cases
+- Generic helper functions that work with any struct
+- Duck typing patterns (if it has a `.x` field, use it)
+- Temporary workaround until proper generics are implemented
+- Python-style flexible code
+
+*** Priority
+Medium - This would enable more flexible code patterns and is part of the vision for `Dynamic` as a Python-like feature. However, it's not critical for self-hosting since we can use concrete types or work around the limitation.
+
 ** TODO Consider Implementing Enum Tag Comparison Feature               :LOW:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
