@@ -5,7 +5,7 @@ import("src/core/lexer")
 INFER_TYPE := "auto"
 
 SEnumDef := struct {
-    mut enum_map: Map = Map.new("Str", size_of(Str), "ValueType", size_of(ValueType))
+    mut enum_map: Map = Map.new(Str, ValueType)
 }
 
 Declaration := struct {
@@ -64,7 +64,7 @@ SFuncDef := struct {
 
 SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
-    mut default_values: Map = Map.new("Str", size_of(Str), "Expr", size_of(Expr))
+    mut default_values: Map = Map.new(Str, Expr)
 }
 
 Literal := enum {
@@ -727,7 +727,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
         throw format(t2.line.to_str(), ":", t2.col.to_str(), ": expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
-    enum_map := Map.new("Str", size_of(Str), "ValueType", size_of(ValueType))
+    enum_map := Map.new(Str, ValueType)
 
     mut end_found := false
     while and(lexer.current.lt(lexer.len()), not(end_found)) {
@@ -796,7 +796,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     body := parse_body(lexer, TokenType.RightBrace)
 
     mut members := Vec.new(Declaration)  // Array of (Str, Declaration)
-    mut default_values := Map.new("Str", size_of(Str), "Expr", size_of(Expr))  // Map<Str, Expr>
+    mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
     mut i := 0
     while i.lt(body.params.len) {

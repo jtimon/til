@@ -560,9 +560,10 @@ Vec := struct {
         return vec
     }
 
-    // Helper for cases where type name is a string variable (e.g., in Map.new)
-    // TODO: Remove this once Map.new is refactored to use Dynamic parameters
-    new_by_name := proc(type_name: Str, type_size: I64) returns Vec throws AllocError {
+    // TODO: Remove this workaround once we can pass Dynamic params through nested calls
+    // Internal helper for Map.new() - creates Vec from type info stored in Dynamic params
+    // This is needed because we can't pass a Dynamic parameter to another function expecting a type
+    new_from_type_info := proc(type_name: Str, type_size: I64) returns Vec throws AllocError {
         mut vec := Vec()
         vec.type_name = type_name
         vec.type_size = type_size
@@ -655,15 +656,16 @@ Map := struct {
     mut size: I64 = 0                 // Number of entries
 
     // Create new empty map with specified key and value types
-    // Example: Map.new("Str", size_of(Str), "I64", size_of(I64))
-    new := proc(key_type: Str, key_size: I64, value_type: Str, value_size: I64) returns Map throws AllocError {
+    // Example: Map.new(Str, I64)
+    new := proc(KeyType: Dynamic, ValueType: Dynamic) returns Map throws AllocError {
         mut m := Map()
-        m.key_type_name = key_type
-        m.key_type_size = key_size
-        m.value_type_name = value_type
-        m.value_type_size = value_size
-        m.keys = Vec.new_by_name(key_type, key_size)
-        m.values = Vec.new_by_name(value_type, value_size)
+        m.key_type_name = type_as_str(KeyType)
+        m.key_type_size = size_of(KeyType)
+        m.value_type_name = type_as_str(ValueType)
+        m.value_type_size = size_of(ValueType)
+        // Can't pass Dynamic params to Vec.new(), so use type info directly
+        m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
+        m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
         m.size = 0
         return m
     }

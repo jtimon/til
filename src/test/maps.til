@@ -14,7 +14,7 @@ Vec2 := struct {
 
 // Test Map<I64, I64>
 test_map_i64_to_i64 := proc() {
-    mut ages := Map.new("I64", size_of(I64), "I64", size_of(I64))
+    mut ages := Map.new(I64, I64)
     ages.insert(100, 30)
     ages.insert(200, 25)
 
@@ -46,7 +46,7 @@ test_map_i64_to_i64 := proc() {
 
 // Test Map<Str, Vec2>
 test_map_str_to_vec2 := proc() {
-    mut positions := Map.new("Str", size_of(Str), "Vec2", size_of(Vec2))
+    mut positions := Map.new(Str, Vec2)
     mut player_pos := Vec2.new(10, 20)
     positions.insert("player", player_pos)
     mut enemy_pos := Vec2.new(30, 40)
@@ -85,7 +85,7 @@ test_map_str_to_vec2 := proc() {
 
 // Test Map<Str, Array<Str>>
 test_map_str_to_array_str := proc() {
-    mut lists := Map.new("Str", size_of(Str), "Array", size_of(Array))
+    mut lists := Map.new(Str, Array)
 
     mut fruits := Vec.new(Str)
     fruits.push("apple")
@@ -143,7 +143,7 @@ test_map_str_to_array_str := proc() {
 
 // Test Map<U8, Bool>
 test_map_u8_to_bool := proc() {
-    mut flags := Map.new("U8", size_of(U8), "Bool", size_of(Bool))
+    mut flags := Map.new(U8, Bool)
     flags.insert(U8.from_i64(10), true)
     flags.insert(U8.from_i64(20), false)
     flags.insert(U8.from_i64(30), true)
@@ -176,7 +176,7 @@ test_map_u8_to_bool := proc() {
 
 // Test insert() - should throw on duplicate keys
 test_map_insert_duplicate := proc() {
-    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)
     ages.insert("Alice", 35)
     panic(loc(), "Expected DuplicatedKeyError when inserting duplicate key")
@@ -191,7 +191,7 @@ test_map_insert_duplicate := proc() {
 
 // Test set() - should overwrite existing keys
 test_map_set := proc() {
-    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut ages := Map.new(Str, I64)
     ages.set("Alice", 30)
     ages.set("Alice", 35)
     test(loc(), ages.len().eq(1), "Size should still be 1 after set update")
@@ -215,7 +215,7 @@ test_map_set := proc() {
 
 // Test get() with non-existent key
 test_map_get_missing := proc() {
-    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)
 
     mut age := 0
@@ -237,7 +237,7 @@ test_map_get_missing := proc() {
 
 // Test contains_key()
 test_map_contains_key := proc() {
-    mut ages := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut ages := Map.new(Str, I64)
     ages.insert("Alice", 30)
     ages.insert("Bob", 25)
 
@@ -260,7 +260,7 @@ test_map_contains_key := proc() {
 
 // Test position() method
 test_map_position := proc() {
-    mut colors := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut colors := Map.new(Str, I64)
     colors.insert("red", 1)
     colors.insert("green", 2)
     colors.insert("blue", 3)
@@ -287,7 +287,7 @@ test_map_position := proc() {
 
 // Test empty Map operations
 test_map_empty := proc() {
-    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut m := Map.new(Str, I64)
     test(loc(), m.len().eq(0), "Empty map should have size 0")
     test(loc(), not(m.contains_key("anything")), "Empty map should not contain any key")
     mut pos := m.position("anything")
@@ -303,7 +303,7 @@ test_map_empty := proc() {
 
 // Test Map growth/reallocation beyond initial capacity
 test_map_growth := proc() {
-    mut ages := Map.new("I64", size_of(I64), "I64", size_of(I64))
+    mut ages := Map.new(I64, I64)
 
     // Array.INIT_DYN_CAP is 16, so insert 20 elements to trigger reallocation
     mut i := 0
@@ -348,7 +348,7 @@ test_map_growth := proc() {
 
 // Test Map.delete() properly resets size
 test_map_delete := proc() {
-    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut m := Map.new(Str, I64)
 
     m.insert("a", 1)
     m.insert("b", 2)
@@ -372,7 +372,7 @@ test_map_delete := proc() {
 
 // Test len() tracks correctly through various operations
 test_map_len_tracking := proc() {
-    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut m := Map.new(Str, I64)
 
     test(loc(), m.len().eq(0), "Empty map should have len 0")
 
@@ -406,7 +406,7 @@ test_map_len_tracking := proc() {
 
 // Test multiple set() overwrites
 test_map_multiple_overwrites := proc() {
-    mut m := Map.new("Str", size_of(Str), "I64", size_of(I64))
+    mut m := Map.new(Str, I64)
 
     m.set("key", 1)
     mut val := 0
@@ -438,7 +438,7 @@ test_map_multiple_overwrites := proc() {
 
 // Test insertion order is preserved after growth
 test_map_order_after_growth := proc() {
-    mut m := Map.new("I64", size_of(I64), "Str", size_of(Str))
+    mut m := Map.new(I64, Str)
 
     // Insert 20 keys to trigger reallocation
     mut i := 0
