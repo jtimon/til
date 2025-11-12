@@ -12,6 +12,32 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 
 * TODO Active Items
 
+- [ ] Implement pass-by-reference semantics with three argument modes
+  - [ ] Phase 1: Fix type checker to enforce immutability of default parameters
+    - Track parameter mutability in typer.rs
+    - Prevent assignment to immutable parameters
+    - Prevent field modification of immutable parameters
+    - Prevent passing immutable to mut parameter
+    - Add tests in src/test/tmp/test_immutability.til
+  - [ ] Phase 2: Add 'copy' keyword for explicit copy semantics
+    - Add 'copy' to lexer keywords
+    - Parse 'copy' in parameter declarations (add is_copy field)
+    - Validate: 'copy' and 'mut' mutually exclusive
+    - Type check: error on 'mut copy'
+    - Add tests in src/test/tmp/test_copy_keyword.til
+  - [ ] Phase 3: Optimize to use references for non-copy, non-mut struct parameters
+    - Change struct parameter passing to share arena offsets
+    - Keep primitives as pass-by-value (optimal)
+    - Keep mut parameter copy-in/write-back behavior
+    - Add tests in src/test/tmp/test_reference_passing.til
+  - [ ] Phase 4: Update core library to remove Bug #24 workarounds
+    - Remove copy-modify-reassign patterns from List.push(), List.set(), List.pop()
+    - Verify other collections don't need similar fixes
+    - Test simplified implementations
+    - Mark Bug #24 as FIXED in bugs.org
+  - Impact: Fixes Bug #24, cleaner semantics, better performance
+  - See: doc/bot/bug24_investigation.org for detailed analysis
+
 - [ ] Standardize len/cap API across collections
   - Current inconsistency: Array has len field, Vec has len+cap fields, Map has size field, Str has len() method
   - Goal: Consistent naming and access patterns across all collections

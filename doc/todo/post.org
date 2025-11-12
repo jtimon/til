@@ -440,56 +440,138 @@ Very low. The if-statement workaround is actually clearer and more flexible than
 ** TODO Implement Own Keyword for Function Arguments               :MEDIUM:
 :PROPERTIES:
 :DISCOVERED: 2025-11-11
-:IMPACT: Memory semantics, function ownership
-:RELATED: Bug #10, pass-by-value vs pass-by-reference
+:IMPACT: Memory semantics, function ownership, borrow checking
+:RELATED: Bug #24, pass-by-reference implementation, mode safe
 :END:
 
 *** Problem
-Currently has limitations with struct field modifications through mut methods. This was discovered during Bug #10 (UFCS on struct fields) where operations like `s.items.push(42)` don't properly modify struct fields.
+After implementing pass-by-reference semantics (see pre.org), TIL will have three argument modes:
+- Default (immutable): Pass by reference, read-only
+- mut: Pass by reference, mutable
+- copy: Explicit copy, can modify without affecting caller
 
-Note: Arguments are already passed by reference by default (see design_notes.org), but there are borrow checking limitations.
+However, this still lacks move semantics for transferring ownership. The `own` keyword would enable:
+1. Explicit ownership transfer (like Rust's move)
+2. Zero-copy patterns for large structs
+3. Foundation for future borrow checker (mode safe)
 
 *** Proposed Solution
 Add an `own` keyword for function arguments to indicate ownership transfer/move semantics:
 
 #+BEGIN_SRC til
-// Current (borrow semantics with mut)
+// Default (immutable reference - from pre.org implementation)
+read_struct := proc(s: MyStruct) {
+    println(s.field.to_str())  // Can read, cannot modify
+}
+
+// Mutable reference (from pre.org implementation)
 modify_struct := proc(mut s: MyStruct) {
-    s.field = 42  // Works, but has limitations with nested field modifications
+    s.field = 42  // Modifies caller's struct
 }
 
-// With own keyword (move/ownership transfer)
-modify_struct := proc(own mut s: MyStruct) {
-    s.field = 42  // Takes ownership, caller loses access
-    s.items.push(42)  // Can modify nested fields freely
-    // Caller's s is now moved, cannot be used after this call
+// Copy (from pre.org implementation)
+local_modify := proc(copy s: MyStruct) {
+    s.field = 99  // Modifies local copy, caller unchanged
 }
 
-// Taking ownership without modification
+// Own keyword (POST self-hosting - REQUIRED for mode safe)
 take_ownership := proc(own s: MyStruct) {
-    // s is moved into this function
-    // Caller can no longer use it
-    // Useful for consuming values or transferring to other owners
+    // s is MOVED into this function
+    // Caller can no longer use s after this call
+    // Function can do anything with s (modify, consume, transfer)
+    s.field = 42
+    // No need to write back - we own it
+}
+
+// Own with mut (can modify the owned value)
+consume_and_modify := proc(own mut s: MyStruct) {
+    s.field = 42
+    s.items.push(10)
+    return s  // Can return owned value
 }
 #+END_SRC
 
+*** Use Cases
+
+*1. Consuming values:*
+#+BEGIN_SRC til
+delete_resource := proc(own r: Resource) {
+    // Resource is moved in, caller can't use it anymore
+    r.cleanup()
+    r.delete()
+}
+#+END_SRC
+
+*2. Builder patterns:*
+#+BEGIN_SRC til
+Builder := struct {
+    with_field := func(own mut self: Builder, val: I64) returns Builder {
+        self.field = val
+        return self  // Move ownership back to caller
+    }
+}
+
+// Usage: b := Builder().with_field(10).with_field(20)
+#+END_SRC
+
+*3. Transfer to other owners:*
+#+BEGIN_SRC til
+transfer_to_list := proc(own item: Item, mut list: List) {
+    list.push(item)  // Ownership transferred to list
+    // Caller's item is now invalid
+}
+#+END_SRC
+
+*** Relationship to Mode Safe
+
+The `own` keyword is **REQUIRED** for implementing "mode safe" with a borrow checker:
+
+#+BEGIN_SRC til
+mode safe  // Opt-in mode with compile-time borrow checking
+
+dangerous_fn := proc(own data: Data) {
+    spawn_thread(data)  // OK - we own it, can move to thread
+}
+
+safe_fn := proc(data: Data) {
+    spawn_thread(data)  // ERROR: Cannot move borrowed value
+}
+
+mut_fn := proc(mut data: Data) {
+    spawn_thread(data)  // ERROR: Cannot move mutable borrow
+}
+#+END_SRC
+
+Without `own`, the borrow checker cannot distinguish between:
+- Borrowed references (must return to caller)
+- Owned values (can be consumed/moved)
+
 *** Benefits
 - Explicit ownership transfer like Rust's move semantics
-- Solves struct field modification issues
-- Makes it clear when values are consumed vs copied
 - Enables zero-copy patterns for large structs
+- Makes value lifecycle explicit and compiler-verifiable
+- Foundation for mode safe borrow checking
+- Prevents use-after-move bugs at compile time
 
 *** What's Needed
 - [ ] Design own keyword semantics (move vs borrow)
 - [ ] Update parser to recognize own in parameter lists
+- [ ] Add is_owned field to Declaration
+- [ ] Validate: own and copy mutually exclusive
 - [ ] Implement ownership tracking in type checker
 - [ ] Modify interpreter to handle moved values
 - [ ] Add compiler errors for use-after-move
 - [ ] Test with struct field modifications
 - [ ] Document ownership model
+- [ ] Design mode safe borrow checker (future)
 
 *** Why It's Post-Self-Hosting
-The current copy semantics work for self-hosting, albeit with some limitations. The `own` keyword would be a significant language enhancement that requires careful design and implementation.
+1. The three-mode system (immutable/mut/copy) from pre.org is sufficient for self-hosting
+2. Own keyword requires sophisticated lifetime tracking
+3. Mode safe borrow checker is a major undertaking
+4. Self-hosting should work without move semantics initially
+
+The `own` keyword would be a significant language enhancement that requires careful design and implementation, but it's essential for the long-term vision of safe concurrent programming.
 
 ** TODO Add Optional Error Handling Enhancements                    :MEDIUM:
 :PROPERTIES:
