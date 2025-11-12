@@ -1,0 +1,26 @@
+
+This FAQ addresses common questions about Til's design philosophy, which embraces multiplicity in paradigms to empower developers without compromise. Til is not confined to a single axis of language design; it provides mechanisms to blend and switch between them as needed, fostering flexibility, efficiency, and expressiveness.
+
+* Is Til a compiled or an interpreted language?
+
+Yes, to both. Til supports compilation to native binaries for performance-critical applications, leveraging monomorphization and optimizations for zero-cost abstractions. Simultaneously, it maintains a full interpreter for rapid prototyping, scripting, and interactive development via REPL. The compiler itself invokes the interpreter for macro expansion, ensuring seamless interoperability.
+
+* Is Til statically or dynamically typed?**
+
+Yes, to both. Til offers static type checking with algebraic data types, generics, and compile-time bounds for safety and optimization in library and production code. For simpler or exploratory work, Dynamic typing provides runtime flexibility akin to Python or Ruby, with seamless translation between styles via desugaring macros. This duality allows static efficiency where proven and dynamic agility where needed.
+
+* Is Til functional or imperative?**
+
+Yes, to both. Til distinguishes pure functions (immutable, side-effect-free) from procedures (mutable, imperative) at the syntax level, enabling composable functional pipelines alongside direct imperative control flow. Variadics, higher-order functions, and pattern matching support functional idioms, while loops, mutation, and pointers cater to imperative performance.
+
+* Is Til object-oriented or data-oriented?**
+
+Yes, to both. Til eschews traditional classes and inheritance in favor of lightweight structs with associated functions, promoting data-oriented design (à la Rust or Odin) for cache-friendly, low-level control. Universal Function Call Syntax (UFCS) allows method-like chaining (e.g., `vec.push(42)`), providing object-oriented ergonomics as a stylistic choice without the overhead of vtables or polymorphism pitfalls.
+
+* How does Til balance binary size and performance with flexibility?**
+
+Til's generics monomorphize for zero-cost abstractions in optimized builds, but a compiler flag (e.g., `--prefer-dynamic`) can desugar them to Dynamic implementations, reducing binary bloat by using runtime dispatch and type erasure. This ensures small footprints for embedded or constrained environments while preserving the full expressive power of generics in larger applications.
+
+* Why this "multi-paradigm" approach?**
+
+Til's philosophy prioritizes developer freedom: choose the right tool for the task without ecosystem lock-in. By desugaring features (e.g., generics to macros, OO-style to UFCS), Til minimizes cognitive overhead and implementation complexity, making it a versatile foundation for everything from systems programming to data science.
