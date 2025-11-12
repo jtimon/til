@@ -79,16 +79,16 @@ This proposes:
 
 * Comparison Table
 
-| Feature | Mojo | TIL (Current) | TIL (Proposed) |
-|---------+------+---------------+----------------|
-| Default param | read (ref) | Copy | Copy (→ref in Phase 3) |
-| Mutable param | mut (ref) | mut (ref) | mut (ref) |
-| Copy param | var (copy) | copy | copy |
-| Ownership transfer | var with ^ | - | own |
-| Mut local | var x := y | mut x := y | mut x := y |
-| Immut local (copy) | let x := y | x := y (alias!) | x := y (alias) |
-| Immut local (ref) | ref x := y | x := y | x := y |
-| Transfer local | x^ | - | own x := y |
+| Feature            | Mojo       | TIL (Current)   | TIL (Proposed)         |
+|--------------------+------------+-----------------+------------------------|
+| Default param      | read (ref) | Copy            | Copy (→ref in Phase 3) |
+| Mutable param      | mut (ref)  | mut (ref)       | mut (ref)              |
+| Copy param         | var (copy) | copy            | copy                   |
+| Ownership transfer | var with ^ | -               | own                    |
+| Mut local          | var x := y | mut x := y      | mut x := y             |
+| Immut local (copy) | let x := y | x := y (alias!) | x := y (alias)         |
+| Immut local (ref)  | ref x := y | x := y          | x := y                 |
+| Transfer local     | x^         | -               | own x := y             |
 
 * Key Differences
 
@@ -130,11 +130,11 @@ own moved := original   // Transfer ownership, original invalidated
 
 ** Comparison with Mojo
 
-| TIL Proposed | Mojo Equivalent | Semantics |
-|--------------+-----------------+-----------|
-| alias := x   | ref alias = x   | Reference binding |
-| mut dup := x | let dup = x     | Copy |
-| own moved := x | let moved = x^ | Move/transfer |
+| TIL Proposed   | Mojo Equivalent | Semantics         |
+|----------------+-----------------+-------------------|
+| alias := x     | ref alias = x   | Reference binding |
+| mut dup := x   | let dup = x     | Copy              |
+| own moved := x | let moved = x^  | Move/transfer     |
 
 ** This Makes Sense Because
 
