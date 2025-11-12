@@ -12,26 +12,19 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 
 * TODO Active Items
 
-- [ ] #21 Simplify collection constructor APIs - Type identifiers as Dynamic parameters fail
-  - **Current API** (verbose, redundant):
-    #+BEGIN_SRC til
-    mut vec := Vec.new("Str", size_of(Str))
-    mut arr := Array.new("I64", size_of(I64), 10)
-    mut map := Map.new("Str", size_of(Str), "I64", size_of(I64))
-    mut ptr := Ptr.new("I64", size_of(I64))
-    #+END_SRC
-  - **Desired API** (clean, ergonomic):
+- [X] #21 Simplify collection constructor APIs - COMPLETED
+  - **Fixed in**: Bug #22 (see doc/todo/bugs.org) and commits 2138e15, 2fb3bbc, 6481c28, 3ae3a73
+  - **Solution**: Modified interpreter to skip evaluation of type identifiers passed as Dynamic parameters, store type name as string, and resolve in size_of()/type_as_str()
+  - **New API** (clean, ergonomic):
     #+BEGIN_SRC til
     mut vec := Vec.new(Str)
     mut arr := Array.new(I64, 10)
     mut map := Map.new(Str, I64)
-    mut ptr := Ptr.new(I64)
+    mut ptr := Ptr.new(I64)  // Already worked
     #+END_SRC
-  - **Blocker**: Type identifiers passed as Dynamic parameters cause "Expr index 0 out of bounds" error
-  - **Root cause**: When calling type_as_str(T) or size_of(T) where T is a Dynamic parameter containing a type identifier, the function receives an empty Expr
-  - **Potential solutions**: (1) Runtime type introspection functions, (2) Compile-time type parameter capture syntax, (3) Quote/unquote mechanism, (4) Keep current API
-  - **Test case**: src/test/tmp/test_array_new.til reproduces the issue
-  - List also needs runtime_size_of() for Dynamic parameters (separate but related issue)
+  - **Refactored**: 122 call sites (13 Array, 73 Vec, 36 Map)
+  - **Known limitation**: Can't pass Dynamic type parameters through nested calls (Map.new uses workaround)
+  - List still needs runtime_size_of() for Dynamic value parameters (separate issue)
 
 - [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
 - [X] Improve test error handling with ERROR: prefix (COMPLETED: dynamic_arrays.til, mut_test.til, pointers.til, enums.til, arrays.til, args.til, ufcs.til, editor_mode_test.til, maps.til, test_parser.til, lists.til; maps.til also had 4 redundant tests removed (21% size reduction); PARTIAL: test_lexer.til (6/28 functions); SKIP: errors.til (all catches test expected errors))
