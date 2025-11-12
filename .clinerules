@@ -1,0 +1,122 @@
+# TIL Project - Claude Code Instructions
+
+## Primary Documentation
+Read `doc/bot.org` for full guidelines. Key points below are frequently repeated corrections.
+
+## CRITICAL: Stay Within Project Directory
+- **NEVER** create or read files outside the project directory
+- **NEVER** use /tmp or any path outside this project
+- All temporary files go in `src/test/tmp/` (already gitignored)
+- All work must stay within the project boundaries
+
+## Catch Block Style
+**DO NOT** put catch blocks after every statement. Put them at the END of functions.
+
+```til
+// WRONG - Don't do this
+test_something := proc() {
+    do_thing_1()
+    catch (err: SomeError) { ... }
+
+    do_thing_2()
+    catch (err: SomeError) { ... }
+}
+
+// CORRECT - Do this
+test_something := proc() {
+    do_thing_1()
+    do_thing_2()
+
+    // All catches at the end
+    catch (err: SomeError) {
+        println("ERROR:", loc(), "SomeError:", err.msg)
+        exit(1)
+    }
+}
+```
+
+## Test File Locations
+Don't ask where tests go - they're organized by collection type:
+- Vec tests: `src/test/dynamic_arrays.til`
+- List tests: `src/test/lists.til`
+- Map tests: `src/test/maps.til`
+- Array tests: `src/test/arrays.til`
+- Temporary/debug: `src/test/tmp/`
+
+## Issue Numbering System - IMPORTANT
+This is shared across ALL tracking documents (bugs.org, dry.org, etc.)
+1. **ALWAYS** read `doc/todo/next_issue_num.txt` first
+2. Use that exact number for new bug/issue
+3. Increment and write back to file immediately
+4. Never reuse numbers, even for closed issues
+5. File location: `doc/todo/next_issue_num.txt` (NOT in `doc/`)
+
+## Bug #24 - Struct Field Mutation
+Struct fields that are collections return COPIES. Must use copy-modify-reassign:
+
+```til
+// WRONG - modifies copy, original unchanged
+self.type_names.push(name)
+
+// CORRECT - copy, modify, reassign
+mut names := self.type_names
+names.push(name)
+self.type_names = names
+```
+
+## Build Commands
+- `make rstil` - Fast build, just compile the interpreter
+- `make tests` or `make` - Full test suite (slower, for final verification)
+- Use `make rstil` when iterating quickly during development
+
+## Permissions Already Granted
+Don't ask permission for:
+- `make`, `make tests`, `make rstil`, `cargo`, `rustc`
+- `git status`, `git log`, `git diff`, `git add`, `git commit`
+- `timeout N ./bin/rstil file.til`
+- Reading any project file within the project
+- Creating/editing files in `src/test/tmp/` or `doc/bot/`
+- `sed`, `awk`, `grep`, `find`, `cat` - full freedom within project dir
+- Running Python scripts within the project
+- Removing `.backup` files
+
+## Never Allowed - Must Ask/Warn First
+- Modifying `doc/*.org` files (human-maintained)
+- Modifying `doc/human/*.org` files (human-maintained)
+- `git push` to remote
+- Git force operations (`push --force`, `reset --hard`, etc.)
+- Deleting tracked files outside tmp/ directories
+- Commands with `sudo` or elevated privileges
+
+## Context-Dependent - Ask First
+- Creating new files in `src/core/` or `src/test/` (outside tmp/)
+- Modifying build system files (Makefile, Cargo.toml, etc.)
+- Large refactorings affecting many files
+
+## Documentation Updates
+**BEFORE every commit**: Update relevant documentation if we fixed/changed anything
+- Fixed a bug? Update `doc/todo/bugs.org` with fix details
+- Changed behavior? Update design docs
+- Added feature? Update relevant docs
+- Even partial fixes should be documented
+
+## Commit Process
+1. Update documentation first if anything was fixed/changed
+2. Run `make tests` to verify everything works
+3. If exit code 0, commit
+4. If non-zero, read output and fix
+5. Use heredoc for commit messages
+6. Always include co-author footer
+
+## File Organization
+- `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
+- `doc/bot/` - Your workspace (full freedom to create/edit)
+- `doc/human/` - Human reference docs (read-only)
+- `doc/todo/` - Shared workspace (can edit)
+
+## Common Patterns
+- List.push(Type, value) - type comes first
+- Vec.push(value) - type set at construction
+- Functions throw errors, don't return Result types
+- Use `assert_eq(loc(), expected, actual)` for I64
+- Use `test(loc(), condition, "description")` for Bool/Str
