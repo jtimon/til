@@ -100,15 +100,30 @@ File: src/rs/interpreter.rs (lines 1593-1604)
 - Copy parameters continue to use copy_fields() deep copy
 - Check is_copy field to determine behavior
 
-** Phase 4: Update Core Library ⏳ TODO
+** Phase 4: Update Core Library ⏸ BLOCKED
+
+**Status**: BLOCKED by Phase 3 deferral
+**Reason**: Cannot remove Bug #24 workarounds without reference semantics
 
 Goal: Remove Bug #24 workarounds once references work correctly.
 
-File: src/core/list.til, vec.til, map.til
-- Remove copy-modify-reassign patterns
-- Simplify List.push(), List.set(), List.pop()
-- Test that direct field mutation works
-- Mark Bug #24 as FIXED in bugs.org
+The copy-modify-reassign patterns in List.push(), List.set(), List.pop() and similar
+methods must remain until Phase 3 is completed. These workarounds are necessary because
+field access returns copies, not references.
+
+Example workaround (must stay):
+#+BEGIN_SRC til
+// List.push - lines 1003-1009
+mut names := self.type_names
+names.push(type_name)
+self.type_names = names
+#+END_SRC
+
+This will be simplified once Phase 3 implements reference semantics:
+#+BEGIN_SRC til
+// Future: after Phase 3
+self.type_names.push(type_name)  // Will work directly
+#+END_SRC
 
 * Key Implementation Details
 

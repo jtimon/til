@@ -31,11 +31,11 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
     - Reason: Added complexity without simplification, introduced subtle bugs
     - See: doc/bot/phase3_findings.org for detailed analysis
     - Decision: Phase 2 (copy keyword) already provides needed functionality
-  - [ ] Phase 4: Update core library to remove Bug #24 workarounds (CAN DO NOW)
-    - Remove copy-modify-reassign patterns from List.push(), List.set(), List.pop()
-    - Verify other collections don't need similar fixes
-    - Test simplified implementations
-    - Mark Bug #24 as FIXED in bugs.org
+  - [⏸] Phase 4: Update core library to remove Bug #24 workarounds (BLOCKED)
+    - Status: BLOCKED by Phase 3 deferral
+    - Cannot remove copy-modify-reassign patterns without reference semantics
+    - Bug #24 workarounds must remain until Phase 3 is completed
+    - Workarounds in: List.push(), List.set(), List.pop() (src/core/core.til:1003-1009, etc.)
   - Impact: Fixes Bug #24, cleaner semantics, better performance
   - See: doc/todo/plan_by_reference.org for detailed implementation plan
 

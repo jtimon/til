@@ -80,17 +80,21 @@ This bug is being fixed by implementing pass-by-reference semantics with three a
 - Comprehensive tests in src/test/args.til
 - All tests pass
 
-*Phase 3: Use references for all non-copy parameters* ⏳ IN PROGRESS
-- Both const (default) and mut parameters use references
-- Includes primitives for semantic consistency
-- Only 'copy' keyword creates actual copies
-- Modify interpreter to share arena offsets instead of copying
-- Add comprehensive tests for reference semantics
+*Phase 3: Use references for all non-copy parameters* ⏸ DEFERRED
+- Status: DEFERRED until after self-hosting (2025-11-12)
+- Reason: Added complexity without simplification, introduced subtle bugs
+- Attempted implementation encountered context corruption with arena offset sharing
+- See doc/bot/phase3_findings.org and doc/todo/plan_by_reference.org for details
 
-*Phase 4: Update core library* ⏳ PENDING
-- Remove Bug #24 workarounds from List, Vec, Map methods
-- Simplified, cleaner code
-- Mark Bug #24 as FIXED
+*Phase 4: Update core library* ⏸ BLOCKED
+- Status: BLOCKED by Phase 3 deferral
+- Cannot remove Bug #24 workarounds without reference semantics from Phase 3
+- Workarounds must remain until Phase 3 is completed
+
+*Current Status*
+- Bug #24 remains OPEN - workarounds still necessary
+- Phase 2 (copy keyword) provides explicit control but doesn't fix underlying issue
+- Bug will be revisited after self-hosting when better debugging tools available
 
 After this implementation, the example will work naturally:
 #+BEGIN_EXAMPLE til
