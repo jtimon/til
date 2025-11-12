@@ -8,6 +8,57 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #25: Variable Declarations Share Arena Offsets Instead of Copying :OPEN:
+:PROPERTIES:
+:DISCOVERED: 2025-11-12
+:IMPACT: Data integrity, aliasing bugs
+:STATUS: Open - Fix in progress
+:END:
+
+*** Description
+When declaring a new variable from an existing struct (e.g., `mut dup := original`), the interpreter shares the arena offset instead of creating an independent copy. This causes unintended aliasing where modifications to the new variable also modify the original.
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+original := Vec2.new(1, 2)
+mut dup := original  // Should copy, but currently shares offset
+dup.x = 999          // Modifies BOTH dup AND original!
+// original.x is now 999 instead of 1
+#+END_EXAMPLE
+
+*** Root Cause
+File: src/rs/interpreter.rs, lines 920-921
+
+The declaration code path shares the arena offset:
+#+BEGIN_SRC rust
+if let Some(offset) = context.arena_index.get(&expr_result_str) {
+    context.arena_index.insert(declaration.name.to_string(), *offset);  // Shares!
+}
+#+END_SRC
+
+However, the assignment code path (line 1002) correctly copies:
+#+BEGIN_SRC rust
+context.copy_fields(custom_type_name, &expr_result_str, var_name, inner_e)?;  // Copies!
+#+END_SRC
+
+This inconsistency means declarations create aliases while assignments create copies.
+
+*** Impact
+- Unintended aliasing bugs where modifying one variable affects another
+- Breaks expected semantics: `mut dup := original` should create independent copy
+- Inconsistent behavior between declaration and assignment
+- Makes it impossible to pass const params by reference safely (Phase 3 blocker)
+
+*** Test Case
+Added in src/test/args.til line 484 (test_declaration_creates_copy)
+Currently FAILS with: `assert_eq failed: expected '1', found '999'`
+
+*** Planned Fix
+Change declaration path to use copy_fields() instead of sharing offset:
+1. Replace offset sharing with copy_fields() call in declaration handler
+2. Make declarations consistent with assignments
+3. Verify all tests pass
+
 ** Bug #24: Struct Field Access Returns Copy Instead of Reference :OPEN:
 :PROPERTIES:
 :DISCOVERED: 2025-11-12

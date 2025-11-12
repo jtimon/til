@@ -478,3 +478,21 @@ test_copy_nested := proc() {
     assert_eq(loc(), 4, original.end.y)
 }
 test_copy_nested()
+
+// === Test that declarations create independent copies ===
+
+test_declaration_creates_copy := proc() {
+    original := Vec2.new(1, 2)
+    mut dup := original  // Should create copy, not share offset
+    dup.x = 999
+    dup.y = 888
+
+    // Original should be unchanged - declarations should copy
+    assert_eq(loc(), 1, original.x)
+    assert_eq(loc(), 2, original.y)
+
+    // Dup should have new values
+    assert_eq(loc(), 999, dup.x)
+    assert_eq(loc(), 888, dup.y)
+}
+test_declaration_creates_copy()
