@@ -13,12 +13,12 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 * TODO Active Items
 
 - [ ] Implement pass-by-reference semantics with three argument modes
-  - [ ] Phase 1: Fix type checker to enforce immutability of default parameters
-    - Track parameter mutability in typer.rs
-    - Prevent assignment to immutable parameters
-    - Prevent field modification of immutable parameters
-    - Prevent passing immutable to mut parameter
-    - Add tests in src/test/tmp/test_immutability.til
+  - [X] Phase 1: Fix type checker to enforce immutability of default parameters
+    - ALREADY COMPLETE: Type checker already implements all checks
+    - Prevents assignment to immutable parameters (typer.rs:927-928)
+    - Prevents field modification of immutable parameters (check_assignment extracts root variable)
+    - Prevents passing immutable to mut parameter (typer.rs:322-344)
+    - Tests in src/test/tmp/test_immutability*.til verify all cases
   - [ ] Phase 2: Add 'copy' keyword for explicit copy semantics
     - Add 'copy' to lexer keywords
     - Parse 'copy' in parameter declarations (add is_copy field)
