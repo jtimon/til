@@ -1318,7 +1318,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 context.arena_index.insert(var_name.to_string(), *offset);
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
-                                // This handles both mutable and immutable fields, and nested struct fields like .msg.c_string
+                                // This handles both mutable and immutable fields, and nested struct fields
                                 let source_prefix = format!("{}.", &throw_result.value);
                                 let dest_prefix = format!("{}.", var_name);
 
@@ -1409,18 +1409,11 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             context.arena_index.remove(var_name);
                             // Also remove the field mappings
                             if let Some(struct_def) = context.struct_defs.get(thrown_type) {
-                                for (field_name, field_decl) in &struct_def.members {
+                                for (field_name, _field_decl) in &struct_def.members {
                                     let combined_name = format!("{}.{}", var_name, field_name);
                                     context.symbols.remove(&combined_name);
                                     context.arena_index.remove(&combined_name);
-
-                                    // For Str fields, also remove c_string and cap entries
-                                    if let ValueType::TCustom(type_name) = &field_decl.value_type {
-                                        if type_name == "Str" {
-                                            context.arena_index.remove(&format!("{}.c_string", combined_name));
-                                            context.arena_index.remove(&format!("{}.cap", combined_name));
-                                        }
-                                    }
+                                    // Nested struct fields are handled by subsequent iterations
                                 }
                             }
 
