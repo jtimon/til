@@ -107,17 +107,21 @@ Monomorphizes methods per T (e.g., Str ops in PairStr)
 
 A bootstrap ~generic_macro~ handles multi-param desugaring:
 
-WARNING: grok made some stuff up here from the explanations, but the point is that we can have a compile option so that generics expand to using Dynamic instead of true generics for smaller binaries when that is preferred over more optimal runtime. The following is not valid Til syntax (there are no @ annotations in til, for example, at least for now, and not planned at the moment).
+WARNING: grok made some stuff up here from the explanations, but the point is that we can have a compile option so that generics expand to using Dynamic instead of true generics for smaller binaries when that is preferred over more optimal runtime. The following is from grok and I haven't preoperly reviewed it yet.
 
 #+BEGIN_SRC til
 generic_macro = macro(params: List<(Str, Type)>) returns StructDef {
-    bounds := extract_where(params)  // Parse "T where Sized"
+    mut bounds = extract_bounds(params)  // Helper: Parses "T where Sized" -> Map{"T": "Sized"}
+    mut mono_struct = StructDef.new("Generic")  // Base AST node
     for (name, T) in params {
-        if not(@satisfies(T, bounds)) { compile_error(...) }
-        if @isConcrete(T) {
-            mono := monomorphize(name, T)  // Emit typed struct/funcs
-        } else if compiler_flag("--prefer-dynamic") {
-            return dynamic_impl(name)  // Erase to Dynamic vtable
+        if not(satisfies(T, bounds.get(name))) {  // Plain func: satisfies(Type, Str) -> Bool
+            compile_error(format("Type ", T.name, " does not satisfy bound ", bounds.get(name)))
+        }
+        if is_concrete(T) {  // Plain func: is_concrete(Type) -> Bool
+            mono_struct.add_field(name, T, default_val)  // Emit typed field
+            mono_struct.add_method(format(name, "_ops"), T)  // Monomorphize funcs
+        } else if is_dynamic_preferred() {  // Core func: Queries --prefer-dynamic flag
+            mono_struct.add_dynamic_field(name, T)  // Erase to Dynamic slot + vtable stub
         }
     }
     return mono_struct
