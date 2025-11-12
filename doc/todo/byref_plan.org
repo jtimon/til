@@ -1,0 +1,508 @@
+#+TITLE: Pass-by-Reference Refactoring Plan (Phase 3)
+#+DATE: 2025-11-12
+#+AUTHOR: TIL Development
+
+* Overview
+
+Plan to refactor TIL's default parameter passing from copy-by-default to reference-by-default (immutable reference).
+
+Current status: **DEFERRED** until self-hosting or after field offset refactoring.
+
+* Current Implementation: Copy-by-Default
+
+** How It Works Today
+
+Location: src/rs/interpreter.rs:1450-1800
+
+When calling a function with default (non-mut, non-copy, non-own) parameters:
+
+#+BEGIN_SRC rust
+// 1. Clone the context (line 1464)
+let mut function_context = context.clone();  // Clones arena_index HashMap, NOT arena memory
+
+// 2. Evaluate argument in caller's context (line 1559)
+let result = eval_expr(context, &current_arg)?;
+
+// 3. Allocate NEW memory for parameter (lines 1654-1788)
+function_context.insert_struct(&arg.name, &type_name, e)?;
+function_context.copy_fields(&source_var, &arg.name, e)?;  // Copies bytes in Arena
+#+END_SRC
+
+Key point: Even when passing a variable, it allocates fresh memory and copies bytes from source offset to destination offset.
+
+** The Two Cases
+
+*** Passing a Variable
+
+Example: ~func(my_var)~
+
+- ~my_var~ exists at offset 100 in caller's arena_index
+- New memory allocated at offset 200 for parameter
+- ~copy_fields()~ copies bytes from offset 100 → 200
+- Function uses offset 200
+
+*** Passing an Expression
+
+Example: ~func(Vec2.new(1, 2))~ or ~func(x + y)~
+
+- Expression evaluated, allocates at offset 300
+- New memory allocated at offset 400 for parameter
+- Bytes copied from offset 300 → 400
+- Function uses offset 400
+
+Note: For struct expressions, this currently errors - only identifiers allowed for non-own parameters.
+
+** Performance Cost
+
+Every function call copies all parameter data:
+- Primitives: 8 bytes (I64, pointers)
+- Structs: Entire struct contents (recursive)
+- Strings: 16 bytes (ptr + cap)
+
+* Desired Implementation: Reference-by-Default
+
+** Goal
+
+Default parameters (no keyword) should be **immutable references**:
+- Zero-copy for variables
+- Type checker enforces immutability
+- Aligns with Mojo's ~read~ convention
+
+** The Core Distinction
+
+*** Variables (Already Have Arena Offset)
+
+Variables should share their existing offset:
+
+#+BEGIN_SRC rust
+// NEW BEHAVIOR - no copying!
+match &current_arg.node_type {
+    NodeType::Identifier(id_) => {
+        // Just share the offset instead of copying
+        if let Some(offset) = context.arena_index.get(id_) {
+            function_context.arena_index.insert(arg.name.clone(), *offset);
+            // For structs: map field offsets too
+            function_context.map_instance_fields(&type_name, &arg.name, e)?;
+        }
+        // NO insert_struct(), NO copy_fields()
+    }
+}
+#+END_SRC
+
+Result: Both contexts point to same arena offset - zero copy!
+
+*** Expressions (Don't Have Offset Yet)
+
+Expressions must still allocate fresh memory:
+
+#+BEGIN_SRC rust
+_ => {
+    // Must evaluate and allocate fresh
+    let result = eval_expr(context, &current_arg)?;
+    // Use the offset from evaluation result
+    function_context.insert_struct(&arg.name, &type_name, e)?;
+}
+#+END_SRC
+
+Result: Expression produces owned value in function context.
+
+** What Gets Simpler
+
+*** 1. copy_fields() Becomes Mostly Unnecessary
+
+Location: init.rs:1091
+
+#+BEGIN_SRC rust
+// TODO all args should be passed as pointers/references and we wouldn't need this
+pub fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, ...) -> Result<(), String>
+#+END_SRC
+
+After refactoring:
+- Only needed for explicit ~copy~ keyword parameters
+- Default parameters: share offset (no copy)
+- Expression parameters: already allocated (no copy needed)
+
+*** 2. mut Parameter Return Logic Becomes Simpler
+
+Location: interpreter.rs:1868
+
+#+BEGIN_SRC rust
+// TODO this can be simplified once we pass all args by reference
+if let Some(offset) = function_context.arena_index.get(&arg_name) {
+    context.arena_index.insert(source_name.to_string(), *offset);
+    context.map_instance_fields(type_name, &source_name, e)?;
+}
+#+END_SRC
+
+Current flow: Copy going in, copy coming back out
+After refactoring: Share offset going in, share offset coming out
+
+*** 3. Aligns with own Parameter Mechanism
+
+Location: interpreter.rs:1607-1650
+
+The ~own~ parameter implementation ALREADY shares offsets:
+
+#+BEGIN_SRC rust
+if arg.is_own {
+    if let NodeType::Identifier(source_var) = &current_arg.node_type {
+        if let Some(offset) = context.arena_index.get(source_var).copied() {
+            function_context.arena_index.insert(arg.name.clone(), offset);
+            // ... transfer field offsets too ...
+
+            // Remove from caller's context (ownership transferred)
+            context.arena_index.remove(source_var);
+        }
+    }
+}
+#+END_SRC
+
+Default parameters would use the SAME mechanism, just without the "remove from caller" part.
+
+* Implementation Plan
+
+** Code Changes Needed
+
+Location: src/rs/interpreter.rs, lines ~1650-1788
+
+*** Step 1: Detect if argument is a variable or expression
+
+#+BEGIN_SRC rust
+// Around line 1650
+match &current_arg.node_type {
+    NodeType::Identifier(id_) => {
+        // Variable case - share offset
+    }
+    _ => {
+        // Expression case - allocate fresh
+    }
+}
+#+END_SRC
+
+*** Step 2: For variables, share arena offset
+
+#+BEGIN_SRC rust
+NodeType::Identifier(id_) => {
+    if let Some(offset) = context.arena_index.get(id_) {
+        // Share the offset (reference semantics)
+        function_context.arena_index.insert(arg.name.clone(), *offset);
+
+        // For structs, also share field offsets
+        if matches!(arg.value_type, ValueType::TCustom(_)) {
+            function_context.map_instance_fields(&type_name, &arg.name, e)?;
+        }
+
+        // Skip allocation logic
+        param_index += 1;
+        continue;
+    } else {
+        return Err(e.lang_error("eval", &format!("Variable '{}' not found", id_)));
+    }
+}
+#+END_SRC
+
+*** Step 3: For expressions, allocate as usual
+
+#+BEGIN_SRC rust
+_ => {
+    // Expression case - evaluate and allocate
+    // This is the current behavior, keep it
+    function_context.insert_struct(&arg.name, &type_name, e)?;
+    // ... rest of allocation logic
+}
+#+END_SRC
+
+*** Step 4: Update copy keyword to use old behavior
+
+The ~copy~ keyword should continue to allocate fresh and copy:
+
+#+BEGIN_SRC rust
+if arg.is_copy {
+    // Use old copy-by-default behavior
+    function_context.insert_struct(&arg.name, &type_name, e)?;
+    function_context.copy_fields(&source_var, &arg.name, e)?;
+} else {
+    // Use new reference-by-default behavior
+    // ... sharing logic from Step 2
+}
+#+END_SRC
+
+** Estimated LOC Changes
+
+- ~50 lines modified in interpreter.rs
+- Logic reorganization, no new algorithms needed
+- Existing ~own~ parameter code serves as template
+
+* Arena Architecture Concerns
+
+** The Arena Singleton
+
+Location: interpreter.rs:16-37
+
+#+BEGIN_SRC rust
+pub struct Arena {
+    pub memory: Vec<u8>,
+    pub temp_id_counter: usize,
+}
+
+impl Arena {
+    pub fn g() -> &'static mut Arena {
+        unsafe {
+            static mut INSTANCE: Option<Arena> = None;
+            INSTANCE.get_or_insert_with(|| Arena {
+                memory: vec![0],
+                temp_id_counter: 0,
+            })
+        }
+    }
+}
+#+END_SRC
+
+The Arena is a **global singleton** shared by all contexts.
+
+** Potential Aliasing Issues
+
+When reference-passing is enabled, both caller and function contexts point to same arena offsets:
+
+#+BEGIN_SRC til
+x := Vec2.new(5, 10)  // caller: arena_index["x"] = 100
+
+func(x: Vec2)         // function: arena_index["x"] = 100 (SAME!)
+#+END_SRC
+
+Potential problems if not handled correctly:
+
+*** Problem 1: Modification of immutable reference
+
+#+BEGIN_SRC til
+x := Vec2.new(5, 10)  // Immutable binding
+func(x: Vec2) {       // Should be read-only
+    x.x = 99          // Should this modify caller's x?
+}
+#+END_SRC
+
+Expected: Type checker should reject assignment to ~x~ (const parameter)
+
+*** Problem 2: Arena reallocation during function execution
+
+#+BEGIN_SRC til
+func(x: BigStruct) {
+    y := AllocateLotsOfMemory()  // Might reallocate arena.memory Vec
+    println(x)                   // x's offset now points to invalid memory!
+}
+#+END_SRC
+
+Expected: Arena reallocation must preserve all existing offsets (Vec growth does this automatically)
+
+*** Problem 3: Passing const to mut parameter
+
+#+BEGIN_SRC til
+x := Vec2.new(5, 10)       // Immutable binding
+modify(mut y: Vec2) {
+    y.x = 99
+}
+modify(x)                  // Should this be allowed?
+#+END_SRC
+
+Expected: Type checker should reject passing const to mut parameter
+
+** Why mut and own Parameters Work
+
+*** mut parameters work because:
+
+1. Function gets a COPY initially (safe during execution)
+2. After function returns, offset is shared back
+3. Function context is destroyed, so no aliasing remains
+
+Current implementation (lines 1867-1874):
+#+BEGIN_SRC rust
+// After function returns
+if let Some(offset) = function_context.arena_index.get(&arg_name) {
+    context.arena_index.insert(source_name.to_string(), *offset);
+}
+#+END_SRC
+
+*** own parameters work because:
+
+1. Offset is TRANSFERRED, not shared
+2. Caller loses access (removed from arena_index)
+3. Only one context has the offset at any time
+
+Current implementation (lines 1607-1650):
+#+BEGIN_SRC rust
+// Transfer ownership
+function_context.arena_index.insert(arg.name.clone(), offset);
+// Remove from caller
+context.arena_index.remove(source_var);
+#+END_SRC
+
+** Are These Real Blockers?
+
+The issues listed above assume incorrect usage. However:
+
+*** Type Checker Should Prevent Most Issues
+
+1. **Cannot modify const parameters**: Type checker already enforces immutability (typer.rs:933)
+2. **Cannot pass const to mut**: Type checker should enforce (may need enhancement)
+3. **Arena reallocation**: Vec growth preserves existing data, offsets remain valid
+
+*** Remaining Concerns
+
+1. **Debugging complexity**: When both contexts share offsets, bugs harder to trace
+2. **Future features**: Move-only types, lifetime tracking become harder
+3. **Self-hosting**: Easier to implement with TIL's own memory model
+
+* Why Deferred Until Self-Hosting
+
+From doc/human/ownership.org:218-221:
+
+#+BEGIN_QUOTE
+** ⏸ Phase 3: Default Params as References (DEFERRED)
+- Goal: Make ~func(x: T)~ pass by reference instead of copy
+- Blocked: Arena singleton + context cloning causes corruption
+- Can revisit post self-hosting with better debugging tools
+#+END_QUOTE
+
+** Rationale for Deferring
+
+1. **Current system works correctly**: All tests pass, copy semantics are safe
+2. **Debugging tools inadequate**: Rust-based interpreter hard to debug arena corruption
+3. **Self-hosting benefits**: TIL's own memory model can track references properly
+4. **Explicit copy keyword exists**: Users can optimize hot paths with manual ~copy~ avoidance
+
+** Post Self-Hosting Advantages
+
+1. **Better debugging**: TIL-based interpreter with TIL debugging tools
+2. **Lifetime tracking**: Can implement borrow-checker-like lifetime analysis
+3. **Reference visualization**: Can inspect reference graph in native TIL
+4. **Incremental approach**: Can test reference semantics in TIL codebase first
+
+* Comparison with Mojo
+
+From doc/human/ownership.org:
+
+| Feature                 | Mojo (2025)    | TIL (Current)       | TIL (After Phase 3) |
+|-------------------------+----------------+---------------------+---------------------|
+| Default param           | read (ref)     | Copy                | Immutable ref       |
+| Mutable param           | mut (ref)      | mut (ref)           | mut (ref)           |
+| Copy param              | var (copy)     | copy                | copy                |
+| Ownership transfer      | var with ^     | own (at call site)  | own (at call site)  |
+
+After Phase 3, TIL's default parameters will match Mojo's ~read~ convention.
+
+* Testing Plan
+
+** Minimal Test Cases
+
+*** Test 1: Variable reference (zero-copy)
+
+#+BEGIN_SRC til
+print_vec := proc(v: Vec2) {
+    println(v.x)
+    println(v.y)
+}
+
+main := proc() {
+    v := Vec2.new(5, 10)
+    print_vec(v)              // Should NOT copy
+    println(v.x)              // v still accessible
+}
+#+END_SRC
+
+Expected: v is NOT copied, function reads caller's memory.
+
+*** Test 2: Expression allocation
+
+#+BEGIN_SRC til
+print_vec := proc(v: Vec2) {
+    println(v.x)
+}
+
+main := proc() {
+    print_vec(Vec2.new(5, 10))  // Expression must allocate
+}
+#+END_SRC
+
+Expected: Expression allocates fresh memory for parameter.
+
+*** Test 3: Immutability enforcement
+
+#+BEGIN_SRC til
+modify := proc(v: Vec2) {
+    v.x = 99                  // Should be type error
+}
+#+END_SRC
+
+Expected: Type checker rejects modification of const parameter.
+
+*** Test 4: Copy keyword preserves old behavior
+
+#+BEGIN_SRC til
+modify := proc(copy v: Vec2) {
+    v.x = 99                  // Should be allowed (local copy)
+}
+
+main := proc() {
+    v := Vec2.new(5, 10)
+    modify(v)
+    println(v.x)              // Should still be 5
+}
+#+END_SRC
+
+Expected: copy keyword creates independent copy, modifications don't affect caller.
+
+*** Test 5: Nested structs
+
+#+BEGIN_SRC til
+Line := struct { mut start: Vec2, mut end: Vec2 }
+
+print_line := proc(line: Line) {
+    println(line.start.x)
+    println(line.end.y)
+}
+
+main := proc() {
+    line := Line { start: Vec2.new(0, 0), end: Vec2.new(10, 10) }
+    print_line(line)          // Should share offset, include nested fields
+}
+#+END_SRC
+
+Expected: Nested struct fields accessible via shared offsets.
+
+** Performance Benchmarks
+
+Compare execution time before/after refactoring:
+- Function calls with large structs (>100 bytes)
+- Recursive functions passing structs
+- Hot loops with function calls
+
+* Related TODOs
+
+** init.rs:1091
+
+#+BEGIN_SRC rust
+// TODO all args should be passed as pointers/references and we wouldn't need this
+pub fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String>
+#+END_SRC
+
+After Phase 3: ~copy_fields()~ only needed for ~copy~ keyword parameters.
+
+** interpreter.rs:1868
+
+#+BEGIN_SRC rust
+// TODO this can be simplified once we pass all args by reference
+if let Some(offset) = function_context.arena_index.get(&arg_name) {
+    context.arena_index.insert(source_name.to_string(), *offset);
+    context.map_instance_fields(type_name, &source_name, e)?;
+}
+#+END_SRC
+
+After Phase 3: ~mut~ return logic becomes offset sharing, no copying needed.
+
+* References
+
+- Mojo ownership model: doc/human/ownership.org
+- Parameter handling: src/rs/interpreter.rs:1450-1800
+- Type checking: src/rs/typer.rs:278-375
+- Arena implementation: src/rs/interpreter.rs:16-37
+- Field copying: src/rs/init.rs:1091-1159
