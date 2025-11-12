@@ -72,12 +72,22 @@ self.type_names = names
 ## Permissions Already Granted
 Don't ask permission for:
 - `make`, `make tests`, `make rstil`, `cargo`, `rustc`
+- `python3`, `python` - running any Python scripts within the project
 - `git status`, `git log`, `git diff`, `git add`, `git commit`
 - `timeout N ./bin/rstil file.til`
 - Reading any project file within the project
 - Creating/editing files in `src/test/tmp/` or `doc/bot/`
-- `sed`, `awk`, `grep`, `find`, `cat` - full freedom within project dir
-- Running Python scripts within the project
+- **Shell commands within project - FULL FREEDOM:**
+  - ALL standard Unix commands: `cd`, `mv`, `cp`, `rm`, `mkdir`, `chmod`, `ls`, `pwd`, `echo`, `printf`
+  - Text processing: `sed`, `awk`, `grep`, `find`, `cat`, `head`, `tail`, `sort`, `uniq`, `wc`, `tr`, `cut`
+  - File operations: create temp files, move files, copy files, remove files
+  - Combine commands freely (pipes, redirects, command chaining with `&&` or `;`)
+  - Use relative paths from project root or absolute paths within project
+  - No need to ask permission for ANY shell operation within project directory
+  - Only restriction: stay within project directory (no /tmp, no ~/)
+- **Running Python scripts within the project - FULL FREEDOM:**
+  - Any Python code that operates only on files within the project
+  - No need to ask permission - just run it
 - Removing `.backup` files
 
 ## Never Allowed - Must Ask/Warn First
