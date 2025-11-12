@@ -1,94 +1,103 @@
-#+TITLE: Plan: Implement Const Parameters by Reference
+#+TITLE: Plan: Pass-by-Reference with Three Parameter Modes
 #+AUTHOR: TIL Development Team
-#+DATE: 2025-11-11
+#+DATE: 2025-11-12
 
 * Goal
 
-Change const (non-mut) parameters from copy-based to reference-based implementation for structs and primitives.
+Implement efficient pass-by-reference semantics with three explicit parameter modes:
+1. **Default (const)**: Immutable reference - cannot be modified
+2. **mut**: Mutable reference - modifications affect caller
+3. **copy**: Explicit copy - can be modified without affecting caller
 
-* Implementation Strategy
+* Three Parameter Modes
 
-** Phase 1: Const Struct Parameters by Reference
+** Default (No Keyword) - Immutable Reference
+- Syntax: ~func(x: I64)~
+- Semantics: Pass by reference, read-only
+- Implementation: Share arena offset, no copying
+- Type checker: Prevents assignment to parameter
 
-*** Modify eval_user_func_proc_call() in interpreter.rs (lines 1615-1700)
-- Replace current logic: insert_struct() + copy_fields() for const params
-- New logic: Share arena offset directly (like mut write-back does)
-- Get source offset from caller context
-- Insert offset into function_context.arena_index
+** Mut Keyword - Mutable Reference
+- Syntax: ~func(mut x: I64)~
+- Semantics: Pass by reference, read-write
+- Implementation: Share arena offset, write-back to caller
+- Type checker: Allows assignment, enforces caller passes mut variable
+
+** Copy Keyword - Explicit Copy
+- Syntax: ~func(copy x: I64)~
+- Semantics: Create independent copy, modifications are local
+- Implementation: Deep copy via copy_fields() for structs
+- Type checker: Allows assignment (local copy only)
+- Mutually exclusive with mut (parser validation)
+
+* Implementation Status
+
+** Phase 1: Type Checker Immutability Enforcement ✅ COMPLETE
+- Prevents assignment to immutable parameters (typer.rs:930, 937)
+- Prevents field modification of immutable parameters
+- Prevents passing immutable to mut parameter (typer.rs:322-344)
+- Tests in src/test/tmp/test_immutability*.til verify all cases
+
+** Phase 2: Copy Keyword ✅ COMPLETE
+- Added Copy token to lexer (lexer.rs:25, 208, 262)
+- Added is_copy field to Declaration and SymbolInfo (parser.rs:19, init.rs:22)
+- Parser validates mut and copy are mutually exclusive (parser.rs:536-546)
+- Type checker allows modification of copy parameters (typer.rs:930, 937)
+- Interpreter allows assignment to copy parameters (interpreter.rs:946, 953)
+- Comprehensive tests in src/test/args.til (lines 344-467)
+- All existing tests pass
+
+** Phase 3: Use References for All Non-Copy Parameters ⏳ TODO
+
+Goal: Both const (default) and mut parameters use references. Only copy creates actual copies.
+
+*** Change Default Parameter Passing (Const)
+Currently: Uses copy_fields() to deep copy structs
+Target: Share arena offset like mut parameters do
+
+File: src/rs/interpreter.rs (lines 1615-1700)
+- Replace insert_struct() + copy_fields() logic
+- New: Share arena offset from caller context
+- Get source offset from caller's arena_index
+- Insert same offset into function_context.arena_index
 - Call map_instance_fields() to register field offsets
 
-** Phase 2: Const Primitive Parameters by Reference
+*** Include Primitives in Reference Passing
+Currently: Primitives are copied for both const and mut
+Target: Share arena offset for primitives too (semantic consistency)
 
-*** Modify primitive handling in interpreter.rs (lines 1593-1604)
-- Replace: insert_i64(), insert_bool(), etc. (which allocate new arena space)
+File: src/rs/interpreter.rs (lines 1593-1604)
+- Replace insert_i64(), insert_bool(), etc. allocations
 - New: Share arena offset from caller context
-- For literals: Still need arena allocation (caller evaluates these)
+- For literals: Still allocate (caller evaluates these)
 
-** Phase 3: Type Checker Enforcement (CRITICAL)
+*** Keep Copy Parameter Behavior
+File: src/rs/interpreter.rs
+- Copy parameters continue to use copy_fields()
+- Check is_copy field to determine copy vs. reference
+- Deep copy for copy parameters only
 
-*** Add immutability checking in typer.rs
-- Prevent assignment to const parameters
-- Track which symbols are mut vs const
-- Error on: param = value when param is const
-- Allow: Reading const params (no change)
+*** Update Mut Parameter Implementation
+File: src/rs/interpreter.rs (lines 1733-1781)
+- Mut parameters already use reference sharing
+- No changes needed (already correct)
+- Continue write-back behavior for consistency
 
-** Phase 4: Test and Fix
+** Phase 4: Update Core Library ⏳ TODO
 
-*** Known test that will need updating
-- src/test/args.til:225-244 - test_non_mut_isolation()
-- Currently tests that modifying struct inside function doesn't affect caller
-- With type checker enforcement, this code should become illegal
-- Update test to expect compile error instead of runtime isolation
+Goal: Remove Bug #24 workarounds once references work correctly.
 
-*** Run full test suite to find any other assumptions
+File: src/core/list.til, vec.til, map.til
+- Remove copy-modify-reassign patterns
+- Simplify List.push(), List.set(), List.pop()
+- Test that direct field mutation works
+- Mark Bug #24 as FIXED in bugs.org
 
-* Files to Modify
-
-** src/rs/interpreter.rs (lines 1615-1700, 1593-1604)
-Replace copy logic with reference sharing for const params
-
-** src/rs/typer.rs (assignment checking section)
-Add checks to prevent assignment to const parameters
-Enforce read-only semantics
-
-** src/test/args.til (lines 225-244)
-Update test_non_mut_isolation() test expectations
-
-* Key Insights from Investigation
+* Key Implementation Details
 
 ** Current State
-- Const params: Deep copy via copy_fields()
-- Mut params: Already use references for structs (arena offset sharing)
-- Primitives: Copied for both const and mut
 
-** After Change
-- Const params: Reference (arena offset sharing)
-- Mut params: Reference (no change needed)
-- Both enforced at type-checker level (const = read-only, mut = read-write)
-
-* Risks and Mitigations
-
-** Risk: Breaking existing code that relies on const param isolation
-Mitigation: Type checker must prevent modifications to const params
-
-** Risk: Arena lifetime/sharing issues
-Mitigation: Arena never deletes, so references always valid
-
-** Risk: Nested function calls with shared references
-Mitigation: Read-only semantics mean sharing is safe
-
-* Benefits
-
-- Performance: No more copy_fields() overhead
-- Consistency: All params passed by reference
-- Removes TODOs at init.rs:1096 and interpreter.rs:1760
-- Aligns implementation with documented semantics
-
-* Implementation Details from Investigation
-
-** Current Implementation
-
-*** Function Call Entry Point
+***  Function Call Entry Point
 File: src/rs/interpreter.rs:452-705
 - eval_func_proc_call() is the main dispatcher
 - Routes to eval_user_func_proc_call() for user-defined functions (line 704)
@@ -111,6 +120,11 @@ For MUT parameters (lines 1563-1590, 1733-1781):
    - For primitive types: Reads value and re-inserts to caller context
    - For structs (lines 1759-1767): Uses arena offset sharing
    - This POINTS the caller's variable to the SAME arena location
+
+For COPY parameters:
+1. Same as const (deep copy behavior)
+2. Check is_copy flag to identify copy parameters
+3. Type checker allows modification (unlike const)
 
 *** Critical TODOs Found
 - Line 1096 in init.rs: "TODO all args should be passed as pointers/references and we wouldn't need this"
@@ -145,16 +159,55 @@ File: src/rs/init.rs:1097-1159
 - Calculates dest offset
 - Performs memory copy: Arena::g().memory.copy_within(...)
 - Recursively copies nested structs
-- This is why const params cause full copies
+- Used for copy parameters only (after Phase 3)
 
 ** Type System
 
 File: src/rs/typer.rs:360-410
 - Type checker validates that types match
-- is_mut flag is preserved but not deeply checked at type level
-- No special type-level distinction between const and mut (just a flag)
+- is_mut and is_copy flags preserved in SymbolInfo
+- Type checker enforces immutability of const parameters
 - Mut arguments must be identifiers or field access
+- Copy parameters can be modified (local changes only)
 
-* Status
+* Benefits After Phase 3
 
-Not started - planning phase complete
+- **Performance**: No more copy_fields() overhead for const params
+- **Consistency**: All non-copy params passed by reference
+- **Semantics**: Clear distinction between reference and copy
+- **Bug Fixes**: Resolves Bug #24 (struct field mutation)
+- **Removes TODOs**: init.rs:1096 and interpreter.rs:1760
+
+* Risks and Mitigations
+
+** Risk: Breaking existing code that relies on const param isolation
+Mitigation: Type checker already prevents modifications to const params (Phase 1)
+
+** Risk: Arena lifetime/sharing issues
+Mitigation: Arena never deletes, so references always valid
+
+** Risk: Nested function calls with shared references
+Mitigation: Read-only semantics mean sharing is safe for const params
+
+** Risk: Copy parameters might not deep copy correctly
+Mitigation: Continue using existing copy_fields() implementation for copy params
+
+* Files to Modify in Phase 3
+
+** src/rs/interpreter.rs (lines 1615-1700, 1593-1604)
+Replace copy logic with reference sharing for const params
+Check is_copy flag to determine copy vs. reference behavior
+
+** src/test/tmp/test_reference_passing.til (new file)
+Add tests for reference passing semantics
+Verify const params share memory (read-only)
+Verify mut params share memory (read-write)
+Verify copy params don't share memory (independent)
+
+* Next Steps
+
+1. Implement Phase 3: Modify interpreter.rs parameter passing
+2. Add comprehensive tests for reference semantics
+3. Verify all existing tests still pass
+4. Implement Phase 4: Clean up core library
+5. Mark Bug #24 as FIXED

@@ -445,10 +445,10 @@ Very low. The if-statement workaround is actually clearer and more flexible than
 :END:
 
 *** Problem
-After implementing pass-by-reference semantics (see pre.org), TIL will have three argument modes:
+After implementing pass-by-reference semantics (see pre.org), TIL has three argument modes:
 - Default (immutable): Pass by reference, read-only
 - mut: Pass by reference, mutable
-- copy: Explicit copy, can modify without affecting caller
+- copy: Explicit copy, can modify without affecting caller ✅ IMPLEMENTED (Phase 2)
 
 However, this still lacks move semantics for transferring ownership. The `own` keyword would enable:
 1. Explicit ownership transfer (like Rust's move)
@@ -459,17 +459,17 @@ However, this still lacks move semantics for transferring ownership. The `own` k
 Add an `own` keyword for function arguments to indicate ownership transfer/move semantics:
 
 #+BEGIN_SRC til
-// Default (immutable reference - from pre.org implementation)
+// Default (immutable reference - Phases 1-3 implementation)
 read_struct := proc(s: MyStruct) {
     println(s.field.to_str())  // Can read, cannot modify
 }
 
-// Mutable reference (from pre.org implementation)
+// Mutable reference (Phases 1-3 implementation)
 modify_struct := proc(mut s: MyStruct) {
     s.field = 42  // Modifies caller's struct
 }
 
-// Copy (from pre.org implementation)
+// Copy (Phase 2 IMPLEMENTED ✅)
 local_modify := proc(copy s: MyStruct) {
     s.field = 99  // Modifies local copy, caller unchanged
 }

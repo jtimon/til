@@ -37,16 +37,23 @@
 - Solves struct field modification issues by avoiding borrow semantics.
 - Similar to Rust's move semantics.
 
-*** Copy Keyword (Future - Explicit Copy)
+*** Copy Keyword (Implemented - Explicit Copy)
 - Syntax: ~func(copy x: MyStruct)~
 - Creates an independent copy of the argument.
-- Rarely needed - use cases unclear.
 - Caller retains original, callee gets independent copy.
-- Both can modify their own version without affecting the other.
+- Callee can modify the copy without affecting caller's original.
+- Mutually exclusive with 'mut' keyword (parser enforced).
+- Status: IMPLEMENTED (Phase 2 complete as of 2025-11-12)
 
 *** Implementation Status
-- Current: Internally doing copies for all arguments (temporary implementation).
-- Target: Reference-transparent by default (pass everything by reference unless 'copy').
+- **Phases 1-2 Complete**: Type checker immutability + copy keyword
+  - Type checker prevents modification of const parameters
+  - Copy keyword allows explicit copy with local modifications
+  - Mut and copy are mutually exclusive
+- **Phase 3 In Progress**: Reference-based parameter passing
+  - Target: Both const and mut use references (zero-copy)
+  - Only 'copy' keyword creates actual copies
+  - Current: Still using copy_fields() for const params (temporary)
 - Arena model: All allocations in arena, deletion is placeholder functionality (never tested).
 - Migration path: Moving towards zero-copy reference semantics for performance.
 

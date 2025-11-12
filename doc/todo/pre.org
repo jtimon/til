@@ -13,22 +13,25 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 * TODO Active Items
 
 - [ ] Implement pass-by-reference semantics with three argument modes
-  - [X] Phase 1: Fix type checker to enforce immutability of default parameters
-    - ALREADY COMPLETE: Type checker already implements all checks
-    - Prevents assignment to immutable parameters (typer.rs:927-928)
+  - [X] Phase 1: Type checker immutability enforcement (COMPLETE)
+    - Prevents assignment to immutable parameters (typer.rs:930, 937)
     - Prevents field modification of immutable parameters (check_assignment extracts root variable)
     - Prevents passing immutable to mut parameter (typer.rs:322-344)
     - Tests in src/test/tmp/test_immutability*.til verify all cases
-  - [ ] Phase 2: Add 'copy' keyword for explicit copy semantics
-    - Add 'copy' to lexer keywords
-    - Parse 'copy' in parameter declarations (add is_copy field)
-    - Validate: 'copy' and 'mut' mutually exclusive
-    - Type check: error on 'mut copy'
-    - Add tests in src/test/tmp/test_copy_keyword.til
-  - [ ] Phase 3: Optimize to use references for non-copy, non-mut struct parameters
-    - Change struct parameter passing to share arena offsets
-    - Keep primitives as pass-by-value (optimal)
-    - Keep mut parameter copy-in/write-back behavior
+  - [X] Phase 2: Add 'copy' keyword for explicit copy semantics (COMPLETE)
+    - Added 'copy' token to lexer (lexer.rs:25, 208, 262)
+    - Added is_copy field to Declaration and SymbolInfo (parser.rs:19, init.rs:22)
+    - Parser validates 'copy' and 'mut' are mutually exclusive (parser.rs:536-546)
+    - Type checker allows modification of copy parameters (typer.rs:930, 937)
+    - Interpreter allows assignment to copy parameters (interpreter.rs:946, 953)
+    - Comprehensive tests in src/test/args.til (lines 344-467)
+    - All existing tests pass
+  - [ ] Phase 3: Use references for ALL non-copy parameters
+    - Both const (default) and mut parameters use references
+    - Includes primitives (I64, Bool, U8, Str) for semantic consistency
+    - Only 'copy' keyword creates actual copies
+    - Change interpreter to share arena offsets for non-copy params
+    - Remove deep copying from const parameter passing
     - Add tests in src/test/tmp/test_reference_passing.til
   - [ ] Phase 4: Update core library to remove Bug #24 workarounds
     - Remove copy-modify-reassign patterns from List.push(), List.set(), List.pop()
@@ -36,7 +39,7 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
     - Test simplified implementations
     - Mark Bug #24 as FIXED in bugs.org
   - Impact: Fixes Bug #24, cleaner semantics, better performance
-  - See: doc/bot/bug24_investigation.org for detailed analysis
+  - See: doc/todo/plan_by_reference.org for detailed implementation plan
 
 - [ ] Standardize len/cap API across collections
   - Current inconsistency: Array has len field, Vec has len+cap fields, Map has size field, Str has len() method
