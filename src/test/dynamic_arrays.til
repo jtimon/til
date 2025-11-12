@@ -362,3 +362,52 @@ test_vec_set_out_of_bounds := proc() {
     }
 }
 test_vec_set_out_of_bounds()
+
+test_vec_pop := proc() {
+    mut stack := Vec.new(I64)
+
+    // Push some values
+    stack.push(10)
+    stack.push(20)
+    stack.push(30)
+
+    assert_eq(loc(), 3, stack.len)
+
+    // Pop values in LIFO order
+    mut val := 0
+    stack.pop(val)
+    assert_eq(loc(), 30, val)
+    assert_eq(loc(), 2, stack.len)
+
+    stack.pop(val)
+    assert_eq(loc(), 20, val)
+    assert_eq(loc(), 1, stack.len)
+
+    stack.pop(val)
+    assert_eq(loc(), 10, val)
+    assert_eq(loc(), 0, stack.len)
+
+    // Test popping from empty Vec - should throw
+    stack.pop(val)
+    catch (err: IndexOutOfBoundsError) {
+        // Expected error
+        stack.delete()
+        return
+    }
+
+    println("ERROR:", loc(), "Should have thrown IndexOutOfBoundsError")
+    exit(1)
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_pop()

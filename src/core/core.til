@@ -622,6 +622,19 @@ Vec := struct {
         memcpy(dest, to_ptr(value), self.type_size)
     }
 
+    pop := proc(mut self: Vec, mut dest: Dynamic) throws IndexOutOfBoundsError {
+        if self.len.eq(0) {
+            throw IndexOutOfBoundsError.new(format(loc(), "Vec.pop: cannot pop from empty Vec"))
+        }
+
+        // Get last element
+        mut last_index := sub(self.len, 1)
+        self.get(last_index, dest)
+
+        // Decrement length
+        self.len = last_index
+    }
+
     delete := proc(mut self: Vec) {
         free(self.ptr)
         self.ptr = 0
