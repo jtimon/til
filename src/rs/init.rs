@@ -1556,7 +1556,6 @@ impl Context {
 
     pub fn get_payload_size_for_type(&self, vtype: &ValueType, offset: usize, e: &Expr) -> Result<usize, String> {
         match vtype {
-            ValueType::TCustom(type_name) if type_name == "Bool" => Ok(1),
             ValueType::TCustom(type_name) if type_name == "I64" => Ok(8),
             ValueType::TCustom(type_name) => {
                 match self.symbols.get(type_name) {
