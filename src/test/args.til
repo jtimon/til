@@ -233,10 +233,10 @@ test_struct_mixed_mut()
 // affect the original when using non-mut
 
 copy_and_modify := func(v: Vec2) returns Vec2 {
-    mut copy := v
-    copy.x = 999
-    copy.y = 888
-    return copy
+    mut dup := v
+    dup.x = 999
+    dup.y = 888
+    return dup
 }
 
 test_non_mut_isolation := proc() {
@@ -340,3 +340,128 @@ test_nested_struct_mut := proc() {
     assert_eq(loc(), 50, l.end.y)
 }
 test_nested_struct_mut()
+
+// === Test copy keyword ===
+
+// Test 1: copy parameter with primitives can be modified
+test_copy_i64 := proc(copy x: I64) returns I64 {
+    x = add(x, 10)
+    return x
+}
+
+test_copy_primitive := proc() {
+    original := 42
+    result := test_copy_i64(original)
+    assert_eq(loc(), 52, result)
+    assert_eq(loc(), 42, original)  // original unchanged
+}
+test_copy_primitive()
+
+// Test 2: copy parameter with struct can be modified
+test_copy_struct := proc(copy v: Vec2) returns Vec2 {
+    v.x = 999
+    v.y = 888
+    return v
+}
+
+test_copy_struct_modification := proc() {
+    original := Vec2.new(1, 2)
+    modified := test_copy_struct(original)
+
+    // Modified copy has new values
+    assert_eq(loc(), 999, modified.x)
+    assert_eq(loc(), 888, modified.y)
+
+    // Original unchanged
+    assert_eq(loc(), 1, original.x)
+    assert_eq(loc(), 2, original.y)
+}
+test_copy_struct_modification()
+
+// Test 3: Multiple copy parameters
+test_multiple_copy := proc(copy a: I64, copy b: I64) returns I64 {
+    a = mul(a, 2)
+    b = mul(b, 3)
+    return add(a, b)
+}
+
+test_multiple_copy_params := proc() {
+    x := 10
+    y := 20
+    result := test_multiple_copy(x, y)
+    assert_eq(loc(), 80, result)  // (10*2) + (20*3) = 80
+    assert_eq(loc(), 10, x)  // originals unchanged
+    assert_eq(loc(), 20, y)
+}
+test_multiple_copy_params()
+
+// Test 4: Mix of copy, mut, and immutable parameters
+test_mixed_params := proc(immut_x: I64, mut mut_y: I64, copy copy_z: I64) returns I64 {
+    // immut_x cannot be modified (would be compile error)
+    mut_y = mul(mut_y, 2)  // modifies caller's value
+    copy_z = mul(copy_z, 3)  // modifies local copy only
+    return add(add(immut_x, mut_y), copy_z)
+}
+
+test_mixed_param_modes := proc() {
+    a := 1
+    mut b := 10
+    c := 100
+
+    result := test_mixed_params(a, b, c)
+
+    assert_eq(loc(), 321, result)  // 1 + 20 + 300 = 321
+    assert_eq(loc(), 1, a)    // immutable: unchanged
+    assert_eq(loc(), 20, b)   // mut: changed to 20
+    assert_eq(loc(), 100, c)  // copy: unchanged
+}
+test_mixed_param_modes()
+
+// Test 5: copy parameter can be reassigned entirely
+test_copy_reassignment := proc(copy v: Vec2) returns Vec2 {
+    v = Vec2.new(7, 8)  // completely replace the copy
+    return v
+}
+
+test_copy_full_reassignment := proc() {
+    original := Vec2.new(1, 2)
+    result := test_copy_reassignment(original)
+
+    assert_eq(loc(), 7, result.x)
+    assert_eq(loc(), 8, result.y)
+    assert_eq(loc(), 1, original.x)
+    assert_eq(loc(), 2, original.y)
+}
+test_copy_full_reassignment()
+
+// Test 6: Nested struct with copy
+test_copy_nested_struct := proc(copy line: Line) returns Line {
+    line.start.x = 100
+    line.start.y = 200
+    line.end.x = 300
+    line.end.y = 400
+    return line
+}
+
+test_copy_nested := proc() {
+    mut original := Line()
+    original.start.x = 1
+    original.start.y = 2
+    original.end.x = 3
+    original.end.y = 4
+
+    modified := test_copy_nested_struct(original)
+
+    // Modified has new values
+    assert_eq(loc(), 100, modified.start.x)
+    assert_eq(loc(), 200, modified.start.y)
+    assert_eq(loc(), 300, modified.end.x)
+    assert_eq(loc(), 400, modified.end.y)
+
+    // Original unchanged
+    assert_eq(loc(), 1, original.start.x)
+    assert_eq(loc(), 2, original.start.y)
+    assert_eq(loc(), 3, original.end.x)
+    assert_eq(loc(), 4, original.end.y)
+}
+test_copy_nested()

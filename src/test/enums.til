@@ -812,8 +812,8 @@ TestContainer := struct {
 test_enum_payload_copy := proc() {
     // Copy enum with I64 payload
     mut original := TestSimpleEnum.IntValue(42)
-    mut copy := original
-    switch copy {
+    mut dup := original
+    switch dup {
     case TestSimpleEnum.IntValue(val):
         assert_eq(loc(), 42, val)
     case: panic(loc(), "Payload lost during copy")
@@ -821,8 +821,8 @@ test_enum_payload_copy := proc() {
 
     // Copy enum with Str payload
     mut original_str := TestSimpleEnum.StrValue("hello")
-    mut copy_str := original_str
-    switch copy_str {
+    mut dup_str := original_str
+    switch dup_str {
     case TestSimpleEnum.StrValue(s):
         assert(loc(), Str.eq(s, "hello"))
     case: panic(loc(), "Payload lost during copy")

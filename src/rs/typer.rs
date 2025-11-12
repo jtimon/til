@@ -428,6 +428,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 context.symbols.insert(arg.name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
                     is_mut: false,
+                    is_copy: false,
                 });
             },
             ValueType::TCustom(ref custom_type_name) => {
@@ -443,13 +444,13 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 match &custom_symbol.value_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // Valid: struct type
-                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy });
                         // Register struct fields for type checking
                         context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // Valid: enum type
-                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy });
                     },
                     _ => {
                         // Invalid: not a type, it's a value or something else
@@ -458,7 +459,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
             },
             _ => {
-                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy });
             },
         }
     }
@@ -822,6 +823,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     temp_context.symbols.insert(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name.clone()),
         is_mut: false,
+        is_copy: false,
     });
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
@@ -833,6 +835,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                 SymbolInfo {
                     value_type: field_decl.value_type.clone(),
                     is_mut: false,  // Error variables are not mutable in catch blocks
+                    is_copy: false,
                 },
             );
         }
@@ -872,7 +875,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             };
         }
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut});
+        context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy });
         match value_type {
             ValueType::TCustom(custom_type) => {
                 if custom_type == INFER_TYPE {
@@ -924,14 +927,14 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
                 return errors;
             }
         };
-        if !symbol_info.is_mut {
+        if !symbol_info.is_mut && !symbol_info.is_copy {
             errors.push(e.error(&context.path, "type", &format!("Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", var_name)));
         }
         // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
         if var_name.contains('.') {
             let base_var = var_name.split('.').next().unwrap();
             if let Some(base_info) = context.symbols.get(base_var) {
-                if !base_info.is_mut {
+                if !base_info.is_mut && !base_info.is_copy {
                     errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
                 }
             }
@@ -1046,6 +1049,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                                 SymbolInfo {
                                     value_type: payload_type.clone(),
                                     is_mut: false,
+                                    is_copy: false,
                                 }
                             );
                             // Switch case body statements discard return values

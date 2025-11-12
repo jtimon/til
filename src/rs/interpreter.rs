@@ -208,6 +208,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             }
                                         );
 
@@ -228,6 +229,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             }
                                         );
 
@@ -255,6 +257,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             }
                                         );
 
@@ -288,6 +291,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                     SymbolInfo {
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
+                                                        is_copy: false,
                                                     }
                                                 );
 
@@ -362,6 +366,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                     SymbolInfo {
                                                         value_type: payload_type.clone(),
                                                         is_mut: false,
+                                                        is_copy: false,
                                                     }
                                                 );
 
@@ -564,6 +569,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.symbols.insert(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             });
 
                                             context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
@@ -579,6 +585,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.symbols.insert(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             });
 
                                             context.insert_bool(&temp_var_name, &bool_value.to_string(), e)?;
@@ -593,6 +600,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.symbols.insert(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false, // Temporary string is immutable
+                                                is_copy: false,
                                             });
 
                                             context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
@@ -607,6 +615,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.symbols.insert(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             });
 
                                             context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
@@ -646,6 +655,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.symbols.insert(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
+                                                is_copy: false,
                                             });
 
                                             // The result is the enum variant name (e.g., "InnerEnum.ValueA")
@@ -761,7 +771,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy });
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error("eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
@@ -772,7 +782,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
                     context.struct_defs.insert(declaration.name.to_string(), struct_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy });
                     for (_, member_decl) in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);
@@ -841,7 +851,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             }
 
                             context.symbols.insert(combined_name.to_string(),
-                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut});
+                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy });
                         }
                     }
                     return Ok(EvalResult::new(""));
@@ -854,7 +864,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy });
                     return Ok(EvalResult::new(""))
                 },
 
@@ -871,12 +881,12 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy });
                     context.insert_primitive(&declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut});
+                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy });
                     let custom_symbol = match context.symbols.get(custom_type_name) {
                         Some(sym) => sym,
                         None => return Err(e.lang_error("eval", &format!("Symbol '{}' not found in context", custom_type_name))),
@@ -929,11 +939,18 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 }
 
 fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    let symbol_info = match context.symbols.get(var_name) {
-        Some(sym) => sym,
-        None => return Err(e.lang_error("eval", &format!("Symbol '{}' not found in context", var_name))),
+    // For field access (e.g., "v.x"), extract the base variable name
+    let base_var_name = if var_name.contains('.') {
+        var_name.split('.').next().unwrap()
+    } else {
+        var_name
     };
-    if !symbol_info.is_mut {
+
+    let symbol_info = match context.symbols.get(base_var_name) {
+        Some(sym) => sym,
+        None => return Err(e.lang_error("eval", &format!("Symbol '{}' not found in context", base_var_name))),
+    };
+    if !symbol_info.is_mut && !symbol_info.is_copy {
         return Err(e.lang_error("eval", &format!("in eval_assignment, while assigning to '{}': Assignments can only be to mut values. Offending expr: {:?}", var_name, e)));
     }
     if e.params.len() != 1 {
@@ -1271,6 +1288,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             context.symbols.insert(var_name.to_string(), SymbolInfo {
                                 value_type: ValueType::TCustom(thrown_type.clone()),
                                 is_mut: false,
+                                is_copy: false,
                             });
 
                             // Map instance fields for the error variable
@@ -1327,6 +1345,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                             SymbolInfo {
                                                 value_type: field_decl.value_type.clone(),
                                                 is_mut: false,
+                                                is_copy: false,
                                             },
                                         );
 
@@ -1428,7 +1447,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let mut mut_args: Vec<(String, String, ValueType)> = Vec::new(); // (arg_name, source_name, type)
 
     for arg in &func_def.args {
-        function_context.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut});
+        function_context.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
                 let variadic_args = &e.params[param_index..];
@@ -1448,6 +1467,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 function_context.symbols.insert(arg.name.to_string(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
                     is_mut: arg.is_mut,
+                    is_copy: arg.is_copy,
                 });
                 function_context.insert_array(&arg.name, &multi_value_type, &values, e)?;
 
@@ -1468,6 +1488,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 function_context.symbols.insert(arg.name.clone(), SymbolInfo {
                                     value_type: ValueType::TCustom("Str".to_string()),
                                     is_mut: false,
+                                    is_copy: false,
                                 });
                                 function_context.insert_string(&arg.name, id_name, e)?;
                                 param_index += 1;
@@ -1800,6 +1821,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 context.symbols.insert(return_instance.to_string(), SymbolInfo {
                                     value_type: ValueType::TCustom(custom_type_name.to_string()),
                                     is_mut: true,
+                                    is_copy: false,
                                 });
 
                                 if let Some(offset) = function_context.arena_index.get(&result_str) {

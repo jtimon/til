@@ -16,6 +16,7 @@ pub struct Declaration {
     pub name: String,
     pub value_type: ValueType,
     pub is_mut: bool,
+    pub is_copy: bool,
 }
 
 // TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
@@ -427,6 +428,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
     let mut is_variadic = false;
     let mut arg_name = "unnamed".to_string();
     let mut is_mut = false;
+    let mut is_copy = false;
     while !(lexer.is_eof(0) || rightparent_found) {
         match t.token_type {
             TokenType::RightParen => {
@@ -448,6 +450,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     expect_colon = false;
                     expect_name = true;
                     is_mut = false;
+                    is_copy = false;
                     lexer.expect(TokenType::Comma)?;
                     t = lexer.peek();
                 } else {
@@ -501,6 +504,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                             name: arg_name.to_string(),
                             value_type: ValueType::TMulti(t.token_str.clone()),
                             is_mut: is_mut,
+                            is_copy: is_copy,
                         });
                         is_variadic = false;
                     } else {
@@ -508,10 +512,12 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                             name: arg_name.to_string(),
                             value_type: str_to_value_type(&t.token_str),
                             is_mut: is_mut,
+                            is_copy: is_copy,
                         });
                     }
                     expect_comma = true;
                     is_mut = false;
+                    is_copy = false;
                 }
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -520,7 +526,21 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'mut' in argument list."));
                 }
+                if is_copy {
+                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
+                }
                 is_mut = true;
+                lexer.advance(1)?;
+                t = lexer.peek();
+            },
+            TokenType::Copy => {
+                if !expect_name {
+                    return Err(t.error(&lexer.path, "Unexpected 'copy' in argument list."));
+                }
+                if is_mut {
+                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
+                }
+                is_copy = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
             },
@@ -916,10 +936,10 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             match next_next_token_type {
                 TokenType::Identifier => {
                     let type_name = &next_next_t.token_str;
-                    return parse_declaration(lexer, false, type_name)
+                    return parse_declaration(lexer, false, false, type_name)
                 }
                 TokenType::Equal => {
-                    return parse_declaration(lexer, false, INFER_TYPE)
+                    return parse_declaration(lexer, false, false, INFER_TYPE)
                 },
                 _ => {
                     Err(t.error(&lexer.path, &format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
@@ -1126,6 +1146,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         name: loop_var_name.clone(),
         value_type: str_to_value_type(INFER_TYPE),
         is_mut: true,
+        is_copy: false,
     };
     let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
 
@@ -1302,7 +1323,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     return Err(t.error(&lexer.path, "Expected '}}' to end switch."));
 }
 
-fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
+fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_type: &str) -> Result<Expr, String> {
     let t = lexer.peek();
     let decl_name = &t.token_str;
     let initial_current = lexer.current;
@@ -1315,7 +1336,7 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str) -> Re
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_primary(lexer)?);
 
-    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut};
+    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy};
 
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
@@ -1339,10 +1360,10 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
     match next_next_token_type {
         TokenType::Identifier => {
             let type_name = &next_next_t.token_str;
-            return parse_declaration(lexer, true, type_name)
+            return parse_declaration(lexer, true, false, type_name)
         }
         TokenType::Equal => {
-            return parse_declaration(lexer, true, INFER_TYPE)
+            return parse_declaration(lexer, true, false, INFER_TYPE)
         },
         _ => {
             Err(t.error(&lexer.path, &format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",
