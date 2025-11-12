@@ -47,41 +47,58 @@ Implement efficient pass-by-reference semantics with three explicit parameter mo
 - Comprehensive tests in src/test/args.til (lines 344-467)
 - All existing tests pass
 
-** Phase 3: Use References for All Non-Copy Parameters ⏳ TODO
+** Phase 3: Use References for All Non-Copy Parameters ⏸ DEFERRED
+
+**Status**: DEFERRED until after self-hosting
+**Reason**: Added complexity without simplifying code, introduced subtle bugs with arena offset sharing
 
 Goal: Both const (default) and mut parameters use references. Only copy creates actual copies.
 
-*** Change Default Parameter Passing (Const)
-Currently: Uses copy_fields() to deep copy structs
-Target: Share arena offset like mut parameters do
+*** Attempted Implementation (2025-11-12)
 
+Tried two approaches:
+1. Share arena offsets for ALL non-copy parameters (const + mut)
+   - Result: Type checker errors in core.til line 400
+   - Cause: Context corruption during import processing
+
+2. Share arena offsets ONLY for mut parameters
+   - Result: More tests passed, but still fails at args.til line 580
+   - Issue: Global arena singleton + context cloning + import interpretation creates subtle corruption
+
+*** Root Cause
+
+The global arena (Arena::g() singleton) combined with context cloning during import processing
+creates a window for corruption when arena offsets are shared. The exact mechanism is unclear,
+but the pattern is consistent: complex import chains fail, simple tests pass.
+
+*** Why Not Pursued
+
+- Did NOT simplify code as expected (added ~50-100 lines, introduced complexity)
+- All tests pass WITHOUT Phase 3
+- Phase 2 (copy keyword) already provides explicit control
+- Correctness > Performance at this stage
+- Can revisit after self-hosting with better debugging tools
+
+*** Documentation
+
+See doc/bot/phase3_findings.org for detailed analysis and alternative approaches.
+
+*** Original Plan (For Future Reference)
+
+**** Change Default Parameter Passing (Const)
 File: src/rs/interpreter.rs (lines 1615-1700)
-- Replace insert_struct() + copy_fields() logic
-- New: Share arena offset from caller context
-- Get source offset from caller's arena_index
-- Insert same offset into function_context.arena_index
-- Call map_instance_fields() to register field offsets
+- Replace insert_struct() + copy_fields() with arena offset sharing
+- Share arena offset from caller context
+- Register field offsets via map_instance_fields()
 
-*** Include Primitives in Reference Passing
-Currently: Primitives are copied for both const and mut
-Target: Share arena offset for primitives too (semantic consistency)
-
+**** Include Primitives in Reference Passing
 File: src/rs/interpreter.rs (lines 1593-1604)
-- Replace insert_i64(), insert_bool(), etc. allocations
-- New: Share arena offset from caller context
+- Replace insert_i64(), insert_bool() allocations with offset sharing
 - For literals: Still allocate (caller evaluates these)
 
-*** Keep Copy Parameter Behavior
-File: src/rs/interpreter.rs
-- Copy parameters continue to use copy_fields()
-- Check is_copy field to determine copy vs. reference
-- Deep copy for copy parameters only
-
-*** Update Mut Parameter Implementation
-File: src/rs/interpreter.rs (lines 1733-1781)
-- Mut parameters already use reference sharing
-- No changes needed (already correct)
-- Continue write-back behavior for consistency
+**** Keep Copy Parameter Behavior
+- Copy parameters continue to use copy_fields() deep copy
+- Check is_copy field to determine behavior
 
 ** Phase 4: Update Core Library ⏳ TODO
 
