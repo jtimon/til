@@ -46,7 +46,6 @@ FullError := struct {
     }
 }
 
-// TODO check for undefined types in catch
 AllocError := struct {
     mut msg: Str = ""
 
@@ -77,7 +76,6 @@ KeyNotFoundError := struct {
     }
 }
 
-// FIX not properly working for errors in imports, says the right pos in the importing file instead of the source one
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:"
 
 // Comparisons are hateful, plus two of them are probably enough for now:
