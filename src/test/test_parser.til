@@ -416,17 +416,19 @@ test_parse_primary_identifier_fcall()
 test_parse_statement()
 test_parse_body()
 
-// TODO: Re-enable after fixing parsing issues in parser.til
+// Successfully enabled tests
 test_simple_expressions()
 test_declarations()
-// test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug (not Bug #10 related)
 test_control_flow()
-// test_enums()  // parse error: Expected statement, found } - parser bug with enum bodies
 test_structs()
-// test_switch()  // FullError - likely array size issue, not Bug #10 related
+
+// TODO: Re-enable after fixing parser.til bugs
+// test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug with returns parsing
+// test_enums()  // parse error: Expected statement, found } - parser bug with enum bodies
+// test_switch()  // FullError: Vec.push capacity exceeded - parser bug
 
 // Test parsing real TIL files
-// TODO: Hangs (likely infinite loop in parser.til)
-// test_parse_file("src/core/parser.til")
+// TODO: All hang (likely infinite loop in parser.til)
 // test_parse_file("src/core/lexer.til")
+// test_parse_file("src/core/parser.til")
 // test_parse_file("src/core/core.til")
