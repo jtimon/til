@@ -1,0 +1,252 @@
+#+TITLE: Remaining Special Cases in Rust Code
+#+DATE: 2025-11-12
+#+AUTHOR: TIL Development
+
+* Overview
+
+This document catalogs all remaining special-case type handling in the Rust interpreter.
+After cleanup (2025-11-12), most technical debt has been removed. What remains are
+either necessary infrastructure or deferred for post-self-hosting.
+
+* Str Special Cases (1 remaining)
+
+** KEEP: String Literal Throws (interpreter.rs:1352-1355)
+
+#+BEGIN_SRC rust
+// Special handling for Str: when throwing a string literal, we need to create a proper Str struct
+if thrown_type == "Str" {
+    // The thrown value is the actual string content, not a struct instance name
+    // Create a proper Str struct for the catch variable
+    context.insert_string(var_name, &throw_result.value, stmt)?;
+}
+#+END_SRC
+
+**Why necessary**: Language feature support for ~throw "string literal"~ syntax.
+
+**Tests**: src/test/errors.til lines 132, 167 use this feature.
+
+**Can remove?**: No - this is a fundamental language convenience feature, not technical debt.
+
+** KEEP: String Literal Initialization (init.rs:1297-1298)
+
+#+BEGIN_SRC rust
+// Special case: Str initialization with string literal
+if type_name == "Str" {
+    self.insert_string(&combined_name, &default_value, e)?;
+}
+#+END_SRC
+
+**Why necessary**: Str fields with string defaults need special initialization because
+Str stores a pointer to heap-allocated string data, not just field values.
+
+**Can remove?**: Partially - could be generalized with better heap allocation API, but
+string literals will always need some special handling.
+
+* U8 Special Cases (all necessary)
+
+** Size Hardcoding (init.rs:1134)
+
+#+BEGIN_SRC rust
+"U8" => return Ok(1),
+#+END_SRC
+
+**Why necessary**: U8 in core.til has no mut fields (it's the base data type).
+Cannot calculate size from struct definition.
+
+**Can remove?**: Only after self-hosting when U8 can implement ~size()~ method in TIL.
+
+** Literal Parsing (init.rs:1269-1273)
+
+#+BEGIN_SRC rust
+"U8" => {
+    let v = default_value.parse::<u8>().map_err(|_| {
+        e.lang_error("context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
+    })?;
+    Arena::g().memory[offset + field_offset] = v;
+},
+#+END_SRC
+
+**Why necessary**: Direct memory write for U8 literals is the base primitive operation.
+
+**Can remove?**: No - this is fundamental primitive type infrastructure.
+
+** Primitive Operations
+
+- ~insert_u8()~ (init.rs:1650-1682)
+- ~get_u8()~ (init.rs:1684-1704)
+- Type conversions with I64 (multiple locations)
+
+**Why necessary**: Core primitive type infrastructure for performance.
+
+**Can remove?**: Only post-self-hosting, and would hurt performance significantly.
+
+* I64 Special Cases (all necessary)
+
+** Size Hardcoding (init.rs:1135, 1559)
+
+#+BEGIN_SRC rust
+"I64" => return Ok(8),
+#+END_SRC
+
+**Why necessary**: I64 in core.til has no mut fields (data field commented out).
+I64 is the base numeric type.
+
+**Can remove?**: Only after self-hosting when I64 can implement ~size()~ method in TIL.
+
+** Literal Parsing (init.rs:1275-1280)
+
+#+BEGIN_SRC rust
+"I64" => {
+    let v = default_value.parse::<i64>().map_err(|_| {
+        e.lang_error("context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
+    })?;
+    Arena::g().memory[offset + field_offset..offset + field_offset + 8]
+        .copy_from_slice(&v.to_ne_bytes());
+},
+#+END_SRC
+
+**Why necessary**: Direct memory write for I64 literals is the base primitive operation.
+
+**Can remove?**: No - this is fundamental primitive type infrastructure.
+
+** Numeric Literal to Enum Payload (interpreter.rs:617-631)
+
+#+BEGIN_SRC rust
+NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
+    // For I64 literals, create a temporary I64 struct
+    let temp_var_name = format!("__temp_i64_{}", context.arena_index.len());
+    // ...
+    context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
+    temp_var_name
+},
+#+END_SRC
+
+**Why necessary**: Language feature for enum variants with numeric literal payloads.
+
+**Can remove?**: No - this is necessary for ~Option.Some(42)~ style syntax.
+
+** Primitive Operations
+
+- ~insert_i64()~ (init.rs:1706-1738)
+- ~get_i64()~ (init.rs:1740-1760)
+- Type conversions with U8 (multiple locations)
+
+**Why necessary**: Core primitive type infrastructure for performance.
+
+**Can remove?**: Only post-self-hosting, and would hurt performance significantly.
+
+* Bool Special Cases (1 removed, rest necessary)
+
+** REMOVED: Size Hardcoding in get_payload_size_for_type (init.rs:1559)
+
+Removed 2025-11-12. Bool size now calculated from its struct definition (~mut data: U8~).
+
+** KEEP: Primitive Operations
+
+- ~insert_bool()~ (init.rs:1762-1794)
+- ~get_bool()~ (init.rs:1796-1816)
+
+**Why necessary**: Bool is treated as a primitive type for performance.
+
+**Can remove?**: Only post-self-hosting, would hurt performance.
+
+* Core Type Groupings (all necessary)
+
+Multiple locations group core types together:
+
+#+BEGIN_SRC rust
+"I64" | "U8" | "Bool" | "Str" => { /* special handling */ }
+#+END_SRC
+
+**Locations**:
+- interpreter.rs:830 - insert_primitive dispatch
+- interpreter.rs:888 - declaration eval
+- interpreter.rs:994 - assignment eval
+- interpreter.rs:1870 - skip core types in mut writeback
+
+**Why necessary**: These types share common primitive handling patterns.
+
+**Can remove?**: Only post-self-hosting when primitives are fully in TIL.
+
+* Type Conversions (necessary)
+
+** U8 <-> I64 Conversions
+
+Multiple locations allow U8 variables to be used where I64 is expected with numeric literals:
+
+- init.rs:722 - Declaration type checking
+- interpreter.rs:764 - Assignment type checking
+- typer.rs:1224 - Type checker numeric literal coercion
+
+**Why necessary**: Ergonomics - ~let x: U8 = 255~ should work without explicit cast.
+
+**Can remove?**: Only after implementing proper method-based type conversions in TIL.
+
+* Roadmap for Removal
+
+** Short Term (Before Self-Hosting)
+
+Nothing more to remove - all remaining special cases are necessary infrastructure.
+
+** Long Term (Post Self-Hosting)
+
+Once TIL is self-hosted, we can:
+
+1. **Add ~size()~ methods to types in core.til**
+   - U8.size() returns 1
+   - I64.size() returns 8
+   - Bool.size() delegates to U8.size()
+   - Remove Rust hardcodings
+
+2. **Move type conversions to methods**
+   - U8.to_i64(), I64.to_u8()
+   - Remove Rust special cases
+
+3. **Implement primitive operations in TIL**
+   - I64.add(), I64.eq(), etc.
+   - Performance hit but cleaner architecture
+   - Can optimize hot paths with JIT later
+
+4. **Generalize string handling**
+   - Move more string operations to core.til
+   - Keep minimal Rust support for allocation
+
+** Very Long Term
+
+- Rewrite type checker in TIL
+- Rewrite interpreter in TIL
+- Self-hosting complete, minimal Rust runtime
+
+* Cleanup History
+
+** 2025-11-12: Str Special Cases
+
+Removed 6 out of 7 Str special cases:
+
+1. ✅ init.rs:1368-1395 - Immutable Str field in insert_struct
+2. ✅ interpreter.rs:1417-1423 - Str cleanup in catch block
+3. ✅ init.rs:1060-1086 - Str field in map_instance_fields
+4. ✅ interpreter.rs:1374-1399 - Str field copying in catch (replaced with generic code)
+5. ✅ interpreter.rs:1321 - Comment update (removed Str-specific example)
+6. ✅ init.rs:1282-1302 - Str branch in insert_struct (refactored into generic path)
+7. ✅ KEPT: interpreter.rs:1352-1355 - Str catch fallback (needed for string literals)
+
+**Remaining**: 1 special case (string literal throws) - legitimately needed
+
+** 2025-11-12: Bool Size Calculation
+
+Removed Bool size hardcoding from get_payload_size_for_type.
+Now calculated from struct definition (~mut data: U8~).
+
+* Philosophy
+
+As documented in doc/bot/self_hosting_simplification_strategy.org:
+
+**Move logic from Rust to core.til, even at performance cost.**
+
+The goal is to make the Rust codebase as simple as possible for self-hosting.
+Unnecessary special cases are technical debt. Necessary special cases should be
+minimized and eventually moved to TIL-based implementations.
+
+Current state: Most removable technical debt has been eliminated. What remains
+is necessary primitive infrastructure that can only be removed post-self-hosting.
