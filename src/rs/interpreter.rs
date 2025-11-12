@@ -1371,31 +1371,12 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                             },
                                         );
 
-                                        // For Str fields, copy arena_index entries for c_string and cap
+                                        // Copy arena_index entry for the field
                                         // Try instance field first, then fall back to type field
-                                        if let ValueType::TCustom(type_name) = &field_decl.value_type {
-                                            if type_name == "Str" {
-                                                // Try instance field first
-                                                let c_string_src = if let Some(&offset) = context.arena_index.get(&format!("{}.c_string", src_instance_field)) {
-                                                    Some(offset)
-                                                } else {
-                                                    // Fall back to type field
-                                                    context.arena_index.get(&format!("{}.c_string", src_type_field)).copied()
-                                                };
-
-                                                let cap_src = if let Some(&offset) = context.arena_index.get(&format!("{}.cap", src_instance_field)) {
-                                                    Some(offset)
-                                                } else {
-                                                    context.arena_index.get(&format!("{}.cap", src_type_field)).copied()
-                                                };
-
-                                                if let Some(c_string_offset) = c_string_src {
-                                                    context.arena_index.insert(format!("{}.c_string", dst_field), c_string_offset);
-                                                }
-                                                if let Some(cap_offset) = cap_src {
-                                                    context.arena_index.insert(format!("{}.cap", dst_field), cap_offset);
-                                                }
-                                            }
+                                        if let Some(&offset) = context.arena_index.get(&src_instance_field) {
+                                            context.arena_index.insert(dst_field.clone(), offset);
+                                        } else if let Some(&offset) = context.arena_index.get(&src_type_field) {
+                                            context.arena_index.insert(dst_field.clone(), offset);
                                         }
                                     }
                                 }
