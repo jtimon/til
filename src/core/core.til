@@ -1106,6 +1106,36 @@ List := struct {
         self.type_sizes = sizes
     }
 
+    pop := proc(mut self: List, mut dest: Dynamic) throws IndexOutOfBoundsError {
+        if self.len.eq(0) {
+            throw IndexOutOfBoundsError(format(loc(), "List.pop: cannot pop from empty List"))
+        }
+
+        // Get last element FIRST before modifying anything
+        mut last_index := sub(self.len, 1)
+        mut offset := self.calc_offset(last_index)
+        mut size := 0
+        self.type_sizes.get(last_index, size)
+
+        // Copy data to destination directly
+        mut dest_ptr := to_ptr(dest)
+        memcpy(dest_ptr, add(self.data, offset), size)
+
+        // Now safe to remove from metadata
+        mut names := self.type_names
+        mut dummy_name := ""
+        names.pop(dummy_name)
+        self.type_names = names
+
+        mut sizes := self.type_sizes
+        mut dummy_size := 0
+        sizes.pop(dummy_size)
+        self.type_sizes = sizes
+
+        // Decrement length
+        self.len = last_index
+    }
+
     // Free list memory
     delete := proc(mut self: List) {
         free(self.data)

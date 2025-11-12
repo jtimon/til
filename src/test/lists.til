@@ -506,3 +506,58 @@ test_nested_lists := proc() {
     outer.delete()
 }
 test_nested_lists()
+
+test_list_pop := proc() {
+    mut stack := List.new()
+
+    // Push heterogeneous values
+    stack.push(I64, 10)
+    stack.push(Str, "hello")
+    stack.push(Bool, true)
+    stack.push(I64, 42)
+
+    assert_eq(loc(), 4, stack.len)
+
+    // Pop in LIFO order
+    mut i_val := 0
+    stack.pop(i_val)
+    assert_eq(loc(), 42, i_val)
+    assert_eq(loc(), 3, stack.len)
+
+    mut b_val := false
+    stack.pop(b_val)
+    test(loc(), b_val, "Popped bool value")
+    assert_eq(loc(), 2, stack.len)
+
+    mut s_val := ""
+    stack.pop(s_val)
+    test(loc(), s_val.eq("hello"), "Popped string value")
+    assert_eq(loc(), 1, stack.len)
+
+    stack.pop(i_val)
+    assert_eq(loc(), 10, i_val)
+    assert_eq(loc(), 0, stack.len)
+
+    // Test popping from empty List - should throw
+    stack.pop(i_val)
+    catch (err: IndexOutOfBoundsError) {
+        // Expected error
+        stack.delete()
+        return
+    }
+
+    println("ERROR:", loc(), "Should have thrown IndexOutOfBoundsError")
+    exit(1)
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_list_pop()
