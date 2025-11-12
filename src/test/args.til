@@ -343,6 +343,19 @@ test_nested_struct_mut()
 
 // === Test copy keyword ===
 
+// Validation test: mut and copy are mutually exclusive (parser enforced)
+// Uncomment to verify this produces a parse error:
+/*
+test_mut_copy_error := proc(mut copy x: I64) {
+    x = 10
+}
+*/
+/*
+test_copy_mut_error := proc(copy mut x: I64) {
+    x = 10
+}
+*/
+
 // Test 1: copy parameter with primitives can be modified
 test_copy_i64 := proc(copy x: I64) returns I64 {
     x = add(x, 10)
@@ -396,11 +409,11 @@ test_multiple_copy_params := proc() {
 test_multiple_copy_params()
 
 // Test 4: Mix of copy, mut, and immutable parameters
-test_mixed_params := proc(immut_x: I64, mut mut_y: I64, copy copy_z: I64) returns I64 {
+test_mixed_params := proc(immut_x: I64, mut m_y: I64, copy c_z: I64) returns I64 {
     // immut_x cannot be modified (would be compile error)
-    mut_y = mul(mut_y, 2)  // modifies caller's value
-    copy_z = mul(copy_z, 3)  // modifies local copy only
-    return add(add(immut_x, mut_y), copy_z)
+    m_y = mul(m_y, 2)  // modifies caller's value
+    c_z = mul(c_z, 3)  // modifies local copy only
+    return add(add(immut_x, m_y), c_z)
 }
 
 test_mixed_param_modes := proc() {
