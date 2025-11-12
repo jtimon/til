@@ -5,8 +5,11 @@
 * Overview
 
 This document catalogs all remaining special-case type handling in the Rust interpreter.
-After cleanup (2025-11-12), most technical debt has been removed. What remains are
-either necessary infrastructure or deferred for post-self-hosting.
+After cleanup (2025-11-12), most removable technical debt has been eliminated.
+
+**What remains is ALSO technical debt**, but it's necessary technical debt that cannot
+be removed until self-hosting. These are primitive type operations that should eventually
+live in core.til, not Rust.
 
 * Str Special Cases (1 remaining)
 
@@ -25,7 +28,7 @@ if thrown_type == "Str" {
 
 **Tests**: src/test/errors.til lines 132, 167 use this feature.
 
-**Can remove?**: No - this is a fundamental language convenience feature, not technical debt.
+**Is this technical debt?**: Yes - eventually this should be handled generically in TIL, but it requires string literal support in the language that's currently in Rust.
 
 ** KEEP: String Literal Initialization (init.rs:1297-1298)
 
@@ -39,8 +42,7 @@ if type_name == "Str" {
 **Why necessary**: Str fields with string defaults need special initialization because
 Str stores a pointer to heap-allocated string data, not just field values.
 
-**Can remove?**: Partially - could be generalized with better heap allocation API, but
-string literals will always need some special handling.
+**Is this technical debt?**: Yes - Str initialization should eventually be handled by TIL code, not Rust special cases.
 
 * U8 Special Cases (all necessary)
 
@@ -245,8 +247,12 @@ As documented in doc/bot/self_hosting_simplification_strategy.org:
 **Move logic from Rust to core.til, even at performance cost.**
 
 The goal is to make the Rust codebase as simple as possible for self-hosting.
-Unnecessary special cases are technical debt. Necessary special cases should be
-minimized and eventually moved to TIL-based implementations.
 
-Current state: Most removable technical debt has been eliminated. What remains
-is necessary primitive infrastructure that can only be removed post-self-hosting.
+**ALL special cases are technical debt** - some can be removed now (already done),
+others require self-hosting first. The distinction is:
+
+- **Removable now**: Workarounds from when structs-as-fields didn't work (DONE)
+- **Requires self-hosting**: Primitive operations that should live in TIL, not Rust
+
+Current state: Most immediately-removable technical debt has been eliminated.
+What remains is technical debt that requires self-hosting to properly address.
