@@ -8,11 +8,12 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #25: Variable Declarations Share Arena Offsets Instead of Copying :OPEN:
+** Bug #25: Variable Declarations Share Arena Offsets Instead of Copying :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-12
+:FIXED: 2025-11-12
 :IMPACT: Data integrity, aliasing bugs
-:STATUS: Open - Fix in progress
+:STATUS: Fixed - mut declarations now copy
 :END:
 
 *** Description
@@ -53,11 +54,28 @@ This inconsistency means declarations create aliases while assignments create co
 Added in src/test/args.til line 484 (test_declaration_creates_copy)
 Currently FAILS with: `assert_eq failed: expected '1', found '999'`
 
-*** Planned Fix
-Change declaration path to use copy_fields() instead of sharing offset:
-1. Replace offset sharing with copy_fields() call in declaration handler
-2. Make declarations consistent with assignments
-3. Verify all tests pass
+*** Fix Applied
+
+**Design Decision**: Only mut declarations create copies. Non-mut declarations share offsets (read-only aliases).
+
+**Implementation** (src/rs/interpreter.rs lines 923-935):
+- **mut declarations**: Call insert_struct() + copy_fields() to create independent copy
+- **non-mut declarations**: Share arena offset (efficient, type checker enforces immutability)
+
+**Result**:
+#+BEGIN_SRC til
+mut dup := original  // Creates independent copy
+dup := original      // Shares offset (read-only alias)
+#+END_SRC
+
+This design aligns with Mojo's ownership model:
+- mut = mutable copy (prevents aliasing)
+- default = reference (efficient, safe with type checker)
+- Future: 'own' keyword for ownership transfer
+
+See doc/human/ownership.org for full design analysis and Mojo comparison.
+
+**All tests pass**, including test_declaration_creates_copy (args.til:484)
 
 ** Bug #24: Struct Field Access Returns Copy Instead of Reference :OPEN:
 :PROPERTIES:

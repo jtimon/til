@@ -1,0 +1,198 @@
+#+TITLE: TIL vs Mojo: Ownership and Memory Safety Design Comparison
+#+DATE: 2025-11-12
+#+AUTHOR: TIL Development
+
+* Overview
+
+Comparison of TIL's emerging ownership model with Mojo's ownership system.
+
+* Mojo's Design
+
+** Argument Conventions (Function Parameters)
+
+Mojo has three main argument conventions:
+
+1. **read** (default): Immutable reference, no copy
+   - Efficient for large values
+   - Cannot modify the argument
+
+2. **mut**: Mutable reference (inout parameter)
+   - Modifications visible to caller
+   - Enforces exclusivity (no aliasing)
+
+3. **var**: Ownership transfer
+   - Function takes ownership
+   - Either copy (if copyable) or move with ^ sigil
+
+** Local Variables
+
+- **var**: Mutable variables
+- **ref**: Reference binding (no copy)
+
+** Philosophy
+
+- Value semantics by default
+- References for performance
+- Automatic lifetime checking by compiler
+- No need for borrow checker complexity
+- Ownership rules: "Every value has only one owner at a time"
+
+* TIL's Current Design (Post Bug #25 Fix)
+
+** Function Parameters
+
+1. **Default (no keyword)**: Immutable, COPIED
+   - Safe but potentially inefficient
+   - TODO: Should become reference (blocked by Phase 3)
+
+2. **mut**: Mutable reference
+   - Modifications visible to caller
+   - Currently works for primitives and structs
+
+3. **copy**: Explicit copy
+   - Local modifications don't affect caller
+   - Added in Phase 2
+
+** Local Variable Declarations (Bug #25 Fix)
+
+Current behavior after fix:
+
+1. **mut dup := original**: Creates INDEPENDENT COPY
+   - Modifications to dup don't affect original
+   - Safe, prevents aliasing
+
+2. **dup := original** (non-mut): Shares arena offset
+   - Read-only alias
+   - Type checker prevents modification
+   - Efficient, no copy
+
+** Design Question from User
+
+> "only mut declarations should create independent copies, for when we
+> don't want to create independent copies, we would use own instead of
+> mut, does that design make sense?"
+
+This proposes:
+- **mut dup := original**: Copy (current behavior after fix)
+- **own dup := original**: Transfer ownership (future)
+- **dup := original**: Read-only alias (current behavior)
+
+* Comparison Table
+
+| Feature | Mojo | TIL (Current) | TIL (Proposed) |
+|---------+------+---------------+----------------|
+| Default param | read (ref) | Copy | Copy (→ref in Phase 3) |
+| Mutable param | mut (ref) | mut (ref) | mut (ref) |
+| Copy param | var (copy) | copy | copy |
+| Ownership transfer | var with ^ | - | own |
+| Mut local | var x := y | mut x := y | mut x := y |
+| Immut local (copy) | let x := y | x := y (alias!) | x := y (alias) |
+| Immut local (ref) | ref x := y | x := y | x := y |
+| Transfer local | x^ | - | own x := y |
+
+* Key Differences
+
+** Mojo Advantages
+
+1. **Consistent reference semantics**: Default params are references
+2. **Ownership transfer built-in**: ^ sigil for moves
+3. **Clearer separation**: read vs var vs mut
+4. **Compiler lifetime checking**: Prevents use-after-free
+
+** TIL Advantages
+
+1. **Simpler mental model**: mut = mutable, copy = copy
+2. **No sigils needed**: Clean syntax
+3. **Type checker prevents aliasing**: Phase 1 enforcement works
+4. **Explicit is better**: copy keyword makes intent clear
+
+** TIL Challenges
+
+1. **Default params copy**: Inefficient until Phase 3
+2. **No ownership transfer**: Missing 'own' or move semantics
+3. **Non-mut locals alias**: `dup := original` shares offset (efficient but surprising)
+4. **Phase 3 blocked**: Can't make default params references due to aliasing
+
+* Design Analysis of User's Proposal
+
+** Proposed Semantics
+
+```til
+// Read-only alias (no copy)
+alias := original        // Shares offset, type checker prevents modification
+
+// Mutable copy
+mut dup := original     // Independent copy, can modify freely
+
+// Ownership transfer (future)
+own moved := original   // Transfer ownership, original invalidated
+```
+
+** Comparison with Mojo
+
+| TIL Proposed | Mojo Equivalent | Semantics |
+|--------------+-----------------+-----------|
+| alias := x   | ref alias = x   | Reference binding |
+| mut dup := x | let dup = x     | Copy |
+| own moved := x | let moved = x^ | Move/transfer |
+
+** This Makes Sense Because
+
+1. **Aligns with Mojo's philosophy**: Value semantics with refs for perf
+2. **Clear intent**: Three distinct use cases
+3. **Enables Phase 3**: Default params can be refs safely
+4. **Solves aliasing**: mut declarations copy, preventing Bug #25
+
+** Potential Issues
+
+1. **Surprise factor**: `alias := x` doesn't copy (different from assignment)
+2. **Type checking**: Need to prevent `alias.field = value` (already done!)
+3. **Ownership tracking**: Need lifetime analysis for 'own'
+4. **Consistency**: Declaration vs assignment semantics differ
+
+* Recommended Path Forward
+
+** Short Term (Current Fix)
+
+✅ **DONE**: mut declarations create copies (Bug #25 fix)
+- Prevents aliasing bugs
+- Makes mut declarations safe
+- Non-mut declarations can alias (efficient, read-only)
+
+** Medium Term (Post Self-Hosting)
+
+Add **own** keyword for ownership transfer:
+```til
+own moved := original  // Transfer ownership
+// original is now invalid/moved
+```
+
+This would require:
+- Lexer: Add 'own' token
+- Parser: Add is_own field
+- Type checker: Track moved variables, prevent use-after-move
+- Interpreter: Transfer without copy
+
+** Long Term (Phase 3 Revisited)
+
+Make default parameters references:
+```til
+func(x: Vec2)      // x is reference, not copy
+func(mut x: Vec2)  // x is mutable reference
+func(copy x: Vec2) // x is explicit copy
+func(own x: Vec2)  // x transferred (caller can't use after)
+```
+
+This requires solving the context corruption issue from Phase 3 attempts.
+
+* Conclusion
+
+User's design makes sense and aligns well with Mojo's philosophy:
+- Default = reference (efficient, safe with type checker)
+- mut = mutable (with copy for locals to prevent aliasing)
+- copy = explicit copy (when needed)
+- own = transfer ownership (future feature)
+
+The Bug #25 fix (mut declarations copy) is the right first step.
+The 'own' keyword would be a natural extension following Mojo's model.
+Phase 3 (default params as refs) remains the end goal but requires more work.

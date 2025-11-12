@@ -917,12 +917,22 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             return Ok(result); // Propagate throw
                         }
                         let expr_result_str = result.value;
-                        if let Some(offset) = context.arena_index.get(&expr_result_str) {
-                            context.arena_index.insert(declaration.name.to_string(), *offset);
+
+                        // Bug #25 fix: mut declarations should create independent copies
+                        // Non-mut declarations can share offsets (will use 'own' keyword for transfers in future)
+                        if declaration.is_mut {
+                            // Allocate space and copy fields for mut declaration
+                            context.insert_struct(&declaration.name, custom_type_name, e)?;
+                            context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
-                            return Err(e.lang_error("eval", &format!("Could not find arena index for '{}'", expr_result_str)));
+                            // Share offset for non-mut declaration (read-only alias)
+                            if let Some(offset) = context.arena_index.get(&expr_result_str) {
+                                context.arena_index.insert(declaration.name.to_string(), *offset);
+                            } else {
+                                return Err(e.lang_error("eval", &format!("Could not find arena index for '{}'", expr_result_str)));
+                            }
+                            context.map_instance_fields(custom_type_name, &declaration.name, e)?;
                         }
-                        context.map_instance_fields(custom_type_name, &declaration.name, e)?;
                     } else {
                         return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                             &declaration.name, value_type_to_str(&custom_symbol.value_type))))
