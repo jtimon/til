@@ -43,6 +43,7 @@ pub struct SFuncDef {
     pub return_types: Vec<ValueType>,  // "returns" conflicts with TIL keyword
     pub throw_types: Vec<ValueType>,   // "throws" conflicts with TIL keyword
     pub body: Vec<Expr>,
+    pub source_path: String,  // Path to the file where this function was defined
 }
 
 impl SFuncDef {
@@ -80,10 +81,11 @@ impl SStructDef {
         &self,
         member_name: &str,
         struct_name: &str,
+        path: &str,
         e: &Expr
     ) -> Result<&Declaration, String> {
         self.get_member(member_name)
-            .ok_or_else(|| e.error("type", &format!(
+            .ok_or_else(|| e.error(path, "type", &format!(
                 "Struct '{}' has no member '{}'", struct_name, member_name
             )))
     }
@@ -185,11 +187,11 @@ impl Expr {
                        self.line, self.col, LANG_NAME, phase, msg)
     }
 
-    pub fn error(self: &Expr, phase: &str, msg: &str) -> String {
+    pub fn error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            return format!("{}:{}: WARNING: {}", self.line, self.col, msg);
+            return format!("{}:{}:{}: WARNING: {}", path, self.line, self.col, msg);
         }
-        return format!("{}:{}: {} ERROR: {}", self.line, self.col, phase, msg)
+        return format!("{}:{}:{}: {} ERROR: {}", path, self.line, self.col, phase, msg)
     }
 }
 
@@ -383,12 +385,12 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
                     expect_comma = false;
                     list_t = lexer.peek();
                 } else {
-                    return Err(list_t.error("Unexpected ','."));
+                    return Err(list_t.error(&lexer.path, "Unexpected ','."));
                 }
             },
             _ => {
                 if expect_comma {
-                    return Err(list_t.error(&format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));
+                    return Err(list_t.error(&lexer.path, &format!("Expected ')' or ',', found '{:?}'.", list_t.token_type)));
                 }
                 expect_comma = true;
                 let prim = match parse_primary(lexer) {
@@ -403,7 +405,7 @@ fn parse_list(lexer: &mut Lexer) -> Result<Expr, String> {
     match list_t.token_type {
         // TODO properly parse lists besides function definition arguments
         TokenType::RightParen => Ok(Expr::new_parse(NodeType::LLiteral(Literal::List("".to_string())), lexer.get_token(initial_current)?.clone(), params)),
-        _ => Err(list_t.error("Expected closing parentheses.")),
+        _ => Err(list_t.error(&lexer.path, "Expected closing parentheses.")),
     }
 }
 
@@ -430,16 +432,16 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
             TokenType::RightParen => {
                 rightparent_found = true;
                 if expect_colon {
-                    return Err(t.error(&format!("Expected ': Type' after arg name '{}' before ')'.", arg_name)));
+                    return Err(t.error(&lexer.path, &format!("Expected ': Type' after arg name '{}' before ')'.", arg_name)));
                 }
                 lexer.advance(1)?;
             },
             TokenType::Comma => {
                 if expect_colon {
-                    return Err(t.error(&format!("Expected ': Type' after arg name '{}', but found ','.", arg_name)));
+                    return Err(t.error(&lexer.path, &format!("Expected ': Type' after arg name '{}', but found ','.", arg_name)));
                 }
                 if expect_name {
-                    return Err(t.error("Expected arg name before ','."));
+                    return Err(t.error(&lexer.path, "Expected arg name before ','."));
                 }
                 if expect_comma {
                     expect_comma = false;
@@ -449,7 +451,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     lexer.expect(TokenType::Comma)?;
                     t = lexer.peek();
                 } else {
-                    return Err(t.error("Unexpected ','."));
+                    return Err(t.error(&lexer.path, "Unexpected ','."));
                 }
             },
             TokenType::Colon => {
@@ -462,21 +464,21 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     match t.token_type {
                         TokenType::Identifier => {},
                         TokenType::DoubleDot => {},
-                        _ => return Err(t.error(&format!("Expected type after '{}:', but found '{}'.", arg_name, t.token_str))),
+                        _ => return Err(t.error(&lexer.path, &format!("Expected type after '{}:', but found '{}'.", arg_name, t.token_str))),
                     }
                 } else {
-                    return Err(t.error("Unexpected ':'."));
+                    return Err(t.error(&lexer.path, "Unexpected ':'."));
                 }
             },
             TokenType::DoubleDot => {
                 if expect_colon {
-                    return Err(t.error(&format!("Expected ': Type' after arg name '{}', but found '..'.", arg_name)));
+                    return Err(t.error(&lexer.path, &format!("Expected ': Type' after arg name '{}', but found '..'.", arg_name)));
                 }
                 if expect_comma {
-                    return Err(t.error(&format!("Expected ',', found '{:?}'.", t.token_type)));
+                    return Err(t.error(&lexer.path, &format!("Expected ',', found '{:?}'.", t.token_type)));
                 }
                 if expect_name {
-                    return Err(t.error(&format!("Expected arg name, found '{:?}'.", t.token_type)));
+                    return Err(t.error(&lexer.path, &format!("Expected arg name, found '{:?}'.", t.token_type)));
                 }
                 is_variadic = true;
                 lexer.advance(1)?;
@@ -484,10 +486,10 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
             },
             TokenType::Identifier => {
                 if expect_colon {
-                    return Err(t.error(&format!("Expected ': Type' after arg name '{}', but found '{}'.", arg_name, t.token_str)));
+                    return Err(t.error(&lexer.path, &format!("Expected ': Type' after arg name '{}', but found '{}'.", arg_name, t.token_str)));
                 }
                 if expect_comma {
-                    return Err(t.error(&format!("Expected ',', found identifier '{}'.", t.token_str)));
+                    return Err(t.error(&lexer.path, &format!("Expected ',', found identifier '{}'.", t.token_str)));
                 }
                 if expect_name {
                     arg_name = t.token_str.to_string();
@@ -516,20 +518,20 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
             },
             TokenType::Mut => {
                 if !expect_name {
-                    return Err(t.error("Unexpected 'mut' in argument list."));
+                    return Err(t.error(&lexer.path, "Unexpected 'mut' in argument list."));
                 }
                 is_mut = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
             },
             _ => {
-                return Err(t.error(&format!("Unexpected '{:?}' in func/proc args.", t.token_type)));
+                return Err(t.error(&lexer.path, &format!("Unexpected '{:?}' in func/proc args.", t.token_type)));
             },
         }
     }
     match t.token_type {
         TokenType::RightParen => return Ok(args),
-        _ => return Err(t.error("Expected closing parentheses.")),
+        _ => return Err(t.error(&lexer.path, "Expected closing parentheses.")),
     }
 }
 
@@ -555,12 +557,12 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                     expect_comma = false;
                     t = lexer.peek();
                 } else {
-                    return Err(t.error("Unexpected ','."));
+                    return Err(t.error(&lexer.path, "Unexpected ','."));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(t.error(&format!("Expected ',', found '{:?}'.", t.token_type)));
+                    return Err(t.error(&lexer.path, &format!("Expected ',', found '{:?}'.", t.token_type)));
                 }
                 return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
@@ -568,14 +570,14 @@ fn func_proc_returns(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                 t = lexer.peek();
             },
             _ => {
-                return Err(t.error(&format!("Unexpected '{:?}' in func/proc returns.", t.token_type)));
+                return Err(t.error(&lexer.path, &format!("Unexpected '{:?}' in func/proc returns.", t.token_type)));
             },
         }
     }
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(t.error("Expected '{{' or 'throws' after return values."));
+        return Err(t.error(&lexer.path, "Expected '{{' or 'throws' after return values."));
     }
 }
 
@@ -601,12 +603,12 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                     lexer.advance(1)?;
                     t = lexer.peek();
                 } else {
-                    return Err(t.error("Unexpected ','."));
+                    return Err(t.error(&lexer.path, "Unexpected ','."));
                 }
             },
             TokenType::Identifier => {
                 if expect_comma {
-                    return Err(t.error(&format!("Expected ',', found '{:?}'.", t.token_type)));
+                    return Err(t.error(&lexer.path, &format!("Expected ',', found '{:?}'.", t.token_type)));
                 }
                 return_types.push(str_to_value_type(&t.token_str));
                 expect_comma = true;
@@ -614,14 +616,14 @@ fn func_proc_throws(lexer: &mut Lexer) -> Result<Vec<ValueType>, String> {
                 t = lexer.peek();
             },
             _ => {
-                return Err(t.error(&format!("Unexpected '{:?}' in func/proc throws.", t.token_type)));
+                return Err(t.error(&lexer.path, &format!("Unexpected '{:?}' in func/proc throws.", t.token_type)));
             },
         }
     }
     if end_found {
         return Ok(return_types);
     } else {
-        return Err(t.error("Expected '{{' after throw values."));
+        return Err(t.error(&lexer.path, "Expected '{{' after throw values."));
     }
 }
 
@@ -630,10 +632,10 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
     lexer.advance(1)?;
     let t = lexer.peek();
     if lexer.is_eof(1) {
-        return Err(t.error("expected '(' after 'func' or 'proc', found EOF."));
+        return Err(t.error(&lexer.path, "expected '(' after 'func' or 'proc', found EOF."));
     }
     if t.token_type != TokenType::LeftParen {
-        return Err(t.error(&format!("expected '(' after 'func', found '{:?}'.", t.token_type)));
+        return Err(t.error(&lexer.path, &format!("expected '(' after 'func', found '{:?}'.", t.token_type)));
     }
     let args = parse_func_proc_args(lexer)?;
     let return_types = func_proc_returns(lexer)?;
@@ -656,6 +658,7 @@ fn parse_func_proc_definition(lexer: &mut Lexer, function_type: FunctionType, do
         return_types: return_types,
         throw_types: throw_types,
         body: body,
+        source_path: lexer.path.clone(),
     };
     let params : Vec<Expr> = Vec::new();
     let e = Expr::new_parse(NodeType::FuncDef(func_def), t.clone(), params);
@@ -668,11 +671,11 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
 
     let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
-        return Err(t.error("Expected '{{' after 'enum'."));
+        return Err(t.error(&lexer.path, "Expected '{{' after 'enum'."));
     }
     if lexer.is_eof(1) {
         let t = lexer.peek();
-        return Err(t.error("expected identifier after 'enum {{', found EOF."));
+        return Err(t.error(&lexer.path, "expected identifier after 'enum {{', found EOF."));
     }
     lexer.advance(1)?;
     let mut enum_map: HashMap<String, Option<ValueType>> = HashMap::new();
@@ -691,7 +694,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                     TokenType::Colon => {
                         let next2_t = lexer.peek_ahead(2)?;
                         if next2_t.token_type != TokenType::Identifier {
-                            return Err(next2_t.error(&format!("Expected type identifier after '{} :', found '{:?}'.",
+                            return Err(next2_t.error(&lexer.path, &format!("Expected type identifier after '{} :', found '{:?}'.",
                                                               enum_val_name, next2_t.token_type)));
                         }
                         let enum_val_type = &next2_t.token_str;
@@ -705,7 +708,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                         }
                     },
                     _ => {
-                        return Err(next_t.error(&format!("Expected ',' or ':' after '{}', found '{:?}'.",
+                        return Err(next_t.error(&lexer.path, &format!("Expected ',' or ':' after '{}', found '{:?}'.",
                                                          enum_val_name, next_t.token_type)));
                     }
                 }
@@ -714,14 +717,14 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                 // Skip comma
             },
             _ => {
-                return Err(it_t.error(&format!("Expected '}}' to end enum or a new identifier, found '{:?}'.",
+                return Err(it_t.error(&lexer.path, &format!("Expected '}}' to end enum or a new identifier, found '{:?}'.",
                                                it_t.token_type)));
             }
         }
         lexer.advance(1)?;
     }
     if !end_found {
-        return Err(t.error("Expected '}}' to end enum."));
+        return Err(t.error(&lexer.path, "Expected '}}' to end enum."));
     }
     let params : Vec<Expr> = Vec::new();
     return Ok(Expr::new_parse(NodeType::EnumDef(SEnumDef{enum_map: enum_map}), lexer.get_token(initial_current)?.clone(), params));
@@ -731,11 +734,11 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
     lexer.expect(TokenType::Struct)?;
     let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
-        return Err(t.error("Expected '{{' after 'struct'."));
+        return Err(t.error(&lexer.path, "Expected '{{' after 'struct'."));
     }
     if lexer.is_eof(1) {
         let t = lexer.peek();
-        return Err(t.error("expected 'identifier' after 'struct {{', found EOF."));
+        return Err(t.error(&lexer.path, "expected 'identifier' after 'struct {{', found EOF."));
     }
     lexer.advance(1)?;
     let body = match parse_body(lexer, TokenType::RightBrace) {
@@ -753,14 +756,14 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                         Some(val) => {
                             default_values.insert(decl.name.clone(), val.clone());
                         },
-                        None => return Err(t.error("expected value in struct member declaration")),
+                        None => return Err(t.error(&lexer.path, "expected value in struct member declaration")),
                     }
                 } else {
                     // TODO allow not setting default values in struct members
-                    return Err(t.error("all declarations inside struct definitions must have a value for now"));
+                    return Err(t.error(&lexer.path, "all declarations inside struct definitions must have a value for now"));
                 }
             },
-            _ => return Err(t.error("expected only declarations inside struct definition")),
+            _ => return Err(t.error(&lexer.path, "expected only declarations inside struct definition")),
         }
     }
 
@@ -778,7 +781,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
     while TokenType::Dot == next_t.token_type {
         let next2_t = lexer.peek_ahead(2)?;
         if TokenType::Identifier != next2_t.token_type {
-            return Err(next2_t.error(&format!("expected identifier after '{}.', found '{:?}'.", current_identifier, next2_t.token_type)));
+            return Err(next2_t.error(&lexer.path, &format!("expected identifier after '{}.', found '{:?}'.", current_identifier, next2_t.token_type)));
         }
 
         current_identifier = next2_t.token_str.to_string();
@@ -813,7 +816,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             // Expect an identifier for the next method name
             let method_t = lexer.peek();
             if method_t.token_type != TokenType::Identifier {
-                return Err(method_t.error(&format!("Expected method name after '.', found '{:?}'", method_t.token_type)));
+                return Err(method_t.error(&lexer.path, &format!("Expected method name after '.', found '{:?}'", method_t.token_type)));
             }
             let method_name = method_t.token_str.clone();
             lexer.advance(1)?;
@@ -821,7 +824,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             // Check if it's a method call (has parentheses)
             let next_peek = lexer.peek();
             if next_peek.token_type != TokenType::LeftParen {
-                return Err(next_peek.error(&format!("Expected '(' after method name '{}', found '{:?}'", method_name, next_peek.token_type)));
+                return Err(next_peek.error(&lexer.path, &format!("Expected '(' after method name '{}', found '{:?}'", method_name, next_peek.token_type)));
             }
 
             // Parse the argument list
@@ -919,13 +922,13 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                     return parse_declaration(lexer, false, INFER_TYPE)
                 },
                 _ => {
-                    Err(t.error(&format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
+                    Err(t.error(&lexer.path, &format!("Expected Type or '=' after '{} :' in statement, found '{:?}'.", identifier, next_next_token_type)))
                 },
             }
 
         },
         _ => {
-            Err(t.error(&format!("Expected '(', ':' or '=' after identifier in statement, found '{:?}'.", next_token_type)))
+            Err(t.error(&lexer.path, &format!("Expected '(', ':' or '=' after identifier in statement, found '{:?}'.", next_token_type)))
         },
     }
 }
@@ -946,7 +949,7 @@ fn parse_primary(lexer: &mut Lexer) -> Result<Expr, String> {
         TokenType::Struct => return parse_struct_definition(lexer),
         TokenType::LeftParen => return parse_list(lexer),
         TokenType::Identifier => return parse_primary_identifier(lexer),
-        _ => return Err(t.error(&format!("Expected primary expression, found '{:?}'.", t.token_type))),
+        _ => return Err(t.error(&lexer.path, &format!("Expected primary expression, found '{:?}'.", t.token_type))),
     }
 }
 
@@ -1044,7 +1047,7 @@ fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     params.push(prim);
     let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
-        return Err(t.error(&format!("Expected '{{' after condition in 'if' statement, found '{:?}'.", t.token_type)));
+        return Err(t.error(&lexer.path, &format!("Expected '{{' after condition in 'if' statement, found '{:?}'.", t.token_type)));
     }
     lexer.advance(1)?;
     let body = match parse_body(lexer, TokenType::RightBrace) {
@@ -1068,7 +1071,7 @@ fn if_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             };
             params.push(else_body);
         } else {
-            return Err(t.error(&format!("Expected '{{' or 'if' after 'else', found '{:?}'.", next.token_type)));
+            return Err(t.error(&lexer.path, &format!("Expected '{{' or 'if' after 'else', found '{:?}'.", next.token_type)));
         }
     }
 
@@ -1086,7 +1089,7 @@ fn while_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     params.push(prim);
     let t = lexer.peek();
     if t.token_type != TokenType::LeftBrace {
-        return Err(t.error("Expected '{{' after condition in 'while' statement."));
+        return Err(t.error(&lexer.path, "Expected '{{' after condition in 'while' statement."));
     }
     lexer.advance(1)?;
     let body = match parse_body(lexer, TokenType::RightBrace) {
@@ -1110,7 +1113,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     // Parse the range expression (e.g., 1..10)
     let range_expr = parse_case_expr(lexer)?;
     if range_expr.node_type != NodeType::Range {
-        return Err(ident_token.error("Expected range expression (start..end) after 'in'"));
+        return Err(ident_token.error(&lexer.path, "Expected range expression (start..end) after 'in'"));
     }
     let start_expr = range_expr.get(0)?.clone();
     let end_expr = range_expr.get(1)?.clone();
@@ -1239,7 +1242,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     params.push(prim);
 
     if TokenType::LeftBrace != lexer.peek().token_type {
-        return Err(t.error("Expected '{{' after primary expression in 'switch' statement."));
+        return Err(t.error(&lexer.path, "Expected '{{' after primary expression in 'switch' statement."));
     }
     lexer.advance(1)?;
 
@@ -1247,7 +1250,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     while lexer.current < lexer.len() && !end_found {
         let mut next_t = lexer.peek();
         if next_t.token_type != TokenType::Case {
-            return Err(next_t.error(&format!("Expected 'case' in switch, found '{:?}'", next_t.token_type)));
+            return Err(next_t.error(&lexer.path, &format!("Expected 'case' in switch, found '{:?}'", next_t.token_type)));
         }
 
         lexer.advance(1)?;
@@ -1264,7 +1267,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
 
         next_t = lexer.peek();
         if next_t.token_type != TokenType::Colon {
-            return Err(next_t.error(&format!("Expected ':' case <primary_expr> in switch, found '{:?}'", next_t.token_type)));
+            return Err(next_t.error(&lexer.path, &format!("Expected ':' case <primary_expr> in switch, found '{:?}'", next_t.token_type)));
         }
 
         lexer.advance(1)?;
@@ -1296,7 +1299,7 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
     if end_found {
         return Ok(Expr::new_parse(NodeType::Switch, lexer.get_token(initial_current)?.clone(), params))
     }
-    return Err(t.error("Expected '}}' to end switch."));
+    return Err(t.error(&lexer.path, "Expected '}}' to end switch."));
 }
 
 fn parse_declaration(lexer: &mut Lexer, is_mut: bool, explicit_type: &str) -> Result<Expr, String> {
@@ -1322,14 +1325,14 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
     let mut next_t = lexer.next()?;
     let mut next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Identifier {
-        return Err(t.error(&format!("Expected identifier after 'mut', found '{:?}'.", next_token_type)));
+        return Err(t.error(&lexer.path, &format!("Expected identifier after 'mut', found '{:?}'.", next_token_type)));
     }
     let identifier = &next_t.token_str.to_string();
     lexer.advance(1)?;
     next_t = lexer.next()?;
     next_token_type = &next_t.token_type;
     if next_token_type != &TokenType::Colon {
-        return Err(t.error(&format!("Expected ':' after 'mut {}', found '{:?}'.", identifier, next_token_type)));
+        return Err(t.error(&lexer.path, &format!("Expected ':' after 'mut {}', found '{:?}'.", identifier, next_token_type)));
     }
     let next_next_t = lexer.peek_ahead(2)?;
     let next_next_token_type = &next_next_t.token_type;
@@ -1342,7 +1345,7 @@ fn parse_mut_declaration(lexer: &mut Lexer) -> Result<Expr, String> {
             return parse_declaration(lexer, true, INFER_TYPE)
         },
         _ => {
-            Err(t.error(&format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",
+            Err(t.error(&lexer.path, &format!("Expected a type identifier or '=' after 'mut {} :' in statement, found '{:?}'.",
                                  identifier, next_next_token_type)))
         },
     }
@@ -1365,7 +1368,7 @@ fn parse_statement(lexer: &mut Lexer) -> Result<Expr, String> {
             return parse_body(lexer, TokenType::RightBrace)
         }
         _ => {
-            Err(t.error(&format!("Expected statement, found {:?}.", t.token_type)))
+            Err(t.error(&lexer.path, &format!("Expected statement, found {:?}.", t.token_type)))
         },
     }
 }
@@ -1399,7 +1402,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
     if end_found {
         return Ok(Expr::new_parse(NodeType::Body, lexer.get_token(initial_current)?.clone(), params))
     }
-    return Err(t.error(&format!("Expected '{:?}' to end body.", end_token))); // use last valid token
+    return Err(t.error(&lexer.path, &format!("Expected '{:?}' to end body.", end_token))); // use last valid token
 }
 
 pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {

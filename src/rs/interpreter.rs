@@ -179,7 +179,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
                         name
                     } else {
-                        return Err(case.error("eval", "Pattern matching requires switch value to be a variable"));
+                        return Err(case.error(&context.path, "eval", "Pattern matching requires switch value to be a variable"));
                     };
 
                     let enum_val = context.get_enum(enum_var_name, &case)?;
@@ -198,7 +198,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                 match payload_type {
                                     ValueType::TCustom(type_name) if type_name == "Bool" => {
                                         if payload_bytes.len() != 1 {
-                                            return Err(case.error("eval", "Invalid Bool payload size"));
+                                            return Err(case.error(&context.path, "eval", "Invalid Bool payload size"));
                                         }
                                         let bool_val = payload_bytes[0] != 0;
 
@@ -216,7 +216,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                     }
                                     ValueType::TCustom(type_name) if type_name == "I64" => {
                                         if payload_bytes.len() != 8 {
-                                            return Err(case.error("eval", "Invalid I64 payload size"));
+                                            return Err(case.error(&context.path, "eval", "Invalid I64 payload size"));
                                         }
                                         let mut bytes = [0u8; 8];
                                         bytes.copy_from_slice(&payload_bytes[0..8]);
@@ -237,7 +237,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         // For Str, the payload contains pointer + size (16 bytes total)
                                         // We need to reconstruct the string from the arena
                                         if payload_bytes.len() != 16 {
-                                            return Err(case.error("eval", &format!("Invalid Str payload size: expected 16, got {}", payload_bytes.len())));
+                                            return Err(case.error(&context.path, "eval", &format!("Invalid Str payload size: expected 16, got {}", payload_bytes.len())));
                                         }
                                         // Extract the c_string pointer (first 8 bytes)
                                         let mut ptr_bytes = [0u8; 8];
@@ -263,7 +263,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             let ptr = ptr_offset as usize;
                                             let len = size as usize;
                                             if ptr + len > Arena::g().memory.len() {
-                                                return Err(case.error("eval", "String payload pointer out of bounds"));
+                                                return Err(case.error(&context.path, "eval", "String payload pointer out of bounds"));
                                             }
                                             let str_bytes = &Arena::g().memory[ptr..ptr + len];
                                             let string_value = String::from_utf8_lossy(str_bytes).to_string();
@@ -276,7 +276,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                     ValueType::TCustom(type_name) => {
                                         // Handle custom types (structs and enums)
                                         let type_symbol = context.symbols.get(type_name).ok_or_else(|| {
-                                            case.error("eval", &format!("Unknown type '{}'", type_name))
+                                            case.error(&context.path, "eval", &format!("Unknown type '{}'", type_name))
                                         })?;
 
                                         match &type_symbol.value_type {
@@ -296,14 +296,14 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 
                                                 // Get destination offset
                                                 let dest_offset = context.arena_index.get(binding_var).ok_or_else(|| {
-                                                    case.error("eval", &format!("Struct '{}' not found in arena", binding_var))
+                                                    case.error(&context.path, "eval", &format!("Struct '{}' not found in arena", binding_var))
                                                 })?;
 
                                                 // Validate payload size
                                                 let struct_size = context.get_type_size(type_name)
-                                                    .map_err(|err| case.error("eval", &err))?;
+                                                    .map_err(|err| case.error(&context.path, "eval", &err))?;
                                                 if payload_bytes.len() != struct_size {
-                                                    return Err(case.error("eval", &format!(
+                                                    return Err(case.error(&context.path, "eval", &format!(
                                                         "Payload size mismatch: expected {}, got {}",
                                                         struct_size, payload_bytes.len()
                                                     )));
@@ -318,7 +318,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 // The payload_bytes contains: [8 bytes variant tag][N bytes enum's payload]
 
                                                 if payload_bytes.len() < 8 {
-                                                    return Err(case.error("eval", "Invalid enum payload: too small"));
+                                                    return Err(case.error(&context.path, "eval", "Invalid enum payload: too small"));
                                                 }
 
                                                 // Extract variant tag (first 8 bytes)
@@ -335,7 +335,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 
                                                 // Get the enum definition to find variant name
                                                 let enum_def = context.enum_defs.get(type_name).ok_or_else(|| {
-                                                    case.error("eval", &format!("Enum definition for '{}' not found", type_name))
+                                                    case.error(&context.path, "eval", &format!("Enum definition for '{}' not found", type_name))
                                                 })?;
 
                                                 // Find variant name by matching the variant position
@@ -349,7 +349,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 }
 
                                                 let variant_name = found_variant.ok_or_else(|| {
-                                                    case.error("eval", &format!("Variant position {} not found in enum {}", variant_pos, type_name))
+                                                    case.error(&context.path, "eval", &format!("Variant position {} not found in enum {}", variant_pos, type_name))
                                                 })?;
 
                                                 // Get the inner payload type
@@ -378,13 +378,13 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             },
                                             _ => {
                                                 // Other types not yet implemented
-                                                return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
+                                                return Err(case.error(&context.path, "eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
                                             }
                                         }
                                     },
                                     _ => {
                                         // Unknown types
-                                        return Err(case.error("eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
+                                        return Err(case.error(&context.path, "eval", &format!("Pattern matching not yet implemented for payload type: {:?}", payload_type)));
                                     }
                                 }
                             }
@@ -522,7 +522,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 Some(Some(payload_type)) => {
                     // This variant expects a payload
                     if e.params.len() < 2 {
-                        return Err(e.error("eval", &format!("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(&payload_type))));
+                        return Err(e.error(&context.path, "eval", &format!("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(&payload_type))));
                     }
 
                     // Evaluate the payload argument
@@ -536,21 +536,21 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     let payload_bytes = match &payload_type {
                         ValueType::TCustom(type_name) if type_name == "I64" => {
                             let i64_val = payload_result.value.parse::<i64>()
-                                .map_err(|_| e.error("eval", &format!("Expected I64 payload, got '{}'", payload_result.value)))?;
+                                .map_err(|_| e.error(&context.path, "eval", &format!("Expected I64 payload, got '{}'", payload_result.value)))?;
                             i64_val.to_le_bytes().to_vec()
                         },
                         ValueType::TCustom(struct_type_name) => {
                             // Handle struct payloads
                             // Check if this is a struct type
                             let type_symbol = context.symbols.get(struct_type_name).ok_or_else(|| {
-                                e.error("eval", &format!("Unknown type '{}'", struct_type_name))
+                                e.error(&context.path, "eval", &format!("Unknown type '{}'", struct_type_name))
                             })?;
 
                             match &type_symbol.value_type {
                                 ValueType::TType(TTypeDef::TStructDef) => {
                                     // Get struct size
                                     let struct_size = context.get_type_size(struct_type_name)
-                                        .map_err(|err| e.error("eval", &err))?;
+                                        .map_err(|err| e.error(&context.path, "eval", &err))?;
 
                                     // Get struct variable name from the original expression or create temporary for literals
                                     let struct_var_name = match &payload_expr.node_type {
@@ -612,12 +612,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
                                             temp_var_name
                                         },
-                                        _ => return Err(e.error("eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
+                                        _ => return Err(e.error(&context.path, "eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get struct offset from arena
                                     let offset = context.arena_index.get(&struct_var_name).ok_or_else(|| {
-                                        e.error("eval", &format!("Struct '{}' not found in arena", struct_var_name))
+                                        e.error(&context.path, "eval", &format!("Struct '{}' not found in arena", struct_var_name))
                                     })?;
 
                                     // Copy struct bytes from arena
@@ -653,7 +653,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             context.insert_enum(&temp_var_name, struct_type_name, &nested_result.value, e)?;
                                             temp_var_name
                                         },
-                                        _ => return Err(e.error("eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
+                                        _ => return Err(e.error(&context.path, "eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get the full enum value including its payload
@@ -665,7 +665,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     // Get the variant position
                                     let variant_pos = Context::get_variant_pos(
                                         context.enum_defs.get(struct_type_name).ok_or_else(|| {
-                                            e.error("eval", &format!("Enum definition for '{}' not found", struct_type_name))
+                                            e.error(&context.path, "eval", &format!("Enum definition for '{}' not found", struct_type_name))
                                         })?,
                                         &enum_val.enum_name,
                                         e
@@ -682,12 +682,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     enum_bytes
                                 },
                                 _ => {
-                                    return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                                    return Err(e.error(&context.path, "eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
                                 }
                             }
                         },
                         _ => {
-                            return Err(e.error("eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                            return Err(e.error(&context.path, "eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
                         }
                     };
 
@@ -700,11 +700,11 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 Some(None) => {
                     // This variant doesn't have a payload, but constructor was called with args
                     if e.params.len() > 1 {
-                        return Err(e.error("eval", &format!("Enum variant {}.{} does not take a payload", enum_type, variant_name)));
+                        return Err(e.error(&context.path, "eval", &format!("Enum variant {}.{} does not take a payload", enum_type, variant_name)));
                     }
                 },
                 None => {
-                    return Err(e.error("eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
+                    return Err(e.error(&context.path, "eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
                 }
             }
         }
@@ -858,7 +858,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     return Ok(EvalResult::new(""))
                 },
 
-                _ => return Err(e.error("eval", &format!("Cannot declare '{}' of type '{}', expected '{}' definition.",
+                _ => return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected '{}' definition.",
                                                          &declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)))),
             }
         },
@@ -914,7 +914,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         }
                         context.map_instance_fields(custom_type_name, &declaration.name, e)?;
                     } else {
-                        return Err(e.error("eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
+                        return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
                                                             &declaration.name, value_type_to_str(&custom_symbol.value_type))))
                     }
                     return Ok(EvalResult::new(""))
@@ -922,7 +922,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             }
         },
         ValueType::TMulti(_) => {
-            return Err(e.error("eval", &format!("Cannot declare '{}' of type '{}'",
+            return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'",
                                                 &declaration.name, value_type_to_str(&declaration.value_type))))
         },
     }
@@ -1050,7 +1050,7 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
     let inner_e = e.get(0)?;
     match &inner_e.node_type {
         NodeType::Identifier(inner_name) => {
-            let member_decl = struct_def.get_member_or_err(inner_name, name, e)?;
+            let member_decl = struct_def.get_member_or_err(inner_name, name, &context.path, e)?;
             return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
         },
         _ => {
@@ -1102,7 +1102,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                                 Some(def) => def,
                                                 None => return Err(e.lang_error("eval", &format!("Struct '{}' not found in context", custom_type_name))),
                                             };
-                                            let member_decl = struct_def.get_member_or_err(inner_name, custom_type_name, inner_e)?;
+                                            let member_decl = struct_def.get_member_or_err(inner_name, custom_type_name, &context.path, inner_e)?;
                                             current_type = member_decl.value_type.clone();
                                             current_name = format!("{}.{}", current_name, inner_name);
                                         },
@@ -1421,6 +1421,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
 
     let mut function_context = context.clone();
+    function_context.path = func_def.source_path.clone();  // Use source file path for error messages
     validate_func_arg_count(e, name, func_def)?;
 
     let mut param_index = 1;

@@ -90,21 +90,21 @@ pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     let dest = match dest_str.trim().parse::<i64>() {
         Ok(v) => v as usize,
-        Err(err) => return Err(e.error("eval", &format!("Invalid dest (I64): '{}': {}", dest_str, err))),
+        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid dest (I64): '{}': {}", dest_str, err))),
     };
 
     let value = match value_str.trim().parse::<u8>() {
         Ok(v) => v,
-        Err(err) => return Err(e.error("eval", &format!("Invalid value (U8): '{}': {}", value_str, err))),
+        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid value (U8): '{}': {}", value_str, err))),
     };
 
     let size = match size_str.trim().parse::<i64>() {
         Ok(v) => v as usize,
-        Err(err) => return Err(e.error("eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
+        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
     };
 
     if dest + size > Arena::g().memory.len() {
-        return Err(e.error("eval", &format!(
+        return Err(e.error(&context.path, "eval", &format!(
             "memset out of bounds: dest={} size={} arena_len={}",
             dest, size, Arena::g().memory.len()
         )));
@@ -153,7 +153,7 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     if dest + size > Arena::g().memory.len() || src + size > Arena::g().memory.len() {
-        return Err(e.error("eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
+        return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
                                             src, dest, size, Arena::g().memory.len())));
     }
 
@@ -200,7 +200,7 @@ pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     if ptr1 + size > Arena::g().memory.len() || ptr2 + size > Arena::g().memory.len() {
-        return Err(e.error("eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
+        return Err(e.error(&context.path, "eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
                                             ptr1, ptr2, size, Arena::g().memory.len())));
     }
 
@@ -554,7 +554,7 @@ pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 
     match run_file(&path, main_args) {
         Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error("eval", &format!("While running file {path}\n{error_string}"))),
+        Err(error_string) => Err(e.error(&context.path, "eval", &format!("While running file {path}\n{error_string}"))),
     }
 }
 
@@ -575,7 +575,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         None => match context.imports_wip.contains(&path) {
             true => {
                 // TODO do a more detailed message with backtraces or storing a graph of the dependencies or something
-                return Err(e.error("eval", &format!("While trying to import {} from {}: Circular import dependency",
+                return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}: Circular import dependency",
                                                     path, original_path)))
             },
             false => {
@@ -592,8 +592,14 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
         Ok(_) => Ok(EvalResult::new("")),
         Err(error_string) => {
             context.path = original_path.clone();
-            return Err(e.error("eval", &format!("While trying to import {} from {}:\n{}",
-                                                path, original_path, error_string)))
+            // Prepend the imported file path to the error if not already present
+            let error_with_path = if error_string.starts_with(&path) {
+                error_string
+            } else {
+                format!("{}:{}", path, error_string)
+            };
+            return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}:\n{}",
+                                                path, original_path, error_with_path)))
         },
     };
 
@@ -615,8 +621,8 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     let source = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
-            ErrorKind::NotFound => return Err(e.error("eval", &format!("File '{}' not found.", path))),
-            other_error => return Err(e.error("eval", &format!("Problem reading file '{}': {}", path, other_error))),
+            ErrorKind::NotFound => return Err(e.error(&context.path, "eval", &format!("File '{}' not found.", path))),
+            other_error => return Err(e.error(&context.path, "eval", &format!("Problem reading file '{}': {}", path, other_error))),
         },
     };
 

@@ -174,13 +174,13 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         errors.extend(rs::typer::check_types(context, &e));
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
-        let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![]};
+        let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![], source_path: path.clone()};
         let mut thrown_types: Vec<(String, String)> = vec![];
         let mut return_found = false;
         errors.extend(rs::typer::check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_types, &mut return_found));
 
         if return_found {
-            errors.push(e.error("type", "Cannot return from the root of the file"));
+            errors.push(e.error(&path, "type", "Cannot return from the root of the file"));
         }
         for (_thrown_type, error_msg) in &thrown_types {
             errors.push(error_msg.to_string());
@@ -259,7 +259,7 @@ fn run_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
         Ok(_) => {},
         Err(err) => {
-            println!("ERROR: While running file {path}:\n{path}:{err}");
+            println!("ERROR: While running file {path}:\n{err}");
             std::process::exit(1);
         },
     };

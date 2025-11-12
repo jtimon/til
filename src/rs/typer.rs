@@ -34,7 +34,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                     ValueType::TCustom(ref custom_type_name) => {
                         // Validate that the custom type exists
                         if !context.symbols.contains_key(custom_type_name) {
-                            errors.push(e.error("type", &format!(
+                            errors.push(e.error(&context.path, "type", &format!(
                                 "Enum variant '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this enum.",
                                 enum_val_name, custom_type_name, custom_type_name
                             )));
@@ -47,7 +47,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                                     // Valid type
                                 },
                                 _ => {
-                                    errors.push(e.error("type", &format!(
+                                    errors.push(e.error(&context.path, "type", &format!(
                                         "Enum variant '{}' payload type '{}' is not a valid type (expected enum or struct, found {}).",
                                         enum_val_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
                                     )));
@@ -117,7 +117,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
 
             if let (Ok(t1), Ok(t2)) = (left_type, right_type) {
                 if t1 != t2 {
-                    errors.push(e.error("type", &format!("Range start and end must be of same type, found '{}' and '{}'",
+                    errors.push(e.error(&context.path, "type", &format!("Range start and end must be of same type, found '{}' and '{}'",
                                                          value_type_to_str(&t1), value_type_to_str(&t2))));
                 }
             }
@@ -133,7 +133,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         },
         NodeType::Identifier(name) => {
             if !(context.funcs.contains_key(name) || context.symbols.contains_key(name)) {
-                errors.push(e.error("type", &format!("Undefined symbol {}", name)));
+                errors.push(e.error(&context.path, "type", &format!("Undefined symbol {}", name)));
             }
         },
         NodeType::Declaration(decl) => {
@@ -171,25 +171,25 @@ fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize
 }
 
 // Helper function to validate function/procedure argument counts
-fn validate_func_arg_count(e: &Expr, f_name: &str, func_def: &SFuncDef) -> Option<String> {
+fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncDef) -> Option<String> {
     let provided_args = e.params.len() - 1;
 
     // Check zero-arg functions
     if func_def.args.len() == 0 && provided_args > 0 {
-        return Some(e.error("type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, provided_args)));
+        return Some(e.error(path, "type", &format!("Function/procedure '{}' expects 0 args, but {} were provided.", f_name, provided_args)));
     }
 
     let has_multi_arg = func_proc_has_multi_arg(&func_def);
 
     // Check exact count for non-variadic functions
     if !has_multi_arg && func_def.args.len() != provided_args {
-        return Some(e.error("type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
+        return Some(e.error(path, "type", &format!("Function/procedure '{}' expects {} args, but {} were provided.",
                                              f_name, func_def.args.len(), provided_args)));
     }
 
     // Check minimum count for variadic functions
     if has_multi_arg && func_def.args.len() - 1 > provided_args {
-        return Some(e.error("type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
+        return Some(e.error(path, "type", &format!("Function/procedure '{}' expects at least {} args, but {} were provided.",
                                              f_name, func_def.args.len() - 1, provided_args)));
     }
 
@@ -226,7 +226,7 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         _ => false,
     };
     if !first_is_condition {
-        errors.push(inner_e.error("type", &format!("'if' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
+        errors.push(inner_e.error(&context.path, "type", &format!("'if' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
     // First param (condition) is used, remaining params (then/else bodies) discard values
     for (i, p) in e.params.iter().enumerate() {
@@ -266,7 +266,7 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         _ => false,
     };
     if !first_is_condition {
-        errors.push(inner_e.error("type", &format!("'while' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
+        errors.push(inner_e.error(&context.path, "type", &format!("'while' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
     }
     // First param (condition) is used, second param (body) discards values
     for (i, p) in e.params.iter().enumerate() {
@@ -290,7 +290,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         },
     };
 
-    if let Some(err) = validate_func_arg_count(&e, &f_name, &func_def) {
+    if let Some(err) = validate_func_arg_count(&context.path, &e, &f_name, &func_def) {
         errors.push(err);
         return errors;
     }
@@ -326,7 +326,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                     // Simple variable - check if it's mut
                     if let Some(symbol_info) = context.symbols.get(var_name) {
                         if !symbol_info.is_mut {
-                            errors.push(arg_expr.error("type", &format!(
+                            errors.push(arg_expr.error(&context.path, "type", &format!(
                                 "Cannot pass const variable '{}' to mut parameter '{}' of function '{}'.\n\
                                  Suggestion: declare '{}' as 'mut {}'.",
                                 var_name, arg.name, f_name, var_name, var_name
@@ -353,7 +353,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         match expected_type {
             ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic-typed argument
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
-                errors.push(e.error("type", &format!(
+                errors.push(e.error(&context.path, "type", &format!(
                     "calling func/proc '{}' declared arg {} without type, but type inference in args is not supported.\n\
                      Suggestion: the arg should be '{} : {},' instead of just '{}'.\n\
                      Alternative option: the arg could be '{} : Dynamic,' for dynamic arguments.
@@ -362,7 +362,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                 )));
             },
             _ if expected_type != &found_type => {
-                errors.push(e.error("type", &format!(
+                errors.push(e.error(&context.path, "type", &format!(
                     "calling function '{}' expects '{}' for arg '{}', but '{}' was provided.",
                     f_name, value_type_to_str(expected_type), arg.name, value_type_to_str(&found_type)
                 )));
@@ -391,7 +391,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
     if returns_value && expr_context == ExprContext::ValueDiscarded {
         let f_name = get_func_name_in_call(e);
 
-        errors.push(e.error("type", &format!(
+        errors.push(e.error(&context.path, "type", &format!(
             "Function '{}' returns a value that is not being used.\n\
              Hint: Capture the return value with '_ := {}(...)' or use it in an expression.",
             f_name, f_name
@@ -404,21 +404,21 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if !context.mode.allows_procs && func_def.is_proc() {
-        errors.push(e.error("type", "Procs not allowed in pure modes"));
+        errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
     }
     let mut has_variadic = false;
     for (i, arg) in func_def.args.iter().enumerate() {
         if has_variadic {
-            errors.push(e.error("type", &format!("Variadic argument '{}' must be the last (only one variadic argument allowed).", &arg.name)));
+            errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' must be the last (only one variadic argument allowed).", &arg.name)));
         }
 
         match &arg.value_type {
             ValueType::TMulti(_multi_type) => {
                 if arg.is_mut {
-                    errors.push(e.error("type", &format!("Variadic argument '{}' cannot be 'mut'.", &arg.name)));
+                    errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' cannot be 'mut'.", &arg.name)));
                 }
                 if i != func_def.args.len() - 1 {
-                    errors.push(e.error("type", &format!("Variadic argument '{}' must be the last.", &arg.name)));
+                    errors.push(e.error(&context.path, "type", &format!("Variadic argument '{}' must be the last.", &arg.name)));
                 }
                 has_variadic = true;
 
@@ -434,7 +434,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 let custom_symbol = match context.symbols.get(custom_type_name) {
                     Some(custom_symbol_) => custom_symbol_.clone(),
                     None => {
-                        errors.push(e.error("type", &format!("Argument '{}' is of undefined type '{}'.", &arg.name, &custom_type_name)));
+                        errors.push(e.error(&context.path, "type", &format!("Argument '{}' is of undefined type '{}'.", &arg.name, &custom_type_name)));
                         return errors
                     },
                 };
@@ -453,7 +453,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                     },
                     _ => {
                         // Invalid: not a type, it's a value or something else
-                        errors.push(e.error("type", &format!("Argument '{}' has type '{}' which is not a valid type (expected struct or enum)", &arg.name, &custom_type_name)));
+                        errors.push(e.error(&context.path, "type", &format!("Argument '{}' has type '{}' which is not a valid type (expected struct or enum)", &arg.name, &custom_type_name)));
                     },
                 }
             },
@@ -466,7 +466,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     // TODO re-enable test when it is decided what to do with free, memcpy and memset
     // if func_def.function_type == FunctionType::FTFunc || func_def.function_type == FunctionType::FTFuncExt {
     //     if func_def.return_types.len() == 0 && func_def.throw_types.len() == 0 {
-    //         errors.push(e.error("type", "funcs must return or throw something, use a proc instead"));
+    //         errors.push(e.error(&context.path, "type", "funcs must return or throw something, use a proc instead"));
     //     }
     // }
 
@@ -479,7 +479,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     if !func_def.is_proc() {
         for se in &func_def.body {
             if is_expr_calling_procs(&context, &se) {
-                errors.push(se.error("type", "funcs cannot call procs."));
+                errors.push(se.error(&context.path, "type", "funcs cannot call procs."));
             }
         }
     }
@@ -493,7 +493,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     errors.extend(check_body_returns_throws(context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found));
 
     if !return_found && func_def.return_types.len() > 0 {
-        errors.push(e.error("type", "No return statments found in function that returns "));
+        errors.push(e.error(&context.path, "type", "No return statments found in function that returns "));
     }
 
     // Filter and report only the thrown types that are not declared
@@ -506,7 +506,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     for declared_throw in &func_def.throw_types {
         let declared_str = value_type_to_str(declared_throw);
         if !thrown_types.iter().any(|(t, _)| t == &declared_str) {
-            errors.push(e.error("warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
+            errors.push(e.error(&context.path, "warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
                                                     declared_str)));
         }
     }
@@ -529,8 +529,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             NodeType::Return => {
                 *return_found = true;
                 if returns_len != p.params.len() {
-                    errors.push(p.error("type", &format!("Returning {} values when {} were expected.", p.params.len(), returns_len)));
-                    errors.push(e.error("type", "Suggestion: Update returns section here"));
+                    errors.push(p.error(&context.path, "type", &format!("Returning {} values when {} were expected.", p.params.len(), returns_len)));
+                    errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
                 } else {
                     for i in 0..p.params.len() {
                         let expected_value_type = match func_def.return_types.get(i) {
@@ -555,10 +555,10 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         match get_value_type(&context, return_val_e) {
                             Ok(actual_value_type) => {
                                 if expected_value_type != &actual_value_type {
-                                    errors.push(return_val_e.error(
+                                    errors.push(return_val_e.error(&context.path, 
                                         "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
                                                          i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
-                                    errors.push(e.error("type", "Suggestion: Update returns section here"));
+                                    errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
                                 }
                             },
                             Err(error_string) => {
@@ -570,7 +570,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             },
             NodeType::Throw => {
                 if p.params.len() != 1 {
-                    errors.push(p.error("type", "Throw statement must have exactly one parameter."));
+                    errors.push(p.error(&context.path, "type", "Throw statement must have exactly one parameter."));
                 } else {
                     let throw_param = &p.params[0];
                     // Recursively check this throw expression for throws (just in case, although users should avoid this)
@@ -581,12 +581,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     match get_value_type(&context, throw_param) {
                         Ok(thrown_type) => {
                             if thrown_type == ValueType::TType(TTypeDef::TStructDef) {
-                                errors.push(throw_param.error("type", "Cannot throw a struct definition.\nSuggestion: Create an instance by adding parentheses at the end."));
+                                errors.push(throw_param.error(&context.path, "type", "Cannot throw a struct definition.\nSuggestion: Create an instance by adding parentheses at the end."));
                             } else {
                                 // Track the thrown type as a string and another string with its error
                                 let thrown_type_str = value_type_to_str(&thrown_type);
-                                thrown_types.push((thrown_type_str.clone(), throw_param.error("type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str))));
-                                thrown_types.push((thrown_type_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
+                                thrown_types.push((thrown_type_str.clone(), throw_param.error(&context.path, "type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str))));
+                                thrown_types.push((thrown_type_str.clone(), e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                             }
                         },
                         Err(err) => {
@@ -598,7 +598,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
             NodeType::Catch => {
                 if p.params.len() != 3 {
-                    errors.push(p.error("type", "Catch must have 3 parameters: variable, type, and body."));
+                    errors.push(p.error(&context.path, "type", "Catch must have 3 parameters: variable, type, and body."));
                 } else {
                     let err_type_expr = &p.params[1];
                     let catch_body_expr = &p.params[2];
@@ -606,7 +606,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     let caught_type = match &err_type_expr.node_type {
                         NodeType::Identifier(name) => name.clone(),
                         _ => {
-                            errors.push(err_type_expr.error("type", "Catch type must be a valid identifier"));
+                            errors.push(err_type_expr.error(&context.path, "type", "Catch type must be a valid identifier"));
                             return errors;
                         }
                     };
@@ -615,7 +615,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     if thrown_types.iter().any(|(t, _)| t == &caught_type) {
                         thrown_types.retain(|(t, _)| t != &caught_type);
                     } else {
-                        errors.push(p.error("warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
+                        errors.push(p.error(&context.path, "warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
                     }
 
                     // Then check body for other thrown exceptions
@@ -635,8 +635,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 called_throw_str
                             );
 
-                            thrown_types.push((called_throw_str.clone(), p.error("type", &error_msg)));
-                            thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
+                            thrown_types.push((called_throw_str.clone(), p.error(&context.path, "type", &error_msg)));
+                            thrown_types.push((called_throw_str.clone(), e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                         }
 
                         for arg in p.params.iter().skip(1) {
@@ -652,7 +652,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         // These are valid and don't throw errors, so we don't add an error here
                                     },
                                     Err(reason) => {
-                                        errors.push(arg.error("type", &format!("Failed to resolve nested function call: {}", reason)));
+                                        errors.push(arg.error(&context.path, "type", &format!("Failed to resolve nested function call: {}", reason)));
                                     }
                                 }
                             }
@@ -663,7 +663,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         // These are valid and don't throw errors, so we don't add an error here
                     },
                     Err(reason) => {
-                        errors.push(p.error("type", &reason));
+                        errors.push(p.error(&context.path, "type", &reason));
                     }
                 }
             }
@@ -756,8 +756,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         called_throw_str
                                     );
 
-                                    thrown_types.push((called_throw_str.clone(), initializer.error("type", &error_msg)));
-                                    thrown_types.push((called_throw_str.clone(), e.error("type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
+                                    thrown_types.push((called_throw_str.clone(), initializer.error(&context.path, "type", &error_msg)));
+                                    thrown_types.push((called_throw_str.clone(), e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
                                 }
 
                                 let mut temp_thrown_types = Vec::new();
@@ -765,10 +765,10 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 thrown_types.extend(temp_thrown_types);
                             },
                             Ok(None) => {
-                                errors.push(initializer.error("type", "Could not resolve function definition in declaration initializer."));
+                                errors.push(initializer.error(&context.path, "type", "Could not resolve function definition in declaration initializer."));
                             },
                             Err(reason) => {
-                                errors.push(initializer.error("type", &format!("Failed to resolve function in declaration initializer: {}", reason)));
+                                errors.push(initializer.error(&context.path, "type", &format!("Failed to resolve function in declaration initializer: {}", reason)));
                             }
                         }
                     }
@@ -787,7 +787,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors = Vec::new();
 
     if e.params.len() != 3 {
-        errors.push(e.error("type", "Catch node must have three parameters: variable, type, and body."));
+        errors.push(e.error(&context.path, "type", "Catch node must have three parameters: variable, type, and body."));
         return errors
     }
 
@@ -798,7 +798,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let var_name = match &err_var_expr.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => {
-            errors.push(err_var_expr.error("type", "First catch param must be an identifier"));
+            errors.push(err_var_expr.error(&context.path, "type", "First catch param must be an identifier"));
             return errors
         }
     };
@@ -806,14 +806,14 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let type_name = match &err_type_expr.node_type {
         NodeType::Identifier(name) => name.clone(),
         _ => {
-            errors.push(err_type_expr.error("type", "Second catch param must be a type identifier"));
+            errors.push(err_type_expr.error(&context.path, "type", "Second catch param must be a type identifier"));
             return errors
         }
     };
 
     // Confirm that the type exists in the context (as done for function args)
     if context.symbols.get(&type_name).is_none() {
-        errors.push(e.error("type", &format!("Catch refers to undefined type '{}'", &type_name)));
+        errors.push(e.error(&context.path, "type", &format!("Catch refers to undefined type '{}'", &type_name)));
         return errors
     }
 
@@ -915,24 +915,24 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
     }
 
     if context.funcs.contains_key(var_name)  {
-        errors.push(e.error("type", &format!("function '{}' cannot be assigned to.", var_name)));
+        errors.push(e.error(&context.path, "type", &format!("function '{}' cannot be assigned to.", var_name)));
     } else if context.symbols.contains_key(var_name) {
         let symbol_info = match context.symbols.get(var_name) {
             Some(info) => info,
             None => {
-                errors.push(e.error("type", &format!("Undeclared variable '{}'", var_name)));
+                errors.push(e.error(&context.path, "type", &format!("Undeclared variable '{}'", var_name)));
                 return errors;
             }
         };
         if !symbol_info.is_mut {
-            errors.push(e.error("type", &format!("Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", var_name)));
+            errors.push(e.error(&context.path, "type", &format!("Cannot assign to constant '{}', Suggestion: declare it as 'mut'.", var_name)));
         }
         // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
         if var_name.contains('.') {
             let base_var = var_name.split('.').next().unwrap();
             if let Some(base_info) = context.symbols.get(base_var) {
                 if !base_info.is_mut {
-                    errors.push(e.error("type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
+                    errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
                 }
             }
         }
@@ -941,12 +941,12 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         // Extract the base variable name to provide better error message
         let base_var = var_name.split('.').next().unwrap();
         if context.symbols.contains_key(base_var) {
-            errors.push(e.error("type", &format!("Cannot assign to '{}' (field may not exist or base is const)", var_name)));
+            errors.push(e.error(&context.path, "type", &format!("Cannot assign to '{}' (field may not exist or base is const)", var_name)));
         } else {
-            errors.push(e.error("type", &format!("Undefined symbol '{}'", base_var)));
+            errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", base_var)));
         }
     } else {
-        errors.push(e.error("type", &format!("Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
+        errors.push(e.error(&context.path, "type", &format!("Suggestion: try changing '{} =' for '{} :='\nExplanation: Cannot assign to undefined symbol '{}'.",
                                              var_name, var_name, var_name)));
     }
 
@@ -985,7 +985,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         match &case_expr.node_type {
             NodeType::DefaultCase => {
                 if default_found {
-                    errors.push(case_expr.error("type", "Duplicate default case in switch"));
+                    errors.push(case_expr.error(&context.path, "type", "Duplicate default case in switch"));
                 }
                 default_found = true;
                 case_found = true;
@@ -1003,7 +1003,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                         let switch_type_str = value_type_to_str(&switch_expr_type);
                         let case_type_str = value_type_to_str(&case_type);
                         if case_type_str != switch_type_str && case_type_str != format!("{}Range", switch_type_str) {
-                            errors.push(case_expr.error("type", &format!(
+                            errors.push(case_expr.error(&context.path, "type", &format!(
                                 "Switch value type '{}', case value type '{}' do not match",
                                 switch_type_str, case_type_str
                             )));
@@ -1019,7 +1019,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         i += 1;
 
         if i >= e.params.len() {
-            errors.push(e.error("type", "Switch case missing body expression"));
+            errors.push(e.error(&context.path, "type", "Switch case missing body expression"));
             return errors
         }
 
@@ -1052,11 +1052,11 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                             errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
                         } else {
                             // Variant exists but has no payload
-                            errors.push(case_expr.error("type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
+                            errors.push(case_expr.error(&context.path, "type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
                             errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                         }
                     } else {
-                        errors.push(case_expr.error("type", &format!("Unknown variant '{}'", variant)));
+                        errors.push(case_expr.error(&context.path, "type", &format!("Unknown variant '{}'", variant)));
                         errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
                     }
                 } else {
@@ -1073,7 +1073,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     if !case_found {
-        errors.push(e.error("type", "Switch must have at least one case"));
+        errors.push(e.error(&context.path, "type", "Switch must have at least one case"));
     }
 
     // Exhaustiveness check only for enums
@@ -1092,7 +1092,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                             let enum_part = &variant_name[..dot_pos];
                             let variant_part = &variant_name[dot_pos + 1..];
                             if enum_part != enum_name {
-                                errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", enum_part, enum_name)));
+                                errors.push(case_expr.error(&context.path, "type", &format!("Mismatched enum type '{}', expected '{}'.", enum_part, enum_name)));
                             }
                             matched_variants.push(variant_part.to_string());
                         } else {
@@ -1109,11 +1109,11 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                             let variant_expr = &case_expr.params[0];
                             if let NodeType::Identifier(variant) = &variant_expr.node_type {
                                 if name != &enum_name {
-                                    errors.push(case_expr.error("type", &format!("Mismatched enum type '{}', expected '{}'.", name, enum_name)));
+                                    errors.push(case_expr.error(&context.path, "type", &format!("Mismatched enum type '{}', expected '{}'.", name, enum_name)));
                                 }
                                 matched_variants.push(variant.clone());
                             } else {
-                                errors.push(case_expr.error("type", "Invalid enum case syntax"));
+                                errors.push(case_expr.error(&context.path, "type", "Invalid enum case syntax"));
                             }
                         }
                     }
@@ -1128,7 +1128,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             if !default_found {
                 for variant in enum_def.enum_map.keys() {
                     if !matched_variants.contains(variant) {
-                        errors.push(e.error("type", &format!("Switch is missing case for variant '{}'", variant)));
+                        errors.push(e.error(&context.path, "type", &format!("Switch is missing case for variant '{}'", variant)));
                     }
                 }
             }
@@ -1153,7 +1153,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 if custom_type_name != "Dynamic" && custom_type_name != INFER_TYPE {
                     // Check if the type exists
                     if !context.symbols.contains_key(custom_type_name) {
-                        errors.push(e.error("type", &format!(
+                        errors.push(e.error(&context.path, "type", &format!(
                             "Struct member '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this struct.",
                             member_name, custom_type_name, custom_type_name
                         )));
@@ -1167,7 +1167,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                                 // Valid type (TCustom covers built-in types like I64, Str, etc.)
                             },
                             _ => {
-                                errors.push(e.error("type", &format!(
+                                errors.push(e.error(&context.path, "type", &format!(
                                     "Struct member '{}' type '{}' is not a valid type (expected enum, struct, or primitive, found {}).",
                                     member_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
                                 )));
@@ -1215,7 +1215,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                             // Allow implicit conversion from I64 literals to U8
                             ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},
                             _ if expected_type != &found_type => {
-                                errors.push(inner_e.error("type", &format!(
+                                errors.push(inner_e.error(&context.path, "type", &format!(
                                     "Struct field '{}' declared as '{}' but default value has type '{}'.",
                                     member_name, value_type_to_str(expected_type), value_type_to_str(&found_type)
                                 )));
@@ -1337,7 +1337,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                                     return Ok(Some(func_def.clone()))
                                 }
                             },
-                            found_value_type => return Err(func_expr.error("type", &format!(
+                            found_value_type => return Err(func_expr.error(&context.path, "type", &format!(
                                 "'{}' is of type '{}' and thus can't have a '{}' associated function",
                                 new_combined_name, value_type_to_str(&found_value_type), ufcs_func_name)))
                         }
@@ -1486,7 +1486,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
 
                     NodeType::Declaration(decl) => {
                         if !context.mode.allows_base_mut && decl.is_mut {
-                            errors.push(e.error("mode", &format!("mode {} doesn't allow mut declarations of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
+                            errors.push(e.error(&context.path, "mode", &format!("mode {} doesn't allow mut declarations of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
                                                                  context.mode.name, decl.name)));
                         }
                     },
@@ -1494,7 +1494,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                         if !context.mode.allows_base_calls {
                             let f_name = get_func_name_in_call(&p);
                             if f_name != "import" {
-                                errors.push(e.error("mode", &format!("mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
+                                errors.push(e.error(&context.path, "mode", &format!("mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
                                                                      context.mode.name, f_name)));
                             }
                         }
@@ -1512,12 +1512,12 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
         match context.symbols.get("main") {
             Some(symbol_info) => {
                 if symbol_info.value_type != ValueType::TFunction(FunctionType::FTProc) {
-                    errors.push(e.error("mode", &format!("mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
+                    errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
                                                          context.mode.name, value_type_to_str(&symbol_info.value_type))));
                 }
             },
             None => {
-                errors.push(e.error("mode", &format!("mode {} requires 'main' to be defined as a proc.", context.mode.name)));
+                errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc.", context.mode.name)));
             },
         };
     }

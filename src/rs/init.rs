@@ -50,15 +50,15 @@ pub fn get_func_name_in_call(e: &Expr) -> String {
     }
 }
 
-fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
+fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<ValueType, String> {
     match func_def.return_types.len() {
         0 => {
-            return Err(e.error("type", &format!("func '{}' does not return anything", name)));
+            return Err(e.error(path, "type", &format!("func '{}' does not return anything", name)));
         },
         1 => {
             match func_def.return_types.get(0) {
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
-                Some(other) => Err(e.error("type", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
+                Some(other) => Err(e.error(path, "type", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
                 None => Err(e.lang_error("type", &format!("func '{}' has inconsistent return type info", name))),
             }
         },
@@ -70,7 +70,7 @@ fn value_type_func_proc(e: &Expr, name: &str, func_def: &SFuncDef) -> Result<Val
 
 fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_expr: &Expr, symbol: &SymbolInfo) -> Result<ValueType, String> {
     if id_expr.params.is_empty() {
-        return Err(e.error("type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
+        return Err(e.error(&context.path, "type", &format!("Cannot call '{}', it is not a function or struct, it is a '{}'",
                                             &f_name, value_type_to_str(&symbol.value_type))));
     }
 
@@ -82,12 +82,12 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
 
     let method_name = match &method_name_expr.node_type {
         NodeType::Identifier(name) => name,
-        _ => return Err(e.error("type", &format!("Expected identifier for method name, found '{:?}'", method_name_expr.node_type))),
+        _ => return Err(e.error(&context.path, "type", &format!("Expected identifier for method name, found '{:?}'", method_name_expr.node_type))),
     };
 
     // Check if it's a regular function
     if let Some(func_def) = context.funcs.get(method_name) {
-        return value_type_func_proc(&e, &f_name, func_def)
+        return value_type_func_proc(&context.path, &e, &f_name, func_def)
     }
 
     // Create identifier expression without the last param (method name) to get the type
@@ -102,12 +102,12 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
         ValueType::TCustom(custom_type_name) => {
             let id_expr_name = format!("{}.{}", custom_type_name, method_name);
             if let Some(func_def) = context.funcs.get(&id_expr_name) {
-                return value_type_func_proc(&e, &id_expr_name, &func_def);
+                return value_type_func_proc(&context.path, &e, &id_expr_name, &func_def);
             }
-            return Err(e.error("type", &format!("Type '{}' has no method '{}'", custom_type_name, method_name)));
+            return Err(e.error(&context.path, "type", &format!("Type '{}' has no method '{}'", custom_type_name, method_name)));
         },
         _ => {
-            return Err(e.error("type", &format!("'{}' of type '{}' doesn't support methods", f_name, value_type_to_str(&target_type))));
+            return Err(e.error(&context.path, "type", &format!("'{}' of type '{}' doesn't support methods", f_name, value_type_to_str(&target_type))));
         }
     }
 }
@@ -129,7 +129,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let method_name = format!("{}.{}", custom_type_name, f_name);
                 if let Some(func_def) = context.funcs.get(&method_name) {
                     // UFCS method exists! Use it instead of standalone function
-                    return value_type_func_proc(&e, &method_name, func_def);
+                    return value_type_func_proc(&context.path, &e, &method_name, func_def);
                 }
             }
         }
@@ -138,7 +138,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
     // Original logic: check for standalone function
     if let Some(func_def) = context.funcs.get(&f_name) {
-        return value_type_func_proc(&e, &f_name, func_def)
+        return value_type_func_proc(&context.path, &e, &f_name, func_def)
     } else if let Some(symbol) = context.symbols.get(&f_name) {
 
         let id_expr = e.get(0)?;
@@ -158,20 +158,20 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 };
                 match &after_dot.node_type {
                     NodeType::Identifier(after_dot_name) => {
-                        let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, e)?;
+                        let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, &context.path, e)?;
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error("type", &format!("struct '{}' has no member '{}' b", f_name, after_dot_name)));
+                                return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' b", f_name, after_dot_name)));
                             },
                         };
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", f_name, after_dot_name);
-                                return value_type_func_proc(&e, &combined_name, &func_def);
+                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
                             },
                             _  => {
-                                return Err(e.error("type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
+                                return Err(e.error(&context.path, "type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
                                                                     f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
                             },
                         }
@@ -202,7 +202,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let variant_type = match enum_def.enum_map.get(variant_name) {
                             Some(_variant) => _variant,
                             None => {
-                                return Err(e.error("type", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
+                                return Err(e.error(&context.path, "type", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
                             },
                         };
 
@@ -211,7 +211,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             Some(payload_type) => {
                                 // This variant expects a payload
                                 if e.params.len() < 2 {
-                                    return Err(e.error("type", &format!("Enum constructor {}.{} expects a payload of type {}", f_name, variant_name, value_type_to_str(payload_type))));
+                                    return Err(e.error(&context.path, "type", &format!("Enum constructor {}.{} expects a payload of type {}", f_name, variant_name, value_type_to_str(payload_type))));
                                 }
                                 // Type check the payload argument
                                 let payload_expr = e.get(1)?;
@@ -219,7 +219,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 
                                 // Verify payload type matches expected type
                                 if payload_actual_type != *payload_type {
-                                    return Err(e.error("type", &format!(
+                                    return Err(e.error(&context.path, "type", &format!(
                                         "Enum constructor {}.{} expects payload of type {}, but got {}",
                                         f_name, variant_name,
                                         value_type_to_str(payload_type),
@@ -230,7 +230,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             None => {
                                 // This variant doesn't have a payload
                                 if e.params.len() > 1 {
-                                    return Err(e.error("type", &format!("Enum variant {}.{} does not take a payload", f_name, variant_name)));
+                                    return Err(e.error(&context.path, "type", &format!("Enum variant {}.{} does not take a payload", f_name, variant_name)));
                                 }
                             },
                         }
@@ -258,14 +258,14 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             // Try associated method first
                             let method_name = format!("{}.{}", custom_type_name, after_dot_name);
                             if let Some(func_def) = context.funcs.get(&method_name) {
-                                return value_type_func_proc(&e, &method_name, func_def);
+                                return value_type_func_proc(&context.path, &e, &method_name, func_def);
                             }
 
                             // Fall back to UFCS: try standalone function with enum as first arg
                             match get_ufcs_fcall_value_type(&context, &e, &f_name, id_expr, symbol) {
                                 Ok(ok_val) => return Ok(ok_val),
                                 Err(_) => {
-                                    return Err(e.error("type", &format!("enum '{}' has no method '{}' and no matching function found for UFCS", custom_type_name, after_dot_name)));
+                                    return Err(e.error(&context.path, "type", &format!("enum '{}' has no method '{}' and no matching function found for UFCS", custom_type_name, after_dot_name)));
                                 },
                             }
                         },
@@ -308,12 +308,12 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                             // First check if it's a method on this type
                                             let method_name = format!("{}.{}", intermediate_type_name, final_member_name);
                                             if let Some(func_def) = context.funcs.get(&method_name) {
-                                                return value_type_func_proc(&e, &method_name, func_def);
+                                                return value_type_func_proc(&context.path, &e, &method_name, func_def);
                                             }
 
                                             // Try UFCS: standalone function with intermediate type as first arg
                                             if let Some(func_def) = context.funcs.get(final_member_name) {
-                                                return value_type_func_proc(&e, final_member_name, func_def);
+                                                return value_type_func_proc(&context.path, &e, final_member_name, func_def);
                                             }
 
                                             // Check if it's a struct with this member as a field
@@ -340,7 +340,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                     Ok(ok_val) => return Ok(ok_val),
                                     Err(error_string) => {
                                         println!("{}", error_string);
-                                        return Err(e.error("type", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
+                                        return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' c", custom_type_name, after_dot_name)));
                                     },
                                 }
                             },
@@ -348,16 +348,16 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error("type", &format!("struct '{}' has no member '{}' d", custom_type_name, after_dot_name)));
+                                return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' d", custom_type_name, after_dot_name)));
                             },
                         };
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
-                                return value_type_func_proc(&e, &combined_name, &func_def);
+                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
                             },
                             _  => {
-                                return Err(e.error("type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
+                                return Err(e.error(&context.path, "type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
                                                                     f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
                             },
                         }
@@ -393,7 +393,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                     Ok(ok_val) => return Ok(ok_val),
                                     Err(error_string) => {
                                         println!("{}", error_string);
-                                        return Err(e.error("type", &format!("struct '{}' has no member '{}' (variadic)", custom_type_name, after_dot_name)));
+                                        return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' (variadic)", custom_type_name, after_dot_name)));
                                     },
                                 }
                             },
@@ -401,16 +401,16 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         let member_default_value = match struct_def.default_values.get(after_dot_name) {
                             Some(_member) => _member,
                             None => {
-                                return Err(e.error("type", &format!("struct '{}' has no member '{}' (variadic default)", custom_type_name, after_dot_name)));
+                                return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' (variadic default)", custom_type_name, after_dot_name)));
                             },
                         };
                         match &member_default_value.node_type {
                             NodeType::FuncDef(func_def) => {
                                 let combined_name = format!("{}.{}", custom_type_name, after_dot_name);
-                                return value_type_func_proc(&e, &combined_name, &func_def);
+                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
                             },
                             _  => {
-                                return Err(e.error("type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
+                                return Err(e.error(&context.path, "type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
                                                                     custom_type_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
                             },
                         }
@@ -427,7 +427,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
         }
 
     } else {
-        return Err(e.error("type", &format!("Undefined symbol '{}'", &f_name)));
+        return Err(e.error(&context.path, "type", &format!("Undefined symbol '{}'", &f_name)));
     }
 }
 
@@ -452,7 +452,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                 Some(symbol_info_m) => {
                     symbol_info_m.value_type.clone()
                 },
-                None => return Err(e.error("type", &format!("Undefined symbol '{}'", name))),
+                None => return Err(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name))),
             };
 
             // If there are no parameters, just return the type of the first identifier
@@ -471,28 +471,28 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // If it's a struct, resolve its member
                         let struct_def = context.struct_defs.get(name)
-                            .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", name)))?;
+                            .ok_or_else(|| e.error(&context.path, "type", &format!("Struct '{}' not found", name)))?;
 
-                        let decl = struct_def.get_member_or_err(member_name, name, e)?;
+                        let decl = struct_def.get_member_or_err(member_name, name, &context.path, e)?;
                         current_type = decl.value_type.clone();
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // If it's an enum, resolve the variant
                         let enum_def = context.enum_defs.get(name)
-                            .ok_or_else(|| e.error("type", &format!("Enum '{}' not found", name)))?;
+                            .ok_or_else(|| e.error(&context.path, "type", &format!("Enum '{}' not found", name)))?;
 
                         if enum_def.enum_map.contains_key(member_name) {
                             return Ok(ValueType::TCustom(name.to_string()));
                         } else {
-                            return Err(e.error("type", &format!("Enum '{}' has no value '{}'", name, member_name)));
+                            return Err(e.error(&context.path, "type", &format!("Enum '{}' has no value '{}'", name, member_name)));
                         }
                     },
                     ValueType::TCustom(custom_type_name) => {
                         // If it's a custom type (a struct), resolve the member
                         let struct_def = context.struct_defs.get(custom_type_name)
-                            .ok_or_else(|| e.error("type", &format!("Struct '{}' not found", custom_type_name)))?;
+                            .ok_or_else(|| e.error(&context.path, "type", &format!("Struct '{}' not found", custom_type_name)))?;
 
-                        let decl = struct_def.get_member_or_err(member_name, custom_type_name, e)?;
+                        let decl = struct_def.get_member_or_err(member_name, custom_type_name, &context.path, e)?;
                         current_type = decl.value_type.clone();
                     },
                     ValueType::TMulti(_variadic_type_name) => {
@@ -500,7 +500,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                         current_type = ValueType::TCustom("Array".to_string());
                     },
                     _ => {
-                        return Err(e.error("type", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&current_type))));
+                        return Err(e.error(&context.path, "type", &format!("'{}' of type '{}' can't have members", name, value_type_to_str(&current_type))));
                     }
                 }
             }
@@ -519,7 +519,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             }
         },
 
-        node_type => return Err(e.error("type", &format!("get_value_type() not implemented for {:?} yet.", node_type))),
+        node_type => return Err(e.error(&context.path, "type", &format!("get_value_type() not implemented for {:?} yet.", node_type))),
     }
 }
 
@@ -537,7 +537,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
 
     // Check for circular imports
     if context.imports_wip.contains(&path) {
-        return Err(e.error("import", &format!("While trying to import {} from {}: Circular import dependency",
+        return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}: Circular import dependency",
                                               path, original_path)));
     }
 
@@ -553,8 +553,8 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         Err(error) => {
             context.imports_wip.remove(&path);
             return match error.kind() {
-                ErrorKind::NotFound => Err(e.error("import", &format!("File '{}' not found", path))),
-                other_error => Err(e.error("import", &format!("Problem reading file '{}': {}", path, other_error))),
+                ErrorKind::NotFound => Err(e.error(&context.path, "import", &format!("File '{}' not found", path))),
+                other_error => Err(e.error(&context.path, "import", &format!("Problem reading file '{}': {}", path, other_error))),
             };
         },
     };
@@ -568,7 +568,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
             let orig_path_clone = original_path.clone();
             context.path = original_path;
             context.imports_wip.remove(&path);
-            return Err(e.error("import", &format!("While trying to import {} from {}:\n{}",
+            return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
     };
@@ -580,7 +580,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
             let orig_path_clone = original_path.clone();
             context.path = original_path;
             context.imports_wip.remove(&path);
-            return Err(e.error("import", &format!("While trying to import {} from {}:\n{}",
+            return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
     };
@@ -589,7 +589,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     if !can_be_imported(&mode) {
         context.path = original_path;
         context.imports_wip.remove(&path);
-        return Err(e.error("import", &format!("file '{}' of mode '{}' cannot be imported", path, mode.name)));
+        return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, mode.name)));
     }
 
     let previous_mode = context.mode.clone();
@@ -616,7 +616,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
             let orig_path_clone = original_path.clone();
             context.path = original_path;
             context.imports_wip.remove(&path);
-            return Err(e.error("import", &format!("While trying to import {} from {}:\n{}",
+            return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
     };
@@ -696,7 +696,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         },
         NodeType::Declaration(decl) => {
             if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
-                errors.push(e.error("type", &format!("'{}' already declared.", decl.name)));
+                errors.push(e.error(&context.path, "type", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
                 errors.push(e.exit_error("type", &format!("in init_context, while declaring {}, declarations must take exactly one value.", decl.name)));
@@ -720,7 +720,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 if decl.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
                     value_type = decl.value_type.clone();
                 } else if value_type != decl.value_type {
-                    errors.push(e.error("type", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
+                    errors.push(e.error(&context.path, "type", &format!("'{}' declared of type '{}' but initialized to type '{}'.",
                                                          decl.name, value_type_to_str(&decl.value_type), value_type_to_str(&value_type))));
                 }
             }
@@ -804,10 +804,10 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
         _ => {
             if !context.mode.allows_base_anything {
                 if context.mode.allows_base_calls {
-                    errors.push(e.error("mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
+                    errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
                                                          context.mode.name, e.node_type)));
                 } else {
-                    errors.push(e.error("mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
+                    errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
                                                          context.mode.name, e.node_type)));
                 }
             }

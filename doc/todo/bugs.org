@@ -203,11 +203,12 @@ s.items = items
 *** Test Coverage
 Comprehensive tests in =src/test/ufcs.til= verify field access and method calls work correctly.
 
-** Bug #9: Error Line Numbers from Imported Files :MINOR:
+** Bug #9: Error Line Numbers from Imported Files :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-10
+:FIXED: 2025-11-12
 :IMPACT: Developer experience, debugging
-:STATUS: Active
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -286,10 +287,63 @@ Option 4: Use context.path consistently (Recommended)
 - If not provided, format as just "line:col:"
 - Always prefix at outermost level with actual file path
 - Update proc_import to not re-prefix errors
-- Pros: Balanced approach, maintains backward compatibility
-- Cons: Still requires some refactoring
 
-*Relevant Code Locations:*
+*** Solution (2025-11-12)
+Fixed using a comprehensive approach combining Options 1 and 2:
+
+1. **Updated error method signatures to include path** (src/rs/parser.rs:188, src/rs/lexer.rs:76):
+   - Changed `Expr.error()` to accept `path: &str` parameter instead of just `phase` and `msg`
+   - Changed `Token.error()` to accept `path: &str` parameter
+   - Error format now: `file:line:col: phase ERROR: message`
+
+2. **Pass file paths to error methods** (~207 call sites updated):
+   - Parser functions use `&lexer.path`
+   - Init/typer/interpreter functions use `&context.path`
+   - Helper functions accept `path: &str` parameter passed from callers
+
+3. **Set lexer path correctly** (src/rs/lexer.rs:610):
+   - Updated `lexer_from_source()` to set `lexer.path = path.clone()`
+   - Previously was defaulting to `"<test>"`, now uses actual file path
+
+4. **Store source path in function definitions** (src/rs/parser.rs:46, 661):
+   - Added `source_path: String` field to `SFuncDef`
+   - Set during parsing to `lexer.path.clone()`
+   - Enables tracking where each function was defined
+
+5. **Use function's source path during execution** (src/rs/interpreter.rs:1424):
+   - When calling user-defined functions, set `function_context.path = func_def.source_path.clone()`
+   - Errors during function execution now show the correct source file
+
+*** Now Works
+All error phases show correct file paths:
+
+*Lexer errors:*
+#+BEGIN_EXAMPLE
+src/test/tmp/lexer_error_test.til:5:5: Lexical error 0: Invalid character...
+#+END_EXAMPLE
+
+*Parser errors:*
+#+BEGIN_EXAMPLE
+src/test/tmp/parser_error_test.til:6:9: parse ERROR: Expected '{' after condition...
+#+END_EXAMPLE
+
+*Type checker errors:*
+#+BEGIN_EXAMPLE
+src/test/tmp/init_error_test.til:5:12: type ERROR: Return value in pos 0...
+#+END_EXAMPLE
+
+*Evaluation errors from imported files:*
+#+BEGIN_EXAMPLE
+src/test/tmp/imported_helper.til:7:10: type ERROR: Undefined symbol 'undefined_var'
+#+END_EXAMPLE
+
+*** Impact
+- Debugging is now much easier with accurate file paths
+- Errors in imported modules show the correct source location
+- All compiler phases (lexer, parser, init, typer, eval) report consistent paths
+- No more duplicate path prefixes in error messages
+
+*Relevant Code Locations (post-fix):*
 - Error generation: src/rs/parser.rs:150-171, src/rs/ext.rs:34-41
 - Import handling: src/rs/ext.rs:693-736, src/rs/init.rs:542-625
 - Error prefixing: src/rstil.rs:199, src/rs/ext.rs:727-728

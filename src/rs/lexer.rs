@@ -73,8 +73,8 @@ impl Token {
     //              self.line, self.col, LANG_NAME, msg);
     // }
 
-    pub fn error(self: &Token, msg: &str) -> String {
-        return format!("{}:{}: parse ERROR: {}", self.line, self.col, msg);
+    pub fn error(self: &Token, path: &str, msg: &str) -> String {
+        return format!("{}:{}:{}: parse ERROR: {}", path, self.line, self.col, msg);
     }
 }
 
@@ -606,7 +606,8 @@ fn print_if_lex_error(path: &String, tokens: &Vec<Token>, index: usize, t: &Toke
 
 pub fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String> {
 
-    let lexer = Lexer::new(source);
+    let mut lexer = Lexer::new(source);
+    lexer.path = path.clone();  // Set the correct path for error messages
     if lexer.len() < 1 {
         return Err(format!("{}:{}:{} compiler ERROR: End of file not found.", path, 1, 0));
     } else if lexer.is_eof(0) {
