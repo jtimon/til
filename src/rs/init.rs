@@ -1360,39 +1360,13 @@ impl Context {
         }
 
         // Map immutable fields by copying arena_index entries from the type to the instance
-        for (member_name, decl) in struct_def.members.iter() {
+        for (_member_name, decl) in struct_def.members.iter() {
             if decl.is_mut {
                 continue; // Skip mutable fields (already handled above)
             }
 
-            // For immutable Str fields, copy arena_index entries from type to instance
-            if let ValueType::TCustom(type_name) = &decl.value_type {
-                if type_name == "Str" {
-                    let type_field = format!("{}.{}", custom_type_name, member_name);
-                    let instance_field = format!("{}.{}", id, member_name);
-
-                    // Copy c_string arena_index entry
-                    if let Some(&c_string_offset) = self.arena_index.get(&format!("{}.c_string", type_field)) {
-                        self.arena_index.insert(format!("{}.c_string", instance_field), c_string_offset);
-                    }
-
-                    // Copy cap arena_index entry
-                    if let Some(&cap_offset) = self.arena_index.get(&format!("{}.cap", type_field)) {
-                        self.arena_index.insert(format!("{}.cap", instance_field), cap_offset);
-                    }
-
-                    // Add symbol for the immutable field
-                    self.symbols.insert(
-                        instance_field.clone(),
-                        SymbolInfo {
-                            value_type: decl.value_type.clone(),
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                        },
-                    );
-                }
-            }
+            // Immutable struct fields are handled generically through struct_defs
+            // No special cases needed anymore
         }
 
         Ok(())
