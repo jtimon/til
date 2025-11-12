@@ -20,6 +20,7 @@ pub struct SymbolInfo {
     pub value_type: ValueType,
     pub is_mut: bool,
     pub is_copy: bool,
+    pub is_own: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -732,7 +733,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     FunctionType::FTMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
-                                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy });
+                                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                                 context.funcs.insert(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
@@ -751,7 +752,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy });
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
@@ -770,7 +771,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
                             // Register the struct itself
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy });
+                            context.symbols.insert(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for (member_name, member_decl) in &struct_def.members {
@@ -782,7 +783,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                     let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
                                     let full_name = format!("{}.{}", decl.name, member_name); // Note: using '.' not '::'
                                     // Register in symbols
-                                    context.symbols.insert(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy });
+                                    context.symbols.insert(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                                     // If it's a function, also register in funcs
                                     if let NodeType::FuncDef(func_def) = &member_expr.node_type {
                                         context.funcs.insert(full_name, func_def.clone());
@@ -798,7 +799,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 }
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
-                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy });
+                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                 },
             }
         }
@@ -997,6 +998,7 @@ impl Context {
             value_type: ValueType::TCustom("U8".to_string()),
             is_mut: is_mut,
             is_copy: false,
+            is_own: false,
         });
         self.arena_index.insert(field_id, offset);
 
@@ -1034,6 +1036,7 @@ impl Context {
                         value_type: decl.value_type.clone(),
                         is_mut,
                         is_copy: false,
+                        is_own: false,
                     },
                 );
 
@@ -1075,6 +1078,7 @@ impl Context {
                                 value_type: decl.value_type.clone(),
                                 is_mut: false,
                                 is_copy: false,
+                                is_own: false,
                             },
                         );
                     }
@@ -1132,6 +1136,7 @@ impl Context {
                 value_type: decl.value_type.clone(),
                 is_mut,
                 is_copy: false,
+                is_own: false,
             });
 
             Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
@@ -1308,6 +1313,7 @@ impl Context {
                                         value_type: ValueType::TCustom("Str".to_string()),
                                         is_mut: true,
                                         is_copy: false,
+                                        is_own: false,
                                     },
                                 );
                                 self.arena_index.insert(combined_name.clone(), offset + field_offset);
@@ -1322,6 +1328,7 @@ impl Context {
                                             value_type: ValueType::TCustom(type_name.clone()),
                                             is_mut: true,
                                             is_copy: false,
+                                            is_own: false,
                                         },
                                     );
                                     self.arena_index.insert(combined_name.clone(), offset + field_offset);
@@ -1347,6 +1354,7 @@ impl Context {
                     value_type: decl.value_type.clone(),
                     is_mut,
                     is_copy: false,
+                    is_own: false,
                 },
             );
         }
@@ -1380,6 +1388,7 @@ impl Context {
                             value_type: decl.value_type.clone(),
                             is_mut: false,
                             is_copy: false,
+                            is_own: false,
                         },
                     );
                 }
@@ -1401,6 +1410,7 @@ impl Context {
                         value_type: decl.value_type.clone(),
                         is_mut: decl.is_mut,
                         is_copy: decl.is_copy,
+                        is_own: decl.is_own,
                     },
                 );
 
@@ -1827,6 +1837,7 @@ impl Context {
                             value_type: ValueType::TCustom("Str".to_string()),
                             is_mut: false,
                             is_copy: false,
+                            is_own: false,
                         });
 
                         self.insert_string(&temp_id, val, e)?;
@@ -1878,6 +1889,7 @@ impl Context {
                     value_type: ValueType::TCustom("Str".to_string()),
                     is_mut: false,
                     is_copy: false,
+                    is_own: false,
                 });
                 self.insert_string(&temp_id, &elem_type.to_string(), e)?;
                 if let Some(&str_offset) = self.arena_index.get(&temp_id) {

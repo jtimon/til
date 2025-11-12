@@ -220,17 +220,28 @@ because the default behavior IS reference binding.
 - Blocked: Arena singleton + context cloning causes corruption
 - Can revisit post self-hosting with better debugging tools
 
-** 🔮 Future: Ownership Transfer
-Use `own` at call site for ownership transfer:
+** ⚠️ In Progress: Ownership Transfer (Partial Implementation)
+Status: Basic implementation done, but has bugs
+
+Completed (2025-11-12):
+- ✅ Lexer: Added `own` token
+- ✅ Parser: Accepts `own` in parameter declarations (mutually exclusive with mut/copy)
+- ✅ Type checker: Allows modification of `own` parameters
+- ✅ Interpreter: Basic ownership transfer logic for identifiers
+
+Bugs found:
+- ❌ Infinite loop when running own parameter tests
+- ❌ Field access on own parameters doesn't work (v.x fails to resolve)
+- ❌ Use-after-move checking not implemented
+
+Current behavior:
 ```til
-func(mut s: String)      // Function signature
-func(own my_string)      // Caller transfers ownership
+consume_i64 := proc(own n: I64) { ... }  // Compiles
+x := 42
+consume_i64(x)  // Transfers ownership (when bugs are fixed)
 ```
 
-Would require:
-- Lexer: Add `own` token (can reuse from parameter declarations)
-- Type checker: Track moved variables, prevent use-after-move
-- Interpreter: Transfer without copy, invalidate source
+Tests added but disabled in src/test/args.til (lines 500-636)
 
 ** 🔮 Future: Move-Only Types (Maybe)
 Needs more research and real-world examples to determine necessity.

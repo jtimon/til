@@ -22,7 +22,7 @@ pub enum TokenType {
     Identifier, String, Number,
 
     // Reserved words:
-    Mut, Copy,
+    Mut, Copy, Own,
 
     // bool
     True,
@@ -206,6 +206,7 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Case => "case",
         TokenType::Mut => "mut",
         TokenType::Copy => "copy",
+        TokenType::Own => "own",
         TokenType::LeftParen => "(",
         TokenType::RightParen => ")",
         TokenType::LeftBrace => "{",
@@ -260,6 +261,7 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         // declaration/arg modifiers
         "mut" => TokenType::Mut,
         "copy" => TokenType::Copy,
+        "own" => TokenType::Own,
 
         // bool literals
         "true" => TokenType::True,

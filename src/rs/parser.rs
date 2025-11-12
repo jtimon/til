@@ -17,6 +17,7 @@ pub struct Declaration {
     pub value_type: ValueType,
     pub is_mut: bool,
     pub is_copy: bool,
+    pub is_own: bool,
 }
 
 // TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
@@ -429,6 +430,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
     let mut arg_name = "unnamed".to_string();
     let mut is_mut = false;
     let mut is_copy = false;
+    let mut is_own = false;
     while !(lexer.is_eof(0) || rightparent_found) {
         match t.token_type {
             TokenType::RightParen => {
@@ -451,6 +453,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                     expect_name = true;
                     is_mut = false;
                     is_copy = false;
+                    is_own = false;
                     lexer.expect(TokenType::Comma)?;
                     t = lexer.peek();
                 } else {
@@ -505,6 +508,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                             value_type: ValueType::TMulti(t.token_str.clone()),
                             is_mut: is_mut,
                             is_copy: is_copy,
+                            is_own: is_own,
                         });
                         is_variadic = false;
                     } else {
@@ -513,11 +517,13 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                             value_type: str_to_value_type(&t.token_str),
                             is_mut: is_mut,
                             is_copy: is_copy,
+                            is_own: is_own,
                         });
                     }
                     expect_comma = true;
                     is_mut = false;
                     is_copy = false;
+                    is_own = false;
                 }
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -540,7 +546,24 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if is_mut {
                     return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
                 }
+                if is_own {
+                    return Err(t.error(&lexer.path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
+                }
                 is_copy = true;
+                lexer.advance(1)?;
+                t = lexer.peek();
+            },
+            TokenType::Own => {
+                if !expect_name {
+                    return Err(t.error(&lexer.path, "Unexpected 'own' in argument list."));
+                }
+                if is_mut {
+                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
+                }
+                if is_copy {
+                    return Err(t.error(&lexer.path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
+                }
+                is_own = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
             },
@@ -1147,6 +1170,7 @@ fn parse_for_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         value_type: str_to_value_type(INFER_TYPE),
         is_mut: true,
         is_copy: false,
+        is_own: false,
     };
     let decl_expr = Expr::new_parse(NodeType::Declaration(decl), initial_token.clone(), vec![start_expr.clone()]);
 
@@ -1336,7 +1360,7 @@ fn parse_declaration(lexer: &mut Lexer, is_mut: bool, is_copy: bool, explicit_ty
     let mut params : Vec<Expr> = Vec::new();
     params.push(parse_primary(lexer)?);
 
-    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy};
+    let decl = Declaration{name: decl_name.to_string(), value_type: str_to_value_type(explicit_type), is_mut: is_mut, is_copy: is_copy, is_own: false};
 
     return Ok(Expr::new_parse(NodeType::Declaration(decl), lexer.get_token(initial_current)?.clone(), params))
 }
