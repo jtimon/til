@@ -1,39 +1,20 @@
 #+TITLE: Pre-Self-Hosting TODO List
 #+AUTHOR: rstil Development
-#+DATE: 2025-11-10
+#+DATE: 2025-11-12
 
 * Overview
 
 This document tracks TODOs in the Rust implementation (rstil) that must be completed before the self-hosted til interpreter can run successfully.
 
-Current Status: All documented bugs fixed. Parser homogenization complete. Ready for next phase.
+Current Status: Core language features complete. Error handling standardized. One remaining API cleanup task.
 
 Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the til-based interpreter/typer/etc.
 
 * TODO Active Items
 
-- [X] #21 Simplify collection constructor APIs - COMPLETED
-  - **Fixed in**: Bug #22 (see doc/todo/bugs.org) and commits 2138e15, 2fb3bbc, 6481c28, 3ae3a73
-  - **Solution**: Modified interpreter to skip evaluation of type identifiers passed as Dynamic parameters, store type name as string, and resolve in size_of()/type_as_str()
-  - **New API** (clean, ergonomic):
-    #+BEGIN_SRC til
-    mut vec := Vec.new(Str)
-    mut arr := Array.new(I64, 10)
-    mut map := Map.new(Str, I64)
-    mut ptr := Ptr.new(I64)  // Already worked
-    #+END_SRC
-  - **Refactored**: 122 call sites (13 Array, 73 Vec, 36 Map)
-  - **Known limitation**: Can't pass Dynamic type parameters through nested calls (Map.new uses workaround)
-  - List still needs runtime_size_of() for Dynamic value parameters (separate issue)
-
-- [ ] Standardize len/cap API across collections (Array has len field, Vec has len+cap fields, Map has size field, Str has len() method)
-- [X] Improve test error handling with ERROR: prefix (COMPLETED: dynamic_arrays.til, mut_test.til, pointers.til, enums.til, arrays.til, args.til, ufcs.til, editor_mode_test.til, maps.til, test_parser.til, lists.til; maps.til also had 4 redundant tests removed (21% size reduction); PARTIAL: test_lexer.til (6/28 functions); SKIP: errors.til (all catches test expected errors))
-- [ ] Fix error line numbers from imported files (show correct file paths and line numbers)
-
-* Completed Items
-
-- [X] Improve forward reference error messages (added compile-time validation for undefined types, commit 7bfec12)
-- [X] Improve type checking for struct type mismatches (type checking already works correctly - passing Point3D where Point2D expected produces clear compile-time error with actual struct names)
+- [ ] Standardize len/cap API across collections
+  - Current inconsistency: Array has len field, Vec has len+cap fields, Map has size field, Str has len() method
+  - Goal: Consistent naming and access patterns across all collections
 
 * Notes
 

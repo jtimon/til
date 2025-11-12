@@ -188,12 +188,15 @@ test_lexer_peek := proc() {
     first_again := lexer.peek()
     assert_eq_str(loc(), "mode", first_again.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_peek: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
 }
@@ -211,19 +214,26 @@ test_lexer_advance := proc() {
     t2 := lexer.peek()
     assert_eq_str(loc(), "script", t2.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_advance: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "I64_OverflowError in test_lexer_advance")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
-    catch(err: AllocError) {
-        panic(loc(), "AllocError in test_lexer_advance")
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_lexer_advance()
@@ -239,19 +249,26 @@ test_lexer_peek_ahead := proc() {
     current := lexer.peek()
     assert_eq_str(loc(), "mode", current.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_peek_ahead: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "I64_OverflowError in test_lexer_peek_ahead")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
-    catch(err: AllocError) {
-        panic(loc(), "AllocError in test_lexer_peek_ahead")
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_lexer_peek_ahead()
@@ -267,19 +284,26 @@ test_lexer_next := proc() {
     t2 := lexer.peek()
     assert_eq_str(loc(), "mode", t2.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_next: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "I64_OverflowError in test_lexer_next")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
-    catch(err: AllocError) {
-        panic(loc(), "AllocError in test_lexer_next")
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_lexer_next()
@@ -296,19 +320,26 @@ test_lexer_previous := proc() {
     prev := lexer.previous()
     assert_eq_str(loc(), "mode", prev.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_previous: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "I64_OverflowError in test_lexer_previous")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
-    catch(err: AllocError) {
-        panic(loc(), "AllocError in test_lexer_previous")
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_lexer_previous()
@@ -326,19 +357,26 @@ test_lexer_go_back := proc() {
     current := lexer.peek()
     assert_eq_str(loc(), "script", current.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_go_back: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
-    catch(err: I64_OverflowError) {
-        panic(loc(), "I64_OverflowError in test_lexer_go_back")
+    catch (err: I64_OverflowError) {
+        println("ERROR:", loc(), "Unexpected I64_OverflowError")
+        println(err.msg)
+        exit(1)
     }
-    catch(err: AllocError) {
-        panic(loc(), "AllocError in test_lexer_go_back")
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
     }
 }
 test_lexer_go_back()
@@ -350,8 +388,10 @@ test_lexer_len := proc() {
     token_count := lexer.len()
     assert(loc(), gt(token_count, 1))
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
 }
@@ -368,12 +408,15 @@ test_lexer_get_token := proc() {
     t1 := lexer.get_token(1)
     assert_eq_str(loc(), "script", t1.token_str)
 
-    catch(err: Str) {
-        println(loc(), " FAIL: Lexer.new threw error")
+    // Catch unexpected errors at end
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
         exit(1)
     }
-    catch(err: IndexOutOfBoundsError) {
-        println(loc(), "test_lexer_get_token: IndexOutOfBoundsError: ", err.msg)
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
         exit(1)
     }
 }
