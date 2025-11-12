@@ -32,7 +32,7 @@ runfile("src/test/c_mem.til")
 runfile("src/test/comparisons.til")
 runfile("src/test/editor_mode_test.til")
 runfile("src/test/enums.til")
-// runfile("src/test/lists.til") // TODO: Blocked - needs runtime_size_of() for Dynamic values
+runfile("src/test/lists.til")
 runfile("src/test/maps.til")
 runfile("src/test/errors.til")
 runfile("src/test/fibonacci.til") // recursive examples
