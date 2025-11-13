@@ -13,6 +13,8 @@ Declaration := struct {
     mut name: Str = ""
     mut value_type: ValueType = ValueType.TCustom("")
     mut is_mut: Bool = false
+    mut is_copy: Bool = false
+    mut is_own: Bool = false
 }
 
 // TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
@@ -340,6 +342,33 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     return Expr.new_parse(NodeType.Assignment(name), t, params)
 }
 
+validate_mut_copy_own_modifiers := func(t: Token, modifier: Str, is_mut: Bool, is_copy: Bool, is_own: Bool) throws Str {
+    if modifier.eq("mut") {
+        if is_copy {
+            throw t.error("Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
+        }
+        if is_own {
+            throw t.error("Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
+        }
+    }
+    if modifier.eq("copy") {
+        if is_mut {
+            throw t.error("Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
+        }
+        if is_own {
+            throw t.error("Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
+        }
+    }
+    if modifier.eq("own") {
+        if is_mut {
+            throw t.error("Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
+        }
+        if is_copy {
+            throw t.error("Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
+        }
+    }
+}
+
 parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     _ := lexer_expect(lexer, TokenType.LeftParen)
     mut rightparent_found := false
@@ -351,6 +380,8 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
     mut is_variadic := false
     mut arg_name := "unnamed"
     mut is_mut := false
+    mut is_copy := false
+    mut is_own := false
 
     while and(not(lexer.is_eof(0)), not(rightparent_found)) {
         tt := t.token_type
@@ -373,6 +404,8 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
                 expect_colon = false
                 expect_name = true
                 is_mut = false
+                is_copy = false
+                is_own = false
                 _ := lexer_expect(lexer, TokenType.Comma)
                 t = lexer.peek()
             } else {
@@ -431,9 +464,13 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
                     decl.value_type = str_to_value_type(t.token_str)
                 }
                 decl.is_mut = is_mut
+                decl.is_copy = is_copy
+                decl.is_own = is_own
                 args.push(decl)
                 expect_comma = true
                 is_mut = false
+                is_copy = false
+                is_own = false
             }
             lexer.advance(1)
             t = lexer.peek()
@@ -441,7 +478,24 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
             if not(expect_name) {
                 throw t.error("Unexpected 'mut' in argument list.")
             }
+            validate_mut_copy_own_modifiers(t, "mut", is_mut, is_copy, is_own)
             is_mut = true
+            lexer.advance(1)
+            t = lexer.peek()
+        case TokenType.Copy:
+            if not(expect_name) {
+                throw t.error("Unexpected 'copy' in argument list.")
+            }
+            validate_mut_copy_own_modifiers(t, "copy", is_mut, is_copy, is_own)
+            is_copy = true
+            lexer.advance(1)
+            t = lexer.peek()
+        case TokenType.Own:
+            if not(expect_name) {
+                throw t.error("Unexpected 'own' in argument list.")
+            }
+            validate_mut_copy_own_modifiers(t, "own", is_mut, is_copy, is_own)
+            is_own = true
             lexer.advance(1)
             t = lexer.peek()
         case:

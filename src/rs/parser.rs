@@ -316,6 +316,34 @@ fn parse_assignment(lexer: &mut Lexer, t: &Token, name: &String) -> Result<Expr,
     return Ok(Expr::new_parse(NodeType::Assignment(name.to_string()), t.clone(), params))
 }
 
+fn validate_mut_copy_own_modifiers(t: &Token, path: &str, modifier: &str, is_mut: bool, is_copy: bool, is_own: bool) -> Result<(), String> {
+    if modifier == "mut" {
+        if is_copy {
+            return Err(t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
+        }
+        if is_own {
+            return Err(t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
+        }
+    }
+    if modifier == "copy" {
+        if is_mut {
+            return Err(t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
+        }
+        if is_own {
+            return Err(t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
+        }
+    }
+    if modifier == "own" {
+        if is_mut {
+            return Err(t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
+        }
+        if is_copy {
+            return Err(t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
+        }
+    }
+    Ok(())
+}
+
 fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
     lexer.expect(TokenType::LeftParen)?;
     let mut rightparent_found = false;
@@ -430,9 +458,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'mut' in argument list."));
                 }
-                if is_copy {
-                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
-                }
+                validate_mut_copy_own_modifiers(&t, &lexer.path, "mut", is_mut, is_copy, is_own)?;
                 is_mut = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -441,12 +467,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'copy' in argument list."));
                 }
-                if is_mut {
-                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy."));
-                }
-                if is_own {
-                    return Err(t.error(&lexer.path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
-                }
+                validate_mut_copy_own_modifiers(&t, &lexer.path, "copy", is_mut, is_copy, is_own)?;
                 is_copy = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
@@ -455,12 +476,7 @@ fn parse_func_proc_args(lexer: &mut Lexer) -> Result<Vec<Declaration>, String> {
                 if !expect_name {
                     return Err(t.error(&lexer.path, "Unexpected 'own' in argument list."));
                 }
-                if is_mut {
-                    return Err(t.error(&lexer.path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer."));
-                }
-                if is_copy {
-                    return Err(t.error(&lexer.path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy."));
-                }
+                validate_mut_copy_own_modifiers(&t, &lexer.path, "own", is_mut, is_copy, is_own)?;
                 is_own = true;
                 lexer.advance(1)?;
                 t = lexer.peek();
