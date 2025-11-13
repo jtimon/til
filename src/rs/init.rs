@@ -34,6 +34,94 @@ pub struct EnumVal {
     pub payload_type: Option<ValueType>,
 }
 
+// Scope stack for proper lexical scoping
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScopeType {
+    Global,      // Top-level module scope
+    Function,    // Function body
+    Block,       // Generic block (if, else, loop body)
+    Catch,       // Catch block (for error handling)
+}
+
+#[derive(Clone)]
+pub struct ScopeFrame {
+    /// Local variables declared in this scope
+    /// Maps variable name → arena offset
+    pub local_vars: HashMap<String, usize>,
+
+    /// Local symbols (type info, mutability)
+    pub local_symbols: HashMap<String, SymbolInfo>,
+
+    /// Scope type (helps with cleanup and debugging)
+    pub scope_type: ScopeType,
+}
+
+#[derive(Clone)]
+pub struct ScopeStack {
+    /// Stack of scope frames
+    pub frames: Vec<ScopeFrame>,
+}
+
+impl ScopeStack {
+    pub fn new() -> Self {
+        ScopeStack {
+            frames: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, scope_type: ScopeType) {
+        self.frames.push(ScopeFrame {
+            local_vars: HashMap::new(),
+            local_symbols: HashMap::new(),
+            scope_type,
+        });
+    }
+
+    pub fn pop(&mut self) -> Result<ScopeFrame, String> {
+        if self.frames.len() <= 1 {
+            return Err("Cannot pop global scope".to_string());
+        }
+
+        self.frames.pop()
+            .ok_or_else(|| "Scope stack underflow".to_string())
+    }
+
+    pub fn lookup_var(&self, name: &str) -> Option<usize> {
+        // Walk up the stack from innermost to outermost
+        for frame in self.frames.iter().rev() {
+            if let Some(&offset) = frame.local_vars.get(name) {
+                return Some(offset);
+            }
+        }
+        None
+    }
+
+    pub fn lookup_symbol(&self, name: &str) -> Option<&SymbolInfo> {
+        for frame in self.frames.iter().rev() {
+            if let Some(sym) = frame.local_symbols.get(name) {
+                return Some(sym);
+            }
+        }
+        None
+    }
+
+    pub fn declare_var(&mut self, name: String, offset: usize, symbol: SymbolInfo)
+        -> Result<(), String>
+    {
+        let current_frame = self.frames.last_mut()
+            .ok_or_else(|| "No active scope".to_string())?;
+
+        // Check for redeclaration in current scope only
+        if current_frame.local_vars.contains_key(&name) {
+            return Err(format!("Variable '{}' already declared in this scope", name));
+        }
+
+        current_frame.local_vars.insert(name.clone(), offset);
+        current_frame.local_symbols.insert(name, symbol);
+        Ok(())
+    }
+}
+
 pub fn get_func_name_in_call(e: &Expr) -> String {
     if e.node_type != NodeType::FCall {
         return e.exit_error("type", "get_func_name_in_call(): expected fcall node.")
@@ -844,6 +932,8 @@ pub struct Context {
     pub struct_defs: HashMap<String, SStructDef>,
     // maps variable names to their offsets in the arena
     pub arena_index: HashMap<String, usize>, // stores offsets
+    // Scope stack for proper lexical scoping (Phase 1: dual-write with arena_index)
+    pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
     // Two-phase imports: separate caches for declaration and value initialization
@@ -860,6 +950,9 @@ pub struct Context {
 
 impl Context {
     pub fn new(path: &String, mode_name: &str) -> Result<Context, String> {
+        let mut scope_stack = ScopeStack::new();
+        scope_stack.push(ScopeType::Global); // Initialize global scope
+
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
@@ -868,6 +961,7 @@ impl Context {
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
+            scope_stack,
             temp_enum_payload: None,
             imports_declarations_done: HashSet::new(),
             imports_values_done: HashMap::new(),
