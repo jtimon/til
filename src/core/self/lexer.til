@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/std")
+import("src.core.std")
 
 LANG_NAME := "til"
 DEBUG_COMPILER := true

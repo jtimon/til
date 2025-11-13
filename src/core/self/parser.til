@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/self/lexer")
+import("src.core.self.lexer")
 
 INFER_TYPE := "auto"
 

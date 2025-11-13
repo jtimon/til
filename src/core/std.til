@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/pure_std")
+import("src.core.pure_std")
 
 eval_to_str     := ext_proc(a: Str) returns Str;
 eval_to_ast_str := ext_proc(src: Str) returns Str; // TODO

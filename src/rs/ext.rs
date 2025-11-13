@@ -558,6 +558,13 @@ pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     }
 }
 
+// Convert dot-based import path to OS-specific file path
+// Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
+fn import_path_to_file_path(import_path: &str) -> String {
+    let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
+    format!("{}.til", file_path)
+}
+
 pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(e, "import", 1, true)?;
 
@@ -567,7 +574,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
 
     let original_path = context.path.clone();
-    let path = format!("{}{}", result.value, ".til");
+    let path = import_path_to_file_path(&result.value);
 
     // If imported values already initialized, use the cache (Phase 2)
     match context.imports_values_done.get(&path) {

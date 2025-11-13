@@ -525,11 +525,18 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
     }
 }
 
+// Convert dot-based import path to OS-specific file path
+// Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
+fn import_path_to_file_path(import_path: &str) -> String {
+    let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
+    format!("{}.til", file_path)
+}
+
 // Import declarations only (no eval) - for init phase
 // This processes imports during declaration indexing, copying only declarations
 // to the parent context. The eval phase will later initialize values.
 fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &str) -> Result<(), String> {
-    let path = format!("{}{}", import_path_str, ".til");
+    let path = import_path_to_file_path(import_path_str);
     let original_path = context.path.clone();
 
     // Check if already processed for declarations

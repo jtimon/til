@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/self/typer")
+import("src.core.self.typer")
 
 // Interpreter phase: Runtime evaluation and execution
 // Corresponds to src/rs/interpreter.rs in the Rust implementation
