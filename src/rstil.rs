@@ -4,6 +4,7 @@ use std::io::ErrorKind;
 
 mod rs {
     pub mod lexer;
+    pub mod mode;
     pub mod parser;
     pub mod init;
     pub mod typer;
@@ -11,9 +12,10 @@ mod rs {
     pub mod ext;
 }
 use rs::lexer::{LANG_NAME, lexer_from_source};
+use rs::mode::{can_be_imported, parse_mode};
 use rs::parser::{
     Expr, NodeType, FunctionType, SFuncDef, Literal,
-    can_be_imported, parse_mode, parse_tokens,
+    parse_tokens,
 };
 use rs::init::Context;
 use rs::interpreter::EvalResult;

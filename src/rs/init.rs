@@ -4,10 +4,11 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 
 use crate::rs::lexer::{lexer_from_source};
+use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, ModeDef, Declaration, PatternInfo,
-    can_be_imported, value_type_to_str, str_to_value_type, parse_mode, parse_tokens, mode_from_name,
+    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
+    value_type_to_str, str_to_value_type, parse_tokens,
 };
 use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
 
