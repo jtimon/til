@@ -113,7 +113,7 @@ memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64;
 memset := ext_func(mut dest: I64, value: U8, size: I64);
 
 print := proc(args: ..Str) {
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut val := ""
         args.get(i, val)
         single_print(val)
@@ -126,7 +126,7 @@ print := proc(args: ..Str) {
 }
 
 println := proc(args: ..Str) {
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut val := ""
         args.get(i, val)
         single_print(val)
@@ -208,7 +208,7 @@ not := func(b: Bool) returns Bool {
 }
 
 or := func(args: ..Bool) returns Bool {
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut val := false
         args.get(i, val)
         if val {
@@ -223,7 +223,7 @@ or := func(args: ..Bool) returns Bool {
 }
 
 and := func(args: ..Bool) returns Bool {
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut val := false
         args.get(i, val)
         if not(val) {
@@ -457,7 +457,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     mut result := Str()
     result.cap = prefix.cap
 
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut arg := ""
         args.get(i, arg)
         result.cap = add(result.cap, arg.cap)
@@ -475,7 +475,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     memcpy(result.c_string, prefix.c_string, prefix.cap)
     offset = prefix.cap
 
-    for i in 0..args.len {
+    for i in 0..args._len {
         mut s := ""
         args.get(i, s)
         memcpy(add(result.c_string, offset), s.c_string, s.cap)
@@ -489,7 +489,15 @@ Array := struct {
     mut type_name : Str  = ""
     mut type_size : I64  = 0
     mut ptr       : I64  = 0
-    mut len       : I64  = 0
+    mut _len      : I64  = 0
+
+    len := func(self: Array) returns I64 {
+        return self._len
+    }
+
+    size := func(self: Array) returns I64 {
+        return mul(self._len, self.type_size)
+    }
 
     new := proc(T: Dynamic, capacity: I64) returns Array throws AllocError {
         mut arr := Array()
@@ -498,12 +506,12 @@ Array := struct {
         size_bytes := mul(capacity, arr.type_size)
         arr.ptr = malloc(size_bytes)
         memset(arr.ptr, U8.from_i64(0), size_bytes)
-        arr.len = capacity
+        arr._len = capacity
         return arr
     }
 
     get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
         }
 
@@ -517,7 +525,7 @@ Array := struct {
     }
 
     set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
         }
 
@@ -532,7 +540,7 @@ Array := struct {
     delete := proc(mut self: Array) {
         free(self.ptr)
         self.ptr = 0
-        self.len = 0
+        self._len = 0
     }
 }
 
@@ -541,11 +549,19 @@ Vec := struct {
     mut type_name : Str  = ""
     mut type_size : I64  = 0
     mut ptr       : I64  = 0
-    mut len       : I64  = 0
+    mut _len      : I64  = 0
     mut cap       : I64  = 0
 
     INIT_CAP : I64 = 16
     MAX_CAP  : I64 = 1024
+
+    len := func(self: Vec) returns I64 {
+        return self._len
+    }
+
+    size := func(self: Vec) returns I64 {
+        return mul(self._len, self.type_size)
+    }
 
     new := proc(T: Dynamic) returns Vec throws AllocError {
         mut vec := Vec()
@@ -553,7 +569,7 @@ Vec := struct {
         vec.type_size = size_of(T)
         size_bytes := mul(Vec.INIT_CAP, vec.type_size)
         vec.ptr = malloc(size_bytes)
-        vec.len = 0
+        vec._len = 0
         vec.cap = Vec.INIT_CAP
         return vec
     }
@@ -567,7 +583,7 @@ Vec := struct {
         vec.type_size = type_size
         size_bytes := mul(Vec.INIT_CAP, vec.type_size)
         vec.ptr = malloc(size_bytes)
-        vec.len = 0
+        vec._len = 0
         vec.cap = Vec.INIT_CAP
         return vec
     }
@@ -577,26 +593,26 @@ Vec := struct {
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
 
-        if self.len.eq(self.cap) {
+        if self._len.eq(self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Vec.MAX_CAP) {
                 throw FullError.new(format(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP"))
             }
 
             mut new_ptr := malloc(mul(new_cap, self.type_size))
-            memcpy(new_ptr, self.ptr, mul(self.len, self.type_size))
+            memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
             free(self.ptr)
             self.ptr = new_ptr
             self.cap = new_cap
         }
 
-        mut dest := add(self.ptr, mul(self.len, self.type_size))
+        mut dest := add(self.ptr, mul(self._len, self.type_size))
         memcpy(dest, to_ptr(value), self.type_size)
-        self.len = add(self.len, 1)
+        self._len = add(self._len, 1)
     }
 
     get := proc(self: Vec, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.get: index out of bounds"))
         }
 
@@ -610,7 +626,7 @@ Vec := struct {
     }
 
     set := proc(mut self: Vec, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.set: index out of bounds"))
         }
 
@@ -623,22 +639,22 @@ Vec := struct {
     }
 
     pop := proc(mut self: Vec, mut dest: Dynamic) throws IndexOutOfBoundsError {
-        if self.len.eq(0) {
+        if self._len.eq(0) {
             throw IndexOutOfBoundsError.new(format(loc(), "Vec.pop: cannot pop from empty Vec"))
         }
 
         // Get last element
-        mut last_index := sub(self.len, 1)
+        mut last_index := sub(self._len, 1)
         self.get(last_index, dest)
 
         // Decrement length
-        self.len = last_index
+        self._len = last_index
     }
 
     delete := proc(mut self: Vec) {
         free(self.ptr)
         self.ptr = 0
-        self.len = 0
+        self._len = 0
         self.cap = 0
     }
 }
@@ -719,34 +735,34 @@ Map := struct {
         // Key doesn't exist - add it
         // Workaround for bug: pushing Dynamic parameters doesn't work
         // Instead, manually grow the array and memcpy directly
-        if keys_arr.len.eq(keys_arr.cap) {
+        if keys_arr._len.eq(keys_arr.cap) {
             // Need to grow
             mut new_cap := mul(keys_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
-            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
             free(keys_arr.ptr)
             keys_arr.ptr = new_ptr
             keys_arr.cap = new_cap
         }
         // Copy key directly into array memory
-        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
         memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
-        keys_arr.len = add(keys_arr.len, 1)
+        keys_arr._len = add(keys_arr._len, 1)
         self.keys = keys_arr
 
         // Same workaround for values
         mut values_arr := self.values
-        if values_arr.len.eq(values_arr.cap) {
+        if values_arr._len.eq(values_arr.cap) {
             mut new_cap := mul(values_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
-            memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+            memcpy(new_ptr, values_arr.ptr, mul(values_arr._len, values_arr.type_size))
             free(values_arr.ptr)
             values_arr.ptr = new_ptr
             values_arr.cap = new_cap
         }
-        mut dest_ptr := add(values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+        mut dest_ptr := add(values_arr.ptr, mul(values_arr._len, values_arr.type_size))
         memcpy(dest_ptr, to_ptr(value), values_arr.type_size)
-        values_arr.len = add(values_arr.len, 1)
+        values_arr._len = add(values_arr._len, 1)
         self.values = values_arr
 
         self.size = add(self.size, 1)
@@ -790,31 +806,31 @@ Map := struct {
         }
 
         // Key not found - insert new entry (use same workaround as insert())
-        if keys_arr.len.eq(keys_arr.cap) {
+        if keys_arr._len.eq(keys_arr.cap) {
             mut new_cap := mul(keys_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
-            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
             free(keys_arr.ptr)
             keys_arr.ptr = new_ptr
             keys_arr.cap = new_cap
         }
-        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr.len, keys_arr.type_size))
+        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
         memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
-        keys_arr.len = add(keys_arr.len, 1)
+        keys_arr._len = add(keys_arr._len, 1)
         self.keys = keys_arr
 
         mut values_arr := self.values
-        if values_arr.len.eq(values_arr.cap) {
+        if values_arr._len.eq(values_arr.cap) {
             mut new_cap := mul(values_arr.cap, 2)
             mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
-            memcpy(new_ptr, values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+            memcpy(new_ptr, values_arr.ptr, mul(values_arr._len, values_arr.type_size))
             free(values_arr.ptr)
             values_arr.ptr = new_ptr
             values_arr.cap = new_cap
         }
-        mut dest_ptr2 := add(values_arr.ptr, mul(values_arr.len, values_arr.type_size))
+        mut dest_ptr2 := add(values_arr.ptr, mul(values_arr._len, values_arr.type_size))
         memcpy(dest_ptr2, to_ptr(value), values_arr.type_size)
-        values_arr.len = add(values_arr.len, 1)
+        values_arr._len = add(values_arr._len, 1)
         self.values = values_arr
 
         self.size = add(self.size, 1)
@@ -948,9 +964,17 @@ Map := struct {
 // Type information tracked via parallel metadata vectors
 List := struct {
     mut data : I64  = 0     // Pointer to raw memory blob
-    mut len : I64 = 0       // Number of elements stored
+    mut _len : I64 = 0      // Number of elements stored
     mut type_names : Vec = Vec()  // Vec<Str> - type name per element
     mut type_sizes : Vec = Vec()  // Vec<I64> - size per element
+
+    len := func(self: List) returns I64 {
+        return self._len
+    }
+
+    size := func(self: List) returns I64 throws IndexOutOfBoundsError {
+        return self.calc_used()
+    }
 
     // Create new empty list
     new := proc() returns List throws AllocError {
@@ -962,7 +986,7 @@ List := struct {
             throw AllocError("List.new: malloc failed")
         }
 
-        list.len = 0
+        list._len = 0
         list.type_names = Vec.new(Str)
         list.type_sizes = Vec.new(I64)
 
@@ -984,7 +1008,7 @@ List := struct {
 
     // Calculate total bytes used
     calc_used := proc(self: List) returns I64 throws IndexOutOfBoundsError {
-        return self.calc_offset(self.len)
+        return self.calc_offset(self._len)
     }
 
     // Append element to list
@@ -1008,14 +1032,14 @@ List := struct {
         sizes.push(type_size)
         self.type_sizes = sizes
 
-        self.len = add(self.len, 1)
+        self._len = add(self._len, 1)
     }
 
     // Get element at index
     get := proc(self: List, index: I64, mut dest: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError(format("List.get: index ",
-                format(index.to_str(), format(" >= len ", self.len.to_str()))))
+                format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
 
         if lt(index, 0) {
@@ -1047,9 +1071,9 @@ List := struct {
     // Takes the type as second parameter and value as third
     // Example: list.set(0, I64, 99), list.set(1, Str, "world")
     set := proc(mut self: List, index: I64, T: Dynamic, value: Dynamic) throws IndexOutOfBoundsError {
-        if gteq(index, self.len) {
+        if gteq(index, self._len) {
             throw IndexOutOfBoundsError(format("List.set: index ",
-                format(index.to_str(), format(" >= len ", self.len.to_str()))))
+                format(index.to_str(), format(" >= len ", self._len.to_str()))))
         }
 
         if lt(index, 0) {
@@ -1107,12 +1131,12 @@ List := struct {
     }
 
     pop := proc(mut self: List, mut dest: Dynamic) throws IndexOutOfBoundsError {
-        if self.len.eq(0) {
+        if self._len.eq(0) {
             throw IndexOutOfBoundsError(format(loc(), "List.pop: cannot pop from empty List"))
         }
 
         // Get last element FIRST before modifying anything
-        mut last_index := sub(self.len, 1)
+        mut last_index := sub(self._len, 1)
         mut offset := self.calc_offset(last_index)
         mut size := 0
         self.type_sizes.get(last_index, size)
@@ -1133,14 +1157,14 @@ List := struct {
         self.type_sizes = sizes
 
         // Decrement length
-        self.len = last_index
+        self._len = last_index
     }
 
     // Free list memory
     delete := proc(mut self: List) {
         free(self.data)
         self.data = 0
-        self.len = 0
+        self._len = 0
 
         mut names := self.type_names
         names.delete()

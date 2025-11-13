@@ -2,7 +2,7 @@ mode test
 
 test_array_static_u8 := proc() {
     mut stat := Array.new(U8, 3)
-    assert_eq(loc(), 3, stat.len)       // Static array len equals cap
+    assert_eq(loc(), 3, stat.len())       // Static array len equals cap
     stat.set(0, U8.from_i64(10))
     stat.set(1, U8.from_i64(20))
     stat.set(2, U8.from_i64(30))
@@ -36,7 +36,7 @@ test_array_static_u8()
 
 test_array_static_str := proc() {
     mut stat := Array.new(Str, 3)
-    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), 3, stat.len())
 
     stat.set(0, "hello")
     stat.set(1, "world")
@@ -63,7 +63,7 @@ test_array_static_str()
 
 test_array_static_bool := proc() {
     mut stat := Array.new(Bool, 3)
-    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), 3, stat.len())
 
     stat.set(0, true)
     stat.set(1, false)
@@ -90,7 +90,7 @@ test_array_static_bool()
 
 test_array_static_i64 := proc() {
     mut stat := Array.new(I64, 3)
-    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), 3, stat.len())
 
     stat.set(0, 100)
     stat.set(1, 200)
@@ -129,7 +129,7 @@ Vec2 := struct {
 
 test_array_static_vec2 := proc() {
     mut stat := Array.new(Vec2, 3)
-    assert_eq(loc(), 3, stat.len)
+    assert_eq(loc(), 3, stat.len())
 
     // v1 = Vec2.new(1, 2) // TODO FIX
     // v2 = Vec2.new(3, 4) // TODO FIX

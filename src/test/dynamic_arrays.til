@@ -2,12 +2,12 @@ mode test
 
 test_vec_u8 := proc() {
     mut dyn := Vec.new(U8)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(U8.from_i64(42))
     dyn.push(U8.from_i64(255))
-    assert_eq(loc(), 2, dyn.len)
+    assert_eq(loc(), 2, dyn.len())
     mut val0 := U8.from_i64(0)
     dyn.get(0, val0)
     test(loc(), val0.eq(U8.from_i64(42)), "Value at index 0")
@@ -22,7 +22,7 @@ test_vec_u8 := proc() {
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
-    assert_eq(loc(), 0, dyn.len) // Length reset after delete
+    assert_eq(loc(), 0, dyn.len()) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
     // Catch unexpected errors at end
@@ -51,12 +51,12 @@ test_vec_u8()
 
 test_vec_str := proc() {
     mut dyn := Vec.new(Str)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push("foo")
     dyn.push("bar")
-    assert_eq(loc(), 2, dyn.len)
+    assert_eq(loc(), 2, dyn.len())
     mut val0 := ""
     dyn.get(0, val0)
     test(loc(), val0.eq("foo"), "Value at index 0")
@@ -71,7 +71,8 @@ test_vec_str := proc() {
 
     mut combined_str := ""
     // for s in dyn { // TODO support for loops for Arrays
-    for i in 0..dyn.len {
+    mut dyn_len := dyn.len()
+    for i in 0..dyn_len {
         mut s := ""
         dyn.get(i, s)
         combined_str = format(combined_str, s)
@@ -80,7 +81,7 @@ test_vec_str := proc() {
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr) // Pointer cleared after delete
-    assert_eq(loc(), 0, dyn.len) // Length reset after delete
+    assert_eq(loc(), 0, dyn.len()) // Length reset after delete
     assert_eq(loc(), 0, dyn.cap) // Capacity reset after delete
 
     // Catch unexpected errors at end
@@ -109,12 +110,12 @@ test_vec_str()
 
 test_vec_bool := proc() {
     mut dyn := Vec.new(Bool)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(true)
     dyn.push(false)
-    assert_eq(loc(), 2, dyn.len)
+    assert_eq(loc(), 2, dyn.len())
     mut val0 := false
     dyn.get(0, val0)
     test(loc(), val0.eq(true), "Value at index 0")
@@ -129,7 +130,7 @@ test_vec_bool := proc() {
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
@@ -153,12 +154,12 @@ test_vec_bool()
 
 test_vec_i64 := proc() {
     mut dyn := Vec.new(I64)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), Vec.INIT_CAP, dyn.cap)
 
     dyn.push(42)
     dyn.push(84)
-    assert_eq(loc(), 2, dyn.len)
+    assert_eq(loc(), 2, dyn.len())
     mut val0 := 0
     dyn.get(0, val0)
     test(loc(), val0.eq(42), "Value at index 0")
@@ -173,7 +174,7 @@ test_vec_i64 := proc() {
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
@@ -209,14 +210,14 @@ Vec2 := struct {
 
 test_vec_vec2 := proc() {
     mut dyn := Vec.new(Vec2) // TODO More ergonomic constructor
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
 
     v1 := Vec2.new(10, 20)
     dyn.push(v1)
     v2 := Vec2.new(30, 40)
     dyn.push(v2)
 
-    assert_eq(loc(), 2, dyn.len)
+    assert_eq(loc(), 2, dyn.len())
 
     mut v0 := Vec2()
     dyn.get(0, v0)
@@ -233,7 +234,7 @@ test_vec_vec2 := proc() {
 
     dyn.delete()
     assert_eq(loc(), 0, dyn.ptr)
-    assert_eq(loc(), 0, dyn.len)
+    assert_eq(loc(), 0, dyn.len())
     assert_eq(loc(), 0, dyn.cap)
 
     // Catch unexpected errors at end
@@ -269,7 +270,7 @@ test_vec_growth := proc() {
         i = add(i, 1)
     }
 
-    test(loc(), dyn.len.eq(add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
+    test(loc(), dyn.len().eq(add(Vec.INIT_CAP, 5)), "Length should be INIT_DYN_CAP + 5")
     test(loc(), gt(dyn.cap, initial_cap), "Capacity should have grown beyond initial")
     test(loc(), dyn.cap.eq(mul(Vec.INIT_CAP, 2)), "Capacity should have doubled")
 
@@ -371,21 +372,21 @@ test_vec_pop := proc() {
     stack.push(20)
     stack.push(30)
 
-    assert_eq(loc(), 3, stack.len)
+    assert_eq(loc(), 3, stack.len())
 
     // Pop values in LIFO order
     mut val := 0
     stack.pop(val)
     assert_eq(loc(), 30, val)
-    assert_eq(loc(), 2, stack.len)
+    assert_eq(loc(), 2, stack.len())
 
     stack.pop(val)
     assert_eq(loc(), 20, val)
-    assert_eq(loc(), 1, stack.len)
+    assert_eq(loc(), 1, stack.len())
 
     stack.pop(val)
     assert_eq(loc(), 10, val)
-    assert_eq(loc(), 0, stack.len)
+    assert_eq(loc(), 0, stack.len())
 
     // Test popping from empty Vec - should throw
     stack.pop(val)

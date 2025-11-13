@@ -274,13 +274,13 @@ push_value := proc(mut arr: Vec, value: I64) {
 test_mut_array := proc() {
     mut numbers := Vec.new(I64)
 
-    assert_eq(loc(), 0, numbers.len)
+    assert_eq(loc(), 0, numbers.len())
 
     push_value(numbers, 42)
-    assert_eq(loc(), 1, numbers.len)
+    assert_eq(loc(), 1, numbers.len())
 
     push_value(numbers, 84)
-    assert_eq(loc(), 2, numbers.len)
+    assert_eq(loc(), 2, numbers.len())
 
     mut val0 := 0
     numbers.get(0, val0)

@@ -1805,12 +1805,12 @@ impl Context {
         };
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
 
-        // Set len field (required for both Array and Vec)
+        // Set _len field (required for both Array and Vec)
         let len_bytes = len.to_ne_bytes();
-        if let Some(len_offset) = self.arena_index.get(&format!("{}.len", name)) {
+        if let Some(len_offset) = self.arena_index.get(&format!("{}._len", name)) {
             Arena::g().memory[*len_offset..*len_offset+8].copy_from_slice(&len_bytes);
         } else {
-            return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .len field offset")))
+            return Err(e.lang_error("context", &format!("ERROR: insert_array: missing ._len field offset")))
         }
 
         // Set cap field (only exists in Vec, not in Array)
