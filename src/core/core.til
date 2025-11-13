@@ -1,6 +1,7 @@
 mode lib
 
 import("src/core/constants")
+import("src/core/introspection")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 

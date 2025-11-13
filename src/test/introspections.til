@@ -1,0 +1,157 @@
+mode test
+
+// Test Introspection.has_const() - checking for associated functions (consts that are functions)
+test_has_const_clone := proc() {
+    // Vec should have clone() as an associated function
+    if not(Introspection.has_const("Vec", "clone")) {
+        panic(loc(), "Expected Vec to have clone() const")
+    }
+
+    // Str should have clone() as an associated function
+    if not(Introspection.has_const("Str", "clone")) {
+        panic(loc(), "Expected Str to have clone() const")
+    }
+
+    // Array should have clone() as an associated function
+    if not(Introspection.has_const("Array", "clone")) {
+        panic(loc(), "Expected Array to have clone() const")
+    }
+
+    // List should have clone() as an associated function
+    if not(Introspection.has_const("List", "clone")) {
+        panic(loc(), "Expected List to have clone() const")
+    }
+
+    // Map should have clone() as an associated function
+    if not(Introspection.has_const("Map", "clone")) {
+        panic(loc(), "Expected Map to have clone() const")
+    }
+}
+test_has_const_clone()
+
+// Test Introspection.has_const() - checking for struct constants
+test_has_const_constants := proc() {
+    // Vec should have INIT_CAP and MAX_CAP constants
+    if not(Introspection.has_const("Vec", "INIT_CAP")) {
+        panic(loc(), "Expected Vec to have INIT_CAP const")
+    }
+
+    if not(Introspection.has_const("Vec", "MAX_CAP")) {
+        panic(loc(), "Expected Vec to have MAX_CAP const")
+    }
+
+    // Vec should also have new, len, size, etc. as consts (associated functions)
+    if not(Introspection.has_const("Vec", "new")) {
+        panic(loc(), "Expected Vec to have new const")
+    }
+
+    if not(Introspection.has_const("Vec", "len")) {
+        panic(loc(), "Expected Vec to have len const")
+    }
+
+    if not(Introspection.has_const("Vec", "size")) {
+        panic(loc(), "Expected Vec to have size const")
+    }
+}
+test_has_const_constants()
+
+// Test Introspection.has_const() - negative cases
+test_has_const_negative := proc() {
+    // Vec should NOT have a const called "nonexistent"
+    if Introspection.has_const("Vec", "nonexistent") {
+        panic(loc(), "Expected Vec to NOT have 'nonexistent' const")
+    }
+
+    // Vec._len is a mutable field, not a const
+    if Introspection.has_const("Vec", "_len") {
+        panic(loc(), "Expected Vec._len to NOT be a const (it's mutable)")
+    }
+
+    // Nonexistent type should return false
+    if Introspection.has_const("NonexistentType", "anything") {
+        panic(loc(), "Expected nonexistent type to return false")
+    }
+}
+test_has_const_negative()
+
+// Test Introspection.has_field() - checking for mutable fields
+test_has_field_vec := proc() {
+    // Vec should have these mutable fields
+    if not(Introspection.has_field("Vec", "type_name")) {
+        panic(loc(), "Expected Vec to have type_name field")
+    }
+
+    if not(Introspection.has_field("Vec", "type_size")) {
+        panic(loc(), "Expected Vec to have type_size field")
+    }
+
+    if not(Introspection.has_field("Vec", "ptr")) {
+        panic(loc(), "Expected Vec to have ptr field")
+    }
+
+    if not(Introspection.has_field("Vec", "_len")) {
+        panic(loc(), "Expected Vec to have _len field")
+    }
+
+    if not(Introspection.has_field("Vec", "cap")) {
+        panic(loc(), "Expected Vec to have cap field")
+    }
+}
+test_has_field_vec()
+
+// Test Introspection.has_field() - checking Str fields
+test_has_field_str := proc() {
+    // Str should have these mutable fields
+    if not(Introspection.has_field("Str", "c_string")) {
+        panic(loc(), "Expected Str to have c_string field")
+    }
+
+    if not(Introspection.has_field("Str", "cap")) {
+        panic(loc(), "Expected Str to have cap field")
+    }
+}
+test_has_field_str()
+
+// Test Introspection.has_field() - negative cases
+test_has_field_negative := proc() {
+    // Vec should NOT have a field called "nonexistent"
+    if Introspection.has_field("Vec", "nonexistent") {
+        panic(loc(), "Expected Vec to NOT have 'nonexistent' field")
+    }
+
+    // Vec.clone is a const (function), not a mutable field
+    if Introspection.has_field("Vec", "clone") {
+        panic(loc(), "Expected Vec.clone to NOT be a field (it's a const)")
+    }
+
+    // Vec.INIT_CAP is a const, not a mutable field
+    if Introspection.has_field("Vec", "INIT_CAP") {
+        panic(loc(), "Expected Vec.INIT_CAP to NOT be a field (it's a const)")
+    }
+
+    // Nonexistent type should return false
+    if Introspection.has_field("NonexistentType", "anything") {
+        panic(loc(), "Expected nonexistent type to return false")
+    }
+}
+test_has_field_negative()
+
+// Test that has_const and has_field are mutually exclusive
+test_mutual_exclusion := proc() {
+    // clone is a const, not a field
+    if not(Introspection.has_const("Vec", "clone")) {
+        panic(loc(), "Expected clone to be a const")
+    }
+    if Introspection.has_field("Vec", "clone") {
+        panic(loc(), "Expected clone to NOT be a field")
+    }
+
+    // _len is a field, not a const
+    if not(Introspection.has_field("Vec", "_len")) {
+        panic(loc(), "Expected _len to be a field")
+    }
+    if Introspection.has_const("Vec", "_len") {
+        panic(loc(), "Expected _len to NOT be a const")
+    }
+}
+test_mutual_exclusion()

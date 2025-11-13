@@ -1979,6 +1979,8 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "print_flush" => ext::proc_print_flush(context, &e),
         "readfile" => ext::proc_readfile(context, &e),
         "runfile" => ext::proc_runfile(context, &e),
+        "has_const" => ext::func_has_const(context, &e),
+        "has_field" => ext::func_has_field(context, &e),
         _ => {
             if is_proc {
                 Err(e.lang_error("eval", &format!("Core procedure '{}' not implemented.", name)))

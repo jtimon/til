@@ -1,0 +1,27 @@
+mode lib
+
+// Introspection - Runtime type information utilities
+//
+// This struct acts as a namespace (has no mutable fields).
+// It provides functions to query type information at runtime.
+
+Introspection := struct {
+    // No mutable fields - this is purely a namespace
+
+    // Check if a type has a specific const (immutable field)
+    // This includes associated functions like clone, len, size, etc.
+    // Returns true if the const exists, false otherwise
+    has_const := ext_func(type_name: Str, const_name: Str) returns Bool;
+
+    // Check if a type has a specific mutable field
+    // Returns true if the field exists, false otherwise
+    has_field := ext_func(type_name: Str, field_name: Str) returns Bool;
+
+    // TODO: Future functions to implement:
+    // get_consts := ext_func(type_name: Str) returns Vec;
+    // get_fields := ext_func(type_name: Str) returns Vec;
+    // get_field_type := ext_func(type_name: Str, field_name: Str) returns Str;
+    // is_struct := ext_func(type_name: Str) returns Bool;
+    // is_enum := ext_func(type_name: Str) returns Bool;
+    // type_exists := ext_func(type_name: Str) returns Bool;
+}
