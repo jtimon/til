@@ -48,7 +48,15 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - For-loop ranges: store len() result in local variable (e.g., `mut args_len := args.len()`)
   - Bug #25 FIXED: Method resolution now works correctly (e.g., `s.items.len().eq(0)`)
   - All tests pass (exit code 0)
-  - Future work: Add len() and size() methods to Map and Str types
+  - Added len() and size() to Map (renamed Map.size field to Map._size to avoid conflict)
+  - INCONSISTENCY: Field naming is inconsistent across types:
+    - Vec, Array, List use: mut _len (with underscore prefix)
+    - Map uses: mut _size (with underscore prefix, renamed from 'size')
+    - Vec, Array use: mut cap (no underscore)
+    - Bool, U8 use: mut data (no underscore)
+    - Str uses: mut c_string, mut cap (no underscores)
+  - TODO: Consider standardizing all internal fields to use _ prefix consistently
+  - Reason for inconsistency: Incremental development, avoiding breaking changes
 
 * Notes
 

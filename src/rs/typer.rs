@@ -1278,7 +1278,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         }
     }
 
-    // Check if collection-like structs have mandatory len() method
+    // Check if collection-like structs have mandatory len() and size() methods
     // A struct is considered collection-like if it has push/get/set/insert methods
     // Note: delete() is excluded as it's a cleanup method, not a collection operation
     let has_push = struct_def.get_member("push").is_some();
@@ -1314,6 +1314,38 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 "Collection-like struct '{}' has {} method(s) but no len() method.\n\
                  Reason: Collection types must provide a way to query their size.\n\
                  Suggestion: add 'len := func(self: {}) returns I64 {{ ... }}' to struct '{}'.",
+                struct_name, methods.join("/"), struct_name, struct_name
+            )));
+        }
+
+        // Also check for size() method (returns size in bytes)
+        let has_size = struct_def.get_member("size")
+            .map(|decl| !decl.is_mut)
+            .unwrap_or(false);
+
+        if !has_size {
+            let struct_name = e.params.get(0)
+                .and_then(|param| {
+                    if let NodeType::Identifier(name) = &param.node_type {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("unknown");
+
+            let methods: Vec<&str> = vec![
+                if has_push { Some("push()") } else { None },
+                if has_get { Some("get()") } else { None },
+                if has_set { Some("set()") } else { None },
+                if has_insert { Some("insert()") } else { None },
+            ].into_iter().filter_map(|x| x).collect();
+
+            errors.push(e.error(&context.path, "type", &format!(
+                "Collection-like struct '{}' has {} method(s) but no size() method.\n\
+                 Reason: Collection types must provide their size in bytes.\n\
+                 Suggestion: add 'size := func(self: {}) returns I64 {{ ... }}' to struct '{}'.\n\
+                 Note: size() should return the total size in bytes, not element count (use len() for that).",
                 struct_name, methods.join("/"), struct_name, struct_name
             )));
         }

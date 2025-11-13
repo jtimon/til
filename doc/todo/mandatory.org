@@ -111,6 +111,71 @@ Map := struct {
 - ✅ Bool (src/core/core.til:286)
 - ✅ U8 (src/core/core.til:351)
 
+** size() - Required for Collection Types
+
+*** When Required
+Types that implement collection-like methods (push/get/set/insert) must implement size().
+
+*** Implementation Location
+- Type checker: src/rs/typer.rs (lines 1321-1351, in check_struct_def function)
+- Check happens during struct definition validation
+
+*** Detection Heuristic
+Same as len() - a struct is considered "collection-like" if it has any of:
+- push() method
+- get() method
+- set() method
+- insert() method
+
+Note: delete() is excluded as it's a cleanup method, not a collection operation.
+
+*** Error Message Format
+"Collection-like struct 'TypeName' has push()/get() methods but no size() method.
+ Reason: Collection types must provide their size in bytes.
+ Suggestion: add 'size := func(self: TypeName) returns I64 { ... }' to struct 'TypeName'.
+ Note: size() should return the total size in bytes, not element count (use len() for that)."
+
+*** Signature
+#+BEGIN_SRC til
+size := func(self: TypeName) returns I64
+#+END_SRC
+
+Note: size() returns the total size in **bytes**, not element count. For element count, use len().
+
+*** Example Implementations
+#+BEGIN_SRC til
+Vec := struct {
+    mut _len : I64 = 0
+    mut type_size : I64 = 0
+
+    size := func(self: Vec) returns I64 {
+        return mul(self._len, self.type_size)
+    }
+}
+
+Map := struct {
+    mut _size : I64 = 0
+    mut key_type_size : I64 = 0
+    mut value_type_size : I64 = 0
+
+    size := func(self: Map) returns I64 {
+        mut keys_size := mul(self._size, self.key_type_size)
+        mut values_size := mul(self._size, self.value_type_size)
+        return add(keys_size, values_size)
+    }
+}
+#+END_SRC
+
+*** Types That Already Comply
+- ✅ Vec (src/core/core.til:630)
+- ✅ Array (src/core/core.til:552)
+- ✅ List (src/core/core.til:1072)
+- ✅ Map (src/core/core.til:1036) - added in Phase 3
+
+*** Notable Changes
+- Map.size field renamed to Map._size to avoid conflict with size() method
+- Documented field naming inconsistency in doc/todo/pre.org
+
 * Implementation Status
 
 ** Phase 1: clone() for copy parameters ✅
@@ -125,13 +190,20 @@ Map := struct {
 - [X] Create test for missing len() error (src/test/tmp/test_len_mandatory.til)
 - [X] Verify all existing types pass
 - [X] Update this documentation
+- [X] Commit changes (09cace7)
+
+** Phase 3: size() for collection types ✅
+- [X] Add check in typer.rs check_struct_def function (lines 1321-1351)
+- [X] Add size() method to Map (renamed Map.size field to Map._size)
+- [X] Create test for missing size() error (src/test/tmp/test_size_mandatory.til)
+- [X] Verify all existing types pass
+- [X] Update this documentation
+- [X] Document field naming inconsistency in doc/todo/pre.org
 - [X] Commit changes
 
-** Future: size() for arena-allocated types
-- [ ] Research where arena allocation checks should occur
-- [ ] Determine which types need size()
-- [ ] Implement incremental checking
-- [ ] Document requirements
+** Future: Additional mandatory methods
+- [ ] Consider other methods that should be mandatory
+- [ ] Evaluate need for size() enforcement beyond collections
 
 * Notes
 

@@ -765,7 +765,7 @@ Map := struct {
     mut value_type_size: I64 = 0      // from size_of(ValueType)
     mut keys: Vec = Vec()         // Dynamic array of keys
     mut values: Vec = Vec()       // Dynamic array of values (parallel)
-    mut size: I64 = 0                 // Number of entries
+    mut _size: I64 = 0                // Number of entries (internal, use len() to access)
 
     // Create new empty map with specified key and value types
     // Example: Map.new(Str, I64)
@@ -778,7 +778,7 @@ Map := struct {
         // Can't pass Dynamic params to Vec.new(), so use type info directly
         m.keys = Vec.new_from_type_info(m.key_type_name, m.key_type_size)
         m.values = Vec.new_from_type_info(m.value_type_name, m.value_type_size)
-        m.size = 0
+        m._size = 0
         return m
     }
 
@@ -789,7 +789,7 @@ Map := struct {
         // Check if key already exists
         mut i := 0
         mut keys_arr := self.keys
-        while lt(i, self.size) {
+        while lt(i, self._size) {
             // Special case for Str keys: compare content, not struct bytes
             mut keys_match := 0
             if Str.eq(self.key_type_name, "Str") {
@@ -850,7 +850,7 @@ Map := struct {
         values_arr._len = add(values_arr._len, 1)
         self.values = values_arr
 
-        self.size = add(self.size, 1)
+        self._size = add(self._size, 1)
     }
 
     // Set key-value pair
@@ -860,7 +860,7 @@ Map := struct {
         // Try to find existing key
         mut i := 0
         mut keys_arr := self.keys
-        while lt(i, self.size) {
+        while lt(i, self._size) {
             // Special case for Str keys: compare content, not struct bytes
             mut keys_match := 0
             if Str.eq(self.key_type_name, "Str") {
@@ -918,7 +918,7 @@ Map := struct {
         values_arr._len = add(values_arr._len, 1)
         self.values = values_arr
 
-        self.size = add(self.size, 1)
+        self._size = add(self._size, 1)
     }
 
     // Get value for given key
@@ -927,7 +927,7 @@ Map := struct {
     get := proc(self: Map, key: Dynamic, mut dest: Dynamic) throws KeyNotFoundError {
         mut i := 0
         mut keys_arr := self.keys
-        while lt(i, self.size) {
+        while lt(i, self._size) {
             // Special case for Str keys: compare content, not struct bytes
             mut keys_match := 0
             if Str.eq(self.key_type_name, "Str") {
@@ -965,7 +965,7 @@ Map := struct {
     contains_key := proc(self: Map, key: Dynamic) returns Bool {
         mut i := 0
         mut keys_arr := self.keys
-        while lt(i, self.size) {
+        while lt(i, self._size) {
             // Special case for Str keys: compare content, not struct bytes
             mut keys_match := 0
             if Str.eq(self.key_type_name, "Str") {
@@ -999,7 +999,7 @@ Map := struct {
     position := proc(self: Map, key: Dynamic) returns I64 {
         mut i := 0
         mut keys_arr := self.keys
-        while lt(i, self.size) {
+        while lt(i, self._size) {
             // Special case for Str keys: compare content, not struct bytes
             mut keys_match := 0
             if Str.eq(self.key_type_name, "Str") {
@@ -1029,7 +1029,14 @@ Map := struct {
 
     // Get number of entries in map
     len := proc(self: Map) returns I64 {
-        return self.size
+        return self._size
+    }
+
+    // Get total size in bytes (keys + values)
+    size := func(self: Map) returns I64 {
+        mut keys_size := mul(self._size, self.key_type_size)
+        mut values_size := mul(self._size, self.value_type_size)
+        return add(keys_size, values_size)
     }
 
     // Free map memory and reset
@@ -1040,7 +1047,7 @@ Map := struct {
         mut values_arr := self.values
         values_arr.delete()
 
-        self.size = 0
+        self._size = 0
     }
 
     clone := func(self: Map) returns Map throws AllocError {
@@ -1051,7 +1058,7 @@ Map := struct {
         cloned.value_type_size = self.value_type_size
         cloned.keys = self.keys.clone()
         cloned.values = self.values.clone()
-        cloned.size = self.size
+        cloned._size = self._size
         return cloned
     }
 }
