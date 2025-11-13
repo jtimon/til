@@ -1,0 +1,148 @@
+#+TITLE: Field Offset Calculation Refactor - WIP
+#+DATE: 2025-11-13
+#+AUTHOR: Claude
+
+* Current Goal
+
+Fixing Issue #1 from doc/todo/techdebt.org: Field Registration.
+
+Reduce arena_index from O(n×f) to O(v) entries where:
+- n = number of struct instances
+- f = fields per struct (including nested)
+- v = number of variables
+
+**Current**: Vec instance creates 8 arena_index entries
+**Target**: Vec instance creates 1 arena_index entry
+
+* Approach
+
+1. ✅ Add helper functions to calculate field offsets dynamically from StructDef
+2. ✅ Update all getters to use dynamic offset calculation
+3. ✅ Update all setters to use dynamic offset calculation
+4. ⚠️ Add initialization for nested struct default values (BLOCKED)
+5. TODO: Remove map_instance_fields() calls (3 locations)
+6. TODO: Stop creating individual field entries in arena_index
+
+* Progress
+
+** ✅ DONE: Add Helper Functions
+
+Added two new functions to init.rs:
+- ~calculate_field_offset(instance_name, field_path, e)~ - Lines 1197-1266
+- ~get_field_offset(dotted_name, e)~ - Lines 1275-1301
+
+These calculate field offsets dynamically from StructDef instead of pre-registering them.
+
+** ✅ DONE: Refactor Getters
+
+Updated all getter functions to use ~get_field_offset()~:
+- ~get_i64()~ - line 893
+- ~get_u8()~ - line 925
+- ~get_bool()~ - line 955
+- ~get_string()~ - lines 1464-1465
+
+** ✅ DONE: Refactor Setters
+
+Updated all setter functions to use ~get_field_offset()~:
+- ~insert_i64()~ field case - line 907
+- ~insert_u8()~ field case - line 937
+- ~insert_bool()~ field case - line 975
+- ~insert_string()~ field case - line 1511
+- ~insert_array()~ Vec/Array fields - lines 1901, 1906, 1910, 1917, 1935
+
+** ⚠️ BLOCKED: Nested Struct Initialization
+
+Added ~initialize_nested_struct_fields()~ helper (lines 1298-1391) to initialize nested struct fields in-place.
+
+**CURRENTLY DISABLED** due to mysterious test failure:
+- ufcs.til:304 fails with "Could not find function definition" for I64.eq()
+- Error is in TYPER, not interpreter
+- Happens even when initialize_nested_struct_fields is completely disabled
+- Problem is in the OTHER changes (getters/setters/helpers)
+
+*** Debug Investigation
+
+With calculate_field_offset disabled:
+- Fails at ufcs.til:300: "Field 's.items.len' not found"
+
+With calculate_field_offset enabled:
+- Passes line 300: ~items_len := s.items.len~ ✅
+- Fails line 304: ~len_check := s.items.len.eq(0)~ ❌ "Could not find function definition"
+
+The field access works, but method resolution on the result fails!
+
+This is strange because:
+1. It's a TYPER error, not interpreter error
+2. My changes are to interpreter/context, not typer
+3. I64.eq IS defined in core.til:348
+4. Same code works when ufcs.til is run directly on baseline
+
+* Current Git Diff
+
+Key changes to src/rs/init.rs:
+
+1. **get_i64()** - Lines 892-899: Use get_field_offset() instead of arena_index lookup
+2. **insert_i64()** - Lines 907-918: Use get_field_offset() for field writes
+3. **get_u8()** - Lines 924-928: Use get_field_offset()
+4. **insert_u8()** - Lines 937-948: Use get_field_offset()
+5. **get_bool()** - Lines 954-960: Use get_field_offset()
+6. **insert_bool()** - Lines 975-986: Use get_field_offset()
+7. **get_string()** - Lines 1464-1465: Use get_field_offset()
+8. **insert_string()** - Line 1511: Use get_field_offset()
+9. **insert_array()** - Multiple uses of get_field_offset()
+
+10. **NEW: calculate_field_offset()** - Lines 1197-1266:
+    - Parses dotted field paths (e.g., "outer.inner.x")
+    - Walks StructDef to compute offsets
+    - Returns absolute arena offset
+
+11. **NEW: get_field_offset()** - Lines 1275-1301:
+    - Wrapper around calculate_field_offset()
+    - Fallback to arena_index for Dynamic types
+    - Handles both simple vars and field paths
+
+12. **NEW: initialize_nested_struct_fields()** - Lines 1298-1391:
+    - CURRENTLY DISABLED (returns Ok() immediately)
+    - Would recursively initialize nested struct defaults in-place
+    - Handles U8, I64, enums, Str, and nested structs
+
+* Issue Encountered
+
+**Bug #25** documented in doc/todo/bugs.org:
+- ufcs.til test fails with "Could not find function definition"
+- Only happens when my changes are active
+- Even with initialize_nested_struct_fields completely disabled
+- Typer cannot find I64.eq method at line 304
+- BUT field access at line 300 works fine
+- Something about the changes breaks method resolution in the typer
+
+* Next Steps
+
+Need to:
+1. Understand why getters/setters using get_field_offset breaks typer
+2. Fix the typer issue
+3. Re-enable initialize_nested_struct_fields()
+4. Run full test suite
+5. Remove map_instance_fields() calls
+6. Remove field entry creation in arena_index
+7. Commit the completed refactor
+
+* Files Modified
+
+- src/rs/init.rs - Major refactoring of field access
+- doc/todo/bugs.org - Documented Bug #25
+- doc/todo/next_issue_num.txt - Incremented to 26
+
+* Test Status
+
+With current changes (init function disabled):
+- All tests before ufcs.til pass
+- ufcs.til fails at line 304
+- Baseline passes all tests including ufcs.til
+
+The changes work correctly for:
+- Simple field access (getters work)
+- Field writes (setters work)
+- Nested field paths (calculate_field_offset works)
+
+But something breaks the typer's method resolution.

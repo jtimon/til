@@ -8,7 +8,56 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #25: Variable Declarations Share Arena Offsets Instead of Copying :FIXED:
+** Bug #25: Field offset refactor breaks typer method resolution :OPEN:
+:PROPERTIES:
+:DISCOVERED: 2025-11-13
+:IMPACT: Blocks field registration refactor
+:STATUS: Open - introduced by WIP changes
+:END:
+
+*** Description
+When refactoring getters/setters to use dynamic field offset calculation (get_field_offset()), the typer fails to find I64.eq method at ufcs.til:304.
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+// In ufcs.til line 300 - this WORKS:
+items_len := s.items.len
+
+// In ufcs.til line 304 - this FAILS:
+len_check := s.items.len.eq(0)  // Error: "Could not find function definition"
+#+END_EXAMPLE
+
+The field access works, but method resolution on the result fails!
+
+*** Root Cause
+Unknown. Very strange because:
+1. It's a TYPER error, not interpreter error
+2. The refactor only changes interpreter/context code
+3. I64.eq IS defined in core.til:348
+4. Field access (line 300) works fine
+5. Only method call on the field result (line 304) fails
+
+*** Investigation
+With calculate_field_offset disabled:
+- Fails at line 300: "Field 's.items.len' not found" (expected)
+
+With calculate_field_offset enabled:
+- Passes line 300: Field access works ✅
+- Fails line 304: Method resolution fails ❌
+
+The changes that trigger this:
+- Updated get_i64(), get_u8(), get_bool(), get_string() to use get_field_offset()
+- Updated insert_i64(), insert_u8(), insert_bool(), insert_string(), insert_array() to use get_field_offset()
+- Added calculate_field_offset() and get_field_offset() helpers
+
+*** Next Steps
+Need to understand:
+1. Why does interpreter code affect typer behavior?
+2. Is core.til being interpreted during initialization?
+3. Is there some interaction between field access and method resolution?
+4. Could this be related to how eval_expr() is called?
+
+** Bug #24: Variable Declarations Share Arena Offsets Instead of Copying :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-12
 :FIXED: 2025-11-12
