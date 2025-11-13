@@ -1233,6 +1233,21 @@ impl Context {
         }
 
         if let Some(struct_def) = self.struct_defs.get(type_name) {
+            // Check if struct has size() method (associated function)
+            // If it does, ideally we'd use TIL's implementation, but we need an instance
+            let has_size = struct_def.get_member("size")
+                .map(|decl| !decl.is_mut)
+                .unwrap_or(false);
+
+            if has_size {
+                // TODO: Type has size() method - ideally call TIL's implementation
+                // But get_type_size() asks for type's struct size (for field offsets),
+                // while instance.size() returns data size (which varies per instance)
+                // For now, fall through to calculate struct field size
+                // Consider: should we even be using get_type_size for collection types?
+            }
+
+            // Fallback: Calculate size of struct's fields manually
             let mut total_size = 0;
 
             for (field_name, decl) in &struct_def.members {

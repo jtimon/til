@@ -205,6 +205,32 @@ Map := struct {
 - [ ] Consider other methods that should be mandatory
 - [ ] Evaluate need for size() enforcement beyond collections
 
+* Moving Functionality from Rust to TIL
+
+** Semantic Difference: sizeof vs instance.size()
+
+There are two different concepts of "size" in the system:
+
+*** Struct Size (sizeof / get_type_size)
+- **What**: Size of the struct's fields in memory
+- **Where**: Rust's get_type_size() in src/rs/init.rs
+- **Used for**: Field offset calculation, memory layout
+- **Example**: Vec struct has 5 I64 fields = 40 bytes total
+- **Constant**: Same for all instances of the type
+
+*** Data Size (instance.size())
+- **What**: Size of data the instance currently holds
+- **Where**: TIL's size() method (mandatory for collections)
+- **Used for**: Knowing how much data is stored
+- **Example**: Vec with 10 I64 elements has size = 80 bytes
+- **Variable**: Differs per instance based on contents
+
+*** Current Status
+- Added check in get_type_size() to detect if type has size() method (lines 1236-1248)
+- TODO comment explains we can't directly use TIL's size() for struct size calculation
+- Kept Rust fallback for calculating struct field sizes
+- For now, these remain separate concepts with different purposes
+
 * Notes
 
 - Enforcement uses introspection (has_const) to check for method existence

@@ -251,3 +251,59 @@ test_struct_member_types := proc() {
     // }
 }
 test_struct_member_types()
+
+// Test that "self" is just a convention - associated functions can use any parameter name
+// and can be called either as Type.function(instance) or instance.function()
+TestAssociatedFunctions := struct {
+    mut value: I64 = 0
+
+    // Using "self" as parameter name (conventional)
+    get_value_self := func(self: TestAssociatedFunctions) returns I64 {
+        return self.value
+    }
+
+    // Using "urmum" as parameter name (unconventional but valid)
+    get_value_urmum := func(urmum: TestAssociatedFunctions) returns I64 {
+        return urmum.value
+    }
+
+    // Using "instance" as parameter name
+    get_value_instance := func(instance: TestAssociatedFunctions) returns I64 {
+        return instance.value
+    }
+
+    // Type parameter doesn't have to be first - but then UFCS won't work for it
+    add_with_instance_last := func(amount: I64, instance: TestAssociatedFunctions) returns I64 {
+        return add(instance.value, amount)
+    }
+
+    // Type parameter in the middle
+    add_with_instance_middle := func(amount1: I64, instance: TestAssociatedFunctions, amount2: I64) returns I64 {
+        return add(add(instance.value, amount1), amount2)
+    }
+}
+
+test_associated_function_names := proc() {
+    mut obj := TestAssociatedFunctions()
+    obj.value = 42
+
+    // All of these work the same way with UFCS (dot syntax)
+    assert_eq(loc(), 42, obj.get_value_self())
+    assert_eq(loc(), 42, obj.get_value_urmum())
+    assert_eq(loc(), 42, obj.get_value_instance())
+
+    // All of these work when called as Type.function(instance)
+    assert_eq(loc(), 42, TestAssociatedFunctions.get_value_self(obj))
+    assert_eq(loc(), 42, TestAssociatedFunctions.get_value_urmum(obj))
+    assert_eq(loc(), 42, TestAssociatedFunctions.get_value_instance(obj))
+
+    // UFCS only works when the instance type matches the FIRST parameter
+    // These DON'T work with UFCS because instance is not first:
+    // assert_eq(loc(), 52, obj.add_with_instance_last(10))       // ERROR: would pass obj as first arg (amount), not instance
+    // assert_eq(loc(), 52, obj.add_with_instance_middle(5, 5))   // ERROR: would pass obj as first arg (amount1), not instance
+
+    // But we can still call them the long way (Type.function(args))
+    assert_eq(loc(), 52, TestAssociatedFunctions.add_with_instance_last(10, obj))
+    assert_eq(loc(), 52, TestAssociatedFunctions.add_with_instance_middle(5, obj, 5))
+}
+test_associated_function_names()
