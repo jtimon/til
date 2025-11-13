@@ -101,13 +101,13 @@ test_map_str_to_array_str := proc() {
 
     mut arr := Array()
     lists.get("fruits", arr)
-    test(loc(), arr.len.eq(3), "fruits array should have 3 elements")
+    test(loc(), arr.len().eq(3), "fruits array should have 3 elements")
     mut item := ""
     arr.get(0, item)
     test(loc(), item.eq("apple"), "fruits[0] should be apple")
 
     lists.get("colors", arr)
-    test(loc(), arr.len.eq(3), "colors array should have 3 elements")
+    test(loc(), arr.len().eq(3), "colors array should have 3 elements")
     arr.get(0, item)
     test(loc(), item.eq("red"), "colors[0] should be red")
 

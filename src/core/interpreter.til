@@ -279,7 +279,7 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
 
     // Get the initializer expression (params[0])
     mut params_array := e.params
-    if lt(params_array.len, 1) {
+    if lt(params_array.len(), 1) {
         throw format(loc(), " ERROR: Declaration of '", decl.name, "' has no initializer expression")
     }
 
@@ -338,7 +338,7 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
 
     // Get the value expression (params[0])
     mut params_array := e.params
-    if lt(params_array.len, 1) {
+    if lt(params_array.len(), 1) {
         throw format(loc(), " ERROR: Assignment to '", var_name, "' has no value expression")
     }
 
@@ -373,7 +373,8 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
 // Helper: evaluate println function
 eval_println := proc(mut context: Context, params: Array) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     // Print each argument (skip params[0] which is the function name)
-    for i in 1..params.len {
+    mut params_len := params.len()()
+    for i in 1..params_len {
         mut arg_expr := Expr()
         params.get(i, arg_expr)
 
@@ -390,7 +391,7 @@ eval_println := proc(mut context: Context, params: Array) returns Str throws Str
 eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     // Get function name from params[0]
     mut params_array := e.params
-    if lt(params_array.len, 1) {
+    if lt(params_array.len(), 1) {
         throw format(loc(), " ERROR: Function call has no function name")
     }
 
@@ -437,7 +438,7 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
     if node_type_full_str.eq("NodeType.Identifier(readfile)") {
         // For now, just call the external readfile function
         // TODO Phase 4: Full implementation
-        if lt(params_array.len, 2) {
+        if lt(params_array.len(), 2) {
             throw format(loc(), " ERROR: readfile requires 1 argument")
         }
         mut path_expr := Expr()
@@ -449,7 +450,7 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
     if node_type_full_str.eq("NodeType.Identifier(scan_tokens)") {
         // For now, just call the external scan_tokens function
         // TODO Phase 4: Full implementation - this should call the self-hosted lexer
-        if lt(params_array.len, 2) {
+        if lt(params_array.len(), 2) {
             throw format(loc(), " ERROR: scan_tokens requires 1 argument")
         }
         mut source_expr := Expr()
@@ -467,7 +468,7 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
 
 // Helper: evaluate binary I64 operations
 eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    if lt(params.len, 3) {
+    if lt(params.len(), 3) {
         throw format(loc(), " ERROR: ", op, " requires 2 arguments")
     }
 
@@ -512,7 +513,7 @@ eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns
 
 // Helper: evaluate comparison operations
 eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    if lt(params.len, 3) {
+    if lt(params.len(), 3) {
         throw format(loc(), " ERROR: ", op, " requires 2 arguments")
     }
 
@@ -556,7 +557,7 @@ eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns
 eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     // Get the statements array
     mut params_array := e.params
-    mut num_stmts := params_array.len
+    mut num_stmts := params_array.len()
 
     // Evaluate each statement in sequence
     mut i := 0

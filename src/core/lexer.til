@@ -485,13 +485,13 @@ Lexer := struct {
     }
 
     len := func(self: Lexer) returns I64 {
-        return self.tokens.len
+        return self.tokens.len()
     }
 
     is_eof := func(self: Lexer, offset: I64) returns Bool throws IndexOutOfBoundsError {
         current := self.current
         i := add(current, offset)
-        if gteq(i, self.tokens.len) {
+        if gteq(i, self.tokens.len()) {
             return true
         }
         mut t := Token()
@@ -521,7 +521,7 @@ Lexer := struct {
 
     peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         index := add(self.current, offset)
-        if gteq(index, self.tokens.len) {
+        if gteq(index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Peek ahead by ", I64.to_str(offset), " is out of bounds")
             throw err
@@ -542,7 +542,7 @@ Lexer := struct {
             throw err
         }
         index := sub(self.current, 1)
-        if gteq(index, self.tokens.len) {
+        if gteq(index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
             err.msg = "Previous token is out of bounds"
             throw err
@@ -554,10 +554,10 @@ Lexer := struct {
 
     advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         next_index := add(self.current, count)
-        if gt(next_index, self.tokens.len) {
+        if gt(next_index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Advance by ", I64.to_str(count), " from ", I64.to_str(self.current),
-                    " would exceed bounds (", I64.to_str(self.tokens.len), " tokens total)")
+                    " would exceed bounds (", I64.to_str(self.tokens.len()), " tokens total)")
             throw err
         }
         self.current = next_index
@@ -740,7 +740,8 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
 
 print_lex_errors := proc(tokens: Array, path: Str) returns I64 throws IndexOutOfBoundsError {
     mut errors_found := 0
-    for i in 0..tokens.len {
+    mut tokens_len := tokens.len()
+    for i in 0..tokens_len {
         mut t := Token()
         tokens.get(i, t)
         print_if_lex_error(path, t, errors_found)
@@ -754,7 +755,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
     tokens := scan_tokens(source)
     l.tokens = tokens
 
-    if I64.eq(tokens.len, 0) {
+    if I64.eq(tokens.len(), 0) {
         throw path.format(":1:0: compiler ERROR: End of file not found.")
     }
 

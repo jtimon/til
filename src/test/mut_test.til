@@ -29,12 +29,12 @@ test_mut_struct()
 test_mut_array := proc() {
     mut arr := Vec.new(I64)
 
-    assert_eq(loc(), 0, arr.len)
+    assert_eq(loc(), 0, arr.len())
     assert_eq(loc(), 16, arr.cap)
 
     arr.push(10)
 
-    assert_eq(loc(), 1, arr.len)
+    assert_eq(loc(), 1, arr.len())
 
     mut value := 0
     arr.get(0, value)

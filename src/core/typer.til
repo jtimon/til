@@ -17,13 +17,13 @@ check_types := proc(mut context: Context, e: Expr) returns Array throws Str, All
         // Recursively check all children
         mut params := e.params
         mut i := 0
-        while lt(i, params.len) {
+        while lt(i, params.len()) {
             mut stmt := Expr()
             params.get(i, stmt)
             mut stmt_errors := check_types(context, stmt)
             // Extend errors
             mut j := 0
-            while lt(j, stmt_errors.len) {
+            while lt(j, stmt_errors.len()) {
                 mut err_str := ""
                 stmt_errors.get(j, err_str)
                 errors.push(err_str)
@@ -80,13 +80,13 @@ check_types := proc(mut context: Context, e: Expr) returns Array throws Str, All
         // Recursively check all return values
         mut params := e.params
         mut i := 0
-        while lt(i, params.len) {
+        while lt(i, params.len()) {
             mut stmt := Expr()
             params.get(i, stmt)
             mut stmt_errors := check_types(context, stmt)
             // Extend errors
             mut j := 0
-            while lt(j, stmt_errors.len) {
+            while lt(j, stmt_errors.len()) {
                 mut err_str := ""
                 stmt_errors.get(j, err_str)
                 errors.push(err_str)
@@ -99,13 +99,13 @@ check_types := proc(mut context: Context, e: Expr) returns Array throws Str, All
         // Recursively check all throw values
         mut params := e.params
         mut i := 0
-        while lt(i, params.len) {
+        while lt(i, params.len()) {
             mut stmt := Expr()
             params.get(i, stmt)
             mut stmt_errors := check_types(context, stmt)
             // Extend errors
             mut j := 0
-            while lt(j, stmt_errors.len) {
+            while lt(j, stmt_errors.len()) {
                 mut err_str := ""
                 stmt_errors.get(j, err_str)
                 errors.push(err_str)
@@ -138,8 +138,8 @@ check_types := proc(mut context: Context, e: Expr) returns Array throws Str, All
 // Check if statement - condition must be Bool
 check_if_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // Must have 2 or 3 parameters (condition, then-body, optional else-body)
-    if e.params.len.ne(2) {
-        if e.params.len.ne(3) {
+    if e.params.len()().ne(2) {
+        if e.params.len()().ne(3) {
             throw e.exit_error("type", "if nodes must have 2 or 3 parameters.")
         }
     }
@@ -155,7 +155,7 @@ check_if_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOf
 
     // Recursively check all branches
     i := 0
-    while i.lt(e.params.len) {
+    while i.lt(e.params.len()()) {
         param := e.params.get(i)
         check_types(context, param)
         i = i.add(1)
@@ -175,7 +175,7 @@ check_fcall := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsE
         return
     case Option.Some(func_def):
         // Check argument count
-        num_args_provided := e.params.len.sub(1)
+        num_args_provided := e.params.len()().sub(1)
         num_args_expected := func_def.args.len
 
         if num_args_expected.eq(0) {
@@ -239,7 +239,7 @@ check_func_def := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoun
 // Check variable declaration
 check_declaration := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // Must have exactly 1 parameter (the value being assigned)
-    if e.params.len.ne(1) {
+    if e.params.len()().ne(1) {
         // Extract declaration to get name
         mut decl := Declaration()
         switch e.node_type {
@@ -291,7 +291,7 @@ check_declaration := proc(mut context: Context, e: Expr) throws Str, IndexOutOfB
 // Check assignment statement
 check_assignment := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // Must have exactly 1 parameter (the value being assigned)
-    if e.params.len.ne(1) {
+    if e.params.len()().ne(1) {
         // Extract var name
         mut var_name := ""
         switch e.node_type {
@@ -300,7 +300,7 @@ check_assignment := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBo
         case:
             throw e.exit_error("type", "check_assignment called on non-assignment node")
         }
-        throw e.exit_error("type", format("in assignment to ", var_name, ", assignments must take exactly one value, not ", e.params.len.to_str(), "."))
+        throw e.exit_error("type", format("in assignment to ", var_name, ", assignments must take exactly one value, not ", e.params.len()().to_str(), "."))
     }
 
     // Extract var name
@@ -362,7 +362,7 @@ check_identifier := proc(context: Context, e: Expr) throws Str {
 // Check while statement - condition must be Bool
 check_while_statement := proc(mut context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // Must have exactly 2 parameters (condition, body)
-    if e.params.len.ne(2) {
+    if e.params.len()().ne(2) {
         throw e.exit_error("type", "while nodes must have exactly 2 parameters.")
     }
 
@@ -377,7 +377,7 @@ check_while_statement := proc(mut context: Context, e: Expr) throws Str, IndexOu
 
     // Recursively check all params
     i := 0
-    while i.lt(e.params.len) {
+    while i.lt(e.params.len()()) {
         param := e.params.get(i)
         check_types(context, param)
         i = i.add(1)
@@ -387,7 +387,7 @@ check_while_statement := proc(mut context: Context, e: Expr) throws Str, IndexOu
 // Check range - both sides must be same type
 check_range := proc(context: Context, e: Expr) throws Str, IndexOutOfBoundsError {
     // Must have exactly 2 parameters (start, end)
-    if e.params.len.ne(2) {
+    if e.params.len()().ne(2) {
         throw e.lang_error("type", "Range expression must have exactly two elements")
     }
 

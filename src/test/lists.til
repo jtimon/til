@@ -12,7 +12,7 @@ test_list_new := proc() {
         exit(1)
     }
 
-    assert_eq(loc(), 0, list.len)
+    assert_eq(loc(), 0, list.len())
 
     list.delete()
 }
@@ -81,7 +81,7 @@ test_list_push_heterogeneous := proc() {
         exit(1)
     }
 
-    assert_eq(loc(), 3, list.len)
+    assert_eq(loc(), 3, list.len())
 
     list.delete()
 }
@@ -279,7 +279,7 @@ test_list_with_struct := proc() {
         exit(1)
     }
 
-    assert_eq(loc(), 3, list.len)
+    assert_eq(loc(), 3, list.len())
 
     // Get Vec2 at index 0
     mut result := Vec2()
@@ -315,7 +315,7 @@ test_list_len := proc() {
         exit(1)
     }
 
-    test(loc(), list.len.eq(0), "Empty list length")
+    test(loc(), list.len().eq(0), "Empty list length")
 
     list.push(I64, 1)
     list.push(I64, 2)
@@ -336,7 +336,7 @@ test_list_len := proc() {
         exit(1)
     }
 
-    test(loc(), list.len.eq(3), "List length after 3 pushes")
+    test(loc(), list.len().eq(3), "List length after 3 pushes")
 
     list.delete()
 }
@@ -406,7 +406,7 @@ test_list_multiple_pushes := proc() {
         exit(1)
     }
 
-    test(loc(), list.len.eq(10), "List holds 10 elements")
+    test(loc(), list.len().eq(10), "List holds 10 elements")
 
     // Verify values are correct
     mut val := 0
@@ -472,7 +472,7 @@ test_nested_lists := proc() {
         exit(1)
     }
 
-    assert_eq(loc(), 2, outer.len)
+    assert_eq(loc(), 2, outer.len())
 
     // Get the nested list
     mut retrieved_inner := List.new()
@@ -489,7 +489,7 @@ test_nested_lists := proc() {
         exit(1)
     }
 
-    test(loc(), retrieved_inner.len.eq(2), "Nested list length")
+    test(loc(), retrieved_inner.len().eq(2), "Nested list length")
 
     // Get value from nested list
     mut nested_val := 0
@@ -516,27 +516,27 @@ test_list_pop := proc() {
     stack.push(Bool, true)
     stack.push(I64, 42)
 
-    assert_eq(loc(), 4, stack.len)
+    assert_eq(loc(), 4, stack.len())
 
     // Pop in LIFO order
     mut i_val := 0
     stack.pop(i_val)
     assert_eq(loc(), 42, i_val)
-    assert_eq(loc(), 3, stack.len)
+    assert_eq(loc(), 3, stack.len())
 
     mut b_val := false
     stack.pop(b_val)
     test(loc(), b_val, "Popped bool value")
-    assert_eq(loc(), 2, stack.len)
+    assert_eq(loc(), 2, stack.len())
 
     mut s_val := ""
     stack.pop(s_val)
     test(loc(), s_val.eq("hello"), "Popped string value")
-    assert_eq(loc(), 1, stack.len)
+    assert_eq(loc(), 1, stack.len())
 
     stack.pop(i_val)
     assert_eq(loc(), 10, i_val)
-    assert_eq(loc(), 0, stack.len)
+    assert_eq(loc(), 0, stack.len())
 
     // Test popping from empty List - should throw
     stack.pop(i_val)

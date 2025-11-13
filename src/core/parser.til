@@ -124,12 +124,12 @@ Expr := struct {
     }
 
     get := func(self: Expr, i: I64) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
-        if i.lt(self.params.len) {
+        if i.lt(self.params.len()) {
             mut result := Expr()
             self.params.get(i, result)
             return result
         }
-        throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len.to_str(), ")."))
+        throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {
@@ -173,7 +173,7 @@ Expr := struct {
     params_clone := func(self: Expr) returns Vec throws AllocError, FullError, IndexOutOfBoundsError {
         mut cloned := Vec.new(Expr)
         mut i := 0
-        while i.lt(self.params.len) {
+        while i.lt(self.params.len()) {
             mut elem := Expr()
             self.params.get(i, elem)
             cloned.push(elem)
@@ -799,7 +799,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
     mut i := 0
-    while i.lt(body.params.len) {
+    while i.lt(body.params.len()) {
         mut p := Expr()
         body.params.get(i, p)
         nt := p.node_type
@@ -815,7 +815,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
         if is_declaration {
             members.push(decl)
 
-            if p.params.len.eq(1) {
+            if p.params.len().eq(1) {
                 mut val := Expr()
                 p.params.get(0, val)
                 default_values.insert(decl.name, val)
@@ -876,7 +876,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
         mut fcall_params := Vec.new(Expr)
         fcall_params.push(e)
         mut i := 0
-        while i.lt(arg_list.params.len) {
+        while i.lt(arg_list.params.len()) {
             mut arg := Expr()
             arg_list.params.get(i, arg)
             fcall_params.push(arg)
@@ -932,7 +932,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
                 mut j := 0
-                while j.lt(method_args.params.len) {
+                while j.lt(method_args.params.len()) {
                     mut method_arg := Expr()
                     method_args.params.get(j, method_arg)
                     new_params.push(method_arg)
@@ -961,7 +961,7 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
     }
 
     mut i := 0
-    while i.lt(e.params.len) {
+    while i.lt(e.params.len()) {
         mut p := Expr()
         e.params.get(i, p)
         pnt := p.node_type
@@ -976,7 +976,7 @@ get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError
     }
 
     // Remove the last '.'
-    to_return = to_return.substring(0, to_return.len.sub(1))
+    to_return = to_return.substring(0, to_return.len().sub(1))
     return to_return
 }
 
@@ -1314,7 +1314,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
         case NodeType.Identifier(name):
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
-            if e.params.len.eq(1) {
+            if e.params.len().eq(1) {
                 mut p0 := Expr()
                 e.params.get(0, p0)
                 p0nt := p0.node_type
@@ -1326,7 +1326,7 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
             return name
     }
     if ent.tag().eq(NodeType.FCall.tag()) {
-        if e.params.len.gte(1) {
+        if e.params.len().gte(1) {
             // For FCall, try to extract the function name
             mut p0_fcall := Expr()
             e.params.get(0, p0_fcall)
@@ -1359,7 +1359,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     // Check if node type is FCall using switch (tag() doesn't exist in TIL)
     switch lnt {
         case NodeType.FCall:
-            if left.params.len.eq(2) {
+            if left.params.len().eq(2) {
             // FCall params are: [function_name, arg1, arg2, ...]
             // For pattern matching, we expect: [variant_identifier, binding_identifier]
             // Note: variant_identifier might be a dotted name like "Color.Green" which could be
