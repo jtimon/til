@@ -1,0 +1,199 @@
+#+TITLE: Introspection System Plan
+#+AUTHOR: til Development
+#+DATE: 2025-01-13
+
+* Overview
+
+Introspection allows TIL programs to inspect type information and struct definitions at runtime. This enables metaprogramming capabilities and supports features like mandatory clone() checking in the typer.
+
+All introspection functionality will be provided through the Introspection "namespace" (a struct with no mutable fields used purely for namespacing).
+
+Location: src/core/introspection.til
+
+* Design
+
+** Namespace Pattern
+
+Instead of global functions, we use a struct as a namespace:
+
+#+BEGIN_SRC til
+Introspection := struct {
+    // No mut fields - this is purely a namespace
+
+    // Constants
+    SOME_CONST : I64 = 42
+
+    // Functions and procedures
+    has_method := func(type_name: Str, method_name: Str) returns Bool { ... }
+    get_methods := func(type_name: Str) returns Vec { ... }
+}
+#+END_SRC
+
+Usage:
+#+BEGIN_SRC til
+if Introspection.has_method("Vec", "clone") {
+    // ...
+}
+#+END_SRC
+
+* Required Functionality
+
+** Phase 1: Basic Const/Function Introspection
+
+*** has_const(type_name: Str, const_name: Str) returns Bool
+- Check if a struct type has a specific const (immutable field)
+- This includes associated functions like clone, len, size, etc.
+- Returns true if the const exists, false otherwise
+- Used by typer to check for mandatory clone()
+- Note: Associated functions are stored as immutable fields of type FuncDef
+
+*** get_consts(type_name: Str) returns Vec
+- Return a Vec of Str containing all const names for a type
+- This includes both regular constants (INIT_CAP, MAX_CAP) and associated functions
+- Useful for debugging and metaprogramming
+
+** Phase 2: Struct Field Introspection
+
+*** has_field(type_name: Str, field_name: Str) returns Bool
+- Check if a struct has a specific mutable field
+- Does NOT include immutable fields (use has_const for those)
+
+*** get_fields(type_name: Str) returns Vec
+- Return a Vec of Str containing all mutable field names
+- Does NOT include consts/associated functions
+
+*** get_field_type(type_name: Str, field_name: Str) returns Str
+- Return the type name of a specific mutable field
+- Throws error if field doesn't exist
+
+** Phase 3: Function Signature Introspection
+
+*** get_const_signature(type_name: Str, const_name: Str) returns FuncSignature
+- Return signature information for an associated function (const that is a FuncDef)
+- FuncSignature struct contains:
+  - return_type: Str
+  - param_types: Vec (of Str)
+  - param_names: Vec (of Str)
+  - is_proc: Bool
+- Note: This only works for consts that are functions, not all consts
+
+** Phase 4: Type Checking Utilities
+
+*** is_struct(type_name: Str) returns Bool
+- Check if a type is a struct
+
+*** is_enum(type_name: Str) returns Bool
+- Check if a type is an enum
+
+*** type_exists(type_name: Str) returns Bool
+- Check if a type is defined
+
+** Phase 5: Enum Introspection
+
+*** get_variants(enum_name: Str) returns Vec
+- Return all variant names for an enum
+
+*** has_variant(enum_name: Str, variant_name: Str) returns Bool
+- Check if an enum has a specific variant
+
+* Implementation Strategy
+
+** Step 1: Create introspection.til file
+- Define Introspection struct
+- Implement as external functions initially (ext_func)
+- Rust implementations in src/rs/init.rs or new src/rs/introspection.rs
+
+** Step 2: Implement has_const() for clone() checking
+- Add ext_func for has_const
+- Implement in Rust to query struct_defs (check for immutable fields)
+- Associated functions are stored as !decl.is_mut fields in struct_def.members
+- Use in typer to enforce clone() requirement
+
+** Step 3: Gradually add more introspection functions
+- Start with most useful ones (has_const, has_field, get_consts)
+- Add others as needed
+
+** Step 4: Consider pure TIL implementations
+- Some functions might be implementable in pure TIL
+- Others will need Rust ext_func support
+
+* Use Cases
+
+** Mandatory clone() Checking
+#+BEGIN_SRC til
+// In typer:
+if is_struct_argument && !Introspection.has_const(type_name, "clone") {
+    // Type error: struct must have clone() associated function
+}
+#+END_SRC
+
+** Generic Programming
+#+BEGIN_SRC til
+// Check if type supports a specific operation
+if Introspection.has_const(T, "to_string") {
+    println(obj.to_string())
+}
+#+END_SRC
+
+** Debugging Tools
+#+BEGIN_SRC til
+print_type_info := func(type_name: Str) {
+    println("Consts/Funcs: ", Introspection.get_consts(type_name))
+    println("Mutable Fields: ", Introspection.get_fields(type_name))
+}
+#+END_SRC
+
+** Serialization/Deserialization
+#+BEGIN_SRC til
+serialize := func(obj: Dynamic) returns Str {
+    mut type_name := type_as_str(obj)
+    mut fields := Introspection.get_fields(type_name)
+    // Iterate over fields and build JSON string
+}
+#+END_SRC
+
+* Notes
+
+- Introspection happens at runtime, not compile time
+- Type information is available from struct_defs in Context
+- Some introspection might be expensive - consider caching
+- Future: Consider compile-time introspection via macros
+
+* Implementation Notes
+
+** Struct Member Storage in Rust
+
+In the Rust implementation (src/rs/init.rs), struct definitions store members as:
+
+#+BEGIN_SRC rust
+pub struct StructDef {
+    pub members: HashMap<String, Declaration>,
+    pub default_values: HashMap<String, Expr>,
+}
+
+pub struct Declaration {
+    pub is_mut: bool,  // true for mutable fields, false for consts/funcs
+    pub value_type: ValueType,
+    // ...
+}
+#+END_SRC
+
+Associated functions (like `clone`, `len`, `size`) are stored as:
+- Members with `is_mut: false`
+- `value_type: ValueType::TFunction(...)`
+- Stored in struct_def.members alongside fields
+
+This means:
+- `has_const(type, name)` checks for members where `!is_mut`
+- `has_field(type, name)` checks for members where `is_mut`
+- Both check the same `struct_def.members` HashMap
+
+* TODO List
+
+- [ ] Create src/core/introspection.til with Introspection struct
+- [ ] Implement has_const() as ext_func in Rust
+- [ ] Implement has_field() as ext_func in Rust
+- [ ] Test has_const() with existing types (check for clone, len, size, etc.)
+- [ ] Update typer to use has_const() for clone() checking
+- [ ] Document introspection in language guide
+- [ ] Implement additional introspection functions as needed (get_consts, get_fields)
