@@ -26,7 +26,7 @@ TokenType := enum {
     Identifier, String, Number,
 
     // Reserved words:
-    Mut,
+    Mut, Copy, Own,
 
     // bool
     True,
@@ -122,6 +122,8 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "mode": return TokenType.Mode
         // declaration/arg modifiers
     case "mut": return TokenType.Mut
+    case "copy": return TokenType.Copy
+    case "own": return TokenType.Own
         // bool literals
     case "true": return TokenType.True
         // core data types
@@ -625,6 +627,8 @@ token_type_to_str := func(tt: TokenType) returns Str {
     case TokenType.Default: return "default"
     case TokenType.Case: return "case"
     case TokenType.Mut: return "mut"
+    case TokenType.Copy: return "copy"
+    case TokenType.Own: return "own"
     case TokenType.LeftParen: return "("
     case TokenType.RightParen: return ")"
     case TokenType.LeftBrace: return "{"
