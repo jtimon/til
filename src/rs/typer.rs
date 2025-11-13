@@ -983,10 +983,39 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         }
     } else if var_name.contains('.') {
         // Field access assignment where the field itself isn't registered in symbols
-        // Extract the base variable name to provide better error message
-        let base_var = var_name.split('.').next().unwrap();
-        if context.symbols.contains_key(base_var) {
-            errors.push(e.error(&context.path, "type", &format!("Cannot assign to '{}' (field may not exist or base is const)", var_name)));
+        // With dynamic offset calculation, we need to validate against struct definition
+        let parts: Vec<&str> = var_name.split('.').collect();
+        let base_var = parts[0];
+
+        if let Some(base_info) = context.symbols.get(base_var) {
+            // Check base mutability
+            if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
+                errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
+            }
+
+            // Validate field path exists in struct definition
+            let mut current_type = base_info.value_type.clone();
+            for field_name in &parts[1..] {
+                match current_type {
+                    ValueType::TCustom(ref type_name) => {
+                        if let Some(struct_def) = context.struct_defs.get(type_name) {
+                            if let Some((_, field_decl)) = struct_def.members.iter().find(|(name, _)| name == field_name) {
+                                current_type = field_decl.value_type.clone();
+                            } else {
+                                errors.push(e.error(&context.path, "type", &format!("Field '{}' not found in struct '{}'", field_name, type_name)));
+                                break;
+                            }
+                        } else {
+                            errors.push(e.error(&context.path, "type", &format!("Struct '{}' not found", type_name)));
+                            break;
+                        }
+                    },
+                    _ => {
+                        errors.push(e.error(&context.path, "type", &format!("Cannot access field '{}' on non-struct type", field_name)));
+                        break;
+                    }
+                }
+            }
         } else {
             errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", base_var)));
         }

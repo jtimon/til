@@ -1,19 +1,20 @@
 #+TITLE: Performance Technical Debt
 #+DATE: 2025-11-12
+#+UPDATED: 2025-11-13
 #+AUTHOR: TIL Development
 
 * Overview
 
 Two interconnected performance issues require attention before self-hosting:
 
-1. **Field Registration** (Issue 1) - O(n) arena_index entries per struct instance
+1. **Field Registration** (Issue 1) - COMPLETED 2025-11-13 ✓
 2. **Context Cloning** (Issue 2) - Unnecessary copying of global state on every function call
 
-**Critical ordering**: Issue 1 MUST be fixed before Issue 2 because field registration bloats
-arena_index, making context cloning more expensive. Fixing field registration first makes
-arena_index smaller, compounding the benefit of context cloning optimization.
+**Status Update (2025-11-13)**: Issue 1 has been successfully completed. arena_index now uses
+O(variables) entries instead of O(fields), and field offsets are calculated dynamically on demand.
+All tests pass. This enables Issue 2 to proceed with maximum benefit.
 
-* Issue 1: Field Registration (FIX THIS FIRST)
+* Issue 1: Field Registration - COMPLETED ✓
 
 ** Current State
 
@@ -143,17 +144,56 @@ fn get_field_offset(context: &Context, base_var: &str, field_path: &[&str]) -> R
 - **Benefit**: arena_index becomes O(v) where v = number of variables (not fields)
 - **Net win**: Smaller HashMap, faster clones, simpler code
 
+** Implementation Summary (Completed 2025-11-13)
+
+*** Changes Made
+
+1. **Removed map_instance_fields() function** (init.rs:1083-1137)
+   - Previously registered O(n) field paths in arena_index
+   - Now completely removed - fields accessed via dynamic calculation
+
+2. **Removed field registration from copy_fields()** (init.rs:1188-1194)
+   - Previously inserted field paths into arena_index and symbols
+   - Now only copies memory, no registration
+
+3. **Updated type checker for dynamic field validation** (typer.rs:984-1021)
+   - check_assignment() now validates fields against struct definitions
+   - Walks field path to verify each field exists in the struct
+   - Checks base variable mutability, not individual field entries
+
+4. **Fixed field mutability inheritance** (init.rs:1522-1552)
+   - register_struct_fields_for_typecheck() now inherits instance mutability
+   - Fields of const instances are const, fields of mut instances are mut
+
+5. **Removed 3 map_instance_fields() calls** (interpreter.rs:945, 1857, 1904)
+   - Replaced with comments explaining dynamic offset calculation
+
+*** Results
+
+- ✅ All tests pass (src/tests.til complete test suite)
+- ✅ arena_index now O(variables) instead of O(fields)
+- ✅ Field access via get_field_offset() and calculate_field_offset()
+- ✅ Type checking validates against struct definitions
+- ✅ No observable behavior changes
+
+*** Performance Impact
+
+- **Before**: Vec instance → 8 arena_index entries (base + 7 fields)
+- **After**: Vec instance → 1 arena_index entry (base only)
+- **Improvement**: ~8x reduction in arena_index size for Vec
+- **Benefit for Issue 2**: Smaller arena_index → cheaper context clones
+
 ** Blockers
 
-None. This can be implemented immediately.
+None - COMPLETED ✓
 
 ** Testing Strategy
 
-1. Run existing tests (should all pass - same observable behavior)
-2. Verify arena_index size reduction
-3. Performance microbenchmark for field access
+1. ✅ All existing tests pass - same observable behavior
+2. ✅ Type checker correctly validates field assignments
+3. ⏭ Performance microbenchmark for field access (optional future work)
 
-* Issue 2: Context Cloning (FIX AFTER ISSUE 1)
+* Issue 2: Context Cloning (READY TO IMPLEMENT)
 
 ** Current State
 

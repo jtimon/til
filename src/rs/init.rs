@@ -1520,14 +1520,22 @@ impl Context {
     // Register struct field symbols for type checking without evaluating defaults or allocating memory
     // This allows type checking of struct method bodies without triggering evaluation errors
     pub fn register_struct_fields_for_typecheck(&mut self, instance_name: &str, struct_type_name: &str) {
+        // Get instance mutability from symbols
+        let instance_is_mut = self.symbols.get(instance_name)
+            .map(|info| info.is_mut || info.is_copy || info.is_own)
+            .unwrap_or(false);
+
         if let Some(struct_def) = self.struct_defs.get(struct_type_name).cloned() {
             for (member_name, decl) in &struct_def.members {
                 let combined_name = format!("{}.{}", instance_name, member_name);
+                // Field inherits mutability from instance (if instance is const, fields are const too)
+                let field_is_mut = instance_is_mut && decl.is_mut;
+
                 self.symbols.insert(
                     combined_name.clone(),
                     SymbolInfo {
                         value_type: decl.value_type.clone(),
-                        is_mut: decl.is_mut,
+                        is_mut: field_is_mut,
                         is_copy: decl.is_copy,
                         is_own: decl.is_own,
                     },
