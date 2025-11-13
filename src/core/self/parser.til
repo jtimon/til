@@ -1,6 +1,7 @@
 mode lib
 
 import("src.core.self.lexer")
+import("src.core.self.mode")
 
 INFER_TYPE := "auto"
 
@@ -263,115 +264,6 @@ str_to_value_type := func(arg_type: Str) returns ValueType {
     }
     // Default: custom type
     return ValueType.TCustom(arg_type)
-}
-
-ModeDef := struct {
-    mut name: Str = ""
-    mut allows_procs: Bool = false
-    mut allows_base_mut: Bool = false
-    mut allows_base_calls: Bool = false
-    mut allows_base_anything: Bool = false
-    mut needs_main_proc: Bool = false
-    mut imports: Vec = Vec.new(Str)
-}
-
-can_be_imported := func(mode_def: ModeDef) returns Bool {
-    if mode_def.needs_main_proc { return false }  // TODO think harder, why not?
-    if mode_def.allows_base_mut { return false }
-    if mode_def.allows_base_calls { return false }
-    if mode_def.allows_base_anything { return false }
-    return true
-}
-
-mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, AllocError {
-    if mode_name.eq("lib") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = false
-        m.allows_base_mut = false
-        m.allows_base_anything = false
-        m.needs_main_proc = false
-        return m
-    }
-    if mode_name.eq("pure") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = false
-        m.allows_base_calls = false
-        m.allows_base_mut = false
-        m.allows_base_anything = false
-        m.needs_main_proc = false
-        return m
-    }
-    if mode_name.eq("script") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = true
-        m.needs_main_proc = false
-        return m
-    }
-    if mode_name.eq("safe_script") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = true
-        m.needs_main_proc = false
-        return m
-    }
-    if mode_name.eq("cli") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = false
-        m.allows_base_mut = true
-        m.allows_base_anything = false
-        m.needs_main_proc = true
-        return m
-    }
-    if mode_name.eq("test") {
-        mut m := ModeDef()
-        m.name = mode_name
-        m.allows_procs = true
-        m.allows_base_calls = true
-        m.allows_base_mut = true
-        m.allows_base_anything = false
-        m.needs_main_proc = false
-        mut test_imports := Vec.new(Str)
-        test_imports.push("src/core/modes/test")
-        m.imports = test_imports
-        return m
-    }
-
-    throw format("0:0: ", LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'")
-}
-
-parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
-    _ := lexer_expect(lexer, TokenType.Mode)  // Add one for mode
-
-    t := lexer.peek()
-    tt := t.token_type
-    switch tt {
-    case TokenType.Identifier:
-        // continue
-    case:
-        throw "0:0: Expected identifier after 'mode'"
-    }
-    mode_name := t.token_str
-    m := mode_from_name(mode_name)
-
-    m_name := m.name
-    if m_name.eq("safe_script") {
-        throw format(path, ":0:0: mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead")
-    }
-
-    _ := lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
-    return m
 }
 
 parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, FullError {

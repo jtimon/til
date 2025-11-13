@@ -57,6 +57,7 @@ runfile("src/test/variadic.til")
 
 runfile("src/test/eval.til")
 runfile("src/test/introspections.til")
+runfile("src/test/modes.til")
 
 // The closest to a std lib this language has
 // runfile("src/core.til") // you can't run it because it is already imported everywhere

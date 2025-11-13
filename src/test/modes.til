@@ -1,0 +1,229 @@
+mode test
+
+import("src.core.self.mode")
+
+// Test can_be_imported function
+test_can_be_imported := proc() {
+    // lib mode can be imported
+    lib_mode := mode_from_name("lib")
+    assert(loc(), can_be_imported(lib_mode))
+
+    // pure mode can be imported
+    pure_mode := mode_from_name("pure")
+    assert(loc(), can_be_imported(pure_mode))
+
+    // script mode cannot be imported (has base calls and mut)
+    script_mode := mode_from_name("script")
+    assert(loc(), not(can_be_imported(script_mode)))
+
+    // cli mode cannot be imported (needs main proc)
+    cli_mode := mode_from_name("cli")
+    assert(loc(), not(can_be_imported(cli_mode)))
+
+    // test mode cannot be imported (has base calls)
+    test_mode := mode_from_name("test")
+    assert(loc(), not(can_be_imported(test_mode)))
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_can_be_imported()
+
+// Test mode_from_name function for lib mode
+test_mode_lib := proc() {
+    m := mode_from_name("lib")
+
+    assert_eq_str(loc(), "lib", m.name)
+    assert(loc(), m.allows_procs)
+    assert(loc(), not(m.allows_base_calls))
+    assert(loc(), not(m.allows_base_mut))
+    assert(loc(), not(m.allows_base_anything))
+    assert(loc(), not(m.needs_main_proc))
+    assert_eq(loc(), 0, m.imports.len())
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_mode_lib()
+
+// Test mode_from_name function for pure mode
+test_mode_pure := proc() {
+    m := mode_from_name("pure")
+
+    assert_eq_str(loc(), "pure", m.name)
+    assert(loc(), not(m.allows_procs))
+    assert(loc(), not(m.allows_base_calls))
+    assert(loc(), not(m.allows_base_mut))
+    assert(loc(), not(m.allows_base_anything))
+    assert(loc(), not(m.needs_main_proc))
+    assert_eq(loc(), 0, m.imports.len())
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_mode_pure()
+
+// Test mode_from_name function for script mode
+test_mode_script := proc() {
+    m := mode_from_name("script")
+
+    assert_eq_str(loc(), "script", m.name)
+    assert(loc(), m.allows_procs)
+    assert(loc(), m.allows_base_calls)
+    assert(loc(), m.allows_base_mut)
+    assert(loc(), m.allows_base_anything)
+    assert(loc(), not(m.needs_main_proc))
+    assert_eq(loc(), 0, m.imports.len())
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_mode_script()
+
+// Test mode_from_name function for cli mode
+test_mode_cli := proc() {
+    m := mode_from_name("cli")
+
+    assert_eq_str(loc(), "cli", m.name)
+    assert(loc(), m.allows_procs)
+    assert(loc(), not(m.allows_base_calls))
+    assert(loc(), m.allows_base_mut)
+    assert(loc(), not(m.allows_base_anything))
+    assert(loc(), m.needs_main_proc)
+    assert_eq(loc(), 0, m.imports.len())
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_mode_cli()
+
+// Test mode_from_name function for test mode
+test_mode_test := proc() {
+    m := mode_from_name("test")
+
+    assert_eq_str(loc(), "test", m.name)
+    assert(loc(), m.allows_procs)
+    assert(loc(), m.allows_base_calls)
+    assert(loc(), m.allows_base_mut)
+    assert(loc(), not(m.allows_base_anything))
+    assert(loc(), not(m.needs_main_proc))
+    assert_eq(loc(), 1, m.imports.len())
+
+    // Test that imports contains "src/core/modes/test"
+    mut import_str := Str()
+    m.imports.get(0, import_str)
+    assert_eq_str(loc(), "src/core/modes/test", import_str)
+
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_mode_test()
+
+// Test mode_from_name with invalid mode
+test_mode_invalid := proc() {
+    mut threw_error := false
+
+    m := mode_from_name("invalid_mode")
+
+    catch (err: Str) {
+        threw_error = true
+        // Error was thrown as expected
+    }
+    catch (err: FullError) {
+        println("ERROR:", loc(), "Unexpected FullError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+
+    // Should have thrown an error
+    assert(loc(), threw_error)
+}
+test_mode_invalid()
