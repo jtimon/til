@@ -14,6 +14,12 @@ I64_OverflowError := struct {
         err.msg = msg
         return err
     }
+
+    clone := func(self: I64_OverflowError) returns I64_OverflowError throws AllocError {
+        mut cloned := I64_OverflowError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
 }
 
 U8_OverflowError := struct {
@@ -23,6 +29,12 @@ U8_OverflowError := struct {
         mut err := U8_OverflowError()
         err.msg = msg
         return err
+    }
+
+    clone := func(self: U8_OverflowError) returns U8_OverflowError throws AllocError {
+        mut cloned := U8_OverflowError()
+        cloned.msg = self.msg.clone()
+        return cloned
     }
 }
 
@@ -34,6 +46,12 @@ IndexOutOfBoundsError := struct {
         err.msg = msg
         return err
     }
+
+    clone := func(self: IndexOutOfBoundsError) returns IndexOutOfBoundsError throws AllocError {
+        mut cloned := IndexOutOfBoundsError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
 }
 
 FullError := struct {
@@ -43,6 +61,12 @@ FullError := struct {
         mut err := FullError()
         err.msg = msg
         return err
+    }
+
+    clone := func(self: FullError) returns FullError throws AllocError {
+        mut cloned := FullError()
+        cloned.msg = self.msg.clone()
+        return cloned
     }
 }
 
@@ -54,6 +78,12 @@ AllocError := struct {
         err.msg = msg
         return err
     }
+
+    clone := func(self: AllocError) returns AllocError throws AllocError {
+        mut cloned := AllocError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
 }
 
 DuplicatedKeyError := struct {
@@ -64,6 +94,12 @@ DuplicatedKeyError := struct {
         err.msg = msg
         return err
     }
+
+    clone := func(self: DuplicatedKeyError) returns DuplicatedKeyError throws AllocError {
+        mut cloned := DuplicatedKeyError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
 }
 
 KeyNotFoundError := struct {
@@ -73,6 +109,12 @@ KeyNotFoundError := struct {
         mut err := KeyNotFoundError()
         err.msg = msg
         return err
+    }
+
+    clone := func(self: KeyNotFoundError) returns KeyNotFoundError throws AllocError {
+        mut cloned := KeyNotFoundError()
+        cloned.msg = self.msg.clone()
+        return cloned
     }
 }
 
@@ -418,6 +460,17 @@ Str := struct {
     to_i64 := func(self: Str) returns I64 {
         return I64.from_str(self)
     }
+
+    clone := func(self: Str) returns Str throws AllocError {
+        mut cloned := Str()
+        cloned.cap = self.cap
+        cloned.c_string = malloc(cloned.cap)
+        if NULL.eq(cloned.c_string) {
+            throw AllocError.new(format(loc(), "Str.clone: malloc failed for ", I64.to_str(cloned.cap), " bytes"))
+        }
+        memcpy(cloned.c_string, self.c_string, self.cap)
+        return cloned
+    }
 }
 
 get_substr := func(s: Str, start: I64, end: I64) returns Str throws IndexOutOfBoundsError, AllocError {
@@ -542,6 +595,20 @@ Array := struct {
         self.ptr = 0
         self._len = 0
     }
+
+    clone := func(self: Array) returns Array throws AllocError {
+        mut cloned := Array()
+        cloned.type_name = self.type_name
+        cloned.type_size = self.type_size
+        cloned._len = self._len
+        mut total_bytes := mul(self._len, self.type_size)
+        cloned.ptr = malloc(total_bytes)
+        if NULL.eq(cloned.ptr) {
+            throw AllocError.new(format(loc(), "Array.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+        }
+        memcpy(cloned.ptr, self.ptr, total_bytes)
+        return cloned
+    }
 }
 
 // Vec (dynamic/growable array) - replaces Array.new_dyn()
@@ -656,6 +723,23 @@ Vec := struct {
         self.ptr = 0
         self._len = 0
         self.cap = 0
+    }
+
+    clone := func(self: Vec) returns Vec throws AllocError {
+        mut cloned := Vec()
+        cloned.type_name = self.type_name
+        cloned.type_size = self.type_size
+        cloned._len = self._len
+        cloned.cap = self.cap
+        mut total_bytes := mul(self.cap, self.type_size)
+        cloned.ptr = malloc(total_bytes)
+        if NULL.eq(cloned.ptr) {
+            throw AllocError.new(format(loc(), "Vec.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+        }
+        // Copy only the used portion (_len), not the entire capacity
+        mut used_bytes := mul(self._len, self.type_size)
+        memcpy(cloned.ptr, self.ptr, used_bytes)
+        return cloned
     }
 }
 
@@ -957,6 +1041,18 @@ Map := struct {
 
         self.size = 0
     }
+
+    clone := func(self: Map) returns Map throws AllocError {
+        mut cloned := Map()
+        cloned.key_type_name = self.key_type_name
+        cloned.key_type_size = self.key_type_size
+        cloned.value_type_name = self.value_type_name
+        cloned.value_type_size = self.value_type_size
+        cloned.keys = self.keys.clone()
+        cloned.values = self.values.clone()
+        cloned.size = self.size
+        return cloned
+    }
 }
 
 // List - Dynamic heterogeneous collection (also known as Tuple)
@@ -1171,6 +1267,22 @@ List := struct {
 
         mut sizes := self.type_sizes
         sizes.delete()
+    }
+
+    clone := func(self: List) returns List throws AllocError, IndexOutOfBoundsError {
+        mut cloned := List()
+        cloned._len = self._len
+        cloned.type_names = self.type_names.clone()
+        cloned.type_sizes = self.type_sizes.clone()
+
+        // Calculate total bytes used and allocate data buffer
+        mut total_bytes := self.calc_used()
+        cloned.data = malloc(total_bytes)
+        if NULL.eq(cloned.data) {
+            throw AllocError.new(format(loc(), "List.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+        }
+        memcpy(cloned.data, self.data, total_bytes)
+        return cloned
     }
 }
 

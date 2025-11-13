@@ -1,0 +1,189 @@
+mode test
+
+// Test Str.clone()
+test_str_clone := proc() {
+    original := "hello"
+    mut cloned := original.clone()
+
+    assert_eq_str(loc(), "hello", cloned)
+    assert_eq_str(loc(), "hello", original)
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+}
+test_str_clone()
+
+// Test error struct cloning
+test_error_clone := proc() {
+    mut original := I64_OverflowError.new("overflow error")
+    mut cloned := original.clone()
+
+    assert_eq_str(loc(), "overflow error", cloned.msg)
+    assert_eq_str(loc(), "overflow error", original.msg)
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+}
+test_error_clone()
+
+// Test Array.clone()
+test_array_clone := proc() {
+    mut original := Array.new(I64, 3)
+    original.set(0, 10)
+    original.set(1, 20)
+    original.set(2, 30)
+
+    mut cloned := original.clone()
+
+    // Check values in clone
+    mut val0 := 0
+    cloned.get(0, val0)
+    assert_eq(loc(), 10, val0)
+
+    mut val1 := 0
+    cloned.get(1, val1)
+    assert_eq(loc(), 20, val1)
+
+    mut val2 := 0
+    cloned.get(2, val2)
+    assert_eq(loc(), 30, val2)
+
+    // Modify clone, original should be unchanged
+    cloned.set(0, 999)
+
+    mut orig_val := 0
+    original.get(0, orig_val)
+    assert_eq(loc(), 10, orig_val)
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+test_array_clone()
+
+// Test Vec.clone()
+test_vec_clone := proc() {
+    mut original := Vec.new(I64)
+    original.push(10)
+    original.push(20)
+    original.push(30)
+
+    mut cloned := original.clone()
+
+    assert_eq(loc(), 3, cloned.len())
+
+    mut val0 := 0
+    cloned.get(0, val0)
+    assert_eq(loc(), 10, val0)
+
+    // Modify clone
+    cloned.push(40)
+    assert_eq(loc(), 4, cloned.len())
+    assert_eq(loc(), 3, original.len())
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), "FullError:", err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+test_vec_clone()
+
+// Test List.clone()
+test_list_clone := proc() {
+    mut original := List.new()
+    original.push(I64, 42)
+    original.push(Str, "hello")
+    original.push(Bool, true)
+
+    mut cloned := original.clone()
+
+    assert_eq(loc(), 3, cloned.len())
+
+    mut val0 := 0
+    cloned.get(0, val0)
+    assert_eq(loc(), 42, val0)
+
+    mut val1 := ""
+    cloned.get(1, val1)
+    assert_eq_str(loc(), "hello", val1)
+
+    mut val2 := false
+    cloned.get(2, val2)
+    if not(val2) {
+        panic(loc(), "Expected true, got false")
+    }
+
+    // Modify clone
+    cloned.push(I64, 99)
+    assert_eq(loc(), 4, cloned.len())
+    assert_eq(loc(), 3, original.len())
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+    catch(err: FullError) {
+        println(loc(), "FullError:", err.msg)
+        exit(1)
+    }
+    catch(err: IndexOutOfBoundsError) {
+        println(loc(), "IndexOutOfBoundsError:", err.msg)
+        exit(1)
+    }
+}
+test_list_clone()
+
+// Test Map.clone()
+test_map_clone := proc() {
+    mut original := Map.new(Str, I64)
+    original.insert("one", 1)
+    original.insert("two", 2)
+    original.insert("three", 3)
+
+    mut cloned := original.clone()
+
+    mut val := 0
+    cloned.get("one", val)
+    assert_eq(loc(), 1, val)
+
+    cloned.get("two", val)
+    assert_eq(loc(), 2, val)
+
+    // Modify clone
+    cloned.set("one", 999)
+
+    mut orig_val := 0
+    original.get("one", orig_val)
+    assert_eq(loc(), 1, orig_val)
+
+    catch(err: AllocError) {
+        println(loc(), "AllocError:", err.msg)
+        exit(1)
+    }
+    catch(err: DuplicatedKeyError) {
+        println(loc(), "DuplicatedKeyError:", err.msg)
+        exit(1)
+    }
+    catch(err: KeyNotFoundError) {
+        println(loc(), "KeyNotFoundError:", err.msg)
+        exit(1)
+    }
+}
+test_map_clone()
