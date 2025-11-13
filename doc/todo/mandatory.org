@@ -1,0 +1,142 @@
+#+TITLE: Mandatory Method Requirements
+#+AUTHOR: til Development
+#+DATE: 2025-01-13
+
+* Overview
+
+Certain types in TIL must implement specific methods to ensure safety and consistency. This document tracks which methods are mandatory and when they're enforced.
+
+* Mandatory Methods
+
+** clone() - Required for Copy Parameters
+
+*** When Required
+Types passed to parameters declared with the 'copy' keyword must implement clone().
+
+*** Implementation Location
+- Type checker: src/rs/typer.rs (lines 346-383)
+- Check happens during function call argument validation
+
+*** Exemptions
+- Primitive types: I64, U8, Bool, Str (trivially copyable)
+- Types not in struct_defs (built-in types without struct definitions)
+
+*** Error Message Format
+"Cannot pass struct 'TypeName' to copy parameter 'param' of function 'func'.
+ Reason: struct 'TypeName' does not implement clone() method.
+ Suggestion: add 'clone := func(self: TypeName) returns TypeName { ... }' to struct 'TypeName'."
+
+*** Signature
+#+BEGIN_SRC til
+clone := func(self: TypeName) returns TypeName
+#+END_SRC
+
+*** Example Implementation
+#+BEGIN_SRC til
+Vec := struct {
+    mut ptr : I64 = 0
+    mut _len : I64 = 0
+    mut cap : I64 = 0
+
+    clone := func(self: Vec) returns Vec throws AllocError {
+        mut cloned := Vec()
+        cloned.cap = self.cap
+        cloned._len = self._len
+        mut total_bytes := mul(self.cap, self.type_size)
+        cloned.ptr = malloc(total_bytes)
+        if NULL.eq(cloned.ptr) {
+            throw AllocError.new("Vec.clone: malloc failed")
+        }
+        mut used_bytes := mul(self._len, self.type_size)
+        memcpy(cloned.ptr, self.ptr, used_bytes)
+        return cloned
+    }
+}
+#+END_SRC
+
+** len() - Required for Collection Types
+
+*** When Required
+Types that implement collection-like methods (push/get/set/insert/delete) must implement len().
+
+*** Implementation Location
+- Type checker: src/rs/typer.rs (in check_struct_def function)
+- Check happens during struct definition validation
+
+*** Detection Heuristic
+A struct is considered "collection-like" if it has any of:
+- push() method
+- get() method
+- set() method
+- insert() method
+
+Note: delete() is excluded as it's a cleanup method, not a collection operation.
+
+*** Error Message Format
+"Collection-like struct 'TypeName' has push()/get()/set() methods but no len() method.
+ Reason: Collection types must provide a way to query their size.
+ Suggestion: add 'len := func(self: TypeName) returns I64 { ... }' to struct 'TypeName'."
+
+*** Signature
+#+BEGIN_SRC til
+len := func(self: TypeName) returns I64
+#+END_SRC
+
+*** Example Implementations
+#+BEGIN_SRC til
+Vec := struct {
+    mut _len : I64 = 0
+    mut cap : I64 = 0
+
+    len := func(self: Vec) returns I64 {
+        return self._len
+    }
+}
+
+Map := struct {
+    mut size : I64 = 0
+
+    len := func(self: Map) returns I64 {
+        return self.size
+    }
+}
+#+END_SRC
+
+*** Types That Already Comply
+- ✅ Vec (src/core/core.til:626)
+- ✅ Array (src/core/core.til:548)
+- ✅ List (src/core/core.til:1068)
+- ✅ Map (src/core/core.til:1031)
+- ✅ Str (src/core/core.til:438)
+- ✅ Bool (src/core/core.til:286)
+- ✅ U8 (src/core/core.til:351)
+
+* Implementation Status
+
+** Phase 1: clone() for copy parameters ✅
+- [X] Implemented introspection system (has_const, has_field)
+- [X] Added check in typer.rs for copy parameters
+- [X] All existing collection types have clone()
+- [X] Tests pass
+- [X] Committed: b427e02, 8cbcc77
+
+** Phase 2: len() for collection types ✅
+- [X] Add check in typer.rs check_struct_def function (lines 1281-1321)
+- [X] Create test for missing len() error (src/test/tmp/test_len_mandatory.til)
+- [X] Verify all existing types pass
+- [X] Update this documentation
+- [X] Commit changes
+
+** Future: size() for arena-allocated types
+- [ ] Research where arena allocation checks should occur
+- [ ] Determine which types need size()
+- [ ] Implement incremental checking
+- [ ] Document requirements
+
+* Notes
+
+- Enforcement uses introspection (has_const) to check for method existence
+- Methods must be consts (immutable fields of type FuncDef)
+- Primitive types get special exemptions where appropriate
+- Error messages include helpful suggestions with correct syntax
+- All checks happen at type-check time, not runtime

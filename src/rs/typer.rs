@@ -1278,6 +1278,47 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         }
     }
 
+    // Check if collection-like structs have mandatory len() method
+    // A struct is considered collection-like if it has push/get/set/insert methods
+    // Note: delete() is excluded as it's a cleanup method, not a collection operation
+    let has_push = struct_def.get_member("push").is_some();
+    let has_get = struct_def.get_member("get").is_some();
+    let has_set = struct_def.get_member("set").is_some();
+    let has_insert = struct_def.get_member("insert").is_some();
+
+    if has_push || has_get || has_set || has_insert {
+        // This looks like a collection type - check for len() method
+        let has_len = struct_def.get_member("len")
+            .map(|decl| !decl.is_mut)
+            .unwrap_or(false);
+
+        if !has_len {
+            let struct_name = e.params.get(0)
+                .and_then(|param| {
+                    if let NodeType::Identifier(name) = &param.node_type {
+                        Some(name.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or("unknown");
+
+            let methods: Vec<&str> = vec![
+                if has_push { Some("push()") } else { None },
+                if has_get { Some("get()") } else { None },
+                if has_set { Some("set()") } else { None },
+                if has_insert { Some("insert()") } else { None },
+            ].into_iter().filter_map(|x| x).collect();
+
+            errors.push(e.error(&context.path, "type", &format!(
+                "Collection-like struct '{}' has {} method(s) but no len() method.\n\
+                 Reason: Collection types must provide a way to query their size.\n\
+                 Suggestion: add 'len := func(self: {}) returns I64 {{ ... }}' to struct '{}'.",
+                struct_name, methods.join("/"), struct_name, struct_name
+            )));
+        }
+    }
+
     return errors
 }
 
