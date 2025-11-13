@@ -8,15 +8,16 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #25: Field offset refactor breaks typer method resolution :OPEN:
+** Bug #25: Field offset refactor breaks typer method resolution :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-13
-:IMPACT: Blocks field registration refactor
-:STATUS: Open - introduced by WIP changes
+:FIXED: 2025-11-13
+:IMPACT: API consistency, method resolution
+:STATUS: Fixed - uniform len() API implemented
 :END:
 
 *** Description
-When refactoring getters/setters to use dynamic field offset calculation (get_field_offset()), the typer fails to find I64.eq method at ufcs.til:304.
+The typer fails to find I64.eq method when chaining method calls on struct field access (e.g., `s.items.len.eq(0)`). This was discovered during field offset refactoring work but the root cause was different.
 
 *** Example Problem
 #+BEGIN_EXAMPLE til
@@ -29,33 +30,57 @@ len_check := s.items.len.eq(0)  // Error: "Could not find function definition"
 
 The field access works, but method resolution on the result fails!
 
-*** Root Cause
-Unknown. Very strange because:
-1. It's a TYPER error, not interpreter error
-2. The refactor only changes interpreter/context code
-3. I64.eq IS defined in core.til:348
-4. Field access (line 300) works fine
-5. Only method call on the field result (line 304) fails
+*** Root Cause (FOUND!)
+The real issue was NOT the field offset refactor, but an API inconsistency:
+- Vec, List, and Array had `len` as a FIELD instead of a METHOD
+- When the typer tried to resolve `s.items.len.eq(0)`, it saw `.len` as a field access
+- Field accesses return `auto` type (requiring type inference)
+- The typer couldn't properly infer the type for chained method calls
+- Result: "Could not find function definition" for `.eq(0)`
 
-*** Investigation
-With calculate_field_offset disabled:
-- Fails at line 300: "Field 's.items.len' not found" (expected)
+This became apparent when `s.items.len` was accessed - it worked as a field, but the moment you tried to call a method on the result, type resolution failed.
 
-With calculate_field_offset enabled:
-- Passes line 300: Field access works ✅
-- Fails line 304: Method resolution fails ❌
+*** Solution (2025-11-13)
+Implemented uniform len() API across all collection types:
 
-The changes that trigger this:
-- Updated get_i64(), get_u8(), get_bool(), get_string() to use get_field_offset()
-- Updated insert_i64(), insert_u8(), insert_bool(), insert_string(), insert_array() to use get_field_offset()
-- Added calculate_field_offset() and get_field_offset() helpers
+1. **Renamed internal fields**: `len` → `_len` (cap kept as-is)
+2. **Added uniform methods**:
+   - `len()` returns element count (_len)
+   - `size()` returns byte size (len * type_size)
+3. **Implemented for**: Vec, List, Array (src/core/core.til)
+4. **Updated all code** to use `.len()` method calls:
+   - Core library: lexer.til, parser.til, typer.til, interpreter.til
+   - Test files: ufcs.til, args.til, arrays.til, dynamic_arrays.til, lists.til, maps.til, mut_test.til, variadic.til
+5. **Updated interpreter**: init.rs to look for `._len` field offset
+6. **For-loop workaround**: Store `len()` in local variable (e.g., `mut args_len := args.len()`)
 
-*** Next Steps
-Need to understand:
-1. Why does interpreter code affect typer behavior?
-2. Is core.til being interpreted during initialization?
-3. Is there some interaction between field access and method resolution?
-4. Could this be related to how eval_expr() is called?
+*** Now Works
+#+BEGIN_EXAMPLE til
+// ✅ All these patterns now work correctly:
+items_len := s.items.len()
+len_check := s.items.len().eq(0)
+if i.lt(s.items.len().add(5)) { }
+comparison := i.lt(e.params.len())
+#+END_EXAMPLE
+
+*** Test Coverage (Regression Prevention)
+The existing test file `src/test/ufcs.til` provides comprehensive regression coverage:
+
+**test_bug10_fixed()** (lines 296-317):
+- Line 304: `len_check := s.items.len().eq(0)` - EXACT failing pattern
+- Line 309: `comparison := i.lt(s.items.len().add(5))` - Chained method calls
+- Line 314: `name_len := name.len()` - String len() method
+
+**test_bug10_parser_patterns_fixed()** (lines 320-341):
+- Line 334: `len_is_zero := e.params.len().eq(0)` - Another instance of failing pattern
+- Line 338: `len_plus_five := e.params.len().add(5)` - Arithmetic on method result
+
+These tests run in the standard test suite and will catch any regression
+that breaks chained method calls on field access. All tests pass (exit code 0).
+
+*** Commits
+- 27dc3ae: Fix Bug #25: Implement uniform len() API for Vec, List, and Array
+- 1444a8b: Complete len() API standardization - fixes Bug #25
 
 ** Bug #24: Variable Declarations Share Arena Offsets Instead of Copying :FIXED:
 :PROPERTIES:

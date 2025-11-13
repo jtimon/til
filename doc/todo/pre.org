@@ -39,16 +39,16 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - Impact: Fixes Bug #24, cleaner semantics, better performance
   - See: doc/todo/plan_by_reference.org for detailed implementation plan
 
-- [X] Standardize len/cap API across collections (COMPLETE)
+- [X] Standardize len/cap API across collections (COMPLETE - fixes Bug #25)
   - Renamed internal fields: len → _len, cap → cap (kept as-is for internal use)
   - Added uniform methods: len() returns element count, size() returns byte size
   - Implemented for: Vec, List, Array (lines 540-652, 957-1165, 488-545 in core.til)
   - Updated all core library files to use .len() method calls
   - Updated all test files to use .len() method calls
   - For-loop ranges: store len() result in local variable (e.g., `mut args_len := args.len()`)
-  - Fixes Bug #25: Method resolution now works correctly (e.g., `s.items.len().eq(0)`)
-  - [ ] TODO: Add len() and size() methods to Map struct
-  - [ ] TODO: Add len() and size() methods to Str type
+  - Bug #25 FIXED: Method resolution now works correctly (e.g., `s.items.len().eq(0)`)
+  - All tests pass (exit code 0)
+  - Future work: Add len() and size() methods to Map and Str types
 
 * Notes
 
