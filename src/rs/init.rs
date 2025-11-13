@@ -890,12 +890,21 @@ impl Context {
     }
 
     pub fn get_i64(self: &Context, id: &str, e: &Expr) -> Result<i64, String> {
-        match self.arena_index.get(id) {
-            Some(&offset) => match Arena::g().memory[offset..offset + 8].try_into() {
-                Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
-                Err(_) => Err(e.lang_error("context", &format!("Invalid i64 read for id '{}'", id))),
-            },
-            None => Err(e.lang_error("context", &format!("i64 not found for id '{}'", id))),
+        // Try direct lookup first (for base variables)
+        let offset = if let Some(&offset) = self.arena_index.get(id) {
+            offset
+        } else if id.contains('.') {
+            // For field paths, calculate offset dynamically
+            self.get_field_offset(id).map_err(|err| {
+                e.lang_error("context", &format!("get_i64: {}", err))
+            })?
+        } else {
+            return Err(e.lang_error("context", &format!("i64 not found for id '{}'", id)));
+        };
+
+        match Arena::g().memory[offset..offset + 8].try_into() {
+            Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
+            Err(_) => Err(e.lang_error("context", &format!("Invalid i64 read for id '{}'", id))),
         }
     }
 
@@ -904,19 +913,34 @@ impl Context {
             .map_err(|_| e.lang_error("context", &format!("Invalid i64 literal '{}'", i64_str)))?;
         let bytes = v.to_ne_bytes();
 
-        let is_field = id.contains('.');
-        if is_field {
-            if let Some(&offset) = self.arena_index.get(id) {
-                Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
-                return Ok(())
+        let is_instance_field = if id.contains('.') {
+            // Check if base is an instance variable (not a struct type)
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            // If base is in symbols and is NOT a struct type, it's an instance field access
+            self.symbols.get(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field paths, calculate offset dynamically
+            let offset = if let Some(&offset) = self.arena_index.get(id) {
+                // Pre-registered field (old path)
+                offset
             } else {
-                let offset = Arena::g().memory.len();
-                Arena::g().memory.extend_from_slice(&bytes);
-                self.arena_index.insert(id.to_string(), offset);
-                return Ok(())
-            }
+                // Calculate offset from struct definition
+                self.get_field_offset(id).map_err(|err| {
+                    e.lang_error("context", &format!("insert_i64: {}", err))
+                })?
+            };
+            Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
+            return Ok(())
         }
 
+        // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
         self.arena_index.insert(id.to_string(), offset);
@@ -924,11 +948,20 @@ impl Context {
     }
 
     pub fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
-        match self.arena_index.get(id) {
-            Some(&offset) => Arena::g().memory.get(offset).copied()
-                .ok_or_else(|| e.lang_error("context", &format!("Invalid u8 read for id '{}'", id))),
-            None => Err(e.lang_error("context", &format!("u8 not found for id '{}'", id))),
-        }
+        // Try direct lookup first (for base variables)
+        let offset = if let Some(&offset) = self.arena_index.get(id) {
+            offset
+        } else if id.contains('.') {
+            // For field paths, calculate offset dynamically
+            self.get_field_offset(id).map_err(|err| {
+                e.lang_error("context", &format!("get_u8: {}", err))
+            })?
+        } else {
+            return Err(e.lang_error("context", &format!("u8 not found for id '{}'", id)));
+        };
+
+        Arena::g().memory.get(offset).copied()
+            .ok_or_else(|| e.lang_error("context", &format!("Invalid u8 read for id '{}'", id)))
     }
 
     pub fn insert_u8(self: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
@@ -936,17 +969,29 @@ impl Context {
             .map_err(|_| e.lang_error("context", &format!("Invalid u8 literal '{}'", u8_str)))?;
         let bytes = [v];
 
-        let is_field = id.contains('.');
-        if is_field {
-            if let Some(&offset) = self.arena_index.get(id) {
-                Arena::g().memory[offset] = v;
-                return Ok(())
+        let is_instance_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            self.symbols.get(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field paths, calculate offset dynamically
+            let offset = if let Some(&offset) = self.arena_index.get(id) {
+                // Pre-registered field (old path)
+                offset
             } else {
-                let offset = Arena::g().memory.len();
-                Arena::g().memory.extend_from_slice(&bytes);
-                self.arena_index.insert(id.to_string(), offset);
-                return Ok(())
-            }
+                // Calculate offset from struct definition
+                self.get_field_offset(id).map_err(|err| {
+                    e.lang_error("context", &format!("insert_u8: {}", err))
+                })?
+            };
+            Arena::g().memory[offset] = v;
+            return Ok(())
         }
 
         let offset = Arena::g().memory.len();
@@ -956,12 +1001,21 @@ impl Context {
     }
 
     pub fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
-        match self.arena_index.get(id) {
-            Some(&offset) => match Arena::g().memory.get(offset) {
-                Some(&byte) => Ok(byte == 1),
-                None => Err(e.lang_error("context", &format!("Invalid bool read for id '{}'", id))),
-            },
-            None => Err(e.lang_error("context", &format!("bool not found for id '{}'", id))),
+        // Try direct lookup first (for base variables)
+        let offset = if let Some(&offset) = self.arena_index.get(id) {
+            offset
+        } else if id.contains('.') {
+            // For field paths, calculate offset dynamically
+            self.get_field_offset(id).map_err(|err| {
+                e.lang_error("context", &format!("get_bool: {}", err))
+            })?
+        } else {
+            return Err(e.lang_error("context", &format!("bool not found for id '{}'", id)));
+        };
+
+        match Arena::g().memory.get(offset) {
+            Some(&byte) => Ok(byte == 1),
+            None => Err(e.lang_error("context", &format!("Invalid bool read for id '{}'", id))),
         }
     }
 
@@ -976,17 +1030,29 @@ impl Context {
         let stored = if bool_to_insert { 1 } else { 0 };
         let bytes = [stored];
 
-        let is_field = id.contains('.');
-        if is_field {
-            if let Some(&offset) = self.arena_index.get(id) {
-                Arena::g().memory[offset] = stored;
-                return Ok(())
+        let is_instance_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            self.symbols.get(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field paths, calculate offset dynamically
+            let offset = if let Some(&offset) = self.arena_index.get(id) {
+                // Pre-registered field (old path)
+                offset
             } else {
-                let offset = Arena::g().memory.len();
-                Arena::g().memory.extend_from_slice(&bytes);
-                self.arena_index.insert(id.to_string(), offset);
-                return Ok(())
-            }
+                // Calculate offset from struct definition
+                self.get_field_offset(id).map_err(|err| {
+                    e.lang_error("context", &format!("insert_bool: {}", err))
+                })?
+            };
+            Arena::g().memory[offset] = stored;
+            return Ok(())
         }
 
         let offset = Arena::g().memory.len();
@@ -1094,12 +1160,18 @@ impl Context {
             let src_key = format!("{}.{}", src, field_name);
             let dest_key = format!("{}.{}", dest, field_name);
 
-            // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-            let src_offset = match self.arena_index.get(&src_key) {
-                Some(offset) => *offset,
-                None => {
-                    current_offset += field_size;
-                    continue;
+            // Try to get source offset - first from arena_index, then calculate dynamically
+            let src_offset = if let Some(&offset) = self.arena_index.get(&src_key) {
+                offset
+            } else {
+                // Calculate offset dynamically from struct definition
+                match self.get_field_offset(&src_key) {
+                    Ok(offset) => offset,
+                    Err(_) => {
+                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+                        current_offset += field_size;
+                        continue;
+                    }
                 }
             };
 
@@ -1189,6 +1261,90 @@ impl Context {
         } else {
             Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
         }
+    }
+
+    /// Calculate the offset of a specific field within a struct type
+    /// This walks through the struct definition and sums up field sizes until reaching the target field
+    pub fn calculate_field_offset(&self, struct_type: &str, field_name: &str) -> Result<usize, String> {
+        let struct_def = self.struct_defs.get(struct_type)
+            .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
+
+        let mut current_offset = 0;
+
+        for (member_name, decl) in &struct_def.members {
+            if !decl.is_mut {
+                continue; // Skip immutable fields
+            }
+
+            // If we found the target field, return its offset
+            if member_name == field_name {
+                return Ok(current_offset);
+            }
+
+            // Otherwise, add this field's size and continue
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
+                _ => return Err(format!(
+                    "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
+                    value_type_to_str(&decl.value_type), struct_type, member_name
+                )),
+            };
+
+            current_offset += field_size;
+        }
+
+        Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
+    }
+
+    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    /// Handles nested field access by walking the path and calculating offsets dynamically
+    pub fn get_field_offset(&self, field_path: &str) -> Result<usize, String> {
+        let parts: Vec<&str> = field_path.split('.').collect();
+        if parts.is_empty() {
+            return Err(format!("get_field_offset: empty field path"));
+        }
+
+        // Start with the base variable's offset
+        let base_var = parts[0];
+        let mut current_offset = *self.arena_index.get(base_var)
+            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+
+        // Get the base variable's type
+        let mut current_type = match self.symbols.get(base_var) {
+            Some(symbol) => match &symbol.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
+            },
+            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
+        };
+
+        // Walk through the remaining parts of the path
+        for field_name in &parts[1..] {
+            // Calculate the offset of this field within the current struct type
+            let field_offset = self.calculate_field_offset(&current_type, field_name)?;
+            current_offset += field_offset;
+
+            // Update current_type to the type of this field (for nested access)
+            let struct_def = self.struct_defs.get(&current_type)
+                .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
+
+            let field_decl = struct_def.members.iter()
+                .find(|(name, _)| name == field_name)
+                .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
+
+            current_type = match &field_decl.1.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => {
+                    // If this is the last part and it's a primitive, that's fine
+                    if field_name == parts.last().unwrap() {
+                        break;
+                    }
+                    return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
+                }
+            };
+        }
+
+        Ok(current_offset)
     }
 
     pub fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
@@ -1365,13 +1521,23 @@ impl Context {
     }
 
     pub fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
-        let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
-            Some(offset) => *offset,
-            None => return Err(e.lang_error("context", &format!("missing field '{}.c_string'", id))),
+        // Try to get offsets either from pre-registered arena_index or calculate dynamically
+        let c_string_field_path = format!("{}.c_string", id);
+        let c_string_offset = if let Some(&offset) = self.arena_index.get(&c_string_field_path) {
+            offset
+        } else {
+            self.get_field_offset(&c_string_field_path).map_err(|err| {
+                e.lang_error("context", &format!("get_string: {}", err))
+            })?
         };
-        let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
-            Some(offset) => *offset,
-            None => return Err(e.lang_error("context", &format!("missing field '{}.cap'", id))),
+
+        let cap_field_path = format!("{}.cap", id);
+        let cap_offset = if let Some(&offset) = self.arena_index.get(&cap_field_path) {
+            offset
+        } else {
+            self.get_field_offset(&cap_field_path).map_err(|err| {
+                e.lang_error("context", &format!("get_string: {}", err))
+            })?
         };
 
         if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
@@ -1399,7 +1565,15 @@ impl Context {
     }
 
     pub fn insert_string(self: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
-        let is_field = id.contains('.');
+        let is_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            self.symbols.get(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
 
         // Allocate string data
         let string_offset = Arena::g().memory.len();
@@ -1796,26 +1970,35 @@ impl Context {
             }
         }
 
-        // Write ptr, len (and cap for Vec) using arena_index
-        let ptr_offset = match self.arena_index.get(&format!("{}.ptr", name)) {
-            Some(o) => *o,
-            None => {
-                return Err(e.lang_error("context", &format!("ERROR: insert_array: missing .ptr field offset")))
-            }
+        // Write ptr, len (and cap for Vec) using calculated offsets
+        let ptr_field_path = format!("{}.ptr", name);
+        let ptr_offset = if let Some(&offset) = self.arena_index.get(&ptr_field_path) {
+            offset
+        } else {
+            self.get_field_offset(&ptr_field_path).map_err(|err| {
+                e.lang_error("context", &format!("insert_array: {}", err))
+            })?
         };
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
 
         // Set _len field (required for both Array and Vec)
         let len_bytes = len.to_ne_bytes();
-        if let Some(len_offset) = self.arena_index.get(&format!("{}._len", name)) {
-            Arena::g().memory[*len_offset..*len_offset+8].copy_from_slice(&len_bytes);
+        let len_field_path = format!("{}._len", name);
+        let len_offset = if let Some(&offset) = self.arena_index.get(&len_field_path) {
+            offset
         } else {
-            return Err(e.lang_error("context", &format!("ERROR: insert_array: missing ._len field offset")))
-        }
+            self.get_field_offset(&len_field_path).map_err(|err| {
+                e.lang_error("context", &format!("insert_array: {}", err))
+            })?
+        };
+        Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
 
         // Set cap field (only exists in Vec, not in Array)
-        if let Some(cap_offset) = self.arena_index.get(&format!("{}.cap", name)) {
-            Arena::g().memory[*cap_offset..*cap_offset+8].copy_from_slice(&len_bytes);
+        let cap_field_path = format!("{}.cap", name);
+        if let Ok(cap_offset) = self.get_field_offset(&cap_field_path) {
+            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
+        } else if let Some(&cap_offset) = self.arena_index.get(&cap_field_path) {
+            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
         }
 
         // For generic Array, also set type_name and type_size fields

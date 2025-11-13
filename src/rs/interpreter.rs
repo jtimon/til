@@ -941,6 +941,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             } else {
                                 return Err(e.lang_error("eval", &format!("Could not find arena index for '{}'", expr_result_str)));
                             }
+                            // Keep map_instance_fields for now as fallback for copy_fields
                             context.map_instance_fields(custom_type_name, &declaration.name, e)?;
                         }
                     } else {
@@ -1740,7 +1741,18 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 function_context.arena_index.remove(&new_key);
                                             }
                                         } else {
+                                            // Temporarily register source struct's base offset and symbol in function_context
+                                            // so that copy_fields() can calculate field offsets dynamically
+                                            let src_offset = context.arena_index.get(id_).copied()
+                                                .ok_or_else(|| e.lang_error("eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+                                            let src_symbol = context.symbols.get(id_).cloned()
+                                                .ok_or_else(|| e.lang_error("eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
+
+                                            function_context.arena_index.insert(id_.clone(), src_offset);
+                                            function_context.symbols.insert(id_.clone(), src_symbol);
                                             function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                            function_context.arena_index.remove(id_);
+                                            function_context.symbols.remove(id_);
                                         }
                                     },
                                     _ => {
@@ -1842,6 +1854,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // TODO this can be simplified once we pass all args by reference
                         if let Some(offset) = function_context.arena_index.get(&arg_name) {
                             context.arena_index.insert(source_name.to_string(), *offset);
+                            // Keep map_instance_fields for now as fallback for copy_fields
                             context.map_instance_fields(type_name, &source_name, e)?;
                         } else {
                             return Err(e.lang_error("eval", &format!("Missing struct arena index for argument '{}'", arg_name)));
@@ -1889,6 +1902,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 } else {
                                     return Err(e.lang_error("eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
+                                // Keep map_instance_fields for now as fallback for copy_fields
                                 context.map_instance_fields(custom_type_name, &return_instance, e)?;
                                 return Ok(EvalResult::new_return(&return_instance))
                             },
