@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/parser")
+import("src/core/self/parser")
 
 // Init phase: Context creation and symbol table management
 // Corresponds to src/rs/init.rs in the Rust implementation

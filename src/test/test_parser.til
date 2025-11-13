@@ -1,6 +1,6 @@
 mode test
 
-import("src/core/parser")
+import("src/core/self/parser")
 
 // Helper to parse TIL source code
 parse_source := proc(source: Str) {

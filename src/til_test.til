@@ -1,7 +1,7 @@
 mode test
 
 import("src/core/modes/modes")
-import("src/core/interpreter")
+import("src/core/self/interpreter")
 
 test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     // Simple test: just run hello_script.til directly

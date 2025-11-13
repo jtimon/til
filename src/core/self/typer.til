@@ -1,6 +1,6 @@
 mode lib
 
-import("src/core/init")
+import("src/core/self/init")
 
 // Typer phase: Type checking and validation
 // Corresponds to src/rs/typer.rs in the Rust implementation
