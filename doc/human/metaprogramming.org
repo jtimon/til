@@ -130,6 +130,8 @@ generic_macro = macro(params: List<(Str, Type)>) returns StructDef {
 
 This yields zero-cost statics by default, dynamic fallbacks for size/perf tradeoffs. Post-expansion type check validates.
 
+But, yeah, since we're self hosted, we can use the structs for the self implementation in macros directly, a Body, an Expr, a StructDef, an EnumDef or whatever. They're just part of the core. I mean, You may want to use the Lexer struct for some tooling project, for example.
+
 WARNING: some more invalid syntax made up by grok ahead.
 
 ** Integration with Dynamic

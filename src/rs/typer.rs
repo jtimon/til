@@ -343,6 +343,45 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         }
 
+        // Check copy parameter requirements - structs must have clone() implementation
+        // Only check for explicit 'copy' parameters, not regular immutable parameters
+        if arg.is_copy {
+            // Get the actual type being passed
+            let arg_type = match get_value_type(&context, arg_expr) {
+                Ok(val_type) => val_type,
+                Err(_) => {
+                    // Type error already reported, skip clone check
+                    continue;
+                }
+            };
+
+            // Only check for custom types (user-defined structs)
+            if let ValueType::TCustom(type_name) = &arg_type {
+                // Skip primitive types that are trivially copyable (don't require clone())
+                // These types are copy-by-value and don't need deep cloning
+                let primitives = vec!["I64", "U8", "Bool", "Str"];
+                if primitives.contains(&type_name.as_str()) {
+                    continue;
+                }
+
+                if let Some(struct_def) = context.struct_defs.get(type_name) {
+                    // Check if clone() exists as a const (associated function)
+                    let has_clone = struct_def.get_member("clone")
+                        .map(|decl| !decl.is_mut)
+                        .unwrap_or(false);
+
+                    if !has_clone {
+                        errors.push(arg_expr.error(&context.path, "type", &format!(
+                            "Cannot pass struct '{}' to copy parameter '{}' of function '{}'.\n\
+                             Reason: struct '{}' does not implement clone() method.\n\
+                             Suggestion: add 'clone := func(self: {}) returns {} {{ ... }}' to struct '{}'.",
+                            type_name, arg.name, f_name, type_name, type_name, type_name, type_name
+                        )));
+                    }
+                }
+            }
+        }
+
         let found_type = match get_value_type(&context, arg_expr) {
             Ok(val_type) => val_type,
             Err(error_string) => {

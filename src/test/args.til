@@ -12,6 +12,13 @@ Vec2 := struct {
         v.y = y
         return v
     }
+
+    clone := func(self: Vec2) returns Vec2 {
+        mut cloned := Vec2()
+        cloned.x = self.x
+        cloned.y = self.y
+        return cloned
+    }
 }
 
 Color := enum {
@@ -311,11 +318,25 @@ test_mut_array()
 Point := struct {
     mut x : I64 = 0
     mut y : I64 = 0
+
+    clone := func(self: Point) returns Point {
+        mut cloned := Point()
+        cloned.x = self.x
+        cloned.y = self.y
+        return cloned
+    }
 }
 
 Line := struct {
     mut start : Point = Point()
     mut end   : Point = Point()
+
+    clone := func(self: Line) returns Line {
+        mut cloned := Line()
+        cloned.start = self.start.clone()
+        cloned.end = self.end.clone()
+        return cloned
+    }
 }
 
 move_line := proc(mut line: Line, dx: I64, dy: I64) {
