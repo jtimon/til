@@ -124,6 +124,25 @@ Don't ask permission for:
 - `doc/human/` - Human reference docs (read-only)
 - `doc/todo/` - Shared workspace (can edit)
 
+## Task Naming Convention
+**NEVER use "Phase 1", "Phase 2", etc.** - This conflicts with compiler/interpreter phases.
+
+Use descriptive names instead:
+- ✅ "Refactor field registration"
+- ✅ "Remove map_instance_fields calls"
+- ✅ "Add offset calculation helpers"
+- ❌ "Phase 1", "Phase 2" (confusing - what phase?)
+
+The word "phase" is reserved for:
+- Parser phase
+- Type checker phase
+- Interpreter phase
+- Compiler phases (when we get there)
+
+For multi-step tasks, use:
+- "Step 1: Add helpers", "Step 2: Refactor getters", etc.
+- Or just descriptive task names in todos
+
 ## Common Patterns
 - List.push(Type, value) - type comes first
 - Vec.push(value) - type set at construction
