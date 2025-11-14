@@ -645,7 +645,7 @@ pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     let const_name = eval_or_throw!(context, e.get(2)?);
 
     // Check if type exists in struct_defs
-    if let Some(struct_def) = context.struct_defs.get(&type_name) {
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
         // Check for immutable field (!is_mut)
         if let Some(decl) = struct_def.get_member(&const_name) {
             if !decl.is_mut {
@@ -664,7 +664,7 @@ pub fn func_has_field(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
     let field_name = eval_or_throw!(context, e.get(2)?);
 
     // Check if type exists in struct_defs
-    if let Some(struct_def) = context.struct_defs.get(&type_name) {
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
         // Check for mutable field (is_mut)
         if let Some(decl) = struct_def.get_member(&field_name) {
             if decl.is_mut {

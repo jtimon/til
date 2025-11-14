@@ -364,7 +364,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
                     continue;
                 }
 
-                if let Some(struct_def) = context.struct_defs.get(type_name) {
+                if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
                     // Check if clone() exists as a const (associated function)
                     let has_clone = struct_def.get_member("clone")
                         .map(|decl| !decl.is_mut)
@@ -868,7 +868,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     });
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
-    if let Some(struct_def) = context.struct_defs.get(&type_name) {
+    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
         for (field_name, field_decl) in &struct_def.members {
             let combined_name = format!("{}.{}", var_name, field_name);
             temp_context.scope_stack.declare_symbol(
@@ -926,7 +926,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                 }
                 // During type checking, register struct fields so they can be accessed in the code
                 // Memory allocation and default value evaluation happens during runtime in eval_declaration
-                if context.struct_defs.contains_key(&custom_type) {
+                if context.scope_stack.lookup_struct(&custom_type).is_some() {
                     context.register_struct_fields_for_typecheck(&decl.name, &custom_type);
                 }
             }
@@ -998,7 +998,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
             for field_name in &parts[1..] {
                 match current_type {
                     ValueType::TCustom(ref type_name) => {
-                        if let Some(struct_def) = context.struct_defs.get(type_name) {
+                        if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
                             if let Some((_, field_decl)) = struct_def.members.iter().find(|(name, _)| name == field_name) {
                                 current_type = field_decl.value_type.clone();
                             } else {
@@ -1425,7 +1425,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                 return Ok(Some(func_def.clone()))
             }
 
-            if let Some(_struct_def) = context.struct_defs.get(&combined_name) {
+            if let Some(_struct_def) = context.scope_stack.lookup_struct(&combined_name) {
                 return Ok(None) // REM: This is to allow struct instantiation
             }
 

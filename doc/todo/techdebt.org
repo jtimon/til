@@ -367,27 +367,28 @@ after each step.
 
 **Result**: Enums now live in ScopeStack, enabling scoped enum definitions
 
-*** STEP 5: Migrate Context::struct_defs → ScopeStack::local_structs
+*** STEP 5: Migrate Context::struct_defs → ScopeStack::structs - COMPLETED ✓
 
-**Status**: TODO - Blocked by Step 4
+**Status**: COMPLETED 2025-11-14
 
-**Goal**: Move all struct lookups from Context.struct_defs to scope_stack.local_structs
+**Goal**: Move all struct lookups from Context.struct_defs to scope_stack.structs
 
-**Changes**:
-1. During init_context(), populate scope_stack.frames[0].local_structs with all structs
-2. Update all context.struct_defs.get() → context.scope_stack.lookup_struct()
-3. Update all context.struct_defs.contains_key() → context.scope_stack.lookup_struct().is_some()
-4. Remove struct_defs: HashMap<String, SStructDef> from Context struct
+**Changes completed**:
+1. Added structs field to ScopeFrame with original comment
+2. Added ScopeStack methods: lookup_struct(), declare_struct()
+3. Updated all context.struct_defs.get() → context.scope_stack.lookup_struct()
+4. Updated all context.struct_defs.insert() → context.scope_stack.declare_struct()
+5. Updated all context.struct_defs.contains_key() → context.scope_stack.lookup_struct().is_some()
+6. Removed Context.struct_defs field from struct
+7. Fixed 2 borrow checker errors by cloning data before mutation
 
 **Bonus**: Enables local struct definitions in future!
 
-**Files affected**: init.rs, interpreter.rs, typer.rs (~120 lookup sites)
+**Files affected**: init.rs, interpreter.rs, typer.rs
 
-**Verification**: make tests - all tests pass
+**Verification**: ✓ make tests passes - all tests pass with no behavior change
 
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 5 COMPLETED ✓"
+**Result**: Structs now live in ScopeStack, enabling scoped struct definitions
 
 *** STEP 6: Migrate Context::arena_index → ScopeStack::local_vars (LAST BEFORE REMOVING CLONES)
 

@@ -496,7 +496,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         None => return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
     };
 
-    if context.struct_defs.contains_key(name) {
+    if context.scope_stack.lookup_struct(name).is_some() {
         // TODO allow instantiations with arguments
         let id_expr = e.get(0)?;
         if id_expr.params.len() == 0 {
@@ -792,7 +792,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         ValueType::TType(TTypeDef::TStructDef) => {
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
-                    context.struct_defs.insert(declaration.name.to_string(), struct_def.clone());
+                    context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     for (_, member_decl) in &struct_def.members {
                         if !member_decl.is_mut {
@@ -915,7 +915,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
-                                    if context.struct_defs.contains_key(potentially_struct_name) {
+                                    if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
                                         context.insert_struct(&declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
@@ -1082,7 +1082,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
 }
 
 fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    let struct_def = match context.struct_defs.get(name) {
+    let struct_def = match context.scope_stack.lookup_struct(name) {
         Some(def) => def.clone(),  // Clone to avoid borrow checker issues
         None => return Err(e.lang_error(&context.path, "eval", &format!("Struct '{}' not found in context", name))),
     };
@@ -1137,7 +1137,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                 if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
                                     match custom_symbol.value_type {
                                         ValueType::TType(TTypeDef::TStructDef) => {
-                                            let struct_def = match context.struct_defs.get(custom_type_name) {
+                                            let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
                                                 Some(def) => def,
                                                 None => return Err(e.lang_error(&context.path, "eval", &format!("Struct '{}' not found in context", custom_type_name))),
                                             };
@@ -1352,9 +1352,11 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
                                     context.insert_string(var_name, &throw_result.value, stmt)?;
-                                } else if let Some(struct_def) = context.struct_defs.get(thrown_type) {
+                                } else if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
                                     let source_name = &throw_result.value;
-                                    for (field_name, field_decl) in &struct_def.members {
+                                    // Clone the members to avoid borrow conflict
+                                    let members = struct_def.members.clone();
+                                    for (field_name, field_decl) in &members {
                                         let src_instance_field = format!("{}.{}", source_name, field_name);
                                         let src_type_field = format!("{}.{}", thrown_type, field_name);
                                         let dst_field = format!("{}.{}", var_name, field_name);
@@ -1388,8 +1390,10 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             context.scope_stack.remove_symbol(var_name);
                             context.arena_index.remove(var_name);
                             // Also remove the field mappings
-                            if let Some(struct_def) = context.struct_defs.get(thrown_type) {
-                                for (field_name, _field_decl) in &struct_def.members {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
+                                // Collect field names to avoid borrow conflict
+                                let field_names: Vec<String> = struct_def.members.iter().map(|(name, _)| name.clone()).collect();
+                                for field_name in field_names {
                                     let combined_name = format!("{}.{}", var_name, field_name);
                                     context.scope_stack.remove_symbol(&combined_name);
                                     context.arena_index.remove(&combined_name);

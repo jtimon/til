@@ -64,6 +64,9 @@ pub struct ScopeFrame {
     // Enum type definitions (variants and associated data)
     pub enums: HashMap<String, SEnumDef>,
 
+    // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
+    pub structs: HashMap<String, SStructDef>,
+
     /// Scope type (helps with cleanup and debugging)
     pub scope_type: ScopeType,
 }
@@ -88,6 +91,7 @@ impl ScopeStack {
             symbols: HashMap::new(),
             funcs: HashMap::new(),
             enums: HashMap::new(),
+            structs: HashMap::new(),
             scope_type,
         });
     }
@@ -177,6 +181,21 @@ impl ScopeStack {
     pub fn declare_enum(&mut self, name: String, enum_def: SEnumDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.enums.insert(name, enum_def);
+        }
+    }
+
+    pub fn lookup_struct(&self, name: &str) -> Option<&SStructDef> {
+        for frame in self.frames.iter().rev() {
+            if let Some(struct_def) = frame.structs.get(name) {
+                return Some(struct_def);
+            }
+        }
+        None
+    }
+
+    pub fn declare_struct(&mut self, name: String, struct_def: SStructDef) {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.structs.insert(name, struct_def);
         }
     }
 
@@ -307,7 +326,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
         let id_expr = e.get(0)?;
         match &symbol.value_type {
             ValueType::TType(TTypeDef::TStructDef) => {
-                let struct_def = match context.struct_defs.get(&f_name) {
+                let struct_def = match context.scope_stack.lookup_struct(&f_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
                         return Err(e.lang_error(&context.path, "type", &format!("struct '{}' not found in context", f_name)));
@@ -439,7 +458,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 }
 
                 // Not an enum, try struct
-                let struct_def = match context.struct_defs.get(custom_type_name) {
+                let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
                         return Err(e.lang_error(&context.path, "type", &format!("type '{}' not found in context", f_name)));
@@ -480,7 +499,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                             }
 
                                             // Check if it's a struct with this member as a field
-                                            if let Some(intermediate_struct_def) = context.struct_defs.get(intermediate_type_name) {
+                                            if let Some(intermediate_struct_def) = context.scope_stack.lookup_struct(intermediate_type_name) {
                                                 if let Some(member_decl) = intermediate_struct_def.get_member(final_member_name) {
                                                     // It's a field access - return the field's type
                                                     return Ok(member_decl.value_type.clone());
@@ -535,7 +554,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 // Variadic parameters are implemented as Array at runtime
                 // Treat them as Array for type checking method calls
                 let custom_type_name = "Array";
-                let struct_def = match context.struct_defs.get(custom_type_name) {
+                let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
                         return Err(e.lang_error(&context.path, "type", &format!("struct '{}' not found in context", custom_type_name)));
@@ -633,7 +652,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                 match &current_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // If it's a struct, resolve its member
-                        let struct_def = context.struct_defs.get(name)
+                        let struct_def = context.scope_stack.lookup_struct(name)
                             .ok_or_else(|| e.error(&context.path, "type", &format!("Struct '{}' not found", name)))?;
 
                         let decl = struct_def.get_member_or_err(member_name, name, &context.path, e)?;
@@ -652,7 +671,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                     },
                     ValueType::TCustom(custom_type_name) => {
                         // If it's a custom type (a struct), resolve the member
-                        let struct_def = context.struct_defs.get(custom_type_name)
+                        let struct_def = context.scope_stack.lookup_struct(custom_type_name)
                             .ok_or_else(|| e.error(&context.path, "type", &format!("Struct '{}' not found", custom_type_name)))?;
 
                         let decl = struct_def.get_member_or_err(member_name, custom_type_name, &context.path, e)?;
@@ -940,7 +959,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         NodeType::StructDef(struct_def) => {
                             // Register the struct itself
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
-                            context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
+                            context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for (member_name, member_decl) in &struct_def.members {
                                 if member_decl.is_mut {
@@ -990,8 +1009,6 @@ pub struct Context {
     pub mode: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
-    // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
-    pub struct_defs: HashMap<String, SStructDef>,
     // maps variable names to their offsets in the arena
     pub arena_index: HashMap<String, usize>, // stores offsets
     // Scope stack for proper lexical scoping (Phase 1: dual-write with arena_index)
@@ -1018,7 +1035,6 @@ impl Context {
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
-            struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
             scope_stack,
             temp_enum_payload: None,
@@ -1234,7 +1250,7 @@ impl Context {
     }
 
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = self.struct_defs.get(custom_type_name)
+        let struct_def = self.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
 
         let is_mut = self.scope_stack.lookup_symbol(instance_name)
@@ -1268,7 +1284,7 @@ impl Context {
                 );
 
                 if let ValueType::TCustom(type_name) = &decl.value_type {
-                    if self.struct_defs.contains_key(type_name) {
+                    if self.scope_stack.lookup_struct(type_name).is_some() {
                         self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
                             e.lang_error(&self.path, "context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
                         })?;
@@ -1291,7 +1307,7 @@ impl Context {
 
     // TODO all args should be passed as pointers/references and we wouldn't need this
     pub fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
-        let struct_def = self.struct_defs.get(custom_type_name)
+        let struct_def = self.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
         let is_mut = self.scope_stack.lookup_symbol(dest)
@@ -1349,7 +1365,7 @@ impl Context {
             Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
 
             if let ValueType::TCustom(type_name) = &decl.value_type {
-                if self.struct_defs.contains_key(type_name) {
+                if self.scope_stack.lookup_struct(type_name).is_some() {
                     self.copy_fields(type_name, &src_key, &dest_key, e).map_err(|_| {
                         e.lang_error(&self.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
                     })?;
@@ -1393,7 +1409,7 @@ impl Context {
             return Ok(max_size);
         }
 
-        if let Some(struct_def) = self.struct_defs.get(type_name) {
+        if let Some(struct_def) = self.scope_stack.lookup_struct(type_name) {
             // Check if struct has size() method (associated function)
             // If it does, ideally we'd use TIL's implementation, but we need an instance
             let has_size = struct_def.get_member("size")
@@ -1442,7 +1458,7 @@ impl Context {
     /// Calculate the offset of a specific field within a struct type
     /// This walks through the struct definition and sums up field sizes until reaching the target field
     pub fn calculate_field_offset(&self, struct_type: &str, field_name: &str) -> Result<usize, String> {
-        let struct_def = self.struct_defs.get(struct_type)
+        let struct_def = self.scope_stack.lookup_struct(struct_type)
             .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
 
         let mut current_offset = 0;
@@ -1501,7 +1517,7 @@ impl Context {
             current_offset += field_offset;
 
             // Update current_type to the type of this field (for nested access)
-            let struct_def = self.struct_defs.get(&current_type)
+            let struct_def = self.scope_stack.lookup_struct(&current_type)
                 .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
 
             let field_decl = struct_def.members.iter()
@@ -1525,7 +1541,7 @@ impl Context {
 
     pub fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
         // Lookup the struct definition
-        let struct_def = match self.struct_defs.get(custom_type_name) {
+        let struct_def = match self.scope_stack.lookup_struct(custom_type_name) {
             Some(struct_def_) => struct_def_.clone(),
             None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
         };
@@ -1612,7 +1628,7 @@ impl Context {
                                     .copy_from_slice(&v.to_ne_bytes());
                             },
                             _ => {
-                                if self.struct_defs.contains_key(type_name) {
+                                if self.scope_stack.lookup_struct(type_name).is_some() {
                                     let combined_name = format!("{}.{}", id, member_name);
                                     self.scope_stack.declare_symbol(
                                         combined_name.clone(),
@@ -1678,7 +1694,7 @@ impl Context {
             .map(|info| info.is_mut || info.is_copy || info.is_own)
             .unwrap_or(false);
 
-        if let Some(struct_def) = self.struct_defs.get(struct_type_name).cloned() {
+        if let Some(struct_def) = self.scope_stack.lookup_struct(struct_type_name).cloned() {
             for (member_name, decl) in &struct_def.members {
                 let combined_name = format!("{}.{}", instance_name, member_name);
                 // Field inherits mutability from instance (if instance is const, fields are const too)
@@ -1696,7 +1712,7 @@ impl Context {
 
                 // Recursively register nested struct fields
                 if let ValueType::TCustom(ref nested_type) = decl.value_type {
-                    if self.struct_defs.contains_key(nested_type) {
+                    if self.scope_stack.lookup_struct(nested_type).is_some() {
                         self.register_struct_fields_for_typecheck(&combined_name, nested_type);
                     }
                 }
@@ -1768,7 +1784,7 @@ impl Context {
 
         if is_field {
             if let Some(&base_offset) = self.arena_index.get(id) {
-                if let Some(str_def) = self.struct_defs.get("Str") {
+                if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
                     let mut current_offset = 0;
 
                     for (member_name, decl) in str_def.members.iter() {
@@ -1795,7 +1811,7 @@ impl Context {
             }
 
             // Not yet inserted — insert fresh inlined Str
-            if let Some(str_def) = self.struct_defs.get("Str") {
+            if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
                 let struct_offset = Arena::g().memory.len();
                 let mut current_offset = 0;
 
