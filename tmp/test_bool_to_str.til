@@ -1,0 +1,8 @@
+mode test
+
+test_bool_to_str := proc() {
+    aaa := true
+    test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)")
+}
+
+test_bool_to_str()

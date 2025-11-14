@@ -1,0 +1,21 @@
+mode test
+
+println("DEBUG: Starting")
+
+c42 := 42
+
+// Testing inc and dec (UFCS: val.inc() -> inc(val))
+test_inc_dec := proc() {
+    mut val := 41
+    val.inc() // Equivalent to I64.inc(val)
+    test(loc(), val.eq(42), "41.inc() == 42")
+
+    val.dec()
+    test(loc(), val.eq(41), "42.dec() == 41")
+}
+
+println("Defined test_inc_dec")
+
+// Don't call it yet
+
+println("Done")

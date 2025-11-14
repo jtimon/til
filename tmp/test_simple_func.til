@@ -1,0 +1,9 @@
+mode test
+
+test_func := proc(n: I64) returns I64 {
+    return mul(n, 2)
+}
+
+result := test_func(21)
+assert_eq(loc(), 42, result)
+println("Test passed!")

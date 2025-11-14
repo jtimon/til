@@ -1,0 +1,14 @@
+mode lib
+
+test_if_direct := proc(a: Str, b: Str) {
+    if a.eq(b) {
+        single_print("test_if_direct: PASS (equal)\n")
+    }
+}
+
+test_if_not := proc(a: Str, b: Str) {
+    if not(a.eq(b)) {
+        single_print("test_if_not: FAIL (not equal)\n")
+        exit(1)
+    }
+}

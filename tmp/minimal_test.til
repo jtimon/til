@@ -1,0 +1,8 @@
+mode test
+
+test_simple := proc() {
+    println("Test function called!")
+}
+
+test_simple()
+println("After test call")

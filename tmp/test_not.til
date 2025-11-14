@@ -1,0 +1,8 @@
+mode test
+
+test_not := proc() {
+    result := not(false)
+    test(loc(), result, "not(false) should be true")
+}
+
+test_not()

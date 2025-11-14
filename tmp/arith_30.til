@@ -1,0 +1,30 @@
+mode test
+
+println("DEBUG: Starting arithmetics.til")
+
+// Arithmetic tests
+
+c2      := 2
+c4      := 4
+c42     := 42
+c0      := 0
+c1      := 1
+cNeg2   := sub(0, 2)
+cNeg42  := sub(0, 42)
+
+test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
+test(loc(), c42.eq(sub(44, 2)), "44 - 2 = 42")
+test(loc(), c42.eq(mul(6, 7)), " 6 * 7 = 42")
+test(loc(), c42.eq(div(420, 10)), " 420 / 10 = 42")
+test(loc(),  c4.eq(add(2, 2)), "2 + 2 = 4")
+test(loc(),  c4.eq(mul(2, 2)), "2 * 2 = 4")
+
+// Testing inc and dec (UFCS: val.inc() -> inc(val))
+test_inc_dec := proc() {
+    mut val := 41
+    val.inc() // Equivalent to I64.inc(val)
+    test(loc(), val.eq(42), "41.inc() == 42")
+
+    val.dec()
+    test(loc(), val.eq(41), "42.dec() == 41")
+}

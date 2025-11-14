@@ -1,0 +1,10 @@
+mode test
+
+// Minimal test to check if Str struct definition is available during eval
+test_str_def := proc() {
+    // This should call insert_string which requires Str definition
+    s := "hello"
+    println(s)
+}
+
+test_str_def()

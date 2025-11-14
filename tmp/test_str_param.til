@@ -1,0 +1,12 @@
+mode test
+
+get_str := func() returns Str {
+    return "hello"
+}
+
+test_str_param := proc() {
+    result := Str.eq(get_str(), "hello")
+    println(Bool.to_str(result))
+}
+
+test_str_param()

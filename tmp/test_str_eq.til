@@ -1,0 +1,7 @@
+mode test
+
+test_str_eq := proc() {
+    test(loc(), Str.eq("hello", "hello"), "strings should be equal")
+}
+
+test_str_eq()

@@ -1,0 +1,11 @@
+mode test
+
+println("About to create c2")
+c2 := 2
+println("Created c2")
+
+println("About to create c4")
+c4 := 4
+println("Created c4")
+
+println("Done")

@@ -1,0 +1,17 @@
+mode test
+
+println("DEBUG: Starting arithmetics.til copy")
+
+// Arithmetic tests
+
+c2      := 2
+c4      := 4
+c42     := 42
+c0      := 0
+c1      := 1
+cNeg2   := sub(0, 2)
+cNeg42  := sub(0, 42)
+
+println("About to run first test")
+test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
+println("After first test")

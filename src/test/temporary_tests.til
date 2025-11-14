@@ -1,6 +1,19 @@
 mode test
 
-temporary_test := proc() {
+import("tmp.helper")
+
+hello := func() returns Str {
+    return "test123"
 }
 
-temporary_test()
+single_print("Test 1: if a.eq(b) directly\n")
+print_flush()
+test_if_direct(hello(), "test123")
+print_flush()
+
+single_print("Test 2: if not(a.eq(b))\n")
+print_flush()
+test_if_not(hello(), "test123")
+print_flush()
+
+single_print("All tests passed!\n")

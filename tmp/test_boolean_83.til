@@ -1,0 +1,83 @@
+mode test
+
+// boolean logic:
+
+test(loc(), true, "true is true")
+test(loc(), not(false), "not: not false is true")
+test(loc(), not(not(true)), "not: not not true is true")
+// and(true, 1111) // fails, 'and' cannot take number literals
+// and(true, "asdfgdfafgd") // fails, 'and' cannot take string literals
+test(loc(), and(true, true), "and(true, true) == true")
+test(loc(), not(and(true, false)), "and(true, false) == false")
+test(loc(), not(and(true, false)), "and(false, true) == false")
+test(loc(), not(and(false, true)), "and(false, true) == false")
+test(loc(), not(and(false, false)), "and(false, false) == false")
+
+test(loc(), or(true, true), "or(true, true) == true")
+test(loc(), or(true, false), "or(true, false) == true")
+test(loc(), or(false, true), "or(false, true) == true")
+test(loc(), not(or(false, false)), "or(false, false) == false")
+
+// note that both 'and' and 'or' can take any number of bools as args, like in lisp
+// test(loc(), or(false, true, true), "or(false, false, true) == true")
+// test(loc(), not(and(false, true, true)), "and(false, false, true) == false")
+
+test(loc(), or(true, false), "and: true or false is true")
+
+test(loc(), xor(true, false), "and: true xor false is true")
+test(loc(), not(xor(true, true)), "xor(true, true) == false")
+
+// --------------- TODO remove redundancies
+
+// Bool to int tests tests
+test(loc(), I64.eq(Bool.to_i64(true), 1), "Bool.to_i64(true) = 1")
+test(loc(), I64.eq(Bool.to_i64(false), 0), "Bool.to_i64(false) = 0")
+
+// Testing 'and' with all combinations
+test(loc(), and(true, true), "true AND true = true")
+test(loc(), not(and(true, false)), "true AND false = false")
+test(loc(), not(and(false, true)), "false AND true = false")
+test(loc(), not(and(false, false)), "false AND false = false")
+
+// variadic 'and'
+test(loc(), and(true), "true AND = true")
+test(loc(), not(and(false)), "false AND = false")
+test(loc(), and(true, true, true), "true AND true AND true = true")
+test(loc(), not(and(true, false, true)), "true AND false AND true = false")
+
+// Testing 'or' with all combinations
+test(loc(), not(or(false, false)), "false OR false = false")
+test(loc(), or(true, false), "true OR false = true")
+test(loc(), or(false, true), "false OR true = true")
+test(loc(), or(true, true), "true OR true = true")
+
+// variadic 'or'
+test(loc(), or(true), "true OR = true")
+test(loc(), not(or(false)), "false OR = false")
+test(loc(), or(false, false, true), "false OR false OR true = true")
+test(loc(), not(or(false, false, false)), "false OR false OR false = false")
+
+// Testing 'xor' with all combinations
+test(loc(), xor(true, false), "true XOR false = true")
+test(loc(), xor(false, true), "false XOR true = true")
+test(loc(), not(xor(true, true)), "true XOR true = false")
+test(loc(), not(xor(false, false)), "false XOR false = false")
+
+// Testing 'xnor' with all combinations
+test(loc(), not(xnor(true, false)), "true XNOR false = false")
+test(loc(), not(xnor(false, true)), "false XNOR true = false")
+test(loc(), xnor(true, true), "true XNOR true = true")
+test(loc(), xnor(false, false), "false XNOR false = true")
+
+// Testing 'Bool.eq' with all combinations (it is equivalent to xnor)
+test(loc(), not(Bool.eq(true, false)), "true BOOL.eq false = false")
+test(loc(), not(Bool.eq(false, true)), "false BOOL.eq true = false")
+test(loc(), Bool.eq(true, true), "true BOOL.eq true = true")
+test(loc(), Bool.eq(false, false), "false BOOL.eq false = true")
+
+// Test Bool.to_str()
+aaa := true
+test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)") // Use associated functions as methods with UFCS
+test(loc(), Str.eq("true", aaa.to_str()), "'true' = Bool.to_str(true)")
+test(loc(), Str.eq("true", Bool.to_str(true)), "'true' = Bool.to_str(true)")
+test(loc(), Str.eq("false", Bool.to_str(false)), "'false' = Bool.to_str(false)")

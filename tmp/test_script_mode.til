@@ -1,0 +1,10 @@
+mode script
+
+println("Script mode works!")
+
+c2 := 2
+c4 := 4
+c42 := 42
+
+println("Variables created")
+println("c42 =", I64.to_str(c42))

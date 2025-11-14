@@ -1,0 +1,11 @@
+mode test
+
+println("Hello from top level")
+
+test_fn := proc() {
+    println("Inside test_fn")
+}
+
+println("About to call test_fn")
+test_fn()
+println("After calling test_fn")

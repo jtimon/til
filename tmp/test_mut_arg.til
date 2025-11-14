@@ -1,0 +1,18 @@
+mode test
+
+double := proc(mut n: I64) {
+    n = mul(n, 2)
+}
+
+mut value := 21
+double(value)
+
+check := proc(n: I64, expected: I64) {
+    cond := I64.eq(n, expected)
+    switch cond {
+    case true: single_print("PASS\n")
+    case false: single_print("FAIL\n")
+    }
+}
+
+check(value, 42)

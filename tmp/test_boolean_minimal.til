@@ -1,0 +1,9 @@
+mode test
+
+// boolean logic:
+
+test(loc(), true, "true is true")
+test(loc(), not(false), "not: not false is true")
+test(loc(), not(not(true)), "not: not not true is true")
+test(loc(), and(true, true), "and(true, true) == true")
+test(loc(), not(and(true, false)), "and(true, false) == false")

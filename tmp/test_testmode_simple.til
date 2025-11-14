@@ -1,0 +1,5 @@
+mode test
+
+println("Test mode started")
+c42 := 42
+println("Variable created, c42 = ", I64.to_str(c42))

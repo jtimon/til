@@ -1,0 +1,12 @@
+mode test
+
+get_str := func() returns Str {
+    return "hello"
+}
+
+test_str_return := proc() {
+    s := get_str()
+    println(s)
+}
+
+test_str_return()

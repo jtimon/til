@@ -1,0 +1,31 @@
+mode test
+
+println("Starting minimal arithmetics test with test_inc_dec")
+
+c2      := 2
+c4      := 4
+c42     := 42
+
+println("Test 1")
+test(loc(), c42.eq(add(40, 2)), "40 + 2 = 42")
+
+println("About to call test_inc_dec")
+
+// Testing inc and dec (UFCS: val.inc() -> inc(val))
+test_inc_dec := proc() {
+    println("  Inside test_inc_dec")
+    mut val := 41
+    println("  Created val = 41")
+    val.inc() // Equivalent to I64.inc(val)
+    println("  After inc")
+    test(loc(), val.eq(42), "41.inc() == 42")
+    println("  After first test")
+
+    val.dec()
+    println("  After dec")
+    test(loc(), val.eq(41), "42.dec() == 41")
+    println("  After second test")
+}
+test_inc_dec()
+
+println("After test_inc_dec")

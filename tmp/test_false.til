@@ -1,0 +1,7 @@
+mode test
+
+test_false := proc() {
+    println(false)
+}
+
+test_false()
