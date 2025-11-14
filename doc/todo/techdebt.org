@@ -304,26 +304,24 @@ after each step.
 - Code changes committed
 - This doc updated with "Step 1 COMPLETED ✓"
 
-*** STEP 2: Migrate Context::symbols → ScopeStack::local_symbols
+*** STEP 2: Migrate Context::symbols → ScopeStack::symbols - COMPLETED ✓
 
-**Status**: TODO - Blocked by Step 1
+**Status**: COMPLETED 2025-11-14 (commit c7a07d0)
 
-**Goal**: Move all symbol lookups/insertions from Context.symbols to scope_stack.local_symbols
+**Goal**: Move all symbol lookups/insertions from Context.symbols to scope_stack.symbols
 
-**Changes**:
-1. During init_context(), populate scope_stack.frames[0].local_symbols with all globals/imports
-2. In function calls/catch/pattern-match, use scope_stack.declare_symbol() for new symbols
-3. Update all context.symbols.get() → context.scope_stack.lookup_symbol()
-4. Update all context.symbols.insert() → context.scope_stack.declare_symbol()
-5. Remove symbols: HashMap<String, SymbolInfo> from Context struct
+**Changes completed**:
+1. Renamed ScopeFrame.local_symbols → symbols for simplicity
+2. Preserved original "context priming"/"declaration indexing" comment
+3. Added ScopeStack methods: declare_symbol(), remove_symbol(), get_symbols_with_prefix()
+4. Migrated 109 call sites across 4 files
+5. Removed Context.symbols field from struct
 
-**Files affected**: init.rs, interpreter.rs, typer.rs (~200 lookup sites)
+**Files affected**: init.rs, interpreter.rs, typer.rs, ext.rs
 
-**Verification**: make tests - all tests pass with no behavior change
+**Verification**: ✓ make tests passes - all tests pass with no behavior change
 
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 2 COMPLETED ✓"
+**Result**: Symbol table now lives in ScopeStack, enabling proper lexical scoping
 
 *** STEP 3: Migrate Context::funcs → ScopeStack::local_funcs
 
