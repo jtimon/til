@@ -36,6 +36,7 @@ pub struct EnumVal {
 
 // Scope stack for proper lexical scoping
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum ScopeType {
     Global,      // Top-level module scope
     Function,    // Function body
@@ -44,13 +45,18 @@ pub enum ScopeType {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct ScopeFrame {
     /// Local variables declared in this scope
     /// Maps variable name → arena offset
     pub local_vars: HashMap<String, usize>,
 
-    /// Local symbols (type info, mutability)
-    pub local_symbols: HashMap<String, SymbolInfo>,
+    // All declared symbols (types, constants, variables, and function names)
+    // This is necessary for so called "context priming" or "declaration indexing"
+    // aka declaring things in whatever order, aka not needing forward declarations
+    // in theory it should only be needed for the "type" phase after the init context phase
+    // but it can be convenient at times in eval or compile phases too, I guess.
+    pub symbols: HashMap<String, SymbolInfo>,
 
     /// Scope type (helps with cleanup and debugging)
     pub scope_type: ScopeType,
@@ -62,6 +68,7 @@ pub struct ScopeStack {
     pub frames: Vec<ScopeFrame>,
 }
 
+#[allow(dead_code)]
 impl ScopeStack {
     pub fn new() -> Self {
         ScopeStack {
@@ -72,7 +79,7 @@ impl ScopeStack {
     pub fn push(&mut self, scope_type: ScopeType) {
         self.frames.push(ScopeFrame {
             local_vars: HashMap::new(),
-            local_symbols: HashMap::new(),
+            symbols: HashMap::new(),
             scope_type,
         });
     }
@@ -98,7 +105,7 @@ impl ScopeStack {
 
     pub fn lookup_symbol(&self, name: &str) -> Option<&SymbolInfo> {
         for frame in self.frames.iter().rev() {
-            if let Some(sym) = frame.local_symbols.get(name) {
+            if let Some(sym) = frame.symbols.get(name) {
                 return Some(sym);
             }
         }
@@ -117,8 +124,35 @@ impl ScopeStack {
         }
 
         current_frame.local_vars.insert(name.clone(), offset);
-        current_frame.local_symbols.insert(name, symbol);
+        current_frame.symbols.insert(name, symbol);
         Ok(())
+    }
+
+    pub fn declare_symbol(&mut self, name: String, symbol: SymbolInfo) {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.symbols.insert(name, symbol);
+        }
+    }
+
+    pub fn remove_symbol(&mut self, name: &str) -> Option<SymbolInfo> {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.symbols.remove(name)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_symbols_with_prefix(&self, prefix: &str) -> Vec<String> {
+        // Collect all keys from all scopes that start with the given prefix
+        let mut keys = Vec::new();
+        for frame in &self.frames {
+            for key in frame.symbols.keys() {
+                if key.starts_with(prefix) {
+                    keys.push(key.clone());
+                }
+            }
+        }
+        keys
     }
 }
 
@@ -230,7 +264,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     // Original logic: check for standalone function
     if let Some(func_def) = context.funcs.get(&f_name) {
         return value_type_func_proc(&context.path, &e, &f_name, func_def)
-    } else if let Some(symbol) = context.symbols.get(&f_name) {
+    } else if let Some(symbol) = context.scope_stack.lookup_symbol(&f_name) {
 
         let id_expr = e.get(0)?;
         match &symbol.value_type {
@@ -539,7 +573,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
         NodeType::Range => Ok(ValueType::TCustom(format!("{}Range", value_type_to_str(&get_value_type(&context, e.get(0)?)?)))),
 
         NodeType::Identifier(name) => {
-            let mut current_type = match context.symbols.get(name) {
+            let mut current_type = match context.scope_stack.lookup_symbol(name) {
                 Some(symbol_info_m) => {
                     symbol_info_m.value_type.clone()
                 },
@@ -793,7 +827,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
         NodeType::Declaration(decl) => {
-            if context.funcs.contains_key(&decl.name) || context.symbols.contains_key(&decl.name) {
+            if context.funcs.contains_key(&decl.name) || context.scope_stack.lookup_symbol(&decl.name).is_some() {
                 errors.push(e.error(&context.path, "type", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
@@ -829,7 +863,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     FunctionType::FTMacro => {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
-                                context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                                context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                                 context.funcs.insert(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
@@ -848,7 +882,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
@@ -867,7 +901,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
                             // Register the struct itself
-                            context.symbols.insert(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                            context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.struct_defs.insert(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for (member_name, member_decl) in &struct_def.members {
@@ -879,7 +913,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                     let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
                                     let full_name = format!("{}.{}", decl.name, member_name); // Note: using '.' not '::'
                                     // Register in symbols
-                                    context.symbols.insert(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
+                                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                                     // If it's a function, also register in funcs
                                     if let NodeType::FuncDef(func_def) = &member_expr.node_type {
                                         context.funcs.insert(full_name, func_def.clone());
@@ -895,7 +929,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                 }
 
                 ValueType::TMulti(_) | ValueType::TCustom(_) => {
-                    context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+                    context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                 },
             }
         }
@@ -918,12 +952,6 @@ pub struct Context {
     pub mode: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
-    // All declared symbols (types, constants, variables, and function names)
-    // This is necessary for so called "context priming" or "declaration indexing"
-    // aka declaring things in whatever order, aka not needing forward declarations
-    // in theory it should only be needed for the "type" phase after the init context phase
-    // but it can be convenient at times in eval or compile phases too, I guess.
-    pub symbols: HashMap<String, SymbolInfo>,
     // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
     pub funcs: HashMap<String, SFuncDef>,
     // Enum type definitions (variants and associated data)
@@ -956,7 +984,6 @@ impl Context {
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
-            symbols: HashMap::new(),
             funcs: HashMap::new(),
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
@@ -1020,7 +1047,7 @@ impl Context {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
             // If base is in symbols and is NOT a struct type, it's an instance field access
-            self.symbols.get(base).map_or(false, |sym| {
+            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
                 !matches!(&sym.value_type, ValueType::TType(_))
             })
         } else {
@@ -1074,7 +1101,7 @@ impl Context {
         let is_instance_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
-            self.symbols.get(base).map_or(false, |sym| {
+            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
                 !matches!(&sym.value_type, ValueType::TType(_))
             })
         } else {
@@ -1122,7 +1149,7 @@ impl Context {
     }
 
     pub fn insert_bool(self: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-        let is_mut = match self.symbols.get(id) {
+        let is_mut = match self.scope_stack.lookup_symbol(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
             None => return Err(e.lang_error(&self.path, "context", &format!("Symbol '{}' not found", id))),
         };
@@ -1135,7 +1162,7 @@ impl Context {
         let is_instance_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
-            self.symbols.get(base).map_or(false, |sym| {
+            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
                 !matches!(&sym.value_type, ValueType::TType(_))
             })
         } else {
@@ -1162,7 +1189,7 @@ impl Context {
 
         // Insert Bool data field too
         let field_id = format!("{}.data", id);
-        self.symbols.insert(field_id.clone(), SymbolInfo {
+        self.scope_stack.declare_symbol(field_id.clone(), SymbolInfo {
             value_type: ValueType::TCustom("U8".to_string()),
             is_mut: is_mut,
             is_copy: false,
@@ -1178,7 +1205,7 @@ impl Context {
         let struct_def = self.struct_defs.get(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
 
-        let is_mut = self.symbols.get(instance_name)
+        let is_mut = self.scope_stack.lookup_symbol(instance_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
             .is_mut;
 
@@ -1198,7 +1225,7 @@ impl Context {
                 let field_offset = base_offset + current_offset;
                 self.arena_index.insert(combined_name.clone(), field_offset);
 
-                self.symbols.insert(
+                self.scope_stack.declare_symbol(
                     combined_name.clone(),
                     SymbolInfo {
                         value_type: decl.value_type.clone(),
@@ -1235,7 +1262,7 @@ impl Context {
         let struct_def = self.struct_defs.get(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
-        let is_mut = self.symbols.get(dest)
+        let is_mut = self.scope_stack.lookup_symbol(dest)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
             .is_mut;
 
@@ -1280,7 +1307,7 @@ impl Context {
             let dest_offset = dest_base_offset + current_offset;
 
             self.arena_index.insert(dest_key.clone(), dest_offset);
-            self.symbols.insert(dest_key.clone(), SymbolInfo {
+            self.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
                 is_copy: false,
@@ -1427,7 +1454,7 @@ impl Context {
             .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
 
         // Get the base variable's type
-        let mut current_type = match self.symbols.get(base_var) {
+        let mut current_type = match self.scope_stack.lookup_symbol(base_var) {
             Some(symbol) => match &symbol.value_type {
                 ValueType::TCustom(type_name) => type_name.clone(),
                 _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
@@ -1472,7 +1499,7 @@ impl Context {
         };
 
         // Determine mutability from symbols table
-        let is_mut = match self.symbols.get(id) {
+        let is_mut = match self.scope_stack.lookup_symbol(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
             None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
         };
@@ -1555,7 +1582,7 @@ impl Context {
                             _ => {
                                 if self.struct_defs.contains_key(type_name) {
                                     let combined_name = format!("{}.{}", id, member_name);
-                                    self.symbols.insert(
+                                    self.scope_stack.declare_symbol(
                                         combined_name.clone(),
                                         SymbolInfo {
                                             value_type: ValueType::TCustom(type_name.clone()),
@@ -1587,7 +1614,7 @@ impl Context {
 
             let combined_name = format!("{}.{}", id, member_name);
             self.arena_index.insert(combined_name.clone(), offset + field_offset);
-            self.symbols.insert(
+            self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo {
                     value_type: decl.value_type.clone(),
@@ -1615,7 +1642,7 @@ impl Context {
     // This allows type checking of struct method bodies without triggering evaluation errors
     pub fn register_struct_fields_for_typecheck(&mut self, instance_name: &str, struct_type_name: &str) {
         // Get instance mutability from symbols
-        let instance_is_mut = self.symbols.get(instance_name)
+        let instance_is_mut = self.scope_stack.lookup_symbol(instance_name)
             .map(|info| info.is_mut || info.is_copy || info.is_own)
             .unwrap_or(false);
 
@@ -1625,7 +1652,7 @@ impl Context {
                 // Field inherits mutability from instance (if instance is const, fields are const too)
                 let field_is_mut = instance_is_mut && decl.is_mut;
 
-                self.symbols.insert(
+                self.scope_stack.declare_symbol(
                     combined_name.clone(),
                     SymbolInfo {
                         value_type: decl.value_type.clone(),
@@ -1693,7 +1720,7 @@ impl Context {
         let is_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
-            self.symbols.get(base).map_or(false, |sym| {
+            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
                 !matches!(&sym.value_type, ValueType::TType(_))
             })
         } else {
@@ -1857,7 +1884,7 @@ impl Context {
         match vtype {
             ValueType::TCustom(type_name) if type_name == "I64" => Ok(8),
             ValueType::TCustom(type_name) => {
-                match self.symbols.get(type_name) {
+                match self.scope_stack.lookup_symbol(type_name) {
                     Some(type_symbol) => {
                         match &type_symbol.value_type {
                             ValueType::TType(TTypeDef::TStructDef) => {
@@ -1883,7 +1910,7 @@ impl Context {
     }
 
     pub fn get_enum(&self, id: &str, e: &Expr) -> Result<EnumVal, String> {
-        let symbol_info = self.symbols.get(id)
+        let symbol_info = self.scope_stack.lookup_symbol(id)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
 
         let enum_type = match &symbol_info.value_type {
@@ -1916,7 +1943,7 @@ impl Context {
                     },
                     ValueType::TCustom(type_name) => {
                         // Check if this is a struct or enum type
-                        match self.symbols.get(type_name) {
+                        match self.scope_stack.lookup_symbol(type_name) {
                             Some(type_symbol) => {
                                 match &type_symbol.value_type {
                                     ValueType::TType(TTypeDef::TStructDef) => {
@@ -2071,7 +2098,7 @@ impl Context {
                         let offset = ptr + i * elem_size;
 
                         let temp_id = format!("{}_{}", name, i);
-                        self.symbols.insert(temp_id.clone(), SymbolInfo {
+                        self.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
                             value_type: ValueType::TCustom("Str".to_string()),
                             is_mut: false,
                             is_copy: false,
@@ -2132,7 +2159,7 @@ impl Context {
             let type_name_offset_opt = self.arena_index.get(&format!("{}.type_name", name)).copied();
             if let Some(type_name_offset) = type_name_offset_opt {
                 let temp_id = format!("{}_type_name_temp", name);
-                self.symbols.insert(temp_id.clone(), SymbolInfo {
+                self.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
                     value_type: ValueType::TCustom("Str".to_string()),
                     is_mut: false,
                     is_copy: false,

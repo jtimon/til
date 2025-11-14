@@ -203,7 +203,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         let bool_val = payload_bytes[0] != 0;
 
                                         // First add the symbol to context
-                                        context.symbols.insert(
+                                        context.scope_stack.declare_symbol(
                                             binding_var.clone(),
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
@@ -225,7 +225,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         let i64_val = i64::from_le_bytes(bytes);
 
                                         // First add the symbol to context
-                                        context.symbols.insert(
+                                        context.scope_stack.declare_symbol(
                                             binding_var.clone(),
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
@@ -254,7 +254,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         let size = i64::from_le_bytes(size_bytes);
 
                                         // First add the symbol to context
-                                        context.symbols.insert(
+                                        context.scope_stack.declare_symbol(
                                             binding_var.clone(),
                                             SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
@@ -281,7 +281,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                     }
                                     ValueType::TCustom(type_name) => {
                                         // Handle custom types (structs and enums)
-                                        let type_symbol = context.symbols.get(type_name).ok_or_else(|| {
+                                        let type_symbol = context.scope_stack.lookup_symbol(type_name).ok_or_else(|| {
                                             case.error(&context.path, "eval", &format!("Unknown type '{}'", type_name))
                                         })?;
 
@@ -289,7 +289,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             ValueType::TType(TTypeDef::TStructDef) => {
                                                 // Handle struct payloads
                                                 // First add the symbol to context
-                                                context.symbols.insert(
+                                                context.scope_stack.declare_symbol(
                                                     binding_var.clone(),
                                                     SymbolInfo {
                                                         value_type: payload_type.clone(),
@@ -365,7 +365,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                     .and_then(|opt| opt.clone());
 
                                                 // Add symbol to context first
-                                                context.symbols.insert(
+                                                context.scope_stack.declare_symbol(
                                                     binding_var.clone(),
                                                     SymbolInfo {
                                                         value_type: payload_type.clone(),
@@ -552,7 +552,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         ValueType::TCustom(struct_type_name) => {
                             // Handle struct payloads
                             // Check if this is a struct type
-                            let type_symbol = context.symbols.get(struct_type_name).ok_or_else(|| {
+                            let type_symbol = context.scope_stack.lookup_symbol(struct_type_name).ok_or_else(|| {
                                 e.error(&context.path, "eval", &format!("Unknown type '{}'", struct_type_name))
                             })?;
 
@@ -571,7 +571,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             let string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
-                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -588,7 +588,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             let bool_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_bool
-                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -604,7 +604,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             let string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
-                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Str".to_string()),
                                                 is_mut: false, // Temporary string is immutable
                                                 is_copy: false,
@@ -620,7 +620,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             let i64_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_i64
-                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("I64".to_string()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -661,7 +661,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             }
 
                                             // Add symbol entry before calling insert_enum
-                                            context.symbols.insert(temp_var_name.clone(), SymbolInfo {
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom(struct_type_name.clone()),
                                                 is_mut: false,
                                                 is_copy: false,
@@ -782,7 +782,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
                     context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
@@ -793,7 +793,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::StructDef(struct_def) => {
                     context.struct_defs.insert(declaration.name.to_string(), struct_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     for (_, member_decl) in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);
@@ -861,7 +861,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                 },
                             }
 
-                            context.symbols.insert(combined_name.to_string(),
+                            context.scope_stack.declare_symbol(combined_name.to_string(),
                                                    SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                         }
                     }
@@ -875,7 +875,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
                     context.funcs.insert(declaration.name.to_string(), func_def.clone());
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     return Ok(EvalResult::new(""))
                 },
 
@@ -892,13 +892,13 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     context.insert_primitive(&declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
-                    context.symbols.insert(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
-                    let custom_symbol = match context.symbols.get(custom_type_name) {
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
                         Some(sym) => sym,
                         None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", custom_type_name))),
                     };
@@ -968,7 +968,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         var_name
     };
 
-    let symbol_info = match context.symbols.get(base_var_name) {
+    let symbol_info = match context.scope_stack.lookup_symbol(base_var_name) {
         Some(sym) => sym,
         None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name))),
     };
@@ -1002,7 +1002,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     context.insert_primitive(var_name, &value_type, &expr_result_str, e)?;
                 },
                 _ => {
-                    let custom_symbol_info = match context.symbols.get(custom_type_name) {
+                    let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
                         Some(symbol_info) => symbol_info,
                         None => return Err(inner_e.lang_error(&context.path, "eval", &format!("Unknown custom type '{}'", custom_type_name))),
                     };
@@ -1099,7 +1099,7 @@ fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> R
 }
 
 fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_name: &str) -> Result<EvalResult, String> {
-    let custom_symbol = match context.symbols.get(custom_type_name) {
+    let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
         Some(sym) => sym,
         None => return Err(e.lang_error(&context.path, "eval", &format!("Argument '{}' is of undefined type {}.", name, custom_type_name))),
     };
@@ -1134,7 +1134,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                 return Err(inner_e.todo_error(&context.path, "eval", &format!("'{}': StructDef cannot be a field yet", current_name)));
                             },
                             ValueType::TCustom(ref custom_type_name) => {
-                                if let Some(custom_symbol) = context.symbols.get(custom_type_name) {
+                                if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
                                     match custom_symbol.value_type {
                                         ValueType::TType(TTypeDef::TStructDef) => {
                                             let struct_def = match context.struct_defs.get(custom_type_name) {
@@ -1185,7 +1185,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         },
                         _ => {
                             let custom_type_name = &value_type_to_str(&current_type);
-                            let custom_symbol_info = match context.symbols.get(custom_type_name) {
+                            let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
                                 Some(symbol_info) => symbol_info,
                                 None => return Err(inner_e.lang_error(&context.path, "eval", &format!("Unknown custom type '{}'", custom_type_name))),
                             };
@@ -1215,7 +1215,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
 }
 
 fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    match context.symbols.get(name) {
+    match context.scope_stack.lookup_symbol(name) {
         Some(symbol_info) => match &symbol_info.value_type {
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
                 return Ok(EvalResult::new(name));
@@ -1307,7 +1307,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                     if let Some(thrown_type) = &throw_result.thrown_type {
                         if type_name == thrown_type {
                             // Bind the error variable to the caught error value
-                            context.symbols.insert(var_name.to_string(), SymbolInfo {
+                            context.scope_stack.declare_symbol(var_name.to_string(), SymbolInfo {
                                 value_type: ValueType::TCustom(thrown_type.clone()),
                                 is_mut: false,
                                 is_copy: false,
@@ -1336,14 +1336,11 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 }
 
                                 // Also copy symbol mappings for all fields
-                                let symbol_keys_to_copy: Vec<String> = context.symbols.keys()
-                                    .filter(|k| k.starts_with(&source_prefix))
-                                    .cloned()
-                                    .collect();
+                                let symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&source_prefix);
                                 for src_key in symbol_keys_to_copy {
-                                    if let Some(src_symbol) = context.symbols.get(&src_key) {
+                                    if let Some(src_symbol) = context.scope_stack.lookup_symbol(&src_key) {
                                         let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
-                                        context.symbols.insert(dest_key, src_symbol.clone());
+                                        context.scope_stack.declare_symbol(dest_key, src_symbol.clone());
                                     }
                                 }
                             } else {
@@ -1363,7 +1360,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                         let dst_field = format!("{}.{}", var_name, field_name);
 
                                         // Add symbol for the field
-                                        context.symbols.insert(
+                                        context.scope_stack.declare_symbol(
                                             dst_field.clone(),
                                             SymbolInfo {
                                                 value_type: field_decl.value_type.clone(),
@@ -1388,13 +1385,13 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             let result = eval_body(&mut context, &body_expr.params)?;
 
                             // Clean up the error variable binding after the catch block
-                            context.symbols.remove(var_name);
+                            context.scope_stack.remove_symbol(var_name);
                             context.arena_index.remove(var_name);
                             // Also remove the field mappings
                             if let Some(struct_def) = context.struct_defs.get(thrown_type) {
                                 for (field_name, _field_decl) in &struct_def.members {
                                     let combined_name = format!("{}.{}", var_name, field_name);
-                                    context.symbols.remove(&combined_name);
+                                    context.scope_stack.remove_symbol(&combined_name);
                                     context.arena_index.remove(&combined_name);
                                     // Nested struct fields are handled by subsequent iterations
                                 }
@@ -1445,7 +1442,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let mut mut_args: Vec<(String, String, ValueType)> = Vec::new(); // (arg_name, source_name, type)
 
     for arg in &func_def.args {
-        function_context.symbols.insert(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+        function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
                 let variadic_args = &e.params[param_index..];
@@ -1462,7 +1459,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // All array types now use the generic Array
                 let array_type_name = "Array".to_string();
 
-                function_context.symbols.insert(arg.name.to_string(), SymbolInfo {
+                function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
                     is_mut: arg.is_mut,
                     is_copy: arg.is_copy,
@@ -1481,10 +1478,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // store the type name as a string so size_of(T) and type_as_str(T) can use it
                 if custom_type_name == "Dynamic" {
                     if let NodeType::Identifier(id_name) = &current_arg.node_type {
-                        if let Some(sym) = context.symbols.get(id_name) {
+                        if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
                             if let ValueType::TType(_) = &sym.value_type {
                                 // This is a type identifier - store the type name as a string
-                                function_context.symbols.insert(arg.name.clone(), SymbolInfo {
+                                function_context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
                                     value_type: ValueType::TCustom("Str".to_string()),
                                     is_mut: false,
                                     is_copy: false,
@@ -1501,9 +1498,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
                 let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
-                    if let Some(sym) = context.symbols.get(id_name) {
+                    if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
                         if let ValueType::TCustom(arg_type_name) = &sym.value_type {
-                            if let Some(type_sym) = context.symbols.get(arg_type_name) {
+                            if let Some(type_sym) = context.scope_stack.lookup_symbol(arg_type_name) {
                                 if type_sym.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                                     // This is an enum variable, get its value to preserve payload
                                     match context.get_enum(id_name, e) {
@@ -1599,8 +1596,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     let new_key = key.replace(source_var, &arg.name);
                                     function_context.arena_index.insert(new_key.clone(), field_offset);
                                     // Also transfer symbol info for fields
-                                    if let Some(field_sym) = context.symbols.get(key) {
-                                        function_context.symbols.insert(new_key.clone(), field_sym.clone());
+                                    if let Some(field_sym) = context.scope_stack.lookup_symbol(key) {
+                                        function_context.scope_stack.declare_symbol(new_key.clone(), field_sym.clone());
                                     }
                                 }
                             }
@@ -1611,10 +1608,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                             // Remove from caller's context (ownership transferred)
                             context.arena_index.remove(source_var);
-                            context.symbols.remove(source_var);
+                            context.scope_stack.remove_symbol(source_var);
                             for key in &keys_to_transfer {
                                 context.arena_index.remove(key);
-                                context.symbols.remove(key);
+                                context.scope_stack.remove_symbol(key);
                             }
 
                             param_index += 1;
@@ -1639,7 +1636,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_string(&arg.name, &result_str, e)?;
                     },
                     _ => {
-                        let custom_symbol = function_context.symbols.get(custom_type_name).ok_or_else(|| {
+                        let custom_symbol = function_context.scope_stack.lookup_symbol(custom_type_name).ok_or_else(|| {
                             return e.lang_error(&context.path, "eval", &format!( "Undefined symbol for custom type '{}'", custom_type_name))
                         })?;
                         match custom_symbol.value_type {
@@ -1746,14 +1743,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // so that copy_fields() can calculate field offsets dynamically
                                             let src_offset = context.arena_index.get(id_).copied()
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
-                                            let src_symbol = context.symbols.get(id_).cloned()
+                                            let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
 
                                             function_context.arena_index.insert(id_.clone(), src_offset);
-                                            function_context.symbols.insert(id_.clone(), src_symbol);
+                                            function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
                                             function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
                                             function_context.arena_index.remove(id_);
-                                            function_context.symbols.remove(id_);
+                                            function_context.scope_stack.remove_symbol(id_);
                                         }
                                     },
                                     _ => {
@@ -1792,7 +1789,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         // from the function context to the calling context so that catch blocks can access fields
         if let Some(thrown_type_name) = &result.thrown_type {
             // Check if this is a custom type (struct)
-            if let Some(type_symbol) = function_context.symbols.get(thrown_type_name) {
+            if let Some(type_symbol) = function_context.scope_stack.lookup_symbol(thrown_type_name) {
                 if type_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                     // Copy arena_index and symbol entries for the thrown instance's fields
                     let source_prefix = format!("{}.", &result.value);
@@ -1809,13 +1806,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     }
 
                     // Copy symbol entries for fields
-                    let symbol_keys_to_copy: Vec<String> = function_context.symbols.keys()
-                        .filter(|k| k.starts_with(&source_prefix))
-                        .cloned()
-                        .collect();
+                    let symbol_keys_to_copy = function_context.scope_stack.get_symbols_with_prefix(&source_prefix);
                     for src_key in symbol_keys_to_copy {
-                        if let Some(src_symbol) = function_context.symbols.get(&src_key) {
-                            context.symbols.insert(src_key, src_symbol.clone());
+                        if let Some(src_symbol) = function_context.scope_stack.lookup_symbol(&src_key) {
+                            context.scope_stack.declare_symbol(src_key, src_symbol.clone());
                         }
                     }
                 }
@@ -1840,7 +1834,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.insert_string(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) => {
-                let symbol_info = match context.symbols.get(type_name) {
+                let symbol_info = match context.scope_stack.lookup_symbol(type_name) {
                     Some(symbol_info_) => symbol_info_,
                     None => {
                         return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Undefined symbol.", arg_name, type_name)))
@@ -1884,14 +1878,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
                 _ => {
 
-                    if let Some(custom_symbol) = function_context.symbols.get(custom_type_name) {
+                    if let Some(custom_symbol) = function_context.scope_stack.lookup_symbol(custom_type_name) {
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TStructDef) => {
                                 let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
                                 Arena::g().temp_id_counter += 1;
 
                                 // Insert the temporary return variable into the symbols table (temporary solution)
-                                context.symbols.insert(return_instance.to_string(), SymbolInfo {
+                                context.scope_stack.declare_symbol(return_instance.to_string(), SymbolInfo {
                                     value_type: ValueType::TCustom(custom_type_name.to_string()),
                                     is_mut: true,
                                     is_copy: false,

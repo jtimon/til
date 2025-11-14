@@ -237,7 +237,7 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             // Check if this identifier is a string variable (Dynamic parameter storing a type name)
-            let actual_type_name = if let Some(sym) = context.symbols.get(type_name) {
+            let actual_type_name = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
                 if let ValueType::TCustom(ref custom_type) = sym.value_type {
                     if custom_type == "Str" {
                         // This might be a Dynamic parameter - try to get its string value
@@ -272,7 +272,7 @@ pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     match &type_expr.node_type {
         NodeType::Identifier(type_name) => {
             // Check if this identifier is a string variable (Dynamic parameter storing a type name)
-            let actual_type_name = if let Some(sym) = context.symbols.get(type_name) {
+            let actual_type_name = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
                 if let ValueType::TCustom(ref custom_type) = sym.value_type {
                     if custom_type == "Str" {
                         // This might be a Dynamic parameter - try to get its string value

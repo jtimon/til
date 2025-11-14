@@ -33,14 +33,14 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                 match value_type {
                     ValueType::TCustom(ref custom_type_name) => {
                         // Validate that the custom type exists
-                        if !context.symbols.contains_key(custom_type_name) {
+                        if context.scope_stack.lookup_symbol(custom_type_name).is_none() {
                             errors.push(e.error(&context.path, "type", &format!(
                                 "Enum variant '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this enum.",
                                 enum_val_name, custom_type_name, custom_type_name
                             )));
                         } else {
                             // Validate it's actually a type (enum or struct), not a value
-                            let symbol_info = context.symbols.get(custom_type_name).unwrap();
+                            let symbol_info = context.scope_stack.lookup_symbol(custom_type_name).unwrap();
                             match &symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) |
                                 ValueType::TType(TTypeDef::TStructDef) => {
@@ -132,7 +132,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             errors.extend(check_func_proc_types(&func_def, &mut function_context, &e));
         },
         NodeType::Identifier(name) => {
-            if !(context.funcs.contains_key(name) || context.symbols.contains_key(name)) {
+            if !(context.funcs.contains_key(name) || context.scope_stack.lookup_symbol(name).is_some()) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol {}", name)));
             }
         },
@@ -324,7 +324,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             match &arg_expr.node_type {
                 NodeType::Identifier(var_name) => {
                     // Simple variable - check if it's mut
-                    if let Some(symbol_info) = context.symbols.get(var_name) {
+                    if let Some(symbol_info) = context.scope_stack.lookup_symbol(var_name) {
                         if !symbol_info.is_mut {
                             errors.push(arg_expr.error(&context.path, "type", &format!(
                                 "Cannot pass const variable '{}' to mut parameter '{}' of function '{}'.\n\
@@ -464,7 +464,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 // All array types now use the generic Array
                 let array_type_name = "Array".to_string();
 
-                context.symbols.insert(arg.name.clone(), SymbolInfo {
+                context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
                     value_type: ValueType::TCustom(array_type_name),
                     is_mut: false,
                     is_copy: false,
@@ -472,7 +472,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 });
             },
             ValueType::TCustom(ref custom_type_name) => {
-                let custom_symbol = match context.symbols.get(custom_type_name) {
+                let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
                     Some(custom_symbol_) => custom_symbol_.clone(),
                     None => {
                         errors.push(e.error(&context.path, "type", &format!("Argument '{}' is of undefined type '{}'.", &arg.name, &custom_type_name)));
@@ -484,13 +484,13 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 match &custom_symbol.value_type {
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // Valid: struct type
-                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
                         // Register struct fields for type checking
                         context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // Valid: enum type
-                        context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                        context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
                     },
                     _ => {
                         // Invalid: not a type, it's a value or something else
@@ -499,7 +499,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                 }
             },
             _ => {
-                context.symbols.insert(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+                context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
             },
         }
     }
@@ -768,7 +768,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             // Only skip default constructor calls (simple StructName() with no dots)
                             // Don't skip method calls like Struct.method()
                             if id_expr.params.is_empty() {
-                                if let Some(symbol) = context.symbols.get(name) {
+                                if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
                                     if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                                         continue; // Skip default constructor calls, for instantiations like 'StructName()'
                                     }
@@ -777,7 +777,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
                             // Check for enum constructors (e.g., Color.Green(true))
                             if id_expr.params.len() == 1 {
-                                if let Some(symbol) = context.symbols.get(name) {
+                                if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
                                     if symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                                         if let Some(variant_expr) = id_expr.params.get(0) {
                                             if let NodeType::Identifier(_variant_name) = &variant_expr.node_type {
@@ -853,14 +853,14 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     };
 
     // Confirm that the type exists in the context (as done for function args)
-    if context.symbols.get(&type_name).is_none() {
+    if context.scope_stack.lookup_symbol(&type_name).is_none() {
         errors.push(e.error(&context.path, "type", &format!("Catch refers to undefined type '{}'", &type_name)));
         return errors
     }
 
     // Create scoped context for catch body
     let mut temp_context = context.clone();
-    temp_context.symbols.insert(var_name.clone(), SymbolInfo {
+    temp_context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name.clone()),
         is_mut: false,
         is_copy: false,
@@ -871,7 +871,7 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     if let Some(struct_def) = context.struct_defs.get(&type_name) {
         for (field_name, field_decl) in &struct_def.members {
             let combined_name = format!("{}.{}", var_name, field_name);
-            temp_context.symbols.insert(
+            temp_context.scope_stack.declare_symbol(
                 combined_name.clone(),
                 SymbolInfo {
                     value_type: field_decl.value_type.clone(),
@@ -905,7 +905,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             return errors
         },
     };
-    if !context.symbols.contains_key(&decl.name) {
+    if context.scope_stack.lookup_symbol(&decl.name).is_none() {
         let mut value_type = decl.value_type.clone();
         if value_type == ValueType::TCustom(INFER_TYPE.to_string()) {
             value_type = match get_value_type(&context, &inner_e) {
@@ -917,7 +917,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
             };
         }
         // TODO move to init_context() ? inner contexts are not persisted in init_context
-        context.symbols.insert(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
+        context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
         match value_type {
             ValueType::TCustom(custom_type) => {
                 if custom_type == INFER_TYPE {
@@ -961,8 +961,8 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
 
     if context.funcs.contains_key(var_name)  {
         errors.push(e.error(&context.path, "type", &format!("function '{}' cannot be assigned to.", var_name)));
-    } else if context.symbols.contains_key(var_name) {
-        let symbol_info = match context.symbols.get(var_name) {
+    } else if context.scope_stack.lookup_symbol(var_name).is_some() {
+        let symbol_info = match context.scope_stack.lookup_symbol(var_name) {
             Some(info) => info,
             None => {
                 errors.push(e.error(&context.path, "type", &format!("Undeclared variable '{}'", var_name)));
@@ -975,7 +975,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         // Additional check: if this is a field access (e.g., "s.value"), also check base instance mutability
         if var_name.contains('.') {
             let base_var = var_name.split('.').next().unwrap();
-            if let Some(base_info) = context.symbols.get(base_var) {
+            if let Some(base_info) = context.scope_stack.lookup_symbol(base_var) {
                 if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
                     errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
                 }
@@ -987,7 +987,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         let parts: Vec<&str> = var_name.split('.').collect();
         let base_var = parts[0];
 
-        if let Some(base_info) = context.symbols.get(base_var) {
+        if let Some(base_info) = context.scope_stack.lookup_symbol(base_var) {
             // Check base mutability
             if !base_info.is_mut && !base_info.is_copy && !base_info.is_own {
                 errors.push(e.error(&context.path, "type", &format!("Cannot assign to field of constant '{}', Suggestion: declare it as 'mut {}'.", base_var, base_var)));
@@ -1115,7 +1115,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
                         if let Some(payload_type) = payload_type_opt {
                             // Create a temporary context with the binding variable
                             let mut temp_context = context.clone();
-                            temp_context.symbols.insert(
+                            temp_context.scope_stack.declare_symbol(
                                 binding_var.clone(),
                                 SymbolInfo {
                                     value_type: payload_type.clone(),
@@ -1228,14 +1228,14 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 // Skip built-in types and special types
                 if custom_type_name != "Dynamic" && custom_type_name != INFER_TYPE {
                     // Check if the type exists
-                    if !context.symbols.contains_key(custom_type_name) {
+                    if context.scope_stack.lookup_symbol(custom_type_name).is_none() {
                         errors.push(e.error(&context.path, "type", &format!(
                             "Struct member '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this struct.",
                             member_name, custom_type_name, custom_type_name
                         )));
                     } else {
                         // Validate it's actually a type (enum or struct), not a value
-                        let symbol_info = context.symbols.get(custom_type_name).unwrap();
+                        let symbol_info = context.scope_stack.lookup_symbol(custom_type_name).unwrap();
                         match &symbol_info.value_type {
                             ValueType::TType(TTypeDef::TEnumDef) |
                             ValueType::TType(TTypeDef::TStructDef) |
@@ -1469,7 +1469,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     }
 
                     // Associated functions used with UFCS (aka methods)
-                    if let Some(symbol_info) = context.symbols.get(&new_combined_name) {
+                    if let Some(symbol_info) = context.scope_stack.lookup_symbol(&new_combined_name) {
 
                         match &symbol_info.value_type {
                             ValueType::TCustom(ref custom_type_name) => {
@@ -1658,7 +1658,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
     }
 
     if context.mode.needs_main_proc {
-        match context.symbols.get("main") {
+        match context.scope_stack.lookup_symbol("main") {
             Some(symbol_info) => {
                 if symbol_info.value_type != ValueType::TFunction(FunctionType::FTProc) {
                     errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
