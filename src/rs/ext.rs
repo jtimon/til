@@ -224,7 +224,7 @@ pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     let identifier_expr = e.get(1)?;
     let combined_name = get_combined_name(&context.path, identifier_expr)?;
-    match context.arena_index.get(&combined_name) {
+    match context.scope_stack.lookup_var(&combined_name) {
         Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
         None => Err(e.lang_error(&context.path, "eval", &format!("calling core func to_ptr, but '{}' is not a known identifier.", combined_name))),
     }

@@ -508,13 +508,49 @@ The corrected plan:
 
 - Phase 1: ScopeStack infrastructure ✓ (commit ee84e5e)
 - Step 1: Extend ScopeStack (funcs, enums, structs) → TODO
-- Step 2: Migrate Context::symbols → TODO
-- Step 3: Migrate Context::funcs → TODO
-- Step 4: Migrate Context::enum_defs → TODO
-- Step 5: Migrate Context::struct_defs → TODO
-- Step 6: Migrate Context::arena_index → TODO (LAST BEFORE CLONES)
+- Step 2: Migrate Context::symbols ✓ (commit c7a07d0)
+- Step 3: Migrate Context::funcs ✓ (commit 04d0d89)
+- Step 4: Migrate Context::enum_defs ✓ (commit 353c342)
+- Step 5: Migrate Context::struct_defs ✓ (commit 281dc90)
+- Step 6: Migrate Context::arena_index ✓ (commit TBD)
 - Step 7: Replace clones with push/pop → TODO (THE PAYOFF!)
 - Step 8: Verify imports_* fields → TODO
+
+*** Step 6: Migrate Context::arena_index to ScopeStack (COMPLETED)
+
+**** Changes Made
+1. Renamed ScopeFrame.local_vars → arena_index to maintain original name
+2. Updated ScopeStack::lookup_var() to return Option<usize> (dereferencing HashMap value)
+3. Added ScopeStack::remove_var() method
+4. Removed Context::arena_index field
+5. Removed arena_index from Context::new()
+6. Used sed for bulk replacements:
+   - arena_index.get() → scope_stack.lookup_var()
+   - arena_index.remove() → scope_stack.remove_var()
+   - arena_index.insert() → scope_stack.frames.last_mut().unwrap().arena_index.insert()
+   - arena_index.len() → scope_stack.frames.last().unwrap().arena_index.len()
+   - arena_index.keys() → scope_stack.frames.last().unwrap().arena_index.keys()
+7. Fixed pattern matching: Some(&offset) → Some(offset) (lookup_var returns usize not &usize)
+8. Removed .copied() calls (no longer needed)
+9. Fixed dereference errors (removed * from offset variables)
+10. Fixed borrow checker errors by cloning str_def.members before iteration
+
+**** Files Affected
+- src/rs/init.rs: ScopeStack methods, Context struct, all arena_index usage
+- src/rs/interpreter.rs: All arena_index lookups and insertions
+- src/rs/typer.rs: No changes needed (doesn't use arena_index directly)
+- src/rs/ext.rs: No changes needed
+
+**** Verification
+- Compilation: rustc builds successfully (80 errors fixed)
+- All tests pass: make tests succeeds
+- No warnings introduced
+
+**** Results
+Context struct now has NO data fields that need cloning for scoping!
+Only remaining fields: mode, path, scope_stack, temp_enum_payload, imports_*
+
+Next step (Step 7) can now replace context.clone() with scope_stack.push/pop!
 
 * Combined Performance Estimate
 

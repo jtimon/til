@@ -47,9 +47,8 @@ pub enum ScopeType {
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct ScopeFrame {
-    /// Local variables declared in this scope
-    /// Maps variable name → arena offset
-    pub local_vars: HashMap<String, usize>,
+    // maps variable names to their offsets in the arena
+    pub arena_index: HashMap<String, usize>, // stores offsets
 
     // All declared symbols (types, constants, variables, and function names)
     // This is necessary for so called "context priming" or "declaration indexing"
@@ -87,7 +86,7 @@ impl ScopeStack {
 
     pub fn push(&mut self, scope_type: ScopeType) {
         self.frames.push(ScopeFrame {
-            local_vars: HashMap::new(),
+            arena_index: HashMap::new(),
             symbols: HashMap::new(),
             funcs: HashMap::new(),
             enums: HashMap::new(),
@@ -108,8 +107,8 @@ impl ScopeStack {
     pub fn lookup_var(&self, name: &str) -> Option<usize> {
         // Walk up the stack from innermost to outermost
         for frame in self.frames.iter().rev() {
-            if let Some(&offset) = frame.local_vars.get(name) {
-                return Some(offset);
+            if let Some(offset) = frame.arena_index.get(name) {
+                return Some(*offset);
             }
         }
         None
@@ -131,11 +130,11 @@ impl ScopeStack {
             .ok_or_else(|| "No active scope".to_string())?;
 
         // Check for redeclaration in current scope only
-        if current_frame.local_vars.contains_key(&name) {
+        if current_frame.arena_index.contains_key(&name) {
             return Err(format!("Variable '{}' already declared in this scope", name));
         }
 
-        current_frame.local_vars.insert(name.clone(), offset);
+        current_frame.arena_index.insert(name.clone(), offset);
         current_frame.symbols.insert(name, symbol);
         Ok(())
     }
@@ -151,6 +150,21 @@ impl ScopeStack {
             current_frame.symbols.remove(name)
         } else {
             None
+        }
+    }
+
+    pub fn remove_var(&mut self, name: &str) -> Option<usize> {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.arena_index.remove(name)
+        } else {
+            None
+        }
+    }
+
+    /// Insert a variable without a corresponding symbol (simpler than declare_var)
+    pub fn insert_var(&mut self, name: String, offset: usize) {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.arena_index.insert(name, offset);
         }
     }
 
@@ -1009,9 +1023,7 @@ pub struct Context {
     pub mode: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
-    // maps variable names to their offsets in the arena
-    pub arena_index: HashMap<String, usize>, // stores offsets
-    // Scope stack for proper lexical scoping (Phase 1: dual-write with arena_index)
+    // Scope stack for proper lexical scoping
     pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
@@ -1035,7 +1047,6 @@ impl Context {
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
-            arena_index: HashMap::new(),
             scope_stack,
             temp_enum_payload: None,
             imports_declarations_done: HashSet::new(),
@@ -1068,7 +1079,7 @@ impl Context {
 
     pub fn get_i64(self: &Context, id: &str, e: &Expr) -> Result<i64, String> {
         // Try direct lookup first (for base variables)
-        let offset = if let Some(&offset) = self.arena_index.get(id) {
+        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
@@ -1104,7 +1115,7 @@ impl Context {
 
         if is_instance_field {
             // For instance field paths, calculate offset dynamically
-            let offset = if let Some(&offset) = self.arena_index.get(id) {
+            let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
                 offset
             } else {
@@ -1120,13 +1131,13 @@ impl Context {
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
-        self.arena_index.insert(id.to_string(), offset);
+        self.scope_stack.insert_var(id.to_string(), offset);
         return Ok(())
     }
 
     pub fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
         // Try direct lookup first (for base variables)
-        let offset = if let Some(&offset) = self.arena_index.get(id) {
+        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
@@ -1158,7 +1169,7 @@ impl Context {
 
         if is_instance_field {
             // For instance field paths, calculate offset dynamically
-            let offset = if let Some(&offset) = self.arena_index.get(id) {
+            let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
                 offset
             } else {
@@ -1173,13 +1184,13 @@ impl Context {
 
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
-        self.arena_index.insert(id.to_string(), offset);
+        self.scope_stack.insert_var(id.to_string(), offset);
         return Ok(())
     }
 
     pub fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
         // Try direct lookup first (for base variables)
-        let offset = if let Some(&offset) = self.arena_index.get(id) {
+        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
@@ -1219,7 +1230,7 @@ impl Context {
 
         if is_instance_field {
             // For instance field paths, calculate offset dynamically
-            let offset = if let Some(&offset) = self.arena_index.get(id) {
+            let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
                 offset
             } else {
@@ -1243,9 +1254,9 @@ impl Context {
             is_copy: false,
             is_own: false,
         });
-        self.arena_index.insert(field_id, offset);
+        self.scope_stack.insert_var(field_id, offset);
 
-        self.arena_index.insert(id.to_string(), offset);
+        self.scope_stack.insert_var(id.to_string(), offset);
         return Ok(())
     }
 
@@ -1257,7 +1268,7 @@ impl Context {
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
             .is_mut;
 
-        let base_offset = *self.arena_index.get(instance_name)
+        let base_offset = self.scope_stack.lookup_var(instance_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
@@ -1271,7 +1282,7 @@ impl Context {
             if decl.is_mut {
                 let combined_name = format!("{}.{}", instance_name, field_name);
                 let field_offset = base_offset + current_offset;
-                self.arena_index.insert(combined_name.clone(), field_offset);
+                self.scope_stack.insert_var(combined_name.clone(), field_offset);
 
                 self.scope_stack.declare_symbol(
                     combined_name.clone(),
@@ -1314,7 +1325,7 @@ impl Context {
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
             .is_mut;
 
-        let dest_base_offset = *self.arena_index.get(dest)
+        let dest_base_offset = self.scope_stack.lookup_var(dest)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
@@ -1338,7 +1349,7 @@ impl Context {
             let dest_key = format!("{}.{}", dest, field_name);
 
             // Try to get source offset - first from arena_index, then calculate dynamically
-            let src_offset = if let Some(&offset) = self.arena_index.get(&src_key) {
+            let src_offset = if let Some(offset) = self.scope_stack.lookup_var(&src_key) {
                 offset
             } else {
                 // Calculate offset dynamically from struct definition
@@ -1354,7 +1365,7 @@ impl Context {
 
             let dest_offset = dest_base_offset + current_offset;
 
-            self.arena_index.insert(dest_key.clone(), dest_offset);
+            self.scope_stack.insert_var(dest_key.clone(), dest_offset);
             self.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
@@ -1498,7 +1509,7 @@ impl Context {
 
         // Start with the base variable's offset
         let base_var = parts[0];
-        let mut current_offset = *self.arena_index.get(base_var)
+        let mut current_offset = self.scope_stack.lookup_var(base_var)
             .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
 
         // Get the base variable's type
@@ -1573,7 +1584,7 @@ impl Context {
         // Allocate blob in arena
         let offset = Arena::g().memory.len();
         Arena::g().memory.resize(offset + total_size, 0);
-        self.arena_index.insert(id.to_string(), offset);
+        self.scope_stack.insert_var(id.to_string(), offset);
 
         // Store each field's default value
         for (member_name, decl) in struct_def.members.iter() {
@@ -1639,7 +1650,7 @@ impl Context {
                                             is_own: false,
                                         },
                                     );
-                                    self.arena_index.insert(combined_name.clone(), offset + field_offset);
+                                    self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
 
                                     // Special case: Str initialization with string literal
                                     if type_name == "Str" {
@@ -1661,7 +1672,7 @@ impl Context {
             }
 
             let combined_name = format!("{}.{}", id, member_name);
-            self.arena_index.insert(combined_name.clone(), offset + field_offset);
+            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
             self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo {
@@ -1723,7 +1734,7 @@ impl Context {
     pub fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
         // Try to get offsets either from pre-registered arena_index or calculate dynamically
         let c_string_field_path = format!("{}.c_string", id);
-        let c_string_offset = if let Some(&offset) = self.arena_index.get(&c_string_field_path) {
+        let c_string_offset = if let Some(offset) = self.scope_stack.lookup_var(&c_string_field_path) {
             offset
         } else {
             self.get_field_offset(&c_string_field_path).map_err(|err| {
@@ -1732,7 +1743,7 @@ impl Context {
         };
 
         let cap_field_path = format!("{}.cap", id);
-        let cap_offset = if let Some(&offset) = self.arena_index.get(&cap_field_path) {
+        let cap_offset = if let Some(offset) = self.scope_stack.lookup_var(&cap_field_path) {
             offset
         } else {
             self.get_field_offset(&cap_field_path).map_err(|err| {
@@ -1783,11 +1794,12 @@ impl Context {
         let len_bytes = (value_str.len() as i64).to_ne_bytes();
 
         if is_field {
-            if let Some(&base_offset) = self.arena_index.get(id) {
+            if let Some(base_offset) = self.scope_stack.lookup_var(id) {
                 if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
+                    let members = str_def.members.clone();
                     let mut current_offset = 0;
 
-                    for (member_name, decl) in str_def.members.iter() {
+                    for (member_name, decl) in members.iter() {
                         if !decl.is_mut {
                             continue;
                         }
@@ -1802,7 +1814,7 @@ impl Context {
                             target_slice.copy_from_slice(&len_bytes);
                         }
 
-                        self.arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
+                        self.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
                         current_offset += type_size;
                     }
                     return Ok(())
@@ -1812,10 +1824,11 @@ impl Context {
 
             // Not yet inserted — insert fresh inlined Str
             if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
+                let members = str_def.members.clone();
                 let struct_offset = Arena::g().memory.len();
                 let mut current_offset = 0;
 
-                for (member_name, decl) in str_def.members.iter() {
+                for (member_name, decl) in members.iter() {
                     if !decl.is_mut {
                         continue;
                     }
@@ -1832,25 +1845,25 @@ impl Context {
                         field_slice.copy_from_slice(&len_bytes);
                     }
 
-                    self.arena_index.insert(format!("{}.{}", id, member_name), struct_offset + current_offset);
+                    self.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), struct_offset + current_offset);
                     current_offset += type_size;
                 }
 
-                self.arena_index.insert(id.to_string(), struct_offset);
+                self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), struct_offset);
                 return Ok(())
             }
             return Err(e.lang_error(&self.path, "context", "'Str' struct definition not found"))
         }
 
         self.insert_struct(id, "Str", e)?;
-        let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
-            Some(&offset) => offset,
+        let c_string_offset = match self.scope_stack.lookup_var(&format!("{}.c_string", id)) {
+            Some(offset) => offset,
             None => {
                 return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.c_string'", id)))
             }
         };
-        let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
-            Some(&offset) => offset,
+        let cap_offset = match self.scope_stack.lookup_var(&format!("{}.cap", id)) {
+            Some(offset) => offset,
             None => {
                 return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.cap'", id)))
             }
@@ -1966,7 +1979,7 @@ impl Context {
             _ => return Err(e.lang_error(&self.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
         };
 
-        let offset = *self.arena_index.get(id)
+        let offset = self.scope_stack.lookup_var(id)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))?;
 
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
@@ -2058,7 +2071,7 @@ impl Context {
 
         let is_field = id.contains('.');
         if is_field {
-            if let Some(&offset) = self.arena_index.get(id) {
+            if let Some(offset) = self.scope_stack.lookup_var(id) {
                 // Update existing enum value
                 Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
                 // Store payload if present
@@ -2078,7 +2091,7 @@ impl Context {
                 if let Some(payload_bytes) = &payload_data {
                     Arena::g().memory.extend_from_slice(&payload_bytes);
                 }
-                self.arena_index.insert(id.to_string(), offset);
+                self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
             }
         } else {
             let offset = Arena::g().memory.len();
@@ -2087,7 +2100,7 @@ impl Context {
             if let Some(payload_bytes) = &payload_data {
                 Arena::g().memory.extend_from_slice(&payload_bytes);
             }
-            self.arena_index.insert(id.to_string(), offset);
+            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
         }
 
         // Clear the temp payload after using it
@@ -2155,8 +2168,8 @@ impl Context {
 
                         self.insert_string(&temp_id, val, e)?;
 
-                        let str_offset = match self.arena_index.get(&temp_id) {
-                            Some(&off) => off,
+                        let str_offset = match self.scope_stack.lookup_var(&temp_id) {
+                            Some(off) => off,
                             None => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
                         };
                         Arena::g().memory[offset..offset + elem_size]
@@ -2172,7 +2185,7 @@ impl Context {
 
         // Write ptr, len (and cap for Vec) using calculated offsets
         let ptr_field_path = format!("{}.ptr", name);
-        let ptr_offset = if let Some(&offset) = self.arena_index.get(&ptr_field_path) {
+        let ptr_offset = if let Some(offset) = self.scope_stack.lookup_var(&ptr_field_path) {
             offset
         } else {
             self.get_field_offset(&ptr_field_path).map_err(|err| {
@@ -2184,7 +2197,7 @@ impl Context {
         // Set _len field (required for both Array and Vec)
         let len_bytes = len.to_ne_bytes();
         let len_field_path = format!("{}._len", name);
-        let len_offset = if let Some(&offset) = self.arena_index.get(&len_field_path) {
+        let len_offset = if let Some(offset) = self.scope_stack.lookup_var(&len_field_path) {
             offset
         } else {
             self.get_field_offset(&len_field_path).map_err(|err| {
@@ -2197,14 +2210,14 @@ impl Context {
         let cap_field_path = format!("{}.cap", name);
         if let Ok(cap_offset) = self.get_field_offset(&cap_field_path) {
             Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
-        } else if let Some(&cap_offset) = self.arena_index.get(&cap_field_path) {
+        } else if let Some(cap_offset) = self.scope_stack.lookup_var(&cap_field_path) {
             Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
         }
 
         // For generic Array, also set type_name and type_size fields
         if array_type == "Array" {
             // Set type_name field (it's a Str, so we need to store it properly)
-            let type_name_offset_opt = self.arena_index.get(&format!("{}.type_name", name)).copied();
+            let type_name_offset_opt = self.scope_stack.lookup_var(&format!("{}.type_name", name));
             if let Some(type_name_offset) = type_name_offset_opt {
                 let temp_id = format!("{}_type_name_temp", name);
                 self.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
@@ -2214,7 +2227,7 @@ impl Context {
                     is_own: false,
                 });
                 self.insert_string(&temp_id, &elem_type.to_string(), e)?;
-                if let Some(&str_offset) = self.arena_index.get(&temp_id) {
+                if let Some(str_offset) = self.scope_stack.lookup_var(&temp_id) {
                     let str_size = self.get_type_size("Str")?;
                     Arena::g().memory[type_name_offset..type_name_offset + str_size]
                         .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
@@ -2222,7 +2235,7 @@ impl Context {
             }
 
             // Set type_size field
-            if let Some(&type_size_offset) = self.arena_index.get(&format!("{}.type_size", name)) {
+            if let Some(type_size_offset) = self.scope_stack.lookup_var(&format!("{}.type_size", name)) {
                 let size_bytes = (elem_size as i64).to_ne_bytes();
                 Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
             }

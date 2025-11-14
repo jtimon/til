@@ -303,7 +303,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 context.insert_struct(binding_var, type_name, &case)?;
 
                                                 // Get destination offset
-                                                let dest_offset = context.arena_index.get(binding_var).ok_or_else(|| {
+                                                let dest_offset = context.scope_stack.lookup_var(binding_var).ok_or_else(|| {
                                                     case.error(&context.path, "eval", &format!("Struct '{}' not found in arena", binding_var))
                                                 })?;
 
@@ -318,7 +318,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 }
 
                                                 // Copy payload bytes directly into arena
-                                                Arena::g().memory[*dest_offset..*dest_offset + struct_size]
+                                                Arena::g().memory[dest_offset..dest_offset + struct_size]
                                                     .copy_from_slice(&payload_bytes);
                                             },
                                             ValueType::TType(TTypeDef::TEnumDef) => {
@@ -567,7 +567,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(_name) if struct_type_name == "Str" => {
                                             // For Str payloads with identifier expressions (like t.token_str),
                                             // create a temporary Str from the evaluated result value
-                                            let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
@@ -584,7 +584,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(name) => name.clone(),
                                         NodeType::LLiteral(Literal::Bool(_)) if struct_type_name == "Bool" => {
                                             // For bool literals, create a temporary Bool struct
-                                            let temp_var_name = format!("__temp_bool_{}", context.arena_index.len());
+                                            let temp_var_name = format!("__temp_bool_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let bool_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_bool
@@ -600,7 +600,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         },
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
                                             // For string literals, create a temporary Str struct
-                                            let temp_var_name = format!("__temp_str_{}", context.arena_index.len());
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let string_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_string
@@ -616,7 +616,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         },
                                         NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
                                             // For I64 literals, create a temporary I64 struct
-                                            let temp_var_name = format!("__temp_i64_{}", context.arena_index.len());
+                                            let temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let i64_value = &payload_result.value;
 
                                             // Add symbol entry before calling insert_i64
@@ -634,12 +634,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                     };
 
                                     // Get struct offset from arena
-                                    let offset = context.arena_index.get(&struct_var_name).ok_or_else(|| {
+                                    let offset = context.scope_stack.lookup_var(&struct_var_name).ok_or_else(|| {
                                         e.error(&context.path, "eval", &format!("Struct '{}' not found in arena", struct_var_name))
                                     })?;
 
                                     // Copy struct bytes from arena
-                                    let struct_bytes = Arena::g().memory[*offset..*offset + struct_size].to_vec();
+                                    let struct_bytes = Arena::g().memory[offset..offset + struct_size].to_vec();
                                     struct_bytes
                                 },
                                 ValueType::TType(TTypeDef::TEnumDef) => {
@@ -651,7 +651,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                         NodeType::Identifier(_) | NodeType::FCall => {
                                             // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
                                             // Create a temporary variable to hold the result
-                                            let temp_var_name = format!("__temp_enum_{}", context.arena_index.len());
+                                            let temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
 
                                             // Recursively evaluate the enum constructor
                                             // This could be either an FCall or an Identifier with params (like Inner.A)
@@ -937,8 +937,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration (read-only alias)
-                            if let Some(offset) = context.arena_index.get(&expr_result_str) {
-                                context.arena_index.insert(declaration.name.to_string(), *offset);
+                            if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
+                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
                             } else {
                                 return Err(e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)));
                             }
@@ -1316,22 +1316,22 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
                             // Map instance fields for the error variable
                             // First try to find the arena index for proper field mapping
-                            if let Some(offset) = context.arena_index.get(&throw_result.value) {
-                                context.arena_index.insert(var_name.to_string(), *offset);
+                            if let Some(offset) = context.scope_stack.lookup_var(&throw_result.value) {
+                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(var_name.to_string(), offset);
 
                                 // Copy ALL field mappings (including nested) from thrown instance to catch variable
                                 // This handles both mutable and immutable fields, and nested struct fields
                                 let source_prefix = format!("{}.", &throw_result.value);
                                 let dest_prefix = format!("{}.", var_name);
 
-                                let keys_to_copy: Vec<String> = context.arena_index.keys()
+                                let keys_to_copy: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
                                     .filter(|k| k.starts_with(&source_prefix))
                                     .cloned()
                                     .collect();
                                 for src_key in keys_to_copy {
-                                    if let Some(&src_offset) = context.arena_index.get(&src_key) {
+                                    if let Some(src_offset) = context.scope_stack.lookup_var(&src_key) {
                                         let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
-                                        context.arena_index.insert(dest_key, src_offset);
+                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dest_key, src_offset);
                                     }
                                 }
 
@@ -1374,10 +1374,10 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
                                         // Copy arena_index entry for the field
                                         // Try instance field first, then fall back to type field
-                                        if let Some(&offset) = context.arena_index.get(&src_instance_field) {
-                                            context.arena_index.insert(dst_field.clone(), offset);
-                                        } else if let Some(&offset) = context.arena_index.get(&src_type_field) {
-                                            context.arena_index.insert(dst_field.clone(), offset);
+                                        if let Some(offset) = context.scope_stack.lookup_var(&src_instance_field) {
+                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
+                                        } else if let Some(offset) = context.scope_stack.lookup_var(&src_type_field) {
+                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
                                         }
                                     }
                                 }
@@ -1388,7 +1388,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 
                             // Clean up the error variable binding after the catch block
                             context.scope_stack.remove_symbol(var_name);
-                            context.arena_index.remove(var_name);
+                            context.scope_stack.remove_var(var_name);
                             // Also remove the field mappings
                             if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
                                 // Collect field names to avoid borrow conflict
@@ -1396,7 +1396,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 for field_name in field_names {
                                     let combined_name = format!("{}.{}", var_name, field_name);
                                     context.scope_stack.remove_symbol(&combined_name);
-                                    context.arena_index.remove(&combined_name);
+                                    context.scope_stack.remove_var(&combined_name);
                                     // Nested struct fields are handled by subsequent iterations
                                 }
                             }
@@ -1585,20 +1585,20 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // Check if argument is an identifier (variable being passed)
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Transfer arena offset from caller to function context
-                        if let Some(offset) = context.arena_index.get(source_var).copied() {
-                            function_context.arena_index.insert(arg.name.clone(), offset);
+                        if let Some(offset) = context.scope_stack.lookup_var(source_var) {
+                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), offset);
 
                             // Transfer all related entries (for structs with fields, strings with metadata, etc.)
                             let prefix = format!("{}.", source_var);
-                            let keys_to_transfer: Vec<String> = context.arena_index.keys()
+                            let keys_to_transfer: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
                                 .filter(|k| k.starts_with(&prefix))
                                 .cloned()
                                 .collect();
 
                             for key in &keys_to_transfer {
-                                if let Some(field_offset) = context.arena_index.get(key).copied() {
+                                if let Some(field_offset) = context.scope_stack.lookup_var(key) {
                                     let new_key = key.replace(source_var, &arg.name);
-                                    function_context.arena_index.insert(new_key.clone(), field_offset);
+                                    function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key.clone(), field_offset);
                                     // Also transfer symbol info for fields
                                     if let Some(field_sym) = context.scope_stack.lookup_symbol(key) {
                                         function_context.scope_stack.declare_symbol(new_key.clone(), field_sym.clone());
@@ -1611,10 +1611,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             // but field symbols may need additional setup
 
                             // Remove from caller's context (ownership transferred)
-                            context.arena_index.remove(source_var);
+                            context.scope_stack.remove_var(source_var);
                             context.scope_stack.remove_symbol(source_var);
                             for key in &keys_to_transfer {
-                                context.arena_index.remove(key);
+                                context.scope_stack.remove_var(key);
                                 context.scope_stack.remove_symbol(key);
                             }
 
@@ -1703,7 +1703,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Save all arena_index entries that start with the struct name
                                             // This includes the base offset and all nested field offsets
                                             let prefix = format!("{}.", id_);
-                                            for (key, offset) in function_context.arena_index.iter() {
+                                            for (key, offset) in function_context.scope_stack.frames.last().unwrap().arena_index.iter() {
                                                 if key == id_ || key.starts_with(&prefix) {
                                                     offsets.push((key.clone(), *offset));
                                                 }
@@ -1726,7 +1726,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 } else {
                                                     orig_key.clone()
                                                 };
-                                                function_context.arena_index.insert(new_key, *offset);
+                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
                                             }
 
                                             function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
@@ -1740,20 +1740,20 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 } else {
                                                     orig_key.clone()
                                                 };
-                                                function_context.arena_index.remove(&new_key);
+                                                function_context.scope_stack.remove_var(&new_key);
                                             }
                                         } else {
                                             // Temporarily register source struct's base offset and symbol in function_context
                                             // so that copy_fields() can calculate field offsets dynamically
-                                            let src_offset = context.arena_index.get(id_).copied()
+                                            let src_offset = context.scope_stack.lookup_var(id_)
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
                                             let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
 
-                                            function_context.arena_index.insert(id_.clone(), src_offset);
+                                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
                                             function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
                                             function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
-                                            function_context.arena_index.remove(id_);
+                                            function_context.scope_stack.remove_var(id_);
                                             function_context.scope_stack.remove_symbol(id_);
                                         }
                                     },
@@ -1799,13 +1799,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     let source_prefix = format!("{}.", &result.value);
 
                     // Copy arena_index entries (including nested fields like .msg.c_string)
-                    let keys_to_copy: Vec<String> = function_context.arena_index.keys()
+                    let keys_to_copy: Vec<String> = function_context.scope_stack.frames.last().unwrap().arena_index.keys()
                         .filter(|k| k.starts_with(&source_prefix))
                         .cloned()
                         .collect();
                     for src_key in keys_to_copy {
-                        if let Some(&src_offset) = function_context.arena_index.get(&src_key) {
-                            context.arena_index.insert(src_key, src_offset);
+                        if let Some(src_offset) = function_context.scope_stack.lookup_var(&src_key) {
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(src_key, src_offset);
                         }
                     }
 
@@ -1851,8 +1851,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // TODO this can be simplified once we pass all args by reference
-                        if let Some(offset) = function_context.arena_index.get(&arg_name) {
-                            context.arena_index.insert(source_name.to_string(), *offset);
+                        if let Some(offset) = function_context.scope_stack.lookup_var(&arg_name) {
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_name.to_string(), offset);
                             // Keep map_instance_fields for now as fallback for copy_fields
                             context.map_instance_fields(type_name, &source_name, e)?;
                         } else {
@@ -1896,8 +1896,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 is_own: false,
                                 });
 
-                                if let Some(offset) = function_context.arena_index.get(&result_str) {
-                                    context.arena_index.insert(return_instance.to_string(), *offset);
+                                if let Some(offset) = function_context.scope_stack.lookup_var(&result_str) {
+                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(return_instance.to_string(), offset);
                                 } else {
                                     return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
