@@ -1,6 +1,6 @@
 #+TITLE: Performance Technical Debt
 #+DATE: 2025-11-12
-#+UPDATED: 2025-11-14
+#+UPDATED: 2025-11-14 (Corrected)
 #+AUTHOR: TIL Development
 
 * Overview
@@ -268,20 +268,54 @@ pub struct Context {
 
 ** New Incremental Migration Plan
 
-Instead of the old GlobalContext+LocalContext split, we'll incrementally migrate fields from
-Context to ScopeStack, testing after each step.
+Instead of the old GlobalContext+LocalContext split, we'll incrementally migrate ALL fields from
+Context to ScopeStack, with arena_index migrated LAST (right before removing clones), testing
+after each step.
 
-*** STEP 1: Migrate Context::symbols → ScopeStack::local_symbols
+*** STEP 1: Extend ScopeStack to support all definition types
 
 **Status**: TODO - Not started
 
-**Goal**: Move symbol lookups from global Context.symbols to scope_stack.local_symbols
+**Goal**: Add fields to ScopeFrame for funcs, enums, structs (not just symbols and vars)
 
 **Changes**:
-1. During init_context(), insert all globals/imports into scope_stack.frames[0].local_symbols
-2. In function calls, insert parameters into new scope frame instead of Context.symbols
-3. Update all symbol lookups to use scope_stack.lookup_symbol() instead of context.symbols.get()
-4. Keep Context.symbols as backup (dual-write mode) for safety
+1. Add fields to ScopeFrame (init.rs:37-123):
+   - pub local_funcs: HashMap<String, SFuncDef>
+   - pub local_enums: HashMap<String, SEnumDef>
+   - pub local_structs: HashMap<String, SStructDef>
+
+2. Add lookup methods to ScopeStack:
+   - lookup_func(&self, name: &str) -> Option<&SFuncDef>
+   - lookup_enum(&self, name: &str) -> Option<&SEnumDef>
+   - lookup_struct(&self, name: &str) -> Option<&SStructDef>
+
+3. Add declare methods to ScopeStack:
+   - declare_func(&mut self, name: String, func_def: SFuncDef)
+   - declare_enum(&mut self, name: String, enum_def: SEnumDef)
+   - declare_struct(&mut self, name: String, struct_def: SStructDef)
+
+**Bonus**: This enables local function/enum/struct definitions in the future!
+
+**Files affected**: init.rs (ScopeFrame and ScopeStack implementation)
+
+**Verification**: make tests - compiles, all tests pass
+
+**Deliverables**:
+- Code changes committed
+- This doc updated with "Step 1 COMPLETED ✓"
+
+*** STEP 2: Migrate Context::symbols → ScopeStack::local_symbols
+
+**Status**: TODO - Blocked by Step 1
+
+**Goal**: Move all symbol lookups/insertions from Context.symbols to scope_stack.local_symbols
+
+**Changes**:
+1. During init_context(), populate scope_stack.frames[0].local_symbols with all globals/imports
+2. In function calls/catch/pattern-match, use scope_stack.declare_symbol() for new symbols
+3. Update all context.symbols.get() → context.scope_stack.lookup_symbol()
+4. Update all context.symbols.insert() → context.scope_stack.declare_symbol()
+5. Remove symbols: HashMap<String, SymbolInfo> from Context struct
 
 **Files affected**: init.rs, interpreter.rs, typer.rs (~200 lookup sites)
 
@@ -289,138 +323,152 @@ Context to ScopeStack, testing after each step.
 
 **Deliverables**:
 - Code changes committed
-- This doc updated with "Step 1 COMPLETED ✓"
-- Dual-write mode documented
-
-*** STEP 2: Remove Context::symbols (verify ScopeStack works)
-
-**Status**: TODO - Blocked by Step 1
-
-**Goal**: Prove ScopeStack handles all symbol tracking correctly
-
-**Changes**:
-1. Remove symbols: HashMap<String, SymbolInfo> from Context struct
-2. Remove all dual-write code from Step 1
-3. All symbol operations now exclusively use scope_stack
-
-**Verification**: make tests - all tests still pass
-
-**Deliverables**:
-- Code changes committed
 - This doc updated with "Step 2 COMPLETED ✓"
 
-*** STEP 3: Migrate Context::arena_index → ScopeStack::local_vars
+*** STEP 3: Migrate Context::funcs → ScopeStack::local_funcs
 
 **Status**: TODO - Blocked by Step 2
 
-**Goal**: Move variable-to-offset mappings to scope stack
+**Goal**: Move all function lookups from Context.funcs to scope_stack.local_funcs
 
 **Changes**:
-1. During init_context(), insert globals into scope_stack.frames[0].local_vars
-2. In function calls, insert local vars into new scope frame
-3. Update all arena_index lookups to use scope_stack.lookup_var()
-4. Keep Context.arena_index as backup (dual-write mode)
+1. During init_context(), populate scope_stack.frames[0].local_funcs with all functions
+2. Update all context.funcs.get() → context.scope_stack.lookup_func()
+3. Update all context.funcs.contains_key() → context.scope_stack.lookup_func().is_some()
+4. Remove funcs: HashMap<String, SFuncDef> from Context struct
 
-**Files affected**: init.rs, interpreter.rs, ext.rs (~150 lookup sites)
+**Bonus**: Enables local function definitions in future!
+
+**Files affected**: init.rs, interpreter.rs, typer.rs (~100 lookup sites)
 
 **Verification**: make tests - all tests pass
 
 **Deliverables**:
 - Code changes committed
 - This doc updated with "Step 3 COMPLETED ✓"
-- Dual-write mode documented
 
-*** STEP 4: Remove Context::arena_index
+*** STEP 4: Migrate Context::enum_defs → ScopeStack::local_enums
 
 **Status**: TODO - Blocked by Step 3
 
-**Goal**: Complete migration to ScopeStack for all local state
+**Goal**: Move all enum lookups from Context.enum_defs to scope_stack.local_enums
 
 **Changes**:
-1. Remove arena_index: HashMap<String, usize> from Context struct
-2. Remove dual-write code from Step 3
-3. All variable lookups use scope_stack exclusively
+1. During init_context(), populate scope_stack.frames[0].local_enums with all enums
+2. Update all context.enum_defs.get() → context.scope_stack.lookup_enum()
+3. Update all context.enum_defs.contains_key() → context.scope_stack.lookup_enum().is_some()
+4. Remove enum_defs: HashMap<String, SEnumDef> from Context struct
 
-**Verification**: make tests - all tests still pass
+**Bonus**: Enables local enum definitions in future!
 
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 4 COMPLETED ✓"
-
-*** STEP 5: Replace context.clone() with scope push/pop
-
-**Status**: TODO - Blocked by Step 4
-
-**Goal**: Eliminate Context clones by using scope management
-
-**Changes**:
-1. In eval_user_func_proc_call() (interpreter.rs:1440):
-   - Replace: let mut func_context = context.clone();
-   - With: context.scope_stack.push(ScopeType::Function);
-   - Add cleanup: context.scope_stack.pop()?; before return
-
-2. Do same for typer.rs clones (check_user_proc, check_catch, check_loop, check_if_else)
-
-**Result**: Context clones eliminated! Only mutable fields remain in Context
-
-**Verification**: make tests - all tests pass, performance improves
-
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 5 COMPLETED ✓"
-- Performance improvement documented
-
-*** STEP 6: Wrap immutable Context fields in Arc
-
-**Status**: TODO - Blocked by Step 5
-
-**Goal**: Make any remaining Context clones (if needed) cheap
-
-**Changes**:
-#+BEGIN_SRC rust
-#[derive(Clone)]
-struct ImmutableContext {
-    funcs: HashMap<String, SFuncDef>,
-    enum_defs: HashMap<String, SEnumDef>,
-    struct_defs: HashMap<String, SStructDef>,
-    imports_declarations_done: HashSet<String>,
-    imports_values_done: HashMap<String, Result<EvalResult, String>>,
-}
-
-pub struct Context {
-    immutable: Arc<ImmutableContext>,
-    scope_stack: ScopeStack,
-    // ... remaining mutable fields
-}
-#+END_SRC
-
-Update field accesses: context.funcs → context.immutable.funcs
+**Files affected**: init.rs, interpreter.rs, typer.rs (~80 lookup sites)
 
 **Verification**: make tests - all tests pass
 
 **Deliverables**:
 - Code changes committed
+- This doc updated with "Step 4 COMPLETED ✓"
+
+*** STEP 5: Migrate Context::struct_defs → ScopeStack::local_structs
+
+**Status**: TODO - Blocked by Step 4
+
+**Goal**: Move all struct lookups from Context.struct_defs to scope_stack.local_structs
+
+**Changes**:
+1. During init_context(), populate scope_stack.frames[0].local_structs with all structs
+2. Update all context.struct_defs.get() → context.scope_stack.lookup_struct()
+3. Update all context.struct_defs.contains_key() → context.scope_stack.lookup_struct().is_some()
+4. Remove struct_defs: HashMap<String, SStructDef> from Context struct
+
+**Bonus**: Enables local struct definitions in future!
+
+**Files affected**: init.rs, interpreter.rs, typer.rs (~120 lookup sites)
+
+**Verification**: make tests - all tests pass
+
+**Deliverables**:
+- Code changes committed
+- This doc updated with "Step 5 COMPLETED ✓"
+
+*** STEP 6: Migrate Context::arena_index → ScopeStack::local_vars (LAST BEFORE REMOVING CLONES)
+
+**Status**: TODO - Blocked by Step 5
+
+**Goal**: Move variable-to-offset mappings to scope stack - THIS IS THE CRITICAL STEP
+
+**Changes**:
+1. During init_context(), populate scope_stack.frames[0].local_vars with all globals
+2. In function calls, use scope_stack.declare_var() for parameters and local vars
+3. Update all context.arena_index.get() → context.scope_stack.lookup_var()
+4. Update all context.arena_index.insert() → context.scope_stack.declare_var()
+5. Handle arena_index.remove() for ownership transfer (need special logic)
+6. Remove arena_index: HashMap<String, usize> from Context struct
+
+**This is the most critical field** - it tracks where variables are stored in memory at runtime.
+We do this LAST because it's the most sensitive to bugs.
+
+**Files affected**: init.rs, interpreter.rs, ext.rs (~150 lookup sites)
+
+**Verification**: make tests - all tests pass, no memory corruption
+
+**Deliverables**:
+- Code changes committed
 - This doc updated with "Step 6 COMPLETED ✓"
 
-*** STEP 7: Enable block-level scoping
+*** STEP 7: Replace all context.clone() with scope push/pop
 
 **Status**: TODO - Blocked by Step 6
 
-**Goal**: Proper lexical scoping for all block types
+**Goal**: Eliminate Context clones by using scope management - THE PAYOFF!
 
 **Changes**:
-1. In loop evaluation: push/pop Block scope
-2. In if/else: push/pop Block scope
-3. In catch blocks: push/pop Catch scope
+1. In eval_user_func_proc_call() (interpreter.rs:1440):
+   - Replace: let mut func_context = context.clone();
+   - With: context.scope_stack.push(ScopeType::Function);
+   - Replace: eval_body(&mut function_context, ...) → eval_body(context, ...)
+   - Add cleanup: context.scope_stack.pop()?; before return
+   - Handle path update separately (function_path variable?)
 
-**Result**: Variables properly scoped to their declaration blocks
+2. In typer.rs check_user_proc (line 131):
+   - Same pattern: replace clone with push/pop
 
-**Verification**: make tests + add tests for block scoping
+3. In typer.rs check_catch (line 862):
+   - Same pattern: replace temp_context.clone() with push/pop
+
+4. In typer.rs check_loop pattern matching (line 1117):
+   - Same pattern: replace temp_context.clone() with push/pop
+
+5. In typer.rs check_struct method definitions (line 1264):
+   - Same pattern: replace function_context.clone() with push/pop
+
+**Result**: Context clones ELIMINATED! Only scope frame push/pop operations.
+
+**Verification**: make tests - all tests pass, performance massively improves
 
 **Deliverables**:
 - Code changes committed
 - This doc updated with "Step 7 COMPLETED ✓"
-- Block scoping correctness documented
+- Performance improvement measured and documented
+
+*** STEP 8: Verify imports_* fields don't need cloning
+
+**Status**: TODO - Blocked by Step 7
+
+**Goal**: Confirm that import tracking fields are never modified in cloned contexts
+
+**Changes**:
+1. Search all clone sites to verify imports_* fields are never modified in cloned contexts
+2. Document findings: imports are always global, never scoped
+3. If any modifications found, handle appropriately (likely move to ScopeStack or document why safe)
+
+**Files affected**: Just documentation
+
+**Verification**: Code inspection
+
+**Deliverables**:
+- Analysis documented in this file
+- This doc updated with "Step 8 COMPLETED ✓"
 
 ** Expected Benefits
 
@@ -434,37 +482,40 @@ After all steps complete:
 ** Performance Estimate
 
 - **Before**: 68-247 KB per function call
-- **After Step 5**: ~100 bytes per function call (scope stack push/pop only)
-- **After Step 6**: Arc clones negligible (~8 bytes, ref count increment)
+- **After Step 7**: ~100 bytes per function call (scope stack push/pop only)
 - **Improvement**: ~1500x reduction in cloning overhead
 
 ** Risk Mitigation
 
 - **Incremental**: Each step is small, testable, committable
-- **Dual-write**: Steps 1 and 3 keep backup data structures
+- **No dual-write complexity**: Direct migration, remove old field immediately after migrating
 - **Verification**: make tests after every step ensures correctness
 - **Rollback**: Git commits allow reverting any problematic step
+- **Arena_index last**: Most critical field migrated last when we're confident in the approach
 
 ** Why This Replaces the Old Plan
 
 The old plan (GlobalContext + LocalContext with Arc) was designed before ScopeStack existed.
-The new plan:
+The corrected plan:
 - Leverages existing ScopeStack infrastructure (Phase 1 complete)
+- Migrates ALL Context fields to ScopeStack (not just symbols and arena_index)
+- Enables local func/enum/struct definitions as bonus feature
+- Does arena_index migration LAST (right before removing clones) since it's most critical
 - Provides proper lexical scoping as a bonus
 - More incremental and testable
-- Same performance benefits as old plan
-- Better correctness (block-level scoping)
+- Better performance and correctness
 
 ** Implementation Status
 
 - Phase 1: ScopeStack infrastructure ✓ (commit ee84e5e)
-- Step 1: Migrate symbols → TODO
-- Step 2: Remove Context::symbols → TODO
-- Step 3: Migrate arena_index → TODO
-- Step 4: Remove Context::arena_index → TODO
-- Step 5: Replace clones with push/pop → TODO
-- Step 6: Wrap immutables in Arc → TODO
-- Step 7: Block-level scoping → TODO
+- Step 1: Extend ScopeStack (funcs, enums, structs) → TODO
+- Step 2: Migrate Context::symbols → TODO
+- Step 3: Migrate Context::funcs → TODO
+- Step 4: Migrate Context::enum_defs → TODO
+- Step 5: Migrate Context::struct_defs → TODO
+- Step 6: Migrate Context::arena_index → TODO (LAST BEFORE CLONES)
+- Step 7: Replace clones with push/pop → TODO (THE PAYOFF!)
+- Step 8: Verify imports_* fields → TODO
 
 * Combined Performance Estimate
 
