@@ -342,7 +342,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 };
 
                                                 // Get the enum definition to find variant name
-                                                let enum_def = context.enum_defs.get(type_name).ok_or_else(|| {
+                                                let enum_def = context.scope_stack.lookup_enum(type_name).ok_or_else(|| {
                                                     case.error(&context.path, "eval", &format!("Enum definition for '{}' not found", type_name))
                                                 })?;
 
@@ -520,12 +520,12 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
     let parts: Vec<&str> = combined_name.split('.').collect();
     if parts.len() == 2 {
         let enum_type = parts[0];
-        if context.enum_defs.contains_key(enum_type) {
+        if context.scope_stack.lookup_enum(enum_type).is_some() {
             // This is an enum constructor!
             let variant_name = parts[1];
 
             // Get the enum definition to check if this variant has a payload type
-            let enum_def = context.enum_defs.get(enum_type).unwrap();
+            let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
             let variant_type = enum_def.enum_map.get(variant_name).cloned();
 
             match variant_type {
@@ -684,7 +684,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                     // Get the variant position
                                     let variant_pos = Context::get_variant_pos(
-                                        context.enum_defs.get(struct_type_name).ok_or_else(|| {
+                                        context.scope_stack.lookup_enum(struct_type_name).ok_or_else(|| {
                                             e.error(&context.path, "eval", &format!("Enum definition for '{}' not found", struct_type_name))
                                         })?,
                                         &enum_val.enum_name,
@@ -781,7 +781,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         ValueType::TType(TTypeDef::TEnumDef) => {
             match &inner_e.node_type {
                 NodeType::EnumDef(enum_def) => {
-                    context.enum_defs.insert(declaration.name.clone(), enum_def.clone());
+                    context.scope_stack.declare_enum(declaration.name.clone(), enum_def.clone());
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     return Ok(EvalResult::new(""));
                 },
@@ -1221,7 +1221,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 return Ok(EvalResult::new(name));
             },
             ValueType::TType(TTypeDef::TEnumDef) => {
-                // let enum_def = match context.enum_defs.get(name) {
+                // let enum_def = match context.scope_stack.lookup_enum(name) {
                 //     Some(def) => def,
                 //     None => return Err(e.lang_error(&context.path, "eval", &format!("Enum '{}' not found in context", name))),
                 // };

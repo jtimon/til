@@ -61,6 +61,9 @@ pub struct ScopeFrame {
     // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
     pub funcs: HashMap<String, SFuncDef>,
 
+    // Enum type definitions (variants and associated data)
+    pub enums: HashMap<String, SEnumDef>,
+
     /// Scope type (helps with cleanup and debugging)
     pub scope_type: ScopeType,
 }
@@ -84,6 +87,7 @@ impl ScopeStack {
             local_vars: HashMap::new(),
             symbols: HashMap::new(),
             funcs: HashMap::new(),
+            enums: HashMap::new(),
             scope_type,
         });
     }
@@ -158,6 +162,21 @@ impl ScopeStack {
     pub fn declare_func(&mut self, name: String, func_def: SFuncDef) {
         if let Some(current_frame) = self.frames.last_mut() {
             current_frame.funcs.insert(name, func_def);
+        }
+    }
+
+    pub fn lookup_enum(&self, name: &str) -> Option<&SEnumDef> {
+        for frame in self.frames.iter().rev() {
+            if let Some(enum_def) = frame.enums.get(name) {
+                return Some(enum_def);
+            }
+        }
+        None
+    }
+
+    pub fn declare_enum(&mut self, name: String, enum_def: SEnumDef) {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.enums.insert(name, enum_def);
         }
     }
 
@@ -327,7 +346,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
             },
             ValueType::TType(TTypeDef::TEnumDef) => {
                 // Handle enum constructor calls like Color.Green(true)
-                let enum_def = match context.enum_defs.get(&f_name) {
+                let enum_def = match context.scope_stack.lookup_enum(&f_name) {
                     Some(_enum_def) => _enum_def,
                     None => {
                         return Err(e.lang_error(&context.path, "type", &format!("enum '{}' not found in context", f_name)));
@@ -389,7 +408,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
             },
             ValueType::TCustom(custom_type_name) => {
                 // Check if it's an enum first
-                if context.enum_defs.contains_key(custom_type_name) {
+                if context.scope_stack.lookup_enum(custom_type_name).is_some() {
                     // It's an enum - try UFCS method call
                     let after_dot = match id_expr.params.get(0) {
                         Some(_after_dot) => _after_dot,
@@ -622,7 +641,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // If it's an enum, resolve the variant
-                        let enum_def = context.enum_defs.get(name)
+                        let enum_def = context.scope_stack.lookup_enum(name)
                             .ok_or_else(|| e.error(&context.path, "type", &format!("Enum '{}' not found", name)))?;
 
                         if enum_def.enum_map.contains_key(member_name) {
@@ -902,7 +921,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     match &inner_e.node_type {
                         NodeType::EnumDef(enum_def) => {
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
-                            context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
+                            context.scope_stack.declare_enum(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
                             errors.push(e.lang_error(&context.path, "type", "enums should have definitions."));
@@ -971,8 +990,6 @@ pub struct Context {
     pub mode: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
-    // Enum type definitions (variants and associated data)
-    pub enum_defs: HashMap<String, SEnumDef>,
     // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
     pub struct_defs: HashMap<String, SStructDef>,
     // maps variable names to their offsets in the arena
@@ -1001,7 +1018,6 @@ impl Context {
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
-            enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),
             scope_stack,
@@ -1352,7 +1368,7 @@ impl Context {
             "I64"  => return Ok(8),
             _ => {},
         }
-        if let Some(enum_def) = self.enum_defs.get(type_name) {
+        if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
             // Calculate maximum variant size (8 bytes for tag + largest payload)
             let mut max_size = 8; // Start with tag size
 
@@ -1568,7 +1584,7 @@ impl Context {
 
             match &decl.value_type {
                 ValueType::TCustom(type_name) => {
-                    if let Some(enum_def) = self.enum_defs.get(type_name) {
+                    if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
                         let parts: Vec<&str> = default_value.split('.').collect();
                         if parts.len() != 2 || parts[0] != type_name {
                             return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
@@ -1861,7 +1877,7 @@ impl Context {
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
                                             .map_err(|_| e.lang_error(&self.path, "context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
 
-        let enum_def = self.enum_defs.get(enum_type)
+        let enum_def = self.scope_stack.lookup_enum(enum_type)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
 
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
@@ -1941,7 +1957,7 @@ impl Context {
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
                                             .map_err(|_| e.lang_error(&self.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
 
-        let enum_def = self.enum_defs.get(enum_type)
+        let enum_def = self.scope_stack.lookup_enum(enum_type)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
 
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
@@ -2010,7 +2026,7 @@ impl Context {
 
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
     pub fn insert_enum(&mut self, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
-        let enum_def = self.enum_defs.get(enum_type)
+        let enum_def = self.scope_stack.lookup_enum(enum_type)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
 
         let enum_name = pre_normalized_enum_name.split('.').last()

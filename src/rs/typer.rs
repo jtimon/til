@@ -1103,7 +1103,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
         if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
             // Get the payload type for this variant
             if let ValueType::TCustom(enum_name) = &switch_expr_type {
-                if let Some(enum_def) = context.enum_defs.get(enum_name) {
+                if let Some(enum_def) = context.scope_stack.lookup_enum(enum_name) {
                     // Extract just the variant name (remove enum prefix if present)
                     let variant = if let Some(dot_pos) = variant_name.rfind('.') {
                         &variant_name[dot_pos + 1..]
@@ -1154,7 +1154,7 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
     // Exhaustiveness check only for enums
     if let ValueType::TCustom(enum_name) = switch_expr_type {
-        if let Some(enum_def) = context.enum_defs.get(&enum_name) {
+        if let Some(enum_def) = context.scope_stack.lookup_enum(&enum_name) {
             let mut matched_variants: Vec<String> = Vec::new();
 
             let mut j = 1;
@@ -1433,7 +1433,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             let parts: Vec<&str> = combined_name.split('.').collect();
             if parts.len() == 2 {
                 let enum_type = parts[0];
-                if let Some(enum_def) = context.enum_defs.get(enum_type) {
+                if let Some(enum_def) = context.scope_stack.lookup_enum(enum_type) {
                     let variant_name = parts[1];
                     if enum_def.enum_map.contains_key(variant_name) {
                         // This is a valid enum constructor

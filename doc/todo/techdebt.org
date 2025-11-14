@@ -345,27 +345,27 @@ after each step.
 
 **Result**: Functions now live in ScopeStack, enabling scoped function definitions
 
-*** STEP 4: Migrate Context::enum_defs → ScopeStack::local_enums
+*** STEP 4: Migrate Context::enum_defs → ScopeStack::enums - COMPLETED ✓
 
-**Status**: TODO - Blocked by Step 3
+**Status**: COMPLETED 2025-11-14
 
-**Goal**: Move all enum lookups from Context.enum_defs to scope_stack.local_enums
+**Goal**: Move all enum lookups from Context.enum_defs to scope_stack.enums
 
-**Changes**:
-1. During init_context(), populate scope_stack.frames[0].local_enums with all enums
-2. Update all context.enum_defs.get() → context.scope_stack.lookup_enum()
-3. Update all context.enum_defs.contains_key() → context.scope_stack.lookup_enum().is_some()
-4. Remove enum_defs: HashMap<String, SEnumDef> from Context struct
+**Changes completed**:
+1. Added enums field to ScopeFrame with original comment
+2. Added ScopeStack methods: lookup_enum(), declare_enum()
+3. Updated all context.enum_defs.get() → context.scope_stack.lookup_enum()
+4. Updated all context.enum_defs.insert() → context.scope_stack.declare_enum()
+5. Updated all context.enum_defs.contains_key() → context.scope_stack.lookup_enum().is_some()
+6. Removed Context.enum_defs field from struct
 
 **Bonus**: Enables local enum definitions in future!
 
-**Files affected**: init.rs, interpreter.rs, typer.rs (~80 lookup sites)
+**Files affected**: init.rs, interpreter.rs, typer.rs
 
-**Verification**: make tests - all tests pass
+**Verification**: ✓ make tests passes - all tests pass with no behavior change
 
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 4 COMPLETED ✓"
+**Result**: Enums now live in ScopeStack, enabling scoped enum definitions
 
 *** STEP 5: Migrate Context::struct_defs → ScopeStack::local_structs
 
