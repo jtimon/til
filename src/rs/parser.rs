@@ -157,7 +157,7 @@ impl Expr {
     pub fn get(self: &Expr, i: usize) -> Result<&Expr, String> {
         match self.params.get(i) {
             Some(expr) => Ok(expr),
-            None => Err(self.lang_error("assert", &format!("Expr index {} out of bounds (len: {}).", i, self.params.len()))),
+            None => Err(self.lang_error("<internal>", "assert", &format!("Expr index {} out of bounds (len: {}).", i, self.params.len()))),
         }
      }
 
@@ -173,20 +173,20 @@ impl Expr {
         std::process::exit(1);
     }
 
-    pub fn lang_error(self: &Expr, phase: &str, msg: &str) -> String {
+    pub fn lang_error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            return format!("{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}:{}: {} WARNING: {}\nExplanation: This should never happen, this is a bug in the language.", path, self.line, self.col, LANG_NAME, msg);
         }
-        return format!("{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
-                       self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}:{}: {} {} ERROR: {}\nExplanation: This should never happen, this is a bug in the language.",
+                       path, self.line, self.col, LANG_NAME, phase, msg)
     }
 
-    pub fn todo_error(self: &Expr, phase: &str, msg: &str) -> String {
+    pub fn todo_error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
         if phase == "warning" {
-            return format!("{}:{}: {} WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", self.line, self.col, LANG_NAME, msg);
+            return format!("{}:{}:{}: {} WARNING: {}\nExplanation: Not implemented yet, this is a missing feature in the language.", path, self.line, self.col, LANG_NAME, msg);
         }
-        return format!("{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-                       self.line, self.col, LANG_NAME, phase, msg)
+        return format!("{}:{}:{}: {} {} ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                       path, self.line, self.col, LANG_NAME, phase, msg)
     }
 
     pub fn error(self: &Expr, path: &str, phase: &str, msg: &str) -> String {
@@ -251,12 +251,12 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
         TokenType::String => NodeType::LLiteral(Literal::Str(t.token_str.clone())),
         TokenType::Number => {
             let number = t.token_str.parse::<i64>()
-                .map_err(|e| t.lang_error(&format!("Invalid number literal '{}': {}", t.token_str, e)))?;
+                .map_err(|e| t.lang_error(&lexer.path, &format!("Invalid number literal '{}': {}", t.token_str, e)))?;
             NodeType::LLiteral(Literal::Number(number.to_string()))
         },
         TokenType::True => NodeType::LLiteral(Literal::Bool(t.token_str.clone())),
         _ => {
-            return Err(t.lang_error(&format!("Trying to parse a token that's not a literal as a literal, found '{:?}'.", t.token_type)));
+            return Err(t.lang_error(&lexer.path, &format!("Trying to parse a token that's not a literal as a literal, found '{:?}'.", t.token_type)));
         },
     };
     let e = Expr::new_parse(node_type, t.clone(), params);
@@ -806,7 +806,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
     return Ok(e);
 }
 
-pub fn get_combined_name(e: &Expr) -> Result<String, String> {
+pub fn get_combined_name(path: &str, e: &Expr) -> Result<String, String> {
     let mut to_return = String::new();
     match &e.node_type {
         NodeType::Identifier(id_str_) => {
@@ -814,7 +814,7 @@ pub fn get_combined_name(e: &Expr) -> Result<String, String> {
             to_return.push_str(".");
         },
         _ => {
-            return Err(e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only"))
+            return Err(e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only"))
         },
     }
     for p in &e.params {
@@ -824,7 +824,7 @@ pub fn get_combined_name(e: &Expr) -> Result<String, String> {
                 to_return.push_str(".");
             },
             _ => {
-                return Err(e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only"))
+                return Err(e.lang_error(path, "parse", "the params of an identifier expression must be Identifier expressions only"))
             },
         }
     }
@@ -847,18 +847,18 @@ fn parse_statement_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
                 NodeType::FCall => return Ok(e),
                 NodeType::Identifier(_) => {},
                 _ => {
-                    return Err(t.lang_error("a series of identifiers and dots should have been parsed as identifier or function call"));
+                    return Err(t.lang_error(&lexer.path, "a series of identifiers and dots should have been parsed as identifier or function call"));
                 },
             }
             next_t = lexer.peek();
             next_token_type = &next_t.token_type;
             match next_token_type {
                 TokenType::Equal => {
-                    let name = get_combined_name(&e)?;
+                    let name = get_combined_name(&lexer.path, &e)?;
                     return parse_assignment(lexer, &t, &name)
                 },
                 _ => {
-                    return Err(t.lang_error("While parsing a '.', this should never happen"));
+                    return Err(t.lang_error(&lexer.path, "While parsing a '.', this should never happen"));
                 },
             }
         },

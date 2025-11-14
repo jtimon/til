@@ -56,7 +56,7 @@ fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<Strin
                         }
                     },
                     _ => {
-                        errors.push(e.todo_error("type", &format!("'enum' does not support payloads of value type '{}' yet",
+                        errors.push(e.todo_error(&context.path, "type", &format!("'enum' does not support payloads of value type '{}' yet",
                                                                   value_type_to_str(&value_type))));
                     },
                 }
@@ -98,7 +98,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         },
         NodeType::Range => {
             if e.params.len() != 2 {
-                errors.push(e.lang_error("type", "Range expression must have exactly two elements"));
+                errors.push(e.lang_error(&context.path, "type", "Range expression must have exactly two elements"));
                 return errors;
             }
 
@@ -159,7 +159,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
 }
 
 // Helper function to validate conditional statement parameters
-fn validate_conditional_params(e: &Expr, stmt_type: &str, min: usize, max: usize) -> Option<String> {
+fn validate_conditional_params(_path: &str, e: &Expr, stmt_type: &str, min: usize, max: usize) -> Option<String> {
     if e.params.len() < min || e.params.len() > max {
         if min == max {
             return Some(e.exit_error("type", &format!("{} nodes must have exactly {} parameters.", stmt_type, min)));
@@ -198,7 +198,7 @@ fn validate_func_arg_count(path: &str, e: &Expr, f_name: &str, func_def: &SFuncD
 
 fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    if let Some(err) = validate_conditional_params(e, "if", 2, 3) {
+    if let Some(err) = validate_conditional_params(&context.path, e, "if", 2, 3) {
         errors.push(err);
         return errors;
     }
@@ -238,7 +238,7 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
 fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    if let Some(err) = validate_conditional_params(e, "while", 2, 2) {
+    if let Some(err) = validate_conditional_params(&context.path, e, "while", 2, 2) {
         errors.push(err);
         return errors;
     }
@@ -300,7 +300,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         let arg = match func_def.args.get(std::cmp::min(i, max_arg_def - 1)) {
             Some(arg) => arg,
             None => {
-                errors.push(e.lang_error("type", &format!("argument index {} out of bounds for function '{}'", i, f_name)));
+                errors.push(e.lang_error(&context.path, "type", &format!("argument index {} out of bounds for function '{}'", i, f_name)));
                 return errors;
             }
         };
@@ -577,14 +577,14 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         let expected_value_type = match func_def.return_types.get(i) {
                             Some(t) => t,
                             None => {
-                                errors.push(e.lang_error("type", &format!("Fewer return values than provided at position {}", i)));
+                                errors.push(e.lang_error(&context.path, "type", &format!("Fewer return values than provided at position {}", i)));
                                 continue;
                             }
                         };
                         let return_val_e = match p.params.get(i) {
                             Some(val) => val,
                             None => {
-                                errors.push(e.lang_error("type", &format!("Missing return value at position {}", i)));
+                                errors.push(e.lang_error(&context.path, "type", &format!("Missing return value at position {}", i)));
                                 continue;
                             }
                         };
@@ -921,7 +921,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
         match value_type {
             ValueType::TCustom(custom_type) => {
                 if custom_type == INFER_TYPE {
-                    errors.push(e.lang_error("type", &format!("Cannot infer the declaration type of {}", decl.name)));
+                    errors.push(e.lang_error(&context.path, "type", &format!("Cannot infer the declaration type of {}", decl.name)));
                     return errors;
                 }
                 // During type checking, register struct fields so they can be accessed in the code
@@ -937,7 +937,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                         context.funcs.insert(decl.name.clone(), func_def.clone());
                     },
                     _ => {
-                        errors.push(e.lang_error("type", "functions should have definitions"));
+                        errors.push(e.lang_error(&context.path, "type", "functions should have definitions"));
                         return errors;
                     },
                 }
@@ -1302,7 +1302,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 }
             },
             None => {
-                errors.push(e.todo_error("type", &format!("Member '{}' lacks a default value. Not allowed yet.", member_name)));
+                errors.push(e.todo_error(&context.path, "type", &format!("Member '{}' lacks a default value. Not allowed yet.", member_name)));
             }
         }
     }
@@ -1385,17 +1385,17 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 
 pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr) -> Result<Option<SFuncDef>, String> {
     if fcall_expr.node_type != NodeType::FCall {
-        return Err(fcall_expr.lang_error("type", "Expected FCall node type"));
+        return Err(fcall_expr.lang_error(&context.path, "type", "Expected FCall node type"));
     }
     let func_expr = match fcall_expr.params.first() {
         Some(expr) => expr,
-        None => return Err(fcall_expr.lang_error("type", "get_func_def_for_fcall_with_expr: Fcalls must have a name")),
+        None => return Err(fcall_expr.lang_error(&context.path, "type", "get_func_def_for_fcall_with_expr: Fcalls must have a name")),
     };
 
     match &func_expr.node_type {
         NodeType::Identifier(_) => {
             // Regular functions and associated functions used directly
-            let combined_name = crate::rs::parser::get_combined_name(func_expr)?;
+            let combined_name = crate::rs::parser::get_combined_name(&context.path, func_expr)?;
 
             // NEW: Check if this is a UFCS call on a function/expression result
             // If params has 2+ elements and params[1] is an expression (FCall, etc.)
@@ -1493,9 +1493,9 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     }
                 }
             }
-            return Err(func_expr.lang_error("type", "Could not find function defintion"))
+            return Err(func_expr.lang_error(&context.path, "type", "Could not find function defintion"))
         },
-        _ => return Err(func_expr.lang_error("type", "Expected Identifier node type"))
+        _ => return Err(func_expr.lang_error(&context.path, "type", "Expected Identifier node type"))
     }
 }
 
@@ -1653,7 +1653,7 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
             }
         },
         _ => {
-            errors.push(e.lang_error("mode", "basic_mode_checks() expects a body expression, this should never happen."))
+            errors.push(e.lang_error(&context.path, "mode", "basic_mode_checks() expects a body expression, this should never happen."))
         },
     }
 

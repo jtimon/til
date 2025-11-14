@@ -150,11 +150,11 @@ fn value_type_func_proc(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -
             match func_def.return_types.get(0) {
                 Some(ValueType::TCustom(type_str)) => Ok(ValueType::TCustom(type_str.to_string())), // TODO find a better way
                 Some(other) => Err(e.error(path, "type", &format!("func '{}' returns unsupported type {}", name, value_type_to_str(other)))),
-                None => Err(e.lang_error("type", &format!("func '{}' has inconsistent return type info", name))),
+                None => Err(e.lang_error(path, "type", &format!("func '{}' has inconsistent return type info", name))),
             }
         },
         _ => {
-            return Err(e.todo_error("type", &format!("func '{}' returns multiple values", name)));
+            return Err(e.todo_error(path, "type", &format!("func '{}' returns multiple values", name)));
         },
     }
 }
@@ -168,7 +168,7 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
     // Get the last param (the method name)
     let method_name_expr = match id_expr.params.last() {
         Some(expr) => expr,
-        None => return Err(e.lang_error("type", "Expected method name in UFCS call")),
+        None => return Err(e.lang_error(&context.path, "type", "Expected method name in UFCS call")),
     };
 
     let method_name = match &method_name_expr.node_type {
@@ -238,7 +238,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let struct_def = match context.struct_defs.get(&f_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(e.lang_error("type", &format!("struct '{}' not found in context", f_name)));
+                        return Err(e.lang_error(&context.path, "type", &format!("struct '{}' not found in context", f_name)));
                     },
                 };
                 let after_dot = match id_expr.params.get(0) {
@@ -268,7 +268,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         }
                     },
                     _ => {
-                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
@@ -277,7 +277,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let enum_def = match context.enum_defs.get(&f_name) {
                     Some(_enum_def) => _enum_def,
                     None => {
-                        return Err(e.lang_error("type", &format!("enum '{}' not found in context", f_name)));
+                        return Err(e.lang_error(&context.path, "type", &format!("enum '{}' not found in context", f_name)));
                     },
                 };
                 let after_dot = match id_expr.params.get(0) {
@@ -330,7 +330,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         return Ok(ValueType::TCustom(f_name.clone()));
                     },
                     _ => {
-                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
@@ -361,7 +361,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                             }
                         },
                         _ => {
-                            return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                            return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                         },
                     }
                 }
@@ -370,7 +370,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let struct_def = match context.struct_defs.get(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(e.lang_error("type", &format!("type '{}' not found in context", f_name)));
+                        return Err(e.lang_error(&context.path, "type", &format!("type '{}' not found in context", f_name)));
                     },
                 };
                 let after_dot = match id_expr.params.get(0) {
@@ -455,7 +455,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
 
                     _ => {
-                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
@@ -466,7 +466,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                 let struct_def = match context.struct_defs.get(custom_type_name) {
                     Some(_struct_def) => _struct_def,
                     None => {
-                        return Err(e.lang_error("type", &format!("struct '{}' not found in context", custom_type_name)));
+                        return Err(e.lang_error(&context.path, "type", &format!("struct '{}' not found in context", custom_type_name)));
                     },
                 };
                 let after_dot = match id_expr.params.get(0) {
@@ -508,7 +508,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                     },
 
                     _ => {
-                        return Err(e.lang_error("type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
+                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
                     },
                 }
             },
@@ -555,7 +555,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
             for cursor in &e.params {
                 let member_name = match &cursor.node_type {
                     NodeType::Identifier(n) => n,
-                    node_type => return Err(e.lang_error("type", &format!("Identifiers can only contain identifiers, found '{:?}'", node_type))),
+                    node_type => return Err(e.lang_error(&context.path, "type", &format!("Identifiers can only contain identifiers, found '{:?}'", node_type))),
                 };
 
                 match &current_type {
@@ -641,7 +641,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
 
     // Mark as work-in-progress
     if !context.imports_wip.insert(path.clone()) {
-        return Err(e.lang_error("import", &format!("While trying to import {} from {}: Can't insert in imports_wip",
+        return Err(e.lang_error(&context.path, "import", &format!("While trying to import {} from {}: Can't insert in imports_wip",
                                                    path, original_path)));
     }
 
@@ -833,7 +833,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                 context.funcs.insert(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
-                                errors.push(e.lang_error("type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
+                                errors.push(e.lang_error(&context.path, "type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
                                 return errors;
                             },
                         }
@@ -852,7 +852,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.enum_defs.insert(decl.name.to_string(), enum_def.clone());
                         },
                         _ => {
-                            errors.push(e.lang_error("type", "enums should have definitions."));
+                            errors.push(e.lang_error(&context.path, "type", "enums should have definitions."));
                             return errors;
                         },
                     }
@@ -888,7 +888,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             }
                         },
                         _ => {
-                            errors.push(e.lang_error("type", "struct declarations should have definitions."));
+                            errors.push(e.lang_error(&context.path, "type", "struct declarations should have definitions."));
                             return errors;
                         },
                     }
@@ -970,20 +970,20 @@ impl Context {
         });
     }
 
-    pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, e: &Expr) -> Result<i64, String> {
+    pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
         match selfi.enum_map.keys().position(|k| k == variant_name) {
             Some(position) => Ok(position as i64),
             None => {
-                return Err(e.lang_error("context", &format!("Error: Enum variant '{}' not found in enum map.", variant_name)))
+                return Err(e.lang_error(path, "context", &format!("Error: Enum variant '{}' not found in enum map.", variant_name)))
             },
         }
     }
 
-    pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, e: &Expr) -> Result<String, String> {
+    pub fn variant_pos_to_str(selfi: &SEnumDef, position: i64, path: &str, e: &Expr) -> Result<String, String> {
         let keys: Vec<String> = selfi.enum_map.keys().cloned().collect();
         if position < 0 || position >= keys.len() as i64 {
             // Return an error if the position is out of bounds
-            return Err(e.lang_error("context", &format!("Error: Invalid position '{}' for enum variant in '{}'.",
+            return Err(e.lang_error(path, "context", &format!("Error: Invalid position '{}' for enum variant in '{}'.",
                                                         position, selfi.enum_map.keys().cloned().collect::<Vec<_>>().join(", "))));
         }
 
@@ -998,21 +998,21 @@ impl Context {
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
             self.get_field_offset(id).map_err(|err| {
-                e.lang_error("context", &format!("get_i64: {}", err))
+                e.lang_error(&self.path, "context", &format!("get_i64: {}", err))
             })?
         } else {
-            return Err(e.lang_error("context", &format!("i64 not found for id '{}'", id)));
+            return Err(e.lang_error(&self.path, "context", &format!("i64 not found for id '{}'", id)));
         };
 
         match Arena::g().memory[offset..offset + 8].try_into() {
             Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
-            Err(_) => Err(e.lang_error("context", &format!("Invalid i64 read for id '{}'", id))),
+            Err(_) => Err(e.lang_error(&self.path, "context", &format!("Invalid i64 read for id '{}'", id))),
         }
     }
 
     pub fn insert_i64(self: &mut Context, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
         let v = i64_str.parse::<i64>()
-            .map_err(|_| e.lang_error("context", &format!("Invalid i64 literal '{}'", i64_str)))?;
+            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid i64 literal '{}'", i64_str)))?;
         let bytes = v.to_ne_bytes();
 
         let is_instance_field = if id.contains('.') {
@@ -1035,7 +1035,7 @@ impl Context {
             } else {
                 // Calculate offset from struct definition
                 self.get_field_offset(id).map_err(|err| {
-                    e.lang_error("context", &format!("insert_i64: {}", err))
+                    e.lang_error(&self.path, "context", &format!("insert_i64: {}", err))
                 })?
             };
             Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
@@ -1056,19 +1056,19 @@ impl Context {
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
             self.get_field_offset(id).map_err(|err| {
-                e.lang_error("context", &format!("get_u8: {}", err))
+                e.lang_error(&self.path, "context", &format!("get_u8: {}", err))
             })?
         } else {
-            return Err(e.lang_error("context", &format!("u8 not found for id '{}'", id)));
+            return Err(e.lang_error(&self.path, "context", &format!("u8 not found for id '{}'", id)));
         };
 
         Arena::g().memory.get(offset).copied()
-            .ok_or_else(|| e.lang_error("context", &format!("Invalid u8 read for id '{}'", id)))
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("Invalid u8 read for id '{}'", id)))
     }
 
     pub fn insert_u8(self: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
         let v = u8_str.parse::<u8>()
-            .map_err(|_| e.lang_error("context", &format!("Invalid u8 literal '{}'", u8_str)))?;
+            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
         let bytes = [v];
 
         let is_instance_field = if id.contains('.') {
@@ -1089,7 +1089,7 @@ impl Context {
             } else {
                 // Calculate offset from struct definition
                 self.get_field_offset(id).map_err(|err| {
-                    e.lang_error("context", &format!("insert_u8: {}", err))
+                    e.lang_error(&self.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
             Arena::g().memory[offset] = v;
@@ -1109,26 +1109,26 @@ impl Context {
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
             self.get_field_offset(id).map_err(|err| {
-                e.lang_error("context", &format!("get_bool: {}", err))
+                e.lang_error(&self.path, "context", &format!("get_bool: {}", err))
             })?
         } else {
-            return Err(e.lang_error("context", &format!("bool not found for id '{}'", id)));
+            return Err(e.lang_error(&self.path, "context", &format!("bool not found for id '{}'", id)));
         };
 
         match Arena::g().memory.get(offset) {
             Some(&byte) => Ok(byte == 1),
-            None => Err(e.lang_error("context", &format!("Invalid bool read for id '{}'", id))),
+            None => Err(e.lang_error(&self.path, "context", &format!("Invalid bool read for id '{}'", id))),
         }
     }
 
     pub fn insert_bool(self: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
-            None => return Err(e.lang_error("context", &format!("Symbol '{}' not found", id))),
+            None => return Err(e.lang_error(&self.path, "context", &format!("Symbol '{}' not found", id))),
         };
 
         let bool_to_insert = bool_str.parse::<bool>()
-            .map_err(|_| e.lang_error("context", &format!("Invalid bool literal '{}'", bool_str)))?;
+            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
         let stored = if bool_to_insert { 1 } else { 0 };
         let bytes = [stored];
 
@@ -1150,7 +1150,7 @@ impl Context {
             } else {
                 // Calculate offset from struct definition
                 self.get_field_offset(id).map_err(|err| {
-                    e.lang_error("context", &format!("insert_bool: {}", err))
+                    e.lang_error(&self.path, "context", &format!("insert_bool: {}", err))
                 })?
             };
             Arena::g().memory[offset] = stored;
@@ -1176,14 +1176,14 @@ impl Context {
 
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
         let struct_def = self.struct_defs.get(custom_type_name)
-            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
 
         let is_mut = self.symbols.get(instance_name)
-            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: instance '{}' not found in symbols", instance_name)))?
             .is_mut;
 
         let base_offset = *self.arena_index.get(instance_name)
-            .ok_or_else(|| e.lang_error("context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
             .members
@@ -1211,14 +1211,14 @@ impl Context {
                 if let ValueType::TCustom(type_name) = &decl.value_type {
                     if self.struct_defs.contains_key(type_name) {
                         self.map_instance_fields(type_name, &combined_name, e).map_err(|_| {
-                            e.lang_error("context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
+                            e.lang_error(&self.path, "context", &format!("map_instance_fields: failed to map nested struct field '{}'", combined_name))
                         })?;
                     }
                 }
 
                 let field_size = match &decl.value_type {
                     ValueType::TCustom(name) => self.get_type_size(name)?,
-                    _ => return Err(e.lang_error("context", &format!(
+                    _ => return Err(e.lang_error(&self.path, "context", &format!(
                         "map_instance_fields: Unsupported value type '{}'", value_type_to_str(&decl.value_type)
                     ))),
                 };
@@ -1233,14 +1233,14 @@ impl Context {
     // TODO all args should be passed as pointers/references and we wouldn't need this
     pub fn copy_fields(&mut self, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
         let struct_def = self.struct_defs.get(custom_type_name)
-            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
 
         let is_mut = self.symbols.get(dest)
-            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
             .is_mut;
 
         let dest_base_offset = *self.arena_index.get(dest)
-            .ok_or_else(|| e.lang_error("context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
 
         let members: Vec<(String, Declaration)> = struct_def
             .members
@@ -1256,7 +1256,7 @@ impl Context {
 
             let field_size = match &decl.value_type {
                 ValueType::TCustom(name) => self.get_type_size(name)?,
-                _ => return Err(e.lang_error("context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
+                _ => return Err(e.lang_error(&self.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
             };
 
             let src_key = format!("{}.{}", src, field_name);
@@ -1292,7 +1292,7 @@ impl Context {
             if let ValueType::TCustom(type_name) = &decl.value_type {
                 if self.struct_defs.contains_key(type_name) {
                     self.copy_fields(type_name, &src_key, &dest_key, e).map_err(|_| {
-                        e.lang_error("context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
+                        e.lang_error(&self.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
                     })?;
                 }
             }
@@ -1468,13 +1468,13 @@ impl Context {
         // Lookup the struct definition
         let struct_def = match self.struct_defs.get(custom_type_name) {
             Some(struct_def_) => struct_def_.clone(),
-            None => return Err(e.lang_error("context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
+            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
         };
 
         // Determine mutability from symbols table
         let is_mut = match self.symbols.get(id) {
             Some(symbol_info_) => symbol_info_.is_mut,
-            None => return Err(e.lang_error("context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
+            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
         };
 
         // Calculate total size (for now no alignment)
@@ -1488,7 +1488,7 @@ impl Context {
 
             let field_size = match &decl.value_type {
                 ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
-                _ => return Err(e.lang_error("context", "insert_struct: Unsupported value type in struct")),
+                _ => return Err(e.lang_error(&self.path, "context", "insert_struct: Unsupported value type in struct")),
             };
 
             field_offsets.insert(member_name.clone(), total_size);
@@ -1508,7 +1508,7 @@ impl Context {
 
             let field_offset = match field_offsets.get(member_name) {
                 Some(offset) => offset,
-                None => return Err(e.lang_error("context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
+                None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
             };
 
             let default_expr = struct_def.default_values.get(member_name);
@@ -1516,11 +1516,11 @@ impl Context {
                 Some(e2) => {
                     let res = eval_expr(self, e2)?;
                     if res.is_throw {
-                        return Err(e.lang_error("context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
+                        return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
                     }
                     res.value
                 },
-                None => return Err(e.lang_error("context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
+                None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
             };
 
             match &decl.value_type {
@@ -1528,12 +1528,12 @@ impl Context {
                     if let Some(enum_def) = self.enum_defs.get(type_name) {
                         let parts: Vec<&str> = default_value.split('.').collect();
                         if parts.len() != 2 || parts[0] != type_name {
-                            return Err(e.lang_error("context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
+                            return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
                         }
                         let variant = parts[1];
                         let index = match enum_def.enum_map.keys().position(|v| v == variant) {
                             Some(i) => i as i64,
-                            None => return Err(e.lang_error("context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
+                            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
                         };
                         Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                             .copy_from_slice(&index.to_ne_bytes());
@@ -1541,13 +1541,13 @@ impl Context {
                         match type_name.as_str() {
                             "U8" => {
                                 let v = default_value.parse::<u8>().map_err(|_| {
-                                    e.lang_error("context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
+                                    e.lang_error(&self.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
                                 })?;
                                 Arena::g().memory[offset + field_offset] = v;
                             },
                             "I64" => {
                                 let v = default_value.parse::<i64>().map_err(|_| {
-                                    e.lang_error("context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
+                                    e.lang_error(&self.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
                                 })?;
                                 Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                                     .copy_from_slice(&v.to_ne_bytes());
@@ -1571,17 +1571,17 @@ impl Context {
                                         self.insert_string(&combined_name, &default_value, e)?;
                                     } else {
                                         self.insert_struct(&combined_name, type_name, e)
-                                            .map_err(|_| e.lang_error("context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
+                                            .map_err(|_| e.lang_error(&self.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
                                     }
                                 } else {
-                                    return Err(e.lang_error("context", &format!("insert_struct: Unknown field type '{}'", type_name)));
+                                    return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unknown field type '{}'", type_name)));
                                 }
                             },
                         }
                     }
                 },
                 _ => {
-                    return Err(e.lang_error("context", &format!("insert_struct: Unsupported field value type '{}'", value_type_to_str(&decl.value_type))));
+                    return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unsupported field value type '{}'", value_type_to_str(&decl.value_type))));
                 }
             }
 
@@ -1652,7 +1652,7 @@ impl Context {
             offset
         } else {
             self.get_field_offset(&c_string_field_path).map_err(|err| {
-                e.lang_error("context", &format!("get_string: {}", err))
+                e.lang_error(&self.path, "context", &format!("get_string: {}", err))
             })?
         };
 
@@ -1661,28 +1661,28 @@ impl Context {
             offset
         } else {
             self.get_field_offset(&cap_field_path).map_err(|err| {
-                e.lang_error("context", &format!("get_string: {}", err))
+                e.lang_error(&self.path, "context", &format!("get_string: {}", err))
             })?
         };
 
         if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
-            return Err(e.lang_error("context", &format!("field offsets out of bounds for '{}'", id)));
+            return Err(e.lang_error(&self.path, "context", &format!("field offsets out of bounds for '{}'", id)));
         }
 
         let c_string_ptr_bytes = &Arena::g().memory[c_string_offset..c_string_offset + 8];
         let c_string_ptr = match c_string_ptr_bytes.try_into() {
             Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => return Err(e.lang_error("context", &format!("failed to read c_string pointer for '{}'", id))),
+            Err(_) => return Err(e.lang_error(&self.path, "context", &format!("failed to read c_string pointer for '{}'", id))),
         };
 
         let cap_bytes = &Arena::g().memory[cap_offset..cap_offset + 8];
         let length = match cap_bytes.try_into() {
             Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => return Err(e.lang_error("context", &format!("failed to read cap value for '{}'", id))),
+            Err(_) => return Err(e.lang_error(&self.path, "context", &format!("failed to read cap value for '{}'", id))),
         };
 
         if c_string_ptr + length > Arena::g().memory.len() {
-            return Err(e.lang_error("context", &format!("string content out of bounds for '{}'", id)));
+            return Err(e.lang_error(&self.path, "context", &format!("string content out of bounds for '{}'", id)));
         }
 
         let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
@@ -1732,7 +1732,7 @@ impl Context {
                     }
                     return Ok(())
                 }
-                return Err(e.lang_error("context", "ERROR: 'Str' struct definition not found"))
+                return Err(e.lang_error(&self.path, "context", "ERROR: 'Str' struct definition not found"))
             }
 
             // Not yet inserted — insert fresh inlined Str
@@ -1764,20 +1764,20 @@ impl Context {
                 self.arena_index.insert(id.to_string(), struct_offset);
                 return Ok(())
             }
-            return Err(e.lang_error("context", "'Str' struct definition not found"))
+            return Err(e.lang_error(&self.path, "context", "'Str' struct definition not found"))
         }
 
         self.insert_struct(id, "Str", e)?;
         let c_string_offset = match self.arena_index.get(&format!("{}.c_string", id)) {
             Some(&offset) => offset,
             None => {
-                return Err(e.lang_error("context", &format!("insert_string: missing '{}.c_string'", id)))
+                return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.c_string'", id)))
             }
         };
         let cap_offset = match self.arena_index.get(&format!("{}.cap", id)) {
             Some(&offset) => offset,
             None => {
-                return Err(e.lang_error("context", &format!("insert_string: missing '{}.cap'", id)))
+                return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.cap'", id)))
             }
         };
 
@@ -1808,7 +1808,7 @@ impl Context {
             ValueType::TCustom(type_name) if type_name == "Str" => {
                 self.insert_string(var_name, &value.to_string(), e)
             },
-            _ => Err(e.lang_error("eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
+            _ => Err(e.lang_error(&self.path, "eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
         }
     }
 
@@ -1816,12 +1816,12 @@ impl Context {
         // Read enum from a specific offset (used for nested enum payloads)
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
-                                            .map_err(|_| e.lang_error("context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
+                                            .map_err(|_| e.lang_error(&self.path, "context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
 
         let enum_def = self.enum_defs.get(enum_type)
-            .ok_or_else(|| e.lang_error("context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
 
-        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, e)?;
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
 
         // Check if this variant has a payload type
         let variant_payload_type = enum_def.enum_map.get(&enum_name);
@@ -1884,24 +1884,24 @@ impl Context {
 
     pub fn get_enum(&self, id: &str, e: &Expr) -> Result<EnumVal, String> {
         let symbol_info = self.symbols.get(id)
-            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Symbol '{}' not found", id)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
 
         let enum_type = match &symbol_info.value_type {
             ValueType::TCustom(custom_type_name) => custom_type_name,
-            _ => return Err(e.lang_error("context", &format!("get_enum: '{}' is not a custom enum type", id))),
+            _ => return Err(e.lang_error(&self.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
         };
 
         let offset = *self.arena_index.get(id)
-            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Arena index for '{}' not found", id)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))?;
 
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
-                                            .map_err(|_| e.lang_error("context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
+                                            .map_err(|_| e.lang_error(&self.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
 
         let enum_def = self.enum_defs.get(enum_type)
-            .ok_or_else(|| e.lang_error("context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
 
-        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, e)?;
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
 
         // Check if this variant has a payload type
         let variant_payload_type = enum_def.enum_map.get(&enum_name);
@@ -1968,12 +1968,12 @@ impl Context {
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
     pub fn insert_enum(&mut self, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
         let enum_def = self.enum_defs.get(enum_type)
-            .ok_or_else(|| e.lang_error("context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
 
         let enum_name = pre_normalized_enum_name.split('.').last()
-            .ok_or_else(|| e.lang_error("context", &format!("insert_enum: Invalid enum name format '{}'", pre_normalized_enum_name)))?;
+            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_enum: Invalid enum name format '{}'", pre_normalized_enum_name)))?;
 
-        let enum_value = Context::get_variant_pos(enum_def, enum_name, e)?;
+        let enum_value = Context::get_variant_pos(enum_def, enum_name, &self.path, e)?;
 
         // Check if there's payload data to store
         let (payload_data, payload_type) = match &self.temp_enum_payload {
@@ -2035,7 +2035,7 @@ impl Context {
         let len = values.len() as i64;
         let elem_size = match self.get_type_size(elem_type) {
             Ok(sz) => sz,
-            Err(err) => return Err(e.lang_error("context", &err)),
+            Err(err) => return Err(e.lang_error(&self.path, "context", &err)),
         };
         let total_size = (len as usize) * elem_size;
 
@@ -2054,7 +2054,7 @@ impl Context {
                 "U8" => {
                     match val.parse::<u8>() {
                         Ok(byte) => Arena::g().memory[offset] = byte,
-                        Err(err) => return Err(e.lang_error("context", &format!("ERROR: insert_array: invalid U8 '{}'", &err)))
+                        Err(err) => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: invalid U8 '{}'", &err)))
                     }
                 },
                 "I64" => {
@@ -2063,7 +2063,7 @@ impl Context {
                             let bytes = n.to_ne_bytes();
                             Arena::g().memory[offset..offset+8].copy_from_slice(&bytes);
                         },
-                        Err(err) => return Err(e.lang_error("context", &format!("ERROR: insert_array: invalid I64 '{}'", &err)))
+                        Err(err) => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: invalid I64 '{}'", &err)))
                     }
                 },
                 "Str" => {
@@ -2082,7 +2082,7 @@ impl Context {
 
                         let str_offset = match self.arena_index.get(&temp_id) {
                             Some(&off) => off,
-                            None => return Err(e.lang_error("context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
+                            None => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
                         };
                         Arena::g().memory[offset..offset + elem_size]
                             .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
@@ -2090,7 +2090,7 @@ impl Context {
                 }
 
                 _ => {
-                    return Err(e.lang_error("context", &format!("insert_array: unsupported element type '{}'", elem_type)))
+                    return Err(e.lang_error(&self.path, "context", &format!("insert_array: unsupported element type '{}'", elem_type)))
                 }
             }
         }
@@ -2101,7 +2101,7 @@ impl Context {
             offset
         } else {
             self.get_field_offset(&ptr_field_path).map_err(|err| {
-                e.lang_error("context", &format!("insert_array: {}", err))
+                e.lang_error(&self.path, "context", &format!("insert_array: {}", err))
             })?
         };
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
@@ -2113,7 +2113,7 @@ impl Context {
             offset
         } else {
             self.get_field_offset(&len_field_path).map_err(|err| {
-                e.lang_error("context", &format!("insert_array: {}", err))
+                e.lang_error(&self.path, "context", &format!("insert_array: {}", err))
             })?
         };
         Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);

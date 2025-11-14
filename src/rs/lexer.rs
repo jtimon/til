@@ -61,17 +61,16 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn lang_error(self: &Token, msg: &str) -> String {
-        return format!("{}:{}: {} parse ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
-                 self.line, self.col, LANG_NAME, msg);
+    pub fn lang_error(self: &Token, path: &str, msg: &str) -> String {
+        return format!("{}:{}:{}: {} parse ERROR: {}\nExplanation: This is not your fault as a user, this is a bug in the language.",
+                 path, self.line, self.col, LANG_NAME, msg);
     }
 
-    // REM: shut up, rust. now I'mm going to get a compile error next time I want to legitimitely use it
-    // on the other hand it is cool when it reminds me  I can now erase a function I don't want to maintain
-    // pub fn todo_error(self: &Token, msg: &str) -> String {
-    //     return format!("{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
-    //              self.line, self.col, LANG_NAME, msg);
-    // }
+    #[allow(dead_code)]
+    pub fn todo_error(self: &Token, path: &str, msg: &str) -> String {
+        return format!("{}:{}:{}: {} parse ERROR: {}\nExplanation: Not implemented yet, this is a missing feature in the language.",
+                 path, self.line, self.col, LANG_NAME, msg);
+    }
 
     pub fn error(self: &Token, path: &str, msg: &str) -> String {
         return format!("{}:{}:{}: parse ERROR: {}", path, self.line, self.col, msg);
@@ -114,7 +113,7 @@ impl Lexer {
             Some(t) => Ok(t),
             None => {
                 let t = self.peek();
-                return Err(t.lang_error(&format!("Token in pos {} is out of bounds", i)))
+                return Err(t.lang_error(&self.path, &format!("Token in pos {} is out of bounds", i)))
             },
         }
     }
@@ -126,11 +125,11 @@ impl Lexer {
     pub fn previous(&self) -> Result<Token, String> {
         if self.current == 0 {
             let t = self.peek();
-            return Err(t.lang_error("No previous token (at position 0)"));
+            return Err(t.lang_error(&self.path, "No previous token (at position 0)"));
         }
         if self.current - 1 >= self.tokens.len() {
             let t = self.peek();
-            return Err(t.lang_error("Previous token is out of bounds"));
+            return Err(t.lang_error(&self.path, "Previous token is out of bounds"));
         }
         return Ok(self.tokens[self.current - 1].clone());
     }
@@ -138,7 +137,7 @@ impl Lexer {
     pub fn advance(&mut self, count: usize) -> Result<(), String> {
         if self.current + count > self.tokens.len() {
             let t = self.peek();
-            return Err(t.lang_error(&format!("Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
+            return Err(t.lang_error(&self.path, &format!("Attempt to advance by {} from {} would exceed bounds ({} tokens total)",
                                              count, self.current, self.tokens.len())));
         }
         self.current += count;
@@ -148,7 +147,7 @@ impl Lexer {
     pub fn go_back(&mut self, count: usize) -> Result<(), String> {
         if count > self.current {
             let t = self.peek();
-            return Err(t.lang_error(&format!("Attempt to go back by {} from {} would underflow", count, self.current)));
+            return Err(t.lang_error(&self.path, &format!("Attempt to go back by {} from {} would underflow", count, self.current)));
         }
         self.current -= count;
         Ok(())
@@ -158,7 +157,7 @@ impl Lexer {
         let i = self.current + offset;
         if i >= self.tokens.len() {
             let t = self.peek();
-            return Err(t.lang_error(&format!("Peek ahead by {} from {} is out of bounds", offset, self.current)));
+            return Err(t.lang_error(&self.path, &format!("Peek ahead by {} from {} is out of bounds", offset, self.current)));
         }
         return Ok(self.tokens[i].clone());
     }
@@ -173,7 +172,7 @@ impl Lexer {
             self.advance(1)?; // consume the token
             Ok(token)
         } else {
-            Err(token.lang_error(&format!("Expected token '{}', but found '{}'",
+            Err(token.lang_error(&self.path, &format!("Expected token '{}', but found '{}'",
                 token_type_to_str(&expected), token.token_str)))
         }
     }
