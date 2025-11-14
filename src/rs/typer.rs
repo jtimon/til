@@ -132,7 +132,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             errors.extend(check_func_proc_types(&func_def, &mut function_context, &e));
         },
         NodeType::Identifier(name) => {
-            if !(context.funcs.contains_key(name) || context.scope_stack.lookup_symbol(name).is_some()) {
+            if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
                 errors.push(e.error(&context.path, "type", &format!("Undefined symbol {}", name)));
             }
         },
@@ -934,7 +934,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                 match &inner_e.node_type {
                     NodeType::FuncDef(func_def) => {
                         // TODO move to init_context() ? inner contexts are not persisted in init_context
-                        context.funcs.insert(decl.name.clone(), func_def.clone());
+                        context.scope_stack.declare_func(decl.name.clone(), func_def.clone());
                     },
                     _ => {
                         errors.push(e.lang_error(&context.path, "type", "functions should have definitions"));
@@ -959,7 +959,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
         return errors
     }
 
-    if context.funcs.contains_key(var_name)  {
+    if context.scope_stack.lookup_func(var_name).is_some()  {
         errors.push(e.error(&context.path, "type", &format!("function '{}' cannot be assigned to.", var_name)));
     } else if context.scope_stack.lookup_symbol(var_name).is_some() {
         let symbol_info = match context.scope_stack.lookup_symbol(var_name) {
@@ -1406,7 +1406,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     if let ValueType::TCustom(custom_type_name) = target_type {
                         // Check if this type has an associated method
                         let method_name = format!("{}.{}", custom_type_name, combined_name);
-                        if let Some(func_def) = context.funcs.get(&method_name) {
+                        if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
                             // Transform: method(target, args...) with proper identifier
                             let new_e = Expr::new_clone(NodeType::Identifier(method_name.clone()), fcall_expr.get(0)?, Vec::new());
                             let mut new_args = Vec::new();
@@ -1421,7 +1421,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
             }
 
             // Original logic: check for regular function
-            if let Some(func_def) = context.funcs.get(&combined_name) {
+            if let Some(func_def) = context.scope_stack.lookup_func(&combined_name) {
                 return Ok(Some(func_def.clone()))
             }
 
@@ -1456,7 +1456,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     let extra_arg_e = Expr::new_clone(func_expr.node_type.clone(), fcall_expr, id_params);
 
                     // Regular functions used with UFCS
-                    if let Some(func_def) = context.funcs.get(&ufcs_func_name.to_string()) {
+                    if let Some(func_def) = context.scope_stack.lookup_func(&ufcs_func_name.to_string()) {
 
                         let new_e = Expr::new_clone(NodeType::Identifier(ufcs_func_name.clone()), fcall_expr.get(0)?, Vec::new());
                         let mut new_args = Vec::new();
@@ -1474,7 +1474,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                         match &symbol_info.value_type {
                             ValueType::TCustom(ref custom_type_name) => {
                                 let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
-                                if let Some(func_def) = context.funcs.get(&id_expr_name) {
+                                if let Some(func_def) = context.scope_stack.lookup_func(&id_expr_name) {
 
                                     let new_e = Expr::new_clone(NodeType::Identifier(id_expr_name.clone()), fcall_expr.get(0)?, Vec::new());
                                     let mut new_args = Vec::new();
@@ -1552,7 +1552,7 @@ fn is_expr_calling_procs(context: &Context, e: &Expr) -> bool {
             if f_name == "panic" {
                 return false
             }
-            let func_is_proc = match context.funcs.get(&f_name) {
+            let func_is_proc = match context.scope_stack.lookup_func(&f_name) {
                 Some(func) => func.is_proc(),
                 None => false,
             };

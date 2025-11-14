@@ -323,27 +323,27 @@ after each step.
 
 **Result**: Symbol table now lives in ScopeStack, enabling proper lexical scoping
 
-*** STEP 3: Migrate Context::funcs → ScopeStack::local_funcs
+*** STEP 3: Migrate Context::funcs → ScopeStack::funcs - COMPLETED ✓
 
-**Status**: TODO - Blocked by Step 2
+**Status**: COMPLETED 2025-11-14
 
-**Goal**: Move all function lookups from Context.funcs to scope_stack.local_funcs
+**Goal**: Move all function lookups from Context.funcs to scope_stack.funcs
 
-**Changes**:
-1. During init_context(), populate scope_stack.frames[0].local_funcs with all functions
-2. Update all context.funcs.get() → context.scope_stack.lookup_func()
-3. Update all context.funcs.contains_key() → context.scope_stack.lookup_func().is_some()
-4. Remove funcs: HashMap<String, SFuncDef> from Context struct
+**Changes completed**:
+1. Added funcs field to ScopeFrame with original comment
+2. Added ScopeStack methods: lookup_func(), declare_func()
+3. Updated all context.funcs.get() → context.scope_stack.lookup_func()
+4. Updated all context.funcs.insert() → context.scope_stack.declare_func()
+5. Updated all context.funcs.contains_key() → context.scope_stack.lookup_func().is_some()
+6. Removed Context.funcs field from struct
 
 **Bonus**: Enables local function definitions in future!
 
-**Files affected**: init.rs, interpreter.rs, typer.rs (~100 lookup sites)
+**Files affected**: init.rs, interpreter.rs, typer.rs
 
-**Verification**: make tests - all tests pass
+**Verification**: ✓ make tests passes - all tests pass with no behavior change
 
-**Deliverables**:
-- Code changes committed
-- This doc updated with "Step 3 COMPLETED ✓"
+**Result**: Functions now live in ScopeStack, enabling scoped function definitions
 
 *** STEP 4: Migrate Context::enum_defs → ScopeStack::local_enums
 

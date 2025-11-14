@@ -58,6 +58,9 @@ pub struct ScopeFrame {
     // but it can be convenient at times in eval or compile phases too, I guess.
     pub symbols: HashMap<String, SymbolInfo>,
 
+    // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
+    pub funcs: HashMap<String, SFuncDef>,
+
     /// Scope type (helps with cleanup and debugging)
     pub scope_type: ScopeType,
 }
@@ -80,6 +83,7 @@ impl ScopeStack {
         self.frames.push(ScopeFrame {
             local_vars: HashMap::new(),
             symbols: HashMap::new(),
+            funcs: HashMap::new(),
             scope_type,
         });
     }
@@ -139,6 +143,21 @@ impl ScopeStack {
             current_frame.symbols.remove(name)
         } else {
             None
+        }
+    }
+
+    pub fn lookup_func(&self, name: &str) -> Option<&SFuncDef> {
+        for frame in self.frames.iter().rev() {
+            if let Some(func) = frame.funcs.get(name) {
+                return Some(func);
+            }
+        }
+        None
+    }
+
+    pub fn declare_func(&mut self, name: String, func_def: SFuncDef) {
+        if let Some(current_frame) = self.frames.last_mut() {
+            current_frame.funcs.insert(name, func_def);
         }
     }
 
@@ -211,7 +230,7 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
     };
 
     // Check if it's a regular function
-    if let Some(func_def) = context.funcs.get(method_name) {
+    if let Some(func_def) = context.scope_stack.lookup_func(method_name) {
         return value_type_func_proc(&context.path, &e, &f_name, func_def)
     }
 
@@ -226,7 +245,7 @@ fn get_ufcs_fcall_value_type(context: &Context, e: &Expr, f_name: &String, id_ex
     match &target_type {
         ValueType::TCustom(custom_type_name) => {
             let id_expr_name = format!("{}.{}", custom_type_name, method_name);
-            if let Some(func_def) = context.funcs.get(&id_expr_name) {
+            if let Some(func_def) = context.scope_stack.lookup_func(&id_expr_name) {
                 return value_type_func_proc(&context.path, &e, &id_expr_name, &func_def);
             }
             return Err(e.error(&context.path, "type", &format!("Type '{}' has no method '{}'", custom_type_name, method_name)));
@@ -252,7 +271,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
             if let ValueType::TCustom(custom_type_name) = target_type {
                 // Check if this type has an associated method with this name
                 let method_name = format!("{}.{}", custom_type_name, f_name);
-                if let Some(func_def) = context.funcs.get(&method_name) {
+                if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
                     // UFCS method exists! Use it instead of standalone function
                     return value_type_func_proc(&context.path, &e, &method_name, func_def);
                 }
@@ -262,7 +281,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
     }
 
     // Original logic: check for standalone function
-    if let Some(func_def) = context.funcs.get(&f_name) {
+    if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
         return value_type_func_proc(&context.path, &e, &f_name, func_def)
     } else if let Some(symbol) = context.scope_stack.lookup_symbol(&f_name) {
 
@@ -382,7 +401,7 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                         NodeType::Identifier(after_dot_name) => {
                             // Try associated method first
                             let method_name = format!("{}.{}", custom_type_name, after_dot_name);
-                            if let Some(func_def) = context.funcs.get(&method_name) {
+                            if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
                                 return value_type_func_proc(&context.path, &e, &method_name, func_def);
                             }
 
@@ -432,12 +451,12 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
                                         ValueType::TCustom(intermediate_type_name) => {
                                             // First check if it's a method on this type
                                             let method_name = format!("{}.{}", intermediate_type_name, final_member_name);
-                                            if let Some(func_def) = context.funcs.get(&method_name) {
+                                            if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
                                                 return value_type_func_proc(&context.path, &e, &method_name, func_def);
                                             }
 
                                             // Try UFCS: standalone function with intermediate type as first arg
-                                            if let Some(func_def) = context.funcs.get(final_member_name) {
+                                            if let Some(func_def) = context.scope_stack.lookup_func(final_member_name) {
                                                 return value_type_func_proc(&context.path, &e, final_member_name, func_def);
                                             }
 
@@ -827,7 +846,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         },
         NodeType::Declaration(decl) => {
-            if context.funcs.contains_key(&decl.name) || context.scope_stack.lookup_symbol(&decl.name).is_some() {
+            if context.scope_stack.lookup_func(&decl.name).is_some() || context.scope_stack.lookup_symbol(&decl.name).is_some() {
                 errors.push(e.error(&context.path, "type", &format!("'{}' already declared.", decl.name)));
             }
             if e.params.len() != 1 {
@@ -864,7 +883,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                         match &inner_e.node_type {
                             NodeType::FuncDef(func_def) => {
                                 context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
-                                context.funcs.insert(decl.name.to_string(), func_def.clone());
+                                context.scope_stack.declare_func(decl.name.to_string(), func_def.clone());
                             },
                             _ => {
                                 errors.push(e.lang_error(&context.path, "type", &format!("{}s should have definitions", value_type_to_str(&value_type))));
@@ -916,7 +935,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                                     context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                                     // If it's a function, also register in funcs
                                     if let NodeType::FuncDef(func_def) = &member_expr.node_type {
-                                        context.funcs.insert(full_name, func_def.clone());
+                                        context.scope_stack.declare_func(full_name, func_def.clone());
                                     }
                                 }
                             }
@@ -952,8 +971,6 @@ pub struct Context {
     pub mode: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
-    // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
-    pub funcs: HashMap<String, SFuncDef>,
     // Enum type definitions (variants and associated data)
     pub enum_defs: HashMap<String, SEnumDef>,
     // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
@@ -984,7 +1001,6 @@ impl Context {
         return Ok(Context {
             path: path.to_string(),
             mode: mode_from_name(mode_name)?,
-            funcs: HashMap::new(),
             enum_defs: HashMap::new(),
             struct_defs: HashMap::new(),
             arena_index: HashMap::new(),

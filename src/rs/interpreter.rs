@@ -842,7 +842,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                 ValueType::TFunction(_) => {
                                     match &default_value.node_type {
                                         NodeType::FuncDef(func_def) => {
-                                            context.funcs.insert(combined_name.to_string(), func_def.clone());
+                                            context.scope_stack.declare_func(combined_name.to_string(), func_def.clone());
                                         },
                                         _ => {
                                             return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of type '{}', expected '{}' definition.",
@@ -874,7 +874,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         ValueType::TFunction(_) => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
-                    context.funcs.insert(declaration.name.to_string(), func_def.clone());
+                    context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
                     return Ok(EvalResult::new(""))
                 },
@@ -1038,7 +1038,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         ValueType::TFunction(_) => {
             match &inner_e.node_type {
                 NodeType::FuncDef(func_def) => {
-                    context.funcs.insert(var_name.to_string(), func_def.clone());
+                    context.scope_stack.declare_func(var_name.to_string(), func_def.clone());
                     Ok(EvalResult::new(""))
                 },
                 _ => Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' to function type '{}'",
