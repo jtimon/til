@@ -1195,22 +1195,19 @@ impl Context {
         return Ok(())
     }
 
-    pub fn get_bool(self: &Context, id: &str, e: &Expr) -> Result<bool, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
-            offset
+    pub fn get_struct(&self, id: &str, e: &Expr) -> Result<String, String> {
+        // Validate that the struct variable exists by checking if we can get its offset
+        if self.scope_stack.lookup_var(id).is_some() {
+            // Direct variable lookup succeeded
+            Ok(id.to_string())
         } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
+            // For field paths, validate we can calculate offset
             self.get_field_offset(id).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("get_bool: {}", err))
-            })?
+                e.lang_error(&self.path, "context", &format!("get_struct: {}", err))
+            })?;
+            Ok(id.to_string())
         } else {
-            return Err(e.lang_error(&self.path, "context", &format!("bool not found for id '{}'", id)));
-        };
-
-        match Arena::g().memory.get(offset) {
-            Some(&byte) => Ok(byte == 1),
-            None => Err(e.lang_error(&self.path, "context", &format!("Invalid bool read for id '{}'", id))),
+            Err(e.lang_error(&self.path, "context", &format!("struct not found for id '{}'", id)))
         }
     }
 
@@ -2251,4 +2248,17 @@ impl Context {
         Ok(())
     }
 
+}
+
+// Helper function to extract bool value from a Bool struct instance
+pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, String> {
+    // Validate the Bool struct exists
+    context.get_struct(id, e)?;
+
+    // Read the .data field (which is a U8)
+    let data_field = format!("{}.data", id);
+    let u8_val = context.get_u8(&data_field, e)?;
+
+    // Convert U8 to bool (0 = false, non-zero = true)
+    Ok(u8_val != 0)
 }

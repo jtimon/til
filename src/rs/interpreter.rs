@@ -1,4 +1,4 @@
-use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call};
+use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, bool_from_context};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -1079,7 +1079,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Bool" => {
-                    let result = context.get_bool(&format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = bool_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Str" => {
@@ -1191,7 +1191,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         "U8" => match context.get_u8(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "Bool" => match context.get_bool(&current_name, e)? {
+                        "Bool" => match bool_from_context(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
                         "Str" => match context.get_string(&current_name, e)? {
@@ -1270,7 +1270,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Bool" => {
-                        let val = context.get_bool(name, e)?;
+                        let val = bool_from_context(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Str" => {
