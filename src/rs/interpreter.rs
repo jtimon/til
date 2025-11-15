@@ -71,6 +71,27 @@ pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, 
     Ok(u8_val != 0)
 }
 
+// Helper function to extract String value from a Str struct instance
+pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<String, String> {
+    // Validate the Str struct exists
+    context.get_struct(id, e)?;
+
+    // Read the c_string field (I64 pointer to string data in Arena)
+    let c_string_ptr = context.get_i64(&format!("{}.c_string", id), e)? as usize;
+
+    // Read the cap field (I64 length)
+    let length = context.get_i64(&format!("{}.cap", id), e)? as usize;
+
+    // Bounds check
+    if c_string_ptr + length > Arena::g().memory.len() {
+        return Err(e.lang_error(&context.path, "string_from_context", &format!("string content out of bounds for '{}'", id)));
+    }
+
+    // Read string bytes from Arena and convert to String
+    let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
+    Ok(String::from_utf8_lossy(bytes).to_string())
+}
+
 // Helper function to validate conditional statement parameters
 fn validate_conditional_params(path: &str, e: &Expr, stmt_type: &str, min: usize, max: usize) -> Result<(), String> {
     if e.params.len() < min || e.params.len() > max {
@@ -1079,7 +1100,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "Str" => {
-                    let result = context.get_string(&format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = string_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 _ => Err(inner_e.lang_error(&context.path, "eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
@@ -1190,7 +1211,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         "Bool" => match bool_from_context(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "Str" => match context.get_string(&current_name, e)? {
+                        "Str" => match string_from_context(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
                         _ => {
@@ -1271,7 +1292,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                     },
                     "Str" => {
                         if e.params.len() == 0 {
-                            let val = context.get_string(name, e)?;
+                            let val = string_from_context(context, name, e)?;
                             return Ok(EvalResult::new(&val.to_string()));
                         }
                         return eval_custom_expr(e, context, name, &custom_type_name_clone);
@@ -1844,7 +1865,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.insert_u8(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
-                let val = function_context.get_string(&arg_name, e)?;
+                let val = string_from_context(&function_context, &arg_name, e)?;
                 context.insert_string(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) => {

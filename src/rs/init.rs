@@ -1734,50 +1734,6 @@ impl Context {
         }
     }
 
-    pub fn get_string(&self, id: &str, e: &Expr) -> Result<String, String> {
-        // Try to get offsets either from pre-registered arena_index or calculate dynamically
-        let c_string_field_path = format!("{}.c_string", id);
-        let c_string_offset = if let Some(offset) = self.scope_stack.lookup_var(&c_string_field_path) {
-            offset
-        } else {
-            self.get_field_offset(&c_string_field_path).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("get_string: {}", err))
-            })?
-        };
-
-        let cap_field_path = format!("{}.cap", id);
-        let cap_offset = if let Some(offset) = self.scope_stack.lookup_var(&cap_field_path) {
-            offset
-        } else {
-            self.get_field_offset(&cap_field_path).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("get_string: {}", err))
-            })?
-        };
-
-        if c_string_offset + 8 > Arena::g().memory.len() || cap_offset + 8 > Arena::g().memory.len() {
-            return Err(e.lang_error(&self.path, "context", &format!("field offsets out of bounds for '{}'", id)));
-        }
-
-        let c_string_ptr_bytes = &Arena::g().memory[c_string_offset..c_string_offset + 8];
-        let c_string_ptr = match c_string_ptr_bytes.try_into() {
-            Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => return Err(e.lang_error(&self.path, "context", &format!("failed to read c_string pointer for '{}'", id))),
-        };
-
-        let cap_bytes = &Arena::g().memory[cap_offset..cap_offset + 8];
-        let length = match cap_bytes.try_into() {
-            Ok(arr) => i64::from_ne_bytes(arr) as usize,
-            Err(_) => return Err(e.lang_error(&self.path, "context", &format!("failed to read cap value for '{}'", id))),
-        };
-
-        if c_string_ptr + length > Arena::g().memory.len() {
-            return Err(e.lang_error(&self.path, "context", &format!("string content out of bounds for '{}'", id)));
-        }
-
-        let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
-        return Ok(String::from_utf8_lossy(bytes).to_string());
-    }
-
     pub fn insert_string(self: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         let is_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();

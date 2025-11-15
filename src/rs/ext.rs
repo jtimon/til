@@ -6,7 +6,7 @@ use crate::rs::parser::{
     Expr, NodeType, Literal, ValueType,
     get_combined_name,
 };
-use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
+use crate::rs::interpreter::{Arena, EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
@@ -241,7 +241,7 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
                 if let ValueType::TCustom(ref custom_type) = sym.value_type {
                     if custom_type == "Str" {
                         // This might be a Dynamic parameter - try to get its string value
-                        match context.get_string(type_name, e) {
+                        match string_from_context(context, type_name, e) {
                             Ok(stored_type_name) => stored_type_name,
                             Err(_) => type_name.to_string(),
                         }
@@ -276,7 +276,7 @@ pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
                 if let ValueType::TCustom(ref custom_type) = sym.value_type {
                     if custom_type == "Str" {
                         // This might be a Dynamic parameter - try to get its string value
-                        match context.get_string(type_name, e) {
+                        match string_from_context(context, type_name, e) {
                             Ok(stored_type_name) => stored_type_name,
                             Err(_) => type_name.to_string(),
                         }
