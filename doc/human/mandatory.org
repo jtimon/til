@@ -1,0 +1,156 @@
+#+TITLE: Mandatory Type Requirements
+#+AUTHOR: TIL Development Team
+#+DATE: 2025-11-15
+
+* Overview
+
+All types in TIL must implement certain fields and methods to ensure the language runtime can work with them correctly. This document describes these mandatory requirements.
+
+* Mandatory Constant Field: type_size
+
+** What It Is
+
+Every type must have a constant field named =type_size= of type =I64= that specifies the static size of the type in bytes.
+
+#+BEGIN_SRC til
+TypeName := struct {
+    type_size: I64 = <size_in_bytes>
+    // ... other fields and methods ...
+}
+#+END_SRC
+
+** Purpose
+
+The =type_size= field serves two purposes:
+
+1. **Struct Layout**: Used by the compiler/interpreter to calculate field offsets and memory layout
+2. **Allocation**: Used by =size_of(T)= to determine how many bytes to allocate for arrays, vectors, and other collections
+
+** Examples
+
+#+BEGIN_SRC til
+U8 := struct {
+    type_size: I64 = 1
+    // U8 occupies 1 byte
+}
+
+I64 := struct {
+    type_size: I64 = 8
+    // I64 occupies 8 bytes
+}
+
+Bool := struct {
+    mut data: U8 = 0
+    type_size: I64 = 1
+    // Bool is stored as U8, so 1 byte
+}
+
+Str := struct {
+    mut c_string: I64 = 0  // pointer (8 bytes)
+    mut cap: I64 = 0       // capacity (8 bytes)
+    type_size: I64 = 16    // total: 16 bytes
+}
+#+END_SRC
+
+** Distinction from .size() Method
+
+The =type_size= constant field is **not** the same as the =.size()= method:
+
+*** type_size (constant field)
+- **Static**: Same for all instances of the type
+- **Purpose**: Memory layout and struct allocation
+- **Example**: =Str.type_size= is always 16 bytes (two I64 fields)
+
+*** .size() (method)
+- **Dynamic**: Can vary per instance
+- **Purpose**: Runtime data size management
+- **Example**: =my_string.size()= returns the current capacity, which varies
+
+*** Comparison Table
+
+| Type | type_size           | instance.size()              | Notes                           |
+|------+---------------------+------------------------------+---------------------------------|
+| U8   | 1 (constant)        | 1 (always same)              | Simple primitive                |
+| I64  | 8 (constant)        | 8 (always same)              | Simple primitive                |
+| Bool | 1 (constant)        | 1 (always same)              | Stored as U8                    |
+| Str  | 16 (constant)       | varies (current capacity)    | type_size = struct, size() = data |
+| Vec  | 40 (5×I64 constant) | varies (length × type_size)  | type_size = struct, size() = data |
+
+** Real-World Example
+
+#+BEGIN_SRC til
+// Creating a Str allocates 16 bytes for the struct itself
+mut s := Str()
+
+// The struct fields occupy 16 bytes (Str.type_size)
+// But the actual string data is allocated separately
+
+// Assigning "hello" allocates 5 bytes for the data
+s = "hello"
+
+// Now:
+// - Str.type_size = 16 (struct layout)
+// - s.size() = 5 (current data size)
+#+END_SRC
+
+** Implementation Status
+
+This is a **temporary hack** until TIL has a compilation phase. In the future:
+
+1. The compiler will calculate =type_size= automatically from struct definitions
+2. No explicit =type_size= field will be needed
+3. The compiler will have full knowledge of type layouts at compile time
+
+For now, =type_size= allows us to remove hardcoded type size checks from the Rust implementation (like ="U8" => 1=, ="I64" => 8=) and move toward self-hosting.
+
+** Where It's Used
+
+*** In TIL Code
+
+The =size_of(T)= external function reads =type_size= to determine allocation sizes:
+
+#+BEGIN_SRC til
+// When you call:
+arr := Array.new(I64, 10)
+
+// Internally it uses:
+size_bytes := mul(10, size_of(I64))  // size_of reads I64.type_size = 8
+#+END_SRC
+
+*** In Rust Implementation
+
+The =get_type_size()= function in =src/rs/init.rs= reads the =type_size= field instead of hardcoding sizes:
+
+#+BEGIN_SRC rust
+// Before (hardcoded):
+match type_name {
+    "U8"  => return Ok(1),
+    "I64" => return Ok(8),
+    // ...
+}
+
+// After (reads type_size field):
+if let Some(struct_def) = self.scope_stack.lookup_struct(type_name) {
+    if let Some(type_size_field) = struct_def.get_member("type_size") {
+        // Read and return the value
+    }
+}
+#+END_SRC
+
+** Benefits
+
+1. **Self-documenting**: Each type declares its own size
+2. **Removes special cases**: No more hardcoded ="U8" => 1= checks in Rust
+3. **Consistent interface**: All types follow the same pattern
+4. **Path to self-hosting**: Moves size calculation from Rust to TIL
+
+* See Also
+
+- =doc/human/ufcs.org= - Explains how methods like =.size()= can be called with UFCS
+- =doc/todo/mandatory.org= - Internal tracking of mandatory method enforcement
+
+* Notes
+
+- Created: 2025-11-15
+- Status: Planned, not yet implemented
+- Related work: Added =.size()= methods to primitives in commit 93cc2a7
