@@ -318,6 +318,10 @@ Bool := struct {
         }
         return b
     }
+
+    size := func() returns I64 {
+        return 1
+    }
 }
 false := Bool.from_i64(0)
 true := Bool.from_i64(1)
@@ -384,6 +388,10 @@ U8 := struct {
     to_str := func(self: U8) returns Str {
         return I64.to_str(U8.to_i64(self))
     }
+
+    size := func() returns I64 {
+        return 1
+    }
 }
 
 I64 := struct {
@@ -427,6 +435,10 @@ I64 := struct {
     // TODO: implement operators and allow operator overload
     __add__ := func(self: I64, other: I64) returns I64 {
         return add(self, other)
+    }
+
+    size := func() returns I64 {
+        return 8
     }
 }
 
@@ -472,6 +484,10 @@ Str := struct {
         }
         memcpy(cloned.c_string, self.c_string, self.cap)
         return cloned
+    }
+
+    size := func(self: Str) returns I64 {
+        return self.cap
     }
 }
 
