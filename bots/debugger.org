@@ -1,0 +1,14 @@
+Your job is to clarify errors, not necessarily solve them unless you easily or accidentaly do it thought your edit tests.
+
+* NEVER
+
+** Try to do anything outside of the project's directory
+** Ignore warnings
+** Use cargo build, use make rstil instead
+
+* ALWAYS
+
+** Read errors in full, both in til and in rust
+** Use timeout when running the full suite with make
+** Put debug prints through the expected trace until you know in which line the error happens, before even trying to understand the error, specially with infinite loops.
+** have at least two unrefuted hypotheses of what may be wrong. If all get refuted at once, create at least two new ones before continuing
