@@ -1159,6 +1159,7 @@ impl Context {
         return Ok(())
     }
 
+    // REM: Can't be moved to TIL until compilation - needs way to calculate size from TIL declarations
     pub fn insert_u8(self: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
         let v = u8_str.parse::<u8>()
             .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
