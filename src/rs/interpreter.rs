@@ -1,4 +1,4 @@
-use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool};
+use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool, get_u8};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -65,7 +65,7 @@ pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, 
 
     // Read the .data field (which is a U8)
     let data_field = format!("{}.data", id);
-    let u8_val = context.get_u8(&data_field, e)?;
+    let u8_val = get_u8(context, &data_field, e)?;
 
     // Convert U8 to bool (0 = false, non-zero = true)
     Ok(u8_val != 0)
@@ -116,7 +116,7 @@ fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -
     // The value should be the identifier name of the Bool instance
     let bool_id = &result.value;
     let data_field_id = format!("{}.data", bool_id);
-    let u8_val = context.get_u8(&data_field_id, expr)?;
+    let u8_val = get_u8(context, &data_field_id, expr)?;
     Ok(u8_val != 0)
 }
 
@@ -1096,7 +1096,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "U8" => {
-                    let result = context.get_u8(&format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 // TODO FIX: Bool field reading uses bool_from_context to read the .data byte
@@ -1210,7 +1210,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         "I64" => match context.get_i64(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "U8" => match context.get_u8(&current_name, e)? {
+                        "U8" => match get_u8(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
                         // TODO FIX: Bool identifier reading uses bool_from_context to get value
@@ -1289,7 +1289,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                         return Ok(EvalResult::new(&val.to_string()))
                     },
                     "U8" => {
-                        let val = context.get_u8(name, e)?;
+                        let val = get_u8(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     // TODO FIX: Bool identifier evaluation uses bool_from_context
@@ -1869,7 +1869,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.insert_i64(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
-                let val = function_context.get_u8(&arg_name, e)?;
+                let val = get_u8(&function_context, &arg_name, e)?;
                 context.insert_u8(&source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {

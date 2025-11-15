@@ -1038,6 +1038,24 @@ pub struct Context {
     // REM: TODO change the cached type to support import as returning a struct_def
 }
 
+pub fn get_u8(context: &Context, id: &str, e: &Expr) -> Result<u8, String> {
+    // Try direct lookup first (for base variables)
+    let offset = if let Some(offset) = context.scope_stack.lookup_var(id) {
+        offset
+    } else if id.contains('.') {
+        // For field paths, calculate offset dynamically
+        context.get_field_offset(id).map_err(|err| {
+            e.lang_error(&context.path, "context", &format!("get_u8: {}", err))
+        })?
+    } else {
+        return Err(e.lang_error(&context.path, "context", &format!("u8 not found for id '{}'", id)));
+    };
+
+    Arena::g().memory.get(offset).copied()
+        .ok_or_else(|| e.lang_error(&context.path, "context", &format!("Invalid u8 read for id '{}'", id)))
+}
+
+
 impl Context {
     pub fn new(path: &String, mode_name: &str) -> Result<Context, String> {
         let mut scope_stack = ScopeStack::new();
@@ -1139,23 +1157,6 @@ impl Context {
         Arena::g().memory.extend_from_slice(&bytes);
         self.scope_stack.insert_var(id.to_string(), offset);
         return Ok(())
-    }
-
-    pub fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
-        // Try direct lookup first (for base variables)
-        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
-            offset
-        } else if id.contains('.') {
-            // For field paths, calculate offset dynamically
-            self.get_field_offset(id).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("get_u8: {}", err))
-            })?
-        } else {
-            return Err(e.lang_error(&self.path, "context", &format!("u8 not found for id '{}'", id)));
-        };
-
-        Arena::g().memory.get(offset).copied()
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("Invalid u8 read for id '{}'", id)))
     }
 
     pub fn insert_u8(self: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
