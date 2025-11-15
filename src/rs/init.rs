@@ -2248,16 +2248,3 @@ impl Context {
     }
 
 }
-
-// Helper function to extract bool value from a Bool struct instance
-pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, String> {
-    // Validate the Bool struct exists
-    context.get_struct(id, e)?;
-
-    // Read the .data field (which is a U8)
-    let data_field = format!("{}.data", id);
-    let u8_val = context.get_u8(&data_field, e)?;
-
-    // Convert U8 to bool (0 = false, non-zero = true)
-    Ok(u8_val != 0)
-}
