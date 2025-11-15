@@ -1210,58 +1210,6 @@ impl Context {
         }
     }
 
-    pub fn insert_bool(self: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-        let is_mut = match self.scope_stack.lookup_symbol(id) {
-            Some(symbol_info_) => symbol_info_.is_mut,
-            None => return Err(e.lang_error(&self.path, "context", &format!("Symbol '{}' not found", id))),
-        };
-
-        let bool_to_insert = bool_str.parse::<bool>()
-            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
-        let stored = if bool_to_insert { 1 } else { 0 };
-        let bytes = [stored];
-
-        let is_instance_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
-            })
-        } else {
-            false
-        };
-
-        if is_instance_field {
-            // For instance field paths, calculate offset dynamically
-            let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
-                // Pre-registered field (old path)
-                offset
-            } else {
-                // Calculate offset from struct definition
-                self.get_field_offset(id).map_err(|err| {
-                    e.lang_error(&self.path, "context", &format!("insert_bool: {}", err))
-                })?
-            };
-            Arena::g().memory[offset] = stored;
-            return Ok(())
-        }
-
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(&bytes);
-
-        // Insert Bool data field too
-        let field_id = format!("{}.data", id);
-        self.scope_stack.declare_symbol(field_id.clone(), SymbolInfo {
-            value_type: ValueType::TCustom("U8".to_string()),
-            is_mut: is_mut,
-            is_copy: false,
-            is_own: false,
-        });
-        self.scope_stack.insert_var(field_id, offset);
-
-        self.scope_stack.insert_var(id.to_string(), offset);
-        return Ok(())
-    }
 
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
         let struct_def = self.scope_stack.lookup_struct(custom_type_name)
@@ -1850,7 +1798,7 @@ impl Context {
                 self.insert_u8(var_name, &value.to_string(), e)
             },
             ValueType::TCustom(type_name) if type_name == "Bool" => {
-                self.insert_bool(var_name, &value.to_string(), e)
+                insert_bool(self, var_name, &value.to_string(), e)
             },
             ValueType::TCustom(type_name) if type_name == "Str" => {
                 self.insert_string(var_name, &value.to_string(), e)
@@ -2203,4 +2151,40 @@ impl Context {
         Ok(())
     }
 
+}
+
+// Helper function to insert a Bool value using insert_struct
+pub fn insert_bool(context: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
+    // Parse the bool value
+    let bool_to_insert = bool_str.parse::<bool>()
+        .map_err(|_| e.lang_error(&context.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
+    let stored = if bool_to_insert { 1 } else { 0 };
+
+    // Check if this is an assignment to an existing instance field
+    let is_instance_field = if id.contains('.') {
+        let parts: Vec<&str> = id.split('.').collect();
+        let base = parts[0];
+        context.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+            !matches!(&sym.value_type, ValueType::TType(_))
+        })
+    } else {
+        false
+    };
+
+    if is_instance_field {
+        // For instance field, write directly to the .data field
+        let field_id = format!("{}.data", id);
+        let offset = context.scope_stack.lookup_var(&field_id)
+            .ok_or_else(|| e.lang_error(&context.path, "context", &format!("Bool field '{}.data' not found", id)))?;
+        Arena::g().memory[offset] = stored;
+    } else {
+        // For new variable, create the struct and set value
+        context.insert_struct(id, "Bool", e)?;
+        let field_id = format!("{}.data", id);
+        let offset = context.scope_stack.lookup_var(&field_id)
+            .ok_or_else(|| e.lang_error(&context.path, "context", &format!("Bool field '{}.data' not found", id)))?;
+        Arena::g().memory[offset] = stored;
+    }
+
+    Ok(())
 }

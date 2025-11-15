@@ -1,4 +1,4 @@
-use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call};
+use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -261,7 +261,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         );
 
                                         // Now insert the value
-                                        context.insert_bool(binding_var, &bool_val.to_string(), &case)?;
+                                        insert_bool(context, binding_var, &bool_val.to_string(), &case)?;
                                     }
                                     ValueType::TCustom(type_name) if type_name == "I64" => {
                                         if payload_bytes.len() != 8 {
@@ -1024,7 +1024,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "Str" => {
+                "I64" | "U8" | "Str" => {
                     let result = eval_expr(context, inner_e)?;
                     if result.is_throw {
                         return Ok(result); // Propagate throw
@@ -1665,7 +1665,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_u8(&arg.name, &result_str, e)?;
                     },
                     "Bool" => {
-                        function_context.insert_bool(&arg.name, &result_str, e)?;
+                        insert_bool(&mut function_context, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
                         function_context.insert_string(&arg.name, &result_str, e)?;
