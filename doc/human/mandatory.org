@@ -4,13 +4,21 @@
 
 * Overview
 
-All types in TIL must implement certain fields and methods to ensure the language runtime can work with them correctly. This document describes these mandatory requirements.
+All types in TIL must implement certain fields and methods to ensure the language runtime can work with them correctly.
 
-* Mandatory Constant Field: type_size
+* Mandatory Requirements
 
-** What It Is
+** type_size (constant field)
+
+*** What It Is
 
 Every type must have a constant field named =type_size= of type =I64= that specifies the static size of the type in bytes.
+
+*** Bootstrap Exception
+
+For now, I64 and U8 are left out - adding =type_size: I64= fields to them causes stack overflow due to circular dependency during initialization.
+
+These types remain hardcoded in the Rust implementation for now.
 
 #+BEGIN_SRC til
 TypeName := struct {
@@ -29,26 +37,27 @@ The =type_size= field serves two purposes:
 ** Examples
 
 #+BEGIN_SRC til
+// Bootstrap types - CANNOT have type_size field (circular dependency)
 U8 := struct {
-    type_size: I64 = 1
-    // U8 occupies 1 byte
+    // type_size: I64 = 1  // Would cause stack overflow!
+    // Hardcoded in Rust as "U8" => 1
 }
 
 I64 := struct {
-    type_size: I64 = 8
-    // I64 occupies 8 bytes
+    // type_size: I64 = 8  // Would cause stack overflow!
+    // Hardcoded in Rust as "I64" => 8
 }
 
+// Non-bootstrap types - CAN have type_size field
 Bool := struct {
     mut data: U8 = 0
-    type_size: I64 = 1
-    // Bool is stored as U8, so 1 byte
+    type_size: I64 = 1  // OK - I64 already defined
 }
 
 Str := struct {
-    mut c_string: I64 = 0  // pointer (8 bytes)
-    mut cap: I64 = 0       // capacity (8 bytes)
-    type_size: I64 = 16    // total: 16 bytes
+    mut c_string: I64 = 0
+    mut cap: I64 = 0
+    type_size: I64 = 16  // OK - I64 already defined
 }
 #+END_SRC
 
@@ -143,6 +152,32 @@ if let Some(struct_def) = self.scope_stack.lookup_struct(type_name) {
 2. **Removes special cases**: No more hardcoded ="U8" => 1= checks in Rust
 3. **Consistent interface**: All types follow the same pattern
 4. **Path to self-hosting**: Moves size calculation from Rust to TIL
+
+** len() (method)
+
+Collection-like types must implement a =len()= method that returns the number of elements.
+
+#+BEGIN_SRC til
+len := func(self: TypeName) returns I64 {
+    return self._len  // or however the type tracks element count
+}
+#+END_SRC
+
+Required for types with collection operations (push/get/set/insert).
+
+** size() (method)
+
+Collection-like types must implement a =size()= method that returns the total size in bytes of the data currently held.
+
+#+BEGIN_SRC til
+size := func(self: TypeName) returns I64 {
+    return mul(self._len, self.type_size)  // or custom calculation
+}
+#+END_SRC
+
+Note: =size()= returns **bytes**, not element count. Use =len()= for element count.
+
+Required for types with collection operations (push/get/set/insert).
 
 * See Also
 
