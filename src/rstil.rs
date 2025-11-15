@@ -42,9 +42,6 @@ fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
 fn to_ast_str(e: &Expr) -> String {
     let mut ast_str = "".to_string();
     match &e.node_type {
-        NodeType::LLiteral(Literal::Bool(lbool)) => {
-            return lbool.to_string();
-        },
         NodeType::LLiteral(Literal::Number(li64)) => {
             return li64.to_string();
         },

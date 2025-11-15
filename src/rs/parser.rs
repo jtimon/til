@@ -97,7 +97,6 @@ impl SStructDef {
 pub enum Literal {
     Number(String), // TODO support more kinds of numbers
     Str(String),
-    Bool(String),
     List(String), // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 

@@ -109,7 +109,6 @@ fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     match &e.node_type {
         NodeType::Body => eval_body(context, &e.params),
-        NodeType::LLiteral(Literal::Bool(lbool)) => Ok(EvalResult::new(lbool)),
         NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(li64)),
         NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
         NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
@@ -596,22 +595,6 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             temp_var_name
                                         },
                                         NodeType::Identifier(name) => name.clone(),
-                                        NodeType::LLiteral(Literal::Bool(_)) if struct_type_name == "Bool" => {
-                                            // For bool literals, create a temporary Bool struct
-                                            let temp_var_name = format!("__temp_bool_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
-                                            let bool_value = &payload_result.value;
-
-                                            // Add symbol entry before calling insert_bool
-                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
-                                                value_type: ValueType::TCustom("Bool".to_string()),
-                                                is_mut: false,
-                                                is_copy: false,
-                                            is_own: false,
-                                            });
-
-                                            context.insert_bool(&temp_var_name, &bool_value.to_string(), e)?;
-                                            temp_var_name
-                                        },
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
                                             // For string literals, create a temporary Str struct
                                             let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());

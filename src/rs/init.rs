@@ -630,7 +630,6 @@ fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String
 pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
     match &e.node_type {
         NodeType::LLiteral(Literal::Number(_)) => Ok(ValueType::TCustom("I64".to_string())),
-        NodeType::LLiteral(Literal::Bool(_)) => Ok(ValueType::TCustom("Bool".to_string())),
         NodeType::LLiteral(Literal::Str(_)) => Ok(ValueType::TCustom("Str".to_string())),
         NodeType::LLiteral(Literal::List(_)) => Ok(ValueType::TCustom("List".to_string())),
         NodeType::FuncDef(func_def) => match func_def.function_type {
