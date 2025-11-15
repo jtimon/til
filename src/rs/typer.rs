@@ -210,24 +210,15 @@ fn check_if_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             return errors
         },
     };
-    let value_type = match get_value_type(&context, &inner_e) {
-        Ok(val_type) => val_type,
+    // Type check the condition expression exists, but don't enforce it must be Bool
+    // NOTE: Bool type checking removed - Bool is a regular struct, not a special primitive
+    match get_value_type(&context, &inner_e) {
+        Ok(_val_type) => {},
         Err(error_string) => {
             errors.push(error_string);
             return errors;
         },
     };
-
-    let first_is_condition = match value_type {
-        ValueType::TCustom(type_name) => match type_name.as_str() {
-            "Bool" => true,
-            _ => false,
-        },
-        _ => false,
-    };
-    if !first_is_condition {
-        errors.push(inner_e.error(&context.path, "type", &format!("'if' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
-    }
     // First param (condition) is used, remaining params (then/else bodies) discard values
     for (i, p) in e.params.iter().enumerate() {
         let ctx = if i == 0 { ExprContext::ValueUsed } else { ExprContext::ValueDiscarded };
@@ -250,24 +241,15 @@ fn check_while_statement(context: &mut Context, e: &Expr) -> Vec<String> {
             return errors
         },
     };
-    let value_type = match get_value_type(&context, &inner_e) {
-        Ok(val_type) => val_type,
+    // Type check the condition expression exists, but don't enforce it must be Bool
+    // NOTE: Bool type checking removed - Bool is a regular struct, not a special primitive
+    match get_value_type(&context, &inner_e) {
+        Ok(_val_type) => {},
         Err(error_string) => {
             errors.push(error_string);
             return errors;
         },
     };
-
-    let first_is_condition = match value_type {
-        ValueType::TCustom(type_name) => match type_name.as_str() {
-            "Bool" => true,
-            _ => false,
-        },
-        _ => false,
-    };
-    if !first_is_condition {
-        errors.push(inner_e.error(&context.path, "type", &format!("'while' can only accept a bool condition first, found {:?}.", &inner_e.node_type)));
-    }
     // First param (condition) is used, second param (body) discards values
     for (i, p) in e.params.iter().enumerate() {
         let ctx = if i == 0 { ExprContext::ValueUsed } else { ExprContext::ValueDiscarded };
@@ -359,7 +341,8 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             if let ValueType::TCustom(type_name) = &arg_type {
                 // Skip primitive types that are trivially copyable (don't require clone())
                 // These types are copy-by-value and don't need deep cloning
-                let primitives = vec!["I64", "U8", "Bool", "Str"];
+                // NOTE: Bool removed from this list - it's a regular struct, not a special primitive
+                let primitives = vec!["I64", "U8", "Str"];
                 if primitives.contains(&type_name.as_str()) {
                     continue;
                 }
