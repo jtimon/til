@@ -1,0 +1,208 @@
+#+TITLE: UFCS - Uniform Function Call Syntax
+#+AUTHOR: TIL Development Team
+#+DATE: 2025-11-15
+
+* Overview
+
+UFCS (Uniform Function Call Syntax) is a feature that allows calling any function using method-style dot notation. This means =foo.bar(x)= and =bar(foo, x)= are completely equivalent and interchangeable.
+
+* Basic Principle
+
+In TIL, these two calls are identical:
+
+#+BEGIN_SRC til
+// Method-style call
+result := foo.bar(x, y)
+
+// Function-style call
+result := bar(foo, x, y)
+#+END_SRC
+
+The compiler treats them identically - there is no difference at all. The first argument to =bar= is =foo=, whether you write it with dot notation or as a regular parameter.
+
+* No Special "Method" Syntax
+
+Unlike many languages, TIL has no special syntax or keywords for "methods". There are just functions. Some of them happen to take a struct as their first argument, and UFCS lets you call those with convenient dot notation if you want.
+
+** Parameter Names Are Unrestricted
+
+The first parameter of a function can be named *anything*. Common names include:
+
+- =self= (common in Rust, Python)
+- =this= (common in C++, Java)
+- =context= (descriptive)
+- =urmum= (why not?)
+- =x=, =foo=, =instance=, etc.
+
+The parameter name has *zero* effect on whether you can use dot notation.
+
+#+BEGIN_SRC til
+// All of these work identically:
+
+do_something := func(self: MyStruct) returns I64 {
+    return 42
+}
+
+do_something := func(this: MyStruct) returns I64 {
+    return 42
+}
+
+do_something := func(urmum: MyStruct) returns I64 {
+    return 42
+}
+
+// All can be called as:
+my_instance.do_something()
+// or
+do_something(my_instance)
+#+END_SRC
+
+* Contrast With Rust
+
+This section uses a real example from TIL's implementation to show how UFCS eliminates busywork.
+
+** The Refactoring Problem in Rust
+
+In Rust, when you move a function from inside an =impl= block to outside it (making it standalone), you must:
+
+1. *Change the parameter name* from =self= to something else (Rust requires =self= only for methods)
+2. *Update all call sites* from =context.get_u8(...)= to =get_u8(context, ...)=
+
+Example from TIL's Rust implementation:
+
+#+BEGIN_SRC rust
+// Before: Method in impl block
+impl Context {
+    pub fn get_u8(self: &Context, id: &str, e: &Expr) -> Result<u8, String> {
+        // ... implementation ...
+    }
+}
+
+// Usage:
+context.get_u8(&data_field, e)?;
+
+// After: Standalone function (requires changes)
+pub fn get_u8(context: &Context, id: &str, e: &Expr) -> Result<u8, String> {
+    // ... same implementation ...
+}
+
+// Usage must change:
+get_u8(context, &data_field, e)?;
+#+END_SRC
+
+This required updating *6 call sites* in the codebase and renaming the parameter.
+
+** The Same Refactoring in TIL
+
+In TIL with UFCS, the same refactoring would be trivial:
+
+#+BEGIN_SRC til
+  // Before: Function associated with type
+  Context := struct {
+      get_u8 := func(self: Context, id: Str, e: Expr) returns U8 throws {
+	  // ... implementation ...
+      }
+  }
+
+  // Usage:
+  context.get_u8(data_field, e)
+
+  Context := struct {}
+
+  // After: Standalone function (NO changes needed)
+  get_u8 := func(self: Context, id: Str, e: Expr) returns U8 throws {
+      // ... same implementation ...
+  }
+
+  // Usage still works identically:
+  context.get_u8(data_field, e)
+  // or
+  get_u8(context, data_field, e)
+  // NOTE: This is currently a lie for Til, because structs are also used as namespaces, so it would be:
+  Context.get_u8(context, data_field, e)
+  // but if we decide to support function overloading, which is unlikely, it could be true
+  // and then
+  I64.eq(a, b)
+  Str.eq(a, b)
+  // would turn unto eq(a, b), both of them. nah, this is fine.
+#+END_SRC
+
+*Zero call sites need updating*. Both forms work before and after the move.
+
+** Parameter Renaming Freedom
+
+Even more flexibly, you could rename the parameter without breaking anything. Here's a complete example with 'urmum' as the first parameter:
+
+#+BEGIN_SRC til
+  // Define a simple Point struct
+  Point := struct {
+      mut x: I64 = 0
+      mut y: I64 = 0
+
+      // Associated function with 'urmum' as first parameter
+      distance := func(urmum: Point) returns I64 {
+	  return urmum.x * urmum.x + urmum.y * urmum.y
+      }
+  }
+
+  // Create an instance
+  p := Point { x = 3, y = 4 }
+
+  // Both of these work identically:
+  result1 := p.distance()           // Method-style call with dot
+  result2 := Point.distance(p)      // Namespace-style call
+
+  // Both return 25 (3*3 + 4*4)
+  assert(result1 == 25)
+  assert(result2 == 25)
+#+END_SRC
+
+Despite the first parameter being named =urmum= (not =self= or =this=), you can still call it with dot notation! UFCS doesn't care about parameter names.
+
+* Benefits
+
+** Code Organization Flexibility
+
+Move functions between files, modules, or associated types without breaking existing code. Organization becomes purely a documentation/readability concern, not a refactoring burden.
+
+** Style Freedom
+
+Teams or individuals can choose their preferred style:
+- OOP-style: =vec.push(item)=
+- Functional-style: =push(vec, item)=
+- Mixed: whatever reads better for each specific case
+
+The code works identically regardless.
+
+** Reduced Bikeshedding
+
+No arguments about whether something "should be" a method or a free function. It doesn't matter. Write it however you want, call it however you want.
+
+** Pipeline Readability
+
+UFCS enables readable method chains without special "fluent API" design:
+
+#+BEGIN_SRC til
+result := data
+    .filter(is_valid)
+    .map(transform)
+    .fold(0, sum)
+#+END_SRC
+
+This is just normal functions composed with UFCS - no special methods needed.
+
+* Implementation Notes
+
+UFCS is a simple syntactic transformation. The parser converts =foo.bar(x)= to =bar(foo, x)= and proceeds normally. There is zero runtime overhead and minimal compiler complexity.
+
+This simplicity is a core TIL design principle: powerful features through simple, composable mechanisms rather than complex special cases.
+
+* See Also
+
+- =doc/human/faq.org= - Mentions UFCS in the OOP vs data-oriented discussion
+- =doc/human/design.org= - May contain design rationale for UFCS
+
+* Notes
+
+- Created: 2025-11-15
+- Example based on commit 279a992: "Move get_u8 from Context method to standalone function"
