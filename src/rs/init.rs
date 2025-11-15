@@ -1797,6 +1797,7 @@ impl Context {
             ValueType::TCustom(type_name) if type_name == "U8" => {
                 self.insert_u8(var_name, &value.to_string(), e)
             },
+            // TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
             ValueType::TCustom(type_name) if type_name == "Bool" => {
                 insert_bool(self, var_name, &value.to_string(), e)
             },
@@ -1903,6 +1904,7 @@ impl Context {
         let (payload_data, payload_type) = match variant_payload_type {
             Some(Some(vtype)) => {
                 // This variant has a payload, read it from arena
+                // TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
                 let payload_size = match vtype {
                     ValueType::TCustom(type_name) if type_name == "Bool" => 1,
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
@@ -2041,6 +2043,7 @@ impl Context {
         // Write values into allocated buffer
         for (i, val) in values.iter().enumerate() {
             let offset = ptr + i * elem_size;
+            // TODO FIX: Bool can't be removed yet - array initialization needs to parse "true"/"false" strings
             match elem_type {
                 "Bool" => {
                     let stored = if val.as_str() == "true" { 1 } else { 0 };

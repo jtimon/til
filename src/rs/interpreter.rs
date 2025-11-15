@@ -242,6 +242,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                             if let Some(payload_bytes) = &enum_val.payload {
                                 // Use the existing payload extraction logic
                                 // We need to insert the payload into context with the binding_var name
+                                // TODO FIX: Bool enum payload extraction - needs special handling to read 1 byte and create Bool value
                                 match payload_type {
                                     ValueType::TCustom(type_name) if type_name == "Bool" => {
                                         if payload_bytes.len() != 1 {
@@ -552,6 +553,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
             };
             context.insert_struct(&id_name, &name, e)?;
+            // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
             return Ok(EvalResult::new(match id_name.as_str() {
                 "Bool" => "false",
                 "U8" | "I64" => "0",
@@ -858,6 +860,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                         return Ok(result); // Propagate throw
                                     }
                                     let expr_result_str = result.value;
+                                    // TODO FIX: Bool can't be removed yet - causes "Cannot declare 'MyStruct.associated_constant' of custom type 'Bool'" error
                                     match type_name.as_str() {
                                         "I64" | "U8" | "Bool" | "Str" => {
                                             context.insert_primitive(&combined_name, &member_value_type, &expr_result_str, e)?;
@@ -916,6 +919,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         },
 
         ValueType::TCustom(ref custom_type_name) => {
+            // TODO FIX: Bool can't be removed yet - causes "Could not find arena index for 'false'" error for bootstrap constants
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Bool" | "Str" => {
                     let result = eval_expr(context, inner_e)?;
@@ -1095,6 +1099,7 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
                     let result = context.get_u8(&format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
+                // TODO FIX: Bool field reading uses bool_from_context to read the .data byte
                 "Bool" => {
                     let result = bool_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
@@ -1208,6 +1213,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         "U8" => match context.get_u8(&current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
+                        // TODO FIX: Bool identifier reading uses bool_from_context to get value
                         "Bool" => match bool_from_context(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
@@ -1286,6 +1292,7 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                         let val = context.get_u8(name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
+                    // TODO FIX: Bool identifier evaluation uses bool_from_context
                     "Bool" => {
                         let val = bool_from_context(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
@@ -1664,6 +1671,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     "U8" => {
                         function_context.insert_u8(&arg.name, &result_str, e)?;
                     },
+                    // TODO FIX: Bool function argument uses insert_bool helper
                     "Bool" => {
                         insert_bool(&mut function_context, &arg.name, &result_str, e)?;
                     },
@@ -1909,6 +1917,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
             // Skip core types like I64, Bool, String, U8
+            // TODO FIX: Bool can't be removed yet - removing it causes "Missing arena index for return value 'false'" error
             match custom_type_name.as_str() {
                 "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
                 _ => {
