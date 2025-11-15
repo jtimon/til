@@ -112,6 +112,13 @@ Use this for quick experiments, debugging, or one-off tests.
 These files are not run by the test suite.
 This directory is ignored by .gitignore.
 
+** bots/ - Agent-Specific Instructions
+Task-specific instruction files for specialized agents.
+These files contain focused rules that get injected when specific agents are invoked.
+
+Files:
+- bots/debugger.org - Instructions for debugging/error clarification tasks
+
 * Commit Guidelines
 
 ** Always Run Make Before Commits
