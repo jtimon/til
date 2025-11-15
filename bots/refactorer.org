@@ -1,0 +1,11 @@
+* NEVER
+
+** Do multiple steps at once when user specifies a sequence with tests between them
+** Use git to revert changes without explicit permission
+** Assume user's approach is wrong and change it
+
+* ALWAYS
+
+** STOP and WAIT after each test when user says "test, then X, test, then Y"
+** Listen to exact words, not what you think they mean
+** Ask if unsure about next step
