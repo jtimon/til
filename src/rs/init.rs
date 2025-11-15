@@ -1124,6 +1124,13 @@ impl Context {
                     e.lang_error(&self.path, "context", &format!("insert_i64: {}", err))
                 })?
             };
+
+            // Ensure arena has enough space
+            let required_len = offset + 8;
+            if Arena::g().memory.len() < required_len {
+                Arena::g().memory.resize(required_len, 0);
+            }
+
             Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
             return Ok(())
         }

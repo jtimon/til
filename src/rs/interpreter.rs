@@ -70,6 +70,22 @@ fn validate_conditional_params(path: &str, e: &Expr, stmt_type: &str, min: usize
     Ok(())
 }
 
+// Helper to evaluate boolean conditions for if/while statements.
+// Supports both legacy string bools ("true"/"false") and Bool struct instances.
+fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -> Result<bool, String> {
+    // First try parsing as string bool (backwards compatibility)
+    if let Ok(b) = result.value.parse::<bool>() {
+        return Ok(b);
+    }
+
+    // Otherwise, assume it's a Bool struct instance - read its .data field
+    // The value should be the identifier name of the Bool instance
+    let bool_id = &result.value;
+    let data_field_id = format!("{}.data", bool_id);
+    let u8_val = context.get_u8(&data_field_id, expr)?;
+    Ok(u8_val != 0)
+}
+
 // Helper function to validate function/procedure argument counts
 fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<(), String> {
     let provided_args = e.params.len() - 1;
@@ -115,8 +131,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if result_cond.is_throw {
                 return Ok(result_cond)
             }
-            if result_cond.value.parse::<bool>().map_err(
-                |err| cond_expr.lang_error(&context.path, "eval", &format!("Expected bool, got '{}': {}", result_cond.value, err)))? {
+            if eval_condition_to_bool(context, &result_cond, cond_expr)? {
                 return eval_expr(context, e.get(1)?)
             } else if e.params.len() == 3 {
                 return eval_expr(context, e.get(2)?)
@@ -131,8 +146,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
             if result_cond.is_throw {
                 return Ok(result_cond.clone())
             }
-            while result_cond.value.parse::<bool>().map_err(
-                |err| cond_expr.lang_error(&context.path, "eval", &format!("Expected bool, got '{}': {}", result_cond.value, err)))? {
+            while eval_condition_to_bool(context, &result_cond, cond_expr)? {
                 let result = eval_expr(context, e.get(1)?)?;
                 if result.is_return || result.is_throw {
                     return Ok(result)

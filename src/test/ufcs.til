@@ -18,7 +18,7 @@ test_ufcs := proc () {
     assert(loc(), not(my_true.and(false)))
     assert(loc(), my_true.or(false))
     assert(loc(), false.or(true))
-    // assert(loc(), true.or(false)) // TODO Make true a constant like false, rather than a literal
+    assert(loc(), true.or(false))
 
     // test(loc(), true.and(true), "true.and(true) == true") // TODO implement UFCS (Uniform Function Call Syntax) for literals
     // test(loc(), and(true, true).and(true)), "and(true, true).and(true)) == true") // TODO implement UFCS (Uniform Function Call Syntax) for func calls results

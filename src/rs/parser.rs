@@ -201,7 +201,6 @@ fn is_literal(t: &Token) -> bool {
     return match t.token_type {
         TokenType::String => true,
         TokenType::Number => true,
-        TokenType::True => true,
         _ => false,
     }
 }
@@ -254,7 +253,6 @@ fn parse_literal(lexer: &mut Lexer, t: &Token) -> Result<Expr, String> {
                 .map_err(|e| t.lang_error(&lexer.path, &format!("Invalid number literal '{}': {}", t.token_str, e)))?;
             NodeType::LLiteral(Literal::Number(number.to_string()))
         },
-        TokenType::True => NodeType::LLiteral(Literal::Bool(t.token_str.clone())),
         _ => {
             return Err(t.lang_error(&lexer.path, &format!("Trying to parse a token that's not a literal as a literal, found '{:?}'.", t.token_type)));
         },

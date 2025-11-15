@@ -24,8 +24,6 @@ pub enum TokenType {
     // Reserved words:
     Mut, Copy, Own,
 
-    // bool
-    True,
     // type definition
     Struct, Enum,
     // function definition
@@ -233,7 +231,6 @@ fn token_type_to_str(tt: &TokenType) -> &'static str {
         TokenType::Identifier => "identifier",
         TokenType::String => "string",
         TokenType::Number => "number",
-        TokenType::True => "true",
         TokenType::Eof => "eof",
         _ => "invalid",
     }
@@ -261,9 +258,6 @@ fn scan_reserved_words(identifier: &str) -> TokenType {
         "mut" => TokenType::Mut,
         "copy" => TokenType::Copy,
         "own" => TokenType::Own,
-
-        // bool literals
-        "true" => TokenType::True,
 
         // core data types
         "enum" => TokenType::Enum,
