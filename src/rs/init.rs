@@ -1214,59 +1214,6 @@ impl Context {
         }
     }
 
-    pub fn insert_bool(self: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-        let is_mut = match self.scope_stack.lookup_symbol(id) {
-            Some(symbol_info_) => symbol_info_.is_mut,
-            None => return Err(e.lang_error(&self.path, "context", &format!("Symbol '{}' not found", id))),
-        };
-
-        let bool_to_insert = bool_str.parse::<bool>()
-            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
-        let stored = if bool_to_insert { 1 } else { 0 };
-        let bytes = [stored];
-
-        let is_instance_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
-            })
-        } else {
-            false
-        };
-
-        if is_instance_field {
-            // For instance field paths, calculate offset dynamically
-            let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
-                // Pre-registered field (old path)
-                offset
-            } else {
-                // Calculate offset from struct definition
-                self.get_field_offset(id).map_err(|err| {
-                    e.lang_error(&self.path, "context", &format!("insert_bool: {}", err))
-                })?
-            };
-            Arena::g().memory[offset] = stored;
-            return Ok(())
-        }
-
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(&bytes);
-
-        // Insert Bool data field too
-        let field_id = format!("{}.data", id);
-        self.scope_stack.declare_symbol(field_id.clone(), SymbolInfo {
-            value_type: ValueType::TCustom("U8".to_string()),
-            is_mut: is_mut,
-            is_copy: false,
-            is_own: false,
-        });
-        self.scope_stack.insert_var(field_id, offset);
-
-        self.scope_stack.insert_var(id.to_string(), offset);
-        return Ok(())
-    }
-
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
         let struct_def = self.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
@@ -1645,6 +1592,15 @@ impl Context {
                                 Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                                     .copy_from_slice(&v.to_ne_bytes());
                             },
+                            "Bool" => {
+                                // For Bool fields, we need to copy the data from the Bool struct instance
+                                // The default_value is an identifier pointing to a Bool instance (e.g., "true" or "false")
+                                let bool_offset = self.scope_stack.lookup_var(&default_value)
+                                    .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_struct: Bool value '{}' not found for field '{}'", default_value, member_name)))?;
+                                // Copy the single byte from the source Bool struct
+                                let bool_byte = Arena::g().memory[bool_offset];
+                                Arena::g().memory[offset + field_offset] = bool_byte;
+                            },
                             _ => {
                                 if self.scope_stack.lookup_struct(type_name).is_some() {
                                     let combined_name = format!("{}.{}", id, member_name);
@@ -1700,6 +1656,24 @@ impl Context {
             // Immutable struct fields are handled generically through struct_defs
             // No special cases needed anymore
         }
+
+        Ok(())
+    }
+
+    /// Helper to convert bool literal identifiers (true/false constants) into Bool struct instances
+    /// Uses generic insert_struct instead of specialized insert_bool
+    pub fn bool_literal_to_struct(&mut self, id: &str, bool_literal_str: &str, e: &Expr) -> Result<(), String> {
+        // First create the Bool struct with default value (data = 0)
+        self.insert_struct(id, "Bool", e)?;
+
+        // Then set the .data field based on the literal string
+        let bool_val = bool_literal_str.parse::<bool>()
+            .map_err(|_| e.lang_error(&self.path, "context", &format!("Invalid bool literal '{}'", bool_literal_str)))?;
+        let u8_val = if bool_val { "1" } else { "0" };
+
+        // Update the data field
+        let field_id = format!("{}.data", id);
+        self.insert_u8(&field_id, &u8_val.to_string(), e)?;
 
         Ok(())
     }
@@ -1898,7 +1872,20 @@ impl Context {
                 self.insert_u8(var_name, &value.to_string(), e)
             },
             ValueType::TCustom(type_name) if type_name == "Bool" => {
-                self.insert_bool(var_name, &value.to_string(), e)
+                // For Bool, value is an identifier pointing to a Bool struct (e.g., "true" or "false")
+                // We need to copy the Bool struct data from the source
+                let source_offset = self.scope_stack.lookup_var(value)
+                    .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_primitive: Bool identifier '{}' not found", value)))?;
+
+                // Get the bool byte from the source Bool struct
+                let bool_byte = Arena::g().memory[source_offset];
+
+                // Now create the target Bool struct and set its data
+                self.insert_struct(var_name, "Bool", e)?;
+                let target_offset = self.scope_stack.lookup_var(var_name)
+                    .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_primitive: Target Bool '{}' not found after insert_struct", var_name)))?;
+                Arena::g().memory[target_offset] = bool_byte;
+                Ok(())
             },
             ValueType::TCustom(type_name) if type_name == "Str" => {
                 self.insert_string(var_name, &value.to_string(), e)

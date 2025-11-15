@@ -227,8 +227,9 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             }
                                         );
 
-                                        // Now insert the value
-                                        context.insert_bool(binding_var, &bool_val.to_string(), &case)?;
+                                        // Now insert the value using the true/false constant
+                                        let bool_literal = if bool_val { "true" } else { "false" };
+                                        context.bool_literal_to_struct(binding_var, bool_literal, &case)?;
                                     }
                                     ValueType::TCustom(type_name) if type_name == "I64" => {
                                         if payload_bytes.len() != 8 {
@@ -601,7 +602,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             let temp_var_name = format!("__temp_bool_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
                                             let bool_value = &payload_result.value;
 
-                                            // Add symbol entry before calling insert_bool
+                                            // Add symbol entry before calling bool_literal_to_struct
                                             context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
                                                 value_type: ValueType::TCustom("Bool".to_string()),
                                                 is_mut: false,
@@ -609,7 +610,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             is_own: false,
                                             });
 
-                                            context.insert_bool(&temp_var_name, &bool_value.to_string(), e)?;
+                                            let bool_literal = if bool_value == "true" { "true" } else { "false" };
+                                            context.bool_literal_to_struct(&temp_var_name, bool_literal, e)?;
                                             temp_var_name
                                         },
                                         NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
@@ -1648,7 +1650,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         function_context.insert_u8(&arg.name, &result_str, e)?;
                     },
                     "Bool" => {
-                        function_context.insert_bool(&arg.name, &result_str, e)?;
+                        let bool_literal = if result_str == "true" { "true" } else { "false" };
+                        function_context.bool_literal_to_struct(&arg.name, bool_literal, e)?;
                     },
                     "Str" => {
                         function_context.insert_string(&arg.name, &result_str, e)?;
