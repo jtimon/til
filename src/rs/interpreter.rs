@@ -1517,9 +1517,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 let current_arg = e.get(param_index)?;
 
                 // Special handling for Dynamic parameters: don't evaluate, just copy the value
-                // When a type like I64, U8, Str is passed to a Dynamic parameter,
+                // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
                 // store the type name as a string so size_of(T) and type_as_str(T) can use it
-                if custom_type_name == "Dynamic" {
+                if custom_type_name == "Dynamic" || custom_type_name == "Type" {
                     if let NodeType::Identifier(id_name) = &current_arg.node_type {
                         if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
                             if let ValueType::TType(_) = &sym.value_type {
@@ -1583,9 +1583,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     context.temp_enum_payload = Some(payload_data);
                 }
 
-                // Resolve Dynamic to actual type first
+                // Resolve Dynamic/Type to actual type first
                 let custom_type_name = &match custom_type_name.as_str() {
-                    "Dynamic" => value_type_to_str(&get_value_type(context, &current_arg)?),
+                    "Dynamic" | "Type" => value_type_to_str(&get_value_type(context, &current_arg)?),
                     _ => custom_type_name.clone(),
                 };
 
@@ -1668,14 +1668,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // (the value will be allocated fresh in function context)
                 }
 
-                // Phase 3: Pass-by-reference for non-copy, non-own, non-Dynamic parameters
+                // Phase 3: Pass-by-reference for non-copy, non-own, non-Dynamic, non-Type parameters
                 // If argument is a variable (identifier), share arena offset instead of copying
-                // Note: Dynamic parameters need copy semantics for special handling, so skip them
+                // Note: Type parameters need copy semantics for type name storage, so skip them
+                // Note: Dynamic parameters also excluded (will enable in Phase 2 after Type separation)
                 // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
                 // - Only base offset stored in arena_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
-                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" {
+                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" && custom_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params

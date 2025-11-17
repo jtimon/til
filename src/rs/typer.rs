@@ -373,7 +373,7 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
             },
         };
         match expected_type {
-            ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic-typed argument
+            ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type-typed argument
             ValueType::TCustom(tn) if tn == INFER_TYPE => {
                 errors.push(e.error(&context.path, "type", &format!(
                     "calling func/proc '{}' declared arg {} without type, but type inference in args is not supported.\n\
@@ -1209,7 +1209,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         match &member_decl.value_type {
             ValueType::TCustom(ref custom_type_name) => {
                 // Skip built-in types and special types
-                if custom_type_name != "Dynamic" && custom_type_name != INFER_TYPE {
+                if custom_type_name != "Dynamic" && custom_type_name != "Type" && custom_type_name != INFER_TYPE {
                     // Check if the type exists
                     if context.scope_stack.lookup_symbol(custom_type_name).is_none() {
                         errors.push(e.error(&context.path, "type", &format!(
@@ -1269,7 +1269,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                         let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(Literal::Number(_)));
 
                         match expected_type {
-                            ValueType::TCustom(tn) if tn == "Dynamic" => {}, // Accept any type for Dynamic
+                            ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type
                             ValueType::TCustom(tn) if tn == INFER_TYPE => {}, // Type inference is OK
                             // Allow implicit conversion from I64 literals to U8
                             ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},

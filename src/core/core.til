@@ -4,6 +4,7 @@ import("src.core.constants")
 import("src.core.introspection")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
+Type := struct {} // For type name parameters (like Vec.new(T: Type))
 
 // DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
 
@@ -146,9 +147,9 @@ import       := ext_proc(path: Str);
 
 // Memory operations
 NULL   := 0
-size_of := ext_func(type: Dynamic) returns I64;
+size_of := ext_func(type: Type) returns I64;
 to_ptr := ext_func(var_identifier: Dynamic) returns I64;
-type_as_str := ext_func(type: Dynamic) returns Str;
+type_as_str := ext_func(type: Type) returns Str;
 // TODO Use throws for memory operations, don't return 0 from malloc
 malloc := ext_func(size: I64) returns I64 throws AllocError;
 free   := ext_func(ptr: I64);
@@ -206,7 +207,7 @@ Ptr := struct {
         return p
     }
 
-    new := proc(T: Dynamic) returns Ptr throws AllocError {
+    new := proc(T: Type) returns Ptr throws AllocError {
         return Ptr.new_by_size(size_of(T))
     }
 
@@ -570,7 +571,7 @@ Array := struct {
         return mul(self._len, self.type_size)
     }
 
-    new := proc(T: Dynamic, capacity: I64) returns Array throws AllocError {
+    new := proc(T: Type, capacity: I64) returns Array throws AllocError {
         mut arr := Array()
         arr.type_name = type_as_str(T)
         arr.type_size = size_of(T)
@@ -648,7 +649,7 @@ Vec := struct {
         return mul(self._len, self.type_size)
     }
 
-    new := proc(T: Dynamic) returns Vec throws AllocError {
+    new := proc(T: Type) returns Vec throws AllocError {
         mut vec := Vec()
         vec.type_name = type_as_str(T)
         vec.type_size = size_of(T)
@@ -786,7 +787,7 @@ Map := struct {
 
     // Create new empty map with specified key and value types
     // Example: Map.new(Str, I64)
-    new := proc(KeyType: Dynamic, ValueType: Dynamic) returns Map throws AllocError {
+    new := proc(KeyType: Type, ValueType: Type) returns Map throws AllocError {
         mut m := Map()
         m.key_type_name = type_as_str(KeyType)
         m.key_type_size = size_of(KeyType)
@@ -1135,7 +1136,7 @@ List := struct {
     // Append element to list
     // Takes the type as first parameter (like Vec.new) and value as second
     // Example: list.push(I64, 42), list.push(Str, "hello")
-    push := proc(mut self: List, T: Dynamic, value: Dynamic) throws AllocError, FullError, IndexOutOfBoundsError {
+    push := proc(mut self: List, T: Type, value: Dynamic) throws AllocError, FullError, IndexOutOfBoundsError {
         mut type_name := type_as_str(T)
         mut type_size := size_of(T)
 
@@ -1191,7 +1192,7 @@ List := struct {
     // Set element at index
     // Takes the type as second parameter and value as third
     // Example: list.set(0, I64, 99), list.set(1, Str, "world")
-    set := proc(mut self: List, index: I64, T: Dynamic, value: Dynamic) throws IndexOutOfBoundsError {
+    set := proc(mut self: List, index: I64, T: Type, value: Dynamic) throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
             throw IndexOutOfBoundsError(format("List.set: index ",
                 format(index.to_str(), format(" >= len ", self._len.to_str()))))
