@@ -28,9 +28,6 @@ TokenType := enum {
     // Reserved words:
     Mut, Copy, Own,
 
-    // bool
-    True,
-
     // type definition
     Struct, Enum,
 
@@ -124,8 +121,6 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     case "mut": return TokenType.Mut
     case "copy": return TokenType.Copy
     case "own": return TokenType.Own
-        // bool literals
-    case "true": return TokenType.True
         // core data types
     case "enum": return TokenType.Enum
     case "struct": return TokenType.Struct
@@ -656,7 +651,6 @@ token_type_to_str := func(tt: TokenType) returns Str {
     case TokenType.Identifier: return "identifier"
     case TokenType.String: return "string"
     case TokenType.Number: return "number"
-    case TokenType.True: return "true"
     case TokenType.Eof: return "eof"
     case: return "invalid"
     }

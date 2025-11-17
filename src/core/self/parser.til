@@ -73,7 +73,6 @@ SStructDef := struct {
 Literal := enum {
     Number: Str,  // TODO support more kinds of numbers
     Str: Str,
-    Bool: Str,
     List: Str,  // TODO You can call it tupple too. who cares? it's not even tested yet, just parsed
 }
 
@@ -193,8 +192,6 @@ is_literal := func(t: Token) returns Bool {
         return true
     case TokenType.Number:
         return true
-    case TokenType.True:
-        return true
     case:
         return false
     }
@@ -279,8 +276,6 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, Alloc
     case TokenType.Number:
         // TODO: parse and validate number
         node_type = NodeType.LLiteral(Literal.Number(t.token_str))
-    case TokenType.True:
-        node_type = NodeType.LLiteral(Literal.Bool(t.token_str))
     case:
         throw t.error(format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
     }
