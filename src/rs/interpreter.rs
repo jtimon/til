@@ -1481,7 +1481,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     validate_func_arg_count(&context.path, e, name, func_def)?;
 
     let mut param_index = 1;
-    let mut mut_args: Vec<(String, String, ValueType)> = Vec::new(); // (arg_name, source_name, type)
+    let mut mut_args: Vec<(String, String, ValueType, bool)> = Vec::new(); // (arg_name, source_name, type, is_pass_by_ref)
+    let mut pass_by_ref_params: std::collections::HashSet<String> = std::collections::HashSet::new(); // Track which params used pass-by-ref
 
     for arg in &func_def.args {
         function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
@@ -1613,7 +1614,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             } else {
                                 id_.clone()
                             };
-                            mut_args.push((arg.name.clone(), full_id, ValueType::TCustom(custom_type_name.clone())));
+                            mut_args.push((arg.name.clone(), full_id, ValueType::TCustom(custom_type_name.clone()), false)); // Not pass-by-ref yet, will be set later
                         },
                         _ => {
                             return Err(e.lang_error(&context.path, "eval", "mut arguments must be passed as identifiers or field access"))
@@ -1670,13 +1671,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // Phase 3: Pass-by-reference for non-copy, non-own, non-Dynamic parameters
                 // If argument is a variable (identifier), share arena offset instead of copying
                 // Note: Dynamic parameters need copy semantics for special handling, so skip them
-                // Note: Only use pass-by-ref for types without mutable fields (no nested allocations)
-                let has_mut_fields = if let Some(struct_def) = context.scope_stack.lookup_struct(custom_type_name) {
-                    struct_def.members.iter().any(|(_, decl)| decl.is_mut)
-                } else {
-                    false  // Not a struct, treat as non-eligible
-                };
-                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" && !has_mut_fields {
+                // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
+                // - Only base offset stored in arena_index
+                // - Field offsets calculated dynamically from struct definitions
+                // - Inline memory layout means sharing base offset shares all fields
+                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
@@ -1692,6 +1691,31 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             };
                             function_context.scope_stack.declare_symbol(arg.name.clone(), param_symbol);
                             function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), offset);
+
+                            // CRITICAL: Copy all nested field offsets from caller to callee
+                            // insert_struct registers nested field offsets (e.g., "l.start.x")
+                            // We need to copy these so field access works in the callee
+                            let caller_arena_index = &context.scope_stack.frames.last().unwrap().arena_index;
+                            let prefix = format!("{}.", source_var);
+                            let replacement_prefix = format!("{}.", arg.name);
+                            let mut field_offsets_to_copy = Vec::new();
+                            for (key, &value) in caller_arena_index.iter() {
+                                if key.starts_with(&prefix) {
+                                    let new_key = key.replacen(&prefix, &replacement_prefix, 1);
+                                    field_offsets_to_copy.push((new_key, value));
+                                }
+                            }
+                            for (key, value) in field_offsets_to_copy {
+                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                            }
+
+                            // Register field symbols for UFCS method resolution (e.g., self.cap.eq())
+                            if let Some(_struct_def) = function_context.scope_stack.lookup_struct(custom_type_name) {
+                                function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+                            }
+
+                            // Track that this parameter was passed by reference
+                            pass_by_ref_params.insert(arg.name.clone());
 
                             param_index += 1;
                             continue; // Skip allocation logic - we're sharing the offset
@@ -1900,7 +1924,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
     let result_str = result.value;
 
-    for (arg_name, source_name, value_type) in mut_args {
+    for (arg_name, source_name, value_type, _) in mut_args {
+        let was_passed_by_ref = pass_by_ref_params.contains(&arg_name);
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
                 let val = function_context.get_i64(&arg_name, e)?;
@@ -1930,8 +1955,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         // TODO this can be simplified once we pass all args by reference
                         if let Some(offset) = function_context.scope_stack.lookup_var(&arg_name) {
                             context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_name.to_string(), offset);
-                            // Keep map_instance_fields for now as fallback for copy_fields
-                            context.map_instance_fields(type_name, &source_name, e)?;
+                            // Only call map_instance_fields for copy-based parameters
+                            // For pass-by-ref, the caller's field offsets are already correct
+                            if !was_passed_by_ref {
+                                context.map_instance_fields(type_name, &source_name, e)?;
+                            }
                         } else {
                             return Err(e.lang_error(&context.path, "eval", &format!("Missing struct arena index for argument '{}'", arg_name)));
                         }
