@@ -1588,6 +1588,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     _ => custom_type_name.clone(),
                 };
 
+                // Create resolved ValueType for the parameter
+                let resolved_value_type = ValueType::TCustom(custom_type_name.clone());
+
                 // Now push to mut_args with the resolved type
                 if arg.is_mut {
                     match &current_arg.node_type {
@@ -1662,6 +1665,41 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     }
                     // If not an identifier or not found, fall through to normal allocation
                     // (the value will be allocated fresh in function context)
+                }
+
+                // Phase 3: Pass-by-reference for non-copy, non-own, non-Dynamic parameters
+                // If argument is a variable (identifier), share arena offset instead of copying
+                // Note: Dynamic parameters need copy semantics for special handling, so skip them
+                // Note: Only use pass-by-ref for types without mutable fields (no nested allocations)
+                let has_mut_fields = if let Some(struct_def) = context.scope_stack.lookup_struct(custom_type_name) {
+                    struct_def.members.iter().any(|(_, decl)| decl.is_mut)
+                } else {
+                    false  // Not a struct, treat as non-eligible
+                };
+                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" && !has_mut_fields {
+                    if let NodeType::Identifier(source_var) = &current_arg.node_type {
+                        // Only share offset for SIMPLE identifiers (no field access, no params)
+                        // Field access like s.cap is also an Identifier node but has params
+                        if current_arg.params.is_empty() {
+                            // Share arena offset from caller context (zero-copy pass-by-reference)
+                            if let Some(offset) = context.scope_stack.lookup_var(source_var) {
+                            // Create symbol info for parameter using the resolved type
+                            let param_symbol = SymbolInfo {
+                                value_type: resolved_value_type.clone(),
+                                is_mut: arg.is_mut,
+                                is_copy: arg.is_copy,
+                                is_own: arg.is_own,
+                            };
+                            function_context.scope_stack.declare_symbol(arg.name.clone(), param_symbol);
+                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), offset);
+
+                            param_index += 1;
+                            continue; // Skip allocation logic - we're sharing the offset
+                            }
+                        }
+                    }
+                    // If not an identifier or not found, fall through to normal allocation
+                    // (expressions must allocate fresh memory)
                 }
 
                 match custom_type_name.as_str() {
