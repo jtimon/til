@@ -1,0 +1,175 @@
+#+TITLE: Scope Stack Cloning Elimination Plan
+#+AUTHOR: TIL Development
+#+DATE: 2025-11-18
+
+* Overview
+
+This document outlines the plan to eliminate expensive context cloning by properly using scope stack push/pop operations.
+
+* Current State
+
+** Problem
+Context is cloned at 5 locations, cloning 68-247 KB per function call:
+- src/rs/interpreter.rs:1482 - eval_user_func_proc_call() - EVERY function call (most critical)
+- src/rs/typer.rs:131 - Function definition type checking
+- src/rs/typer.rs:845 - Catch block scoping
+- src/rs/typer.rs:1100 - Switch case with payload binding
+- src/rs/typer.rs:1247 - Struct method type checking
+
+** Scope Stack State
+- Steps 1-6 completed: All data migrated to scope_stack (symbols, funcs, enums, structs, arena_index)
+- Context is now lightweight (only 5 small fields)
+- BUT: Only 1 push() call exists (Context::new creates frame 0)
+- NO pop() calls exist anywhere
+- All data lives in frame 0 (global scope)
+- Lookup methods correctly walk frames, but there's only ever 1 frame
+
+** Why Not Incremental
+Cannot remove clones without adding push/pop:
+- Removing clone without push/pop → all declarations go to frame 0 → name collisions
+- All function parameters and locals would collide in global scope
+- Must implement push/pop as part of removing clones (all-at-once change)
+
+* TIL Scope Semantics
+
+** Functions
+Create their own scope frame (ScopeType::Function)
+- Parameters live in function scope
+- Local variables live in function scope
+- Scope is popped on function return
+
+** Catch Blocks
+Create their own scope frame (ScopeType::Catch)
+- Error variable lives in catch scope
+- Catch body can access outer scopes
+- Scope is popped after catch block
+
+** if/while/switch Blocks
+DO NOT create new scope frames - intentionally share parent function's scope
+- This is current TIL design
+- Variables declared in if/while/switch persist in function scope
+- No shadowing support for these blocks
+- ScopeType::Block is defined but unused (vestigial)
+
+* Implementation Plan
+
+** Phase 1: Fix eval_user_func_proc_call (interpreter.rs:1482)
+
+Remove:
+#+BEGIN_SRC rust
+let mut function_context = context.clone();
+function_context.path = func_def.source_path.clone();
+// ... use function_context throughout ...
+#+END_SRC
+
+Replace with:
+#+BEGIN_SRC rust
+context.scope_stack.push(ScopeType::Function);
+let saved_path = context.path.clone();
+context.path = func_def.source_path.clone();
+// ... use context directly (not function_context) ...
+context.path = saved_path;
+context.scope_stack.pop()?;  // Must add before EVERY return path
+#+END_SRC
+
+Critical: eval_user_func_proc_call has many early return paths. Must add pop() before each.
+
+** Phase 2: Fix Catch Block Handling
+
+Currently uses manual cleanup:
+- declare_symbol() to add error variable
+- remove_symbol() and remove_var() after catch block executes
+
+Replace with push/pop pattern:
+#+BEGIN_SRC rust
+context.scope_stack.push(ScopeType::Catch);
+context.scope_stack.declare_symbol(var_name, ...);
+// ... execute catch body ...
+context.scope_stack.pop()?;  // Automatic cleanup
+#+END_SRC
+
+This may already be partially implemented - needs verification.
+
+** Phase 3: Fix Type Checker (typer.rs - 4 sites)
+
+*** typer.rs:131 - check_user_proc
+Function definition type checking - needs ScopeType::Function
+
+*** typer.rs:845 - check_catch
+Catch block type checking - needs ScopeType::Catch
+
+*** typer.rs:1100 - check_loop (switch pattern binding)
+Needs investigation - may need temporary scope for pattern-bound variables
+
+*** typer.rs:1247 - check_if_else (struct method checking)
+Verify if scope needed or if sharing parent scope is correct
+
+** Phase 4: Update Catch Block Interpreter
+
+Remove manual cleanup calls (remove_symbol/remove_var) if switching to push/pop.
+
+* Critical Implementation Details
+
+** Add pop() Before ALL Returns
+Functions have many early return paths:
+- Normal returns
+- Error returns
+- Throw statements
+Each must pop scope before returning
+
+** Save/Restore context.path
+context.path is modified for error reporting
+Must save before push, restore before pop:
+#+BEGIN_SRC rust
+let saved_path = context.path.clone();
+context.path = func_def.source_path.clone();
+// ...
+context.path = saved_path;
+#+END_SRC
+
+** if/while/switch Stay in Parent Scope
+DO NOT add push/pop for these - would change language semantics
+They intentionally share the parent function's scope
+
+** Testing Strategy
+This is an all-at-once change that will break until complete
+- May need to disable some tests initially
+- Test thoroughly once all sites are fixed
+- Verify scoping works correctly with nested function calls
+
+* Expected Results
+
+** Performance
+- Before: 68-247 KB cloned per function call
+- After: ~100 bytes per scope push (empty HashMaps)
+- Improvement: ~1500x reduction in cloning overhead
+
+** Scope Structure
+- Frame 0: Global scope (module-level declarations)
+- Frame 1+: Function/catch scopes (created on demand, popped on exit)
+- Proper lexical scoping with frame-walking lookups
+
+** Code Quality
+- Eliminates expensive clone anti-pattern
+- Uses scope stack infrastructure correctly
+- Matches original design intent from Steps 1-6
+
+* Risks and Mitigation
+
+** Risk: Missing pop() calls
+If any return path doesn't pop, frame leaks onto stack
+Mitigation: Careful code review, thorough testing
+
+** Risk: Breaking all tests during migration
+Since this must be all-at-once, code won't work until complete
+Mitigation: Work systematically, may need to accept broken state temporarily
+
+** Risk: Subtle scoping bugs
+Wrong variables visible in wrong scopes
+Mitigation: Test with nested function calls, shadowing scenarios
+
+* References
+
+- techdebt.org: Original problem description and Steps 1-6 migration
+- phase3d_arena_index_elimination branch: Previous failed attempt (tried before Steps 1-6 complete)
+- init.rs: ScopeStack implementation and lookup methods
