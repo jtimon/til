@@ -10,6 +10,7 @@ parse_source := proc(source: Str) {
     ast := parse_tokens(lexer)
     catch (err: Str) {
         println("ERROR:", loc(), "Parse error in parse_source")
+        println("Source was:", source)
         println(err)
         exit(1)
     }

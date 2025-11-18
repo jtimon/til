@@ -975,13 +975,18 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
-                            if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
-                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                            let offset = if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
+                                offset
+                            } else if expr_result_str.contains('.') {
+                                // Field path - calculate offset dynamically
+                                context.get_field_offset(&expr_result_str)
+                                    .map_err(|err| e.lang_error(&context.path, "eval", &format!("Zero-copy transfer: {}", err)))?
                             } else {
                                 return Err(e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)));
-                            }
-                            // Keep map_instance_fields for now as fallback for copy_fields
-                            context.map_instance_fields(custom_type_name, &declaration.name, e)?;
+                            };
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                            // Register field symbols so they can be accessed after zero-copy transfer
+                            context.register_struct_fields_for_typecheck(&declaration.name, custom_type_name);
                         }
                     } else {
                         return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
@@ -2054,6 +2059,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 if let Some(offset) = function_context.scope_stack.lookup_var(&result_str) {
                                     // Just share the base offset - nested fields will be calculated dynamically
                                     context.scope_stack.frames.last_mut().unwrap().arena_index.insert(return_instance.to_string(), offset);
+                                    // Register field symbols so they can be accessed in caller context
+                                    context.register_struct_fields_for_typecheck(&return_instance, custom_type_name);
                                 } else {
                                     return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
