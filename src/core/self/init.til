@@ -4,13 +4,11 @@ import("src.core.self.parser")
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
+// No eval, no arena access - declarations only.
+//
 // Translated from src/rs/init.rs
 
-// =============================================================================
-// CORE DATA STRUCTURES
-// =============================================================================
-
-// Tracks information about a declared symbol (variable, constant, etc.)
+#[derive(Clone)]
 SymbolInfo := struct {
     mut value_type: ValueType = ValueType.TFunction
     mut is_mut: Bool = false
@@ -18,51 +16,55 @@ SymbolInfo := struct {
     mut is_own: Bool = false
 }
 
-// Represents an enum value with its type, variant name, and optional payload
+#[derive(Debug, Clone, PartialEq)]
 EnumVal := struct {
     mut enum_type: Str = ""
     mut enum_name: Str = ""
-    mut payload: Option = Option.None  // Option of Vec<U8> in Rust
-    mut payload_type: Option = Option.None  // Option of ValueType in Rust
-}
-
-// Scope types for lexical scoping
-ScopeType := enum {
-    Global
-    Function
-    Block
-    Catch
-}
-
-// Single scope frame in the scope stack
-ScopeFrame := struct {
-    // Maps variable names to their offsets in the arena
-    mut arena_index: Map = Map.new(Str, I64)
-    // All declared symbols (types, constants, variables, and function names)
-    mut symbols: Map = Map.new(Str, SymbolInfo)
-    // All functions, with their signatures and bodies
-    mut funcs: Map = Map.new(Str, SFuncDef)
-    // Enum type definitions
-    mut enums: Map = Map.new(Str, SEnumDef)
-    // Struct type definitions
-    mut structs: Map = Map.new(Str, SStructDef)
-    // Scope type
-    mut scope_type: ScopeType = ScopeType.Global
-
-    new := func() returns ScopeFrame {
-        mut frame := ScopeFrame()
-        frame.arena_index = Map.new(Str, I64)
-        frame.symbols = Map.new(Str, SymbolInfo)
-        frame.funcs = Map.new(Str, SFuncDef)
-        frame.enums = Map.new(Str, SEnumDef)
-        frame.structs = Map.new(Str, SStructDef)
-        frame.scope_type = ScopeType.Global
-        return frame
-    }
+    // Payload for tagged unions: stores the associated data
+    // For now, supports Bool (1 byte) and I64 (8 bytes)
+    mut payload: Option = Option.None  // Option<Vec<u8>>
+    mut payload_type: Option = Option.None  // Option<ValueType>
 }
 
 // Scope stack for proper lexical scoping
+#[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
+ScopeType := enum {
+    Global      // Top-level module scope
+    Function    // Function body
+    Block       // Generic block (if, else, loop body)
+    Catch       // Catch block (for error handling)
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+ScopeFrame := struct {
+    // maps variable names to their offsets in the arena
+    mut arena_index: Map = Map.new(Str, I64)  // HashMap<String, usize> in Rust
+
+    // All declared symbols (types, constants, variables, and function names)
+    // This is necessary for so called "context priming" or "declaration indexing"
+    // aka declaring things in whatever order, aka not needing forward declarations
+    // in theory it should only be needed for the "type" phase after the init context phase
+    // but it can be convenient at times in eval or compile phases too, I guess.
+    mut symbols: Map = Map.new(Str, SymbolInfo)
+
+    // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
+    mut funcs: Map = Map.new(Str, SFuncDef)
+
+    // Enum type definitions (variants and associated data)
+    mut enums: Map = Map.new(Str, SEnumDef)
+
+    // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
+    mut structs: Map = Map.new(Str, SStructDef)
+
+    // Scope type (helps with cleanup and debugging)
+    mut scope_type: ScopeType = ScopeType.Global
+}
+
+#[derive(Clone)]
 ScopeStack := struct {
+    // Stack of scope frames
     mut frames: Vec = Vec.new(ScopeFrame)
 
     new := func() returns ScopeStack {
@@ -71,46 +73,53 @@ ScopeStack := struct {
         return stack
     }
 
-    push := proc(mut self: ScopeStack, scope_type: ScopeType) {
-        mut frame := ScopeFrame.new()
+    push := proc(mut self: ScopeStack, scope_type: ScopeType) throws AllocError {
+        mut frame := ScopeFrame()
+        frame.arena_index = Map.new(Str, I64)
+        frame.symbols = Map.new(Str, SymbolInfo)
+        frame.funcs = Map.new(Str, SFuncDef)
+        frame.enums = Map.new(Str, SEnumDef)
+        frame.structs = Map.new(Str, SStructDef)
         frame.scope_type = scope_type
         self.frames.push(frame)
     }
 
-    pop := proc(mut self: ScopeStack) returns Result {
+    pop := proc(mut self: ScopeStack) returns Result throws Str {
         if lteq(self.frames.len, 1) {
             return Result.Err("Cannot pop global scope")
         }
+
         if eq(self.frames.len, 0) {
             return Result.Err("Scope stack underflow")
         }
-        // Remove last frame
+
+        // Pop the last frame
         mut new_len := sub(self.frames.len, 1)
-        mut last_frame := ScopeFrame.new()
-        self.frames.get(new_len, last_frame)
+        mut popped := ScopeFrame()
+        self.frames.get(new_len, popped)
         self.frames._len = new_len
-        return Result.Ok(last_frame)
+        return Result.Ok(popped)
     }
 
-    lookup_var := func(self: ScopeStack, name: Str) returns Option {
+    lookup_var := func(self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         // Walk up the stack from innermost to outermost
         mut i := sub(self.frames.len, 1)
         while gteq(i, 0) {
-            mut frame := ScopeFrame.new()
+            mut frame := ScopeFrame()
             self.frames.get(i, frame)
-            mut offset := frame.arena_index.get(name)
-            if not(offset.eq("")) {
-                return Option.Some(offset)
+            if frame.arena_index.contains_key(name) {
+                mut offset_str := frame.arena_index.get(name)
+                return Option.Some(offset_str)
             }
             i = sub(i, 1)
         }
         return Option.None
     }
 
-    lookup_symbol := func(self: ScopeStack, name: Str) returns Option {
+    lookup_symbol := func(self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         mut i := sub(self.frames.len, 1)
         while gteq(i, 0) {
-            mut frame := ScopeFrame.new()
+            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.symbols.contains_key(name) {
                 mut sym := frame.symbols.get(name)
@@ -121,30 +130,81 @@ ScopeStack := struct {
         return Option.None
     }
 
-    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) {
+    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) returns Result throws Str, IndexOutOfBoundsError {
+        if eq(self.frames.len, 0) {
+            return Result.Err("No active scope")
+        }
+
+        mut last_idx := sub(self.frames.len, 1)
+        mut current_frame := ScopeFrame()
+        self.frames.get(last_idx, current_frame)
+
+        // Check for redeclaration in current scope only
+        if current_frame.arena_index.contains_key(name) {
+            return Result.Err(format("Variable '", name, "' already declared in this scope"))
+        }
+
+        current_frame.arena_index.insert(name, offset.to_str())
+        current_frame.symbols.insert(name, symbol)
+        self.frames.set(last_idx, current_frame)
+        return Result.Ok("")
+    }
+
+    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws IndexOutOfBoundsError {
         if gt(self.frames.len, 0) {
             mut last_idx := sub(self.frames.len, 1)
-            mut frame := ScopeFrame.new()
-            self.frames.get(last_idx, frame)
-            frame.symbols.insert(name, symbol)
-            self.frames.set(last_idx, frame)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.symbols.insert(name, symbol)
+            self.frames.set(last_idx, current_frame)
         }
     }
 
-    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) {
+    remove_symbol := proc(mut self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         if gt(self.frames.len, 0) {
             mut last_idx := sub(self.frames.len, 1)
-            mut frame := ScopeFrame.new()
-            self.frames.get(last_idx, frame)
-            frame.arena_index.insert(name, offset.to_str())
-            self.frames.set(last_idx, frame)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            if current_frame.symbols.contains_key(name) {
+                mut sym := current_frame.symbols.get(name)
+                current_frame.symbols.remove(name)
+                self.frames.set(last_idx, current_frame)
+                return Option.Some(sym)
+            }
+        }
+        return Option.None
+    }
+
+    remove_var := proc(mut self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
+        if gt(self.frames.len, 0) {
+            mut last_idx := sub(self.frames.len, 1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            if current_frame.arena_index.contains_key(name) {
+                mut offset_str := current_frame.arena_index.get(name)
+                current_frame.arena_index.remove(name)
+                self.frames.set(last_idx, current_frame)
+                return Option.Some(offset_str)
+            }
+        }
+        return Option.None
+    }
+
+    // Insert a variable without a corresponding symbol (simpler than declare_var)
+    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws IndexOutOfBoundsError {
+        if gt(self.frames.len, 0) {
+            mut last_idx := sub(self.frames.len, 1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.arena_index.insert(name, offset.to_str())
+            self.frames.set(last_idx, current_frame)
         }
     }
 
-    lookup_func := func(self: ScopeStack, name: Str) returns Option {
+    lookup_func := func(self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         mut i := sub(self.frames.len, 1)
         while gteq(i, 0) {
-            mut frame := ScopeFrame.new()
+            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.funcs.contains_key(name) {
                 mut func_def := frame.funcs.get(name)
@@ -155,20 +215,20 @@ ScopeStack := struct {
         return Option.None
     }
 
-    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) {
+    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws IndexOutOfBoundsError {
         if gt(self.frames.len, 0) {
             mut last_idx := sub(self.frames.len, 1)
-            mut frame := ScopeFrame.new()
-            self.frames.get(last_idx, frame)
-            frame.funcs.insert(name, func_def)
-            self.frames.set(last_idx, frame)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.funcs.insert(name, func_def)
+            self.frames.set(last_idx, current_frame)
         }
     }
 
-    lookup_enum := func(self: ScopeStack, name: Str) returns Option {
+    lookup_enum := func(self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         mut i := sub(self.frames.len, 1)
         while gteq(i, 0) {
-            mut frame := ScopeFrame.new()
+            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.enums.contains_key(name) {
                 mut enum_def := frame.enums.get(name)
@@ -179,20 +239,20 @@ ScopeStack := struct {
         return Option.None
     }
 
-    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) {
+    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws IndexOutOfBoundsError {
         if gt(self.frames.len, 0) {
             mut last_idx := sub(self.frames.len, 1)
-            mut frame := ScopeFrame.new()
-            self.frames.get(last_idx, frame)
-            frame.enums.insert(name, enum_def)
-            self.frames.set(last_idx, frame)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.enums.insert(name, enum_def)
+            self.frames.set(last_idx, current_frame)
         }
     }
 
-    lookup_struct := func(self: ScopeStack, name: Str) returns Option {
+    lookup_struct := func(self: ScopeStack, name: Str) returns Option throws IndexOutOfBoundsError {
         mut i := sub(self.frames.len, 1)
         while gteq(i, 0) {
-            mut frame := ScopeFrame.new()
+            mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.structs.contains_key(name) {
                 mut struct_def := frame.structs.get(name)
@@ -203,614 +263,134 @@ ScopeStack := struct {
         return Option.None
     }
 
-    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) {
+    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws IndexOutOfBoundsError {
         if gt(self.frames.len, 0) {
             mut last_idx := sub(self.frames.len, 1)
-            mut frame := ScopeFrame.new()
-            self.frames.get(last_idx, frame)
-            frame.structs.insert(name, struct_def)
-            self.frames.set(last_idx, frame)
-        }
-    }
-}
-
-// Context for type checking and evaluation
-Context := struct {
-    mut mode: ModeDef = ModeDef()
-    mut path: Str = ""
-    mut scope_stack: ScopeStack = ScopeStack.new()
-    mut temp_enum_payload: Option = Option.None  // Option of (Vec<U8>, ValueType) in Rust
-    mut imports_declarations_done: Set = Set.new(Str)
-    mut imports_values_done: Map = Map.new(Str, Result)
-    mut imports_wip: Set = Set.new(Str)
-
-    new := func(path: Str, mode_name: Str) returns Context throws Str {
-        mut ctx := Context()
-        ctx.path = path
-        ctx.mode = mode_from_name(mode_name)
-        ctx.scope_stack = ScopeStack.new()
-        ctx.scope_stack.push(ScopeType.Global)
-        ctx.temp_enum_payload = Option.None
-        ctx.imports_declarations_done = Set.new(Str)
-        ctx.imports_values_done = Map.new(Str, Result)
-        ctx.imports_wip = Set.new(Str)
-        return ctx
-    }
-
-    // =============================================================================
-    // TYPE SIZE CALCULATION
-    // =============================================================================
-
-    get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
-        if type_name.eq("U8") {
-            return 1
-        }
-        if type_name.eq("I64") {
-            return 8
-        }
-
-        // Check if it's an enum
-        mut enum_lookup := self.scope_stack.lookup_enum(type_name)
-        switch enum_lookup {
-        case Option.Some(enum_def):
-            // Enum size is max of (8 bytes tag + largest payload)
-            mut max_size := 8
-            // TODO: Iterate through enum_def.enum_map to find largest payload
-            return max_size
-        case:
-            // Not an enum, continue
-        }
-
-        // Check if it's a struct
-        mut struct_lookup := self.scope_stack.lookup_struct(type_name)
-        switch struct_lookup {
-        case Option.Some(struct_def):
-            mut total_size := 0
-            // TODO: Iterate through struct_def.members and sum mutable field sizes
-            return total_size
-        case:
-            throw format(loc(), " get_type_size: type '", type_name, "' not found")
-        }
-
-        throw format(loc(), " get_type_size: type '", type_name, "' not found")
-    }
-
-    // =============================================================================
-    // FIELD OFFSET CALCULATION
-    // =============================================================================
-
-    calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str {
-        mut struct_lookup := self.scope_stack.lookup_struct(struct_type)
-        mut struct_def := SStructDef()
-        switch struct_lookup {
-        case Option.Some(sd):
-            struct_def = sd
-        case:
-            throw format(loc(), " calculate_field_offset: struct '", struct_type, "' not found")
-        }
-
-        mut current_offset := 0
-        // TODO: Iterate through struct_def.members to calculate offset
-        // For now, simplified version
-        throw format(loc(), " TODO: calculate_field_offset not fully implemented")
-    }
-
-    get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
-        mut parts := field_path.split(".")
-        if eq(parts.len, 0) {
-            throw format(loc(), " get_field_offset: empty field path")
-        }
-
-        // Get base variable
-        mut base_var := ""
-        parts.get(0, base_var)
-
-        mut var_lookup := self.scope_stack.lookup_var(base_var)
-        mut current_offset := 0
-        switch var_lookup {
-        case Option.Some(offset_str):
-            current_offset = offset_str.to_i64()
-        case:
-            throw format(loc(), " get_field_offset: base variable '", base_var, "' not found")
-        }
-
-        // TODO: Walk through remaining parts and calculate offsets
-        return current_offset
-    }
-
-    // =============================================================================
-    // VARIANT POSITION HELPERS
-    // =============================================================================
-
-    get_variant_pos := func(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str {
-        mut pos := enum_def.enum_map.position(variant_name)
-        if lt(pos, 0) {
-            throw format(loc(), " ERROR: Enum variant '", variant_name, "' not found")
-        }
-        return pos
-    }
-
-    variant_pos_to_str := func(enum_def: SEnumDef, position: I64) returns Str throws Str {
-        mut keys := enum_def.enum_map.keys
-        mut map_size := keys.len
-
-        if lt(position, 0) {
-            throw format(loc(), " ERROR: Invalid position (negative)")
-        }
-        if not(lt(position, map_size)) {
-            throw format(loc(), " ERROR: Invalid position (out of bounds)")
-        }
-
-        mut variant_name := ""
-        keys.get(position, variant_name)
-        return variant_name
-    }
-}
-
-// =============================================================================
-// CORE HELPER FUNCTIONS
-// =============================================================================
-
-get_func_name_in_call := func(e: Expr) returns Str throws Str {
-    mut node_type_str := enum_to_str(e.node_type)
-    if not(node_type_str.eq("NodeType.FCall")) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected FCall node")
-    }
-
-    if lt(e.params.len, 1) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): FCall must have at least 1 parameter")
-    }
-
-    mut func_name_expr := Expr()
-    e.params.get(0, func_name_expr)
-
-    mut func_name := ""
-    switch func_name_expr.node_type {
-    case NodeType.Identifier(name):
-        func_name = name
-    case:
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0]")
-    }
-
-    return func_name
-}
-
-value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
-    mut returns_len := func_def.return_types.len
-
-    if eq(returns_len, 0) {
-        throw format(loc(), " ERROR: func '", name, "' does not return anything")
-    }
-
-    if gt(returns_len, 1) {
-        throw format(loc(), " TODO: func '", name, "' returns multiple values")
-    }
-
-    mut return_type := ValueType.TCustom("")
-    func_def.return_types.get(0, return_type)
-    return return_type
-}
-
-// =============================================================================
-// TYPE INFERENCE
-// =============================================================================
-
-get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
-    mut node_type_str := enum_to_str(e.node_type)
-
-    // Handle literals
-    if node_type_str.eq("NodeType.LLiteral") {
-        switch e.node_type {
-        case NodeType.LLiteral(Literal.Number(_)):
-            return ValueType.TCustom("I64")
-        case NodeType.LLiteral(Literal.Str(_)):
-            return ValueType.TCustom("Str")
-        case NodeType.LLiteral(Literal.List(_)):
-            return ValueType.TCustom("List")
-        case:
-            throw format(loc(), " ERROR: Unknown literal type")
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.structs.insert(name, struct_def)
+            self.frames.set(last_idx, current_frame)
         }
     }
 
-    // Handle function definitions
-    if node_type_str.eq("NodeType.FuncDef") {
-        mut func_def := SFuncDef()
-        switch e.node_type {
-        case NodeType.FuncDef(fd):
-            func_def = fd
-        case:
-            // Other node types
-        }
-
-        switch func_def.function_type {
-        case FunctionType.FTFunc:
-            return ValueType.TFunction(FunctionType.FTFunc)
-        case FunctionType.FTFuncExt:
-            return ValueType.TFunction(FunctionType.FTFunc)
-        case FunctionType.FTProc:
-            return ValueType.TFunction(FunctionType.FTProc)
-        case FunctionType.FTProcExt:
-            return ValueType.TFunction(FunctionType.FTProc)
-        case FunctionType.FTMacro:
-            return ValueType.TFunction(FunctionType.FTMacro)
-        case:
-            throw format(loc(), " ERROR: Unknown function type")
-        }
-    }
-
-    // Handle enum and struct definitions
-    if node_type_str.eq("NodeType.EnumDef") {
-        return ValueType.TType(TTypeDef.TEnumDef)
-    }
-    if node_type_str.eq("NodeType.StructDef") {
-        return ValueType.TType(TTypeDef.TStructDef)
-    }
-
-    // Handle function calls
-    if node_type_str.eq("NodeType.FCall") {
-        return get_fcall_value_type(context, e)
-    }
-
-    // Handle ranges
-    if node_type_str.eq("NodeType.Range") {
-        mut bound_expr := Expr()
-        e.params.get(0, bound_expr)
-        mut bound_type := get_value_type(context, bound_expr)
-        mut type_str := value_type_to_str(bound_type)
-        return ValueType.TCustom(format(type_str, "Range"))
-    }
-
-    // Handle identifiers
-    if node_type_str.eq("NodeType.Identifier") {
-        mut id_name := ""
-        switch e.node_type {
-        case NodeType.Identifier(name):
-            id_name = name
-        case:
-            // Should never happen
-        }
-
-        mut symbol_lookup := context.scope_stack.lookup_symbol(id_name)
-        mut current_type := ValueType.TCustom("")
-        switch symbol_lookup {
-        case Option.Some(symbol):
-            current_type = symbol.value_type
-        case:
-            throw format(loc(), " ERROR: Undefined symbol '", id_name, "'")
-        }
-
-        // If no params, return base type
-        if eq(e.params.len, 0) {
-            return current_type
-        }
-
-        // TODO: Process member access chain
-        return current_type
-    }
-
-    // Handle patterns
-    if node_type_str.eq("NodeType.Pattern") {
-        mut pattern_info := PatternInfo()
-        switch e.node_type {
-        case NodeType.Pattern(pi, _):
-            pattern_info = pi
-        case:
-            // Other types
-        }
-
-        mut variant_name := pattern_info.variant_name
-        if variant_name.contains(".") {
-            mut parts := variant_name.split(".")
-            mut enum_type := ""
-            mut i := 0
-            while lt(i, sub(parts.len, 1)) {
-                mut part := ""
-                parts.get(i, part)
-                if gt(i, 0) {
-                    enum_type = format(enum_type, ".", part)
-                } else {
-                    enum_type = part
-                }
-                i = add(i, 1)
-            }
-            return ValueType.TCustom(enum_type)
-        }
-        return ValueType.TCustom(variant_name)
-    }
-
-    throw format(loc(), " ERROR: get_value_type not implemented for node type: ", node_type_str)
-}
-
-get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
-    mut f_name := get_func_name_in_call(e)
-
-    // Check for UFCS call (2+ params means target + args)
-    if gteq(e.params.len, 2) {
-        mut first_arg := Expr()
-        e.params.get(1, first_arg)
-
-        // Try to get type of first argument
-        mut target_type := get_value_type(context, first_arg)
-        catch (err: Str) {
-            // Fall through to regular function lookup
-        }
-
-        // Check if it's a custom type with an associated method
-        switch target_type {
-        case ValueType.TCustom(custom_type_name):
-            mut method_name := format(custom_type_name, ".", f_name)
-            mut func_lookup := context.scope_stack.lookup_func(method_name)
-            switch func_lookup {
-            case Option.Some(func_def):
-                return value_type_func_proc(context.path, e, method_name, func_def)
-            case:
-                // No associated method, fall through
-            }
-        case:
-            // Not a custom type, fall through
-        }
-    }
-
-    // Check for standalone function
-    mut func_lookup := context.scope_stack.lookup_func(f_name)
-    switch func_lookup {
-    case Option.Some(func_def):
-        return value_type_func_proc(context.path, e, f_name, func_def)
-    case:
-        // Not a standalone function, check for constructor
-    }
-
-    // Check for struct or enum constructor
-    mut symbol_lookup := context.scope_stack.lookup_symbol(f_name)
-    switch symbol_lookup {
-    case Option.Some(symbol):
-        switch symbol.value_type {
-        case ValueType.TType(TTypeDef.TStructDef):
-            return ValueType.TCustom(f_name)
-        case ValueType.TType(TTypeDef.TEnumDef):
-            return ValueType.TCustom(f_name)
-        case ValueType.TCustom(custom_type_name):
-            return ValueType.TCustom(f_name)
-        case:
-            throw format(loc(), " ERROR: Cannot call '", f_name, "', it is not a function")
-        }
-    case:
-        throw format(loc(), " ERROR: Undefined symbol '", f_name, "'")
-    }
-
-    throw format(loc(), " ERROR: Undefined symbol '", f_name, "'")
-}
-
-// =============================================================================
-// IMPORT HANDLING
-// =============================================================================
-
-import_path_to_file_path := func(import_path: Str) returns Str {
-    // Convert "src.core.std" to "src/core/std.til"
-    mut file_path := import_path.replace(".", "/")
-    return format(file_path, ".til")
-}
-
-init_import_declarations := proc(mut context: Context, e: Expr, import_path_str: Str) returns Result throws Str {
-    mut path := import_path_to_file_path(import_path_str)
-    mut original_path := context.path
-
-    // Check if already processed
-    if context.imports_declarations_done.contains(path) {
-        return Result.Ok("")
-    }
-
-    // Check for circular imports
-    if context.imports_wip.contains(path) {
-        throw format(loc(), " ERROR: Circular import dependency: ", path)
-    }
-
-    // Mark as work-in-progress
-    context.imports_wip.insert(path)
-
-    // TODO: Read and parse the imported file
-    // TODO: Process mode imports recursively
-    // TODO: Run init_context on the imported AST
-    // TODO: Copy declarations to parent context
-
-    // Restore context state
-    context.path = original_path
-    context.imports_wip.remove(path)
-    context.imports_declarations_done.insert(path)
-
-    return Result.Ok("")
-}
-
-// =============================================================================
-// DECLARATION PROCESSING (init_context)
-// =============================================================================
-
-init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
-    mut errors := Vec.new(Str)
-
-    switch e.node_type {
-    case NodeType.Body:
-        // Recursively process all statements
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws IndexOutOfBoundsError {
+        // Collect all keys from all scopes that start with the given prefix
+        mut keys := Vec.new(Str)
         mut i := 0
-        while lt(i, e.params.len) {
-            mut stmt := Expr()
-            e.params.get(i, stmt)
-            mut stmt_errors := init_context(context, stmt)
-
-            // Extend errors with stmt_errors
+        while lt(i, self.frames.len) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut symbol_keys := frame.symbols.keys
             mut j := 0
-            while lt(j, stmt_errors.len) {
-                mut err := ""
-                stmt_errors.get(j, err)
-                errors.push(err)
+            while lt(j, symbol_keys.len) {
+                mut key := ""
+                symbol_keys.get(j, key)
+                if key.starts_with(prefix) {
+                    keys.push(key)
+                }
                 j = add(j, 1)
             }
             i = add(i, 1)
         }
-
-    case NodeType.FCall:
-        mut f_name := get_func_name_in_call(e)
-        if f_name.eq("import") {
-            // TODO: Handle import
-            // Extract import path and call init_import_declarations
-        }
-
-    case NodeType.Declaration(decl):
-        // Check for duplicate declaration
-        mut func_lookup := context.scope_stack.lookup_func(decl.name)
-        mut symbol_lookup := context.scope_stack.lookup_symbol(decl.name)
-
-        mut is_duplicate := false
-        switch func_lookup {
-        case Option.Some(_):
-            is_duplicate = true
-        case:
-            // Not in funcs
-        }
-        switch symbol_lookup {
-        case Option.Some(_):
-            is_duplicate = true
-        case:
-            // Not in symbols
-        }
-
-        if is_duplicate {
-            errors.push(format(loc(), " ERROR: '", decl.name, "' already declared"))
-        }
-
-        // Declaration must have exactly one value
-        if not(eq(e.params.len, 1)) {
-            errors.push(format(loc(), " ERROR: declaration must have exactly one value"))
-            return errors
-        }
-
-        // Get initializer expression
-        mut inner_e := Expr()
-        e.params.get(0, inner_e)
-
-        // Get value type of initializer
-        mut value_type := get_value_type(context, inner_e)
-        catch (err: Str) {
-            errors.push(err)
-            return errors
-        }
-
-        // Type checking
-        if not(decl.value_type.eq(str_to_value_type("INFER_TYPE"))) {
-            if decl.value_type.eq(ValueType.TCustom("U8")) {
-                if value_type.eq(ValueType.TCustom("I64")) {
-                    value_type = decl.value_type
-                }
-            }
-            if not(value_type.eq(decl.value_type)) {
-                errors.push(format(loc(), " ERROR: type mismatch in declaration of '", decl.name, "'"))
-            }
-        }
-
-        // Register based on value type
-        switch value_type {
-        case ValueType.TFunction(ftype):
-            switch inner_e.node_type {
-            case NodeType.FuncDef(func_def):
-                mut symbol := SymbolInfo()
-                symbol.value_type = value_type
-                symbol.is_mut = decl.is_mut
-                symbol.is_copy = decl.is_copy
-                symbol.is_own = decl.is_own
-                context.scope_stack.declare_symbol(decl.name, symbol)
-                context.scope_stack.declare_func(decl.name, func_def)
-            case:
-                errors.push(format(loc(), " ERROR: functions should have definitions"))
-            }
-
-        case ValueType.TType(TTypeDef.TEnumDef):
-            switch inner_e.node_type {
-            case NodeType.EnumDef(enum_def):
-                mut symbol := SymbolInfo()
-                symbol.value_type = value_type
-                symbol.is_mut = decl.is_mut
-                symbol.is_copy = decl.is_copy
-                symbol.is_own = decl.is_own
-                context.scope_stack.declare_symbol(decl.name, symbol)
-                context.scope_stack.declare_enum(decl.name, enum_def)
-            case:
-                errors.push(format(loc(), " ERROR: enums should have definitions"))
-            }
-
-        case ValueType.TType(TTypeDef.TStructDef):
-            switch inner_e.node_type {
-            case NodeType.StructDef(struct_def):
-                mut symbol := SymbolInfo()
-                symbol.value_type = value_type
-                symbol.is_mut = decl.is_mut
-                symbol.is_copy = decl.is_copy
-                symbol.is_own = decl.is_own
-                context.scope_stack.declare_symbol(decl.name, symbol)
-                context.scope_stack.declare_struct(decl.name, struct_def)
-
-                // TODO: Register associated functions and constants
-                // Iterate through struct_def.members and register non-mut members
-            case:
-                errors.push(format(loc(), " ERROR: structs should have definitions"))
-            }
-
-        case ValueType.TMulti(_):
-            mut symbol := SymbolInfo()
-            symbol.value_type = value_type
-            symbol.is_mut = decl.is_mut
-            symbol.is_copy = decl.is_copy
-            symbol.is_own = decl.is_own
-            context.scope_stack.declare_symbol(decl.name, symbol)
-
-        case ValueType.TCustom(_):
-            mut symbol := SymbolInfo()
-            symbol.value_type = value_type
-            symbol.is_mut = decl.is_mut
-            symbol.is_copy = decl.is_copy
-            symbol.is_own = decl.is_own
-            context.scope_stack.declare_symbol(decl.name, symbol)
-
-        case:
-            // Unknown type - register anyway
-            mut symbol := SymbolInfo()
-            symbol.value_type = value_type
-            symbol.is_mut = decl.is_mut
-            symbol.is_copy = decl.is_copy
-            symbol.is_own = decl.is_own
-            context.scope_stack.declare_symbol(decl.name, symbol)
-        }
-
-    case:
-        // Mode validation for non-declaration nodes
-        if not(context.mode.allows_base_anything) {
-            if context.mode.allows_base_calls {
-                mut is_fcall := enum_to_str(e.node_type).eq("NodeType.FCall")
-                if not(is_fcall) {
-                    errors.push(format(loc(), " ERROR: mode '", context.mode.name, "' allows only declarations and calls"))
-                }
-            } else {
-                errors.push(format(loc(), " ERROR: mode '", context.mode.name, "' allows only declarations"))
-            }
-        }
+        return keys
     }
-
-    return errors
 }
 
-// =============================================================================
-// PRIMITIVE VALUE OPERATIONS (Simplified for TIL bootstrap)
-// =============================================================================
+get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+    mut node_type_str := enum_to_str(e.node_type)
+    if not(node_type_str.eq("NodeType.FCall")) {
+        throw e.exit_error("type", "get_func_name_in_call(): expected fcall node.")
+    }
+    if eq(e.params.len, 0) {
+        throw e.exit_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
+    }
+    mut param := Expr()
+    e.params.get(0, param)
+    mut func_name := ""
+    switch param.node_type {
+    case NodeType.Identifier(f_name):
+        func_name = f_name
+    case node_type:
+        throw e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", enum_to_str(node_type), "'"))
+    }
+    return func_name
+}
 
-// Note: The full Rust implementation has many more Context methods for
-// insert/get operations on primitives, structs, enums, arrays, etc.
-// These are intentionally simplified here since they require:
-// 1. Global arena access (Arena::g() in Rust)
-// 2. Complex offset calculations
-// 3. Memory manipulation
-//
-// For a complete self-hosted TIL compiler, these would need to be:
-// - Either implemented as external/compiler builtins
-// - Or implemented using TIL's low-level memory operations once available
-//
-// Current status: Core declaration indexing and type inference are complete.
-// Runtime operations (insert/get) are deferred to the Rust implementation.
+value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError {
+    mut returns_len := func_def.return_types.len
+    if eq(returns_len, 0) {
+        throw e.error(path, "type", format("func '", name, "' does not return anything"))
+    }
+    if eq(returns_len, 1) {
+        mut return_type := ValueType.TCustom("")
+        func_def.return_types.get(0, return_type)
+        switch return_type {
+        case ValueType.TCustom(type_str):
+            return ValueType.TCustom(type_str)
+        case other:
+            throw e.error(path, "type", format("func '", name, "' returns unsupported type ", value_type_to_str(other)))
+        }
+    }
+    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
+}
+
+// TODO: Translate get_ufcs_fcall_value_type (lines 267-309)
+// TODO: Translate get_fcall_value_type (lines 311-628)
+// TODO: Translate get_value_type (lines 630-719)
+// TODO: Translate import_path_to_file_path (lines 721-726)
+// TODO: Translate init_import_declarations (lines 728-850)
+// TODO: Translate init_context (lines 852-1019)
+
+#[derive(Clone)]
+Context := struct {
+    mut mode: ModeDef = ModeDef()  // All contexts need a mode
+    // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
+    mut path: Str = ""  // this is needed for core func "loc"
+    // Scope stack for proper lexical scoping
+    mut scope_stack: ScopeStack = ScopeStack.new()
+    // Temporary storage for enum payload data during construction
+    mut temp_enum_payload: Option = Option.None  // Option<(Vec<u8>, ValueType)>
+    // Two-phase imports: separate caches for declaration and value initialization
+    mut imports_declarations_done: Set = Set.new(Str)  // tracks which imports have had declarations copied (init phase)
+    mut imports_values_done: Map = Map.new(Str, Result)  // tracks which imports have had values initialized (eval phase)
+    mut imports_wip: Set = Set.new(Str)  // wip imports (for cycle detection)
+    // DEPRECATED: old single-phase cache, kept for compatibility
+    #[allow(dead_code)]
+    mut imports_done: Map = Map.new(Str, Result)
+    // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
+    // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
+    // REM: TODO change the cached type to support import as returning a struct_def
+
+    new := func(path: Str, mode_name: Str) returns Context throws Str, AllocError {
+        mut ctx := Context()
+        mut scope_stack := ScopeStack.new()
+        scope_stack.push(ScopeType.Global)  // Initialize global scope
+        ctx.path = path
+        ctx.mode = mode_from_name(mode_name)
+        ctx.scope_stack = scope_stack
+        ctx.temp_enum_payload = Option.None
+        ctx.imports_declarations_done = Set.new(Str)
+        ctx.imports_values_done = Map.new(Str, Result)
+        ctx.imports_wip = Set.new(Str)
+        ctx.imports_done = Map.new(Str, Result)  // DEPRECATED
+        return ctx
+    }
+
+    // TODO: Translate all Context methods (lines 1041-2207)
+    // Including:
+    // - get_u8, insert_u8
+    // - get_i64, insert_i64
+    // - get_struct, insert_struct, insert_struct_at_offset
+    // - map_instance_fields, copy_fields
+    // - get_type_size, calculate_field_offset, get_field_offset
+    // - register_struct_fields_for_typecheck
+    // - insert_string
+    // - insert_primitive
+    // - get_enum_at_offset, get_payload_size_for_type
+    // - get_enum, insert_enum
+    // - insert_array
+    // - get_variant_pos, variant_pos_to_str
+}
+
+// TODO: Translate get_u8 standalone function (lines 1041-1056)
+// TODO: Translate insert_bool standalone function (lines 2173-2207)
