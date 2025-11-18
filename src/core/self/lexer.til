@@ -665,6 +665,40 @@ token_type_to_str := func(tt: TokenType) returns Str {
     }
 }
 
+build_var_suggestion := func(tokens: Array, var_index: I64) returns Str throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
+    // Check if pattern is: var <identifier> = <value>
+    if lt(var_index.add(3), tokens.len()) {
+        mut ident_token := Token()
+        mut equals_token := Token()
+        mut value_token := Token()
+
+        tokens.get(var_index.add(1), ident_token)
+        tokens.get(var_index.add(2), equals_token)
+        tokens.get(var_index.add(3), value_token)
+
+        mut is_identifier := false
+        switch ident_token.token_type {
+        case TokenType.Identifier:
+            is_identifier = true
+        case:
+            is_identifier = false
+        }
+
+        mut is_equal := false
+        switch equals_token.token_type {
+        case TokenType.Equal:
+            is_equal = true
+        case:
+            is_equal = false
+        }
+
+        if and(is_identifier, is_equal) {
+            return format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
+        }
+    }
+    return "Suggestion: use 'mut' instead"
+}
+
 print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
     print(path, ":", I64.to_str(t.line), ":", I64.to_str(t.col), ": Lexical error ", I64.to_str(errors_found), ": ", msg)
     print(". Offending symbol: '", t.token_str, "'")
@@ -672,7 +706,7 @@ print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
     errors_found.inc()
 }
 
-print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
+print_if_lex_error := proc(path: Str, tokens: Array, index: I64, t: Token, mut errors_found: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
     switch t.token_type {
     case TokenType.Invalid:
         print_lex_error(path, t, errors_found, "Invalid character")
@@ -687,7 +721,8 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
         print_lex_error(path, t, errors_found, "No need to use 'const', everything is const by default unless 'mut' is used")
 
     case TokenType.Var:
-        print_lex_error(path, t, errors_found, "Keyword 'var' is not supported\nSuggestion: use 'mut' instead")
+        suggestion := build_var_suggestion(tokens, index)
+        print_lex_error(path, t, errors_found, format("Keyword 'var' is not supported\n", suggestion))
 
     case TokenType.Fn:
         print_lex_error(path, t, errors_found, "Keyword 'fn' is not supported\nSuggestion: use 'func' or 'proc' instead")
@@ -745,18 +780,18 @@ print_if_lex_error := proc(path: Str, t: Token, mut errors_found: I64) {
     }
 }
 
-print_lex_errors := proc(tokens: Array, path: Str) returns I64 throws IndexOutOfBoundsError {
+print_lex_errors := proc(tokens: Array, path: Str) returns I64 throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
     mut errors_found := 0
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
         mut t := Token()
         tokens.get(i, t)
-        print_if_lex_error(path, t, errors_found)
+        print_if_lex_error(path, tokens, i, t, errors_found)
     }
     return errors_found
 }
 
-lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
+lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)
