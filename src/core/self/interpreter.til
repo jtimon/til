@@ -1,13 +1,11 @@
-mode lib
-
-// use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool, get_u8};
-// use crate::rs::parser::{
-//     INFER_TYPE,
-//     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
-//     value_type_to_str, get_combined_name,
-// };
-// use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg};
-// use crate::rs::ext;
+import init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool, get_u8}
+import parser::{
+    INFER_TYPE,
+    Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
+    value_type_to_str, get_combined_name,
+}
+import typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg}
+import ext
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.
@@ -22,886 +20,2145 @@ Arena := struct {
 
 // heap/arena memory (starts at 1 to avoid NULL confusion)
 // REM: first address 0 is reserved (invalid), malloc always >0
-Arena_impl := struct {
-    // This function gives access to the singleton instance of Arena
-    // #[allow(static_mut_refs)]
-    // pub fn g() -> &'static mut Arena {
-    g := proc() returns mut Arena throws AllocError {
-        // unsafe { // TODO research if we can do "safe" singletons in rust before self hosting, just out of curiosity
-        //     static mut INSTANCE: Option<Arena> = None;
-        //
-        //     // Lazy initialization of the singleton instance
-        //     INSTANCE.get_or_insert_with(|| Arena {
-        //         memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
-        //         temp_id_counter: 0, // A temporary ugly hack for return values
-        //     })
-        // }
-
-        // TODO: Implement singleton pattern in Til
-        // For now, create a new arena
-        mut a := Arena()
-        a.memory = Vec.new(U8)
-        // REM: first address 0 is reserved (invalid), malloc always >0
-        a.memory.push(0)
-        a.temp_id_counter = 0  // A temporary ugly hack for return values
-        return a
+// This function gives access to the singleton instance of Arena
+// TODO research if we can do "safe" singletons in rust before self hosting, just out of curiosity
+Arena_g := proc() returns mut ref Arena {
+    // Lazy initialization of the singleton instance
+    INSTANCE := Arena{
+        memory: Vec_new_with_value(0), // REM: first address 0 is reserved (invalid), malloc always >0
+        temp_id_counter: 0, // A temporary ugly hack for return values
     }
+    return ref INSTANCE
 }
 
-// #[derive(Clone, Debug)]
-// pub struct EvalResult {
-//     pub value: String,
-//     pub is_return: bool,
-//     pub is_throw: bool,
-//     pub thrown_type: Option<String>,
-// }
 EvalResult := struct {
     mut value: Str = ""
     mut is_return: Bool = false
     mut is_throw: Bool = false
-    mut thrown_type: Str = ""  // Option<String> -> empty string for None
+    mut thrown_type: Str = "" // Option<String> -> empty string for None
 }
 
-// impl EvalResult {
-EvalResult_impl := struct {
-    //     pub fn new(value: &str) -> EvalResult {
-    //         return EvalResult{value: value.to_string(), is_return: false, is_throw: false, thrown_type: None}
-    //     }
-    new := proc(value: Str) returns EvalResult {
-        mut result := EvalResult()
-        result.value = value
-        result.is_return = false
-        result.is_throw = false
-        result.thrown_type = ""
-        return result
-    }
+EvalResult_new := proc(value: Str) returns EvalResult {
+    return EvalResult{value: value, is_return: false, is_throw: false, thrown_type: ""}
+}
 
-    //     pub fn new_return(value: &str) -> EvalResult {
-    //         return EvalResult{value: value.to_string(), is_return: true, is_throw: false, thrown_type: None}
-    //     }
-    new_return := proc(value: Str) returns EvalResult {
-        mut result := EvalResult()
-        result.value = value
-        result.is_return = true
-        result.is_throw = false
-        result.thrown_type = ""
-        return result
-    }
+EvalResult_new_return := proc(value: Str) returns EvalResult {
+    return EvalResult{value: value, is_return: true, is_throw: false, thrown_type: ""}
+}
 
-    //     pub fn new_throw(value: &str, thrown_type: ValueType) -> EvalResult {
-    //         return EvalResult{value: value.to_string(), is_return: false, is_throw: true, thrown_type: Some(value_type_to_str(&thrown_type))}
-    //     }
-    new_throw := proc(value: Str, thrown_type: ValueType) returns EvalResult {
-        mut result := EvalResult()
-        result.value = value
-        result.is_return = false
-        result.is_throw = true
-        result.thrown_type = value_type_to_str(thrown_type)
-        return result
-    }
+EvalResult_new_throw := proc(value: Str, thrown_type: ValueType) returns EvalResult {
+    return EvalResult{value: value, is_return: false, is_throw: true, thrown_type: value_type_to_str(ref thrown_type)}
 }
 
 // Helper function to extract bool value from a Bool struct instance
-// pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, String> {
-bool_from_context := proc(context: Context, id: Str, e: Expr) returns Bool throws Str {
+bool_from_context := proc(context: mut ref Context, id: Str, e: ref Expr) throws Str returns Bool {
     // Validate the Bool struct exists
-    // context.get_struct(id, e)?;
-    context.get_struct(id, e)
+    Context_get_struct(context, id, e)
 
     // Read the .data field (which is a U8)
-    // let data_field = format!("{}.data", id);
-    data_field := format(id, ".data")
-    // let u8_val = get_u8(context, &data_field, e)?;
+    data_field := Str_format("{}.data", id)
     u8_val := get_u8(context, data_field, e)
 
     // Convert U8 to bool (0 = false, non-zero = true)
-    // Ok(u8_val != 0)
-    return not(eq(u8_val, 0))
+    return u8_val != 0
 }
 
 // Helper function to extract String value from a Str struct instance
-// pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<String, String> {
-string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+string_from_context := proc(context: mut ref Context, id: Str, e: ref Expr) throws Str returns Str {
     // Validate the Str struct exists
-    // context.get_struct(id, e)?;
-    context.get_struct(id, e)
+    Context_get_struct(context, id, e)
 
     // Read the c_string field (I64 pointer to string data in Arena)
-    // let c_string_ptr = context.get_i64(&format!("{}.c_string", id), e)? as usize;
-    c_string_field := format(id, ".c_string")
-    c_string_ptr := context.get_i64(c_string_field, e)
+    c_string_ptr := Context_get_i64(context, Str_format("{}.c_string", id), e) as I64
 
     // Read the cap field (I64 length)
-    // let length = context.get_i64(&format!("{}.cap", id), e)? as usize;
-    cap_field := format(id, ".cap")
-    length := context.get_i64(cap_field, e)
+    length := Context_get_i64(context, Str_format("{}.cap", id), e) as I64
 
     // Bounds check
-    // if c_string_ptr + length > Arena::g().memory.len() {
-    //     return Err(e.lang_error(&context.path, "string_from_context", &format!("string content out of bounds for '{}'", id)));
-    // }
-    arena := Arena_impl.g()
-    if gt(add(c_string_ptr, length), arena.memory.len()) {
-        throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
+    arena := Arena_g()
+    if c_string_ptr + length > Vec_len(arena.memory) {
+        throw Expr_lang_error(e, context.path, "string_from_context", Str_format("string content out of bounds for '{}'", id))
     }
 
     // Read string bytes from Arena and convert to String
-    // let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
-    // Ok(String::from_utf8_lossy(bytes).to_string())
-
-    // TODO: Implement proper string slicing and UTF-8 conversion in Til
-    // For now, build string byte by byte
-    mut result := ""
-    mut i := c_string_ptr
-    end_pos := add(c_string_ptr, length)
-    while lt(i, end_pos) {
-        mut byte := 0
-        arena.memory.get(i, byte)
-        // Convert byte to char and append
-        // TODO: Proper UTF-8 handling
-        i = add(i, 1)
-    }
-    return result
+    bytes := Vec_slice(arena.memory, c_string_ptr, c_string_ptr + length)
+    return Str_from_utf8_lossy(bytes)
 }
 
 // Helper function to validate conditional statement parameters
-// fn validate_conditional_params(path: &str, e: &Expr, stmt_type: &str, min: usize, max: usize) -> Result<(), String> {
-validate_conditional_params := proc(path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns () throws Str {
-    // if e.params.len() < min || e.params.len() > max {
-    params_len := e.params.len()
-    if or(lt(params_len, min), gt(params_len, max)) {
-        // if min == max {
-        if eq(min, max) {
-            // return Err(e.lang_error(path, "eval", &format!("{} nodes must have exactly {} parameters.", stmt_type, min)));
-            throw e.lang_error(path, "eval", format(stmt_type, " nodes must have exactly ", i64_to_str(min), " parameters."))
+validate_conditional_params := proc(path: Str, e: ref Expr, stmt_type: Str, min: I64, max: I64) throws Str {
+    params_len := Vec_len(e.params)
+    if params_len < min || params_len > max {
+        if min == max {
+            throw Expr_lang_error(e, path, "eval", Str_format("{} nodes must have exactly {} parameters.", stmt_type, min))
+        } else {
+            throw Expr_lang_error(e, path, "eval", Str_format("{} nodes must have {} or {} parameters.", stmt_type, min, max))
         }
-        // } else {
-        // return Err(e.lang_error(path, "eval", &format!("{} nodes must have {} or {} parameters.", stmt_type, min, max)));
-        throw e.lang_error(path, "eval", format(stmt_type, " nodes must have ", i64_to_str(min), " or ", i64_to_str(max), " parameters."))
-        // }
     }
-    // Ok(())
 }
 
 // Helper to evaluate boolean conditions for if/while statements.
 // Supports both legacy string bools ("true"/"false") and Bool struct instances.
-// fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -> Result<bool, String> {
-eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr) returns Bool throws Str {
+eval_condition_to_bool := proc(context: mut ref Context, result: ref EvalResult, expr: ref Expr) throws Str returns Bool {
     // First try parsing as string bool (backwards compatibility)
-    // if let Ok(b) = result.value.parse::<bool>() {
-    //     return Ok(b);
-    // }
-    if result.value.eq("true") {
-        return true
-    }
-    if result.value.eq("false") {
-        return false
+    b := Str_parse_bool(result.value)
+    if b.is_some {
+        return b.value
     }
 
     // Otherwise, assume it's a Bool struct instance - read its .data field
     // The value should be the identifier name of the Bool instance
-    // let bool_id = &result.value;
     bool_id := result.value
-    // let data_field_id = format!("{}.data", bool_id);
-    data_field_id := format(bool_id, ".data")
-    // let u8_val = get_u8(context, &data_field_id, expr)?;
+    data_field_id := Str_format("{}.data", bool_id)
     u8_val := get_u8(context, data_field_id, expr)
-    // Ok(u8_val != 0)
-    return not(eq(u8_val, 0))
+    return u8_val != 0
 }
 
 // Helper function to validate function/procedure argument counts
-// fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef) -> Result<(), String> {
-validate_func_arg_count := proc(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns () throws Str {
-    // let provided_args = e.params.len() - 1;
-    provided_args := sub(e.params.len(), 1)
-    // let has_multi_arg = func_proc_has_multi_arg(func_def);
+validate_func_arg_count := proc(path: Str, e: ref Expr, name: Str, func_def: ref SFuncDef) throws Str {
+    provided_args := Vec_len(e.params) - 1
     has_multi_arg := func_proc_has_multi_arg(func_def)
 
     // Check exact count for non-variadic functions
-    // if !has_multi_arg && func_def.args.len() != provided_args {
-    if and(not(has_multi_arg), not(eq(func_def.args.len(), provided_args))) {
-        // return Err(e.lang_error(path, "eval", &format!("func '{}' expected {} args, but {} were provided.",
-        //                                          name, func_def.args.len(), provided_args)));
-        throw e.lang_error(path, "eval", format("func '", name, "' expected ", i64_to_str(func_def.args.len()), " args, but ", i64_to_str(provided_args), " were provided."))
+    if !has_multi_arg && Vec_len(func_def.args) != provided_args {
+        throw Expr_lang_error(e, path, "eval", Str_format("func '{}' expected {} args, but {} were provided.",
+                                                 name, Vec_len(func_def.args), provided_args))
     }
 
     // Check minimum count for variadic functions
-    // if has_multi_arg && func_def.args.len() - 1 > provided_args {
-    if and(has_multi_arg, gt(sub(func_def.args.len(), 1), provided_args)) {
-        // return Err(e.lang_error(path, "eval", &format!("func '{}' expected at least {} args, but {} were provided.",
-        //                                          name, func_def.args.len() - 1, provided_args)));
-        throw e.lang_error(path, "eval", format("func '", name, "' expected at least ", i64_to_str(sub(func_def.args.len(), 1)), " args, but ", i64_to_str(provided_args), " were provided."))
+    if has_multi_arg && Vec_len(func_def.args) - 1 > provided_args {
+        throw Expr_lang_error(e, path, "eval", Str_format("func '{}' expected at least {} args, but {} were provided.",
+                                                 name, Vec_len(func_def.args) - 1, provided_args))
     }
-
-    // Ok(())
 }
 
-// pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // match &e.node_type {
+eval_expr := proc(context: mut ref Context, e: ref Expr) throws Str returns EvalResult {
     switch e.node_type {
-    //     NodeType::Body => eval_body(context, &e.params),
-    case NodeType.Body:
-        return eval_body(context, e.params)
-
-    //     NodeType::LLiteral(Literal::Number(li64)) => Ok(EvalResult::new(li64)),
-    case NodeType.LLiteral(lit):
-        switch lit {
-        case Literal.Number(li64):
-            return EvalResult_impl.new(li64)
-        //     NodeType::LLiteral(Literal::Str(lstring)) => Ok(EvalResult::new(lstring)),
-        case Literal.Str(lstring):
-            return EvalResult_impl.new(lstring)
-        //     NodeType::LLiteral(Literal::List(llist)) => Ok(EvalResult::new(llist)),
-        case Literal.List(llist):
-            return EvalResult_impl.new(llist)
-        case:
-            throw e.lang_error(context.path, "eval", "Unknown literal type")
-        }
-
-    //     NodeType::FCall => {
-    //         let f_name = get_func_name_in_call(&e);
-    //         eval_func_proc_call(&f_name, context, &e)
-    //     },
-    case NodeType.FCall:
-        f_name := get_func_name_in_call(e)
-        return eval_func_proc_call(f_name, context, e)
-
-    //     NodeType::Declaration(declaration) => {
-    //         eval_declaration(&declaration, context, &e)
-    //     },
-    case NodeType.Declaration(declaration):
-        return eval_declaration(declaration, context, e)
-
-    //     NodeType::Assignment(var_name) => {
-    //         eval_assignment(&var_name, context, &e)
-    //     },
-    case NodeType.Assignment(var_name):
-        return eval_assignment(var_name, context, e)
-
-    //     NodeType::Identifier(name) => eval_identifier_expr(&name, context, &e),
-    case NodeType.Identifier(name):
-        return eval_identifier_expr(name, context, e)
-
-    //     NodeType::If => {
-    case NodeType.If:
-        //         validate_conditional_params(&context.path, e, "if", 2, 3)?;
-        validate_conditional_params(context.path, e, "if", 2, 3)
-        //         let cond_expr = e.get(0)?;
-        cond_expr := e.get(0)
-        //         let result_cond = eval_expr(context, cond_expr)?;
-        result_cond := eval_expr(context, cond_expr)
-        //         if result_cond.is_throw {
-        //             return Ok(result_cond)
-        //         }
-        if result_cond.is_throw {
-            return result_cond
-        }
-        //         if eval_condition_to_bool(context, &result_cond, cond_expr)? {
-        //             return eval_expr(context, e.get(1)?)
-        //         } else if e.params.len() == 3 {
-        //             return eval_expr(context, e.get(2)?)
-        //         } else {
-        //             return Ok(EvalResult::new(""))
-        //         }
-        if eval_condition_to_bool(context, result_cond, cond_expr) {
-            return eval_expr(context, e.get(1))
-        }
-        if eq(e.params.len(), 3) {
-            return eval_expr(context, e.get(2))
-        }
-        return EvalResult_impl.new("")
-    //     },
-
-    //     NodeType::While => {
-    case NodeType.While:
-        //         validate_conditional_params(&context.path, e, "while", 2, 2)?;
-        validate_conditional_params(context.path, e, "while", 2, 2)
-        //         let mut cond_expr = e.get(0)?;
-        mut cond_expr := e.get(0)
-        //         let mut result_cond = eval_expr(context, cond_expr)?;
-        mut result_cond := eval_expr(context, cond_expr)
-        //         if result_cond.is_throw {
-        //             return Ok(result_cond.clone())
-        //         }
-        if result_cond.is_throw {
-            return result_cond
-        }
-        //         while eval_condition_to_bool(context, &result_cond, cond_expr)? {
-        while eval_condition_to_bool(context, result_cond, cond_expr) {
-            //             let result = eval_expr(context, e.get(1)?)?;
-            result := eval_expr(context, e.get(1))
-            //             if result.is_return || result.is_throw {
-            //                 return Ok(result)
-            //             }
-            if or(result.is_return, result.is_throw) {
-                return result
+        case NodeType.Body:
+            return eval_body(context, e.params)
+        case NodeType.LLiteral:
+            // Handle literal values
+            literal := e.node_type.literal_value
+            switch literal {
+                case Literal.Number:
+                    return EvalResult_new(literal.number_value)
+                case Literal.Str:
+                    return EvalResult_new(literal.str_value)
+                case Literal.List:
+                    return EvalResult_new(literal.list_value)
             }
-            //             cond_expr = e.get(0)?;
-            cond_expr = e.get(0)
-            //             result_cond = eval_expr(context, cond_expr)?;
-            result_cond = eval_expr(context, cond_expr)
-            //             if result_cond.is_throw {
-            //                 return Ok(result_cond)
-            //             }
+        case NodeType.FCall:
+            f_name := get_func_name_in_call(e)
+            return eval_func_proc_call(f_name, context, e)
+        case NodeType.Declaration:
+            declaration := e.node_type.declaration_value
+            return eval_declaration(declaration, context, e)
+        case NodeType.Assignment:
+            var_name := e.node_type.assignment_value
+            return eval_assignment(var_name, context, e)
+        case NodeType.Identifier:
+            name := e.node_type.identifier_value
+            return eval_identifier_expr(name, context, e)
+        case NodeType.If:
+            validate_conditional_params(context.path, e, "if", 2, 3)
+            cond_expr := Expr_get(e, 0)
+            result_cond := eval_expr(context, cond_expr)
             if result_cond.is_throw {
                 return result_cond
             }
-        //         }
-        }
-        //         Ok(EvalResult::new(""))
-        return EvalResult_impl.new("")
-    //     },
-
-    //     NodeType::Switch => {
-    case NodeType.Switch:
-        //         if e.params.len() < 3 {
-        //             return Err(e.lang_error(&context.path, "eval", "switch nodes must have at least 3 parameters."));
-        //         }
-        if lt(e.params.len(), 3) {
-            throw e.lang_error(context.path, "eval", "switch nodes must have at least 3 parameters.")
-        }
-        //         let to_switch = e.get(0)?;
-        to_switch := e.get(0)
-        //         let value_type = get_value_type(&context, &to_switch)?;
-        value_type := get_value_type(context, to_switch)
-        //         let result_to_switch = eval_expr(context, &to_switch)?;
-        result_to_switch := eval_expr(context, to_switch)
-        //         if result_to_switch.is_throw {
-        //             return Ok(result_to_switch);
-        //         }
-        if result_to_switch.is_throw {
-            return result_to_switch
-        }
-
-        //         let mut param_it = 1;
-        mut param_it := 1
-        //         while param_it < e.params.len() {
-        while lt(param_it, e.params.len()) {
-            //             let case = e.get(param_it)?;
-            case_expr := e.get(param_it)
-            //             if case.node_type == NodeType::DefaultCase {
-            //                 param_it += 1;
-            //                 return eval_expr(context, e.get(param_it)?);
-            //             }
-            if eq(case_expr.node_type, NodeType.DefaultCase) {
-                param_it = add(param_it, 1)
-                return eval_expr(context, e.get(param_it))
+            if eval_condition_to_bool(context, ref result_cond, cond_expr) {
+                return eval_expr(context, Expr_get(e, 1))
+            } else if Vec_len(e.params) == 3 {
+                return eval_expr(context, Expr_get(e, 2))
+            } else {
+                return EvalResult_new("")
+            }
+        case NodeType.While:
+            validate_conditional_params(context.path, e, "while", 2, 2)
+            mut cond_expr := Expr_get(e, 0)
+            mut result_cond := eval_expr(context, cond_expr)
+            if result_cond.is_throw {
+                return result_cond
+            }
+            while eval_condition_to_bool(context, ref result_cond, cond_expr) {
+                result := eval_expr(context, Expr_get(e, 1))
+                if result.is_return || result.is_throw {
+                    return result
+                }
+                cond_expr = Expr_get(e, 0)
+                result_cond = eval_expr(context, cond_expr)
+                if result_cond.is_throw {
+                    return result_cond
+                }
+            }
+            return EvalResult_new("")
+        case NodeType.Switch:
+            if Vec_len(e.params) < 3 {
+                throw Expr_lang_error(e, context.path, "eval", "switch nodes must have at least 3 parameters.")
+            }
+            to_switch := Expr_get(e, 0)
+            value_type := get_value_type(context, to_switch)
+            result_to_switch := eval_expr(context, to_switch)
+            if result_to_switch.is_throw {
+                return result_to_switch
             }
 
-            //             let case_type = get_value_type(&context, &case)?;
-            case_type := get_value_type(context, case_expr)
-            //             let vt_str = value_type_to_str(&value_type);
-            vt_str := value_type_to_str(value_type)
-            //             let ct_str = value_type_to_str(&case_type);
-            ct_str := value_type_to_str(case_type)
-            //             if ct_str != vt_str && ct_str != format!("{}Range", vt_str) {
-            //                 return Err(e.lang_error(&context.path, "eval", &format!("switch value type {:?}, case value type {:?}", value_type, case_type)));
-            //             }
-            range_type := format(vt_str, "Range")
-            if and(not(ct_str.eq(vt_str)), not(ct_str.eq(range_type))) {
-                throw e.lang_error(context.path, "eval", format("switch value type ", vt_str, ", case value type ", ct_str))
-            }
-
-            //             // Handle pattern matching with payload extraction
-            //             if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case.node_type {
-            switch case_expr.node_type {
-            case NodeType.Pattern(pattern_info):
-                variant_name := pattern_info.variant_name
-                binding_var := pattern_info.binding_var
-
-                //                 // Check if the switch value's enum variant matches the pattern
-                //                 // The switch value should be an enum stored as EnumVal
-                //                 // We need to extract the enum value - get the identifier name from to_switch
-                //                 let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
-                //                     name
-                //                 } else {
-                //                     return Err(case.error(&context.path, "eval", "Pattern matching requires switch value to be a variable"));
-                //                 };
-                mut enum_var_name := ""
-                switch to_switch.node_type {
-                case NodeType.Identifier(name):
-                    enum_var_name = name
-                case:
-                    throw case_expr.error(context.path, "eval", "Pattern matching requires switch value to be a variable")
+            mut param_it := 1
+            while param_it < Vec_len(e.params) {
+                case_expr := Expr_get(e, param_it)
+                if case_expr.node_type == NodeType.DefaultCase {
+                    param_it = param_it + 1
+                    return eval_expr(context, Expr_get(e, param_it))
                 }
 
-                //                 let enum_val = context.get_enum(enum_var_name, &case)?;
-                enum_val := context.get_enum(enum_var_name, case_expr)
+                case_type := get_value_type(context, case_expr)
+                vt_str := value_type_to_str(ref value_type)
+                ct_str := value_type_to_str(ref case_type)
+                if ct_str != vt_str && ct_str != Str_format("{}Range", vt_str) {
+                    throw Expr_lang_error(e, context.path, "eval", Str_format("switch value type {:?}, case value type {:?}", value_type, case_type))
+                }
 
-                //                 // Check if variant matches (enum_val.enum_name should match variant_name)
-                //                 let full_variant = format!("{}.{}", enum_val.enum_type, enum_val.enum_name);
-                full_variant := format(enum_val.enum_type, ".", enum_val.enum_name)
-                //                 if full_variant == *variant_name || enum_val.enum_name == *variant_name {
-                if or(full_variant.eq(variant_name), enum_val.enum_name.eq(variant_name)) {
-                    //                     // Match! Extract the payload and bind it to the variable
-                    //                     param_it += 1;
-                    param_it = add(param_it, 1)
-
-                    //                     // Extract payload into the binding variable
-                    //                     if let Some(payload_type) = &enum_val.payload_type {
-                    //                         if let Some(payload_bytes) = &enum_val.payload {
-                    if enum_val.has_payload_type {
-                        if enum_val.has_payload {
-                            // Use the existing payload extraction logic
-                            // We need to insert the payload into context with the binding_var name
-                            // TODO FIX: Bool enum payload extraction - needs special handling to read 1 byte and create Bool value
-
-                            // TODO: Implement full payload extraction logic
-                            // This requires handling different payload types (Bool, I64, Str, structs, enums)
-                            // For now, mark as not fully implemented
-                            TODO(loc(), "Pattern matching payload extraction not fully implemented in Til")
-                        }
+                // Handle pattern matching with payload extraction
+                if case_expr.node_type == NodeType.Pattern {
+                    pattern_info := case_expr.node_type.pattern_value
+                    variant_name := pattern_info.variant_name
+                    binding_var := pattern_info.binding_var
+                    // Check if the switch value's enum variant matches the pattern
+                    // The switch value should be an enum stored as EnumVal
+                    // We need to extract the enum value - get the identifier name from to_switch
+                    enum_var_name := ""
+                    if to_switch.node_type == NodeType.Identifier {
+                        enum_var_name = to_switch.node_type.identifier_value
+                    } else {
+                        throw Expr_error(case_expr, context.path, "eval", "Pattern matching requires switch value to be a variable")
                     }
 
-                    //                     // Execute the case body with the bound variable available
-                    //                     return eval_expr(context, e.get(param_it)?);
-                    return eval_expr(context, e.get(param_it))
-                //                 } else {
-                }
-                //                     // No match, continue to next case
-                //                     param_it += 2;
-                //                     continue;
-                //                 }
-                param_it = add(param_it, 2)
-                continue
-            //             }
+                    enum_val := Context_get_enum(context, enum_var_name, case_expr)
 
-            case:
-                // Regular case matching (not pattern)
-                //             let is_match = match &case.node_type {
-                mut is_match := false
-                switch case_expr.node_type {
-                //                 NodeType::Range => {
-                case NodeType.Range:
-                    //                     let start = eval_expr(context, &case.params[0])?;
-                    start := eval_expr(context, case_expr.params.get(0))
-                    //                     if start.is_throw {
-                    //                         return Ok(start);
-                    //                     }
+                    // Check if variant matches (enum_val.enum_name should match variant_name)
+                    full_variant := Str_format("{}.{}", enum_val.enum_type, enum_val.enum_name)
+                    if full_variant == variant_name || enum_val.enum_name == variant_name {
+                        // Match! Extract the payload and bind it to the variable
+                        param_it = param_it + 1
+
+                        // Extract payload into the binding variable
+                        if enum_val.payload_type != "" {  // Option<ValueType> -> empty string check
+                            if Vec_len(enum_val.payload) > 0 {  // Option<Vec<u8>> -> check if has data
+                                payload_type := enum_val.payload_type
+                                payload_bytes := enum_val.payload
+                                // Use the existing payload extraction logic
+                                // We need to insert the payload into context with the binding_var name
+                                // TODO FIX: Bool enum payload extraction - needs special handling to read 1 byte and create Bool value
+
+                                // Check if payload is Bool type
+                                if payload_type == ValueType.TCustom && payload_type.custom_name == "Bool" {
+                                    if Vec_len(payload_bytes) != 1 {
+                                        throw Expr_error(case_expr, context.path, "eval", "Invalid Bool payload size")
+                                    }
+                                    bool_val := Vec_get(payload_bytes, 0) != 0
+
+                                    // First add the symbol to context
+                                    ScopeStack_declare_symbol(
+                                        context.scope_stack,
+                                        binding_var,
+                                        SymbolInfo{
+                                            value_type: ValueType.TCustom{custom_name: "Bool"},
+                                            is_mut: false,
+                                            is_copy: false,
+                                            is_own: false,
+                                        }
+                                    )
+
+                                    // Now insert the value
+                                    insert_bool(context, binding_var, Bool_to_string(bool_val), case_expr)
+                                }
+                                // Check if payload is I64 type
+                                else if payload_type == ValueType.TCustom && payload_type.custom_name == "I64" {
+                                    if Vec_len(payload_bytes) != 8 {
+                                        throw Expr_error(case_expr, context.path, "eval", "Invalid I64 payload size")
+                                    }
+                                    mut bytes := Array_new_u8(8)
+                                    Array_copy_from_slice(bytes, payload_bytes, 0, 8)
+                                    i64_val := I64_from_le_bytes(bytes)
+
+                                    // First add the symbol to context
+                                    ScopeStack_declare_symbol(
+                                        context.scope_stack,
+                                        binding_var,
+                                        SymbolInfo{
+                                            value_type: ValueType.TCustom{custom_name: "I64"},
+                                            is_mut: false,
+                                            is_copy: false,
+                                            is_own: false,
+                                        }
+                                    )
+
+                                    Context_insert_i64(context, binding_var, I64_to_string(i64_val), case_expr)
+                                }
+                                // Check if payload is Str type
+                                else if payload_type == ValueType.TCustom && payload_type.custom_name == "Str" {
+                                    // For Str, the payload contains pointer + size (16 bytes total)
+                                    // We need to reconstruct the string from the arena
+                                    if Vec_len(payload_bytes) != 16 {
+                                        throw Expr_error(case_expr, context.path, "eval", Str_format("Invalid Str payload size: expected 16, got {}", Vec_len(payload_bytes)))
+                                    }
+                                    // Extract the c_string pointer (first 8 bytes)
+                                    mut ptr_bytes := Array_new_u8(8)
+                                    Array_copy_from_slice(ptr_bytes, payload_bytes, 0, 8)
+                                    ptr_offset := I64_from_le_bytes(ptr_bytes)
+
+                                    // Extract size (next 8 bytes)
+                                    mut size_bytes := Array_new_u8(8)
+                                    Array_copy_from_slice(size_bytes, payload_bytes, 8, 16)
+                                    size := I64_from_le_bytes(size_bytes)
+
+                                    // First add the symbol to context
+                                    ScopeStack_declare_symbol(
+                                        context.scope_stack,
+                                        binding_var,
+                                        SymbolInfo{
+                                            value_type: ValueType.TCustom{custom_name: "Str"},
+                                            is_mut: false,
+                                            is_copy: false,
+                                            is_own: false,
+                                        }
+                                    )
+
+                                    if size > 0 && ptr_offset > 0 {
+                                        // Read the actual string from the global arena
+                                        ptr := ptr_offset as I64
+                                        len := size as I64
+                                        arena := Arena_g()
+                                        if ptr + len > Vec_len(arena.memory) {
+                                            throw Expr_error(case_expr, context.path, "eval", "String payload pointer out of bounds")
+                                        }
+                                        str_bytes := Vec_slice(arena.memory, ptr, ptr + len)
+                                        string_value := Str_from_utf8_lossy(str_bytes)
+                                        Context_insert_string(context, binding_var, string_value, case_expr)
+                                    } else {
+                                        empty_string := ""
+                                        Context_insert_string(context, binding_var, empty_string, case_expr)
+                                    }
+                                }
+                                // Handle custom types (structs and enums)
+                                else if payload_type == ValueType.TCustom {
+                                    type_name := payload_type.custom_name
+                                    type_symbol_opt := ScopeStack_lookup_symbol(context.scope_stack, type_name)
+                                    if !type_symbol_opt.is_some {
+                                        throw Expr_error(case_expr, context.path, "eval", Str_format("Unknown type '{}'", type_name))
+                                    }
+                                    type_symbol := type_symbol_opt.value
+
+                                    // Check if it's a struct type
+                                    if type_symbol.value_type == ValueType.TType && type_symbol.value_type.typedef_variant == TTypeDef.TStructDef {
+                                        // Handle struct payloads
+                                        // First add the symbol to context
+                                        ScopeStack_declare_symbol(
+                                            context.scope_stack,
+                                            binding_var,
+                                            SymbolInfo{
+                                                value_type: payload_type,
+                                                is_mut: false,
+                                                is_copy: false,
+                                                is_own: false,
+                                            }
+                                        )
+
+                                        // Allocate destination struct in arena
+                                        Context_insert_struct(context, binding_var, type_name, case_expr)
+
+                                        // Get destination offset
+                                        dest_offset_opt := ScopeStack_lookup_var(context.scope_stack, binding_var)
+                                        if !dest_offset_opt.is_some {
+                                            throw Expr_error(case_expr, context.path, "eval", Str_format("Struct '{}' not found in arena", binding_var))
+                                        }
+                                        dest_offset := dest_offset_opt.value
+
+                                        // Validate payload size
+                                        struct_size := Context_get_type_size(context, type_name)
+                                        if Vec_len(payload_bytes) != struct_size {
+                                            throw Expr_error(case_expr, context.path, "eval", Str_format(
+                                                "Payload size mismatch: expected {}, got {}",
+                                                struct_size, Vec_len(payload_bytes)
+                                            ))
+                                        }
+
+                                        // Copy payload bytes directly into arena
+                                        arena := Arena_g()
+                                        Vec_copy_from_slice(arena.memory, dest_offset, payload_bytes, 0, struct_size)
+                                    }
+                                    // Check if it's an enum type
+                                    else if type_symbol.value_type == ValueType.TType && type_symbol.value_type.typedef_variant == TTypeDef.TEnumDef {
+                                        // Handle enum payloads
+                                        // The payload_bytes contains: [8 bytes variant tag][N bytes enum's payload]
+
+                                        if Vec_len(payload_bytes) < 8 {
+                                            throw Expr_error(case_expr, context.path, "eval", "Invalid enum payload: too small")
+                                        }
+
+                                        // Extract variant tag (first 8 bytes)
+                                        mut variant_bytes := Array_new_u8(8)
+                                        Array_copy_from_slice(variant_bytes, payload_bytes, 0, 8)
+                                        variant_pos := I64_from_le_bytes(variant_bytes)
+
+                                        // Extract enum's own payload (rest of bytes)
+                                        inner_payload := Vec{I64}
+                                        inner_payload_type_opt := Option{ValueType}
+                                        if Vec_len(payload_bytes) > 8 {
+                                            inner_payload = Vec_slice(payload_bytes, 8, Vec_len(payload_bytes))
+                                        }
+
+                                        // Get the enum definition to find variant name
+                                        enum_def_opt := ScopeStack_lookup_enum(context.scope_stack, type_name)
+                                        if !enum_def_opt.is_some {
+                                            throw Expr_error(case_expr, context.path, "eval", Str_format("Enum definition for '{}' not found", type_name))
+                                        }
+                                        enum_def := enum_def_opt.value
+
+                                        // Find variant name by matching the variant position
+                                        mut found_variant := ""
+                                        for name, _ in enum_def.enum_map {
+                                            pos := Context_get_variant_pos(enum_def, name, context.path, case_expr)
+                                            if pos == variant_pos {
+                                                found_variant = name
+                                                break
+                                            }
+                                        }
+
+                                        if found_variant == "" {
+                                            throw Expr_error(case_expr, context.path, "eval", Str_format("Variant position {} not found in enum {}", variant_pos, type_name))
+                                        }
+                                        variant_name_inner := found_variant
+
+                                        // Get the inner payload type
+                                        inner_payload_type_opt = Map_get(enum_def.enum_map, variant_name_inner)
+
+                                        // Add symbol to context first
+                                        ScopeStack_declare_symbol(
+                                            context.scope_stack,
+                                            binding_var,
+                                            SymbolInfo{
+                                                value_type: payload_type,
+                                                is_mut: false,
+                                                is_copy: false,
+                                                is_own: false,
+                                            }
+                                        )
+
+                                        // Now reconstruct the enum and insert it
+                                        enum_val_str := Str_format("{}.{}", type_name, variant_name_inner)
+
+                                        // Set temp_enum_payload if there's an inner payload
+                                        if Vec_len(inner_payload) > 0 && inner_payload_type_opt.is_some {
+                                            context.temp_enum_payload = (inner_payload, inner_payload_type_opt.value)
+                                        }
+
+                                        // Insert the enum
+                                        Context_insert_enum(context, binding_var, type_name, enum_val_str, case_expr)
+                                    }
+                                    // Other types not yet implemented
+                                    else {
+                                        throw Expr_error(case_expr, context.path, "eval", Str_format("Pattern matching not yet implemented for payload type: {:?}", payload_type))
+                                    }
+                                }
+                                // Unknown types
+                                else {
+                                    throw Expr_error(case_expr, context.path, "eval", Str_format("Pattern matching not yet implemented for payload type: {:?}", payload_type))
+                                }
+                            }
+                        }
+
+                        // Execute the case body with the bound variable available
+                        return eval_expr(context, Expr_get(e, param_it))
+                    } else {
+                        // No match, continue to next case
+                        param_it = param_it + 2
+                        continue
+                    }
+                }
+
+                // Check for range or regular value matching
+                is_match := false
+                if case_expr.node_type == NodeType.Range {
+                    start := eval_expr(context, Vec_get(case_expr.params, 0))
                     if start.is_throw {
                         return start
                     }
-                    //                     let end = eval_expr(context, &case.params[1])?;
-                    end_result := eval_expr(context, case_expr.params.get(1))
-                    //                     if end.is_throw {
-                    //                         return Ok(end);
-                    //                     }
-                    if end_result.is_throw {
-                        return end_result
+                    end := eval_expr(context, Vec_get(case_expr.params, 1))
+                    if end.is_throw {
+                        return end
                     }
-                    //                     match &value_type {
-                    switch value_type {
-                    //                         ValueType::TCustom(s) if s == "I64" || s == "U8" => {
-                    case ValueType.TCustom(s):
-                        if or(s.eq("I64"), s.eq("U8")) {
-                            //                             let val = result_to_switch.value.parse::<i64>();
-                            //                             let start_val = start.value.parse::<i64>();
-                            //                             let end_val = end.value.parse::<i64>();
-                            //
-                            //                             if let (Ok(val), Ok(start_val), Ok(end_val)) = (val, start_val, end_val) {
-                            //                                 val >= start_val && val <= end_val
-                            //                             } else {
-                            //                                 false
-                            //                             }
-                            // Parse all values
-                            val := str_to_i64(result_to_switch.value)
-                            start_val := str_to_i64(start.value)
-                            end_val := str_to_i64(end_result.value)
-                            is_match = and(ge(val, start_val), le(val, end_val))
-                        }
-                    //                         }
-                    //                         _ => {
-                    case:
-                        //                             // Lexicographical comparisons for Str
-                        //                             result_to_switch.value >= start.value && result_to_switch.value <= end.value
-                        is_match = and(ge(result_to_switch.value, start.value), le(result_to_switch.value, end_result.value))
-                    //                         }
-                    }
-                //                     }
-                //                 }
+                    // Check value type for range matching
+                    if value_type == ValueType.TCustom && (value_type.custom_name == "I64" || value_type.custom_name == "U8") {
+                        val_opt := Str_parse_i64(result_to_switch.value)
+                        start_val_opt := Str_parse_i64(start.value)
+                        end_val_opt := Str_parse_i64(end.value)
 
-                //                 _ => {
-                case:
-                    //                     let result_case = eval_expr(context, &case)?;
+                        if val_opt.is_some && start_val_opt.is_some && end_val_opt.is_some {
+                            val := val_opt.value
+                            start_val := start_val_opt.value
+                            end_val := end_val_opt.value
+                            is_match = val >= start_val && val <= end_val
+                        } else {
+                            is_match = false
+                        }
+                    } else {
+                        // Lexicographical comparisons for Str
+                        is_match = result_to_switch.value >= start.value && result_to_switch.value <= end.value
+                    }
+                } else {
                     result_case := eval_expr(context, case_expr)
-                    //                     if result_case.is_throw {
-                    //                         return Ok(result_case);
-                    //                     }
                     if result_case.is_throw {
                         return result_case
                     }
-                    //                     result_to_switch.value == result_case.value
-                    is_match = result_to_switch.value.eq(result_case.value)
-                //                 }
+                    is_match = result_to_switch.value == result_case.value
                 }
-                //             };
 
-                //             param_it += 1;
-                param_it = add(param_it, 1)
-                //             if is_match {
-                //                 return eval_expr(context, e.get(param_it)?);
-                //             }
+                param_it = param_it + 1
                 if is_match {
-                    return eval_expr(context, e.get(param_it))
+                    return eval_expr(context, Expr_get(e, param_it))
                 }
-                //             param_it += 1;
-                param_it = add(param_it, 1)
+                param_it = param_it + 1
             }
-        //         }
-        }
-        //         return Ok(EvalResult::new(""))
-        return EvalResult_impl.new("")
-    //     },
-
-    //     NodeType::Return => {
-    case NodeType.Return:
-        //         if e.params.len() == 0 {
-        //             return Ok(EvalResult::new_return(""))
-        //         } else if e.params.len() > 1 {
-        //             return Err(e.lang_error(&context.path, "eval", "multiple return values not implemented yet"))
-        //         } else {
-        //             let result = eval_expr(context, e.get(0)?)?;
-        //             if result.is_throw {
-                        return Ok(result)
-        //             }
-        //             return Ok(EvalResult::new_return(&result.value))
-        //         }
-        if eq(e.params.len(), 0) {
-            return EvalResult_impl.new_return("")
-        }
-        if gt(e.params.len(), 1) {
-            throw e.lang_error(context.path, "eval", "multiple return values not implemented yet")
-        }
-        result := eval_expr(context, e.get(0))
-        if result.is_throw {
-            return result
-        }
-        return EvalResult_impl.new_return(result.value)
-    //     },
-
-    //     NodeType::Throw => {
-    case NodeType.Throw:
-        //         if e.params.len() != 1 {
-        //             return Err(e.lang_error(&context.path, "eval", "Throw can only return one value. This should have been caught before"))
-        //         } else {
-        //             let param_expr = e.get(0)?;
-        //             let result = eval_expr(context, param_expr)?;
-        //             if result.is_throw {
-        //                 return Ok(result)
-        //             }
-        //             let thrown_type = get_value_type(context, param_expr)?;
-        //             return Ok(EvalResult::new_throw(&result.value, thrown_type))
-        //         }
-        if not(eq(e.params.len(), 1)) {
-            throw e.lang_error(context.path, "eval", "Throw can only return one value. This should have been caught before")
-        }
-        param_expr := e.get(0)
-        result := eval_expr(context, param_expr)
-        if result.is_throw {
-            return result
-        }
-        thrown_type := get_value_type(context, param_expr)
-        return EvalResult_impl.new_throw(result.value, thrown_type)
-    //     },
-
-    //     NodeType::Catch => {
-    //         return Err(e.lang_error(&context.path, "eval", "Catch statements should always be evaluated within bodies."))
-    //     },
-    case NodeType.Catch:
-        throw e.lang_error(context.path, "eval", "Catch statements should always be evaluated within bodies.")
-
-    //     _ => Err(e.lang_error(&context.path, "eval", &format!("Not implemented yet, found node type {:?}.", e.node_type))),
-    case:
-        throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type: ", enum_to_str(e.node_type)))
+            return EvalResult_new("")
+        case NodeType.Return:
+            if Vec_len(e.params) == 0 {
+                return EvalResult_new_return("")
+            } else if Vec_len(e.params) > 1 {
+                throw Expr_lang_error(e, context.path, "eval", "multiple return values not implemented yet")
+            } else {
+                result := eval_expr(context, Expr_get(e, 0))
+                if result.is_throw {
+                    return result
+                }
+                return EvalResult_new_return(result.value)
+            }
+        case NodeType.Throw:
+            if Vec_len(e.params) != 1 {
+                throw Expr_lang_error(e, context.path, "eval", "Throw can only return one value. This should have been caught before")
+            } else {
+                param_expr := Expr_get(e, 0)
+                result := eval_expr(context, param_expr)
+                if result.is_throw {
+                    return result
+                }
+                thrown_type := get_value_type(context, param_expr)
+                return EvalResult_new_throw(result.value, thrown_type)
+            }
+        case NodeType.Catch:
+            throw Expr_lang_error(e, context.path, "eval", "Catch statements should always be evaluated within bodies.")
+        default:
+            throw Expr_lang_error(e, context.path, "eval", Str_format("Not implemented yet, found node type {:?}.", e.node_type))
     }
 }
 
-// fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // if e.node_type != NodeType::FCall {
-    //     return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall node type"));
-    // }
-    if not(eq(e.node_type, NodeType.FCall)) {
-        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall node type")
+eval_func_proc_call := proc(name: Str, context: mut ref Context, e: ref Expr) throws Str returns EvalResult {
+    if e.node_type != NodeType.FCall {
+        throw Expr_lang_error(e, context.path, "eval", "eval_func_proc_call: Expected FCall node type")
     }
-    // let func_expr = match e.params.first() {
-    //     Some(expr) => expr,
-    //     None => return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
-    // };
-    if lt(e.params.len(), 1) {
-        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")
+    func_expr_opt := Vec_first(e.params)
+    if !func_expr_opt.is_some {
+        throw Expr_lang_error(e, context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")
     }
-    func_expr := e.params.get(0)
+    func_expr := func_expr_opt.value
 
-    // if context.scope_stack.lookup_struct(name).is_some() {
-    if context.scope_stack.lookup_struct(name).is_some() {
+    struct_lookup := ScopeStack_lookup_struct(context.scope_stack, name)
+    if struct_lookup.is_some {
         // TODO allow instantiations with arguments
-        //     let id_expr = e.get(0)?;
-        id_expr := e.get(0)
-        //     if id_expr.params.len() == 0 {
-        if eq(id_expr.params.len(), 0) {
-            //         let id_name = match &id_expr.node_type {
-            //             NodeType::Identifier(s) => s,
-            //             _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
-            //         };
-            mut id_name := ""
-            switch id_expr.node_type {
-            case NodeType.Identifier(s):
-                id_name = s
-            case:
-                throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
+        id_expr := Expr_get(e, 0)
+        if Vec_len(id_expr.params) == 0 {
+            id_name := ""
+            if id_expr.node_type == NodeType.Identifier {
+                id_name = id_expr.node_type.identifier_value
+            } else {
+                throw Expr_todo_error(e, context.path, "eval", "Expected identifier name for struct instantiation")
             }
-
-            //         context.insert_struct(&id_name, &name, e)?;
-            context.insert_struct(id_name, name, e)
-            //         // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
-            //         return Ok(EvalResult::new(match id_name.as_str() {
-            //             "Bool" => "false",
-            //             "U8" | "I64" => "0",
-            //             "Str" => "",
-            //             _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
-            //         }))
-            if id_name.eq("Bool") {
-                return EvalResult_impl.new("false")
+            Context_insert_struct(context, id_name, name, e)
+            // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
+            return_val := ""
+            if id_name == "Bool" {
+                return_val = "false"
+            } else if id_name == "U8" || id_name == "I64" {
+                return_val = "0"
+            } else if id_name == "Str" {
+                return_val = ""
+            } else {
+                return_val = id_name  // TODO Where is the struct being inserted in this case? Is this returned value even used?
             }
-            if or(id_name.eq("U8"), id_name.eq("I64")) {
-                return EvalResult_impl.new("0")
-            }
-            if id_name.eq("Str") {
-                return EvalResult_impl.new("")
-            }
-            // TODO Where is the struct being inserted in this case? Is this returned value even used?
-            return EvalResult_impl.new(id_name)
-        //     }
+            return EvalResult_new(return_val)
         }
-    // }
     }
 
-    //let combined_name = &get_combined_name(&context.path, func_expr)?;
     combined_name := get_combined_name(context.path, func_expr)
 
     // Check if this is an enum constructor call (e.g., Color.Green(true))
-    // let parts: Vec<&str> = combined_name.split('.').collect();
-    parts := combined_name.split('.')
-    // if parts.len() == 2 {
-    if eq(parts.len(), 2) {
-        //     let enum_type = parts[0];
-        enum_type := parts.get(0)
-        //     if context.scope_stack.lookup_enum(enum_type).is_some() {
-        if context.scope_stack.lookup_enum(enum_type).is_some() {
+    parts := Str_split(combined_name, '.')
+    if Vec_len(parts) == 2 {
+        enum_type := Vec_get(parts, 0)
+        enum_lookup := ScopeStack_lookup_enum(context.scope_stack, enum_type)
+        if enum_lookup.is_some {
             // This is an enum constructor!
-            //         let variant_name = parts[1];
-            variant_name := parts.get(1)
+            variant_name := Vec_get(parts, 1)
 
             // Get the enum definition to check if this variant has a payload type
-            //         let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
-            enum_def := context.scope_stack.lookup_enum(enum_type).unwrap()
-            //         let variant_type = enum_def.enum_map.get(variant_name).cloned();
-            variant_type := enum_def.enum_map.get(variant_name)
+            enum_def := enum_lookup.value
+            variant_type_opt := Map_get(enum_def.enum_map, variant_name)
 
-            // TODO: Translate the massive enum constructor payload handling logic
-            // This includes handling:
-            // - Some(Some(payload_type)) - variant with payload
-            // - Some(None) - variant without payload
-            // - None - unknown variant
-            // The payload handling includes support for I64, Bool, Str, custom structs, and nested enums
-            // This is ~250 lines of complex Rust code that needs careful translation
-            TODO(loc(), "Enum constructor payload handling not fully translated yet - requires init.til and typer.til")
+            // Check if variant has a payload type
+            if variant_type_opt.is_some && variant_type_opt.value.is_some {
+                payload_type := variant_type_opt.value.value
+                // This variant expects a payload
+                if Vec_len(e.params) < 2 {
+                    throw Expr_error(e, context.path, "eval", Str_format("Enum constructor {}.{} expects a payload of type {}", enum_type, variant_name, value_type_to_str(ref payload_type)))
+                }
+
+                // Evaluate the payload argument
+                payload_expr := Expr_get(e, 1)
+                payload_result := eval_expr(context, payload_expr)
+                if payload_result.is_throw {
+                    return payload_result
+                }
+
+                // Convert payload to bytes based on type
+                payload_bytes := Vec{U8}
+                // Handle I64 payload type
+                if payload_type == ValueType.TCustom && payload_type.custom_name == "I64" {
+                    i64_val_opt := Str_parse_i64(payload_result.value)
+                    if !i64_val_opt.is_some {
+                        throw Expr_error(e, context.path, "eval", Str_format("Expected I64 payload, got '{}'", payload_result.value))
+                    }
+                    i64_val := i64_val_opt.value
+                    payload_bytes = I64_to_le_bytes(i64_val)
+                }
+                        ValueType::TCustom(struct_type_name) => {
+                            // Handle struct payloads
+                            // Check if this is a struct type
+                            let type_symbol = context.scope_stack.lookup_symbol(struct_type_name).ok_or_else(|| {
+                                e.error(&context.path, "eval", &format!("Unknown type '{}'", struct_type_name))
+                            })?;
+
+                            match &type_symbol.value_type {
+                                ValueType::TType(TTypeDef::TStructDef) => {
+                                    // Get struct size
+                                    let struct_size = context.get_type_size(struct_type_name)
+                                        .map_err(|err| e.error(&context.path, "eval", &err))?;
+
+                                    // Get struct variable name from the original expression or create temporary for literals
+                                    let struct_var_name = match &payload_expr.node_type {
+                                        NodeType::Identifier(_name) if struct_type_name == "Str" => {
+                                            // For Str payloads with identifier expressions (like t.token_str),
+                                            // create a temporary Str from the evaluated result value
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let string_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_string
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false,
+                                                is_copy: false,
+                                            is_own: false,
+                                            });
+
+                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        NodeType::Identifier(name) => name.clone(),
+                                        NodeType::LLiteral(Literal::Str(_)) if struct_type_name == "Str" => {
+                                            // For string literals, create a temporary Str struct
+                                            let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let string_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_string
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("Str".to_string()),
+                                                is_mut: false, // Temporary string is immutable
+                                                is_copy: false,
+                                            is_own: false,
+                                            });
+
+                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
+                                            // For I64 literals, create a temporary I64 struct
+                                            let temp_var_name = format!("__temp_i64_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+                                            let i64_value = &payload_result.value;
+
+                                            // Add symbol entry before calling insert_i64
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom("I64".to_string()),
+                                                is_mut: false,
+                                                is_copy: false,
+                                            is_own: false,
+                                            });
+
+                                            context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error(&context.path, "eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
+                                    };
+
+                                    // Get struct offset from arena
+                                    let offset = context.scope_stack.lookup_var(&struct_var_name).ok_or_else(|| {
+                                        e.error(&context.path, "eval", &format!("Struct '{}' not found in arena", struct_var_name))
+                                    })?;
+
+                                    // Copy struct bytes from arena
+                                    let struct_bytes = Arena::g().memory[offset..offset + struct_size].to_vec();
+                                    struct_bytes
+                                },
+                                ValueType::TType(TTypeDef::TEnumDef) => {
+                                    // Handle enum payloads
+                                    // Get enum variable name from the original expression
+                                    // If it's a function call (enum constructor), evaluate it first to create a temp variable
+                                    let enum_var_name = match &payload_expr.node_type {
+                                        NodeType::Identifier(name) if payload_expr.params.is_empty() => name.clone(),
+                                        NodeType::Identifier(_) | NodeType::FCall => {
+                                            // This is a nested enum constructor call (e.g., InnerEnum.ValueA(42))
+                                            // Create a temporary variable to hold the result
+                                            let temp_var_name = format!("__temp_enum_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
+
+                                            // Recursively evaluate the enum constructor
+                                            // This could be either an FCall or an Identifier with params (like Inner.A)
+                                            let nested_result = eval_expr(context, payload_expr)?;
+                                            if nested_result.is_throw {
+                                                return Ok(nested_result);
+                                            }
+
+                                            // Add symbol entry before calling insert_enum
+                                            context.scope_stack.declare_symbol(temp_var_name.clone(), SymbolInfo {
+                                                value_type: ValueType::TCustom(struct_type_name.clone()),
+                                                is_mut: false,
+                                                is_copy: false,
+                                            is_own: false,
+                                            });
+
+                                            // The result is the enum variant name (e.g., "InnerEnum.ValueA")
+                                            // insert_enum will use context.temp_enum_payload for the payload bytes
+                                            context.insert_enum(&temp_var_name, struct_type_name, &nested_result.value, e)?;
+                                            temp_var_name
+                                        },
+                                        _ => return Err(e.error(&context.path, "eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
+                                    };
+
+                                    // Get the full enum value including its payload
+                                    let enum_val = context.get_enum(&enum_var_name, e)?;
+
+                                    // Calculate total enum size: 8 bytes tag + payload bytes
+                                    let mut enum_bytes = Vec::new();
+
+                                    // Get the variant position
+                                    let variant_pos = Context::get_variant_pos(
+                                        context.scope_stack.lookup_enum(struct_type_name).ok_or_else(|| {
+                                            e.error(&context.path, "eval", &format!("Enum definition for '{}' not found", struct_type_name))
+                                        })?,
+                                        &enum_val.enum_name,
+                                        &context.path,
+                                        e
+                                    )?;
+
+                                    // Add 8 bytes for variant tag
+                                    enum_bytes.extend_from_slice(&variant_pos.to_le_bytes());
+
+                                    // Add payload bytes if present
+                                    if let Some(payload_data) = &enum_val.payload {
+                                        enum_bytes.extend_from_slice(payload_data);
+                                    }
+
+                                    enum_bytes
+                                },
+                                _ => {
+                                    return Err(e.error(&context.path, "eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                                }
+                            }
+                        },
+                        _ => {
+                            return Err(e.error(&context.path, "eval", &format!("Unsupported payload type: {}", value_type_to_str(&payload_type))));
+                        }
+                    };
+
+                    // Store payload in temp location for insert_enum to use
+                    context.temp_enum_payload = Some((payload_bytes, payload_type));
+
+                    // Return the enum variant name
+                    return Ok(EvalResult::new(&format!("{}.{}", enum_type, variant_name)));
+                },
+                Some(None) => {
+                    // This variant doesn't have a payload, but constructor was called with args
+                    if e.params.len() > 1 {
+                        return Err(e.error(&context.path, "eval", &format!("Enum variant {}.{} does not take a payload", enum_type, variant_name)));
+                    }
+                },
+                None => {
+                    return Err(e.error(&context.path, "eval", &format!("Enum {} does not have variant {}", enum_type, variant_name)));
+                }
+            }
         }
     }
 
-    //     let mut new_fcall_e = e.clone();
-    mut new_fcall_e := e.clone()
-    //     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
-    //         Some(func_def_) => func_def_,
-    //         None  => {
-    //             return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Instantiations should be handled already"))
-    //         },
-    //     };
-    func_def_option := get_func_def_for_fcall_with_expr(context, new_fcall_e)
-    if func_def_option.is_none() {
-        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
-    }
-    func_def := func_def_option.unwrap()
-
-    //     if func_def.is_ext() {
+    let mut new_fcall_e = e.clone();
+    let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
+        Some(func_def_) => func_def_,
+        None  => {
+            return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Instantiations should be handled already"))
+        },
+    };
     if func_def.is_ext() {
         // External/core functions are treated specially
-        //         let is_proc = func_def.is_proc();
-        is_proc := func_def.is_proc()
-        //         let parts: Vec<&str> = combined_name.split('.').collect();
-        parts_split := combined_name.split('.')
-        //         let last_name = match parts.last() {
-        //             Some(last_name_) => last_name_,
-        //             None => {
-        //                 return Err(e.lang_error(&context.path, "eval", "Somehow function without name"))
-        //             }
-        //         };
-        if eq(parts_split.len(), 0) {
-            throw e.lang_error(context.path, "eval", "Somehow function without name")
-        }
-        last_name := parts_split.last().unwrap()
-        //         return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
-        return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
-    //     }
+        let is_proc = func_def.is_proc();
+        let parts: Vec<&str> = combined_name.split('.').collect();
+        let last_name = match parts.last() {
+            Some(last_name_) => last_name_,
+            None => {
+                return Err(e.lang_error(&context.path, "eval", "Somehow function without name"))
+            }
+        };
+        return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
     }
-    //     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
-    return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
-// }
+    return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
+}
+
+fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    let inner_e = e.get(0)?;
+    let mut value_type = match get_value_type(&context, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            return Err(e.lang_error(&context.path, "eval", &error_string));
+        },
+    };
+    if declaration.value_type != ValueType::TCustom(INFER_TYPE.to_string()) {
+        if declaration.value_type == ValueType::TCustom("U8".to_string()) && value_type == ValueType::TCustom("I64".to_string()) {
+            value_type = declaration.value_type.clone();
+        } else if value_type != declaration.value_type {
+            return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type {} but initialized to type {:?}.", declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type))));
+        }
+    }
+
+    if e.params.len() != 1 {
+        return Err(e.lang_error(&context.path, "eval", "Declarations can have only one child expression"))
+    }
+
+    match value_type {
+        ValueType::TCustom(s) if s == INFER_TYPE => {
+            return Err(e.lang_error(&context.path, "eval", &format!("'{}' declared of type '{}' but still to infer type '{}'",
+                                                     declaration.name, value_type_to_str(&declaration.value_type), &s)));
+        },
+        ValueType::TType(TTypeDef::TEnumDef) => {
+            match &inner_e.node_type {
+                NodeType::EnumDef(enum_def) => {
+                    context.scope_stack.declare_enum(declaration.name.clone(), enum_def.clone());
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    return Ok(EvalResult::new(""));
+                },
+                _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected enum definition.",
+                                                              &declaration.name, value_type_to_str(&declaration.value_type)))),
+            }
+        },
+        ValueType::TType(TTypeDef::TStructDef) => {
+            match &inner_e.node_type {
+                NodeType::StructDef(struct_def) => {
+                    context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    for (_, member_decl) in &struct_def.members {
+                        if !member_decl.is_mut {
+                            let combined_name = format!("{}.{}", declaration.name, member_decl.name);
+                            let default_value = match struct_def.default_values.get(&member_decl.name) {
+                                Some(_default_value) => _default_value,
+                                None => {
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Struct member '{}.{}' expected to have default value.",
+                                                                             &declaration.name, &member_decl.name)));
+                                },
+                            };
+                            let member_value_type = match &member_decl.value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
+                                    match get_value_type(&context, &default_value) {
+                                        Ok(val_type) => val_type,
+                                        Err(error_string) => {
+                                            return Err(e.lang_error(&context.path, "eval", &error_string));
+                                        },
+                                    }
+                                },
+                                _ => member_decl.value_type.clone(),
+                            };
+
+                            match member_value_type {
+                                ValueType::TCustom(s) if s == INFER_TYPE => {
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Cannot infer type of '{}.{}', but it should be inferred already.",
+                                                                             &declaration.name, &member_decl.name)));
+                                },
+                                ValueType::TCustom(ref type_name) => {
+                                    let result = eval_expr(context, default_value)?;
+                                    if result.is_throw {
+                                        return Ok(result); // Propagate throw
+                                    }
+                                    let expr_result_str = result.value;
+                                    // TODO FIX: Bool can't be removed yet - causes "Cannot declare 'MyStruct.associated_constant' of custom type 'Bool'" error
+                                    match type_name.as_str() {
+                                        "I64" | "U8" | "Bool" | "Str" => {
+                                            context.insert_primitive(&combined_name, &member_value_type, &expr_result_str, e)?;
+                                        },
+                                        _ => {
+                                            return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
+                                                                                     &declaration.name,
+                                                                                     &member_decl.name,
+                                                                                     type_name)));
+                                        },
+                                    }
+                                },
+                                ValueType::TFunction(_) => {
+                                    match &default_value.node_type {
+                                        NodeType::FuncDef(func_def) => {
+                                            context.scope_stack.declare_func(combined_name.to_string(), func_def.clone());
+                                        },
+                                        _ => {
+                                            return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of type '{}', expected '{}' definition.",
+                                                                                     &declaration.name,
+                                                                                     &member_decl.name,
+                                                                                     value_type_to_str(&member_value_type),
+                                                                                     value_type_to_str(&member_decl.value_type))));
+                                        },
+                                    }
+                                },
+                               _ => {
+                                    return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of type '{}'",
+                                                                             &declaration.name,
+                                                                             &member_decl.name,
+                                                                             value_type_to_str(&member_decl.value_type))));
+                                },
+                            }
+
+                            context.scope_stack.declare_symbol(combined_name.to_string(),
+                                                   SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
+                        }
+                    }
+                    return Ok(EvalResult::new(""));
+                },
+                _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare {} of type {:?}, expected struct definition.",
+                                                              &declaration.name, &declaration.value_type))),
+            }
+        },
+        ValueType::TFunction(_) => {
+            match &inner_e.node_type {
+                NodeType::FuncDef(func_def) => {
+                    context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone());
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    return Ok(EvalResult::new(""))
+                },
+
+                _ => return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}', expected '{}' definition.",
+                                                         &declaration.name, value_type_to_str(&declaration.value_type), value_type_to_str(&value_type)))),
+            }
+        },
+
+        ValueType::TCustom(ref custom_type_name) => {
+            // TODO FIX: Bool can't be removed yet - causes "Could not find arena index for 'false'" error for bootstrap constants
+            match custom_type_name.as_str() {
+                "I64" | "U8" | "Bool" | "Str" => {
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    context.insert_primitive(&declaration.name, &value_type, &expr_result_str, e)?;
+                    return Ok(EvalResult::new(""))
+                },
+                _ => {
+                    context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
+                    let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
+                        Some(sym) => sym,
+                        None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", custom_type_name))),
+                    };
+                    if custom_symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                        let result = eval_expr(context, inner_e)?;
+                        if result.is_throw {
+                            return Ok(result); // Propagate throw
+                        }
+                        let enum_expr_result_str = &result.value;
+                        context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str, e)?;
+
+                    } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                        // Special case for instantiation
+                        if inner_e.node_type == NodeType::FCall && inner_e.params.len() == 1 {
+                            if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
+                                if inner_e.params[0].params.is_empty() {
+                                    if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
+                                        context.insert_struct(&declaration.name, custom_type_name, e)?;
+                                        return Ok(EvalResult::new(""))
+                                    }
+                                }
+                            }
+                        }
+                        // otherwise continue, it's a function that returns a struct
+                        let result = eval_expr(context, inner_e)?;
+                        if result.is_throw {
+                            return Ok(result); // Propagate throw
+                        }
+                        let expr_result_str = result.value;
+
+                        // Bug #25 fix: mut declarations should create independent copies
+                        // Exception: temporary return values can be transferred (zero-copy)
+                        // Non-mut declarations can share offsets (will use 'own' keyword for transfers in future)
+                        let is_temp_return_val = expr_result_str.starts_with(RETURN_INSTANCE_NAME);
+
+                        if declaration.is_mut && !is_temp_return_val {
+                            // Allocate space and copy fields for mut declaration (independent copy)
+                            context.insert_struct(&declaration.name, custom_type_name, e)?;
+                            context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
+                        } else {
+                            // Share offset for non-mut declaration or temp return value (zero-copy transfer)
+                            if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
+                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
+                            } else {
+                                return Err(e.lang_error(&context.path, "eval", &format!("Could not find arena index for '{}'", expr_result_str)));
+                            }
+                            // Keep map_instance_fields for now as fallback for copy_fields
+                            context.map_instance_fields(custom_type_name, &declaration.name, e)?;
+                        }
+                    } else {
+                        return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'. Only 'enum' and 'struct' custom types allowed.",
+                                                            &declaration.name, value_type_to_str(&custom_symbol.value_type))))
+                    }
+                    return Ok(EvalResult::new(""))
+                },
+            }
+        },
+        ValueType::TMulti(_) => {
+            return Err(e.error(&context.path, "eval", &format!("Cannot declare '{}' of type '{}'",
+                                                &declaration.name, value_type_to_str(&declaration.value_type))))
+        },
+    }
+}
+
+fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    // For field access (e.g., "v.x"), extract the base variable name
+    let base_var_name = if var_name.contains('.') {
+        var_name.split('.').next().unwrap()
+    } else {
+        var_name
+    };
+
+    let symbol_info = match context.scope_stack.lookup_symbol(base_var_name) {
+        Some(sym) => sym,
+        None => return Err(e.lang_error(&context.path, "eval", &format!("Symbol '{}' not found in context", base_var_name))),
+    };
+    if !symbol_info.is_mut && !symbol_info.is_copy && !symbol_info.is_own {
+        return Err(e.lang_error(&context.path, "eval", &format!("in eval_assignment, while assigning to '{}': Assignments can only be to mut values. Offending expr: {:?}", var_name, e)));
+    }
+    if e.params.len() != 1 {
+        return Err(e.lang_error(&context.path, "eval", &format!("in eval_assignment, while assigning to '{}': assignments must take exactly one value", var_name)));
+    }
+
+    let inner_e = e.get(0)?;
+    let value_type = match get_value_type(&context, &inner_e) {
+        Ok(val_type) => val_type,
+        Err(error_string) => {
+            return Err(e.lang_error(&context.path, "eval", &error_string));
+        },
+    };
+    match value_type {
+        ValueType::TCustom(s) if s == INFER_TYPE => {
+            return Err(e.lang_error(&context.path, "eval", &format!("Cannot assign {}, type should already be inferred of type '{:?}'.", &var_name, &symbol_info.value_type)));
+        },
+
+        ValueType::TCustom(ref custom_type_name) => {
+            match custom_type_name.as_str() {
+                "I64" | "U8" | "Str" => {
+                    let result = eval_expr(context, inner_e)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let expr_result_str = result.value;
+                    context.insert_primitive(var_name, &value_type, &expr_result_str, e)?;
+                },
+                _ => {
+                    let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
+                        Some(symbol_info) => symbol_info,
+                        None => return Err(inner_e.lang_error(&context.path, "eval", &format!("Unknown custom type '{}'", custom_type_name))),
+                    };
+                    match &custom_symbol_info.value_type {
+                        ValueType::TType(TTypeDef::TEnumDef) => {
+                            let result = eval_expr(context, inner_e)?;
+                            if result.is_throw {
+                                return Ok(result); // Propagate throw
+                            }
+                            let expr_result_str = result.value;
+                            context.insert_enum(var_name, &custom_type_name, &expr_result_str, e)?;
+                        },
+                        ValueType::TType(TTypeDef::TStructDef) => {
+                            let result = eval_expr(context, inner_e)?;
+                            if result.is_throw {
+                                return Ok(result); // Propagate throw
+                            }
+                            let expr_result_str = result.value;
+                            context.copy_fields(custom_type_name, &expr_result_str, var_name, inner_e)?;
+                        },
+                        other_value_type => {
+                            return Err(inner_e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",
+                                                                           &var_name, custom_type_name, value_type_to_str(&other_value_type))))
+                        },
+                    }
+                },
+            }
+            return Ok(EvalResult::new(""))
+        },
+        ValueType::TType(TTypeDef::TStructDef) => {
+            return Err(e.todo_error(&context.path, "eval", &format!("Cannot assign '{}' of type '{}'", &var_name, value_type_to_str(&value_type))))
+        },
+        ValueType::TFunction(_) => {
+            match &inner_e.node_type {
+                NodeType::FuncDef(func_def) => {
+                    context.scope_stack.declare_func(var_name.to_string(), func_def.clone());
+                    Ok(EvalResult::new(""))
+                },
+                _ => Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' to function type '{}'",
+                                                       &var_name, value_type_to_str(&value_type)))),
+            }
+        },
+
+        ValueType::TType(TTypeDef::TEnumDef) | ValueType::TMulti(_) => {
+            Err(e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of type '{}'.", &var_name, value_type_to_str(&value_type))))
+        },
+    }
+}
+
+fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mut Context, inner_e: &Expr, member_decl: &Declaration) -> Result<EvalResult, String> {
+    return match member_decl.value_type {
+        ValueType::TCustom(ref custom_type_name) => {
+            match custom_type_name.as_str() {
+                "I64" => {
+                    let result = context.get_i64(&format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
+                },
+                "U8" => {
+                    let result = get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
+                },
+                // TODO FIX: Bool field reading uses bool_from_context to read the .data byte
+                "Bool" => {
+                    let result = bool_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
+                },
+                "Str" => {
+                    let result = string_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    return Ok(EvalResult::new(&result.to_string()))
+                },
+                _ => Err(inner_e.lang_error(&context.path, "eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
+                                                             name, inner_name, value_type_to_str(&member_decl.value_type)))),
+            }
+        },
+        _ => Err(inner_e.lang_error(&context.path, "eval", &format!("struct '{}' has no const (static) member '{}' of struct value type '{}'",
+                                                     name, inner_name, value_type_to_str(&member_decl.value_type)))),
+    }
+}
+
+fn eval_identifier_expr_struct(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    let struct_def = match context.scope_stack.lookup_struct(name) {
+        Some(def) => def.clone(),  // Clone to avoid borrow checker issues
+        None => return Err(e.lang_error(&context.path, "eval", &format!("Struct '{}' not found in context", name))),
+    };
+    let inner_e = e.get(0)?;
+    match &inner_e.node_type {
+        NodeType::Identifier(inner_name) => {
+            let member_decl = struct_def.get_member_or_err(inner_name, name, &context.path, e)?;
+            return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, &member_decl);
+        },
+        _ => {
+            return Err(e.lang_error(&context.path, "eval", &format!("identifier '{}' should only have identifiers inside.", name)));
+        },
+    }
+}
+
+fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_name: &str) -> Result<EvalResult, String> {
+    let custom_symbol = match context.scope_stack.lookup_symbol(custom_type_name) {
+        Some(sym) => sym,
+        None => return Err(e.lang_error(&context.path, "eval", &format!("Argument '{}' is of undefined type {}.", name, custom_type_name))),
+    };
+    match custom_symbol.value_type {
+        ValueType::TType(TTypeDef::TEnumDef) => {
+            // If name equals the type name, this is a reference to the type itself, not a variable
+            // This shouldn't happen in normal code, but handle it gracefully
+            if name == custom_type_name {
+                return Err(e.lang_error(&context.path, "eval", &format!("Cannot use enum type '{}' as a value", name)));
+            }
+            let enum_val = context.get_enum(name, e)?;
+            // Set temp_enum_payload so that if this enum is assigned to another variable,
+            // the payload will be preserved
+            if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+            }
+            return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
+        },
+        ValueType::TType(TTypeDef::TStructDef) => {
+            if e.params.len() == 0 {
+                return Ok(EvalResult::new(name));
+            }
+
+            let mut current_name = name.to_string();
+            let mut current_type = ValueType::TCustom(custom_type_name.to_string());
+
+            for inner_e in &e.params {
+                match &inner_e.node_type {
+                    NodeType::Identifier(inner_name) => {
+                        match current_type {
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                return Err(inner_e.todo_error(&context.path, "eval", &format!("'{}': StructDef cannot be a field yet", current_name)));
+                            },
+                            ValueType::TCustom(ref custom_type_name) => {
+                                if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
+                                    match custom_symbol.value_type {
+                                        ValueType::TType(TTypeDef::TStructDef) => {
+                                            let struct_def = match context.scope_stack.lookup_struct(custom_type_name) {
+                                                Some(def) => def,
+                                                None => return Err(e.lang_error(&context.path, "eval", &format!("Struct '{}' not found in context", custom_type_name))),
+                                            };
+                                            let member_decl = struct_def.get_member_or_err(inner_name, custom_type_name, &context.path, inner_e)?;
+                                            current_type = member_decl.value_type.clone();
+                                            current_name = format!("{}.{}", current_name, inner_name);
+                                        },
+                                        ValueType::TType(TTypeDef::TEnumDef) => {
+                                            return Err(inner_e.lang_error(&context.path, "eval", &format!("Enum '{}' does not support nested members", current_name)));
+                                        },
+                                        _ => return Err(inner_e.lang_error(&context.path, "eval", "Custom types cannot have nested members")),
+                                    }
+                                } else {
+                                    return Err(inner_e.lang_error(&context.path, "eval", &format!("Custom type '{}' not found in symbols", custom_type_name)));
+                                }
+                            },
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                return Err(inner_e.lang_error(&context.path, "eval", &format!("Enum '{}' does not support nested members", current_name)));
+                            },
+                            _ => return Err(inner_e.lang_error(&context.path, "eval", &format!("Unexpected type for '{}', cannot access member '{}'", current_name, inner_name))),
+                        }
+                    },
+                    _ => return Err(inner_e.lang_error(&context.path, "eval", &format!("Expected identifier, found {:?}", inner_e.node_type))),
+                }
+            }
+
+            let inner_e = match e.params.last() {
+                Some(expr) => expr,
+                None => return Err(e.lang_error(&context.path, "eval", "eval_custom_expr: Expected at least one parameter")),
+            };
+            match current_type {
+                ValueType::TCustom(ref custom_type_name) => {
+                    match custom_type_name.as_str() {
+                        "I64" => match context.get_i64(&current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
+                        },
+                        "U8" => match get_u8(context, &current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
+                        },
+                        // TODO FIX: Bool identifier reading uses bool_from_context to get value
+                        "Bool" => match bool_from_context(context, &current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
+                        },
+                        "Str" => match string_from_context(context, &current_name, e)? {
+                            result => Ok(EvalResult::new(&result.to_string())),
+                        },
+                        _ => {
+                            let custom_type_name = &value_type_to_str(&current_type);
+                            let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
+                                Some(symbol_info) => symbol_info,
+                                None => return Err(inner_e.lang_error(&context.path, "eval", &format!("Unknown custom type '{}'", custom_type_name))),
+                            };
+                            match &custom_symbol_info.value_type {
+                                ValueType::TType(TTypeDef::TEnumDef) => {
+                                    let enum_val = context.get_enum(&current_name, inner_e)?;
+                                    // Set temp_enum_payload so that if this enum is assigned to another variable,
+                                    // the payload will be preserved
+                                    if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                                        context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+                                    }
+                                    return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
+                                },
+                                ValueType::TType(TTypeDef::TStructDef) => {
+                                    return Ok(EvalResult::new(&current_name))
+                                },
+                                _ => Err(inner_e.todo_error(&context.path, "eval", &format!("Cannot access '{}'. Fields of custom type '{}' not implemented", current_name, custom_type_name))),
+                            }
+                        },
+                    }
+                },
+                _ => Err(e.lang_error(&context.path, "eval", &format!("Invalid type for '{}'.", current_name))),
+            }
+        },
+        _ => Err(e.lang_error(&context.path, "eval", &format!("'{}' of type: '{}': custom types are supposed to be struct or enum, found '{}'.", name, custom_type_name, value_type_to_str(&custom_symbol.value_type)))),
+    }
+}
+
+fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    match context.scope_stack.lookup_symbol(name) {
+        Some(symbol_info) => match &symbol_info.value_type {
+            ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {
+                return Ok(EvalResult::new(name));
+            },
+            ValueType::TType(TTypeDef::TEnumDef) => {
+                // let enum_def = match context.scope_stack.lookup_enum(name) {
+                //     Some(def) => def,
+                //     None => return Err(e.lang_error(&context.path, "eval", &format!("Enum '{}' not found in context", name))),
+                // };
+                let inner_e = e.get(0)?;
+                match &inner_e.node_type {
+                    NodeType::Identifier(inner_name) => {
+                        // TODO check that inner_name is in enum_def
+                        // TODO check if that inner_name has an optional type
+                        return Ok(EvalResult::new(&format!("{}.{}", name, inner_name)));
+                    },
+                    _ => {
+                        return Err(e.lang_error(&context.path, "eval", &format!("identifier '{}' should only have identifiers inside.", name)));
+                    },
+                }
+            },
+            ValueType::TType(TTypeDef::TStructDef) => {
+                return eval_identifier_expr_struct(name, context, e)
+            }
+            ValueType::TCustom(s) if s == INFER_TYPE => {
+                return Err(e.lang_error(&context.path, "eval", &format!("Can't infer the type of identifier '{}'.", name)));
+            },
+            ValueType::TCustom(ref custom_type_name) => {
+                // Clone custom_type_name to avoid borrow checker issues
+                let custom_type_name_clone = custom_type_name.clone();
+                match custom_type_name_clone.as_str() {
+                    "I64" => {
+                        let val = context.get_i64(name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()))
+                    },
+                    "U8" => {
+                        let val = get_u8(context, name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
+                    },
+                    // TODO FIX: Bool identifier evaluation uses bool_from_context
+                    "Bool" => {
+                        let val = bool_from_context(context, name, e)?;
+                        return Ok(EvalResult::new(&val.to_string()));
+                    },
+                    "Str" => {
+                        if e.params.len() == 0 {
+                            let val = string_from_context(context, name, e)?;
+                            return Ok(EvalResult::new(&val.to_string()));
+                        }
+                        return eval_custom_expr(e, context, name, &custom_type_name_clone);
+                    },
+                    _ => {
+                        return eval_custom_expr(e, context, name, &custom_type_name_clone);
+                    },
+                }
+            },
+            _ => {
+                return Err(e.todo_error(&context.path, "eval", &format!("Can't use identifier '{}'. Type {:?} not supported yet.", name, symbol_info.value_type)));
+            },
+        },
+        None => {
+            return Err(e.lang_error(&context.path, "eval", &format!("Undefined symbol '{}'. This should have been caught in the compile phase.", name)));
+        },
+    }
+}
+
+pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalResult, String> {
+    let mut i = 0;
+    let mut pending_throw: Option<EvalResult> = None;
+
+    while i < statements.len() {
+        let stmt = &statements[i];
+
+        if let Some(throw_result) = &pending_throw {
+            if let NodeType::Catch = stmt.node_type {
+                if stmt.params.len() == 3 {
+                    // params[0]: error variable name (e.g., "err")
+                    // params[1]: error type (e.g., "AllocError")
+                    // params[2]: body
+                    let var_expr = &stmt.params[0];
+                    let var_name = match &var_expr.node_type {
+                        NodeType::Identifier(name) => name,
+                        _ => return Err(stmt.lang_error(&context.path, "eval", "Catch variable must be an identifier")),
+                    };
+                    let type_expr = &stmt.params[1];
+                    let type_name = match &type_expr.node_type {
+                        NodeType::Identifier(name) => name,
+                        _ => return Err(stmt.lang_error(&context.path, "eval", "Catch type must be an identifier")),
+                    };
+                    if let Some(thrown_type) = &throw_result.thrown_type {
+                        if type_name == thrown_type {
+                            // Bind the error variable to the caught error value
+                            context.scope_stack.declare_symbol(var_name.to_string(), SymbolInfo {
+                                value_type: ValueType::TCustom(thrown_type.clone()),
+                                is_mut: false,
+                                is_copy: false,
+                            is_own: false,
+                            });
+
+                            // Map instance fields for the error variable
+                            // First try to find the arena index for proper field mapping
+                            if let Some(offset) = context.scope_stack.lookup_var(&throw_result.value) {
+                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(var_name.to_string(), offset);
+
+                                // Copy ALL field mappings (including nested) from thrown instance to catch variable
+                                // This handles both mutable and immutable fields, and nested struct fields
+                                let source_prefix = format!("{}.", &throw_result.value);
+                                let dest_prefix = format!("{}.", var_name);
+
+                                let keys_to_copy: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                    .filter(|k| k.starts_with(&source_prefix))
+                                    .cloned()
+                                    .collect();
+                                for src_key in keys_to_copy {
+                                    if let Some(src_offset) = context.scope_stack.lookup_var(&src_key) {
+                                        let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
+                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dest_key, src_offset);
+                                    }
+                                }
+
+                                // Also copy symbol mappings for all fields
+                                let symbol_keys_to_copy = context.scope_stack.get_symbols_with_prefix(&source_prefix);
+                                for src_key in symbol_keys_to_copy {
+                                    if let Some(src_symbol) = context.scope_stack.lookup_symbol(&src_key) {
+                                        let dest_key = src_key.replacen(&source_prefix, &dest_prefix, 1);
+                                        context.scope_stack.declare_symbol(dest_key, src_symbol.clone());
+                                    }
+                                }
+                            } else {
+                                // Fallback: try to map fields from the thrown value or type
+                                // This happens when throwing inline struct constructors or when arena_index lookup fails
+
+                                // Special handling for Str: when throwing a string literal, we need to create a proper Str struct
+                                if thrown_type == "Str" {
+                                    // The thrown value is the actual string content, not a struct instance name
+                                    // Create a proper Str struct for the catch variable
+                                    context.insert_string(var_name, &throw_result.value, stmt)?;
+                                } else if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
+                                    let source_name = &throw_result.value;
+                                    // Clone the members to avoid borrow conflict
+                                    let members = struct_def.members.clone();
+                                    for (field_name, field_decl) in &members {
+                                        let src_instance_field = format!("{}.{}", source_name, field_name);
+                                        let src_type_field = format!("{}.{}", thrown_type, field_name);
+                                        let dst_field = format!("{}.{}", var_name, field_name);
+
+                                        // Add symbol for the field
+                                        context.scope_stack.declare_symbol(
+                                            dst_field.clone(),
+                                            SymbolInfo {
+                                                value_type: field_decl.value_type.clone(),
+                                                is_mut: false,
+                                                is_copy: false,
+                                            is_own: false,
+                                            },
+                                        );
+
+                                        // Copy arena_index entry for the field
+                                        // Try instance field first, then fall back to type field
+                                        if let Some(offset) = context.scope_stack.lookup_var(&src_instance_field) {
+                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
+                                        } else if let Some(offset) = context.scope_stack.lookup_var(&src_type_field) {
+                                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(dst_field.clone(), offset);
+                                        }
+                                    }
+                                }
+                            }
+
+                            let body_expr = &stmt.params[2];
+                            let result = eval_body(&mut context, &body_expr.params)?;
+
+                            // Clean up the error variable binding after the catch block
+                            context.scope_stack.remove_symbol(var_name);
+                            context.scope_stack.remove_var(var_name);
+                            // Also remove the field mappings
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
+                                // Collect field names to avoid borrow conflict
+                                let field_names: Vec<String> = struct_def.members.iter().map(|(name, _)| name.clone()).collect();
+                                for field_name in field_names {
+                                    let combined_name = format!("{}.{}", var_name, field_name);
+                                    context.scope_stack.remove_symbol(&combined_name);
+                                    context.scope_stack.remove_var(&combined_name);
+                                    // Nested struct fields are handled by subsequent iterations
+                                }
+                            }
+
+                            if result.is_return {
+                                return Ok(result);
+                            } else if result.is_throw {
+                                pending_throw = Some(result);
+                            } else {
+                                pending_throw = None;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // If no pending throw, ignore catch statements
+            if NodeType::Catch != stmt.node_type {
+                let result = eval_expr(&mut context, stmt)?;
+                if result.is_return {
+                    return Ok(result);
+                } else if result.is_throw {
+                    pending_throw = Some(result);
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    if let Some(final_throw) = pending_throw {
+        return Ok(final_throw);
+    }
+
+    Ok(EvalResult::new(""))
+}
+
+// ---------- generic eval things
+
+fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+
+    let mut function_context = context.clone();
+    function_context.path = func_def.source_path.clone();  // Use source file path for error messages
+    validate_func_arg_count(&context.path, e, name, func_def)?;
+
+    let mut param_index = 1;
+    let mut mut_args: Vec<(String, String, ValueType, bool)> = Vec::new(); // (arg_name, source_name, type, is_pass_by_ref)
+    let mut pass_by_ref_params: std::collections::HashSet<String> = std::collections::HashSet::new(); // Track which params used pass-by-ref
+
+    for arg in &func_def.args {
+        function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
+        match &arg.value_type {
+            ValueType::TMulti(ref multi_value_type) => {
+                let variadic_args = &e.params[param_index..];
+                let mut values = Vec::new();
+                for expr in variadic_args {
+                    let result = eval_expr(context, expr)?;
+                    if result.is_throw {
+                        return Ok(result); // Propagate throw
+                    }
+                    let val = result.value;
+                    values.push(val);
+                }
+
+                // All array types now use the generic Array
+                let array_type_name = "Array".to_string();
+
+                function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {
+                    value_type: ValueType::TCustom(array_type_name),
+                    is_mut: arg.is_mut,
+                    is_copy: arg.is_copy,
+                    is_own: arg.is_own,
+                });
+                function_context.insert_array(&arg.name, &multi_value_type, &values, e)?;
+
+                // We've consumed all remaining parameters, break out of loop
+                break;
+            },
+            ValueType::TCustom(ref custom_type_name) => {
+                let current_arg = e.get(param_index)?;
+
+                // Special handling for Dynamic parameters: don't evaluate, just copy the value
+                // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
+                // store the type name as a string so size_of(T) and type_as_str(T) can use it
+                if custom_type_name == "Dynamic" || custom_type_name == "Type" {
+                    if let NodeType::Identifier(id_name) = &current_arg.node_type {
+                        if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
+                            if let ValueType::TType(_) = &sym.value_type {
+                                // This is a type identifier - store the type name as a string
+                                function_context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
+                                    value_type: ValueType::TCustom("Str".to_string()),
+                                    is_mut: false,
+                                    is_copy: false,
+                                is_own: false,
+                                });
+                                function_context.insert_string(&arg.name, id_name, e)?;
+                                param_index += 1;
+                                continue; // Skip eval_expr for this parameter
+                            }
+                        }
+                    }
+                    // If it's not a type identifier, fall through to normal evaluation
+                }
+
+                // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
+                let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
+                    if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
+                        if let ValueType::TCustom(arg_type_name) = &sym.value_type {
+                            if let Some(type_sym) = context.scope_stack.lookup_symbol(arg_type_name) {
+                                if type_sym.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                                    // This is an enum variable, get its value to preserve payload
+                                    match context.get_enum(id_name, e) {
+                                        Ok(enum_val) => {
+                                            if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
+                                                Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()))
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                        Err(_) => None,
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                let result = eval_expr(context, &current_arg)?;
+                if result.is_throw {
+                    return Ok(result); // Propagate throw
+                }
+                let result_str = result.value;
+
+                // Restore enum payload if we saved it
+                if let Some(payload_data) = enum_payload_backup {
+                    context.temp_enum_payload = Some(payload_data);
+                }
+
+                // Resolve Dynamic/Type to actual type first
+                let custom_type_name = &match custom_type_name.as_str() {
+                    "Dynamic" | "Type" => value_type_to_str(&get_value_type(context, &current_arg)?),
+                    _ => custom_type_name.clone(),
+                };
+
+                // Create resolved ValueType for the parameter
+                let resolved_value_type = ValueType::TCustom(custom_type_name.clone());
+
+                // Now push to mut_args with the resolved type
+                if arg.is_mut {
+                    match &current_arg.node_type {
+                        NodeType::Identifier(id_) => {
+                            // Bug #10 fix: Build full path for field access
+                            let full_id = if current_arg.params.len() > 0 {
+                                let mut full_path = id_.clone();
+                                for param in &current_arg.params {
+                                    match &param.node_type {
+                                        NodeType::Identifier(field_name) => {
+                                            full_path.push('.');
+                                            full_path.push_str(field_name);
+                                        },
+                                        _ => {
+                                            return Err(e.lang_error(&context.path, "eval", "Field access must use identifiers"));
+                                        }
+                                    }
+                                }
+                                full_path
+                            } else {
+                                id_.clone()
+                            };
+                            mut_args.push((arg.name.clone(), full_id, ValueType::TCustom(custom_type_name.clone()), false)); // Not pass-by-ref yet, will be set later
+                        },
+                        _ => {
+                            return Err(e.lang_error(&context.path, "eval", "mut arguments must be passed as identifiers or field access"))
+                        }
+                    }
+                }
+
+                // Handle ownership transfer for 'own' parameters
+                if arg.is_own {
+                    // Check if argument is an identifier (variable being passed)
+                    if let NodeType::Identifier(source_var) = &current_arg.node_type {
+                        // Transfer arena offset from caller to function context
+                        if let Some(offset) = context.scope_stack.lookup_var(source_var) {
+                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), offset);
+
+                            // Transfer all related entries (for structs with fields, strings with metadata, etc.)
+                            let prefix = format!("{}.", source_var);
+                            let keys_to_transfer: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                .filter(|k| k.starts_with(&prefix))
+                                .cloned()
+                                .collect();
+
+                            for key in &keys_to_transfer {
+                                if let Some(field_offset) = context.scope_stack.lookup_var(key) {
+                                    let new_key = key.replace(source_var, &arg.name);
+                                    function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key.clone(), field_offset);
+                                    // Also transfer symbol info for fields
+                                    if let Some(field_sym) = context.scope_stack.lookup_symbol(key) {
+                                        function_context.scope_stack.declare_symbol(new_key.clone(), field_sym.clone());
+                                    }
+                                }
+                            }
+
+                            // TODO: Field access on own parameters needs more work
+                            // The transferred arena_index entries should be sufficient
+                            // but field symbols may need additional setup
+
+                            // Remove from caller's context (ownership transferred)
+                            context.scope_stack.remove_var(source_var);
+                            context.scope_stack.remove_symbol(source_var);
+                            for key in &keys_to_transfer {
+                                context.scope_stack.remove_var(key);
+                                context.scope_stack.remove_symbol(key);
+                            }
+
+                            param_index += 1;
+                            continue; // Skip normal allocation logic
+                        }
+                    }
+                    // If not an identifier or not found, fall through to normal allocation
+                    // (the value will be allocated fresh in function context)
+                }
+
+                // Phase 3: Pass-by-reference for non-copy, non-Type parameters
+                // If argument is a variable (identifier), share arena offset instead of copying
+                // Note: Type parameters need copy semantics for type name storage, so skip them
+                // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
+                // Note: own parameters also use pass-by-reference (transfer ownership of arena offset)
+                // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
+                // - Only base offset stored in arena_index
+                // - Field offsets calculated dynamically from struct definitions
+                // - Inline memory layout means sharing base offset shares all fields
+                if !arg.is_copy && custom_type_name != "Type" {
+                    if let NodeType::Identifier(source_var) = &current_arg.node_type {
+                        // Only share offset for SIMPLE identifiers (no field access, no params)
+                        // Field access like s.cap is also an Identifier node but has params
+                        if current_arg.params.is_empty() {
+                            // Share arena offset from caller context (zero-copy pass-by-reference)
+                            if let Some(offset) = context.scope_stack.lookup_var(source_var) {
+                            // Create symbol info for parameter using the resolved type
+                            let param_symbol = SymbolInfo {
+                                value_type: resolved_value_type.clone(),
+                                is_mut: arg.is_mut,
+                                is_copy: arg.is_copy,
+                                is_own: arg.is_own,
+                            };
+                            function_context.scope_stack.declare_symbol(arg.name.clone(), param_symbol);
+                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), offset);
+
+                            // CRITICAL: Copy all nested field offsets from caller to callee
+                            // insert_struct registers nested field offsets (e.g., "l.start.x")
+                            // We need to copy these so field access works in the callee
+                            let caller_arena_index = &context.scope_stack.frames.last().unwrap().arena_index;
+                            let prefix = format!("{}.", source_var);
+                            let replacement_prefix = format!("{}.", arg.name);
+                            let mut field_offsets_to_copy = Vec::new();
+                            for (key, &value) in caller_arena_index.iter() {
+                                if key.starts_with(&prefix) {
+                                    let new_key = key.replacen(&prefix, &replacement_prefix, 1);
+                                    field_offsets_to_copy.push((new_key, value));
+                                }
+                            }
+                            for (key, value) in field_offsets_to_copy {
+                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                            }
+
+                            // Register field symbols for UFCS method resolution (e.g., self.cap.eq())
+                            if let Some(_struct_def) = function_context.scope_stack.lookup_struct(custom_type_name) {
+                                function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+                            }
+
+                            // Track that this parameter was passed by reference
+                            pass_by_ref_params.insert(arg.name.clone());
+
+                            param_index += 1;
+                            continue; // Skip allocation logic - we're sharing the offset
+                            }
+                        }
+                    }
+                    // If not an identifier or not found, fall through to normal allocation
+                    // (expressions must allocate fresh memory)
+                }
+
+                match custom_type_name.as_str() {
+                    "I64" => {
+                        function_context.insert_i64(&arg.name, &result_str, e)?;
+                    },
+                    "U8" => {
+                        function_context.insert_u8(&arg.name, &result_str, e)?;
+                    },
+                    // TODO FIX: Bool function argument uses insert_bool helper
+                    "Bool" => {
+                        insert_bool(&mut function_context, &arg.name, &result_str, e)?;
+                    },
+                    "Str" => {
+                        function_context.insert_string(&arg.name, &result_str, e)?;
+                    },
+                    _ => {
+                        let custom_symbol = function_context.scope_stack.lookup_symbol(custom_type_name).ok_or_else(|| {
+                            return e.lang_error(&context.path, "eval", &format!( "Undefined symbol for custom type '{}'", custom_type_name))
+                        })?;
+                        match custom_symbol.value_type {
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                // Transfer payload from outer context if present
+                                function_context.temp_enum_payload = context.temp_enum_payload.clone();
+                                function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
+                            },
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                // Bug #10 fix: Handle field access chains like s.items
+                                let source_id = if current_arg.params.len() > 0 {
+                                    // Build the full path for field access: "s.items"
+                                    match &current_arg.node_type {
+                                        NodeType::Identifier(base_id) => {
+                                            let mut full_path = base_id.clone();
+                                            for param in &current_arg.params {
+                                                match &param.node_type {
+                                                    NodeType::Identifier(field_name) => {
+                                                        full_path.push('.');
+                                                        full_path.push_str(field_name);
+                                                    },
+                                                    _ => {
+                                                        return Err(e.lang_error(&context.path, "eval", "Field access must use identifiers"));
+                                                    }
+                                                }
+                                            }
+                                            full_path
+                                        },
+                                        _ => {
+                                            // For non-identifier expressions (like Vec.new(Expr)),
+                                            // use the result_str which contains the allocated result
+                                            result_str.clone()
+                                        }
+                                    }
+                                } else {
+                                    match &current_arg.node_type {
+                                        NodeType::Identifier(id_) => id_.clone(),
+                                        _ => {
+                                            // For non-identifier expressions (like Vec.new(Expr)),
+                                            // use the result_str which contains the allocated result
+                                            result_str.clone()
+                                        }
+                                    }
+                                };
+
+                                match &current_arg.node_type {
+                                    NodeType::Identifier(_id_) => {
+                                        let id_ = &source_id; // Use the full path we calculated
+                                        // If source and dest have the same name, we need to save the source offsets
+                                        // before insert_struct overwrites them
+                                        let (saved_offsets, temp_src_key) = if id_ == &arg.name {
+                                            let mut offsets = Vec::new();
+
+                                            // Save all arena_index entries that start with the struct name
+                                            // This includes the base offset and all nested field offsets
+                                            let prefix = format!("{}.", id_);
+                                            for (key, offset) in function_context.scope_stack.frames.last().unwrap().arena_index.iter() {
+                                                if key == id_ || key.starts_with(&prefix) {
+                                                    offsets.push((key.clone(), *offset));
+                                                }
+                                            }
+
+                                            (Some(offsets), Some(format!("__temp_src_{}", id_)))
+                                        } else {
+                                            (None, None)
+                                        };
+
+                                        // For pass-by-reference (non-copy, non-Type), just share the offset
+                                        if !arg.is_copy && custom_type_name != "Type" {
+                                            let src_offset = context.scope_stack.lookup_var(id_)
+                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+
+                                            // Create symbol for parameter
+                                            function_context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
+                                                value_type: resolved_value_type.clone(),
+                                                is_mut: arg.is_mut,
+                                                is_copy: arg.is_copy,
+                                                is_own: arg.is_own,
+                                            });
+
+                                            // Share the offset (pass-by-reference)
+                                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), src_offset);
+
+                                            // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
+                                            let caller_arena_index = &context.scope_stack.frames.last().unwrap().arena_index;
+                                            let prefix = format!("{}.", id_);
+                                            let replacement_prefix = format!("{}.", arg.name);
+                                            let mut field_offsets_to_copy = Vec::new();
+                                            for (key, &value) in caller_arena_index.iter() {
+                                                if key.starts_with(&prefix) {
+                                                    let new_key = key.replacen(&prefix, &replacement_prefix, 1);
+                                                    field_offsets_to_copy.push((new_key, value));
+                                                }
+                                            }
+                                            for (key, value) in field_offsets_to_copy {
+                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                                            }
+
+                                            // Register field symbols for UFCS method resolution
+                                            function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+
+                                            // Track that this was passed by reference
+                                            pass_by_ref_params.insert(arg.name.clone());
+                                        } else {
+                                            // For copy parameters, allocate and copy
+                                            function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+
+                                            // If we saved offsets, restore them with temp keys for copy_fields
+                                            if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
+                                                for (orig_key, offset) in offsets.iter() {
+                                                    let new_key = if orig_key == id_ {
+                                                        temp_key.clone()
+                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                    } else {
+                                                        orig_key.clone()
+                                                    };
+                                                    function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
+                                                }
+
+                                                function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
+
+                                                // Clean up temp keys
+                                                for (orig_key, _) in offsets.iter() {
+                                                    let new_key = if orig_key == id_ {
+                                                        temp_key.clone()
+                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                    } else {
+                                                        orig_key.clone()
+                                                    };
+                                                    function_context.scope_stack.remove_var(&new_key);
+                                                }
+                                            } else {
+                                                // Temporarily register source struct's base offset and symbol in function_context
+                                                // so that copy_fields() can calculate field offsets dynamically
+                                                let src_offset = context.scope_stack.lookup_var(id_)
+                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+                                                let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
+                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
+
+                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
+                                                function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
+                                                function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                                function_context.scope_stack.remove_var(id_);
+                                                function_context.scope_stack.remove_symbol(id_);
+                                            }
+                                        }
+                                    },
+                                    _ => {
+                                        // For expression arguments (like Vec.new(Expr)), the struct is already
+                                        // allocated and evaluated in result_str. We need to copy it to the parameter.
+                                        function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+                                        function_context.copy_fields(&custom_type_name, &source_id, &arg.name, e)?;
+                                    },
+                                }
+                            },
+                            _ => {
+                                return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an argument. Custom types can only be struct or enum.",
+                                                                         &arg.name, &custom_type_name)))
+                            },
+                        }
+                    },
+                }
+
+            },
+
+            _ => {
+                return Err(e.todo_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an argument. Only enum custom types allowed for now.",
+                                                         &arg.name, value_type_to_str(&arg.value_type))))
+            },
+        }
+
+        param_index += 1;
+    }
+
+    let result = eval_body(&mut function_context, &func_def.body)?;
+    if result.is_throw {
+        // When throwing from a method, we need to copy the thrown struct's arena_index entries
+        // from the function context to the calling context so that catch blocks can access fields
+        if let Some(thrown_type_name) = &result.thrown_type {
+            // Check if this is a custom type (struct)
+            if let Some(type_symbol) = function_context.scope_stack.lookup_symbol(thrown_type_name) {
+                if type_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                    // Copy arena_index and symbol entries for the thrown instance's fields
+                    let source_prefix = format!("{}.", &result.value);
+
+                    // Copy arena_index entries (including nested fields like .msg.c_string)
+                    let keys_to_copy: Vec<String> = function_context.scope_stack.frames.last().unwrap().arena_index.keys()
+                        .filter(|k| k.starts_with(&source_prefix))
+                        .cloned()
+                        .collect();
+                    for src_key in keys_to_copy {
+                        if let Some(src_offset) = function_context.scope_stack.lookup_var(&src_key) {
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(src_key, src_offset);
+                        }
+                    }
+
+                    // Copy symbol entries for fields
+                    let symbol_keys_to_copy = function_context.scope_stack.get_symbols_with_prefix(&source_prefix);
+                    for src_key in symbol_keys_to_copy {
+                        if let Some(src_symbol) = function_context.scope_stack.lookup_symbol(&src_key) {
+                            context.scope_stack.declare_symbol(src_key, src_symbol.clone());
+                        }
+                    }
+                }
+            }
+        }
+        return Ok(result); // Propagate throw
+    }
+    let result_str = result.value;
+
+    for (arg_name, source_name, value_type, _) in mut_args {
+        let was_passed_by_ref = pass_by_ref_params.contains(&arg_name);
+        match value_type {
+            ValueType::TCustom(ref type_name) if type_name == "I64" => {
+                let val = function_context.get_i64(&arg_name, e)?;
+                context.insert_i64(&source_name, &val.to_string(), e)?;
+            },
+            ValueType::TCustom(ref type_name) if type_name == "U8" => {
+                let val = get_u8(&function_context, &arg_name, e)?;
+                context.insert_u8(&source_name, &val.to_string(), e)?;
+            },
+            ValueType::TCustom(ref type_name) if type_name == "Str" => {
+                let val = string_from_context(&function_context, &arg_name, e)?;
+                context.insert_string(&source_name, &val.to_string(), e)?;
+            },
+            ValueType::TCustom(ref type_name) => {
+                let symbol_info = match context.scope_stack.lookup_symbol(type_name) {
+                    Some(symbol_info_) => symbol_info_,
+                    None => {
+                        return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Undefined symbol.", arg_name, type_name)))
+                    },
+                };
+                match &symbol_info.value_type {
+                    ValueType::TType(TTypeDef::TEnumDef) => {
+                        let val = function_context.get_enum(&arg_name, e)?;
+                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                    },
+                    ValueType::TType(TTypeDef::TStructDef) => {
+                        // TODO this can be simplified once we pass all args by reference
+                        if let Some(offset) = function_context.scope_stack.lookup_var(&arg_name) {
+                            context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_name.to_string(), offset);
+                            // Only call map_instance_fields for copy-based parameters
+                            // For pass-by-ref, the caller's field offsets are already correct
+                            if !was_passed_by_ref {
+                                context.map_instance_fields(type_name, &source_name, e)?;
+                            }
+                        } else {
+                            return Err(e.lang_error(&context.path, "eval", &format!("Missing struct arena index for argument '{}'", arg_name)));
+                        }
+                    },
+                    _ => {
+                        // TODO support functions and types (ie enum_defs struct_defs) as arguments
+                        return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as a mut argument. Not an enum or struct, but a '{}'.",
+                                                                 arg_name, type_name, value_type_to_str(&symbol_info.value_type))))
+                    },
+                }
+
+            },
+            _ => {
+                return Err(e.todo_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as a mut argument. Only structs and enums allowed for now.",
+                                                         arg_name, value_type_to_str(&value_type))))
+            }
+        }
+    }
+
+    // If function returns a user-defined struct or enum, copy it back to context as temp return val
+    if func_def.return_types.len() == 1 {
+        if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
+            // Skip core types like I64, Bool, String, U8
+            // TODO FIX: Bool can't be removed yet - removing it causes "Missing arena index for return value 'false'" error
+            match custom_type_name.as_str() {
+                "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
+                _ => {
+
+                    if let Some(custom_symbol) = function_context.scope_stack.lookup_symbol(custom_type_name) {
+                        match custom_symbol.value_type {
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
+                                Arena::g().temp_id_counter += 1;
+
+                                // Insert the temporary return variable into the symbols table (temporary solution)
+                                context.scope_stack.declare_symbol(return_instance.to_string(), SymbolInfo {
+                                    value_type: ValueType::TCustom(custom_type_name.to_string()),
+                                    is_mut: true,
+                                    is_copy: false,
+                                is_own: false,
+                                });
+
+                                if let Some(offset) = function_context.scope_stack.lookup_var(&result_str) {
+                                    // Just share the base offset - nested fields will be calculated dynamically
+                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(return_instance.to_string(), offset);
+                                } else {
+                                    return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
+                                }
+                                return Ok(EvalResult::new_return(&return_instance))
+                            },
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                // For enum returns, check if result_str is a constructor expression or a variable
+                                // Constructor expressions like "ExampleEnum.B" can be returned as-is
+                                // But variables need to be copied from function context to caller context
+                                if result_str.contains('.') {
+                                    // This is a constructor expression
+                                    // Transfer temp_enum_payload from function context to caller context
+                                    if let Some((payload_data, payload_type)) = function_context.temp_enum_payload.take() {
+                                        context.temp_enum_payload = Some((payload_data, payload_type));
+                                    }
+                                    return Ok(EvalResult::new(&result_str));
+                                }
+
+                                // This is a variable, copy it from function context to caller context
+                                let val = function_context.get_enum(&result_str, e)?;
+                                let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
+                                Arena::g().temp_id_counter += 1;
+
+                                // Set temp_enum_payload if the enum has a payload
+                                if let (Some(payload_data), Some(payload_type)) = (val.payload, val.payload_type) {
+                                    context.temp_enum_payload = Some((payload_data, payload_type));
+                                }
+
+                                context.insert_enum(&return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                                return Ok(EvalResult::new_return(&return_instance))
+                            },
+                            _ => {
+                                // Not a struct or enum return, ignore
+                            }
+                        }
+                    }
+                },
+
+            }
+        }
+    }
+
+    return Ok(EvalResult::new(&result_str))
 }
 
 // ---------- Core function/procedure dispatcher
 
-// fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
-eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // return match name {
-    //     "loc" => ext::func_loc(context, e),
-    if name.eq("loc") {
-        return ext.func_loc(context, e)
+fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
+    return match name {
+        "loc" => ext::func_loc(context, e),
+        "size_of" => ext::func_size_of(context, &e),
+        "type_as_str" => ext::func_type_as_str(context, &e),
+        "to_ptr" => ext::func_to_ptr(context, &e),
+        "malloc" => ext::func_malloc(context, &e),
+        "free" => ext::func_free(context, &e),
+        "memset" => ext::func_memset(context, &e),
+        "memcpy" => ext::func_memcpy(context, &e),
+        "memcmp" => ext::func_memcmp(context, &e),
+        "lt" => ext::func_lt(context, &e),
+        "gt" => ext::func_gt(context, &e),
+        "add" => ext::func_add(context, &e),
+        "sub" => ext::func_sub(context, &e),
+        "mul" => ext::func_mul(context, &e),
+        "div" => ext::func_div(context, &e),
+        "mod" => ext::func_mod(context, &e),
+        "str_to_i64" => ext::func_str_to_i64(context, &e),
+        "i64_to_str" => ext::func_i64_to_str(context, &e),
+        "enum_to_str" => ext::func_enum_to_str(context, &e),
+        "u8_to_i64" => ext::func_u8_to_i64(context, &e),
+        "i64_to_u8" => ext::func_i64_to_u8(context, &e),
+        "eval_to_str" => ext::proc_eval_to_str(context, &e),
+        "exit" => ext::func_exit(context, &e),
+        "import" => ext::proc_import(context, &e),
+        "input_read_line" => ext::proc_input_read_line(context, &e),
+        "single_print" => ext::proc_single_print(context, &e),
+        "print_flush" => ext::proc_print_flush(context, &e),
+        "readfile" => ext::proc_readfile(context, &e),
+        "runfile" => ext::proc_runfile(context, &e),
+        "has_const" => ext::func_has_const(context, &e),
+        "has_field" => ext::func_has_field(context, &e),
+        _ => {
+            if is_proc {
+                Err(e.lang_error(&context.path, "eval", &format!("Core procedure '{}' not implemented.", name)))
+            } else {
+                Err(e.lang_error(&context.path, "eval", &format!("Core function '{}' not implemented.", name)))
+            }
+        },
     }
-    //     "size_of" => ext::func_size_of(context, &e),
-    if name.eq("size_of") {
-        return ext.func_size_of(context, e)
-    }
-    //     "type_as_str" => ext::func_type_as_str(context, &e),
-    if name.eq("type_as_str") {
-        return ext.func_type_as_str(context, e)
-    }
-    //     "to_ptr" => ext::func_to_ptr(context, &e),
-    if name.eq("to_ptr") {
-        return ext.func_to_ptr(context, e)
-    }
-    //     "malloc" => ext::func_malloc(context, &e),
-    if name.eq("malloc") {
-        return ext.func_malloc(context, e)
-    }
-    //     "free" => ext::func_free(context, &e),
-    if name.eq("free") {
-        return ext.func_free(context, e)
-    }
-    //     "memset" => ext::func_memset(context, &e),
-    if name.eq("memset") {
-        return ext.func_memset(context, e)
-    }
-    //     "memcpy" => ext::func_memcpy(context, &e),
-    if name.eq("memcpy") {
-        return ext.func_memcpy(context, e)
-    }
-    //     "memcmp" => ext::func_memcmp(context, &e),
-    if name.eq("memcmp") {
-        return ext.func_memcmp(context, e)
-    }
-    //     "lt" => ext::func_lt(context, &e),
-    if name.eq("lt") {
-        return ext.func_lt(context, e)
-    }
-    //     "gt" => ext::func_gt(context, &e),
-    if name.eq("gt") {
-        return ext.func_gt(context, e)
-    }
-    //     "add" => ext::func_add(context, &e),
-    if name.eq("add") {
-        return ext.func_add(context, e)
-    }
-    //     "sub" => ext::func_sub(context, &e),
-    if name.eq("sub") {
-        return ext.func_sub(context, e)
-    }
-    //     "mul" => ext::func_mul(context, &e),
-    if name.eq("mul") {
-        return ext.func_mul(context, e)
-    }
-    //     "div" => ext::func_div(context, &e),
-    if name.eq("div") {
-        return ext.func_div(context, e)
-    }
-    //     "mod" => ext::func_mod(context, &e),
-    if name.eq("mod") {
-        return ext.func_mod(context, e)
-    }
-    //     "str_to_i64" => ext::func_str_to_i64(context, &e),
-    if name.eq("str_to_i64") {
-        return ext.func_str_to_i64(context, e)
-    }
-    //     "i64_to_str" => ext::func_i64_to_str(context, &e),
-    if name.eq("i64_to_str") {
-        return ext.func_i64_to_str(context, e)
-    }
-    //     "enum_to_str" => ext::func_enum_to_str(context, &e),
-    if name.eq("enum_to_str") {
-        return ext.func_enum_to_str(context, e)
-    }
-    //     "u8_to_i64" => ext::func_u8_to_i64(context, &e),
-    if name.eq("u8_to_i64") {
-        return ext.func_u8_to_i64(context, e)
-    }
-    //     "i64_to_u8" => ext::func_i64_to_u8(context, &e),
-    if name.eq("i64_to_u8") {
-        return ext.func_i64_to_u8(context, e)
-    }
-    //     "eval_to_str" => ext::proc_eval_to_str(context, &e),
-    if name.eq("eval_to_str") {
-        return ext.proc_eval_to_str(context, e)
-    }
-    //     "exit" => ext::func_exit(context, &e),
-    if name.eq("exit") {
-        return ext.func_exit(context, e)
-    }
-    //     "import" => ext::proc_import(context, &e),
-    if name.eq("import") {
-        return ext.proc_import(context, e)
-    }
-    //     "input_read_line" => ext::proc_input_read_line(context, &e),
-    if name.eq("input_read_line") {
-        return ext.proc_input_read_line(context, e)
-    }
-    //     "single_print" => ext::proc_single_print(context, &e),
-    if name.eq("single_print") {
-        return ext.proc_single_print(context, e)
-    }
-    //     "print_flush" => ext::proc_print_flush(context, &e),
-    if name.eq("print_flush") {
-        return ext.proc_print_flush(context, e)
-    }
-    //     "readfile" => ext::proc_readfile(context, &e),
-    if name.eq("readfile") {
-        return ext.proc_readfile(context, e)
-    }
-    //     "runfile" => ext::proc_runfile(context, &e),
-    if name.eq("runfile") {
-        return ext.proc_runfile(context, e)
-    }
-    //     "has_const" => ext::func_has_const(context, &e),
-    if name.eq("has_const") {
-        return ext.func_has_const(context, e)
-    }
-    //     "has_field" => ext::func_has_field(context, &e),
-    if name.eq("has_field") {
-        return ext.func_has_field(context, e)
-    }
-    //     _ => {
-    //         if is_proc {
-    //             Err(e.lang_error(&context.path, "eval", &format!("Core procedure '{}' not implemented.", name)))
-    //         } else {
-    //             Err(e.lang_error(&context.path, "eval", &format!("Core function '{}' not implemented.", name)))
-    //         }
-    //     },
-    // }
-    if is_proc {
-        throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))
-    }
-    throw e.lang_error(context.path, "eval", format("Core function '", name, "' not implemented."))
-// }
 }
 
-// TODO: The following functions still need translation (~1570 lines total):
-// - eval_declaration (~210 lines)
-// - eval_assignment (~90 lines)
-// - eval_identifier_expr and helpers (~260 lines)
-// - eval_body (~170 lines)
-// - eval_user_func_proc_call (~590 lines - most complex)
-// - Enum constructor payload handling in eval_func_proc_call (~250 lines)
-//
-// These will be completed to match the complete 2132-line interpreter.rs
