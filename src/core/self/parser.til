@@ -699,6 +699,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
             case TokenType.RightBrace:
                 enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
                 end_found = true
+                lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
             case:
                 throw next_t.error(format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
             }

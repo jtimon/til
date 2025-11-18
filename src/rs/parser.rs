@@ -659,6 +659,7 @@ fn enum_definition(lexer: &mut Lexer) -> Result<Expr, String> {
                         enum_map.insert(enum_val_name.to_string(), None);
                         if next_t.token_type == TokenType::RightBrace {
                             end_found = true;
+                            lexer.advance(1)?; // Advance past the RightBrace since we peeked it with next()
                         }
                     },
                     _ => {
