@@ -422,9 +422,9 @@ test_declarations()
 test_control_flow()
 test_structs()  // Bug #26 FIXED - pass-by-reference now works for field access parameters
 test_enums()  // FIXED - enum parsing now advances past closing brace correctly
+test_functions()  // LEXER BUG FIXED - lexer.til now correctly handles string literals
 
-// TODO: Re-enable after fixing parser.til bugs (all cause hangs, likely infinite loops)
-// test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug with returns parsing
+// TODO: Re-enable after fixing lexer.til/parser.til bugs
 // test_switch()  // FullError: Vec.push capacity exceeded - parser bug
 
 // Test parsing real TIL files

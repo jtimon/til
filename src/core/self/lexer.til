@@ -222,105 +222,97 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
         } else {
 
             current_char := source.get_substr(pos, pos.add(1))
+            mut token_type := TokenType.Invalid
+            mut skip_token_push := false
             switch current_char {
                 // chars to ignore in this language (increment pos, no token, continue loop):
-            case " ":  pos.inc()
-            case "\r": pos.inc()
-            case "\t": pos.inc()
+            case " ":
+                pos.inc()
+                skip_token_push = true
+            case "\r":
+                pos.inc()
+                skip_token_push = true
+            case "\t":
+                pos.inc()
+                skip_token_push = true
             case "\n":
                 pos.inc()
                 line.inc()
                 start_line_pos = pos.sub(1)
+                skip_token_push = true
 
                 // open/close. left/right parentheses, craces and brackets
             case "(":
-                scan_push_token(tokens, TokenType.LeftParen, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.LeftParen
             case ")":
-                scan_push_token(tokens, TokenType.RightParen, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.RightParen
             case "{":
-                scan_push_token(tokens, TokenType.LeftBrace, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.LeftBrace
             case "}":
-                scan_push_token(tokens, TokenType.RightBrace, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.RightBrace
             case "[":
-                scan_push_token(tokens, TokenType.LeftBracket, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.LeftBracket
             case "]":
-                scan_push_token(tokens, TokenType.RightBracket, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.RightBracket
 
             case ";":
                 if source.get_substr(pos.add(1), pos.add(2)).eq(";") {
-                    scan_push_token(tokens, TokenType.DoubleSemicolon, ";;", line, pos.sub(start_line_pos))
-                    pos = pos.add(2)
-                } else {
-                    scan_push_token(tokens, TokenType.Semicolon, ";", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.DoubleSemicolon
+                } else {
+                    token_type = TokenType.Semicolon
                 }
                 // separator for optional type before the equal in declarations or args
             case ":":
-                scan_push_token(tokens, TokenType.Colon, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.Colon
                 // separator for args
             case ",":
-                scan_push_token(tokens, TokenType.Comma, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.Comma
 
                 // math
             case "+":
-                scan_push_token(tokens, TokenType.Plus, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.Plus
             case "-":
-                scan_push_token(tokens, TokenType.Minus, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.Minus
             case "*":
-                scan_push_token(tokens, TokenType.Star, current_char, line, pos.sub(start_line_pos))
-                pos.inc()
+                token_type = TokenType.Star
 
                 // reserved for two chars in a row
             case ".":
                 if source.get_substr(pos.add(1), pos.add(2)).eq(".") {
-                    scan_push_token(tokens, TokenType.DoubleDot, "..", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.DoubleDot
                 } else {
-                    scan_push_token(tokens, TokenType.Dot, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Dot
                 }
-                pos.inc()
             case "=":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    scan_push_token(tokens, TokenType.EqualEqual, "==", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.EqualEqual
                 } else {
-                    scan_push_token(tokens, TokenType.Equal, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Equal
                 }
-                pos.inc()
             case "<":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    scan_push_token(tokens, TokenType.LesserEqual, "<=", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.LesserEqual
                 } else {
-                    scan_push_token(tokens, TokenType.Lesser, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Lesser
                 }
-                pos.inc()
             case ">":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    scan_push_token(tokens, TokenType.GreaterEqual, ">=", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.GreaterEqual
                 } else {
-                    scan_push_token(tokens, TokenType.Greater, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Greater
                 }
-                pos.inc()
             case "!":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("=") {
-                    scan_push_token(tokens, TokenType.NotEqual, "!=", line, pos.sub(start_line_pos))
                     pos.inc()
+                    token_type = TokenType.NotEqual
                 } else {
-                    scan_push_token(tokens, TokenType.Not, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Not
                 }
-                pos.inc()
 
                 // comments:
             case "#":
@@ -328,31 +320,33 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
                 while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
                     pos.inc()
                 }
+                skip_token_push = true
             case "/":
                 if source.get_substr(pos.add(1), pos.add(2)).eq("/") {
                     // Single-line comment
-                    pos = pos.add(2)
+                    pos.inc()
                     while and(lt(pos.add(1), eof_pos), not(source.get_substr(pos, pos.add(1)).eq("\n"))) {
                         pos.inc()
                     }
-                    pos.inc()
+                    skip_token_push = true
                 } else if source.get_substr(pos.add(1), pos.add(2)).eq("*") {
                     // Nested block comment
                     pos = pos.add(2)
-                    depth := 1
-                    mut done := false
+                    mut depth := 1
+                    mut comment_done := false
+                    // TODO: Replace comment_done flag with 'break' when break is implemented
 
-                    while and(pos.lt(sub(eof_pos, 1)), not(done)) {
+                    while and(pos.lt(sub(eof_pos, 1)), not(comment_done)) {
                         next_two := source.get_substr(pos, pos.add(2))
 
                         if next_two.eq("/*") {
-                            depth.inc()
+                            depth = depth.add(1)
                             pos = pos.add(2)
                         } else if next_two.eq("*/") {
-                            depth.dec()
+                            depth = depth.sub(1)
                             pos = pos.add(2)
                             if depth.eq(0) {
-                                done = true
+                                comment_done = true  // TODO: Replace with 'break'
                             }
                         } else {
                             if source.get_substr(pos, pos.add(1)).eq("\n") {
@@ -363,61 +357,64 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
                         }
                     }
 
-                    if not(done) {
+                    if depth.gt(0) {
                         scan_push_token(tokens, TokenType.UnterminatedComment, "/*", line, pos.sub(start_line_pos))
+                        skip_token_push = true
+                    } else {
+                        skip_token_push = true
                     }
-
                 } else {
-                    scan_push_token(tokens, TokenType.Slash, current_char, line, pos.sub(start_line_pos))
-                    pos.inc()
+                    token_type = TokenType.Slash
                 }
 
                 // literal strings
             case "\"":
-                pos.inc()
-                mut done := false
                 mut lit_string := ""
-
-                while and(lt(pos, eof_pos), not(done)) {
-                    current := source.get_substr(pos, pos.add(1))
-
-                    if current.eq("\"") {
-                        done = true
-                    } else if current.eq("\\") {
-                        pos.inc() // move past '\'
-                        if lt(pos.add(1), eof_pos) {
-                            esc := source.get_substr(pos, pos.add(1))
-                            // Process escape sequences
-                            switch esc {
-                            case "\"":
-                                lit_string = format(lit_string, "\"")
-                            case "\\":
-                                lit_string = format(lit_string, "\\")
-                            case "n":
-                                lit_string = format(lit_string, "\n")
-                            case "r":
-                                lit_string = format(lit_string, "\r")
-                            case "t":
-                                lit_string = format(lit_string, "\t")
-                            case "0":
-                                lit_string = format(lit_string, "\0")
-                            case:
-                                // Unknown escape: keep backslash and character
-                                lit_string = format(lit_string, "\\", esc)
-                            }
-                        }
+                pos.inc()
+                // while pos + 1 < eof_pos && &source[pos..pos+1] != "\""
+                mut continue_string_scan := true
+                while continue_string_scan {
+                    if not(lt(pos.add(1), eof_pos)) {
+                        continue_string_scan = false
+                    } else if source.get_substr(pos, pos.add(1)).eq("\"") {
+                        continue_string_scan = false
                     } else {
-                        lit_string = format(lit_string, current)
+                        if source.get_substr(pos, pos.add(1)).eq("\\") {
+                            pos.inc() // if it's the escape character, skip it
+                            if lt(pos.add(1), eof_pos) {
+                                esc := source.get_substr(pos, pos.add(1))
+                                switch esc {
+                                case "\"":
+                                    lit_string = format(lit_string, "\"")
+                                case "\\":
+                                    lit_string = format(lit_string, "\\")
+                                case "n":
+                                    lit_string = format(lit_string, "\n")
+                                case "r":
+                                    lit_string = format(lit_string, "\r")
+                                case "t":
+                                    lit_string = format(lit_string, "\t")
+                                case "0":
+                                    lit_string = format(lit_string, "\0")
+                                case:
+                                    // If it's something else, just leave it as is for now, I guess
+                                    // TODO print some warning with unkown escaped characters?
+                                    lit_string = format(lit_string, "\\")
+                                    lit_string = format(lit_string, esc)
+                                }
+                            }
+                        } else {
+                            lit_string = format(lit_string, source.get_substr(pos, pos.add(1)))
+                        }
+                        pos.inc()
                     }
-                    pos.inc()
                 }
 
-                if not(done) {
-                    token_str := source.get_substr(start, pos.add(1))
-                    scan_push_token(tokens, TokenType.UnterminatedString, token_str, line, start.sub(start_line_pos))
+                if not(lt(pos, eof_pos)) {
+                    token_type = TokenType.UnterminatedString
                 } else {
                     scan_push_token(tokens, TokenType.String, lit_string, line, start.sub(start_line_pos))
-                    pos.inc()
+                    token_type = TokenType.String
                 }
 
                 // Everything else must be reserved words, identifiers or invalid
@@ -425,25 +422,37 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
                 if source.is_id_start(pos) {
                     pos.inc()
                     mut continue_id_scan := true
-                    while continue_id_scan {
-                        if pos.lt(eof_pos) {
-                            if or(source.is_digit(pos), source.is_id_start(pos)) {
-                                pos.inc()
-                            } else {
-                                continue_id_scan = false
-                            }
+                    // TODO: Replace continue_id_scan flag with 'break' when break is implemented
+                    while and(pos.lt(eof_pos), continue_id_scan) {
+                        if or(source.is_digit(pos), source.is_id_start(pos)) {
+                            pos.inc()
                         } else {
-                            continue_id_scan = false
+                            continue_id_scan = false  // TODO: Replace with 'break'
                         }
                     }
                     pos.dec()
-                    id_str := source.get_substr(start, pos.add(1))
-                    scan_push_token(tokens, scan_reserved_words(id_str), id_str, line, start.sub(start_line_pos))
+                    token_type = scan_reserved_words(source.get_substr(start, pos.add(1)))
                 } else {
-                    scan_push_token(tokens, TokenType.Invalid, current_char, line, pos.sub(start_line_pos))
+                    token_type = TokenType.Invalid
+                }
+            } // switch
+
+            // Push token if not already pushed (similar to Rust lines 487-490)
+            if not(skip_token_push) {
+                // Note: token_type for String is set but token already pushed inside the case
+                // so we check and skip pushing again
+                mut is_string := false
+                switch token_type {
+                case TokenType.String:
+                    is_string = true
+                case:
+                    is_string = false
+                }
+                if not(is_string) {
+                    scan_push_token(tokens, token_type, source.get_substr(start, pos.add(1)), line, start.sub(start_line_pos))
                 }
                 pos.inc()
-            } // switch
+            }
         } // else
         // println("Current char:", current_char)
     } // while
