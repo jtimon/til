@@ -39,6 +39,7 @@ SFuncDef := struct {
     mut return_types: Vec = Vec.new(ValueType)  // "returns" conflicts with TIL keyword
     mut throw_types: Vec = Vec.new(ValueType)   // "throws" conflicts with TIL keyword
     mut body: Vec = Vec.new(Expr)
+    mut source_path: Str = ""  // Path to the file where this function was defined
 
     is_proc := func(self: SFuncDef) returns Bool {
         ft := self.function_type
@@ -68,6 +69,29 @@ SFuncDef := struct {
 SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
+
+    // Helper to find a member by name
+    get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+        mut i := 0
+        while i.lt(self.members.len()) {
+            mut member := Declaration()
+            self.members.get(i, member)
+            if member.name.eq(member_name) {
+                return member
+            }
+            i = i.add(1)
+        }
+        throw format("Member '", member_name, "' not found")
+    }
+
+    // Helper to find a member by name or return an error
+    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, e: Expr) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+        member := self.get_member(member_name)
+        return member
+        catch (err: Str) {
+            throw e.error("type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
+        }
+    }
 }
 
 Literal := enum {
@@ -645,6 +669,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     func_def.return_types = return_types
     func_def.throw_types = throw_types
     func_def.body = body
+    func_def.source_path = lexer.path
 
     params := Vec.new(Expr)
     e := Expr.new_parse(NodeType.FuncDef(func_def), t, params)
@@ -961,9 +986,9 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
         switch nntt {
         case TokenType.Identifier:
             type_name := next_next_t.token_str
-            return parse_declaration(lexer, false, type_name)
+            return parse_declaration(lexer, false, false, type_name)
         case TokenType.Equal:
-            return parse_declaration(lexer, false, INFER_TYPE)
+            return parse_declaration(lexer, false, false, INFER_TYPE)
         case:
             throw t.error(format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
@@ -1416,7 +1441,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
     throw t.error("Expected '}}' to end switch.")
 }
 
-parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_current := lexer.current
@@ -1434,6 +1459,8 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, explicit_type: Str) re
     decl.name = decl_name
     decl.value_type = str_to_value_type(explicit_type)
     decl.is_mut = is_mut
+    decl.is_copy = is_copy
+    decl.is_own = false
     initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
@@ -1461,9 +1488,9 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
             switch nntt {
             case TokenType.Identifier:
                 type_name := next_next_t.token_str
-                return parse_declaration(lexer, true, type_name)
+                return parse_declaration(lexer, true, false, type_name)
             case TokenType.Equal:
-                return parse_declaration(lexer, true, INFER_TYPE)
+                return parse_declaration(lexer, true, false, INFER_TYPE)
             case:
                 throw t.error(format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }
