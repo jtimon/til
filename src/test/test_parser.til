@@ -422,7 +422,7 @@ test_declarations()
 test_control_flow()
 test_structs()  // Bug #26 FIXED - pass-by-reference now works for field access parameters
 
-// TODO: Re-enable after fixing parser.til bugs
+// TODO: Re-enable after fixing parser.til bugs (all cause hangs, likely infinite loops)
 // test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug with returns parsing
 // test_enums()  // parse error: Expected statement, found } - parser bug with enum bodies
 // test_switch()  // FullError: Vec.push capacity exceeded - parser bug
