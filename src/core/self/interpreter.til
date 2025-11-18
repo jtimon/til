@@ -618,22 +618,147 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, 
     }
 }
 
-// NOTE: Due to the massive size of interpreter.rs (2132 lines), this is a partial translation.
-// The file contains extensive logic for:
-// - eval_func_proc_call: Function/procedure call evaluation with enum constructors
-// - eval_declaration: Declaration evaluation for primitives, structs, enums, functions
-// - eval_assignment: Assignment evaluation with mutability checking
-// - eval_identifier_expr: Identifier expression evaluation with field access
-// - eval_body: Body evaluation with throw/catch exception handling
-// - eval_user_func_proc_call: User function call with complex argument handling
-// - eval_core_func_proc_call: Core/external function dispatcher
+// fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // if e.node_type != NodeType::FCall {
+    //     return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall node type"));
+    // }
+    if not(eq(e.node_type, NodeType.FCall)) {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall node type")
+    }
+    // let func_expr = match e.params.first() {
+    //     Some(expr) => expr,
+    //     None => return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")),
+    // };
+    if lt(e.params.len(), 1) {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")
+    }
+    func_expr := e.params.get(0)
+
+    // if context.scope_stack.lookup_struct(name).is_some() {
+    if context.scope_stack.lookup_struct(name).is_some() {
+        // TODO allow instantiations with arguments
+        //     let id_expr = e.get(0)?;
+        id_expr := e.get(0)
+        //     if id_expr.params.len() == 0 {
+        if eq(id_expr.params.len(), 0) {
+            //         let id_name = match &id_expr.node_type {
+            //             NodeType::Identifier(s) => s,
+            //             _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
+            //         };
+            mut id_name := ""
+            switch id_expr.node_type {
+            case NodeType.Identifier(s):
+                id_name = s
+            case:
+                throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
+            }
+
+            //         context.insert_struct(&id_name, &name, e)?;
+            context.insert_struct(id_name, name, e)
+            //         // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
+            //         return Ok(EvalResult::new(match id_name.as_str() {
+            //             "Bool" => "false",
+            //             "U8" | "I64" => "0",
+            //             "Str" => "",
+            //             _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
+            //         }))
+            if id_name.eq("Bool") {
+                return EvalResult_impl.new("false")
+            }
+            if or(id_name.eq("U8"), id_name.eq("I64")) {
+                return EvalResult_impl.new("0")
+            }
+            if id_name.eq("Str") {
+                return EvalResult_impl.new("")
+            }
+            // TODO Where is the struct being inserted in this case? Is this returned value even used?
+            return EvalResult_impl.new(id_name)
+        //     }
+        }
+    // }
+    }
+
+    //let combined_name = &get_combined_name(&context.path, func_expr)?;
+    combined_name := get_combined_name(context.path, func_expr)
+
+    // Check if this is an enum constructor call (e.g., Color.Green(true))
+    // let parts: Vec<&str> = combined_name.split('.').collect();
+    parts := combined_name.split('.')
+    // if parts.len() == 2 {
+    if eq(parts.len(), 2) {
+        //     let enum_type = parts[0];
+        enum_type := parts.get(0)
+        //     if context.scope_stack.lookup_enum(enum_type).is_some() {
+        if context.scope_stack.lookup_enum(enum_type).is_some() {
+            // This is an enum constructor!
+            //         let variant_name = parts[1];
+            variant_name := parts.get(1)
+
+            // Get the enum definition to check if this variant has a payload type
+            //         let enum_def = context.scope_stack.lookup_enum(enum_type).unwrap();
+            enum_def := context.scope_stack.lookup_enum(enum_type).unwrap()
+            //         let variant_type = enum_def.enum_map.get(variant_name).cloned();
+            variant_type := enum_def.enum_map.get(variant_name)
+
+            // TODO: Translate the massive enum constructor payload handling logic
+            // This includes handling:
+            // - Some(Some(payload_type)) - variant with payload
+            // - Some(None) - variant without payload
+            // - None - unknown variant
+            // The payload handling includes support for I64, Bool, Str, custom structs, and nested enums
+            // This is ~250 lines of complex Rust code that needs careful translation
+            TODO(loc(), "Enum constructor payload handling not fully translated yet - requires init.til and typer.til")
+        }
+    }
+
+    //     let mut new_fcall_e = e.clone();
+    mut new_fcall_e := e.clone()
+    //     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
+    //         Some(func_def_) => func_def_,
+    //         None  => {
+    //             return Err(e.lang_error(&context.path, "eval", "eval_func_proc_call: Instantiations should be handled already"))
+    //         },
+    //     };
+    func_def_option := get_func_def_for_fcall_with_expr(context, new_fcall_e)
+    if func_def_option.is_none() {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
+    }
+    func_def := func_def_option.unwrap()
+
+    //     if func_def.is_ext() {
+    if func_def.is_ext() {
+        // External/core functions are treated specially
+        //         let is_proc = func_def.is_proc();
+        is_proc := func_def.is_proc()
+        //         let parts: Vec<&str> = combined_name.split('.').collect();
+        parts_split := combined_name.split('.')
+        //         let last_name = match parts.last() {
+        //             Some(last_name_) => last_name_,
+        //             None => {
+        //                 return Err(e.lang_error(&context.path, "eval", "Somehow function without name"))
+        //             }
+        //         };
+        if eq(parts_split.len(), 0) {
+            throw e.lang_error(context.path, "eval", "Somehow function without name")
+        }
+        last_name := parts_split.last().unwrap()
+        //         return eval_core_func_proc_call(&last_name, context, &new_fcall_e, is_proc)
+        return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
+    //     }
+    }
+    //     return eval_user_func_proc_call(&func_def, &combined_name, context, &new_fcall_e)
+    return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
+// }
+}
+
+// TODO: The following functions are partially translated stubs that require init.til and typer.til:
+// - eval_declaration (~210 lines)
+// - eval_assignment (~90 lines)
+// - eval_identifier_expr and helpers (~260 lines)
+// - eval_body (~170 lines)
+// - eval_user_func_proc_call (~590 lines - most complex function)
+// - eval_core_func_proc_call (~35 lines)
 //
-// TODO: Complete the translation of the remaining ~1500 lines
-// This includes complex logic for:
-// - Enum constructor payload handling
-// - Struct field copying and pass-by-reference
-// - Dynamic/Type parameter resolution
-// - Variadic argument handling
-// - Ownership transfer semantics
-// - Field offset management
-// - Pattern matching with payload extraction
+// Total remaining: ~1355 lines of Rust code to translate
+// These will be completed after init.rs and typer.rs are translated to Til
