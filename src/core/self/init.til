@@ -443,135 +443,144 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     }
 }
 
-fn get_fcall_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> {
+get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError, FullError, AllocError {
 
-    let f_name = get_func_name_in_call(&e);
+    mut f_name := get_func_name_in_call(e)
 
     // Check if this is a UFCS call on a function/expression result
     // If e has 2+ params (func name + target + args), check if the target's type
     // has an associated method with this name, prioritizing it over standalone functions
-    if e.params.len() >= 2 {
-        let first_arg = e.get(1)?;  // Get the UFCS target (skip func name at index 0)
+    if e.params.len().gteq(2) {
+        mut first_arg := e.get(1)  // Get the UFCS target (skip func name at index 0)
 
         // Try to get the type of the first argument
-        if let Ok(target_type) = get_value_type(context, first_arg) {
-            if let ValueType::TCustom(custom_type_name) = target_type {
-                // Check if this type has an associated method with this name
-                let method_name = format!("{}.{}", custom_type_name, f_name);
-                if let Some(func_def) = context.scope_stack.lookup_func(&method_name) {
-                    // UFCS method exists! Use it instead of standalone function
-                    return value_type_func_proc(&context.path, &e, &method_name, func_def);
-                }
+        mut target_type := get_value_type(context, first_arg)
+        catch (err: Str) {
+            // Couldn't determine type, fall through
+        }
+
+        switch target_type {
+        case ValueType.TCustom(custom_type_name):
+            // Check if this type has an associated method with this name
+            mut method_name := format(custom_type_name, ".", f_name)
+            mut method_ptr := context.scope_stack.lookup_func(method_name)
+            if method_ptr.data.ne(NULL) {
+                // UFCS method exists! Use it instead of standalone function
+                mut func_def := context.scope_stack.get_func(method_name)
+                return value_type_func_proc(context.path, e, method_name, func_def)
             }
+        case:
+            // Not TCustom or no method, fall through
         }
         // If we couldn't determine type or no associated method exists, fall through
     }
 
     // Original logic: check for standalone function
-    if let Some(func_def) = context.scope_stack.lookup_func(&f_name) {
-        return value_type_func_proc(&context.path, &e, &f_name, func_def)
-    } else if let Some(symbol) = context.scope_stack.lookup_symbol(&f_name) {
+    mut func_ptr := context.scope_stack.lookup_func(f_name)
+    if func_ptr.data.ne(NULL) {
+        mut func_def := context.scope_stack.get_func(f_name)
+        return value_type_func_proc(context.path, e, f_name, func_def)
+    }
 
-        let id_expr = e.get(0)?;
-        match &symbol.value_type {
-            ValueType::TType(TTypeDef::TStructDef) => {
-                let struct_def = match context.scope_stack.lookup_struct(&f_name) {
-                    Some(_struct_def) => _struct_def,
-                    None => {
-                        return Err(e.lang_error(&context.path, "type", &format!("struct '{}' not found in context", f_name)));
-                    },
-                };
-                let after_dot = match id_expr.params.get(0) {
-                    Some(_after_dot) => _after_dot,
-                    None => {
-                        return Ok(ValueType::TCustom(f_name.clone()));
-                    },
-                };
-                match &after_dot.node_type {
-                    NodeType::Identifier(after_dot_name) => {
-                        let member_decl = struct_def.get_member_or_err(after_dot_name, &f_name, &context.path, e)?;
-                        let member_default_value = match struct_def.default_values.get(after_dot_name) {
-                            Some(_member) => _member,
-                            None => {
-                                return Err(e.error(&context.path, "type", &format!("struct '{}' has no member '{}' b", f_name, after_dot_name)));
-                            },
-                        };
-                        match &member_default_value.node_type {
-                            NodeType::FuncDef(func_def) => {
-                                let combined_name = format!("{}.{}", f_name, after_dot_name);
-                                return value_type_func_proc(&context.path, &e, &combined_name, &func_def);
-                            },
-                            _  => {
-                                return Err(e.error(&context.path, "type", &format!("Cannot call '{}.{}', it is not a function, it is '{}'",
-                                                                    f_name, after_dot_name, value_type_to_str(&member_decl.value_type))));
-                            },
-                        }
-                    },
-                    _ => {
-                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
-                    },
+    // Not a standalone function, check if it's a symbol (type, enum, struct, etc)
+    mut symbol_ptr := context.scope_stack.lookup_symbol(f_name)
+    if symbol_ptr.data.eq(NULL) {
+        throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
+    }
+
+    mut symbol := context.scope_stack.get_symbol(f_name)
+    mut id_expr := e.get(0)
+
+    switch symbol.value_type {
+    case ValueType.TType(TTypeDef.TStructDef):
+        // Handle struct constructor or struct method calls
+        mut struct_ptr := context.scope_stack.lookup_struct(f_name)
+        if struct_ptr.data.eq(NULL) {
+            throw e.lang_error(context.path, "type", format("struct '", f_name, "' not found in context"))
+        }
+        mut struct_def := context.scope_stack.get_struct(f_name)
+
+        // Check if there's a member access after the struct name
+        if id_expr.params.len().eq(0) {
+            // Just "StructName()" - constructor call
+            return ValueType.TCustom(f_name)
+        }
+
+        mut after_dot := id_expr.params.get(0)
+        switch after_dot.node_type {
+        case NodeType.Identifier(after_dot_name):
+            mut member_decl := struct_def.get_member_or_err(after_dot_name, f_name, context.path, e)
+            mut has_default := struct_def.default_values.contains_key(after_dot_name)
+            if not(has_default) {
+                throw e.error(context.path, "type", format("struct '", f_name, "' has no member '", after_dot_name, "' b"))
+            }
+            mut member_default_value := struct_def.default_values.get(after_dot_name)
+
+            switch member_default_value.node_type {
+            case NodeType.FuncDef(func_def):
+                mut combined_name := format(f_name, ".", after_dot_name)
+                return value_type_func_proc(context.path, e, combined_name, func_def)
+            case:
+                throw e.error(context.path, "type", format("Cannot call '", f_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
+            }
+        case node_type:
+            throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(node_type), "'"))
+        }
+
+
+    case ValueType.TType(TTypeDef.TEnumDef):
+        // Handle enum constructor calls like Color.Green(true)
+        mut enum_ptr := context.scope_stack.lookup_enum(f_name)
+        if enum_ptr.data.eq(NULL) {
+            throw e.lang_error(context.path, "type", format("enum '", f_name, "' not found in context"))
+        }
+        mut enum_def := context.scope_stack.get_enum(f_name)
+
+        // Check if there's a member access (variant) after the enum name
+        if id_expr.params.len().eq(0) {
+            // Just referencing the enum type itself, not constructing
+            return ValueType.TType(TTypeDef.TEnumDef)
+        }
+
+        mut after_dot := id_expr.params.get(0)
+        switch after_dot.node_type {
+        case NodeType.Identifier(variant_name):
+            // Check if this variant exists in the enum
+            mut has_variant := enum_def.enum_map.contains_key(variant_name)
+            if not(has_variant) {
+                throw e.error(context.path, "type", format("enum '", f_name, "' has no variant '", variant_name, "'"))
+            }
+
+            mut variant_value := enum_def.enum_map.get(variant_name)
+            // variant_value is a Ptr that may be NULL (no payload) or contain a ValueType (has payload)
+
+            // Check if variant has a payload (variant_value is non-NULL)
+            if variant_value.data.ne(NULL) {
+                // This variant expects a payload
+                if e.params.len().lt(2) {
+                    // TODO: Get the actual payload type from variant_value and show it
+                    throw e.error(context.path, "type", format("Enum constructor ", f_name, ".", variant_name, " expects a payload"))
                 }
-            },
-            ValueType::TType(TTypeDef::TEnumDef) => {
-                // Handle enum constructor calls like Color.Green(true)
-                let enum_def = match context.scope_stack.lookup_enum(&f_name) {
-                    Some(_enum_def) => _enum_def,
-                    None => {
-                        return Err(e.lang_error(&context.path, "type", &format!("enum '{}' not found in context", f_name)));
-                    },
-                };
-                let after_dot = match id_expr.params.get(0) {
-                    Some(_after_dot) => _after_dot,
-                    None => {
-                        // Just referencing the enum type itself, not constructing
-                        return Ok(ValueType::TType(TTypeDef::TEnumDef));
-                    },
-                };
-                match &after_dot.node_type {
-                    NodeType::Identifier(variant_name) => {
-                        // Check if this variant exists in the enum
-                        let variant_type = match enum_def.enum_map.get(variant_name) {
-                            Some(_variant) => _variant,
-                            None => {
-                                return Err(e.error(&context.path, "type", &format!("enum '{}' has no variant '{}'", f_name, variant_name)));
-                            },
-                        };
+                // Type check the payload argument
+                mut payload_expr := e.get(1)
+                mut payload_actual_type := get_value_type(context, payload_expr)
 
-                        // Validate argument count based on whether the variant expects a payload
-                        match variant_type {
-                            Some(payload_type) => {
-                                // This variant expects a payload
-                                if e.params.len() < 2 {
-                                    return Err(e.error(&context.path, "type", &format!("Enum constructor {}.{} expects a payload of type {}", f_name, variant_name, value_type_to_str(payload_type))));
-                                }
-                                // Type check the payload argument
-                                let payload_expr = e.get(1)?;
-                                let payload_actual_type = get_value_type(context, payload_expr)?;
+                // TODO: Verify payload type matches expected type
+                // This would require unwrapping the ValueType from variant_value
+                // For now, we just accept any payload
+            } else {
+                // This variant doesn't have a payload
+                if e.params.len().gt(1) {
+                    throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
+                }
+            }
 
-                                // Verify payload type matches expected type
-                                if payload_actual_type != *payload_type {
-                                    return Err(e.error(&context.path, "type", &format!(
-                                        "Enum constructor {}.{} expects payload of type {}, but got {}",
-                                        f_name, variant_name,
-                                        value_type_to_str(payload_type),
-                                        value_type_to_str(&payload_actual_type)
-                                    )));
-                                }
-                            },
-                            None => {
-                                // This variant doesn't have a payload
-                                if e.params.len() > 1 {
-                                    return Err(e.error(&context.path, "type", &format!("Enum variant {}.{} does not take a payload", f_name, variant_name)));
-                                }
-                            },
-                        }
+            // Return the enum type
+            return ValueType.TCustom(f_name)
+        case node_type:
+            throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(node_type), "'"))
+        }
 
-                        // Return the enum type
-                        return Ok(ValueType::TCustom(f_name.clone()));
-                    },
-                    _ => {
-                        return Err(e.lang_error(&context.path, "type", &format!("Expected identifier after '{}.' found '{:?}'", f_name, after_dot.node_type)));
-                    },
                 }
             },
             ValueType::TCustom(custom_type_name) => {
