@@ -1,32 +1,43 @@
 mode lib
 
+import("src.core.self.init")
+import("src.core.self.parser")
 import("src.core.self.typer")
 
 // Interpreter phase: Runtime evaluation and execution
 // Corresponds to src/rs/interpreter.rs in the Rust implementation
 
-// Global arena for interpreter memory (simplified version)
-// In rstil.rs this is a singleton, here we'll pass it around
+RETURN_INSTANCE_NAME := "___temp_return_val_"
+
+// Global arena for interpreter memory
+// In the Rust version this is a singleton, here we use Context.arena
 Arena := struct {
-    mut memory: Array = Array()       // Byte array for storage
-    mut next_offset: I64 = 1          // Next available offset (0 is reserved/NULL)
+    mut memory: Array = Array()
+    mut temp_id_counter: I64 = 0
 
     // Create new arena
     new := proc() returns Arena throws AllocError {
         mut a := Arena()
         a.memory = Vec.new(U8)
-        a.next_offset = 1  // Reserve 0 as invalid/NULL
+        a.temp_id_counter = 0
         return a
+    }
+
+    // Get singleton instance (in Rust this uses unsafe static mut)
+    // In Til we'll pass arena around via Context instead
+    g := proc() returns mut Arena {
+        // This would be implemented as Context.arena
+        TODO(loc(), "Arena.g() should use Context.arena")
+        return Arena.new()
     }
 }
 
 // Result of evaluating an expression
-// Corresponds to EvalResult in interpreter.rs
 EvalResult := struct {
-    mut value: Str = ""                // The result value as string
-    mut is_return: Bool = false        // True if this is a return statement
-    mut is_throw: Bool = false         // True if this is a throw statement
-    mut thrown_type: Str = ""          // Type of thrown value (if is_throw)
+    mut value: Str = ""
+    mut is_return: Bool = false
+    mut is_throw: Bool = false
+    mut thrown_type: Str = ""  // Option<String> in Rust, empty string means None
 
     // Create normal result
     new := proc(value: Str) returns EvalResult {
@@ -49,602 +60,879 @@ EvalResult := struct {
     }
 
     // Create throw result
-    new_throw := proc(value: Str, thrown_type: Str) returns EvalResult {
+    new_throw := proc(value: Str, thrown_type: ValueType) returns EvalResult {
         mut result := EvalResult()
         result.value = value
         result.is_return = false
         result.is_throw = true
-        result.thrown_type = thrown_type
+        result.thrown_type = value_type_to_str(thrown_type)
         return result
     }
 }
 
-// Evaluate an expression
-// Returns EvalResult (not throws - errors returned as EvalResult)
-// Corresponds to eval_expr in interpreter.rs
+// Helper function to extract bool value from a Bool struct instance
+bool_from_context := proc(context: Context, id: Str, e: Expr) returns Bool throws Str {
+    // Validate the Bool struct exists
+    context.get_struct(id, e)
+
+    // Read the .data field (which is a U8)
+    data_field := format(id, ".data")
+    u8_val := get_u8(context, data_field, e)
+
+    // Convert U8 to bool (0 = false, non-zero = true)
+    return not(eq(u8_val, 0))
+}
+
+// Helper function to extract String value from a Str struct instance
+string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+    // Validate the Str struct exists
+    context.get_struct(id, e)
+
+    // Read the c_string field (I64 pointer to string data in Arena)
+    c_string_field := format(id, ".c_string")
+    c_string_ptr := context.get_i64(c_string_field, e)
+
+    // Read the cap field (I64 length)
+    cap_field := format(id, ".cap")
+    length := context.get_i64(cap_field, e)
+
+    // Bounds check
+    arena := Arena.g()
+    if gt(add(c_string_ptr, length), arena.memory.len()) {
+        throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
+    }
+
+    // Read string bytes from Arena and convert to String
+    // In Til this would use array slicing when available
+    // For now, simplified version
+    mut result := ""
+    mut i := c_string_ptr
+    while lt(i, add(c_string_ptr, length)) {
+        mut byte := 0
+        arena.memory.get(i, byte)
+        // Convert byte to char and append
+        // TODO: proper UTF-8 handling
+        i = add(i, 1)
+    }
+    return result
+}
+
+// Helper function to validate conditional statement parameters
+validate_conditional_params := proc(path: Str, e: Expr, stmt_type: Str, min: I64, max: I64) returns () throws Str {
+    params_len := e.params.len()
+    if or(lt(params_len, min), gt(params_len, max)) {
+        if eq(min, max) {
+            throw e.lang_error(path, "eval", format(stmt_type, " nodes must have exactly ", i64_to_str(min), " parameters."))
+        }
+        throw e.lang_error(path, "eval", format(stmt_type, " nodes must have ", i64_to_str(min), " or ", i64_to_str(max), " parameters."))
+    }
+}
+
+// Helper to evaluate boolean conditions for if/while statements
+// Supports both legacy string bools ("true"/"false") and Bool struct instances
+eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr) returns Bool throws Str {
+    // First try parsing as string bool (backwards compatibility)
+    if result.value.eq("true") {
+        return true
+    }
+    if result.value.eq("false") {
+        return false
+    }
+
+    // Otherwise, assume it's a Bool struct instance - read its .data field
+    bool_id := result.value
+    data_field_id := format(bool_id, ".data")
+    u8_val := get_u8(context, data_field_id, expr)
+    return not(eq(u8_val, 0))
+}
+
+// Helper function to validate function/procedure argument counts
+validate_func_arg_count := proc(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns () throws Str {
+    provided_args := sub(e.params.len(), 1)
+    has_multi_arg := func_proc_has_multi_arg(func_def)
+
+    // Check exact count for non-variadic functions
+    if and(not(has_multi_arg), not(eq(func_def.args.len(), provided_args))) {
+        throw e.lang_error(path, "eval", format("func '", name, "' expected ", i64_to_str(func_def.args.len()), " args, but ", i64_to_str(provided_args), " were provided."))
+    }
+
+    // Check minimum count for variadic functions
+    if and(has_multi_arg, gt(sub(func_def.args.len(), 1), provided_args)) {
+        throw e.lang_error(path, "eval", format("func '", name, "' expected at least ", i64_to_str(sub(func_def.args.len(), 1)), " args, but ", i64_to_str(provided_args), " were provided."))
+    }
+}
+
+// Main expression evaluator
 eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError {
-    // Match on node type
     switch e.node_type {
     case NodeType.Body:
-        // Evaluate body and wrap result in EvalResult
-        mut body_result := eval_body(context, e)
-        return EvalResult.new(body_result)
+        return eval_body(context, e.params)
 
-    case NodeType.Literal(lit):
-        // Handle literals - return value directly
+    case NodeType.LLiteral(lit):
         switch lit {
-        case LiteralNodeType.Bool(b):
-            if b {
-                return EvalResult.new("true")
-            }
-            return EvalResult.new("false")
-        case LiteralNodeType.I64(i):
-            return EvalResult.new(I64.to_str(i))
-        case LiteralNodeType.String(s):
-            return EvalResult.new(s)
-        case LiteralNodeType.List(l):
-            return EvalResult.new(l)
+        case Literal.Number(li64):
+            return EvalResult.new(li64)
+        case Literal.Str(lstring):
+            return EvalResult.new(lstring)
+        case Literal.List(llist):
+            return EvalResult.new(llist)
+        case:
+            throw e.lang_error(context.path, "eval", "Unknown literal type")
         }
 
     case NodeType.FCall:
-        // Evaluate function call and wrap result in EvalResult
-        mut fcall_result := eval_fcall(context, e)
-        return EvalResult.new(fcall_result)
+        f_name := get_func_name_in_call(e)
+        return eval_func_proc_call(f_name, context, e)
 
-    case NodeType.Declaration(decl):
-        // TODO: eval_declaration
-        TODO(loc(), format("eval_declaration not yet implemented for '", decl.name, "'"))
-        return EvalResult.new("")
+    case NodeType.Declaration(declaration):
+        return eval_declaration(declaration, context, e)
 
     case NodeType.Assignment(var_name):
-        // TODO: eval_assignment
-        TODO(loc(), format("eval_assignment not yet implemented for '", var_name, "'"))
-        return EvalResult.new("")
+        return eval_assignment(var_name, context, e)
 
     case NodeType.Identifier(name):
-        // TODO: eval_identifier_expr
-        TODO(loc(), format("eval_identifier_expr not yet implemented for '", name, "'"))
-        return EvalResult.new("")
+        return eval_identifier_expr(name, context, e)
 
     case NodeType.If:
-        // TODO: eval if statement
-        TODO(loc(), "if statement eval not yet implemented")
+        validate_conditional_params(context.path, e, "if", 2, 3)
+        cond_expr := e.get(0)
+        result_cond := eval_expr(context, cond_expr)
+        if result_cond.is_throw {
+            return result_cond
+        }
+        if eval_condition_to_bool(context, result_cond, cond_expr) {
+            return eval_expr(context, e.get(1))
+        }
+        if eq(e.params.len(), 3) {
+            return eval_expr(context, e.get(2))
+        }
         return EvalResult.new("")
 
     case NodeType.While:
-        // TODO: eval while loop
-        TODO(loc(), "while loop eval not yet implemented")
+        validate_conditional_params(context.path, e, "while", 2, 2)
+        mut cond_expr := e.get(0)
+        mut result_cond := eval_expr(context, cond_expr)
+        if result_cond.is_throw {
+            return result_cond
+        }
+        while eval_condition_to_bool(context, result_cond, cond_expr) {
+            result := eval_expr(context, e.get(1))
+            if or(result.is_return, result.is_throw) {
+                return result
+            }
+            cond_expr = e.get(0)
+            result_cond = eval_expr(context, cond_expr)
+            if result_cond.is_throw {
+                return result_cond
+            }
+        }
         return EvalResult.new("")
 
     case NodeType.Switch:
-        // TODO: eval switch statement
-        TODO(loc(), "switch statement eval not yet implemented")
+        if lt(e.params.len(), 3) {
+            throw e.lang_error(context.path, "eval", "switch nodes must have at least 3 parameters.")
+        }
+        to_switch := e.get(0)
+        value_type := get_value_type(context, to_switch)
+        result_to_switch := eval_expr(context, to_switch)
+        if result_to_switch.is_throw {
+            return result_to_switch
+        }
+
+        mut param_it := 1
+        while lt(param_it, e.params.len()) {
+            case_expr := e.get(param_it)
+            if eq(case_expr.node_type, NodeType.DefaultCase) {
+                param_it = add(param_it, 1)
+                return eval_expr(context, e.get(param_it))
+            }
+
+            case_type := get_value_type(context, case_expr)
+            vt_str := value_type_to_str(value_type)
+            ct_str := value_type_to_str(case_type)
+            if and(not(ct_str.eq(vt_str)), not(ct_str.eq(format(vt_str, "Range")))) {
+                throw e.lang_error(context.path, "eval", format("switch value type ", vt_str, ", case value type ", ct_str))
+            }
+
+            // Handle pattern matching with payload extraction
+            switch case_expr.node_type {
+            case NodeType.Pattern(pattern_info):
+                // Extract enum variant and binding variable
+                variant_name := pattern_info.variant_name
+                binding_var := pattern_info.binding_var
+
+                // Get the enum variable name from to_switch
+                mut enum_var_name := ""
+                switch to_switch.node_type {
+                case NodeType.Identifier(name):
+                    enum_var_name = name
+                case:
+                    throw case_expr.error(context.path, "eval", "Pattern matching requires switch value to be a variable")
+                }
+
+                enum_val := context.get_enum(enum_var_name, case_expr)
+
+                // Check if variant matches
+                full_variant := format(enum_val.enum_type, ".", enum_val.enum_name)
+                if or(full_variant.eq(variant_name), enum_val.enum_name.eq(variant_name)) {
+                    // Match! Extract the payload and bind it to the variable
+                    param_it = add(param_it, 1)
+
+                    // TODO: Extract payload into the binding variable
+                    // This requires handling different payload types (Bool, I64, Str, structs, enums)
+                    // For now, simplified version
+                    if enum_val.has_payload {
+                        // Declare symbol for binding variable
+                        // Insert payload value
+                        // This is a complex section that needs full implementation
+                        TODO(loc(), "Pattern matching payload extraction not fully implemented")
+                    }
+
+                    // Execute the case body with the bound variable available
+                    return eval_expr(context, e.get(param_it))
+                }
+                // No match, continue to next case
+                param_it = add(param_it, 2)
+                continue
+
+            case:
+                // Regular case (not pattern matching)
+                is_match := false
+
+                switch case_expr.node_type {
+                case NodeType.Range:
+                    start := eval_expr(context, case_expr.params.get(0))
+                    if start.is_throw {
+                        return start
+                    }
+                    end_expr := eval_expr(context, case_expr.params.get(1))
+                    if end_expr.is_throw {
+                        return end_expr
+                    }
+
+                    // Check if value is in range
+                    switch value_type {
+                    case ValueType.TCustom(s):
+                        if or(s.eq("I64"), s.eq("U8")) {
+                            val := str_to_i64(result_to_switch.value)
+                            start_val := str_to_i64(start.value)
+                            end_val := str_to_i64(end_expr.value)
+                            is_match = and(ge(val, start_val), le(val, end_val))
+                        }
+                    case:
+                        // Lexicographical comparison for Str
+                        is_match = and(ge(result_to_switch.value, start.value), le(result_to_switch.value, end_expr.value))
+                    }
+
+                case:
+                    result_case := eval_expr(context, case_expr)
+                    if result_case.is_throw {
+                        return result_case
+                    }
+                    is_match = result_to_switch.value.eq(result_case.value)
+                }
+
+                param_it = add(param_it, 1)
+                if is_match {
+                    return eval_expr(context, e.get(param_it))
+                }
+                param_it = add(param_it, 1)
+            }
+        }
         return EvalResult.new("")
 
     case NodeType.Return:
-        // TODO: eval return statement
-        TODO(loc(), "return statement eval not yet implemented")
-        return EvalResult.new("")
+        if eq(e.params.len(), 0) {
+            return EvalResult.new_return("")
+        }
+        if gt(e.params.len(), 1) {
+            throw e.lang_error(context.path, "eval", "multiple return values not implemented yet")
+        }
+        result := eval_expr(context, e.get(0))
+        if result.is_throw {
+            return result
+        }
+        return EvalResult.new_return(result.value)
 
     case NodeType.Throw:
-        // TODO: eval throw statement
-        TODO(loc(), "throw statement eval not yet implemented")
-        return EvalResult.new("")
+        if not(eq(e.params.len(), 1)) {
+            throw e.lang_error(context.path, "eval", "Throw can only return one value. This should have been caught before")
+        }
+        param_expr := e.get(0)
+        result := eval_expr(context, param_expr)
+        if result.is_throw {
+            return result
+        }
+        thrown_type := get_value_type(context, param_expr)
+        return EvalResult.new_throw(result.value, thrown_type)
 
     case NodeType.Catch:
-        // TODO: eval catch statement
-        TODO(loc(), "catch statement eval not yet implemented")
-        return EvalResult.new("")
-
-    case NodeType.FuncDef(_):
-        // Function definitions don't eval to a value
-        return EvalResult.new("")
-
-    case NodeType.EnumDef(_):
-        // Enum definitions don't eval to a value
-        return EvalResult.new("")
-
-    case NodeType.StructDef(_):
-        // Struct definitions don't eval to a value
-        return EvalResult.new("")
-
-    case NodeType.Range:
-        // Ranges are only valid in for-loops (already desugared)
-        TODO(loc(), "Range should not appear in eval (should be desugared)")
-        return EvalResult.new("")
-
-    case NodeType.DefaultCase:
-        // Default case only appears in switch (handled above)
-        TODO(loc(), "DefaultCase should not appear in eval outside switch")
-        return EvalResult.new("")
-
-    case NodeType.Pattern(_, _):
-        // Pattern only appears in switch (handled above)
-        TODO(loc(), "Pattern should not appear in eval outside switch")
-        return EvalResult.new("")
+        throw e.lang_error(context.path, "eval", "Catch statements should always be evaluated within bodies.")
 
     case:
-        // Unhandled node type
-        TODO(loc(), "eval_expr: Unhandled node type")
-        return EvalResult.new("")
+        throw e.lang_error(context.path, "eval", format("Not implemented yet, found node type: ", enum_to_str(e.node_type)))
     }
 }
 
-// Evaluate a literal expression
-eval_literal := proc(context: Context, e: Expr) returns Str throws Str {
-    // Extract the literal type and value
-    mut literal_type := e.node_type
-    literal_str := enum_to_str(literal_type)
+// Function/procedure call dispatcher
+eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
+    if not(eq(e.node_type, NodeType.FCall)) {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall node type")
+    }
 
-    // Use pattern matching to extract LiteralNodeType from NodeType.Literal
-    switch literal_type {
-    case NodeType.Literal(lit_node_type):
-        // Now extract primitive payloads from LiteralNodeType
-        switch lit_node_type {
-        case LiteralNodeType.String(str_val):
-            return str_val
-        case LiteralNodeType.I64(i64_val):
-            mut i64_copy := i64_val
-            return i64_copy.to_str()
-        case LiteralNodeType.Bool(bool_val):
-            if bool_val {
-                return "true"
+    if lt(e.params.len(), 1) {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Expected FCall with at least one param for the Identifier")
+    }
+
+    func_expr := e.params.get(0)
+
+    // Check if this is a struct instantiation
+    if context.scope_stack.lookup_struct(name).is_some() {
+        id_expr := e.get(0)
+        if eq(id_expr.params.len(), 0) {
+            mut id_name := ""
+            switch id_expr.node_type {
+            case NodeType.Identifier(s):
+                id_name = s
+            case:
+                throw e.todo_error(context.path, "eval", "Expected identifier name for struct instantiation")
             }
-            return "false"
-        case LiteralNodeType.List:
-            // Lists not implemented yet
-            throw format(loc(), " ERROR: List literals not yet implemented")
+
+            context.insert_struct(id_name, name, e)
+
+            // Return appropriate default value
+            if id_name.eq("Bool") {
+                return EvalResult.new("false")
+            }
+            if or(id_name.eq("U8"), id_name.eq("I64")) {
+                return EvalResult.new("0")
+            }
+            if id_name.eq("Str") {
+                return EvalResult.new("")
+            }
+            return EvalResult.new(id_name)
+        }
+    }
+
+    combined_name := get_combined_name(context.path, func_expr)
+
+    // Check if this is an enum constructor call (e.g., Color.Green(true))
+    parts := combined_name.split('.')
+    if eq(parts.len(), 2) {
+        enum_type := parts.get(0)
+        if context.scope_stack.lookup_enum(enum_type).is_some() {
+            // This is an enum constructor!
+            variant_name := parts.get(1)
+
+            // Get the enum definition
+            enum_def := context.scope_stack.lookup_enum(enum_type).unwrap()
+            variant_type := enum_def.enum_map.get(variant_name)
+
+            // TODO: Handle enum constructor with and without payload
+            // This is complex logic that needs full implementation
+            TODO(loc(), "Enum constructor handling not fully implemented")
+        }
+    }
+
+    // Get function definition
+    mut new_fcall_e := e.clone()
+    func_def_option := get_func_def_for_fcall_with_expr(context, new_fcall_e)
+
+    if func_def_option.is_none() {
+        throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
+    }
+
+    func_def := func_def_option.unwrap()
+
+    if func_def.is_ext() {
+        // External/core functions
+        is_proc := func_def.is_proc()
+        parts_split := combined_name.split('.')
+        last_name := parts_split.last().unwrap()
+        return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
+    }
+
+    return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
+}
+
+// Evaluate a declaration
+eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str {
+    inner_e := e.get(0)
+    mut value_type := get_value_type(context, inner_e)
+
+    if not(eq(declaration.value_type, ValueType.TCustom(INFER_TYPE))) {
+        if and(eq(declaration.value_type, ValueType.TCustom("U8")), eq(value_type, ValueType.TCustom("I64"))) {
+            value_type = declaration.value_type.clone()
+        }
+        else if not(eq(value_type, declaration.value_type)) {
+            throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
+        }
+    }
+
+    if not(eq(e.params.len(), 1)) {
+        throw e.lang_error(context.path, "eval", "Declarations can have only one child expression")
+    }
+
+    switch value_type {
+    case ValueType.TCustom(s):
+        if s.eq(INFER_TYPE) {
+            throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type '", value_type_to_str(declaration.value_type), "' but still to infer type '", s, "'"))
+        }
+
+    case ValueType.TType(TTypeDef.TEnumDef):
+        switch inner_e.node_type {
+        case NodeType.EnumDef(enum_def):
+            context.scope_stack.declare_enum(declaration.name.clone(), enum_def.clone())
+            context.scope_stack.declare_symbol(
+                declaration.name.to_string(),
+                SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own)
+            )
+            return EvalResult.new("")
         case:
-            // Unknown literal types
-            lit_type_str := enum_to_str(lit_node_type)
-            throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
+            throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected enum definition."))
         }
-    case:
-        throw format(loc(), " ERROR: Unknown literal type: ", literal_str)
-    }
-}
 
-// Evaluate an identifier (variable lookup)
-eval_identifier := proc(context: Context, e: Expr) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
-    // Get identifier name from node_type payload using pattern matching
-    mut node_type := e.node_type
-    mut var_name := ""
-    switch node_type {
-    case NodeType.Identifier(name):
-        var_name = name
-    case:
-        // Should never happen for this eval function
-    }
+    case ValueType.TType(TTypeDef.TStructDef):
+        switch inner_e.node_type {
+        case NodeType.StructDef(struct_def):
+            context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone())
+            context.scope_stack.declare_symbol(
+                declaration.name.to_string(),
+                SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own)
+            )
 
-    // Look up in symbol table to get type
-    mut symbols_map := context.symbols
-    mut symbol_info_str := symbols_map.get(var_name)
-    if symbol_info_str.eq("") {
-        throw format(loc(), " ERROR: Variable '", var_name, "' not found")
-    }
+            // Process struct members with default values
+            // TODO: Full implementation of struct member processing
+            TODO(loc(), "Struct member default value processing not fully implemented")
 
-    // For now, try each type - later we'll parse SymbolInfo properly
-    // For Phase 2, we'll just try I64, Str, Bool in order until one works
+            return EvalResult.new("")
+        case:
+            throw e.lang_error(context.path, "eval", format("Cannot declare ", declaration.name, " of type ", value_type_to_str(declaration.value_type), ", expected struct definition."))
+        }
 
-    // Try I64 first
-    mut i64_result := context.get_i64(var_name)
-    mut str_result := ""
-    mut bool_result := false
-    mut which_type := "i64"
+    case ValueType.TFunction(_):
+        switch inner_e.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.declare_func(declaration.name.to_string(), func_def.clone())
+            context.scope_stack.declare_symbol(
+                declaration.name.to_string(),
+                SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own)
+            )
+            return EvalResult.new("")
+        case:
+            throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected '", value_type_to_str(value_type), "' definition."))
+        }
 
-    catch (err: Str) {
-        // Not I64, try Str
-        which_type = "str"
-        str_result = context.get_str(var_name)
-        catch (err2: Str) {
-            // Not Str, try Bool
-            which_type = "bool"
-            bool_result = context.get_bool(var_name)
-            catch (err3: Str) {
-                throw format(loc(), " ERROR: Could not retrieve variable '", var_name, "' as any known type")
+    case ValueType.TCustom(custom_type_name):
+        // Handle primitive and custom types
+        if or(or(custom_type_name.eq("I64"), custom_type_name.eq("U8")), or(custom_type_name.eq("Bool"), custom_type_name.eq("Str"))) {
+            result := eval_expr(context, inner_e)
+            if result.is_throw {
+                return result
             }
+            expr_result_str := result.value
+            context.scope_stack.declare_symbol(
+                declaration.name.to_string(),
+                SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own)
+            )
+            context.insert_primitive(declaration.name, value_type, expr_result_str, e)
+            return EvalResult.new("")
         }
-    }
 
-    // Return based on which type succeeded
-    mut wt_copy := which_type
-    if wt_copy.eq("i64") {
-        mut val_copy := i64_result
-        return val_copy.to_str()
-    }
+        // Handle custom struct/enum types
+        context.scope_stack.declare_symbol(
+            declaration.name.to_string(),
+            SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own)
+        )
 
-    if wt_copy.eq("str") {
-        return str_result
-    }
+        custom_symbol := context.scope_stack.lookup_symbol(custom_type_name)
+        if custom_symbol.is_none() {
+            throw e.lang_error(context.path, "eval", format("Symbol '", custom_type_name, "' not found in context"))
+        }
 
-    // Must be bool
-    if bool_result {
-        return "true"
-    }
-    return "false"
-}
+        custom_sym := custom_symbol.unwrap()
+        if eq(custom_sym.value_type, ValueType.TType(TTypeDef.TEnumDef)) {
+            result := eval_expr(context, inner_e)
+            if result.is_throw {
+                return result
+            }
+            enum_expr_result_str := result.value
+            context.insert_enum(declaration.name, custom_type_name, enum_expr_result_str, e)
+        }
+        else if eq(custom_sym.value_type, ValueType.TType(TTypeDef.TStructDef)) {
+            // Handle struct instantiation and assignment
+            // TODO: Full implementation
+            TODO(loc(), "Struct declaration handling not fully implemented")
+        }
+        else {
+            throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_sym.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
+        }
+        return EvalResult.new("")
 
-// Evaluate a declaration - Phase 2: simple types only
-// Handles I64, Str, Bool declarations with initializers
-eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Extract Declaration from node_type
-    mut node_type := e.node_type
-    mut decl := Declaration()
-    switch node_type {
-    case NodeType.Declaration(d):
-        decl = d
+    case ValueType.TMulti(_):
+        throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "'"))
+
     case:
-        // Other node types
+        throw e.lang_error(context.path, "eval", format("Unhandled value type in declaration: ", value_type_to_str(value_type)))
     }
-
-    // Get the initializer expression (params[0])
-    mut params_array := e.params
-    if lt(params_array.len(), 1) {
-        throw format(loc(), " ERROR: Declaration of '", decl.name, "' has no initializer expression")
-    }
-
-    mut init_expr := Expr()
-    params_array.get(0, init_expr)
-
-    // Evaluate the initializer
-    init_value := eval_expr(context, init_expr)
-
-    // Store in symbol table (simplified: just store type as string)
-    mut symbols_map := context.symbols
-    symbols_map.insert(decl.name, decl.value_type)
-
-    // Store the actual value based on type
-    mut value_type := decl.value_type
-    if value_type.eq("I64") {
-        mut init_val_str := init_value
-        init_i64 := init_val_str.to_i64()
-        context.insert_i64(decl.name, init_i64)
-    }
-    else if value_type.eq("Str") {
-        context.insert_str(decl.name, init_value)
-    }
-    else if value_type.eq("Bool") {
-        // Parse "true" or "false" string to boolean
-        mut init_val_str := init_value
-        is_true := init_val_str.eq("true")
-        context.insert_bool(decl.name, is_true)
-    }
-    else {
-        throw format(loc(), " ERROR: Declaration of '", decl.name, "' has unsupported type '", value_type, "' (Phase 2 only supports I64, Str, Bool)")
-    }
-
-    return ""
 }
 
 // Evaluate an assignment
-// Phase 2: simple types only, no mutability checking yet
-eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Extract variable name from node_type using pattern matching
-    mut node_type := e.node_type
-    mut var_name := ""
-    switch node_type {
-    case NodeType.Identifier(name):
-        var_name = name
+eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
+    // For field access (e.g., "v.x"), extract the base variable name
+    base_var_name := if var_name.contains('.') {
+        var_name.split('.').next().unwrap()
+    } else {
+        var_name
+    }
+
+    symbol_info := context.scope_stack.lookup_symbol(base_var_name)
+    if symbol_info.is_none() {
+        throw e.lang_error(context.path, "eval", format("Symbol '", base_var_name, "' not found in context"))
+    }
+
+    sym := symbol_info.unwrap()
+    if and(and(not(sym.is_mut), not(sym.is_copy)), not(sym.is_own)) {
+        throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': Assignments can only be to mut values."))
+    }
+
+    if not(eq(e.params.len(), 1)) {
+        throw e.lang_error(context.path, "eval", format("in eval_assignment, while assigning to '", var_name, "': assignments must take exactly one value"))
+    }
+
+    inner_e := e.get(0)
+    value_type := get_value_type(context, inner_e)
+
+    switch value_type {
+    case ValueType.TCustom(s):
+        if s.eq(INFER_TYPE) {
+            throw e.lang_error(context.path, "eval", format("Cannot assign ", var_name, ", type should already be inferred of type '", value_type_to_str(sym.value_type), "'."))
+        }
+
+    case ValueType.TCustom(custom_type_name):
+        if or(or(custom_type_name.eq("I64"), custom_type_name.eq("U8")), custom_type_name.eq("Str")) {
+            result := eval_expr(context, inner_e)
+            if result.is_throw {
+                return result
+            }
+            expr_result_str := result.value
+            context.insert_primitive(var_name, value_type, expr_result_str, e)
+        }
+        else {
+            // Handle custom types (enum, struct)
+            // TODO: Full implementation
+            TODO(loc(), "Custom type assignment not fully implemented")
+        }
+        return EvalResult.new("")
+
+    case ValueType.TFunction(_):
+        switch inner_e.node_type {
+        case NodeType.FuncDef(func_def):
+            context.scope_stack.declare_func(var_name.to_string(), func_def.clone())
+            return EvalResult.new("")
+        case:
+            throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' to function type '", value_type_to_str(value_type), "'"))
+        }
+
     case:
-        // Should never happen for this eval function
+        throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'."))
     }
-
-    // Look up symbol to verify it exists and get its type
-    mut symbols_map := context.symbols
-    mut value_type_str := symbols_map.get(var_name)
-    if value_type_str.eq("") {
-        throw format(loc(), " ERROR: Variable '", var_name, "' not found in assignment")
-    }
-
-    // Get the value expression (params[0])
-    mut params_array := e.params
-    if lt(params_array.len(), 1) {
-        throw format(loc(), " ERROR: Assignment to '", var_name, "' has no value expression")
-    }
-
-    mut value_expr := Expr()
-    params_array.get(0, value_expr)
-
-    // Evaluate the value expression
-    new_value := eval_expr(context, value_expr)
-
-    // Update the value based on type
-    mut vt_copy := value_type_str
-    if vt_copy.eq("I64") {
-        mut new_val_str := new_value
-        new_i64 := new_val_str.to_i64()
-        context.insert_i64(var_name, new_i64)
-    }
-    else if vt_copy.eq("Str") {
-        context.insert_str(var_name, new_value)
-    }
-    else if vt_copy.eq("Bool") {
-        mut new_val_str := new_value
-        is_true := new_val_str.eq("true")
-        context.insert_bool(var_name, is_true)
-    }
-    else {
-        throw format(loc(), " ERROR: Assignment to '", var_name, "' has unsupported type '", value_type_str, "' (Phase 2 only supports I64, Str, Bool)")
-    }
-
-    return ""
 }
 
-// Helper: evaluate println function
-eval_println := proc(mut context: Context, params: Array) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Print each argument (skip params[0] which is the function name)
-    mut params_len := params.len()()
-    for i in 1..params_len {
-        mut arg_expr := Expr()
-        params.get(i, arg_expr)
+// Evaluate an identifier expression (variable lookup)
+eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
+    symbol_info := context.scope_stack.lookup_symbol(name)
 
-        // Evaluate the argument and print its string representation
-        result_str := eval_expr(context, arg_expr)
-        print(result_str)
-    }
-    println("")
-    return ""
-}
-
-// Evaluate a function call
-// Phase 2: basic arithmetic and core functions only
-eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Get function name from params[0]
-    mut params_array := e.params
-    if lt(params_array.len(), 1) {
-        throw format(loc(), " ERROR: Function call has no function name")
+    if symbol_info.is_none() {
+        throw e.lang_error(context.path, "eval", format("Undefined symbol '", name, "'. This should have been caught in the compile phase."))
     }
 
-    mut func_name_expr := Expr()
-    params_array.get(0, func_name_expr)
+    sym := symbol_info.unwrap()
 
-    mut func_node_type := func_name_expr.node_type
+    switch sym.value_type {
+    case ValueType.TFunction(_):
+        return EvalResult.new(name)
 
-    // TEMPORARY HACK: For hello_script.til test, just assume all calls are println
-    // TODO: Fix this properly - use switch to extract Identifier payload and dispatch properly
-    return eval_println(context, params_array)
-
-    // TODO: Restore proper function dispatch once rstil bug is fixed or switch-based workaround is implemented
-    // The code below is commented out because it's unreachable after the return above
-    /*
-    // Binary arithmetic operations
-    if node_type_full_str.eq("NodeType.Identifier(add)") {
-        return eval_binary_i64_op(context, params_array, "add")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(sub)") {
-        return eval_binary_i64_op(context, params_array, "sub")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(mul)") {
-        return eval_binary_i64_op(context, params_array, "mul")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(div)") {
-        return eval_binary_i64_op(context, params_array, "div")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(mod)") {
-        return eval_binary_i64_op(context, params_array, "mod")
-    }
-
-    // Comparison operations
-    if node_type_full_str.eq("NodeType.Identifier(lt)") {
-        return eval_comparison_op(context, params_array, "lt")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(gt)") {
-        return eval_comparison_op(context, params_array, "gt")
-    }
-    if node_type_full_str.eq("NodeType.Identifier(eq)") {
-        return eval_comparison_op(context, params_array, "eq")
-    }
-
-    if node_type_full_str.eq("NodeType.Identifier(readfile)") {
-        // For now, just call the external readfile function
-        // TODO Phase 4: Full implementation
-        if lt(params_array.len(), 2) {
-            throw format(loc(), " ERROR: readfile requires 1 argument")
+    case ValueType.TType(TTypeDef.TEnumDef):
+        inner_e := e.get(0)
+        switch inner_e.node_type {
+        case NodeType.Identifier(inner_name):
+            return EvalResult.new(format(name, ".", inner_name))
+        case:
+            throw e.lang_error(context.path, "eval", format("identifier '", name, "' should only have identifiers inside."))
         }
-        mut path_expr := Expr()
-        params_array.get(1, path_expr)
-        path_str := eval_expr(context, path_expr)
-        return readfile(path_str)
-    }
 
-    if node_type_full_str.eq("NodeType.Identifier(scan_tokens)") {
-        // For now, just call the external scan_tokens function
-        // TODO Phase 4: Full implementation - this should call the self-hosted lexer
-        if lt(params_array.len(), 2) {
-            throw format(loc(), " ERROR: scan_tokens requires 1 argument")
+    case ValueType.TType(TTypeDef.TStructDef):
+        // TODO: Implement struct field access
+        TODO(loc(), "Struct field access in eval_identifier_expr not fully implemented")
+        return EvalResult.new("")
+
+    case ValueType.TCustom(s):
+        if s.eq(INFER_TYPE) {
+            throw e.lang_error(context.path, "eval", format("Can't infer the type of identifier '", name, "'."))
         }
-        mut source_expr := Expr()
-        params_array.get(1, source_expr)
-        source_str := eval_expr(context, source_expr)
-        // scan_tokens returns a TokenArray, but we can't return that from eval_expr (which returns Str)
-        // This is a limitation - we need proper struct support
-        // For now, just throw an error
-        throw format(loc(), " ERROR: scan_tokens not yet supported in self-hosted interpreter (needs struct return values)")
+
+    case ValueType.TCustom(custom_type_name):
+        if custom_type_name.eq("I64") {
+            val := context.get_i64(name, e)
+            return EvalResult.new(i64_to_str(val))
+        }
+        if custom_type_name.eq("U8") {
+            val := get_u8(context, name, e)
+            return EvalResult.new(i64_to_str(u8_to_i64(val)))
+        }
+        if custom_type_name.eq("Bool") {
+            val := bool_from_context(context, name, e)
+            return EvalResult.new(if val { "true" } else { "false" })
+        }
+        if custom_type_name.eq("Str") {
+            if eq(e.params.len(), 0) {
+                val := string_from_context(context, name, e)
+                return EvalResult.new(val)
+            }
+            // Field access on Str
+            // TODO: Implement
+            TODO(loc(), "Str field access not implemented")
+            return EvalResult.new("")
+        }
+
+        // Custom enum/struct types
+        // TODO: Full implementation
+        TODO(loc(), "Custom type identifier evaluation not fully implemented")
+        return EvalResult.new("")
+
+    case:
+        throw e.todo_error(context.path, "eval", format("Can't use identifier '", name, "'. Type ", value_type_to_str(sym.value_type), " not supported yet."))
     }
-
-    throw format(loc(), " ERROR: Function not implemented (Phase 2 only supports add, sub, mul, div, mod, lt, gt, eq, println, readfile)")
-    */
-}
-
-// Helper: evaluate binary I64 operations
-eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    if lt(params.len(), 3) {
-        throw format(loc(), " ERROR: ", op, " requires 2 arguments")
-    }
-
-    // Get arg1 and arg2 (params[1] and params[2])
-    mut arg1_expr := Expr()
-    mut arg2_expr := Expr()
-    params.get(1, arg1_expr)
-    params.get(2, arg2_expr)
-
-    // Evaluate arguments
-    arg1_str := eval_expr(context, arg1_expr)
-    arg2_str := eval_expr(context, arg2_expr)
-
-    // Convert to I64
-    mut a1_copy := arg1_str
-    mut a2_copy := arg2_str
-    a1 := a1_copy.to_i64()
-    a2 := a2_copy.to_i64()
-
-    // Perform operation
-    mut result := 0
-    mut op_copy := op
-    if op_copy.eq("add") {
-        result = add(a1, a2)
-    }
-    else if op_copy.eq("sub") {
-        result = sub(a1, a2)
-    }
-    else if op_copy.eq("mul") {
-        result = mul(a1, a2)
-    }
-    else if op_copy.eq("div") {
-        result = div(a1, a2)
-    }
-    else if op_copy.eq("mod") {
-        result = mod(a1, a2)
-    }
-
-    mut res_copy := result
-    return res_copy.to_str()
-}
-
-// Helper: evaluate comparison operations
-eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    if lt(params.len(), 3) {
-        throw format(loc(), " ERROR: ", op, " requires 2 arguments")
-    }
-
-    // Get arg1 and arg2
-    mut arg1_expr := Expr()
-    mut arg2_expr := Expr()
-    params.get(1, arg1_expr)
-    params.get(2, arg2_expr)
-
-    // Evaluate arguments
-    arg1_str := eval_expr(context, arg1_expr)
-    arg2_str := eval_expr(context, arg2_expr)
-
-    // Convert to I64 for numeric comparison
-    mut a1_copy := arg1_str
-    mut a2_copy := arg2_str
-    a1 := a1_copy.to_i64()
-    a2 := a2_copy.to_i64()
-
-    // Perform comparison
-    mut result := false
-    mut op_copy := op
-    if op_copy.eq("lt") {
-        result = lt(a1, a2)
-    }
-    else if op_copy.eq("gt") {
-        result = gt(a1, a2)
-    }
-    else if op_copy.eq("eq") {
-        result = eq(a1, a2)
-    }
-
-    if result {
-        return "true"
-    }
-    return "false"
 }
 
 // Evaluate a body (sequence of statements)
-// Phase 3: basic catch support (skips catch blocks, doesn't actually handle errors)
-eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
-    // Get the statements array
-    mut params_array := e.params
-    mut num_stmts := params_array.len()
-
-    // Evaluate each statement in sequence
+eval_body := proc(mut context: Context, statements: Array) returns EvalResult throws Str {
     mut i := 0
-    mut last_result := ""
-    while lt(i, num_stmts) {
-        mut stmt := Expr()
-        params_array.get(i, stmt)
+    mut pending_throw := EvalResult.new("")  // Using empty EvalResult as None equivalent
+    pending_throw.thrown_type = ""  // Empty means no pending throw
 
-        // Phase 3: Skip catch blocks (don't evaluate them unless there's a pending throw)
-        // TODO: Implement proper throw/catch mechanism
-        mut stmt_type_str := enum_to_str(stmt.node_type)
-        mut is_catch := stmt_type_str.eq("NodeType.Catch")
+    while lt(i, statements.len()) {
+        stmt := statements.get(i)
 
-        if not(is_catch) {
-            mut stmt_result := eval_expr(context, stmt)
-            last_result = stmt_result.value
+        // Check if we have a pending throw
+        has_pending_throw := not(pending_throw.thrown_type.eq(""))
 
-            // Handle early return/throw
-            if stmt_result.is_return {
-                return last_result
+        if has_pending_throw {
+            // Look for catch block
+            if eq(stmt.node_type, NodeType.Catch) {
+                if eq(stmt.params.len(), 3) {
+                    var_expr := stmt.params.get(0)
+                    mut var_name := ""
+                    switch var_expr.node_type {
+                    case NodeType.Identifier(name):
+                        var_name = name
+                    case:
+                        throw stmt.lang_error(context.path, "eval", "Catch variable must be an identifier")
+                    }
+
+                    type_expr := stmt.params.get(1)
+                    mut type_name := ""
+                    switch type_expr.node_type {
+                    case NodeType.Identifier(name):
+                        type_name = name
+                    case:
+                        throw stmt.lang_error(context.path, "eval", "Catch type must be an identifier")
+                    }
+
+                    if type_name.eq(pending_throw.thrown_type) {
+                        // Match! Bind the error variable
+                        context.scope_stack.declare_symbol(
+                            var_name.to_string(),
+                            SymbolInfo.new(
+                                ValueType.TCustom(pending_throw.thrown_type.clone()),
+                                false,
+                                false,
+                                false
+                            )
+                        )
+
+                        // TODO: Map instance fields for the error variable
+                        // This requires complex field mapping logic
+
+                        body_expr := stmt.params.get(2)
+                        result := eval_body(context, body_expr.params)
+
+                        // Clean up the error variable binding
+                        context.scope_stack.remove_symbol(var_name)
+                        context.scope_stack.remove_var(var_name)
+
+                        if result.is_return {
+                            return result
+                        }
+                        if result.is_throw {
+                            pending_throw = result
+                        }
+                        else {
+                            pending_throw.thrown_type = ""  // Clear pending throw
+                        }
+                    }
+                }
             }
-            if stmt_result.is_throw {
-                throw format("Uncaught exception: ", stmt_result.thrown_type, " - ", stmt_result.value)
+        }
+        else {
+            // No pending throw, evaluate statements (skip catch blocks)
+            if not(eq(stmt.node_type, NodeType.Catch)) {
+                result := eval_expr(context, stmt)
+                if result.is_return {
+                    return result
+                }
+                if result.is_throw {
+                    pending_throw = result
+                }
             }
         }
 
         i = add(i, 1)
     }
 
-    // Return the last result (or empty string if no statements)
-    return last_result
+    if not(pending_throw.thrown_type.eq("")) {
+        return pending_throw
+    }
+
+    return EvalResult.new("")
 }
 
-// ---------- Core function/procedure dispatcher
-// NOTE: This dispatcher is not yet used - it's here to establish the pattern for self-hosting
-// When self-hosted, this will route ext function calls, similar to the Rust dispatcher
-// For now, ext functions are called directly via the ext_func/ext_proc mechanism
+// Evaluate user-defined function/procedure call
+eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
+    mut function_context := context.clone()
+    function_context.path = func_def.source_path.clone()
 
-eval_core_func_proc_call := proc(name: Str, context: Dynamic, expr: Dynamic, is_proc: Bool) returns Str {
-    // Switch on function name to dispatch to ext functions
-    // Mirrors the Rust implementation's match statement
-    switch name {
-        // Type introspection functions
-        case "loc": return loc()
-        case "size_of": return size_of(I64).i64_to_str()  // TODO: Get type from expr
-        case "type_as_str": return type_as_str(I64)  // TODO: Get type from expr
-        case "to_ptr": return to_ptr(name).i64_to_str()  // TODO: Get var from expr
+    validate_func_arg_count(context.path, e, name, func_def)
 
-        // Memory functions
-        case "malloc": return malloc(0)  // TODO: Get size from expr
-        case "free": free(0)  // TODO: Get ptr from expr
-        case "memset": memset(0, 0, 0)  // TODO: Get args from expr
-        case "memcpy": memcpy(0, 0, 0)  // TODO: Get args from expr
-        case "memcmp": return memcmp(0, 0, 0).i64_to_str()  // TODO: Get args from expr
+    // TODO: Full implementation of argument passing
+    // - Handle variadic arguments (TMulti)
+    // - Handle pass-by-reference for non-copy types
+    // - Handle ownership transfer for 'own' parameters
+    // - Handle Dynamic/Type parameters
+    // - Handle enum payload preservation
+    // - Handle mut arguments with field access
 
-        // Comparison and arithmetic functions
-        case "lt": return lt(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "gt": return gt(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "add": return add(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "sub": return sub(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "mul": return mul(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "div": return div(0, 0).i64_to_str()  // TODO: Get args from expr
-        case "mod": return mod(0, 0).i64_to_str()  // TODO: Get args from expr
+    TODO(loc(), "User function call argument handling not fully implemented")
 
-        // Type conversion functions
-        case "str_to_i64": return str_to_i64("0").i64_to_str()  // TODO: Get str from expr
-        case "i64_to_str": return i64_to_str(0)  // TODO: Get i64 from expr
-        case "enum_to_str": return enum_to_str(name)  // TODO: Get enum from expr
-        case "u8_to_i64": return u8_to_i64(0).i64_to_str()  // TODO: Get u8 from expr
-        case "i64_to_u8": return i64_to_u8(0).i64_to_str()  // TODO: Get i64 from expr
+    // Evaluate function body
+    result := eval_body(function_context, func_def.body)
 
-        // Procedures
-        case "single_print": single_print("")  // TODO: Get args from expr
-        case "print_flush": print_flush()
-        case "input_read_line": return input_read_line("")  // TODO: Get prompt from expr
-        case "eval_to_str": return eval_to_str("")  // TODO: Get source from expr
-        case "exit": exit(0)  // TODO: Get code from expr
-        case "import": import("")  // TODO: Get path from expr
-        case "readfile": return readfile("")  // TODO: Get path from expr
-        case "runfile": runfile("")  // TODO: Get args from expr
-
-        // Default case - error
-        case: {
-            if is_proc {
-                panic(loc(), format("Core procedure '", name, "' not implemented"))
-            }
-            panic(loc(), format("Core function '", name, "' not implemented"))
-        }
+    if result.is_throw {
+        // TODO: Copy thrown struct's arena_index entries to calling context
+        return result
     }
+
+    result_str := result.value
+
+    // TODO: Handle mut argument writeback
+    // TODO: Handle return value struct/enum copying
+
+    return EvalResult.new(result_str)
+}
+
+// Core function/procedure dispatcher
+eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str {
+    // Dispatch to external/core functions
+    // These would be imported from ext module
+
+    if name.eq("loc") {
+        return ext_func_loc(context, e)
+    }
+    if name.eq("size_of") {
+        return ext_func_size_of(context, e)
+    }
+    if name.eq("type_as_str") {
+        return ext_func_type_as_str(context, e)
+    }
+    if name.eq("to_ptr") {
+        return ext_func_to_ptr(context, e)
+    }
+    if name.eq("malloc") {
+        return ext_func_malloc(context, e)
+    }
+    if name.eq("free") {
+        return ext_func_free(context, e)
+    }
+    if name.eq("memset") {
+        return ext_func_memset(context, e)
+    }
+    if name.eq("memcpy") {
+        return ext_func_memcpy(context, e)
+    }
+    if name.eq("memcmp") {
+        return ext_func_memcmp(context, e)
+    }
+    if name.eq("lt") {
+        return ext_func_lt(context, e)
+    }
+    if name.eq("gt") {
+        return ext_func_gt(context, e)
+    }
+    if name.eq("add") {
+        return ext_func_add(context, e)
+    }
+    if name.eq("sub") {
+        return ext_func_sub(context, e)
+    }
+    if name.eq("mul") {
+        return ext_func_mul(context, e)
+    }
+    if name.eq("div") {
+        return ext_func_div(context, e)
+    }
+    if name.eq("mod") {
+        return ext_func_mod(context, e)
+    }
+    if name.eq("str_to_i64") {
+        return ext_func_str_to_i64(context, e)
+    }
+    if name.eq("i64_to_str") {
+        return ext_func_i64_to_str(context, e)
+    }
+    if name.eq("enum_to_str") {
+        return ext_func_enum_to_str(context, e)
+    }
+    if name.eq("u8_to_i64") {
+        return ext_func_u8_to_i64(context, e)
+    }
+    if name.eq("i64_to_u8") {
+        return ext_func_i64_to_u8(context, e)
+    }
+    if name.eq("eval_to_str") {
+        return ext_proc_eval_to_str(context, e)
+    }
+    if name.eq("exit") {
+        return ext_func_exit(context, e)
+    }
+    if name.eq("import") {
+        return ext_proc_import(context, e)
+    }
+    if name.eq("input_read_line") {
+        return ext_proc_input_read_line(context, e)
+    }
+    if name.eq("single_print") {
+        return ext_proc_single_print(context, e)
+    }
+    if name.eq("print_flush") {
+        return ext_proc_print_flush(context, e)
+    }
+    if name.eq("readfile") {
+        return ext_proc_readfile(context, e)
+    }
+    if name.eq("runfile") {
+        return ext_proc_runfile(context, e)
+    }
+    if name.eq("has_const") {
+        return ext_func_has_const(context, e)
+    }
+    if name.eq("has_field") {
+        return ext_func_has_field(context, e)
+    }
+
+    // Unknown function
+    if is_proc {
+        throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))
+    }
+    throw e.lang_error(context.path, "eval", format("Core function '", name, "' not implemented."))
 }
