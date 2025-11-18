@@ -168,8 +168,89 @@ Mitigation: Work systematically, may need to accept broken state temporarily
 Wrong variables visible in wrong scopes
 Mitigation: Test with nested function calls, shadowing scenarios
 
+* Progress Log
+
+** 2025-11-18: Initial Implementation Attempt
+
+*** What Was Done
+1. ✅ Removed context.clone() from eval_user_func_proc_call (interpreter.rs:1482)
+2. ✅ Added scope_stack.push(ScopeType::Function) at function entry
+3. ✅ Added cleanup_function_scope() helper to pop scope and restore path
+4. ✅ Added cleanup calls before all 22 return statements in eval_user_func_proc_call
+5. ✅ Removed all 52 references to function_context, replaced with context
+6. ✅ Fixed typer.rs context.clone() at 4 sites (lines 131, 845, 1100, 1247)
+7. ✅ Added cleanup_typecheck_scope() helper for typer
+8. ✅ Fixed borrow checker issues by cloning data before mutating loops
+
+*** Critical Bug Discovered: Pass-by-Reference Not Working
+The pass-by-reference implementation was **broken** - it was sharing offsets but mutations created NEW allocations instead of updating existing ones!
+
+**** Root Cause
+In insert_i64/insert_u8 (init.rs ~1155-1159), when assigning to an existing variable:
+- OLD behavior with context.clone(): Both contexts shared same Arena, so mutations worked
+- NEW behavior with scope stack: Assignment always created NEW arena allocation
+- Result: mut parameters were never actually mutated in place!
+
+**** Symptoms
+- i.inc() would increment but caller's i stayed at 0
+- Infinite loops because loop counters never changed
+- No actual performance benefit from "pass-by-reference"
+
+**** Fix Applied
+Modified insert_i64 and insert_u8 to check if variable already exists:
+#+BEGIN_SRC rust
+// Check if variable already exists (e.g., mut parameters passed by reference)
+if let Some(existing_offset) = self.scope_stack.lookup_var(id) {
+    // Update existing value in-place (important for mut parameters)
+    Arena::g().memory[existing_offset..existing_offset + 8].copy_from_slice(&bytes);
+    return Ok(())
+}
+
+// Variable doesn't exist yet, create new entry
+let offset = Arena::g().memory.len();
+Arena::g().memory.extend_from_slice(&bytes);
+self.scope_stack.insert_var(id.to_string(), offset);
+#+END_SRC
+
+**** Current Status
+- ✅ Simple I64 mutations now work (i.inc() properly increments)
+- ✅ Basic tests pass (test_scope_simple.til: "Hello" prints correctly)
+- ❌ Str parameter handling broken (insert_struct: 'loc_str' not found in symbols)
+- ❌ Full test suite fails on hello_test.til
+
+*** Outstanding Issues
+
+**** Issue 1: Str Parameter Handling
+Error: "insert_struct: id 'loc_str' for struct 'Str' not found in symbols"
+- Occurs when passing Str parameters to nested functions (test → assertm)
+- insert_struct expects symbol to exist but lookup_symbol returns None
+- May be related to hybrid field mapping (some dynamic, some pre-registered)
+- Need to investigate if field offset copying in pass-by-ref is still needed
+
+**** Issue 2: Unused Variable Warning
+interpreter.rs:1497: `scope_pushed` is unused (was for early experiment, can be removed)
+
+**** Issue 3: Performance Not Yet Verified
+- Need to verify actual performance improvement once tests pass
+- Pass-by-reference was previously broken, so no benefit was seen
+- With fix applied, should see significant improvement
+
+*** Next Steps
+1. Debug Str parameter issue with insert_struct
+2. Investigate if field mapping can be fully eliminated (dynamic offset calculation everywhere)
+3. Consider whether insert_i64/insert_u8 fix needs to apply to insert_string/insert_bool
+4. Remove unused scope_pushed variable
+5. Run full test suite once Str issue resolved
+6. Measure performance improvement
+
+*** Architecture Questions Raised
+1. Should we eliminate pre-registered field offsets entirely? (Always calculate dynamically)
+2. Is the hybrid approach (some dynamic, some pre-registered) causing the Str issue?
+3. Do we need the field offset copying in pass-by-ref if we calculate dynamically?
+
 * References
 
 - techdebt.org: Original problem description and Steps 1-6 migration
 - phase3d_arena_index_elimination branch: Previous failed attempt (tried before Steps 1-6 complete)
 - init.rs: ScopeStack implementation and lookup methods
+- wip_clone_context branch: Initial implementation attempt (2025-11-18)
