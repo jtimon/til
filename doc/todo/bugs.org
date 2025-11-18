@@ -8,11 +8,12 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #27: Cannot inline Vec.new() as function argument
+** Bug #27: Cannot inline Vec.new() as function argument :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-18
+:FIXED: 2025-11-18
 :IMPACT: Code ergonomics, parser implementation
-:STATUS: Active - Workaround in place
+:STATUS: Fixed
 :END:
 
 *** Description
@@ -46,19 +47,29 @@ When evaluating function calls with struct arguments, the evaluator checks if th
 
 The 'params' parameter in Expr.new_explicit is declared as 'params: Vec' (not 'own Vec'), so inline expressions like Vec.new(Expr) are rejected.
 
-*** Workaround
-Create a variable first, then pass the variable:
+*** Fix (2025-11-18)
+Modified interpreter.rs to allow non-identifier expression arguments for struct parameters:
+
+1. Lines 1778-1782: For field access chains with expressions, use result_str
+2. Lines 1787-1795: For simple expressions (like Vec.new()), use result_str
+3. Lines 1899-1904: For non-Identifier node types, allocate struct and copy fields from result_str
+
+The key insight: when an expression is evaluated (like Vec.new(Expr)), the result
+is allocated in the arena and result_str contains the identifier. We can use this
+to copy the struct to the parameter, just like we do for identifier arguments.
+
+*** Now Works
 #+BEGIN_SRC til
+// Can inline Vec.new(Expr) directly as argument
+return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+#+END_SRC
+
+*** Previous Workaround (No Longer Needed)
+#+BEGIN_SRC til
+// Old workaround - create variable first
 empty_params := Vec.new(Expr)
 return Expr.new_explicit(..., empty_params, ...)
 #+END_SRC
-
-This workaround is used in src/core/self/parser.til:1326-1330.
-
-*** Impact
-- Code is more verbose than Rust equivalent
-- Cannot directly translate certain Rust patterns
-- All inline Vec.new() calls in function arguments must use workaround
 
 ** Bug #26: Nested struct corruption in Vec/Map :FIXED:
 :PROPERTIES:

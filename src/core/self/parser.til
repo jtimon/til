@@ -795,8 +795,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
             case TokenType.Identifier:
                 current_identifier = next2_t.token_str
                 lexer.advance(2)
-                empty_params := Vec.new(Expr)
-                ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier), t, empty_params)
+                ident_expr := Expr.new_parse(NodeType.Identifier(current_identifier), t, Vec.new(Expr))
                 params.push(ident_expr)
                 next_t = lexer.next()
             case:
@@ -868,8 +867,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
 
                 // Create a new FCall with the method name as identifier and previous result as first arg
                 // This represents: method_name(result, args...)
-                empty_params := Vec.new(Expr)
-                method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, empty_params)
+                method_id := Expr.new_parse(NodeType.Identifier(method_name), method_t, Vec.new(Expr))
                 mut new_params := Vec.new(Expr)
                 new_params.push(method_id)
                 new_params.push(result)  // Previous call result becomes first argument
@@ -1076,15 +1074,13 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     // Parse the error variable name
     name_token := lexer_expect(lexer, TokenType.Identifier)
     name := name_token.token_str
-    empty_params := Vec.new(Expr)
-    name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, empty_params)
+    name_expr := Expr.new_parse(NodeType.Identifier(name), name_token, Vec.new(Expr))
 
     _ := lexer_expect(lexer, TokenType.Colon) // expect ':'
 
     // Parse the exception type
     type_token := lexer_expect(lexer, TokenType.Identifier)
-    empty_params2 := Vec.new(Expr)
-    type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, empty_params2)
+    type_expr := Expr.new_parse(NodeType.Identifier(type_token.token_str), type_token, Vec.new(Expr))
 
     _ := lexer_expect(lexer, TokenType.RightParen) // expect ')'
 
@@ -1210,8 +1206,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     // while <loop_var> < <end_expr> {
     // Create: loop_var.lt(end_expr)
     mut lt_ident_params := Vec.new(Expr)
-    empty_params := Vec.new(Expr)
-    lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token, empty_params)
+    lt_expr := Expr.new_parse(NodeType.Identifier("lt"), initial_token, Vec.new(Expr))
     lt_ident_params.push(lt_expr)
     loop_var_ident := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, lt_ident_params)
 
@@ -1222,8 +1217,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 
     // Create: loop_var.inc()
     mut inc_ident_params := Vec.new(Expr)
-    empty_params2 := Vec.new(Expr)
-    inc_expr := Expr.new_parse(NodeType.Identifier("inc"), initial_token, empty_params2)
+    inc_expr := Expr.new_parse(NodeType.Identifier("inc"), initial_token, Vec.new(Expr))
     inc_ident_params.push(inc_expr)
     mut inc_params := Vec.new(Expr)
     loop_var_inc_expr := Expr.new_parse(NodeType.Identifier(loop_var_name), initial_token, inc_ident_params)
@@ -1323,11 +1317,8 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                         mut pattern_info := PatternInfo()
                         pattern_info.variant_name = variant_name
                         pattern_info.binding_var = binding_var
-                        // Bug #27: TIL evaluator can't handle inline Vec.new(Expr) as function argument
-                        // Rust does: Expr::new_explicit(..., Vec::new(), ...)  (line 1180)
-                        // But TIL requires creating variable first to avoid "Struct argument must be an identifier" error
-                        empty_params := Vec.new(Expr)
-                        return Expr.new_explicit(NodeType.Pattern(pattern_info), empty_params, left.line, left.col)
+                        // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
+                        return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
                 }
             }
     }
@@ -1369,8 +1360,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         ntt2 := next_t.token_type
         switch ntt2 {
         case TokenType.Colon:
-            empty_params := Vec.new(Expr)
-            default_case_expr := Expr.new_parse(NodeType.DefaultCase, t, empty_params)
+            default_case_expr := Expr.new_parse(NodeType.DefaultCase, t, Vec.new(Expr))
             params.push(default_case_expr)
         case:
             prim2 := parse_case_expr(lexer)

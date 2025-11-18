@@ -1530,8 +1530,7 @@ str_to_value_type := proc(s: Str) returns ValueType throws Str, IndexOutOfBounds
     // Handle TMulti
     if s.contains("ValueType.TMulti") {
         // Simplified - just return empty TMulti
-        mut empty_arr := Vec.new(Str)
-        return ValueType.TMulti(empty_arr)
+        return ValueType.TMulti(Vec.new(Str))
     }
 
     // Default fallback - treat as TCustom

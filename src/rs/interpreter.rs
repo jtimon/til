@@ -1776,24 +1776,18 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             full_path
                                         },
                                         _ => {
-                                            // For own parameters, allow expressions (allocate fresh)
-                                            if arg.is_own {
-                                                result_str.clone()
-                                            } else {
-                                                return Err(e.lang_error(&context.path, "eval", "Struct argument must be an identifier or field access"));
-                                            }
+                                            // For non-identifier expressions (like Vec.new(Expr)),
+                                            // use the result_str which contains the allocated result
+                                            result_str.clone()
                                         }
                                     }
                                 } else {
                                     match &current_arg.node_type {
                                         NodeType::Identifier(id_) => id_.clone(),
                                         _ => {
-                                            // For own parameters, allow expressions (allocate fresh)
-                                            if arg.is_own {
-                                                result_str.clone()
-                                            } else {
-                                                return Err(e.lang_error(&context.path, "eval", "Struct argument must be an identifier"));
-                                            }
+                                            // For non-identifier expressions (like Vec.new(Expr)),
+                                            // use the result_str which contains the allocated result
+                                            result_str.clone()
                                         }
                                     }
                                 };
@@ -1903,13 +1897,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         }
                                     },
                                     _ => {
-                                        // For own parameters, allow expressions - struct is already allocated from expression
-                                        if !arg.is_own {
-                                            return Err(e.todo_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an argument. Only names of struct instances allowed for struct arguments for now.",
-                                                                                     &arg.name, &custom_type_name)))
-                                        }
-                                        // For own with expression, the struct is already evaluated in result_str
-                                        // We don't need to copy fields - just use the already-allocated struct
+                                        // For expression arguments (like Vec.new(Expr)), the struct is already
+                                        // allocated and evaluated in result_str. We need to copy it to the parameter.
+                                        function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+                                        function_context.copy_fields(&custom_type_name, &source_id, &arg.name, e)?;
                                     },
                                 }
                             },
