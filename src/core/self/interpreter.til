@@ -752,13 +752,156 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 // }
 }
 
-// TODO: The following functions are partially translated stubs that require init.til and typer.til:
+// ---------- Core function/procedure dispatcher
+
+// fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc: bool) -> Result<EvalResult, String> {
+eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_proc: Bool) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+    // return match name {
+    //     "loc" => ext::func_loc(context, e),
+    if name.eq("loc") {
+        return ext.func_loc(context, e)
+    }
+    //     "size_of" => ext::func_size_of(context, &e),
+    if name.eq("size_of") {
+        return ext.func_size_of(context, e)
+    }
+    //     "type_as_str" => ext::func_type_as_str(context, &e),
+    if name.eq("type_as_str") {
+        return ext.func_type_as_str(context, e)
+    }
+    //     "to_ptr" => ext::func_to_ptr(context, &e),
+    if name.eq("to_ptr") {
+        return ext.func_to_ptr(context, e)
+    }
+    //     "malloc" => ext::func_malloc(context, &e),
+    if name.eq("malloc") {
+        return ext.func_malloc(context, e)
+    }
+    //     "free" => ext::func_free(context, &e),
+    if name.eq("free") {
+        return ext.func_free(context, e)
+    }
+    //     "memset" => ext::func_memset(context, &e),
+    if name.eq("memset") {
+        return ext.func_memset(context, e)
+    }
+    //     "memcpy" => ext::func_memcpy(context, &e),
+    if name.eq("memcpy") {
+        return ext.func_memcpy(context, e)
+    }
+    //     "memcmp" => ext::func_memcmp(context, &e),
+    if name.eq("memcmp") {
+        return ext.func_memcmp(context, e)
+    }
+    //     "lt" => ext::func_lt(context, &e),
+    if name.eq("lt") {
+        return ext.func_lt(context, e)
+    }
+    //     "gt" => ext::func_gt(context, &e),
+    if name.eq("gt") {
+        return ext.func_gt(context, e)
+    }
+    //     "add" => ext::func_add(context, &e),
+    if name.eq("add") {
+        return ext.func_add(context, e)
+    }
+    //     "sub" => ext::func_sub(context, &e),
+    if name.eq("sub") {
+        return ext.func_sub(context, e)
+    }
+    //     "mul" => ext::func_mul(context, &e),
+    if name.eq("mul") {
+        return ext.func_mul(context, e)
+    }
+    //     "div" => ext::func_div(context, &e),
+    if name.eq("div") {
+        return ext.func_div(context, e)
+    }
+    //     "mod" => ext::func_mod(context, &e),
+    if name.eq("mod") {
+        return ext.func_mod(context, e)
+    }
+    //     "str_to_i64" => ext::func_str_to_i64(context, &e),
+    if name.eq("str_to_i64") {
+        return ext.func_str_to_i64(context, e)
+    }
+    //     "i64_to_str" => ext::func_i64_to_str(context, &e),
+    if name.eq("i64_to_str") {
+        return ext.func_i64_to_str(context, e)
+    }
+    //     "enum_to_str" => ext::func_enum_to_str(context, &e),
+    if name.eq("enum_to_str") {
+        return ext.func_enum_to_str(context, e)
+    }
+    //     "u8_to_i64" => ext::func_u8_to_i64(context, &e),
+    if name.eq("u8_to_i64") {
+        return ext.func_u8_to_i64(context, e)
+    }
+    //     "i64_to_u8" => ext::func_i64_to_u8(context, &e),
+    if name.eq("i64_to_u8") {
+        return ext.func_i64_to_u8(context, e)
+    }
+    //     "eval_to_str" => ext::proc_eval_to_str(context, &e),
+    if name.eq("eval_to_str") {
+        return ext.proc_eval_to_str(context, e)
+    }
+    //     "exit" => ext::func_exit(context, &e),
+    if name.eq("exit") {
+        return ext.func_exit(context, e)
+    }
+    //     "import" => ext::proc_import(context, &e),
+    if name.eq("import") {
+        return ext.proc_import(context, e)
+    }
+    //     "input_read_line" => ext::proc_input_read_line(context, &e),
+    if name.eq("input_read_line") {
+        return ext.proc_input_read_line(context, e)
+    }
+    //     "single_print" => ext::proc_single_print(context, &e),
+    if name.eq("single_print") {
+        return ext.proc_single_print(context, e)
+    }
+    //     "print_flush" => ext::proc_print_flush(context, &e),
+    if name.eq("print_flush") {
+        return ext.proc_print_flush(context, e)
+    }
+    //     "readfile" => ext::proc_readfile(context, &e),
+    if name.eq("readfile") {
+        return ext.proc_readfile(context, e)
+    }
+    //     "runfile" => ext::proc_runfile(context, &e),
+    if name.eq("runfile") {
+        return ext.proc_runfile(context, e)
+    }
+    //     "has_const" => ext::func_has_const(context, &e),
+    if name.eq("has_const") {
+        return ext.func_has_const(context, e)
+    }
+    //     "has_field" => ext::func_has_field(context, &e),
+    if name.eq("has_field") {
+        return ext.func_has_field(context, e)
+    }
+    //     _ => {
+    //         if is_proc {
+    //             Err(e.lang_error(&context.path, "eval", &format!("Core procedure '{}' not implemented.", name)))
+    //         } else {
+    //             Err(e.lang_error(&context.path, "eval", &format!("Core function '{}' not implemented.", name)))
+    //         }
+    //     },
+    // }
+    if is_proc {
+        throw e.lang_error(context.path, "eval", format("Core procedure '", name, "' not implemented."))
+    }
+    throw e.lang_error(context.path, "eval", format("Core function '", name, "' not implemented."))
+// }
+}
+
+// TODO: The following functions still need translation (~1570 lines total):
 // - eval_declaration (~210 lines)
 // - eval_assignment (~90 lines)
 // - eval_identifier_expr and helpers (~260 lines)
 // - eval_body (~170 lines)
-// - eval_user_func_proc_call (~590 lines - most complex function)
-// - eval_core_func_proc_call (~35 lines)
+// - eval_user_func_proc_call (~590 lines - most complex)
+// - Enum constructor payload handling in eval_func_proc_call (~250 lines)
 //
-// Total remaining: ~1355 lines of Rust code to translate
-// These will be completed after init.rs and typer.rs are translated to Til
+// These will be completed to match the complete 2132-line interpreter.rs
