@@ -12,7 +12,7 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
 
 * TODO Active Items
 
-- [ ] Implement pass-by-reference semantics with three argument modes
+- [X] Implement pass-by-reference semantics with three argument modes
   - [X] Phase 1: Type checker immutability enforcement (COMPLETE)
     - Prevents assignment to immutable parameters (typer.rs:930, 937)
     - Prevents field modification of immutable parameters (check_assignment extracts root variable)
