@@ -856,17 +856,22 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
         while continue_loop {
             peek_t := lexer.peek()
             ptt := peek_t.token_type
+
+            // Declare variables at loop level so they're accessible throughout
+            mut method_t := Token()
+            mut method_name := ""
+
             switch ptt {
             case TokenType.Dot:
                 // Consume the dot
                 lexer.advance(1)
 
                 // Expect an identifier for the next method name
-                method_t := lexer.peek()
+                method_t = lexer.peek()
                 mtt := method_t.token_type
                 switch mtt {
                 case TokenType.Identifier:
-                    method_name := method_t.token_str
+                    method_name = method_t.token_str
                     lexer.advance(1)
 
                     // Check if it's a method call (has parentheses)

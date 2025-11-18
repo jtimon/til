@@ -421,3 +421,55 @@ test_lexer_get_token := proc() {
     }
 }
 test_lexer_get_token()
+
+test_method_call_tokens := proc() {
+    // Test tokenization of method call expression that's failing in parser
+    source := "result := x.add(y)"
+    mut tokens := scan_tokens(source)
+
+    println("Tokens for 'result := x.add(y)':")
+    for i in 0..tokens.len() {
+        mut tok := Token()
+        tokens.get(i, tok)
+        println("  ", i.to_str(), ": ", token_type_to_str(tok.token_type), " '", tok.token_str, "'")
+    }
+
+    // Verify expected tokens:
+    // 0: Identifier "result"
+    // 1: Colon ":"
+    // 2: Equal "="
+    // 3: Identifier "x"
+    // 4: Dot "."
+    // 5: Identifier "add"
+    // 6: LeftParen "("
+    // 7: Identifier "y"
+    // 8: RightParen ")"
+
+    mut t := Token()
+    tokens.get(6, t)
+    println("Token at index 6 should be LeftParen: ", token_type_to_str(t.token_type), " '", t.token_str, "'")
+    switch t.token_type {
+    case TokenType.LeftParen:
+        // Expected - do nothing
+    case:
+        println("ERROR: Expected LeftParen at index 6, got ", token_type_to_str(t.token_type))
+        exit(1)
+    }
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: Str) {
+        println("ERROR:", loc(), "Unexpected Str error")
+        println(err)
+        exit(1)
+    }
+}
+test_method_call_tokens()

@@ -475,6 +475,10 @@ Lexer := struct {
     mut path: Str = ""
     mut tokens: Vec = Vec.new(Token)
     mut current: I64 = 0
+    mut peek_cache: Token = Token()  // Reusable token for peek operations
+    mut peek_ahead_cache: Token = Token()  // Reusable token for peek_ahead operations
+    mut previous_cache: Token = Token()  // Reusable token for previous operations
+    mut get_token_cache: Token = Token()  // Reusable token for get_token operations
 
     new := proc(path: Str) returns Lexer throws Str {
         mut l := Lexer()
@@ -513,35 +517,32 @@ Lexer := struct {
         return is_eof
     }
 
-    get_token := func(self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
-        mut t := Token()
-        self.tokens.get(index, t)
-        return t
+    get_token := func(mut self: Lexer, index: I64) returns Token throws IndexOutOfBoundsError {
+        self.tokens.get(index, self.get_token_cache)
+        return self.get_token_cache
     }
 
-    peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
-        mut t := Token()
-        self.tokens.get(self.current, t)
-        return t
+    peek := func(mut self: Lexer) returns Token throws IndexOutOfBoundsError {
+        self.tokens.get(self.current, self.peek_cache)
+        return self.peek_cache
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
+    peek_ahead := func(mut self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         index := add(self.current, offset)
         if gteq(index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Peek ahead by ", I64.to_str(offset), " is out of bounds")
             throw err
         }
-        mut t := Token()
-        self.tokens.get(index, t)
-        return t
+        self.tokens.get(index, self.peek_ahead_cache)
+        return self.peek_ahead_cache
     }
 
-    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
+    next := func(mut self: Lexer) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         return self.peek_ahead(1)
     }
 
-    previous := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
+    previous := func(mut self: Lexer) returns Token throws IndexOutOfBoundsError {
         if eq(self.current, 0) {
             mut err := IndexOutOfBoundsError()
             err.msg = "No previous token (at position 0)"
@@ -553,9 +554,8 @@ Lexer := struct {
             err.msg = "Previous token is out of bounds"
             throw err
         }
-        mut t := Token()
-        self.tokens.get(index, t)
-        return t
+        self.tokens.get(index, self.previous_cache)
+        return self.previous_cache
     }
 
     advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
