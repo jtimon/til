@@ -630,22 +630,24 @@ eval_func_proc_call := proc(name: Str, context: mut ref Context, e: ref Expr) th
                     i64_val := i64_val_opt.value
                     payload_bytes = I64_to_le_bytes(i64_val)
                 }
-                        ValueType::TCustom(struct_type_name) => {
-                            // Handle struct payloads
-                            // Check if this is a struct type
-                            let type_symbol = context.scope_stack.lookup_symbol(struct_type_name).ok_or_else(|| {
-                                e.error(&context.path, "eval", &format!("Unknown type '{}'", struct_type_name))
-                            })?;
+                // Handle custom type payloads (struct or enum)
+                else if payload_type == ValueType.TCustom {
+                    struct_type_name := payload_type.custom_name
+                    // Check if this is a struct type
+                    type_symbol_opt := ScopeStack_lookup_symbol(context.scope_stack, struct_type_name)
+                    if !type_symbol_opt.is_some {
+                        throw Expr_error(e, context.path, "eval", Str_format("Unknown type '{}'", struct_type_name))
+                    }
+                    type_symbol := type_symbol_opt.value
 
-                            match &type_symbol.value_type {
-                                ValueType::TType(TTypeDef::TStructDef) => {
-                                    // Get struct size
-                                    let struct_size = context.get_type_size(struct_type_name)
-                                        .map_err(|err| e.error(&context.path, "eval", &err))?;
+                    // Check if it's a struct type
+                    if type_symbol.value_type == ValueType.TType && type_symbol.value_type.typedef_variant == TTypeDef.TStructDef {
+                        // Get struct size
+                        struct_size := Context_get_type_size(context, struct_type_name)
 
-                                    // Get struct variable name from the original expression or create temporary for literals
-                                    let struct_var_name = match &payload_expr.node_type {
-                                        NodeType::Identifier(_name) if struct_type_name == "Str" => {
+                        // Get struct variable name from the original expression or create temporary for literals
+                        struct_var_name := ""
+                        if payload_expr.node_type == NodeType.Identifier && struct_type_name == "Str" {
                                             // For Str payloads with identifier expressions (like t.token_str),
                                             // create a temporary Str from the evaluated result value
                                             let temp_var_name = format!("__temp_str_{}", context.scope_stack.frames.last().unwrap().arena_index.len());
