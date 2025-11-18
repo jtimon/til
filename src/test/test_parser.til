@@ -420,7 +420,7 @@ test_parse_body()
 test_simple_expressions()
 test_declarations()
 test_control_flow()
-// test_structs()  // TODO: Bug #26 - Vec.push/get use shallow copy (memcpy), corrupts nested heap data
+test_structs()  // Bug #26 FIXED - pass-by-reference now works for field access parameters
 
 // TODO: Re-enable after fixing parser.til bugs
 // test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug with returns parsing

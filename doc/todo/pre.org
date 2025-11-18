@@ -59,15 +59,24 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
       - mut parameters use pass-by-ref (write directly to caller's memory via to_ptr)
     - Benefits: Reduced copying, cleaner semantics for ownership transfer
     - All core tests pass (exit code 0)
-  - [ ] Bug #26: Vec/Map shallow copy issue (UNRESOLVED)
-    - Status: NOT fixed by pass-by-reference (different root cause)
-    - Issue: Vec.push/get use memcpy for shallow copy of struct bytes
-    - Effect: Storing Expr in Vec copies ptr field, but not heap data it points to
-      - Later retrieving Expr gives corrupted nested Vec (dangling pointers)
-    - Root cause: memcpy copies struct bytes including pointers, not pointed-to data
-    - Pass-by-ref helps: Reduces parameter copying, but doesn't fix Vec storage
-    - Workaround: test_parser.til struct test disabled (line 423)
-    - Real solution: Deep copy support, reference counting, or arena-based allocation
+  - [X] Bug #26: Vec/Map corruption with nested structs (FIXED)
+    - Root cause: insert_struct allocated nested structs separately instead of inline
+      - When creating Outer with field inner: Inner, Inner was allocated at separate offset
+      - Vec.push/get used memcpy which copied parent struct bytes, not nested struct data
+      - Result: nested fields corrupted to zero after Vec.push/get round-trip
+    - Fix 1: Modified insert_struct_at_offset to use existing offset for nested structs
+      - Nested structs now allocated inline within parent struct's memory block
+      - Field offsets calculated correctly relative to parent (init.rs:1510-1625)
+    - Fix 2: Extended pass-by-reference to field access parameters
+      - Previously only simple identifiers (e.g., x) used pass-by-ref
+      - Now field access (e.g., o1.inner_vec) also uses pass-by-ref (interpreter.rs:1820-1872)
+      - Register field symbols for UFCS method resolution (line 1869)
+    - Fix 3: Zero-copy return value transfers
+      - Return values already shared offsets (no copy in return handling)
+      - mut declarations from temp return values now share offset instead of copy (interpreter.rs:970-985)
+      - Only copy when source is a real variable (not temporary)
+    - test_parser.til struct test re-enabled (line 423)
+    - All tests pass (exit code 0)
   - [ ] Phase 4: Update core library to remove Bug #24 workarounds (READY)
     - Status: READY - Phase 3 now supports ALL struct types with pass-by-reference
     - Can now remove copy-modify-reassign patterns (e.g., tmp = x; tmp.field = val; x = tmp)

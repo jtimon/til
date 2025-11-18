@@ -1504,6 +1504,10 @@ impl Context {
     }
 
     pub fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
+        self.insert_struct_at_offset(id, custom_type_name, None, e)
+    }
+
+    fn insert_struct_at_offset(&mut self, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<(), String> {
         // Lookup the struct definition
         let struct_def = match self.scope_stack.lookup_struct(custom_type_name) {
             Some(struct_def_) => struct_def_.clone(),
@@ -1534,9 +1538,15 @@ impl Context {
             total_size += field_size;
         }
 
-        // Allocate blob in arena
-        let offset = Arena::g().memory.len();
-        Arena::g().memory.resize(offset + total_size, 0);
+        // Either use existing offset (for nested structs) or allocate new memory
+        let offset = match existing_offset {
+            Some(off) => off,
+            None => {
+                let off = Arena::g().memory.len();
+                Arena::g().memory.resize(off + total_size, 0);
+                off
+            }
+        };
         self.scope_stack.insert_var(id.to_string(), offset);
 
         // Store each field's default value
@@ -1609,7 +1619,8 @@ impl Context {
                                     if type_name == "Str" {
                                         self.insert_string(&combined_name, &default_value, e)?;
                                     } else {
-                                        self.insert_struct(&combined_name, type_name, e)
+                                        // Use existing offset for nested struct (inline allocation)
+                                        self.insert_struct_at_offset(&combined_name, type_name, Some(offset + field_offset), e)
                                             .map_err(|_| e.lang_error(&self.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
                                     }
                                 } else {
@@ -1625,7 +1636,8 @@ impl Context {
             }
 
             let combined_name = format!("{}.{}", id, member_name);
-            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
+            let field_arena_offset = offset + field_offset;
+            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
             self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo {

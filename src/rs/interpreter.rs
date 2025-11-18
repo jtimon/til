@@ -965,13 +965,16 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                         let expr_result_str = result.value;
 
                         // Bug #25 fix: mut declarations should create independent copies
+                        // Exception: temporary return values can be transferred (zero-copy)
                         // Non-mut declarations can share offsets (will use 'own' keyword for transfers in future)
-                        if declaration.is_mut {
-                            // Allocate space and copy fields for mut declaration
+                        let is_temp_return_val = expr_result_str.starts_with(RETURN_INSTANCE_NAME);
+
+                        if declaration.is_mut && !is_temp_return_val {
+                            // Allocate space and copy fields for mut declaration (independent copy)
                             context.insert_struct(&declaration.name, custom_type_name, e)?;
                             context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
-                            // Share offset for non-mut declaration (read-only alias)
+                            // Share offset for non-mut declaration or temp return value (zero-copy transfer)
                             if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
                                 context.scope_stack.frames.last_mut().unwrap().arena_index.insert(declaration.name.to_string(), offset);
                             } else {
@@ -1817,47 +1820,86 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             (None, None)
                                         };
 
-                                        function_context.insert_struct(&arg.name, &custom_type_name, e)?;
-
-                                        // If we saved offsets, restore them with temp keys for copy_fields
-                                        if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
-                                            for (orig_key, offset) in offsets.iter() {
-                                                let new_key = if orig_key == id_ {
-                                                    temp_key.clone()
-                                                } else if orig_key.starts_with(&format!("{}.", id_)) {
-                                                    format!("{}{}", temp_key, &orig_key[id_.len()..])
-                                                } else {
-                                                    orig_key.clone()
-                                                };
-                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
-                                            }
-
-                                            function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
-
-                                            // Clean up temp keys
-                                            for (orig_key, _) in offsets.iter() {
-                                                let new_key = if orig_key == id_ {
-                                                    temp_key.clone()
-                                                } else if orig_key.starts_with(&format!("{}.", id_)) {
-                                                    format!("{}{}", temp_key, &orig_key[id_.len()..])
-                                                } else {
-                                                    orig_key.clone()
-                                                };
-                                                function_context.scope_stack.remove_var(&new_key);
-                                            }
-                                        } else {
-                                            // Temporarily register source struct's base offset and symbol in function_context
-                                            // so that copy_fields() can calculate field offsets dynamically
+                                        // For pass-by-reference (non-copy, non-Type), just share the offset
+                                        if !arg.is_copy && custom_type_name != "Type" {
                                             let src_offset = context.scope_stack.lookup_var(id_)
                                                 .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
-                                            let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
 
-                                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
-                                            function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
-                                            function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
-                                            function_context.scope_stack.remove_var(id_);
-                                            function_context.scope_stack.remove_symbol(id_);
+                                            // Create symbol for parameter
+                                            function_context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
+                                                value_type: resolved_value_type.clone(),
+                                                is_mut: arg.is_mut,
+                                                is_copy: arg.is_copy,
+                                                is_own: arg.is_own,
+                                            });
+
+                                            // Share the offset (pass-by-reference)
+                                            function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), src_offset);
+
+                                            // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
+                                            let caller_arena_index = &context.scope_stack.frames.last().unwrap().arena_index;
+                                            let prefix = format!("{}.", id_);
+                                            let replacement_prefix = format!("{}.", arg.name);
+                                            let mut field_offsets_to_copy = Vec::new();
+                                            for (key, &value) in caller_arena_index.iter() {
+                                                if key.starts_with(&prefix) {
+                                                    let new_key = key.replacen(&prefix, &replacement_prefix, 1);
+                                                    field_offsets_to_copy.push((new_key, value));
+                                                }
+                                            }
+                                            for (key, value) in field_offsets_to_copy {
+                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                                            }
+
+                                            // Register field symbols for UFCS method resolution
+                                            function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+
+                                            // Track that this was passed by reference
+                                            pass_by_ref_params.insert(arg.name.clone());
+                                        } else {
+                                            // For copy parameters, allocate and copy
+                                            function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+
+                                            // If we saved offsets, restore them with temp keys for copy_fields
+                                            if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
+                                                for (orig_key, offset) in offsets.iter() {
+                                                    let new_key = if orig_key == id_ {
+                                                        temp_key.clone()
+                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                    } else {
+                                                        orig_key.clone()
+                                                    };
+                                                    function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
+                                                }
+
+                                                function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
+
+                                                // Clean up temp keys
+                                                for (orig_key, _) in offsets.iter() {
+                                                    let new_key = if orig_key == id_ {
+                                                        temp_key.clone()
+                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                    } else {
+                                                        orig_key.clone()
+                                                    };
+                                                    function_context.scope_stack.remove_var(&new_key);
+                                                }
+                                            } else {
+                                                // Temporarily register source struct's base offset and symbol in function_context
+                                                // so that copy_fields() can calculate field offsets dynamically
+                                                let src_offset = context.scope_stack.lookup_var(id_)
+                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+                                                let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
+                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
+
+                                                function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
+                                                function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
+                                                function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                                function_context.scope_stack.remove_var(id_);
+                                                function_context.scope_stack.remove_symbol(id_);
+                                            }
                                         }
                                     },
                                     _ => {
@@ -2005,12 +2047,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 });
 
                                 if let Some(offset) = function_context.scope_stack.lookup_var(&result_str) {
+                                    // Just share the base offset - nested fields will be calculated dynamically
                                     context.scope_stack.frames.last_mut().unwrap().arena_index.insert(return_instance.to_string(), offset);
                                 } else {
                                     return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
-                                // Keep map_instance_fields for now as fallback for copy_fields
-                                context.map_instance_fields(custom_type_name, &return_instance, e)?;
                                 return Ok(EvalResult::new_return(&return_instance))
                             },
                             ValueType::TType(TTypeDef::TEnumDef) => {
