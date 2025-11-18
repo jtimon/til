@@ -1262,23 +1262,26 @@ get_u8 := func(context: Context, id: Str, e: Expr) returns I64 throws Str, Index
     return memory_result.value
 }
 
+# Context methods
+Context.new := func(path: Str, mode_name: Str) returns Context throws Str, AllocError, FullError {
+    mut scope_stack := ScopeStack.new()
+    scope_stack.push(ScopeType.Global)  # Initialize global scope
 
-impl Context {
-    pub fn new(path: &String, mode_name: &str) -> Result<Context, String> {
-        let mut scope_stack = ScopeStack::new();
-        scope_stack.push(ScopeType::Global); // Initialize global scope
-
-        return Ok(Context {
-            path: path.to_string(),
-            mode: mode_from_name(mode_name)?,
-            scope_stack,
-            temp_enum_payload: None,
-            imports_declarations_done: HashSet::new(),
-            imports_values_done: HashMap::new(),
-            imports_wip: HashSet::new(),
-            imports_done: HashMap::new(), // DEPRECATED
-        });
+    mut context := Context.new()
+    context.path = path
+    mut mode_result := mode_from_name(mode_name)
+    if mode_result.is_err {
+        throw mode_result.error
     }
+    context.mode = mode_result.value
+    context.scope_stack = scope_stack
+    context.temp_enum_payload = NULL
+    context.imports_declarations_done = Set.new(Str)
+    context.imports_values_done = Map.new(Str, Result)
+    context.imports_wip = Set.new(Str)
+    context.imports_done = Map.new(Str, Result)  # DEPRECATED
+    return context
+}
 
     pub fn get_variant_pos(selfi: &SEnumDef, variant_name: &str, path: &str, e: &Expr) -> Result<i64, String> {
         match selfi.enum_map.keys().position(|k| k == variant_name) {
