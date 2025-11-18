@@ -420,7 +420,7 @@ test_parse_body()
 test_simple_expressions()
 test_declarations()
 test_control_flow()
-// test_structs()  // TODO: Disabled - Bug #26: Dynamic parameters need pass-by-reference support
+// test_structs()  // TODO: Bug #26 - Vec.push/get use shallow copy (memcpy), corrupts nested heap data
 
 // TODO: Re-enable after fixing parser.til bugs
 // test_functions()  // parse error: Expected ')' or ',', found '}' - parser bug with returns parsing

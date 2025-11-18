@@ -51,17 +51,23 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
     - Rust side updated to handle Type like Dynamic (typer.rs, interpreter.rs)
     - Both Type and Dynamic excluded from pass-by-reference (for now)
     - All tests pass (exit code 0)
-  - [ ] Phase 3b: Enable pass-by-reference for Dynamic parameters (fixes Bug #26)
-    - Status: READY - Type/Dynamic separation complete, can now enable Dynamic pass-by-ref
-    - Change: Remove Dynamic from pass-by-ref exclusion list (keep Type excluded)
-    - Location: interpreter.rs:1679 (change custom_type_name != "Type")
-    - Expected fix: Vec/Map retrieving complex types will work correctly
-    - Test: Re-enable test_parser.til struct test (line 423)
-    - Bug #26 context:
-      - Issue: Vec/Map storing complex types does shallow copy (copies pointers, not data)
-      - Effect: Retrieved values have corrupted nested fields (e.g., Expr.params._len = 0)
-      - Root cause: Dynamic value parameters needed pass-by-reference, but Type params need copy
-      - Solution: Separate Type (copy) from Dynamic (pass-by-ref)
+  - [X] Phase 3b: Enable pass-by-reference for Dynamic and own parameters (COMPLETE)
+    - Status: COMPLETE - ALL non-copy, non-Type parameters now use pass-by-reference
+    - Implementation: interpreter.rs:1680 - only copy and Type excluded from pass-by-ref
+      - Dynamic parameters (including mut) use pass-by-ref
+      - own parameters use pass-by-ref (transfer ownership of arena offset, not data)
+      - mut parameters use pass-by-ref (write directly to caller's memory via to_ptr)
+    - Benefits: Reduced copying, cleaner semantics for ownership transfer
+    - All core tests pass (exit code 0)
+  - [ ] Bug #26: Vec/Map shallow copy issue (UNRESOLVED)
+    - Status: NOT fixed by pass-by-reference (different root cause)
+    - Issue: Vec.push/get use memcpy for shallow copy of struct bytes
+    - Effect: Storing Expr in Vec copies ptr field, but not heap data it points to
+      - Later retrieving Expr gives corrupted nested Vec (dangling pointers)
+    - Root cause: memcpy copies struct bytes including pointers, not pointed-to data
+    - Pass-by-ref helps: Reduces parameter copying, but doesn't fix Vec storage
+    - Workaround: test_parser.til struct test disabled (line 423)
+    - Real solution: Deep copy support, reference counting, or arena-based allocation
   - [ ] Phase 4: Update core library to remove Bug #24 workarounds (READY)
     - Status: READY - Phase 3 now supports ALL struct types with pass-by-reference
     - Can now remove copy-modify-reassign patterns (e.g., tmp = x; tmp.field = val; x = tmp)

@@ -1668,15 +1668,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // (the value will be allocated fresh in function context)
                 }
 
-                // Phase 3: Pass-by-reference for non-copy, non-own, non-Dynamic, non-Type parameters
+                // Phase 3: Pass-by-reference for non-copy, non-Type parameters
                 // If argument is a variable (identifier), share arena offset instead of copying
                 // Note: Type parameters need copy semantics for type name storage, so skip them
-                // Note: Dynamic parameters also excluded (will enable in Phase 2 after Type separation)
+                // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
+                // Note: own parameters also use pass-by-reference (transfer ownership of arena offset)
                 // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
                 // - Only base offset stored in arena_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
-                if !arg.is_copy && !arg.is_own && custom_type_name != "Dynamic" && custom_type_name != "Type" {
+                if !arg.is_copy && custom_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
