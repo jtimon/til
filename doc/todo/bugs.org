@@ -151,11 +151,12 @@ See doc/human/ownership.org for full design analysis and Mojo comparison.
 
 **All tests pass**, including test_declaration_creates_copy (args.til:484)
 
-** Bug #24: Struct Field Access Returns Copy Instead of Reference :OPEN:
+** Bug #24: Struct Field Access Returns Copy Instead of Reference :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-12
+:FIXED: 2025-11-18
 :IMPACT: Data structure mutation, memory management
-:STATUS: Open - Implementation planned in pre.org
+:STATUS: Fixed - Pass-by-reference for field access
 :END:
 
 *** Description
@@ -207,48 +208,51 @@ push := proc(mut self: List, T: Dynamic, value: Dynamic) {
 - src/core/core.til:1086-1093 (List.set different size case)
 - Potentially any struct with collection-type fields
 
-*** Planned Fix - Implementation in Progress
-This bug is being fixed by implementing pass-by-reference semantics with three argument modes. See doc/todo/plan_by_reference.org for detailed implementation plan.
+*** Fix Applied (2025-11-18)
 
-*Phase 1: Type checker immutability enforcement* ✅ COMPLETE
-- Prevents modification of immutable parameters
-- Prevents field modification of immutable parameters
-- Foundation for reference semantics working
+Bug #24 was fixed as part of implementing pass-by-reference for field access parameters and fixing Bug #26.
 
-*Phase 2: Add 'copy' keyword* ✅ COMPLETE (2025-11-12)
-- Added Copy token to lexer, parser, type checker, interpreter
-- Added is_copy field to Declaration and SymbolInfo
-- Parser validates mut and copy are mutually exclusive
-- Type checker and interpreter allow modification of copy parameters
-- Comprehensive tests in src/test/args.til
-- All tests pass
+**Three-part solution:**
 
-*Phase 3: Use references for all non-copy parameters* ⏸ DEFERRED
-- Status: DEFERRED until after self-hosting (2025-11-12)
-- Reason: Added complexity without simplification, introduced subtle bugs
-- Attempted implementation encountered context corruption with arena offset sharing
-- See doc/bot/phase3_findings.org and doc/todo/plan_by_reference.org for details
+*Fix 1: Inline nested struct allocation* (init.rs:1510-1625)
+- Modified insert_struct_at_offset to accept optional existing_offset
+- Nested structs now allocated inline within parent's memory block
+- Previously: nested structs allocated separately, causing corruption
 
-*Phase 4: Update core library* ⏸ BLOCKED
-- Status: BLOCKED by Phase 3 deferral
-- Cannot remove Bug #24 workarounds without reference semantics from Phase 3
-- Workarounds must remain until Phase 3 is completed
+*Fix 2: Pass-by-reference for field access parameters* (interpreter.rs:1820-1872)
+- Extended pass-by-ref to field access like `self.type_names.push(...)`
+- Share arena offset instead of allocating and copying
+- Register field symbols for UFCS method resolution
+- Previously only simple identifiers used pass-by-ref
 
-*Current Status*
-- Bug #24 remains OPEN - workarounds still necessary
-- Phase 2 (copy keyword) provides explicit control but doesn't fix underlying issue
-- Bug will be revisited after self-hosting when better debugging tools available
+*Fix 3: Zero-copy return value transfers* (interpreter.rs:970-985)
+- Detect temporary return values and share offset instead of copy
+- mut x := func() now zero-copy (transfers ownership)
+- Only copy when source is real variable (preserves Bug #25 fix)
 
-After this implementation, the example will work naturally:
+**Result:**
+The workaround pattern is no longer needed. Direct field mutations now work:
+
 #+BEGIN_EXAMPLE til
 push := proc(mut self: List, T: Dynamic, value: Dynamic) {
     mut type_name := type_as_str(T)
-    self.type_names.push(type_name)  // ✅ WORKS - modifies via reference
+    self.type_names.push(type_name)  // ✅ NOW WORKS - modifies via reference!
     self.len = add(self.len, 1)
 }
 #+END_EXAMPLE
 
-See doc/bot/bug24_investigation.org for detailed root cause analysis.
+**Test Coverage:**
+- src/test/tmp/test_bug24.til - Comprehensive test verifying direct field mutations
+- All existing tests pass with the fix
+
+**Note on Workarounds:**
+While the bug is fixed, existing workarounds (copy-modify-reassign pattern) can remain for now
+as they are functionally equivalent. Workarounds exist in:
+- src/core/core.til (List.push, List.set, List.pop, etc.)
+- src/core/lexer.til
+- src/core/parser.til
+- src/core/std.til (potentially)
+They can be removed in a future cleanup pass to simplify the code and potentially improve performance.
 
 ** Bug #22: Dynamic Type Parameters Not Working in User Functions :FIXED:
 :PROPERTIES:
