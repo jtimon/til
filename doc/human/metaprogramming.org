@@ -12,7 +12,7 @@ This document outlines Til's approach to generics and macros, emphasizing their 
 
 ** Macro Syntax and Mechanics
 
-Macros operate on ~Type~ (comptime type info) and ~Expr~/~Stmt~ (code fragments), with built-in operators for introspection. The body executes normally (via interpreter), returning a value spliced as-is (e.g., a computed ~List~ becomes a literal). An extra type-checking phase follows expansion to validate constancy and types.
+Macros operate on ~Type~ (comptime type info) and ~Expr~/~Stmt~ (code fragments), with built-in operators for introspection. The body executes normally (via interpreter), returning a value spliced as-is (e.g., a computed ~List~ becomes a literal). An extra type-checking phase follows expansion to validate constancy and types. Self-hosting exposes AST structs (e.g., ~Expr~, ~StructDef~ from ~parser.til~) for direct manipulation in macros—parse strings to ~Expr~ or return raw ~MacroExpr~ (wrapper to delay splice).
 
 *** Definition
 A simple range macro: Computes a ~List~ at comptime, expands to a static literal.
@@ -40,9 +40,9 @@ add_project_prefix = macro(s: Str) returns Str {
 Usage: ~const MY_CONSTANT_STRING = add_project_prefix("my example constant string");~ expands to ~const MY_CONSTANT_STRING = "Common prefix for constant strings: my example constant string";~.
 
 *** Introspection Operators
-- ~@hasField(T: Type, field: Str) -> Bool~: Checks if type has a field.
-- ~@fieldValue(T: Type, field: Str) -> Dynamic~: Gets comptime value (for consts).
-- ~@isStruct(T: Type) -> Bool~: Type predicates (e.g., ~@isPrimitive~, ~@isGeneric~).
+- ~has_field(T: Type, field: Str) -> Bool~: Checks if type has a field.
+- ~field_value(T: Type, field: Str) -> Dynamic~: Gets comptime value (for consts).
+- ~is_struct(T: Type) -> Bool~: Type predicates (e.g., ~is_primitive~, ~is_generic~).
 - ~quote { ... }~: Quasiquote for AST building (injects params via ~$var~); used for ~returns Body~ or ~Expr~.
 
 *** Evaluation
@@ -50,14 +50,13 @@ Compiler invokes interpreter on macro body; output replaces the call site. Post-
 
 ** Generics Syntax Options
 
-Til implements generics via macros, desugaring definitions to macro calls. Usage instantiates by calling the macro with concrete types.
+Til implements generics via macros, desugaring definitions to macro calls (C++-like syntax as baseline, with potential Jai-ish sugar like ~for T in Type~). Usage instantiates by calling the macro with concrete types.
 
 *** Explicit Templates (~<T>~)
 Generics desugar to macro invocations for monomorphization.
 
 #+BEGIN_SRC til
--- Desugars to generic_pair_macro(T)
-Vec<T> := generic_vec_macro(T)  // Macro returns StructDef
+Vec<T> := generic_vec_macro(T)  // Desugars to macro; returns StructDef
 
 -- Use: Vec<I64> expands to monomorphized struct
 #+END_SRC
@@ -66,14 +65,14 @@ Vec<T> := generic_vec_macro(T)  // Macro returns StructDef
 #+BEGIN_SRC til
 Vec for T in Type := generic_vec_macro(T)  // Til-y loop echo; desugars similarly
 
--- Macro guards: if @isConcrete(T) { mono } else { DynamicVec }
+-- Macro guards: if is_concrete(T) { mono } else { DynamicVec }
 #+END_SRC
 
 *** Trait-Bounded (~where~)
 #+BEGIN_SRC til
 Vec<T where Sized> := generic_vec_macro(T, Sized)  // Pass trait as param
 
-// Enforced at desugar: compile_error if unbound
+-- Enforced at desugar: compile_error if unbound
 #+END_SRC
 
 ** Desugaring Mechanics
@@ -103,16 +102,14 @@ PairStr := generic_pair(Str, "")
 #+END_SRC
 
 Expands to: PairU8 := struct { a: U8 = 0; b: U8 = 0; return_one := func(...) { ... } };
-Monomorphizes methods per T (e.g., Str ops in PairStr)
+Monomorphizes methods per T (e.g., Str ops in PairStr).
 
 A bootstrap ~generic_macro~ handles multi-param desugaring:
 
-WARNING: grok made some stuff up here from the explanations, but the point is that we can have a compile option so that generics expand to using Dynamic instead of true generics for smaller binaries when that is preferred over more optimal runtime. The following is from grok and I haven't preoperly reviewed it yet.
-
 #+BEGIN_SRC til
 generic_macro = macro(params: List<(Str, Type)>) returns StructDef {
-    mut bounds = extract_bounds(params)  // Helper: Parses "T where Sized" -> Map{"T": "Sized"}
-    mut mono_struct = StructDef.new("Generic")  // Base AST node
+    mut bounds := extract_bounds(params)  // Helper: Parses "T where Sized" -> Map{"T": "Sized"}
+    mut mono_struct := StructDef.new("Generic")  // Base AST node
     for (name, T) in params {
         if not(satisfies(T, bounds.get(name))) {  // Plain func: satisfies(Type, Str) -> Bool
             compile_error(format("Type ", T.name, " does not satisfy bound ", bounds.get(name)))
@@ -128,22 +125,18 @@ generic_macro = macro(params: List<(Str, Type)>) returns StructDef {
 }
 #+END_SRC
 
-This yields zero-cost statics by default, dynamic fallbacks for size/perf tradeoffs. Post-expansion type check validates.
-
-But, yeah, since we're self hosted, we can use the structs for the self implementation in macros directly, a Body, an Expr, a StructDef, an EnumDef or whatever. They're just part of the core. I mean, You may want to use the Lexer struct for some tooling project, for example.
-
-WARNING: some more invalid syntax made up by grok ahead.
+This yields zero-cost statics by default, dynamic fallbacks for size/perf tradeoffs (via ~--prefer-dynamic~ flag). Post-expansion type check validates.
 
 ** Integration with Dynamic
 
 - *Fallback*: Unresolved generics (e.g., runtime ~T~) box to ~Dynamic::as<T>()~.
-- *Translation*: Macros like ~@to_generic(DynamicCode)~ rewrite Python-style to static where possible.
-- *Efficiency*: Use ~@mode lib_static~ for mono-only; ~@mode script_dynamic~ for REPL.
+- *Translation*: Macros like ~to_generic(DynamicCode)~ rewrite Python-style to static where possible.
+- *Efficiency*: Use ~mode lib_static~ for mono-only; ~mode script_dynamic~ for REPL.
 
 ** Future Extensions
 
 - *Variadics*: ~Vec<Ts: ..Type>~ for heterogeneous (ties to List).
-- *Specialization*: ~@specialize Vec<Str>~ for custom impls.
-- *Hygiene*: ~quote~ scopes vars; ~@fresh_id()~ for gensyms.
+- *Specialization*: ~specialize Vec<Str>~ for custom impls.
+- *Hygiene*: ~quote~ scopes vars; ~fresh_id()~ for gensyms.
 
 This design ensures Til's multi-everything promise: Write once, compile to your needs.
