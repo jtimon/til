@@ -1323,7 +1323,11 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                         mut pattern_info := PatternInfo()
                         pattern_info.variant_name = variant_name
                         pattern_info.binding_var = binding_var
-                        return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                        // Bug #27: TIL evaluator can't handle inline Vec.new(Expr) as function argument
+                        // Rust does: Expr::new_explicit(..., Vec::new(), ...)  (line 1180)
+                        // But TIL requires creating variable first to avoid "Struct argument must be an identifier" error
+                        empty_params := Vec.new(Expr)
+                        return Expr.new_explicit(NodeType.Pattern(pattern_info), empty_params, left.line, left.col)
                 }
             }
     }
@@ -1350,12 +1354,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
     }
 
     mut end_found := false
-    mut continue_outer := true
     while and(lexer.current.lt(lexer.len()), not(end_found)) {
-        if not(continue_outer) {
-            continue_outer = true
-        }
-
         mut next_t := lexer.peek()
         ntt := next_t.token_type
         switch ntt {
@@ -1390,12 +1389,8 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
         lexer.advance(1)
         next_t = lexer.peek()
         mut body_params := Vec.new(Expr)
-        mut continue_inner := true
-        while lexer.current.lt(lexer.len()) {
-            if not(continue_inner) {
-                continue_inner = true
-            }
-
+        mut inner_loop_done := false
+        while and(lexer.current.lt(lexer.len()), not(inner_loop_done)) {  // TODO: Replace with 'while lexer.current < lexer.len()' + 'break' when implemented
             ntt4 := next_t.token_type
             switch ntt4 {
             case TokenType.RightBrace:
@@ -1403,12 +1398,11 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
                 params.push(body_expr)
                 end_found = true
                 lexer.advance(1)
-                continue_inner = false
-                continue_outer = false
+                inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1238)
             case TokenType.Case:
                 body_expr := Expr.new_parse(NodeType.Body, t, body_params)
                 params.push(body_expr)
-                continue_inner = false
+                inner_loop_done = true  // TODO: Replace with 'break' when implemented (Rust line 1242)
             case:
                 stmt := parse_statement(lexer)
                 body_params.push(stmt)

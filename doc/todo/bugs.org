@@ -8,6 +8,76 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #27: Cannot inline Vec.new() as function argument
+:PROPERTIES:
+:DISCOVERED: 2025-11-18
+:IMPACT: Code ergonomics, parser implementation
+:STATUS: Active - Workaround in place
+:END:
+
+*** Description
+The TIL evaluator cannot handle inline Vec.new(Expr) calls when passed as arguments to functions. This requires creating a variable first instead of passing the expression directly.
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+// Rust does (parser.rs:1180):
+return Ok(Expr::new_explicit(
+    NodeType::Pattern(pattern_info),
+    Vec::new(),  // Inline Vec::new() works
+    left.line,
+    left.col
+));
+
+// TIL must do (parser.til:1326-1330):
+empty_params := Vec.new(Expr)  // Create variable first
+return Expr.new_explicit(NodeType.Pattern(pattern_info), empty_params, left.line, left.col)
+#+END_EXAMPLE
+
+*** Error Message
+#+BEGIN_EXAMPLE
+rstil eval ERROR: Struct argument must be an identifier or field access
+Explanation: This should never happen, this is a bug in the language.
+#+END_EXAMPLE
+
+*** Root Cause
+File: src/rs/interpreter.rs, lines 1780-1796
+
+When evaluating function calls with struct arguments, the evaluator checks if the parameter is marked as 'own'. For non-own struct parameters, it requires the argument to be an identifier or field access (not an arbitrary expression).
+
+The 'params' parameter in Expr.new_explicit is declared as 'params: Vec' (not 'own Vec'), so inline expressions like Vec.new(Expr) are rejected.
+
+*** Workaround
+Create a variable first, then pass the variable:
+#+BEGIN_SRC til
+empty_params := Vec.new(Expr)
+return Expr.new_explicit(..., empty_params, ...)
+#+END_SRC
+
+This workaround is used in src/core/self/parser.til:1326-1330.
+
+*** Impact
+- Code is more verbose than Rust equivalent
+- Cannot directly translate certain Rust patterns
+- All inline Vec.new() calls in function arguments must use workaround
+
+** Bug #26: Nested struct corruption in Vec/Map :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-11-17
+:FIXED: 2025-11-17
+:IMPACT: Data integrity, collection storage
+:STATUS: Fixed
+:COMMIT: ea8cd2b
+:END:
+
+*** Description
+When structs containing nested structs (like Vec, Map, List) were stored in collections, the nested structs were allocated separately instead of inline, causing memory corruption.
+
+*** Fix
+Modified insert_struct_at_offset in init.rs to accept optional existing_offset parameter, allowing nested structs to be allocated inline within parent's memory block.
+
+*** Commit
+ea8cd2b: Fix Bug #26: nested struct corruption in Vec/Map
+
 ** Bug #25: Field offset refactor breaks typer method resolution :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-11-13

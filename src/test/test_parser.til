@@ -423,9 +423,7 @@ test_control_flow()
 test_structs()  // Bug #26 FIXED - pass-by-reference now works for field access parameters
 test_enums()  // FIXED - enum parsing now advances past closing brace correctly
 test_functions()  // LEXER BUG FIXED - lexer.til now correctly handles string literals
-
-// TODO: Re-enable after fixing parser.til bugs
-// test_switch()  // FullError: Vec.push capacity exceeded - parser bug with switch statements
+test_switch()  // PARSER BUG FIXED - infinite loop fixed by using break flag workaround
 
 // Test parsing real TIL files
 // TODO: All hang (likely infinite loop in parser.til) - even small files like arithmetics.til hang

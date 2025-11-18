@@ -133,12 +133,29 @@ Simple and descriptive, following project patterns.
 * Issue Numbering System
 
 ** Shared Counter
-All tracking documents share issue numbers via doc/next_issue_num.txt
+All tracking documents share issue numbers via doc/todo/next_issue_num.txt
 
-Examples:
-- bugs.org uses #1-#10
-- dry.org uses #11-#20
-- Next issue will be #21
+** How to Assign New Issue Numbers
+1. Read the current number from doc/todo/next_issue_num.txt
+2. Use that number for your new issue (e.g., if file contains "28", use #28)
+3. Increment the number in the file (e.g., update to "29")
+4. Commit the updated next_issue_num.txt along with your changes
+
+Example workflow:
+#+BEGIN_EXAMPLE
+# Read current number
+$ cat doc/todo/next_issue_num.txt
+28
+
+# Use #28 for new bug in bugs.org
+** Bug #28: Description here
+
+# Update counter
+$ echo "29" > doc/todo/next_issue_num.txt
+
+# Commit both files
+$ git add doc/todo/bugs.org doc/todo/next_issue_num.txt
+#+END_EXAMPLE
 
 ** Never Reuse Numbers
 Even when issues are fixed/resolved, their numbers remain documented.
