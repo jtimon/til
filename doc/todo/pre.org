@@ -77,13 +77,16 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
       - Only copy when source is a real variable (not temporary)
     - test_parser.til struct test re-enabled (line 423)
     - All tests pass (exit code 0)
-  - [ ] Phase 4: Update core library to remove Bug #24 workarounds (READY)
-    - Status: READY - Phase 3 now supports ALL struct types with pass-by-reference
-    - Can now remove copy-modify-reassign patterns (e.g., tmp = x; tmp.field = val; x = tmp)
-    - Bug #24 workarounds can be removed from:
-      - List.push(), List.set(), List.pop() (src/core/core.til:1003-1009, etc.)
-      - Other locations using the copy-modify-reassign pattern
-    - Next step: Systematically find and remove all Bug #24 workarounds
+  - [X] Phase 4: Update core library to remove Bug #24 workarounds (COMPLETE)
+    - Status: COMPLETE - All Bug #24 workarounds removed from codebase
+    - Removed copy-modify-reassign patterns (e.g., tmp = x; tmp.field = val; x = tmp)
+    - Workarounds removed from:
+      - List.push(), List.set(), List.pop() - now use direct field mutations
+      - Map.insert(), Map.set() - now use direct field mutations
+      - lexer.til, parser.til - no workarounds found (already clean)
+      - test files - no workarounds found (already clean)
+    - All tests pass (exit code 0)
+    - Performance: ~42s (unchanged - copying small structs was already fast)
   - Impact: Fixes Bug #24, cleaner semantics, better performance
   - See: doc/todo/plan_by_reference.org for detailed implementation plan
 

@@ -838,35 +838,32 @@ Map := struct {
         // Key doesn't exist - add it
         // Workaround for bug: pushing Dynamic parameters doesn't work
         // Instead, manually grow the array and memcpy directly
-        if keys_arr._len.eq(keys_arr.cap) {
+        if self.keys._len.eq(self.keys.cap) {
             // Need to grow
-            mut new_cap := mul(keys_arr.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
-            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
-            free(keys_arr.ptr)
-            keys_arr.ptr = new_ptr
-            keys_arr.cap = new_cap
+            mut new_cap := mul(self.keys.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, self.keys.type_size))
+            memcpy(new_ptr, self.keys.ptr, mul(self.keys._len, self.keys.type_size))
+            free(self.keys.ptr)
+            self.keys.ptr = new_ptr
+            self.keys.cap = new_cap
         }
         // Copy key directly into array memory
-        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
-        memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
-        keys_arr._len = add(keys_arr._len, 1)
-        self.keys = keys_arr
+        mut dest_ptr := add(self.keys.ptr, mul(self.keys._len, self.keys.type_size))
+        memcpy(dest_ptr, to_ptr(key), self.keys.type_size)
+        self.keys._len = add(self.keys._len, 1)
 
         // Same workaround for values
-        mut values_arr := self.values
-        if values_arr._len.eq(values_arr.cap) {
-            mut new_cap := mul(values_arr.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
-            memcpy(new_ptr, values_arr.ptr, mul(values_arr._len, values_arr.type_size))
-            free(values_arr.ptr)
-            values_arr.ptr = new_ptr
-            values_arr.cap = new_cap
+        if self.values._len.eq(self.values.cap) {
+            mut new_cap := mul(self.values.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, self.values.type_size))
+            memcpy(new_ptr, self.values.ptr, mul(self.values._len, self.values.type_size))
+            free(self.values.ptr)
+            self.values.ptr = new_ptr
+            self.values.cap = new_cap
         }
-        mut dest_ptr := add(values_arr.ptr, mul(values_arr._len, values_arr.type_size))
-        memcpy(dest_ptr, to_ptr(value), values_arr.type_size)
-        values_arr._len = add(values_arr._len, 1)
-        self.values = values_arr
+        mut dest_ptr := add(self.values.ptr, mul(self.values._len, self.values.type_size))
+        memcpy(dest_ptr, to_ptr(value), self.values.type_size)
+        self.values._len = add(self.values._len, 1)
 
         self._size = add(self._size, 1)
     }
@@ -909,32 +906,29 @@ Map := struct {
         }
 
         // Key not found - insert new entry (use same workaround as insert())
-        if keys_arr._len.eq(keys_arr.cap) {
-            mut new_cap := mul(keys_arr.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, keys_arr.type_size))
-            memcpy(new_ptr, keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
-            free(keys_arr.ptr)
-            keys_arr.ptr = new_ptr
-            keys_arr.cap = new_cap
+        if self.keys._len.eq(self.keys.cap) {
+            mut new_cap := mul(self.keys.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, self.keys.type_size))
+            memcpy(new_ptr, self.keys.ptr, mul(self.keys._len, self.keys.type_size))
+            free(self.keys.ptr)
+            self.keys.ptr = new_ptr
+            self.keys.cap = new_cap
         }
-        mut dest_ptr := add(keys_arr.ptr, mul(keys_arr._len, keys_arr.type_size))
-        memcpy(dest_ptr, to_ptr(key), keys_arr.type_size)
-        keys_arr._len = add(keys_arr._len, 1)
-        self.keys = keys_arr
+        mut dest_ptr := add(self.keys.ptr, mul(self.keys._len, self.keys.type_size))
+        memcpy(dest_ptr, to_ptr(key), self.keys.type_size)
+        self.keys._len = add(self.keys._len, 1)
 
-        mut values_arr := self.values
-        if values_arr._len.eq(values_arr.cap) {
-            mut new_cap := mul(values_arr.cap, 2)
-            mut new_ptr := malloc(mul(new_cap, values_arr.type_size))
-            memcpy(new_ptr, values_arr.ptr, mul(values_arr._len, values_arr.type_size))
-            free(values_arr.ptr)
-            values_arr.ptr = new_ptr
-            values_arr.cap = new_cap
+        if self.values._len.eq(self.values.cap) {
+            mut new_cap := mul(self.values.cap, 2)
+            mut new_ptr := malloc(mul(new_cap, self.values.type_size))
+            memcpy(new_ptr, self.values.ptr, mul(self.values._len, self.values.type_size))
+            free(self.values.ptr)
+            self.values.ptr = new_ptr
+            self.values.cap = new_cap
         }
-        mut dest_ptr2 := add(values_arr.ptr, mul(values_arr._len, values_arr.type_size))
-        memcpy(dest_ptr2, to_ptr(value), values_arr.type_size)
-        values_arr._len = add(values_arr._len, 1)
-        self.values = values_arr
+        mut dest_ptr2 := add(self.values.ptr, mul(self.values._len, self.values.type_size))
+        memcpy(dest_ptr2, to_ptr(value), self.values.type_size)
+        self.values._len = add(self.values._len, 1)
 
         self._size = add(self._size, 1)
     }
@@ -1145,15 +1139,9 @@ List := struct {
         mut value_ptr := to_ptr(value)
         memcpy(add(self.data, offset), value_ptr, type_size)
 
-        // Record metadata - need to work with local copies and assign back
-        mut names := self.type_names
-        names.push(type_name)
-        self.type_names = names
-
-        mut sizes := self.type_sizes
-        sizes.push(type_size)
-        self.type_sizes = sizes
-
+        // Record metadata
+        self.type_names.push(type_name)
+        self.type_sizes.push(type_size)
         self._len = add(self._len, 1)
     }
 
@@ -1219,9 +1207,7 @@ List := struct {
 
             // Update type name if different
             if not(Str.eq(new_type, old_type)) {
-                mut names := self.type_names
-                names.set(index, new_type)
-                self.type_names = names
+                self.type_names.set(index, new_type)
             }
             return
         }
@@ -1243,13 +1229,8 @@ List := struct {
         memcpy(add(self.data, old_offset), value_ptr, new_size)
 
         // Update metadata
-        mut names := self.type_names
-        names.set(index, new_type)
-        self.type_names = names
-
-        mut sizes := self.type_sizes
-        sizes.set(index, new_size)
-        self.type_sizes = sizes
+        self.type_names.set(index, new_type)
+        self.type_sizes.set(index, new_size)
     }
 
     pop := proc(mut self: List, mut dest: Dynamic) throws IndexOutOfBoundsError {
@@ -1268,15 +1249,10 @@ List := struct {
         memcpy(dest_ptr, add(self.data, offset), size)
 
         // Now safe to remove from metadata
-        mut names := self.type_names
         mut dummy_name := ""
-        names.pop(dummy_name)
-        self.type_names = names
-
-        mut sizes := self.type_sizes
+        self.type_names.pop(dummy_name)
         mut dummy_size := 0
-        sizes.pop(dummy_size)
-        self.type_sizes = sizes
+        self.type_sizes.pop(dummy_size)
 
         // Decrement length
         self._len = last_index
