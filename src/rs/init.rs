@@ -1152,7 +1152,19 @@ impl Context {
             return Ok(())
         }
 
-        // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
+        // For non-instance fields (including struct constants like Vec.INIT_CAP)
+        // Check if variable already exists (e.g., mut parameters passed by reference)
+        if let Some(existing_offset) = self.scope_stack.lookup_var(id) {
+            // Update existing value in-place (important for mut parameters)
+            let required_len = existing_offset + 8;
+            if Arena::g().memory.len() < required_len {
+                Arena::g().memory.resize(required_len, 0);
+            }
+            Arena::g().memory[existing_offset..existing_offset + 8].copy_from_slice(&bytes);
+            return Ok(())
+        }
+
+        // Variable doesn't exist yet, create new entry
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
         self.scope_stack.insert_var(id.to_string(), offset);
@@ -1190,6 +1202,14 @@ impl Context {
             return Ok(())
         }
 
+        // Check if variable already exists (e.g., mut parameters passed by reference)
+        if let Some(existing_offset) = self.scope_stack.lookup_var(id) {
+            // Update existing value in-place (important for mut parameters)
+            Arena::g().memory[existing_offset] = v;
+            return Ok(())
+        }
+
+        // Variable doesn't exist yet, create new entry
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
         self.scope_stack.insert_var(id.to_string(), offset);

@@ -1,5 +1,5 @@
 use crate::Context;
-use crate::rs::init::{SymbolInfo, get_value_type, get_func_name_in_call};
+use crate::rs::init::{SymbolInfo, ScopeType, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
@@ -8,6 +8,11 @@ use crate::rs::parser::{
 
 // Type checking phase: Validates types, return/throw statements, mode constraints
 // This module handles the type checking phase that runs after init.
+
+// Helper to clean up type checking scope on return
+fn cleanup_typecheck_scope(context: &mut Context) {
+    let _ = context.scope_stack.pop(); // Ignore errors (shouldn't happen)
+}
 // No eval, no arena access - pure type analysis.
 
 // Context tracking for return value usage enforcement (Bug #8 fix)
@@ -128,8 +133,9 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             errors.extend(check_fcall_return_usage(context, &e, expr_context));
         },
         NodeType::FuncDef(func_def) => {
-            let mut function_context = context.clone();
-            errors.extend(check_func_proc_types(&func_def, &mut function_context, &e));
+            context.scope_stack.push(ScopeType::Function);
+            errors.extend(check_func_proc_types(&func_def, context, &e));
+            cleanup_typecheck_scope(context);
         },
         NodeType::Identifier(name) => {
             if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
@@ -842,8 +848,8 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     // Create scoped context for catch body
-    let mut temp_context = context.clone();
-    temp_context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+    context.scope_stack.push(ScopeType::Catch);
+    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name.clone()),
         is_mut: false,
         is_copy: false,
@@ -852,9 +858,10 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
     if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-        for (field_name, field_decl) in &struct_def.members {
+        let members = struct_def.members.clone(); // Clone to avoid borrow conflicts
+        for (field_name, field_decl) in &members {
             let combined_name = format!("{}.{}", var_name, field_name);
-            temp_context.scope_stack.declare_symbol(
+            context.scope_stack.declare_symbol(
                 combined_name.clone(),
                 SymbolInfo {
                     value_type: field_decl.value_type.clone(),
@@ -867,8 +874,9 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     // Catch body statements discard return values
-    errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
+    errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
 
+    cleanup_typecheck_scope(context);
     return errors
 }
 
@@ -1096,19 +1104,22 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
                     if let Some(payload_type_opt) = enum_def.enum_map.get(variant) {
                         if let Some(payload_type) = payload_type_opt {
+                            // Clone payload type before pushing scope to avoid borrow conflicts
+                            let payload_type_cloned = payload_type.clone();
                             // Create a temporary context with the binding variable
-                            let mut temp_context = context.clone();
-                            temp_context.scope_stack.declare_symbol(
+                            context.scope_stack.push(ScopeType::Block);
+                            context.scope_stack.declare_symbol(
                                 binding_var.clone(),
                                 SymbolInfo {
-                                    value_type: payload_type.clone(),
+                                    value_type: payload_type_cloned,
                                     is_mut: false,
                                     is_copy: false,
                                 is_own: false,
                                 }
                             );
                             // Switch case body statements discard return values
-                            errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
+                            errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
+                            cleanup_typecheck_scope(context);
                         } else {
                             // Variant exists but has no payload
                             errors.push(case_expr.error(&context.path, "type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
@@ -1244,8 +1255,9 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 match &inner_e.node_type {
                     // If the member's default value is a function (method), type check it
                     NodeType::FuncDef(func_def) => {
-                        let mut function_context = context.clone();
-                        errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
+                        context.scope_stack.push(ScopeType::Function);
+                        errors.extend(check_func_proc_types(&func_def, context, &inner_e));
+                        cleanup_typecheck_scope(context);
                     },
                     // For other types of members, check type and purity
                     _ => {
