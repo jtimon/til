@@ -8,7 +8,6 @@ concat2 := proc(args: ..Str) returns Str {
         args.get(i, val)
         result = format(result, val)
     }
-    return result
 
     catch(err: I64_OverflowError) {
         println(loc(), "I64_OverflowError thrown:")
@@ -22,6 +21,8 @@ concat2 := proc(args: ..Str) returns Str {
         println(loc(), "AllocError thrown:")
         println(err.msg)
     }
+
+    return result
 }
 assert_eq_str(loc(), "Variadic: foobarbaz", concat2("Variadic: ", "foo", "bar", "baz"))
 
@@ -33,12 +34,13 @@ var_i64_add := proc(args: ..I64) returns I64 {
         args.get(i, val)
         result = result.add(val)
     }
-    return result
 
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
         println(err.msg)
     }
+
+    return result
 }
 assert_eq(loc(), add(34, 35), var_i64_add(34, 35))
 
@@ -50,7 +52,6 @@ var_u8_add := proc(args: ..U8) returns U8 {
         args.get(i, val)
         result = result.u8_add(val)
     }
-    return result
 
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "var_i64_add: IndexOutOfBoundsError thrown:")
@@ -60,6 +61,8 @@ var_u8_add := proc(args: ..U8) returns U8 {
         println(loc(), "var_i64_add: U8_OverflowError thrown:")
         println(err.msg)
     }
+
+    return result
 }
 assert_eq(loc(), add(34, 35), U8.to_i64(var_u8_add(U8.from_i64(34), U8.from_i64(35))))
 
@@ -72,11 +75,12 @@ test_i64_variadic := func(args: ..I64) returns I64 {
         args.get(i, val)
         sum = sum.add(val)
     }
-    return sum
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "test_i64_variadic: IndexOutOfBoundsError should never happen")
     }
+
+    return sum
 }
 
 // Test with different numbers of arguments
@@ -92,7 +96,6 @@ test_str_variadic := func(args: ..Str) returns Str {
         args.get(i, val)
         result = format(result, val)
     }
-    return result
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "test_str_variadic: IndexOutOfBoundsError should never happen")
@@ -103,6 +106,8 @@ test_str_variadic := func(args: ..Str) returns Str {
     catch(err: AllocError) {
         panic(loc(), "test_str_variadic: AllocError")
     }
+
+    return result
 }
 
 assert_eq_str(loc(), "hello world", test_str_variadic("hello", " ", "world"))
@@ -129,11 +134,12 @@ test_bool_variadic := func(args: ..Bool) returns I64 {
             count_true = count_true.add(1)
         }
     }
-    return count_true
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "test_bool_variadic: IndexOutOfBoundsError should never happen")
     }
+
+    return count_true
 }
 
 assert_eq(loc(), 3, test_bool_variadic(true, false, true, true, false))

@@ -42,10 +42,13 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
 }
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
-    return safe_div(a, b)
+    result := safe_div(a, b)
+
     catch (err: DivideByZero) {
         return 0
     }
+
+    return result
 }
 
 test_unsafe_div := proc() {

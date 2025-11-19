@@ -542,8 +542,17 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
     let mut errors = vec![];
     let returns_len = func_def.return_types.len();
+    let mut unconditional_exit_in_sequence = false;
 
     for p in body.iter() {
+        // Check if we're processing code after an unconditional return
+        if unconditional_exit_in_sequence {
+            errors.push(p.error(&context.path, "type",
+                "Unreachable code after unconditional return.\n\
+                 Suggestion: Remove this code or move it before the return statement."));
+            continue;
+        }
+
         match &p.node_type {
             NodeType::Body => {
                 let mut temp_thrown_types = Vec::new();
@@ -552,6 +561,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             },
             NodeType::Return => {
                 *return_found = true;
+                unconditional_exit_in_sequence = true;
                 if returns_len != p.params.len() {
                     errors.push(p.error(&context.path, "type", &format!("Returning {} values when {} were expected.", p.params.len(), returns_len)));
                     errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
