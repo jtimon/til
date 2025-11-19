@@ -109,19 +109,9 @@ fn to_ast_str(e: &Expr) -> String {
 
 fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
-    let mut lexer = match lexer_from_source(&path, source) {
-        Ok(_result) => _result,
-        Err(error_string) => {
-            return Err(format!("{}:{}", &path, error_string));
-        },
-    };
+    let mut lexer = lexer_from_source(&path, source)?;
 
-    let mode = match parse_mode(&path, &mut lexer) {
-        Ok(mode_) => mode_,
-        Err(error_string) => {
-            return Err(format!("{}:{}", &path, error_string));
-        },
-    };
+    let mode = parse_mode(&path, &mut lexer)?;
     context.mode = mode;
     if print_extra {
         println!("Mode: {}", context.mode.name);
@@ -131,20 +121,10 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
-        match rs::ext::proc_import(context, &import_fcall_expr) {
-            Ok(_) => {},
-            Err(error_string) => {
-                return Err(format!("{}:{}", &path, error_string));
-            },
-        }
+        rs::ext::proc_import(context, &import_fcall_expr)?;
     }
 
-    let mut e: Expr = match parse_tokens(&mut lexer) {
-        Ok(expr) => expr,
-        Err(error_string) => {
-            return Err(format!("{}:{}", &path, error_string));
-        },
-    };
+    let mut e: Expr = parse_tokens(&mut lexer)?;
     if !SKIP_AST {
         println!("AST: \n{}", to_ast_str(&e));
     }
@@ -155,7 +135,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         let mut errors = rs::init::init_context(context, &e);
         if errors.len() > 0 {
             for err in &errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} declaration errors found", errors.len()));
         }
@@ -187,7 +167,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
 
         if errors.len() > 0 {
             for err in &errors {
-                println!("{}:{}", path, err);
+                println!("{}", err);
             }
             return Err(format!("Compiler errors: {} type errors found", errors.len()));
         }
@@ -196,10 +176,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         context.imports_done.clear();
     }
 
-    return match rs::interpreter::eval_expr(context, &e) {
-        Ok(eval_result) => Ok(eval_result),
-        Err(err) => Err(format!("{}:{}", path, err)),
-    }
+    return rs::interpreter::eval_expr(context, &e);
 }
 
 // ---------- main, usage, args, etc
