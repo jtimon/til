@@ -71,7 +71,7 @@ SStructDef := struct {
     mut default_values: Map = Map.new(Str, Expr)
 
     // Helper to find a member by name
-    get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {
         mut i := 0
         while i.lt(self.members.len()) {
             mut member := Declaration()
@@ -81,11 +81,20 @@ SStructDef := struct {
             }
             i = i.add(1)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
         throw format(loc(), "Member '", member_name, "' not found")
     }
 
     // Helper to find a member by name or return an error
-    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, e: Expr) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, e: Expr) returns Declaration throws Str {
         member := self.get_member(member_name)
         return member
         catch (err: Str) {
@@ -149,11 +158,28 @@ Expr := struct {
         return Expr.new_explicit(node_type, params, e.line, e.col)
     }
 
-    get := func(self: Expr, i: I64) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
+    len := func(self: Expr) returns I64 {
+        return self.params.len()
+    }
+
+    size := func(self: Expr) returns I64 {
+        return size_of(Expr)
+    }
+
+    get := func(self: Expr, i: I64) returns Expr throws Str {
         if i.lt(self.params.len()) {
             mut result := Expr()
             self.params.get(i, result)
             return result
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
         }
         throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
     }
@@ -233,7 +259,7 @@ ValueType := enum {
     TMulti: Str,
 }
 
-value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
+value_type_to_str := func(arg_type: ValueType) returns Str throws AllocError, I64_OverflowError, IndexOutOfBoundsError {
     mut result := ""
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
@@ -256,15 +282,6 @@ value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
         result = format("{}", type_name)
     case:
         result = "unknown"
-    }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
-        throw err.msg
     }
     return result
 }
@@ -289,7 +306,7 @@ str_to_value_type := func(arg_type: Str) returns ValueType {
     return ValueType.TCustom(arg_type)
 }
 
-parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, AllocError, FullError {
+parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
     params := Vec.new(Expr)
     tt := t.token_type
     mut node_type := NodeType.Body  // Default, will be overwritten
@@ -388,7 +405,7 @@ validate_mut_copy_own_modifiers := func(t: Token, modifier: Str, is_mut: Bool, i
     }
 }
 
-parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     _ := lexer_expect(lexer, TokenType.LeftParen)
     mut rightparent_found := false
     mut args := Vec.new(Declaration)
@@ -531,7 +548,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Array throws Str, AllocEr
     }
 }
 
-func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.peek()
@@ -587,7 +604,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Array throws Str, AllocError
 }
 
 // TODO DRY with func_proc_returns ?
-func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     mut end_found := false
     mut return_types := Vec.new(ValueType)
     mut t := lexer.previous()
@@ -638,7 +655,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Array throws Str, AllocError,
     }
 }
 
-parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType, do_parse_body: Bool) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType, do_parse_body: Bool) returns Expr throws Str {
     lexer.advance(1)
     t := lexer.peek()
     if lexer.is_eof(1) {
@@ -676,7 +693,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     return e
 }
 
-enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     lexer.advance(1)
 
@@ -745,7 +762,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     return Expr.new_parse(NodeType.EnumDef(enum_def), initial_token, params)
 }
 
-parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError, DuplicatedKeyError {
     _ := lexer_expect(lexer, TokenType.Struct)
     t := lexer.peek()
     tt := t.token_type
@@ -777,6 +794,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
         switch nt {
             case NodeType.Declaration(decl):
                 is_declaration = true
+            case:
         }
 
         if is_declaration {
@@ -803,7 +821,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     return Expr.new_parse(NodeType.StructDef(struct_def), t, params)
 }
 
-parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     initial_current := lexer.current
     t := lexer.peek()
     mut next_t := lexer.next()
@@ -914,7 +932,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
     }
 }
 
-get_combined_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+get_combined_name := func(e: Expr) returns Str throws Str {
     mut to_return := ""
     nt := e.node_type
     switch nt {
@@ -1209,6 +1227,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
     switch range_expr.node_type {
         case NodeType.Range:
             is_range = true
+        case:
     }
     if not(is_range) {
         throw ident_token.error("Expected range expression (start..end) after 'in'")
@@ -1282,9 +1301,11 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
                 switch p0nt {
                     case NodeType.Identifier(param_name):
                         return format(name, ".", param_name)
+                    case:
                 }
             }
             return name
+        case:
     }
     if ent.tag().eq(NodeType.FCall.tag()) {
         if e.params.len().gte(1) {
@@ -1344,8 +1365,10 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
                         pattern_info.binding_var = binding_var
                         // Bug #27 FIXED - can now inline Vec.new(Expr) as function argument
                         return Expr.new_explicit(NodeType.Pattern(pattern_info), Vec.new(Expr), left.line, left.col)
+                    case:
                 }
             }
+        case:
     }
 
     return left

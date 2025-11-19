@@ -15,11 +15,6 @@ test_newline_escape := proc() {
     assert_eq_str(loc(), "\n", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -43,11 +38,6 @@ test_tab_escape := proc() {
     assert_eq_str(loc(), "\t", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -71,11 +61,6 @@ test_carriage_return_escape := proc() {
     assert_eq_str(loc(), "\r", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -99,11 +84,6 @@ test_null_escape := proc() {
     assert_eq_str(loc(), "\0", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -127,11 +107,6 @@ test_multiple_escapes := proc() {
     assert_eq_str(loc(), "hello\nworld\ttab", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -156,11 +131,6 @@ test_unknown_escape := proc() {
     assert_eq_str(loc(), "\\x", tok.token_str)
 
     // Catch unexpected errors at end
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -225,16 +195,6 @@ test_lexer_advance := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_lexer_advance()
 
@@ -260,16 +220,6 @@ test_lexer_peek_ahead := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_lexer_peek_ahead()
 
@@ -292,16 +242,6 @@ test_lexer_next := proc() {
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
         exit(1)
     }
@@ -331,16 +271,6 @@ test_lexer_previous := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_lexer_previous()
 
@@ -365,16 +295,6 @@ test_lexer_go_back := proc() {
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
         exit(1)
     }
