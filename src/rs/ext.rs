@@ -593,7 +593,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
 
     // If imported values already initialized, use the cache (Phase 2)
     match context.imports_done.get(&path) {
-        Some(import_result) => return import_result.clone(),
+        Some(import_result) => return import_result.clone().map(|_| EvalResult::new("")),
         None => match context.imports_wip.contains(&path) {
             true => {
                 // TODO do a more detailed message with backtraces or storing a graph of the dependencies or something
@@ -611,7 +611,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     context.path = path.clone();
 
     let result = match run_file_with_context(true, context, &path, Vec::new()) {
-        Ok(_) => Ok(EvalResult::new("")),
+        Ok(_) => Ok(()),
         Err(error_string) => {
             context.path = original_path.clone();
             // Prepend the imported file path to the error if not already present
@@ -628,7 +628,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     context.imports_wip.remove(&path);
     context.imports_done.insert(path, result.clone());
     context.path = original_path;
-    return result
+    return result.map(|_| EvalResult::new(""))
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

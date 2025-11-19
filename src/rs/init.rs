@@ -9,7 +9,6 @@ use crate::rs::parser::{
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
-use crate::rs::interpreter::EvalResult;
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
@@ -1029,7 +1028,7 @@ pub struct Context {
     pub imports_declarations_done: HashSet<String>, // tracks which imports have had declarations copied (init phase)
     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
     // Reused across phases: cleared between init and eval
-    pub imports_done: HashMap<String, Result<EvalResult, String>>,
+    pub imports_done: HashMap<String, Result<(), String>>,
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
