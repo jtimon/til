@@ -326,8 +326,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
     mut expect_comma := false
 
     while and(not(lexer.is_eof(0)), not(rightparent_found)) {
-        lt := list_t.token_type
-        switch lt {
+        switch list_t.token_type {
         case TokenType.RightParen:
             _ := lexer_expect(lexer, TokenType.RightParen)
             rightparent_found = true
@@ -350,8 +349,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
         }
     }
 
-    lt := list_t.token_type
-    switch lt {
+    switch list_t.token_type {
     case TokenType.RightParen:
         // TODO properly parse lists besides function definition arguments
         initial_token := lexer.get_token(initial_current)
@@ -668,7 +666,7 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
         body_expr := parse_body(lexer, TokenType.RightBrace)
         body = body_expr.params
     } else {
-        lexer_go_back(lexer, 1)  // Discount the closing brace we won't need
+        lexer.go_back(1)  // Discount the closing brace we won't need
     }
 
     mut func_def := SFuncDef()
@@ -713,7 +711,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         throw t2.error("expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
-    enum_map := Map.new(Str, ValueType)
+    mut enum_map := Map.new(Str, ValueType)
 
     mut end_found := false
     while and(lexer.current.lt(lexer.len()), not(end_found)) {
@@ -751,7 +749,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
         case TokenType.Comma:
             // Skip comma
         case:
-            throw it_t.error("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'.")
+            throw it_t.error(format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
         }
         lexer.advance(1)
     }
@@ -908,7 +906,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                         throw next_peek.error(format("Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'"))
                     }
                 case:
-                    throw method_t.error("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
+                    throw method_t.error(format("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "')"))
                 }
             case:
                 continue_loop = false
@@ -962,7 +960,7 @@ get_combined_name := func(e: Expr) returns Str throws Str {
     switch nt {
         case NodeType.Identifier(id_str):
             to_return = id_str
-            to_return = to_return.add(".")
+            to_return = format(to_return, ".")
         case:
             throw e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only")
     }
@@ -974,8 +972,8 @@ get_combined_name := func(e: Expr) returns Str throws Str {
         pnt := p.node_type
         switch pnt {
             case NodeType.Identifier(id_str):
-                to_return = to_return.add(id_str)
-                to_return = to_return.add(".")
+                to_return = format(to_return, id_str)
+                to_return = format(to_return, ".")
             case:
                 throw e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only")
         }
@@ -983,8 +981,14 @@ get_combined_name := func(e: Expr) returns Str throws Str {
     }
 
     // Remove the last '.'
-    to_return = to_return.substring(0, to_return.len().sub(1))
+    to_return = to_return.get_substr(0, to_return.len().sub(1))
     catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
         throw err.msg
     }
     return to_return
@@ -1002,10 +1006,24 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
     case TokenType.Dot:
         e := parse_primary_identifier(lexer)
         ent := e.node_type
-        if ent.tag().eq(NodeType.FCall.tag()) {
+        mut is_fcall := false
+        switch ent {
+        case NodeType.FCall:
+            is_fcall = true
+        case:
+            is_fcall = false
+        }
+        if is_fcall {
             return e
         }
-        if not(ent.tag().eq(NodeType.Identifier("").tag())) {
+        mut is_identifier := false
+        switch ent {
+        case NodeType.Identifier(name):
+            is_identifier = true
+        case:
+            is_identifier = false
+        }
+        if not(is_identifier) {
             throw t.lang_error("a series of identifiers and dots should have been parsed as identifier or function call")
         }
 
@@ -1323,9 +1341,11 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 // Helper function to extract full identifier name from an expression
 // Handles both simple identifiers and dotted names (represented as FCall)
 get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    mut result := ""
     ent := e.node_type
     switch ent {
         case NodeType.Identifier(name):
+            result = name
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if e.params.len().eq(1) {
@@ -1334,22 +1354,20 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
                 p0nt := p0.node_type
                 switch p0nt {
                     case NodeType.Identifier(param_name):
-                        return format(name, ".", param_name)
+                        result = format(name, ".", param_name)
                     case:
                 }
             }
-            return name
+        case NodeType.FCall:
+            if not(e.params.len().lt(1)) {
+                // For FCall, try to extract the function name
+                mut p0_fcall := Expr()
+                e.params.get(0, p0_fcall)
+                result = get_full_identifier_name(p0_fcall)
+            }
         case:
     }
-    if ent.tag().eq(NodeType.FCall.tag()) {
-        if e.params.len().gte(1) {
-            // For FCall, try to extract the function name
-            mut p0_fcall := Expr()
-            e.params.get(0, p0_fcall)
-            return get_full_identifier_name(p0_fcall)
-        }
-    }
-    return ""
+    return result
 }
 
 parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
@@ -1639,7 +1657,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     throw t.error(format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
-parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
     e := parse_body(lexer, TokenType.Eof)
 
     mut i := lexer.current
@@ -1656,7 +1674,7 @@ parse_tokens := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
 
     while i.lt(lexer_len_val) {
         t := lexer.get_token(i)
-        println(format("Token: ", token_to_str(t)))
+        println(format("Token: ", token_type_to_str(t.token_type)))
         i = i.add(1)
     }
 
