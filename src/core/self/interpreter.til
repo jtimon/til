@@ -580,7 +580,7 @@ eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocEr
                 return last_result
             }
             if stmt_result.is_throw {
-                throw format("Uncaught exception: ", stmt_result.thrown_type, " - ", stmt_result.value)
+                throw format(loc(), "Uncaught exception: ", stmt_result.thrown_type, " - ", stmt_result.value)
             }
         }
 
