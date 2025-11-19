@@ -1625,166 +1625,234 @@ Context.copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, 
     }
 }
 
-    pub fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
-        match type_name {
-            "U8"   => return Ok(1),
-            "I64"  => return Ok(8),
-            _ => {},
-        }
-        if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
-            // Calculate maximum variant size (8 bytes for tag + largest payload)
-            let mut max_size = 8; // Start with tag size
-
-            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
-                if let Some(payload_type) = payload_type_opt {
-                    let payload_size = match payload_type {
-                        ValueType::TCustom(t) => self.get_type_size(t)?,
-                        _ => {
-                            return Err(format!(
-                                "get_type_size: unsupported payload type in enum '{}': {:?}",
-                                type_name, payload_type
-                            ));
-                        }
-                    };
-                    let variant_total = 8 + payload_size; // tag + payload
-                    if variant_total > max_size {
-                        max_size = variant_total;
-                    }
-                }
-            }
-
-            return Ok(max_size);
-        }
-
-        if let Some(struct_def) = self.scope_stack.lookup_struct(type_name) {
-            // Check if struct has size() method (associated function)
-            // If it does, ideally we'd use TIL's implementation, but we need an instance
-            let has_size = struct_def.get_member("size")
-                .map(|decl| !decl.is_mut)
-                .unwrap_or(false);
-
-            if has_size {
-                // TODO: Type has size() method - ideally call TIL's implementation
-                // But get_type_size() asks for type's struct size (for field offsets),
-                // while instance.size() returns data size (which varies per instance)
-                // For now, fall through to calculate struct field size
-                // Consider: should we even be using get_type_size for collection types?
-            }
-
-            // Fallback: Calculate size of struct's fields manually
-            let mut total_size = 0;
-
-            for (field_name, decl) in &struct_def.members {
-                if !decl.is_mut {
-                    continue;
-                }
-
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(t) => {
-                        self.get_type_size(t)?
-                    }
-                    _ => {
-                        return Err(format!(
-                            "get_type_size: unsupported value type '{}' in '{}.{}'",
-                            value_type_to_str(&decl.value_type),
-                            type_name,
-                            field_name
-                        ));
-                    }
-                };
-
-                total_size += field_size;
-            }
-
-            Ok(total_size)
-        } else {
-            Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
-        }
+Context.get_type_size := func(self: Context, type_name: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+    if type_name.eq("U8") {
+        return 1
+    }
+    if type_name.eq("I64") {
+        return 8
     }
 
-    /// Calculate the offset of a specific field within a struct type
-    /// This walks through the struct definition and sums up field sizes until reaching the target field
-    pub fn calculate_field_offset(&self, struct_type: &str, field_name: &str) -> Result<usize, String> {
-        let struct_def = self.scope_stack.lookup_struct(struct_type)
-            .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
+    mut enum_ptr := self.scope_stack.lookup_enum(type_name)
+    if enum_ptr.data.ne(NULL) {
+        # Calculate maximum variant size (8 bytes for tag + largest payload)
+        mut max_size := 8  # Start with tag size
+        mut enum_def := enum_ptr.data
 
-        let mut current_offset = 0;
-
-        for (member_name, decl) in &struct_def.members {
-            if !decl.is_mut {
-                continue; // Skip immutable fields
-            }
-
-            // If we found the target field, return its offset
-            if member_name == field_name {
-                return Ok(current_offset);
-            }
-
-            // Otherwise, add this field's size and continue
-            let field_size = match &decl.value_type {
-                ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
-                _ => return Err(format!(
-                    "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
-                    value_type_to_str(&decl.value_type), struct_type, member_name
-                )),
-            };
-
-            current_offset += field_size;
-        }
-
-        Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
-    }
-
-    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
-    /// Handles nested field access by walking the path and calculating offsets dynamically
-    pub fn get_field_offset(&self, field_path: &str) -> Result<usize, String> {
-        let parts: Vec<&str> = field_path.split('.').collect();
-        if parts.is_empty() {
-            return Err(format!("get_field_offset: empty field path"));
-        }
-
-        // Start with the base variable's offset
-        let base_var = parts[0];
-        let mut current_offset = self.scope_stack.lookup_var(base_var)
-            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
-
-        // Get the base variable's type
-        let mut current_type = match self.scope_stack.lookup_symbol(base_var) {
-            Some(symbol) => match &symbol.value_type {
-                ValueType::TCustom(type_name) => type_name.clone(),
-                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
-            },
-            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
-        };
-
-        // Walk through the remaining parts of the path
-        for field_name in &parts[1..] {
-            // Calculate the offset of this field within the current struct type
-            let field_offset = self.calculate_field_offset(&current_type, field_name)?;
-            current_offset += field_offset;
-
-            // Update current_type to the type of this field (for nested access)
-            let struct_def = self.scope_stack.lookup_struct(&current_type)
-                .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
-
-            let field_decl = struct_def.members.iter()
-                .find(|(name, _)| name == field_name)
-                .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
-
-            current_type = match &field_decl.1.value_type {
-                ValueType::TCustom(type_name) => type_name.clone(),
-                _ => {
-                    // If this is the last part and it's a primitive, that's fine
-                    if field_name == parts.last().unwrap() {
-                        break;
+        mut variant_keys := enum_def.enum_map.keys()
+        mut var_idx := 0
+        while var_idx.lt(variant_keys.len()) {
+            mut variant_name := variant_keys.get(var_idx)
+            mut payload_type_ptr := enum_def.enum_map.get(variant_name)
+            if payload_type_ptr.data.ne(NULL) {
+                mut payload_type := payload_type_ptr.data
+                mut payload_size: I64
+                switch payload_type {
+                case ValueType.TCustom(t):
+                    mut size_result := self.get_type_size(t)
+                    if size_result.is_err {
+                        throw size_result.error
                     }
-                    return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
+                    payload_size = size_result.value
+                case _:
+                    throw format("get_type_size: unsupported payload type in enum '", type_name, "': ", value_type_to_str(payload_type))
                 }
-            };
+                mut variant_total := payload_size.add(8)  # tag + payload
+                if variant_total.gt(max_size) {
+                    max_size = variant_total
+                }
+            }
+            var_idx = var_idx.add(1)
         }
 
-        Ok(current_offset)
+        return max_size
     }
+
+    mut struct_ptr := self.scope_stack.lookup_struct(type_name)
+    if struct_ptr.data.ne(NULL) {
+        mut struct_def := struct_ptr.data
+        # Check if struct has size() method (associated function)
+        # If it does, ideally we'd use TIL's implementation, but we need an instance
+        mut size_member_ptr := struct_def.get_member("size")
+        mut has_size := false
+        if size_member_ptr.data.ne(NULL) {
+            mut decl := size_member_ptr.data
+            if not(decl.is_mut) {
+                has_size = true
+            }
+        }
+
+        if has_size {
+            # TODO: Type has size() method - ideally call TIL's implementation
+            # But get_type_size() asks for type's struct size (for field offsets),
+            # while instance.size() returns data size (which varies per instance)
+            # For now, fall through to calculate struct field size
+            # Consider: should we even be using get_type_size for collection types?
+        }
+
+        # Fallback: Calculate size of struct's fields manually
+        mut total_size := 0
+        mut member_keys := struct_def.members.keys()
+        mut mem_idx := 0
+        while mem_idx.lt(member_keys.len()) {
+            mut field_name := member_keys.get(mem_idx)
+            mut decl := struct_def.members.get(field_name)
+            if not(decl.is_mut) {
+                mem_idx = mem_idx.add(1)
+                continue
+            }
+
+            mut field_size: I64
+            switch decl.value_type {
+            case ValueType.TCustom(t):
+                mut size_result := self.get_type_size(t)
+                if size_result.is_err {
+                    throw size_result.error
+                }
+                field_size = size_result.value
+            case _:
+                throw format("get_type_size: unsupported value type '", value_type_to_str(decl.value_type), "' in '", type_name, ".", field_name, "'")
+            }
+
+            total_size = total_size.add(field_size)
+            mem_idx = mem_idx.add(1)
+        }
+
+        return total_size
+    }
+
+    throw format("get_type_size: type '", type_name, "' not found in struct or enum defs")
+}
+
+# Calculate the offset of a specific field within a struct type
+# This walks through the struct definition and sums up field sizes until reaching the target field
+Context.calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+    mut struct_ptr := self.scope_stack.lookup_struct(struct_type)
+    if struct_ptr.data.eq(NULL) {
+        throw format("calculate_field_offset: struct '", struct_type, "' not found")
+    }
+    mut struct_def := struct_ptr.data
+
+    mut current_offset := 0
+    mut member_keys := struct_def.members.keys()
+    mut mem_idx := 0
+    while mem_idx.lt(member_keys.len()) {
+        mut member_name := member_keys.get(mem_idx)
+        mut decl := struct_def.members.get(member_name)
+        if not(decl.is_mut) {
+            mem_idx = mem_idx.add(1)
+            continue  # Skip immutable fields
+        }
+
+        # If we found the target field, return its offset
+        if member_name.eq(field_name) {
+            return current_offset
+        }
+
+        # Otherwise, add this field's size and continue
+        mut field_size: I64
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            mut size_result := self.get_type_size(type_name)
+            if size_result.is_err {
+                throw size_result.error
+            }
+            field_size = size_result.value
+        case _:
+            throw format("calculate_field_offset: unsupported field type '", value_type_to_str(decl.value_type), "' in '", struct_type, ".", member_name, "'")
+        }
+
+        current_offset = current_offset.add(field_size)
+        mem_idx = mem_idx.add(1)
+    }
+
+    throw format("calculate_field_offset: field '", field_name, "' not found in struct '", struct_type, "'")
+}
+
+# Get the absolute arena offset for a field path (e.g., "my_vec._len")
+# Handles nested field access by walking the path and calculating offsets dynamically
+Context.get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+    mut parts := field_path.split(".")
+    if parts.len().eq(0) {
+        throw format("get_field_offset: empty field path")
+    }
+
+    # Start with the base variable's offset
+    mut base_var := parts.get(0)
+    mut base_offset_ptr := self.scope_stack.lookup_var(base_var)
+    if base_offset_ptr.data.eq(NULL) {
+        throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
+    }
+    mut current_offset := base_offset_ptr.data
+
+    # Get the base variable's type
+    mut symbol_ptr := self.scope_stack.lookup_symbol(base_var)
+    if symbol_ptr.data.eq(NULL) {
+        throw format("get_field_offset: base variable '", base_var, "' not found in symbols")
+    }
+    mut symbol := symbol_ptr.data
+    mut current_type: Str
+    switch symbol.value_type {
+    case ValueType.TCustom(type_name):
+        current_type = type_name
+    case _:
+        throw format("get_field_offset: base variable '", base_var, "' is not a struct")
+    }
+
+    # Walk through the remaining parts of the path
+    mut part_idx := 1
+    while part_idx.lt(parts.len()) {
+        mut field_name := parts.get(part_idx)
+
+        # Calculate the offset of this field within the current struct type
+        mut field_offset_result := self.calculate_field_offset(current_type, field_name)
+        if field_offset_result.is_err {
+            throw field_offset_result.error
+        }
+        mut field_offset := field_offset_result.value
+        current_offset = current_offset.add(field_offset)
+
+        # Update current_type to the type of this field (for nested access)
+        mut struct_ptr := self.scope_stack.lookup_struct(current_type)
+        if struct_ptr.data.eq(NULL) {
+            throw format("get_field_offset: struct '", current_type, "' not found")
+        }
+        mut struct_def := struct_ptr.data
+
+        mut member_keys := struct_def.members.keys()
+        mut found := false
+        mut field_decl: MemberDecl
+        mut mem_idx := 0
+        while mem_idx.lt(member_keys.len()) {
+            mut name := member_keys.get(mem_idx)
+            if name.eq(field_name) {
+                field_decl = struct_def.members.get(name)
+                found = true
+            }
+            mem_idx = mem_idx.add(1)
+        }
+        if not(found) {
+            throw format("get_field_offset: field '", field_name, "' not found in struct '", current_type, "'")
+        }
+
+        switch field_decl.value_type {
+        case ValueType.TCustom(type_name):
+            current_type = type_name
+        case _:
+            # If this is the last part and it's a primitive, that's fine
+            mut last_part := parts.get(parts.len().sub(1))
+            if field_name.eq(last_part) {
+                part_idx = parts.len()  # Break out of loop
+            } else {
+                throw format("get_field_offset: field '", field_name, "' in '", current_type, "' is not a struct, cannot continue path")
+            }
+        }
+
+        part_idx = part_idx.add(1)
+    }
+
+    return current_offset
+}
 
     pub fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
         self.insert_struct_at_offset(id, custom_type_name, None, e)
