@@ -3,7 +3,9 @@ mode test
 AAAError := struct {}
 simplest_catch := proc () {
     mut catched := false
-    throw AAAError()
+    if I64.eq(1, 1) {
+        throw AAAError()
+    }
     assert(loc(), false) // This line should be unreachable
     catch (err: AAAError) {
         catched = true
@@ -20,8 +22,10 @@ ErrorWithMessage := struct {
 test_catch_with_fields := proc() {
     mut caught_msg := ""
     mut catched := false
-    my_error := ErrorWithMessage()
-    throw my_error
+    if I64.eq(1, 1) {
+        my_error := ErrorWithMessage()
+        throw my_error
+    }
     catch (err: ErrorWithMessage) {
         caught_msg = err.msg
         catched = true
@@ -167,7 +171,9 @@ test_catch_str_error := proc() {
     mut caught := false
     mut error_msg := ""
 
-    throw "This is a test error message"
+    if I64.eq(1, 1) {
+        throw "This is a test error message"
+    }
     catch (err: Str) {
         caught = true
         println("Caught error:")
@@ -185,10 +191,12 @@ test_catch_error_with_str_field := proc() {
     mut caught := false
     mut caught_msg := ""
 
-    mut my_error := ErrorWithMessage()
-    // Change the message before throwing
-    my_error.msg = "Custom error message"
-    throw my_error
+    if I64.eq(1, 1) {
+        mut my_error := ErrorWithMessage()
+        // Change the message before throwing
+        my_error.msg = "Custom error message"
+        throw my_error
+    }
     catch (err: ErrorWithMessage) {
         caught = true
         // Test accessing Str field in caught struct

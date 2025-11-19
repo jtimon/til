@@ -545,11 +545,11 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
     let mut unconditional_exit_in_sequence = false;
 
     for p in body.iter() {
-        // Check if we're processing code after an unconditional return
+        // Check if we're processing code after an unconditional return or throw
         if unconditional_exit_in_sequence {
             errors.push(p.error(&context.path, "type",
-                "Unreachable code after unconditional return.\n\
-                 Suggestion: Remove this code or move it before the return statement."));
+                "Unreachable code after unconditional return or throw.\n\
+                 Suggestion: Remove this code or move it before the return/throw statement."));
             continue;
         }
 
@@ -603,6 +603,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 }
             },
             NodeType::Throw => {
+                unconditional_exit_in_sequence = true;
                 if p.params.len() != 1 {
                     errors.push(p.error(&context.path, "type", "Throw statement must have exactly one parameter."));
                 } else {
