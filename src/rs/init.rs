@@ -1613,13 +1613,16 @@ impl Context {
                                             is_own: false,
                                         },
                                     );
-                                    self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
 
-                                    // Special case: Str initialization with string literal
+                                    // Special case: Str field initialization
                                     if type_name == "Str" {
+                                        // Register inline offset BEFORE insert_string so it writes to the inline space
+                                        let field_arena_offset = offset + field_offset;
+                                        self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
                                         self.insert_string(&combined_name, &default_value, e)?;
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
+                                        self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
                                         self.insert_struct_at_offset(&combined_name, type_name, Some(offset + field_offset), e)
                                             .map_err(|_| e.lang_error(&self.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
                                     }
@@ -1901,8 +1904,16 @@ impl Context {
             _ => return Err(e.lang_error(&self.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
         };
 
-        let offset = self.scope_stack.lookup_var(id)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))?;
+        // Try to get offset - first from arena_index, then calculate dynamically for fields
+        let offset = if let Some(offset) = self.scope_stack.lookup_var(id) {
+            offset
+        } else if id.contains('.') {
+            // Field path - calculate offset dynamically
+            self.get_field_offset(id)
+                .map_err(|err| e.lang_error(&self.path, "context", &format!("get_enum: {}", err)))?
+        } else {
+            return Err(e.lang_error(&self.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))
+        };
 
         let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
@@ -2130,13 +2141,8 @@ impl Context {
         };
         Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
 
-        // Set cap field (only exists in Vec, not in Array)
-        let cap_field_path = format!("{}.cap", name);
-        if let Ok(cap_offset) = self.get_field_offset(&cap_field_path) {
-            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
-        } else if let Some(cap_offset) = self.scope_stack.lookup_var(&cap_field_path) {
-            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
-        }
+        // Note: Array doesn't have a cap field (only Vec has cap)
+        // This function only creates Array structs (see line 2058)
 
         // For generic Array, also set type_name and type_size fields
         if array_type == "Array" {
