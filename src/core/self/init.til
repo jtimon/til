@@ -371,13 +371,13 @@ ScopeStack := struct {
     }
 }
 
-get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
+get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError, AllocError, FullError {
     mut node_type_str := enum_to_str(e.node_type)
     if not(node_type_str.eq("NodeType.FCall")) {
-        throw e.lang_error("type", "get_func_name_in_call(): expected fcall node.")
+        e.exit_error("type", "get_func_name_in_call(): expected fcall node.")
     }
     if e.params.len().eq(0) {
-        throw e.lang_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
+        e.exit_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
     }
     mut param := e.get(0)
     mut func_name := ""
@@ -386,7 +386,7 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsE
         func_name = f_name
     case:
         mut param_node_type_str := enum_to_str(param.node_type)
-        throw e.lang_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'"))
+        e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'"))
     }
     return func_name
 }
