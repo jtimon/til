@@ -1222,182 +1222,184 @@ Context := struct {
     # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     # REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     # REM: TODO change the cached type to support import as returning a struct_def
-}
+    # REM: TODO change the cached type to support import as returning a struct_def
 
+    # Context methods (insert/get/copy methods moved to Arena in interpreter.til)
+    new := func(path: Str, mode_name: Str) returns Context throws Str, AllocError, FullError {
+        mut scope_stack := ScopeStack.new()
+        scope_stack.push(ScopeType.Global) # Initialize global scope
 
-# Context methods (insert/get/copy methods moved to Arena in interpreter.til)
-Context.new := func(path: Str, mode_name: Str) returns Context throws Str, AllocError, FullError {
-    mut scope_stack := ScopeStack.new()
-    scope_stack.push(ScopeType.Global) # Initialize global scope
-
-    mut mode_result := mode_from_name(mode_name)
-    if mode_result.is_err {
-        throw mode_result.error
-    }
-
-    mut result := Context.new_empty()
-    result.path = path
-    result.mode_def = mode_result.value
-    result.scope_stack = scope_stack
-    result.temp_enum_payload = NULL
-    result.imports_declarations_done = HashSet.new()
-    result.imports_values_done = HashMap.new()
-    result.imports_wip = HashSet.new()
-    result.imports_done = HashMap.new() # DEPRECATED
-    return result
-}
-
-Context.get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    mut variant_keys := selfi.enum_map.keys()
-    mut idx := 0
-    while idx.lt(variant_keys.len()) {
-        mut k := variant_keys.get(idx)
-        if k.eq(variant_name) {
-            return idx.to_i64()
+        mut mode_result := mode_from_name(mode_name)
+        if mode_result.is_err {
+            throw mode_result.error
         }
-        idx = idx.add(1)
+
+        mut result := Context.new_empty()
+        result.path = path
+        result.mode_def = mode_result.value
+        result.scope_stack = scope_stack
+        result.temp_enum_payload = NULL
+        result.imports_declarations_done = HashSet.new()
+        result.imports_values_done = HashMap.new()
+        result.imports_wip = HashSet.new()
+        result.imports_done = HashMap.new() # DEPRECATED
+        return result
     }
-    throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
-}
 
-Context.variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError {
-    mut keys := selfi.enum_map.keys()
-    if position.lt(0).or(position.gteq(keys.len().to_i64())) {
-        # Return an error if the position is out of bounds
-        throw e.lang_error(path, "context", format("Error: Invalid position '", position.to_string(), "' for enum variant."))
+    get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+        mut variant_keys := selfi.enum_map.keys()
+        mut idx := 0
+        while idx.lt(variant_keys.len()) {
+            mut k := variant_keys.get(idx)
+            if k.eq(variant_name) {
+                return idx.to_i64()
+            }
+            idx = idx.add(1)
+        }
+        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
     }
-    # If position is valid, return the corresponding variant name
-    return keys.get(position.to_usize())
-}
 
-Context.map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
-    if struct_def_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
+    variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError {
+        mut keys := selfi.enum_map.keys()
+        if position.lt(0).or(position.gteq(keys.len().to_i64())) {
+            # Return an error if the position is out of bounds
+            throw e.lang_error(path, "context", format("Error: Invalid position '", position.to_string(), "' for enum variant."))
+        }
+        # If position is valid, return the corresponding variant name
+        return keys.get(position.to_usize())
     }
-    mut struct_def := struct_def_ptr.data
 
-    mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
-    if instance_symbol_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
+    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+        mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
+        if NULL.eq(struct_def_ptr.data) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
+        }
+        mut struct_def := struct_def_ptr.data
+
+        mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
+        if NULL.eq(instance_symbol_ptr.data) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
+        }
+        mut is_mut := instance_symbol_ptr.data.is_mut
+
+        mut base_offset_ptr := self.scope_stack.lookup_var(instance_name)
+        if NULL.eq(base_offset_ptr.data) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
+        }
+        mut base_offset := base_offset_ptr.data
+
+        mut members := struct_def.members.entries()
+
+        mut current_offset := 0
+        mut member_idx := 0
+        while member_idx.lt(members.len()) {
+            mut entry := members.get(member_idx)
+            mut field_name := entry.key
+            mut decl := entry.value
+
+            if decl.is_mut {
+                mut combined_name := instance_name.concat(".").concat(field_name)
+                mut field_offset := base_offset.add(current_offset)
+                self.scope_stack.insert_var(combined_name, field_offset)
+
+                self.scope_stack.declare_symbol(
+                    combined_name,
+                    SymbolInfo.new_with(
+                        decl.value_type,
+                        is_mut,
+                        false,
+                        false
+                    )
+                )
+
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    mut nested_struct_ptr := self.scope_stack.lookup_struct(type_name)
+                    if not(NULL.eq(nested_struct_ptr.data)) {
+                        mut map_result := self.map_instance_fields(type_name, combined_name, e)
+                        if map_result.is_err {
+                            throw e.lang_error(self.path, "context", format("map_instance_fields: failed to map nested struct field '", combined_name, "'"))
+                        }
+                    }
+                case _:
+                    # Not a custom type
+                }
+
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(name):
+                    # TODO: This calls Arena.get_type_size in Rust - needs interpreter.til
+                    mut size_result := Arena_get_type_size(self, name)
+                    if size_result.is_err {
+                        throw size_result.error
+                    }
+                    field_size = size_result.value
+                case _:
+                    throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
+                }
+
+                current_offset = current_offset.add(field_size)
+            }
+            # Immutable struct fields are handled generically through struct_defs
+            member_idx = member_idx.add(1)
+        }
     }
-    mut is_mut := instance_symbol_ptr.data.is_mut
 
-    mut base_offset_ptr := self.scope_stack.lookup_var(instance_name)
-    if base_offset_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
+    get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, FullError {
+        # Validate that the struct variable exists by checking if we can get its offset
+        mut offset_ptr := self.scope_stack.lookup_var(id)
+        if not(NULL.eq(offset_ptr.data)) {
+            # Direct variable lookup succeeded
+            return id
+        }
+        if id.contains(".") {
+            # For field paths, validate we can calculate offset
+            # TODO: This calls Arena.get_field_offset in Rust - needs interpreter.til
+            mut field_offset_result := Arena_get_field_offset(self, id)
+            if field_offset_result.is_err {
+                mut err := field_offset_result.error
+                throw e.lang_error(self.path, "context", format("get_struct: ", err))
+            }
+            return id
+        }
+        throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
     }
-    mut base_offset := base_offset_ptr.data
 
-    mut members := struct_def.members.entries()
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws AllocError, IndexOutOfBoundsError {
+        mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
+        if NULL.eq(struct_def_ptr.data) {
+            return
+        }
+        mut struct_def := struct_def_ptr.data
 
-    mut current_offset: I64 = 0
-    mut member_idx := 0
-    while member_idx.lt(members.len()) {
-        mut entry := members.get(member_idx)
-        mut field_name := entry.key
-        mut decl := entry.value
+        mut members := struct_def.members.entries()
+        mut member_idx := 0
+        while member_idx.lt(members.len()) {
+            mut entry := members.get(member_idx)
+            mut field_name := entry.key
+            mut decl := entry.value
 
-        if decl.is_mut {
             mut combined_name := instance_name.concat(".").concat(field_name)
-            mut field_offset := base_offset.add(current_offset)
-            self.scope_stack.insert_var(combined_name, field_offset)
-
             self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo.new_with(
                     decl.value_type,
-                    is_mut,
+                    decl.is_mut,
                     false,
                     false
                 )
             )
 
             switch decl.value_type {
-            case ValueType.TCustom(type_name):
-                if self.scope_stack.lookup_struct(type_name).data.ne(NULL) {
-                    mut map_result := self.map_instance_fields(type_name, combined_name, e)
-                    if map_result.is_err {
-                        throw e.lang_error(self.path, "context", format("map_instance_fields: failed to map nested struct field '", combined_name, "'"))
-                    }
+            case ValueType.TCustom(nested_type_name):
+                mut nested_struct_ptr := self.scope_stack.lookup_struct(nested_type_name)
+                if not(NULL.eq(nested_struct_ptr.data)) {
+                    self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
                 }
             case _:
                 # Not a custom type
             }
-
-            mut field_size: I64
-            switch decl.value_type {
-            case ValueType.TCustom(name):
-                # TODO: This calls Arena.get_type_size in Rust - needs interpreter.til
-                mut size_result := Arena_get_type_size(self, name)
-                if size_result.is_err {
-                    throw size_result.error
-                }
-                field_size = size_result.value
-            case _:
-                throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
-            }
-
-            current_offset = current_offset.add(field_size)
+            member_idx = member_idx.add(1)
         }
-        # Immutable struct fields are handled generically through struct_defs
-        member_idx = member_idx.add(1)
-    }
-}
-
-Context.get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    # Validate that the struct variable exists by checking if we can get its offset
-    mut offset_ptr := self.scope_stack.lookup_var(id)
-    if offset_ptr.data.ne(NULL) {
-        # Direct variable lookup succeeded
-        return id
-    }
-    if id.contains(".") {
-        # For field paths, validate we can calculate offset
-        # TODO: This calls Arena.get_field_offset in Rust - needs interpreter.til
-        mut field_offset_result := Arena_get_field_offset(self, id)
-        if field_offset_result.is_err {
-            mut err := field_offset_result.error
-            throw e.lang_error(self.path, "context", format("get_struct: ", err))
-        }
-        return id
-    }
-    throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
-}
-
-Context.register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws AllocError, IndexOutOfBoundsError {
-    mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
-    if struct_def_ptr.data.eq(NULL) {
-        return
-    }
-    mut struct_def := struct_def_ptr.data
-
-    mut members := struct_def.members.entries()
-    mut member_idx := 0
-    while member_idx.lt(members.len()) {
-        mut entry := members.get(member_idx)
-        mut field_name := entry.key
-        mut decl := entry.value
-
-        mut combined_name := instance_name.concat(".").concat(field_name)
-        self.scope_stack.declare_symbol(
-            combined_name,
-            SymbolInfo.new_with(
-                decl.value_type,
-                decl.is_mut,
-                false,
-                false
-            )
-        )
-
-        switch decl.value_type {
-        case ValueType.TCustom(nested_type_name):
-            if self.scope_stack.lookup_struct(nested_type_name).data.ne(NULL) {
-                self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
-            }
-        case _:
-            # Not a custom type
-        }
-        member_idx = member_idx.add(1)
     }
 }
