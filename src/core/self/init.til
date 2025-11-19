@@ -1854,164 +1854,201 @@ Context.get_field_offset := func(self: Context, field_path: Str) returns I64 thr
     return current_offset
 }
 
-    pub fn insert_struct(&mut self, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
-        self.insert_struct_at_offset(id, custom_type_name, None, e)
+Context.insert_struct := proc(mut self: Context, id: Str, custom_type_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    self.insert_struct_at_offset(id, custom_type_name, NULL, e)
+}
+
+Context.insert_struct_at_offset := proc(mut self: Context, id: Str, custom_type_name: Str, existing_offset: Ptr, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    # Lookup the struct definition
+    mut struct_ptr := self.scope_stack.lookup_struct(custom_type_name)
+    if struct_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("insert_struct: definition for '", custom_type_name, "' not found"))
     }
+    mut struct_def := struct_ptr.data
 
-    fn insert_struct_at_offset(&mut self, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<(), String> {
-        // Lookup the struct definition
-        let struct_def = match self.scope_stack.lookup_struct(custom_type_name) {
-            Some(struct_def_) => struct_def_.clone(),
-            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
-        };
+    # Determine mutability from symbols table
+    mut symbol_ptr := self.scope_stack.lookup_symbol(id)
+    if symbol_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("insert_struct: id '", id, "' for struct '", custom_type_name, "' not found in symbols"))
+    }
+    mut is_mut := symbol_ptr.data.is_mut
 
-        // Determine mutability from symbols table
-        let is_mut = match self.scope_stack.lookup_symbol(id) {
-            Some(symbol_info_) => symbol_info_.is_mut,
-            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
-        };
+    # Calculate total size (for now no alignment)
+    mut total_size := 0
+    mut field_offsets := Map.new(Str, I64)
 
-        // Calculate total size (for now no alignment)
-        let mut total_size = 0;
-        let mut field_offsets = HashMap::new();
-
-        for (member_name, decl) in struct_def.members.iter() {
-            if !decl.is_mut {
-                continue;
-            }
-
-            let field_size = match &decl.value_type {
-                ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
-                _ => return Err(e.lang_error(&self.path, "context", "insert_struct: Unsupported value type in struct")),
-            };
-
-            field_offsets.insert(member_name.clone(), total_size);
-            total_size += field_size;
+    mut member_keys := struct_def.members.keys()
+    mut mem_idx := 0
+    while mem_idx.lt(member_keys.len()) {
+        mut member_name := member_keys.get(mem_idx)
+        mut decl := struct_def.members.get(member_name)
+        if not(decl.is_mut) {
+            mem_idx = mem_idx.add(1)
+            continue
         }
 
-        // Either use existing offset (for nested structs) or allocate new memory
-        let offset = match existing_offset {
-            Some(off) => off,
-            None => {
-                let off = Arena::g().memory.len();
-                Arena::g().memory.resize(off + total_size, 0);
-                off
+        mut field_size: I64
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            mut size_result := self.get_type_size(type_name)
+            if size_result.is_err {
+                throw size_result.error
             }
-        };
-        self.scope_stack.insert_var(id.to_string(), offset);
+            field_size = size_result.value
+        case _:
+            throw e.lang_error(self.path, "context", "insert_struct: Unsupported value type in struct")
+        }
 
-        // Store each field's default value
-        for (member_name, decl) in struct_def.members.iter() {
-            if !decl.is_mut {
-                continue;
+        field_offsets.insert(member_name, total_size)
+        total_size = total_size.add(field_size)
+        mem_idx = mem_idx.add(1)
+    }
+
+    # Either use existing offset (for nested structs) or allocate new memory
+    mut offset: I64
+    if existing_offset.data.ne(NULL) {
+        offset = existing_offset.data
+    } else {
+        offset = Arena_g().memory.len()
+        Arena_g().memory.resize(offset.add(total_size), 0)
+    }
+    self.scope_stack.insert_var(id, offset)
+
+    # Store each field's default value
+    mem_idx = 0
+    while mem_idx.lt(member_keys.len()) {
+        mut member_name := member_keys.get(mem_idx)
+        mut decl := struct_def.members.get(member_name)
+        if not(decl.is_mut) {
+            mem_idx = mem_idx.add(1)
+            continue
+        }
+
+        mut field_offset_ptr := field_offsets.get(member_name)
+        if field_offset_ptr.data.eq(NULL) {
+            throw e.lang_error(self.path, "context", format("insert_struct: Missing field offset for '", member_name, "'"))
+        }
+        mut field_offset := field_offset_ptr.data
+
+        mut default_expr_ptr := struct_def.default_values.get(member_name)
+        if default_expr_ptr.data.eq(NULL) {
+            throw e.lang_error(self.path, "context", format("insert_struct: Missing default value for field '", member_name, "'"))
+        }
+        mut default_expr := default_expr_ptr.data
+
+        mut eval_result := eval_expr(self, default_expr)
+        if eval_result.is_err {
+            throw eval_result.error
+        }
+        mut res := eval_result.value
+        if res.is_throw {
+            mut thrown_type := ""
+            if res.thrown_type.data.ne(NULL) {
+                thrown_type = res.thrown_type.data
             }
+            throw e.lang_error(self.path, "context", format("insert_struct: Thrown '", thrown_type, "' while evaluating default value for field '", member_name, "'"))
+        }
+        mut default_value := res.value
 
-            let field_offset = match field_offsets.get(member_name) {
-                Some(offset) => offset,
-                None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
-            };
-
-            let default_expr = struct_def.default_values.get(member_name);
-            let default_value = match default_expr {
-                Some(e2) => {
-                    let res = eval_expr(self, e2)?;
-                    if res.is_throw {
-                        return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            mut enum_ptr := self.scope_stack.lookup_enum(type_name)
+            if enum_ptr.data.ne(NULL) {
+                mut enum_def := enum_ptr.data
+                mut parts := default_value.split(".")
+                if parts.len().ne(2).or(not(parts.get(0).eq(type_name))) {
+                    throw e.lang_error(self.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", member_name, "'"))
+                }
+                mut variant := parts.get(1)
+                mut variant_keys := enum_def.enum_map.keys()
+                mut index := -1
+                mut var_idx := 0
+                while var_idx.lt(variant_keys.len()) {
+                    mut v := variant_keys.get(var_idx)
+                    if v.eq(variant) {
+                        index = var_idx
                     }
-                    res.value
-                },
-                None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
-            };
+                    var_idx = var_idx.add(1)
+                }
+                if index.eq(-1) {
+                    throw e.lang_error(self.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", member_name, "'"))
+                }
+                mut index_bytes := i64_to_ne_bytes(index)
+                Arena_g().memory.copy_from_slice(offset.add(field_offset), offset.add(field_offset).add(8), index_bytes)
+            } else {
+                if type_name.eq("U8") {
+                    mut parse_result := parse_u8(default_value)
+                    if parse_result.is_err {
+                        throw e.lang_error(self.path, "context", format("insert_struct: Invalid U8 default value '", default_value, "' for field '", member_name, "'"))
+                    }
+                    mut v := parse_result.value
+                    Arena_g().memory.set(offset.add(field_offset), v)
+                } else if type_name.eq("I64") {
+                    mut parse_result := parse_i64(default_value)
+                    if parse_result.is_err {
+                        throw e.lang_error(self.path, "context", format("insert_struct: Invalid I64 default value '", default_value, "' for field '", member_name, "'"))
+                    }
+                    mut v := parse_result.value
+                    mut v_bytes := i64_to_ne_bytes(v)
+                    Arena_g().memory.copy_from_slice(offset.add(field_offset), offset.add(field_offset).add(8), v_bytes)
+                } else {
+                    mut nested_struct_ptr := self.scope_stack.lookup_struct(type_name)
+                    if nested_struct_ptr.data.ne(NULL) {
+                        mut combined_name := format(id, ".", member_name)
+                        self.scope_stack.declare_symbol(
+                            combined_name,
+                            SymbolInfo.new(ValueType.TCustom(type_name), true, false, false)
+                        )
+                        self.scope_stack.frames.last_mut().arena_index.insert(combined_name, offset.add(field_offset))
 
-            match &decl.value_type {
-                ValueType::TCustom(type_name) => {
-                    if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
-                        let parts: Vec<&str> = default_value.split('.').collect();
-                        if parts.len() != 2 || parts[0] != type_name {
-                            return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
+                        # Special case: Str initialization with string literal
+                        if type_name.eq("Str") {
+                            self.insert_string(combined_name, default_value, e)
+                        } else {
+                            # Use existing offset for nested struct (inline allocation)
+                            mut nested_offset_ptr := Ptr.new()
+                            nested_offset_ptr.data = offset.add(field_offset)
+                            mut nested_result := try_call(self.insert_struct_at_offset, combined_name, type_name, nested_offset_ptr, e)
+                            if nested_result.is_err {
+                                throw e.lang_error(self.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", member_name, "'"))
+                            }
                         }
-                        let variant = parts[1];
-                        let index = match enum_def.enum_map.keys().position(|v| v == variant) {
-                            Some(i) => i as i64,
-                            None => return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
-                        };
-                        Arena::g().memory[offset + field_offset..offset + field_offset + 8]
-                            .copy_from_slice(&index.to_ne_bytes());
                     } else {
-                        match type_name.as_str() {
-                            "U8" => {
-                                let v = default_value.parse::<u8>().map_err(|_| {
-                                    e.lang_error(&self.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
-                                })?;
-                                Arena::g().memory[offset + field_offset] = v;
-                            },
-                            "I64" => {
-                                let v = default_value.parse::<i64>().map_err(|_| {
-                                    e.lang_error(&self.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
-                                })?;
-                                Arena::g().memory[offset + field_offset..offset + field_offset + 8]
-                                    .copy_from_slice(&v.to_ne_bytes());
-                            },
-                            _ => {
-                                if self.scope_stack.lookup_struct(type_name).is_some() {
-                                    let combined_name = format!("{}.{}", id, member_name);
-                                    self.scope_stack.declare_symbol(
-                                        combined_name.clone(),
-                                        SymbolInfo {
-                                            value_type: ValueType::TCustom(type_name.clone()),
-                                            is_mut: true,
-                                            is_copy: false,
-                                            is_own: false,
-                                        },
-                                    );
-                                    self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
-
-                                    // Special case: Str initialization with string literal
-                                    if type_name == "Str" {
-                                        self.insert_string(&combined_name, &default_value, e)?;
-                                    } else {
-                                        // Use existing offset for nested struct (inline allocation)
-                                        self.insert_struct_at_offset(&combined_name, type_name, Some(offset + field_offset), e)
-                                            .map_err(|_| e.lang_error(&self.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
-                                    }
-                                } else {
-                                    return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unknown field type '{}'", type_name)));
-                                }
-                            },
-                        }
+                        throw e.lang_error(self.path, "context", format("insert_struct: Unknown field type '", type_name, "'"))
                     }
-                },
-                _ => {
-                    return Err(e.lang_error(&self.path, "context", &format!("insert_struct: Unsupported field value type '{}'", value_type_to_str(&decl.value_type))));
                 }
             }
-
-            let combined_name = format!("{}.{}", id, member_name);
-            let field_arena_offset = offset + field_offset;
-            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
-            self.scope_stack.declare_symbol(
-                combined_name,
-                SymbolInfo {
-                    value_type: decl.value_type.clone(),
-                    is_mut,
-                    is_copy: false,
-                    is_own: false,
-                },
-            );
+        case _:
+            throw e.lang_error(self.path, "context", format("insert_struct: Unsupported field value type '", value_type_to_str(decl.value_type), "'"))
         }
 
-        // Map immutable fields by copying arena_index entries from the type to the instance
-        for (_member_name, decl) in struct_def.members.iter() {
-            if decl.is_mut {
-                continue; // Skip mutable fields (already handled above)
-            }
+        mut combined_name := format(id, ".", member_name)
+        mut field_arena_offset := offset.add(field_offset)
+        self.scope_stack.frames.last_mut().arena_index.insert(combined_name, field_arena_offset)
+        self.scope_stack.declare_symbol(
+            combined_name,
+            SymbolInfo.new(decl.value_type, is_mut, false, false)
+        )
 
-            // Immutable struct fields are handled generically through struct_defs
-            // No special cases needed anymore
-        }
-
-        Ok(())
+        mem_idx = mem_idx.add(1)
     }
+
+    # Map immutable fields by copying arena_index entries from the type to the instance
+    mem_idx = 0
+    while mem_idx.lt(member_keys.len()) {
+        mut member_name := member_keys.get(mem_idx)
+        mut decl := struct_def.members.get(member_name)
+        if decl.is_mut {
+            mem_idx = mem_idx.add(1)
+            continue  # Skip mutable fields (already handled above)
+        }
+
+        # Immutable struct fields are handled generically through struct_defs
+        # No special cases needed anymore
+
+        mem_idx = mem_idx.add(1)
+    }
+}
 
     // Register struct field symbols for type checking without evaluating defaults or allocating memory
     // This allows type checking of struct method bodies without triggering evaluation errors
