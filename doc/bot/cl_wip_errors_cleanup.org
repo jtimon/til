@@ -1,0 +1,338 @@
+#+TITLE: Error Handling Cleanup and Location Tracking Improvements
+#+DATE: 2025-11-19
+
+* Overview
+
+This document outlines the plan for improving error handling consistency across the TIL language implementation, both on the Rust side and the self-hosted TIL side.
+
+** Goals
+
+1. Standardize error formatting using =error=, =lang_error=, and =todo_error= functions
+2. Add location tracking functions (=__file()=, =__line()=, =__col()=) to complement =loc()=
+3. Use Rust's =file!()=, =line!()=, =column!()= macros for better interpreter debugging
+4. Eliminate raw =Result<X, String>= errors in favor of formatted error messages
+5. Leverage TIL's powerful throw/catch system appropriately
+
+** Background
+
+*** Current Error Formatting Functions
+
+**** Rust Side
+- =Token.error(path, msg)= - User errors with line/col from Token
+- =Token.lang_error(path, msg)= - Language bugs (not user's fault)
+- =Token.todo_error(path, msg)= - Unimplemented features
+- =Expr.error(path, phase, msg)= - User errors with line/col from Expr
+- =Expr.lang_error(path, phase, msg)= - Language bugs with phase info
+- =Expr.todo_error(path, phase, msg)= - Unimplemented features with phase
+
+**** TIL Side
+Same structure but with TIL syntax:
+- =Token.error(msg) returns Str throws ...=
+- =Token.lang_error(msg) returns Str throws ...=
+- =Token.todo_error(msg) returns Str throws ...=
+- =Expr.error(phase, msg) returns Str throws ...=
+- =Expr.lang_error(phase, msg) returns Str throws ...=
+- =Expr.todo_error(phase, msg) returns Str throws ...=
+
+*** Location Tracking
+
+**** Existing: loc()
+- =loc()= returns formatted string ="line:col:"=
+- Implemented in =src/rs/ext.rs:45-52=
+- Declared in =src/core/core.til:123=
+- Widely used in tests and core library
+
+**** Missing: Individual Components
+Need separate functions to get file, line, col for flexible error formatting, especially when catching and re-throwing errors with added context.
+
+** Problems Identified
+
+*** Rust Side Issues (18 instances)
+
+**** src/rs/init.rs (11 raw errors)
+- Line 134: Raw =Err(format!("Variable '{}' already declared"))=
+- Lines 1360-1363: Unsupported payload type error
+- Lines 1404-1409: Unsupported value type in struct field
+- Line 1418: Type not found error
+- Lines 1443-1452: Field offset calculation errors
+- Lines 1460, 1472, 1474, 1498: get_field_offset errors
+
+**** src/rs/mode.rs (3 raw errors)
+- Line 80: No Token/Expr context available
+- Line 88: Expected identifier after 'mode'
+- Line 98: Mode not properly supported
+
+**** src/rs/lexer.rs (3 raw errors)
+- Line 609: End of file not found
+- Line 611: Nothing to be done
+- Line 616: Lexical errors summary
+
+**** src/rs/parser.rs (1 raw error)
+- Line 1387: Total unparsed tokens
+
+*** TIL Side Issues
+
+**** Missing loc() in errors
+- =src/core/core.til:833= - Map duplicate key error without location
+- =src/core/core.til:973= - Map key not found error without location
+
+**** Raw format/string throws (self-hosted code)
+- =src/core/self/init.til= - 45 =throw format(...)= cases
+- =src/core/self/interpreter.til= - 18 cases
+- =src/core/self/lexer.til= - 4 format + 4 string literal throws
+- =src/core/self/parser.til= - 5 cases
+- =src/core/self/mode.til= - 2 format + 1 string literal throws
+
+* Implementation Plan
+
+** Step 0: Add TIL Location Functions
+
+*** Tasks
+1. Declare new ext_funcs in =src/core/core.til=:
+   - =__file := ext_func() returns Str;=
+   - =__line := ext_func() returns I64;=
+   - =__col := ext_func() returns I64;=
+   - Add TODO comment to =loc()=: "TODO: rename to __loc for consistency"
+
+2. Implement in =src/rs/ext.rs=:
+   - =func___file(context, e)= returns =context.path.clone()=
+   - =func___line(context, e)= returns =e.line as i64=
+   - =func___col(context, e)= returns =e.col as i64=
+
+3. Register in =src/rs/interpreter.rs= dispatcher (~line 2106):
+   - Add cases for "__file", "__line", "__col"
+
+*** Rationale
+Using =__= prefix from the start avoids future refactoring. These functions enable flexible error formatting, especially for error re-throwing with context breadcrumbs.
+
+*** Example Usage
+#+begin_src til
+// Catch and re-throw with added context
+do_something()
+catch (err: Str) {
+    throw format(__file(), ":", loc(), " Failed in do_something: ", err)
+}
+// Result: "myfile.til:42:15 Failed in do_something: myfile.til:10:5 Original error"
+#+end_src
+
+*** Commit Message
+"Add __file(), __line(), __col() core functions for flexible error location tracking"
+
+** Step 1: Use Rust Location Macros
+
+*** Tasks
+1. Review all error sites identified in analysis
+2. Add Rust =file!()=, =line!()=, =column!()= macros where appropriate
+3. Follow pattern:
+   - User errors (have Expr/Token): Use existing =e.error()= without Rust location
+   - Lang bugs: Add =[Rust: {}:{}]= with =file!()=, =line!()=
+   - Errors without context: Include Rust location as primary location
+
+*** Examples
+
+**** Internal Error with Rust Location
+#+begin_src rust
+// Before
+return Err(format!("memset out of bounds: dest={} size={}", dest, size));
+
+// After
+return Err(format!("{}:{}:{}: eval ERROR: memset out of bounds: dest={} size={} [Rust: {}:{}]",
+                   path, e.line, e.col, dest, size, file!(), line!()));
+#+end_src
+
+**** Error Without Token/Expr Context
+#+begin_src rust
+// Before
+return Err(format!("mode '{}' not supported", mode_name));
+
+// After
+return Err(format!("[Rust {}:{}] mode '{}' not supported", file!(), line!(), mode_name));
+#+end_src
+
+*** Note
+Cannot create =rs_loc!()= wrapper macro - would capture wrapper's location, not call site.
+
+*** Commit Message
+"Add Rust file!() line!() column!() macros to error messages for better debugging"
+
+** Step 2: Standardize Rust Error Handling
+
+*** Tasks
+1. Fix all =Err(format!(...))= to use =error=/=lang_error=/=todo_error= methods
+2. For cases without Token/Expr context:
+   - Investigate if context can be passed down
+   - Or create module-level error helpers with Rust location
+   - Discuss case-by-case
+
+*** Files to Fix
+- =src/rs/init.rs= - 11 instances
+- =src/rs/mode.rs= - 3 instances
+- =src/rs/lexer.rs= - 3 instances
+- =src/rs/parser.rs= - 1 instance
+- =src/rstil.rs= - Review 10 error wrapping cases
+
+*** Decision Criteria
+- Can we access Token/Expr at error site?
+  - Yes: Use =e.error()=, =e.lang_error()=, or =e.todo_error()=
+  - No: Use Rust =file!()=, =line!()= as primary location
+- Is this a user error, language bug, or unimplemented feature?
+  - User: =error()=
+  - Language bug: =lang_error()=
+  - Not implemented: =todo_error()=
+
+*** Commit Message
+"Standardize Rust error handling to use error/lang_error/todo_error methods"
+
+** Step 3: Port to lexer.til & parser.til
+
+*** Tasks
+1. Check if error handling patterns from Steps 1-2 need reflection in TIL
+2. Port relevant changes while maintaining TIL's =returns X throws Str= pattern
+3. Use new =__file()=, =__line()=, =__col()= functions where beneficial
+
+*** Approach
+Review side-by-side:
+- =src/rs/lexer.rs= vs =src/core/self/lexer.til=
+- =src/rs/parser.rs= vs =src/core/self/parser.til=
+
+Ensure TIL versions maintain consistency with Rust versions while leveraging TIL's more powerful throw/catch system.
+
+*** Commit Message
+"Port error handling improvements to lexer.til and parser.til"
+
+** Step 4: Improve TIL Error Messages
+
+*** Tasks
+1. Fix Map errors in =src/core/core.til=:
+   - Line 833: Add =loc()= to duplicate key error
+   - Line 973: Add =loc()= to key not found error
+
+2. Audit all error throws without location:
+   #+begin_src bash
+   grep -n 'throw.*Error\.new("' src/core/core.til
+   #+end_src
+
+3. Add =loc()= or =format(__file(), ":", loc(), ...)= as appropriate
+
+*** Example Fix
+#+begin_src til
+// Before
+throw KeyNotFoundError.new("Key not found in map")
+
+// After
+throw KeyNotFoundError.new(format(loc(), "Key not found in map"))
+
+// Or with file:
+throw KeyNotFoundError.new(format(__file(), ":", loc(), " Key not found in map"))
+#+end_src
+
+*** Commit Message
+"Add loc() and __file() to error messages in core.til for better error tracking"
+
+** Step 5: TIL Error Handling Review
+
+*** Approach
+Iterative, case-by-case review with discussion for each file.
+
+*** Files to Review
+1. =src/core/self/init.til= - 45 =throw format(...)= cases
+2. =src/core/self/interpreter.til= - 18 cases
+3. =src/core/self/lexer.til= - 4 format + 4 string literal throws
+4. =src/core/self/parser.til= - 5 cases
+5. =src/core/self/mode.til= - 2 format + 1 string literal throws
+
+*** Decision Framework
+
+For each function/method, decide:
+
+**** What to throw?
+- =Str= only (mirrors Rust's =Result<X, String>=)
+- Custom error type from =core.til=
+- Define new error type if appropriate
+- Multiple types (leverage TIL's power)
+
+**** How to format?
+- Use =loc()= for simple location
+- Use =__file()=, =__line()=, =__col()= for flexible formatting
+- Use =error()=/=lang_error()=/=todo_error()= from Token/Expr
+
+**** Where to catch?
+- API boundaries: Catch specific errors, throw =Str=
+- Internal functions: Can throw specific error types
+- Methods: Case-by-case decision
+
+*** Remember
+TIL's throw/catch is more powerful than Rust's Result:
+- Can throw multiple types
+- Can catch specific types and re-throw with added context
+- Can build error breadcrumb trails
+- Use this power appropriately per context
+
+*** Commits
+Each file gets its own commit as we work through them with discussion.
+
+* Benefits
+
+** For Users
+- Better error messages with precise source locations
+- Clear distinction between user errors and language bugs
+- Error breadcrumb trails showing call path
+
+** For Developers
+- Easier debugging with Rust source locations in internal errors
+- Consistent error handling patterns across codebase
+- Flexible error formatting with =__file()=, =__line()=, =__col()=
+
+** For Language Evolution
+- Leverages TIL's powerful throw/catch system
+- Demonstrates TIL capabilities beyond Rust's Result
+- Sets pattern for future error handling
+
+* Future Enhancements
+
+** Potential Additions (Not in Current Plan)
+
+*** Rename loc() to __loc()
+For consistency with other location functions. Deferred due to:
+- Too disruptive now (widely used)
+- Can be done later in dedicated refactoring
+- Current TODO comment tracks this
+
+*** Stack Trace Support
+#+begin_src til
+trace := ext_func() returns Str;  // Full call stack
+#+end_src
+
+*** Structured Error Types
+#+begin_src til
+Error := struct {
+    mut msg: Str = ""
+    mut location: Str = ""      // Auto-populated with loc()
+    mut rust_location: Str = "" // For internal errors
+    mut breadcrumb: Str = ""    // Re-throw trail
+}
+#+end_src
+
+* References
+
+** Related Files
+- =src/rs/ext.rs= - External function implementations
+- =src/rs/interpreter.rs= - Function dispatcher
+- =src/core/core.til= - Core library and error types
+- =src/core/self/*= - Self-hosted implementation
+
+** Error Types in core.til
+- =AllocError=
+- =IndexOutOfBoundsError=
+- =FullError=
+- =DuplicatedKeyError=
+- =KeyNotFoundError=
+- =I64_OverflowError=
+
+** Investigation Summary
+See the comprehensive analysis performed before creating this plan:
+- Found 18 instances of raw Rust errors
+- Found 79+ instances of TIL format throws
+- Identified missing =loc()= in Map operations
+- Confirmed Rust macros not currently used
+- Analyzed location tracking capabilities
