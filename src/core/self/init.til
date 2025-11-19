@@ -1229,58 +1229,36 @@ Context := struct {
     # REM: TODO change the cached type to support import as returning a struct_def
 }
 
-get_u8 := func(context: Context, id: Str, e: Expr) returns I64 throws Str, IndexOutOfBoundsError, AllocError, FullError {
-    # Try direct lookup first (for base variables)
-    mut offset_ptr := context.scope_stack.lookup_var(id)
-    mut offset: I64
-    if offset_ptr.data.ne(NULL) {
-        offset = offset_ptr.data
-    } else if id.contains(".") {
-        # For field paths, calculate offset dynamically
-        mut field_offset_result := context.get_field_offset(id)
-        if field_offset_result.is_err {
-            throw e.lang_error(context.path, "context", format("get_u8: ", field_offset_result.error))
-        }
-        offset = field_offset_result.value
-    } else {
-        throw e.lang_error(context.path, "context", format("u8 not found for id '", id, "'"))
-    }
 
-    mut memory_result := Arena_g().memory.get(offset)
-    if memory_result.is_err {
-        throw e.lang_error(context.path, "context", format("Invalid u8 read for id '", id, "'"))
-    }
-    return memory_result.value
-}
-
-# Context methods
+# Context methods (insert/get/copy methods moved to Arena in interpreter.til)
 Context.new := func(path: Str, mode_name: Str) returns Context throws Str, AllocError, FullError {
     mut scope_stack := ScopeStack.new()
-    scope_stack.push(ScopeType.Global)  # Initialize global scope
+    scope_stack.push(ScopeType.Global) # Initialize global scope
 
-    mut context := Context.new()
-    context.path = path
     mut mode_result := mode_from_name(mode_name)
     if mode_result.is_err {
         throw mode_result.error
     }
-    context.mode = mode_result.value
-    context.scope_stack = scope_stack
-    context.temp_enum_payload = NULL
-    context.imports_declarations_done = Set.new(Str)
-    context.imports_values_done = Map.new(Str, Result)
-    context.imports_wip = Set.new(Str)
-    context.imports_done = Map.new(Str, Result)  # DEPRECATED
-    return context
+
+    mut result := Context.new_empty()
+    result.path = path
+    result.mode = mode_result.value
+    result.scope_stack = scope_stack
+    result.temp_enum_payload = NULL
+    result.imports_declarations_done = HashSet.new()
+    result.imports_values_done = HashMap.new()
+    result.imports_wip = HashSet.new()
+    result.imports_done = HashMap.new() # DEPRECATED
+    return result
 }
 
 Context.get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    mut keys := selfi.enum_map.keys()
+    mut variant_keys := selfi.enum_map.keys()
     mut idx := 0
-    while idx.lt(keys.len()) {
-        mut k := keys.get(idx)
+    while idx.lt(variant_keys.len()) {
+        mut k := variant_keys.get(idx)
         if k.eq(variant_name) {
-            return idx
+            return idx.to_i64()
         }
         idx = idx.add(1)
     }
@@ -1289,190 +1267,26 @@ Context.get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e
 
 Context.variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError {
     mut keys := selfi.enum_map.keys()
-    if position.lt(0).or(position.gteq(keys.len())) {
+    if position.lt(0).or(position.gteq(keys.len().to_i64())) {
         # Return an error if the position is out of bounds
-        mut all_keys := selfi.enum_map.keys()
-        mut keys_str := ""
-        mut k_idx := 0
-        while k_idx.lt(all_keys.len()) {
-            mut k := all_keys.get(k_idx)
-            if k_idx.gt(0) {
-                keys_str = format(keys_str, ", ")
-            }
-            keys_str = format(keys_str, k)
-            k_idx = k_idx.add(1)
-        }
-        throw e.lang_error(path, "context", format("Error: Invalid position '", i64_to_str(position), "' for enum variant in '", keys_str, "'."))
+        throw e.lang_error(path, "context", format("Error: Invalid position '", position.to_string(), "' for enum variant."))
     }
-
     # If position is valid, return the corresponding variant name
-    return keys.get(position)
-}
-
-Context.get_i64 := func(self: Context, id: Str, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    # Try direct lookup first (for base variables)
-    mut offset_ptr := self.scope_stack.lookup_var(id)
-    mut offset: I64
-    if offset_ptr.data.ne(NULL) {
-        offset = offset_ptr.data
-    } else if id.contains(".") {
-        # For field paths, calculate offset dynamically
-        mut field_offset_result := self.get_field_offset(id)
-        if field_offset_result.is_err {
-            throw e.lang_error(self.path, "context", format("get_i64: ", field_offset_result.error))
-        }
-        offset = field_offset_result.value
-    } else {
-        throw e.lang_error(self.path, "context", format("i64 not found for id '", id, "'"))
-    }
-
-    mut bytes_result := Arena_g().memory.slice(offset, offset.add(8))
-    if bytes_result.is_err {
-        throw e.lang_error(self.path, "context", format("Invalid i64 read for id '", id, "'"))
-    }
-    mut bytes := bytes_result.value
-    return i64_from_ne_bytes(bytes)
-}
-
-Context.insert_i64 := proc(mut self: Context, id: Str, i64_str: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut parse_result := parse_i64(i64_str)
-    if parse_result.is_err {
-        throw e.lang_error(self.path, "context", format("Invalid i64 literal '", i64_str, "'"))
-    }
-    mut v := parse_result.value
-    mut bytes := i64_to_ne_bytes(v)
-
-    mut is_instance_field := false
-    if id.contains(".") {
-        # Check if base is an instance variable (not a struct type)
-        mut parts := id.split(".")
-        mut base := parts.get(0)
-        # If base is in symbols and is NOT a struct type, it's an instance field access
-        mut sym_ptr := self.scope_stack.lookup_symbol(base)
-        if sym_ptr.data.ne(NULL) {
-            mut sym := sym_ptr.data
-            switch sym.value_type {
-            case ValueType.TType(_):
-                is_instance_field = false
-            case _:
-                is_instance_field = true
-            }
-        }
-    }
-
-    if is_instance_field {
-        # For instance field paths, calculate offset dynamically
-        mut offset_ptr := self.scope_stack.lookup_var(id)
-        mut offset: I64
-        if offset_ptr.data.ne(NULL) {
-            # Pre-registered field (old path)
-            offset = offset_ptr.data
-        } else {
-            # Calculate offset from struct definition
-            mut field_offset_result := self.get_field_offset(id)
-            if field_offset_result.is_err {
-                throw e.lang_error(self.path, "context", format("insert_i64: ", field_offset_result.error))
-            }
-            offset = field_offset_result.value
-        }
-
-        # Ensure arena has enough space
-        mut required_len := offset.add(8)
-        if Arena_g().memory.len().lt(required_len) {
-            Arena_g().memory.resize(required_len, 0)
-        }
-
-        Arena_g().memory.copy_from_slice(offset, offset.add(8), bytes)
-        return
-    }
-
-    # For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
-    mut offset := Arena_g().memory.len()
-    Arena_g().memory.extend_from_slice(bytes)
-    self.scope_stack.insert_var(id, offset)
-}
-
-# REM: Can't be moved to TIL until compilation - needs way to calculate size from TIL declarations
-Context.insert_u8 := proc(mut self: Context, id: Str, u8_str: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut parse_result := parse_u8(u8_str)
-    if parse_result.is_err {
-        throw e.lang_error(self.path, "context", format("Invalid u8 literal '", u8_str, "'"))
-    }
-    mut v := parse_result.value
-    mut bytes := [v]
-
-    mut is_instance_field := false
-    if id.contains(".") {
-        mut parts := id.split(".")
-        mut base := parts.get(0)
-        mut sym_ptr := self.scope_stack.lookup_symbol(base)
-        if sym_ptr.data.ne(NULL) {
-            mut sym := sym_ptr.data
-            switch sym.value_type {
-            case ValueType.TType(_):
-                is_instance_field = false
-            case _:
-                is_instance_field = true
-            }
-        }
-    }
-
-    if is_instance_field {
-        # For instance field paths, calculate offset dynamically
-        mut offset_ptr := self.scope_stack.lookup_var(id)
-        mut offset: I64
-        if offset_ptr.data.ne(NULL) {
-            # Pre-registered field (old path)
-            offset = offset_ptr.data
-        } else {
-            # Calculate offset from struct definition
-            mut field_offset_result := self.get_field_offset(id)
-            if field_offset_result.is_err {
-                throw e.lang_error(self.path, "context", format("insert_u8: ", field_offset_result.error))
-            }
-            offset = field_offset_result.value
-        }
-        Arena_g().memory.set(offset, v)
-        return
-    }
-
-    mut offset := Arena_g().memory.len()
-    Arena_g().memory.extend_from_slice(bytes)
-    self.scope_stack.insert_var(id, offset)
-}
-
-Context.get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    # Validate that the struct variable exists by checking if we can get its offset
-    mut var_ptr := self.scope_stack.lookup_var(id)
-    if var_ptr.data.ne(NULL) {
-        # Direct variable lookup succeeded
-        return id
-    }
-
-    if id.contains(".") {
-        # For field paths, validate we can calculate offset
-        mut field_offset_result := self.get_field_offset(id)
-        if field_offset_result.is_err {
-            throw e.lang_error(self.path, "context", format("get_struct: ", field_offset_result.error))
-        }
-        return id
-    }
-
-    throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
+    return keys.get(position.to_usize())
 }
 
 Context.map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut struct_ptr := self.scope_stack.lookup_struct(custom_type_name)
-    if struct_ptr.data.eq(NULL) {
+    mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
+    if struct_def_ptr.data.eq(NULL) {
         throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
     }
-    mut struct_def := struct_ptr.data
+    mut struct_def := struct_def_ptr.data
 
-    mut symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
-    if symbol_ptr.data.eq(NULL) {
+    mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
+    if instance_symbol_ptr.data.eq(NULL) {
         throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
     }
-    mut is_mut := symbol_ptr.data.is_mut
+    mut is_mut := instance_symbol_ptr.data.is_mut
 
     mut base_offset_ptr := self.scope_stack.lookup_var(instance_name)
     if base_offset_ptr.data.eq(NULL) {
@@ -1480,39 +1294,47 @@ Context.map_instance_fields := proc(mut self: Context, custom_type_name: Str, in
     }
     mut base_offset := base_offset_ptr.data
 
-    mut member_keys := struct_def.members.keys()
-    mut current_offset := 0
-    mut key_idx := 0
-    while key_idx.lt(member_keys.len()) {
-        mut field_name := member_keys.get(key_idx)
-        mut decl := struct_def.members.get(field_name)
+    mut members := struct_def.members.entries()
+
+    mut current_offset: I64 = 0
+    mut member_idx := 0
+    while member_idx.lt(members.len()) {
+        mut entry := members.get(member_idx)
+        mut field_name := entry.key
+        mut decl := entry.value
+
         if decl.is_mut {
-            mut combined_name := format(instance_name, ".", field_name)
+            mut combined_name := instance_name.concat(".").concat(field_name)
             mut field_offset := base_offset.add(current_offset)
             self.scope_stack.insert_var(combined_name, field_offset)
 
             self.scope_stack.declare_symbol(
                 combined_name,
-                SymbolInfo.new(decl.value_type, is_mut, false, false)
+                SymbolInfo.new_with(
+                    decl.value_type,
+                    is_mut,
+                    false,
+                    false
+                )
             )
 
             switch decl.value_type {
             case ValueType.TCustom(type_name):
-                mut nested_struct_ptr := self.scope_stack.lookup_struct(type_name)
-                if nested_struct_ptr.data.ne(NULL) {
-                    mut nested_result := try_call(self.map_instance_fields, type_name, combined_name, e)
-                    if nested_result.is_err {
+                if self.scope_stack.lookup_struct(type_name).data.ne(NULL) {
+                    mut map_result := self.map_instance_fields(type_name, combined_name, e)
+                    if map_result.is_err {
                         throw e.lang_error(self.path, "context", format("map_instance_fields: failed to map nested struct field '", combined_name, "'"))
                     }
                 }
             case _:
-                # Not a custom type, continue
+                # Not a custom type
             }
 
             mut field_size: I64
             switch decl.value_type {
             case ValueType.TCustom(name):
-                mut size_result := self.get_type_size(name)
+                # TODO: This calls Arena.get_type_size in Rust - needs interpreter.til
+                mut size_result := Arena_get_type_size(self, name)
                 if size_result.is_err {
                     throw size_result.error
                 }
@@ -1524,1283 +1346,63 @@ Context.map_instance_fields := proc(mut self: Context, custom_type_name: Str, in
             current_offset = current_offset.add(field_size)
         }
         # Immutable struct fields are handled generically through struct_defs
-        key_idx = key_idx.add(1)
+        member_idx = member_idx.add(1)
     }
 }
 
-# TODO all args should be passed as pointers/references and we wouldn't need this
-Context.copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, dest: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut struct_ptr := self.scope_stack.lookup_struct(custom_type_name)
-    if struct_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("copy_fields: definition for '", custom_type_name, "' not found"))
+Context.get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    # Validate that the struct variable exists by checking if we can get its offset
+    mut offset_ptr := self.scope_stack.lookup_var(id)
+    if offset_ptr.data.ne(NULL) {
+        # Direct variable lookup succeeded
+        return id
     }
-    mut struct_def := struct_ptr.data
-
-    mut dest_symbol_ptr := self.scope_stack.lookup_symbol(dest)
-    if dest_symbol_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("copy_fields: destination symbol '", dest, "' not found"))
-    }
-    mut is_mut := dest_symbol_ptr.data.is_mut
-
-    mut dest_base_offset_ptr := self.scope_stack.lookup_var(dest)
-    if dest_base_offset_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("copy_fields: destination arena offset for '", dest, "' not found"))
-    }
-    mut dest_base_offset := dest_base_offset_ptr.data
-
-    mut member_keys := struct_def.members.keys()
-    mut current_offset := 0
-    mut key_idx := 0
-    while key_idx.lt(member_keys.len()) {
-        mut field_name := member_keys.get(key_idx)
-        mut decl := struct_def.members.get(field_name)
-        if not(decl.is_mut) {
-            key_idx = key_idx.add(1)
-            continue
-        }
-
-        mut field_size: I64
-        switch decl.value_type {
-        case ValueType.TCustom(name):
-            mut size_result := self.get_type_size(name)
-            if size_result.is_err {
-                throw size_result.error
-            }
-            field_size = size_result.value
-        case _:
-            throw e.lang_error(self.path, "context", format("copy_fields: unsupported field type '", value_type_to_str(decl.value_type), "'"))
-        }
-
-        mut src_key := format(src, ".", field_name)
-        mut dest_key := format(dest, ".", field_name)
-
-        # Try to get source offset - first from arena_index, then calculate dynamically
-        mut src_offset_ptr := self.scope_stack.lookup_var(src_key)
-        mut src_offset: I64
-        if src_offset_ptr.data.ne(NULL) {
-            src_offset = src_offset_ptr.data
-        } else {
-            # Calculate offset dynamically from struct definition
-            mut field_offset_result := self.get_field_offset(src_key)
-            if field_offset_result.is_err {
-                # Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                current_offset = current_offset.add(field_size)
-                key_idx = key_idx.add(1)
-                continue
-            }
-            src_offset = field_offset_result.value
-        }
-
-        mut dest_offset := dest_base_offset.add(current_offset)
-
-        self.scope_stack.insert_var(dest_key, dest_offset)
-        self.scope_stack.declare_symbol(dest_key, SymbolInfo.new(decl.value_type, is_mut, false, false))
-
-        Arena_g().memory.copy_within(src_offset, src_offset.add(field_size), dest_offset)
-
-        switch decl.value_type {
-        case ValueType.TCustom(type_name):
-            mut nested_struct_ptr := self.scope_stack.lookup_struct(type_name)
-            if nested_struct_ptr.data.ne(NULL) {
-                mut copy_result := try_call(self.copy_fields, type_name, src_key, dest_key, e)
-                if copy_result.is_err {
-                    throw e.lang_error(self.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
-                }
-            }
-        case _:
-            # Not a custom type, continue
-        }
-
-        current_offset = current_offset.add(field_size)
-        key_idx = key_idx.add(1)
-    }
-}
-
-Context.get_type_size := func(self: Context, type_name: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    if type_name.eq("U8") {
-        return 1
-    }
-    if type_name.eq("I64") {
-        return 8
-    }
-
-    mut enum_ptr := self.scope_stack.lookup_enum(type_name)
-    if enum_ptr.data.ne(NULL) {
-        # Calculate maximum variant size (8 bytes for tag + largest payload)
-        mut max_size := 8  # Start with tag size
-        mut enum_def := enum_ptr.data
-
-        mut variant_keys := enum_def.enum_map.keys()
-        mut var_idx := 0
-        while var_idx.lt(variant_keys.len()) {
-            mut variant_name := variant_keys.get(var_idx)
-            mut payload_type_ptr := enum_def.enum_map.get(variant_name)
-            if payload_type_ptr.data.ne(NULL) {
-                mut payload_type := payload_type_ptr.data
-                mut payload_size: I64
-                switch payload_type {
-                case ValueType.TCustom(t):
-                    mut size_result := self.get_type_size(t)
-                    if size_result.is_err {
-                        throw size_result.error
-                    }
-                    payload_size = size_result.value
-                case _:
-                    throw format("get_type_size: unsupported payload type in enum '", type_name, "': ", value_type_to_str(payload_type))
-                }
-                mut variant_total := payload_size.add(8)  # tag + payload
-                if variant_total.gt(max_size) {
-                    max_size = variant_total
-                }
-            }
-            var_idx = var_idx.add(1)
-        }
-
-        return max_size
-    }
-
-    mut struct_ptr := self.scope_stack.lookup_struct(type_name)
-    if struct_ptr.data.ne(NULL) {
-        mut struct_def := struct_ptr.data
-        # Check if struct has size() method (associated function)
-        # If it does, ideally we'd use TIL's implementation, but we need an instance
-        mut size_member_ptr := struct_def.get_member("size")
-        mut has_size := false
-        if size_member_ptr.data.ne(NULL) {
-            mut decl := size_member_ptr.data
-            if not(decl.is_mut) {
-                has_size = true
-            }
-        }
-
-        if has_size {
-            # TODO: Type has size() method - ideally call TIL's implementation
-            # But get_type_size() asks for type's struct size (for field offsets),
-            # while instance.size() returns data size (which varies per instance)
-            # For now, fall through to calculate struct field size
-            # Consider: should we even be using get_type_size for collection types?
-        }
-
-        # Fallback: Calculate size of struct's fields manually
-        mut total_size := 0
-        mut member_keys := struct_def.members.keys()
-        mut mem_idx := 0
-        while mem_idx.lt(member_keys.len()) {
-            mut field_name := member_keys.get(mem_idx)
-            mut decl := struct_def.members.get(field_name)
-            if not(decl.is_mut) {
-                mem_idx = mem_idx.add(1)
-                continue
-            }
-
-            mut field_size: I64
-            switch decl.value_type {
-            case ValueType.TCustom(t):
-                mut size_result := self.get_type_size(t)
-                if size_result.is_err {
-                    throw size_result.error
-                }
-                field_size = size_result.value
-            case _:
-                throw format("get_type_size: unsupported value type '", value_type_to_str(decl.value_type), "' in '", type_name, ".", field_name, "'")
-            }
-
-            total_size = total_size.add(field_size)
-            mem_idx = mem_idx.add(1)
-        }
-
-        return total_size
-    }
-
-    throw format("get_type_size: type '", type_name, "' not found in struct or enum defs")
-}
-
-# Calculate the offset of a specific field within a struct type
-# This walks through the struct definition and sums up field sizes until reaching the target field
-Context.calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    mut struct_ptr := self.scope_stack.lookup_struct(struct_type)
-    if struct_ptr.data.eq(NULL) {
-        throw format("calculate_field_offset: struct '", struct_type, "' not found")
-    }
-    mut struct_def := struct_ptr.data
-
-    mut current_offset := 0
-    mut member_keys := struct_def.members.keys()
-    mut mem_idx := 0
-    while mem_idx.lt(member_keys.len()) {
-        mut member_name := member_keys.get(mem_idx)
-        mut decl := struct_def.members.get(member_name)
-        if not(decl.is_mut) {
-            mem_idx = mem_idx.add(1)
-            continue  # Skip immutable fields
-        }
-
-        # If we found the target field, return its offset
-        if member_name.eq(field_name) {
-            return current_offset
-        }
-
-        # Otherwise, add this field's size and continue
-        mut field_size: I64
-        switch decl.value_type {
-        case ValueType.TCustom(type_name):
-            mut size_result := self.get_type_size(type_name)
-            if size_result.is_err {
-                throw size_result.error
-            }
-            field_size = size_result.value
-        case _:
-            throw format("calculate_field_offset: unsupported field type '", value_type_to_str(decl.value_type), "' in '", struct_type, ".", member_name, "'")
-        }
-
-        current_offset = current_offset.add(field_size)
-        mem_idx = mem_idx.add(1)
-    }
-
-    throw format("calculate_field_offset: field '", field_name, "' not found in struct '", struct_type, "'")
-}
-
-# Get the absolute arena offset for a field path (e.g., "my_vec._len")
-# Handles nested field access by walking the path and calculating offsets dynamically
-Context.get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    mut parts := field_path.split(".")
-    if parts.len().eq(0) {
-        throw format("get_field_offset: empty field path")
-    }
-
-    # Start with the base variable's offset
-    mut base_var := parts.get(0)
-    mut base_offset_ptr := self.scope_stack.lookup_var(base_var)
-    if base_offset_ptr.data.eq(NULL) {
-        throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
-    }
-    mut current_offset := base_offset_ptr.data
-
-    # Get the base variable's type
-    mut symbol_ptr := self.scope_stack.lookup_symbol(base_var)
-    if symbol_ptr.data.eq(NULL) {
-        throw format("get_field_offset: base variable '", base_var, "' not found in symbols")
-    }
-    mut symbol := symbol_ptr.data
-    mut current_type: Str
-    switch symbol.value_type {
-    case ValueType.TCustom(type_name):
-        current_type = type_name
-    case _:
-        throw format("get_field_offset: base variable '", base_var, "' is not a struct")
-    }
-
-    # Walk through the remaining parts of the path
-    mut part_idx := 1
-    while part_idx.lt(parts.len()) {
-        mut field_name := parts.get(part_idx)
-
-        # Calculate the offset of this field within the current struct type
-        mut field_offset_result := self.calculate_field_offset(current_type, field_name)
+    if id.contains(".") {
+        # For field paths, validate we can calculate offset
+        # TODO: This calls Arena.get_field_offset in Rust - needs interpreter.til
+        mut field_offset_result := Arena_get_field_offset(self, id)
         if field_offset_result.is_err {
-            throw field_offset_result.error
+            mut err := field_offset_result.error
+            throw e.lang_error(self.path, "context", format("get_struct: ", err))
         }
-        mut field_offset := field_offset_result.value
-        current_offset = current_offset.add(field_offset)
-
-        # Update current_type to the type of this field (for nested access)
-        mut struct_ptr := self.scope_stack.lookup_struct(current_type)
-        if struct_ptr.data.eq(NULL) {
-            throw format("get_field_offset: struct '", current_type, "' not found")
-        }
-        mut struct_def := struct_ptr.data
-
-        mut member_keys := struct_def.members.keys()
-        mut found := false
-        mut field_decl: MemberDecl
-        mut mem_idx := 0
-        while mem_idx.lt(member_keys.len()) {
-            mut name := member_keys.get(mem_idx)
-            if name.eq(field_name) {
-                field_decl = struct_def.members.get(name)
-                found = true
-            }
-            mem_idx = mem_idx.add(1)
-        }
-        if not(found) {
-            throw format("get_field_offset: field '", field_name, "' not found in struct '", current_type, "'")
-        }
-
-        switch field_decl.value_type {
-        case ValueType.TCustom(type_name):
-            current_type = type_name
-        case _:
-            # If this is the last part and it's a primitive, that's fine
-            mut last_part := parts.get(parts.len().sub(1))
-            if field_name.eq(last_part) {
-                part_idx = parts.len()  # Break out of loop
-            } else {
-                throw format("get_field_offset: field '", field_name, "' in '", current_type, "' is not a struct, cannot continue path")
-            }
-        }
-
-        part_idx = part_idx.add(1)
+        return id
     }
-
-    return current_offset
+    throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
 }
 
-Context.insert_struct := proc(mut self: Context, id: Str, custom_type_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    self.insert_struct_at_offset(id, custom_type_name, NULL, e)
-}
-
-Context.insert_struct_at_offset := proc(mut self: Context, id: Str, custom_type_name: Str, existing_offset: Ptr, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    # Lookup the struct definition
-    mut struct_ptr := self.scope_stack.lookup_struct(custom_type_name)
-    if struct_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("insert_struct: definition for '", custom_type_name, "' not found"))
+Context.register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws AllocError, IndexOutOfBoundsError {
+    mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
+    if struct_def_ptr.data.eq(NULL) {
+        return
     }
-    mut struct_def := struct_ptr.data
+    mut struct_def := struct_def_ptr.data
 
-    # Determine mutability from symbols table
-    mut symbol_ptr := self.scope_stack.lookup_symbol(id)
-    if symbol_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("insert_struct: id '", id, "' for struct '", custom_type_name, "' not found in symbols"))
-    }
-    mut is_mut := symbol_ptr.data.is_mut
+    mut members := struct_def.members.entries()
+    mut member_idx := 0
+    while member_idx.lt(members.len()) {
+        mut entry := members.get(member_idx)
+        mut field_name := entry.key
+        mut decl := entry.value
 
-    # Calculate total size (for now no alignment)
-    mut total_size := 0
-    mut field_offsets := Map.new(Str, I64)
-
-    mut member_keys := struct_def.members.keys()
-    mut mem_idx := 0
-    while mem_idx.lt(member_keys.len()) {
-        mut member_name := member_keys.get(mem_idx)
-        mut decl := struct_def.members.get(member_name)
-        if not(decl.is_mut) {
-            mem_idx = mem_idx.add(1)
-            continue
-        }
-
-        mut field_size: I64
-        switch decl.value_type {
-        case ValueType.TCustom(type_name):
-            mut size_result := self.get_type_size(type_name)
-            if size_result.is_err {
-                throw size_result.error
-            }
-            field_size = size_result.value
-        case _:
-            throw e.lang_error(self.path, "context", "insert_struct: Unsupported value type in struct")
-        }
-
-        field_offsets.insert(member_name, total_size)
-        total_size = total_size.add(field_size)
-        mem_idx = mem_idx.add(1)
-    }
-
-    # Either use existing offset (for nested structs) or allocate new memory
-    mut offset: I64
-    if existing_offset.data.ne(NULL) {
-        offset = existing_offset.data
-    } else {
-        offset = Arena_g().memory.len()
-        Arena_g().memory.resize(offset.add(total_size), 0)
-    }
-    self.scope_stack.insert_var(id, offset)
-
-    # Store each field's default value
-    mem_idx = 0
-    while mem_idx.lt(member_keys.len()) {
-        mut member_name := member_keys.get(mem_idx)
-        mut decl := struct_def.members.get(member_name)
-        if not(decl.is_mut) {
-            mem_idx = mem_idx.add(1)
-            continue
-        }
-
-        mut field_offset_ptr := field_offsets.get(member_name)
-        if field_offset_ptr.data.eq(NULL) {
-            throw e.lang_error(self.path, "context", format("insert_struct: Missing field offset for '", member_name, "'"))
-        }
-        mut field_offset := field_offset_ptr.data
-
-        mut default_expr_ptr := struct_def.default_values.get(member_name)
-        if default_expr_ptr.data.eq(NULL) {
-            throw e.lang_error(self.path, "context", format("insert_struct: Missing default value for field '", member_name, "'"))
-        }
-        mut default_expr := default_expr_ptr.data
-
-        mut eval_result := eval_expr(self, default_expr)
-        if eval_result.is_err {
-            throw eval_result.error
-        }
-        mut res := eval_result.value
-        if res.is_throw {
-            mut thrown_type := ""
-            if res.thrown_type.data.ne(NULL) {
-                thrown_type = res.thrown_type.data
-            }
-            throw e.lang_error(self.path, "context", format("insert_struct: Thrown '", thrown_type, "' while evaluating default value for field '", member_name, "'"))
-        }
-        mut default_value := res.value
-
-        switch decl.value_type {
-        case ValueType.TCustom(type_name):
-            mut enum_ptr := self.scope_stack.lookup_enum(type_name)
-            if enum_ptr.data.ne(NULL) {
-                mut enum_def := enum_ptr.data
-                mut parts := default_value.split(".")
-                if parts.len().ne(2).or(not(parts.get(0).eq(type_name))) {
-                    throw e.lang_error(self.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", member_name, "'"))
-                }
-                mut variant := parts.get(1)
-                mut variant_keys := enum_def.enum_map.keys()
-                mut index := 0
-                mut found := false
-                mut var_idx := 0
-                while var_idx.lt(variant_keys.len()) {
-                    mut v := variant_keys.get(var_idx)
-                    if v.eq(variant) {
-                        index = var_idx
-                        found = true
-                    }
-                    var_idx = var_idx.add(1)
-                }
-                if found.not() {
-                    throw e.lang_error(self.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", member_name, "'"))
-                }
-                mut index_bytes := i64_to_ne_bytes(index)
-                Arena_g().memory.copy_from_slice(offset.add(field_offset), offset.add(field_offset).add(8), index_bytes)
-            } else {
-                if type_name.eq("U8") {
-                    mut parse_result := parse_u8(default_value)
-                    if parse_result.is_err {
-                        throw e.lang_error(self.path, "context", format("insert_struct: Invalid U8 default value '", default_value, "' for field '", member_name, "'"))
-                    }
-                    mut v := parse_result.value
-                    Arena_g().memory.set(offset.add(field_offset), v)
-                } else if type_name.eq("I64") {
-                    mut parse_result := parse_i64(default_value)
-                    if parse_result.is_err {
-                        throw e.lang_error(self.path, "context", format("insert_struct: Invalid I64 default value '", default_value, "' for field '", member_name, "'"))
-                    }
-                    mut v := parse_result.value
-                    mut v_bytes := i64_to_ne_bytes(v)
-                    Arena_g().memory.copy_from_slice(offset.add(field_offset), offset.add(field_offset).add(8), v_bytes)
-                } else {
-                    mut nested_struct_ptr := self.scope_stack.lookup_struct(type_name)
-                    if nested_struct_ptr.data.ne(NULL) {
-                        mut combined_name := format(id, ".", member_name)
-                        self.scope_stack.declare_symbol(
-                            combined_name,
-                            SymbolInfo.new(ValueType.TCustom(type_name), true, false, false)
-                        )
-                        self.scope_stack.frames.last_mut().arena_index.insert(combined_name, offset.add(field_offset))
-
-                        # Special case: Str initialization with string literal
-                        if type_name.eq("Str") {
-                            self.insert_string(combined_name, default_value, e)
-                        } else {
-                            # Use existing offset for nested struct (inline allocation)
-                            mut nested_offset_ptr := Ptr.new()
-                            nested_offset_ptr.data = offset.add(field_offset)
-                            mut nested_result := try_call(self.insert_struct_at_offset, combined_name, type_name, nested_offset_ptr, e)
-                            if nested_result.is_err {
-                                throw e.lang_error(self.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", member_name, "'"))
-                            }
-                        }
-                    } else {
-                        throw e.lang_error(self.path, "context", format("insert_struct: Unknown field type '", type_name, "'"))
-                    }
-                }
-            }
-        case _:
-            throw e.lang_error(self.path, "context", format("insert_struct: Unsupported field value type '", value_type_to_str(decl.value_type), "'"))
-        }
-
-        mut combined_name := format(id, ".", member_name)
-        mut field_arena_offset := offset.add(field_offset)
-        self.scope_stack.frames.last_mut().arena_index.insert(combined_name, field_arena_offset)
+        mut combined_name := instance_name.concat(".").concat(field_name)
         self.scope_stack.declare_symbol(
             combined_name,
-            SymbolInfo.new(decl.value_type, is_mut, false, false)
-        )
-
-        mem_idx = mem_idx.add(1)
-    }
-
-    # Map immutable fields by copying arena_index entries from the type to the instance
-    mem_idx = 0
-    while mem_idx.lt(member_keys.len()) {
-        mut member_name := member_keys.get(mem_idx)
-        mut decl := struct_def.members.get(member_name)
-        if decl.is_mut {
-            mem_idx = mem_idx.add(1)
-            continue  # Skip mutable fields (already handled above)
-        }
-
-        # Immutable struct fields are handled generically through struct_defs
-        # No special cases needed anymore
-
-        mem_idx = mem_idx.add(1)
-    }
-}
-
-# Register struct field symbols for type checking without evaluating defaults or allocating memory
-# This allows type checking of struct method bodies without triggering evaluation errors
-Context.register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws AllocError, IndexOutOfBoundsError {
-    # Get instance mutability from symbols
-    mut instance_is_mut := false
-    mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
-    if instance_symbol_ptr.data.ne(NULL) {
-        mut info := instance_symbol_ptr.data
-        instance_is_mut = info.is_mut.or(info.is_copy).or(info.is_own)
-    }
-
-    mut struct_ptr := self.scope_stack.lookup_struct(struct_type_name)
-    if struct_ptr.data.ne(NULL) {
-        mut struct_def := struct_ptr.data
-        mut member_keys := struct_def.members.keys()
-        mut mem_idx := 0
-        while mem_idx.lt(member_keys.len()) {
-            mut member_name := member_keys.get(mem_idx)
-            mut decl := struct_def.members.get(member_name)
-            mut combined_name := format(instance_name, ".", member_name)
-            # Field inherits mutability from instance (if instance is const, fields are const too)
-            mut field_is_mut := instance_is_mut.and(decl.is_mut)
-
-            self.scope_stack.declare_symbol(
-                combined_name,
-                SymbolInfo.new(decl.value_type, field_is_mut, decl.is_copy, decl.is_own)
-            )
-
-            # Recursively register nested struct fields
-            switch decl.value_type {
-            case ValueType.TCustom(nested_type):
-                mut nested_struct_ptr := self.scope_stack.lookup_struct(nested_type)
-                if nested_struct_ptr.data.ne(NULL) {
-                    self.register_struct_fields_for_typecheck(combined_name, nested_type)
-                }
-            case _:
-                # Not a custom type, continue
-            }
-
-            mem_idx = mem_idx.add(1)
-        }
-    }
-}
-
-Context.insert_string := proc(mut self: Context, id: Str, value_str: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    mut is_field := false
-    if id.contains(".") {
-        mut parts := id.split(".")
-        mut base := parts.get(0)
-        mut symbol_ptr := self.scope_stack.lookup_symbol(base)
-        if symbol_ptr.data.ne(NULL) {
-            mut sym := symbol_ptr.data
-            switch sym.value_type {
-            case ValueType.TType(_):
-                is_field = false
-            case _:
-                is_field = true
-            }
-        }
-    }
-
-    # Allocate string data
-    mut string_offset := Arena_g().memory.len()
-    Arena_g().memory.extend_from_slice(value_str.as_bytes())
-    Arena_g().memory.push(0)  # null terminator
-    mut string_offset_bytes := i64_to_ne_bytes(string_offset)
-    mut len_bytes := i64_to_ne_bytes(value_str.len())
-
-    if is_field {
-        mut base_offset_ptr := self.scope_stack.lookup_var(id)
-        if base_offset_ptr.data.ne(NULL) {
-            mut base_offset := base_offset_ptr.data
-            mut str_def_ptr := self.scope_stack.lookup_struct("Str")
-            if str_def_ptr.data.ne(NULL) {
-                mut str_def := str_def_ptr.data
-                mut member_keys := str_def.members.keys()
-                mut current_offset := 0
-
-                mut mem_idx := 0
-                while mem_idx.lt(member_keys.len()) {
-                    mut member_name := member_keys.get(mem_idx)
-                    mut decl := str_def.members.get(member_name)
-                    if not(decl.is_mut) {
-                        mem_idx = mem_idx.add(1)
-                        continue
-                    }
-
-                    mut type_size_result := self.get_type_size(value_type_to_str(decl.value_type))
-                    if type_size_result.is_err {
-                        throw type_size_result.error
-                    }
-                    mut type_size := type_size_result.value
-                    mut absolute_offset := base_offset.add(current_offset)
-
-                    if member_name.eq("c_string") {
-                        Arena_g().memory.copy_from_slice(absolute_offset, absolute_offset.add(type_size), string_offset_bytes)
-                    } else if member_name.eq("cap") {
-                        Arena_g().memory.copy_from_slice(absolute_offset, absolute_offset.add(type_size), len_bytes)
-                    }
-
-                    self.scope_stack.frames.last_mut().arena_index.insert(format(id, ".", member_name), absolute_offset)
-                    current_offset = current_offset.add(type_size)
-                    mem_idx = mem_idx.add(1)
-                }
-                return
-            }
-            throw e.lang_error(self.path, "context", "ERROR: 'Str' struct definition not found")
-        }
-
-        # Not yet inserted - insert fresh inlined Str
-        mut str_def_ptr := self.scope_stack.lookup_struct("Str")
-        if str_def_ptr.data.ne(NULL) {
-            mut str_def := str_def_ptr.data
-            mut member_keys := str_def.members.keys()
-            mut struct_offset := Arena_g().memory.len()
-            mut current_offset := 0
-
-            mut mem_idx := 0
-            while mem_idx.lt(member_keys.len()) {
-                mut member_name := member_keys.get(mem_idx)
-                mut decl := str_def.members.get(member_name)
-                if not(decl.is_mut) {
-                    mem_idx = mem_idx.add(1)
-                    continue
-                }
-
-                mut type_size_result := self.get_type_size(value_type_to_str(decl.value_type))
-                if type_size_result.is_err {
-                    throw type_size_result.error
-                }
-                mut type_size := type_size_result.value
-                if Arena_g().memory.len().lt(struct_offset.add(current_offset).add(type_size)) {
-                    Arena_g().memory.resize(struct_offset.add(current_offset).add(type_size), 0)
-                }
-
-                if member_name.eq("c_string") {
-                    Arena_g().memory.copy_from_slice(struct_offset.add(current_offset), struct_offset.add(current_offset).add(type_size), string_offset_bytes)
-                } else if member_name.eq("cap") {
-                    Arena_g().memory.copy_from_slice(struct_offset.add(current_offset), struct_offset.add(current_offset).add(type_size), len_bytes)
-                }
-
-                self.scope_stack.frames.last_mut().arena_index.insert(format(id, ".", member_name), struct_offset.add(current_offset))
-                current_offset = current_offset.add(type_size)
-                mem_idx = mem_idx.add(1)
-            }
-
-            self.scope_stack.frames.last_mut().arena_index.insert(id, struct_offset)
-            return
-        }
-        throw e.lang_error(self.path, "context", "'Str' struct definition not found")
-    }
-
-    self.insert_struct(id, "Str", e)
-    mut c_string_key := format(id, ".c_string")
-    mut c_string_offset_ptr := self.scope_stack.lookup_var(c_string_key)
-    if c_string_offset_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("insert_string: missing '", id, ".c_string'"))
-    }
-    mut c_string_offset := c_string_offset_ptr.data
-
-    mut cap_key := format(id, ".cap")
-    mut cap_offset_ptr := self.scope_stack.lookup_var(cap_key)
-    if cap_offset_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("insert_string: missing '", id, ".cap'"))
-    }
-    mut cap_offset := cap_offset_ptr.data
-
-    Arena_g().memory.copy_from_slice(c_string_offset, c_string_offset.add(8), string_offset_bytes)
-    Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
-}
-
-Context.insert_primitive := proc(
-    mut self: Context,
-    var_name: Str,
-    value_type: ValueType,
-    value: Str,
-    e: Expr
-) throws Str, AllocError, IndexOutOfBoundsError, FullError {
-    switch value_type {
-    case ValueType.TCustom(type_name):
-        if type_name.eq("I64") {
-            self.insert_i64(var_name, value, e)
-        } else if type_name.eq("U8") {
-            self.insert_u8(var_name, value, e)
-        } else if type_name.eq("Bool") {
-            # TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
-            insert_bool(self, var_name, value, e)
-        } else if type_name.eq("Str") {
-            self.insert_string(var_name, value, e)
-        } else {
-            throw e.lang_error(self.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
-        }
-    case _:
-        throw e.lang_error(self.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
-    }
-}
-
-Context.get_enum_at_offset := func(self: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
-    # Read enum from a specific offset (used for nested enum payloads)
-    mut enum_value_bytes_result := Arena_g().memory.slice(offset, offset.add(8))
-    if enum_value_bytes_result.is_err {
-        throw e.lang_error(self.path, "context", "get_enum_at_offset: Failed to convert bytes to i64")
-    }
-    mut enum_value_bytes := enum_value_bytes_result.value
-    mut enum_value := i64_from_le_bytes(enum_value_bytes)
-
-    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
-    if enum_def_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("get_enum_at_offset: Enum definition for '", enum_type, "' not found"))
-    }
-    mut enum_def := enum_def_ptr.data
-
-    mut enum_name_result := Context.variant_pos_to_str(enum_def, enum_value, self.path, e)
-    if enum_name_result.is_err {
-        throw enum_name_result.error
-    }
-    mut enum_name := enum_name_result.value
-
-    # Check if this variant has a payload type
-    mut variant_payload_type_ptr := enum_def.enum_map.get(enum_name)
-    mut payload_data: Ptr = NULL
-    mut payload_type: Ptr = NULL
-    if variant_payload_type_ptr.data.ne(NULL) {
-        mut vtype_ptr := variant_payload_type_ptr.data
-        if vtype_ptr.data.ne(NULL) {
-            mut vtype := vtype_ptr.data
-            # This variant has a payload - recursively determine size
-            mut payload_size_result := self.get_payload_size_for_type(vtype, offset.add(8), e)
-            if payload_size_result.is_err {
-                throw payload_size_result.error
-            }
-            mut payload_size := payload_size_result.value
-            if payload_size.gt(0) {
-                mut payload_offset := offset.add(8)
-                mut payload_end := payload_offset.add(payload_size)
-                if payload_end.lteq(Arena_g().memory.len()) {
-                    mut payload_bytes_result := Arena_g().memory.slice(payload_offset, payload_end)
-                    if payload_bytes_result.is_ok {
-                        mut payload_bytes := payload_bytes_result.value
-                        payload_data = Ptr.new()
-                        payload_data.data = payload_bytes
-                        payload_type = Ptr.new()
-                        payload_type.data = vtype
-                    }
-                }
-            }
-        }
-    }
-
-    mut result := EnumVal.new()
-    result.enum_type = enum_type
-    result.enum_name = enum_name
-    result.payload = payload_data
-    result.payload_type = payload_type
-    return result
-}
-
-Context.get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
-    switch vtype {
-    case ValueType.TCustom(type_name):
-        if type_name.eq("I64") {
-            return 8
-        }
-        mut type_symbol_ptr := self.scope_stack.lookup_symbol(type_name)
-        if type_symbol_ptr.data.ne(NULL) {
-            mut type_symbol := type_symbol_ptr.data
-            switch type_symbol.value_type {
-            case ValueType.TType(TTypeDef.TStructDef):
-                mut size_result := self.get_type_size(type_name)
-                if size_result.is_err {
-                    throw size_result.error
-                }
-                return size_result.value
-            case ValueType.TType(TTypeDef.TEnumDef):
-                # Recursively get the inner enum's size
-                mut inner_enum_result := self.get_enum_at_offset(type_name, offset, e)
-                if inner_enum_result.is_err {
-                    throw inner_enum_result.error
-                }
-                mut inner_enum := inner_enum_result.value
-                mut total_size := 8  # variant tag
-                if inner_enum.payload.data.ne(NULL) {
-                    mut inner_payload := inner_enum.payload.data
-                    total_size = total_size.add(inner_payload.len())
-                }
-                return total_size
-            case _:
-                return 0
-            }
-        }
-        return 0
-    case _:
-        return 0
-    }
-}
-
-Context.get_enum := func(self: Context, id: Str, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
-    mut symbol_info_ptr := self.scope_stack.lookup_symbol(id)
-    if symbol_info_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("get_enum: Symbol '", id, "' not found"))
-    }
-    mut symbol_info := symbol_info_ptr.data
-
-    mut enum_type: Str
-    switch symbol_info.value_type {
-    case ValueType.TCustom(custom_type_name):
-        enum_type = custom_type_name
-    case _:
-        throw e.lang_error(self.path, "context", format("get_enum: '", id, "' is not a custom enum type"))
-    }
-
-    mut offset_ptr := self.scope_stack.lookup_var(id)
-    if offset_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("get_enum: Arena index for '", id, "' not found"))
-    }
-    mut offset := offset_ptr.data
-
-    mut enum_value_bytes_result := Arena_g().memory.slice(offset, offset.add(8))
-    if enum_value_bytes_result.is_err {
-        throw e.lang_error(self.path, "context", format("get_enum: Failed to convert bytes to i64 for '", id, "'"))
-    }
-    mut enum_value_bytes := enum_value_bytes_result.value
-    mut enum_value := i64_from_le_bytes(enum_value_bytes)
-
-    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
-    if enum_def_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("get_enum: Enum definition for '", enum_type, "' not found"))
-    }
-    mut enum_def := enum_def_ptr.data
-
-    mut enum_name_result := Context.variant_pos_to_str(enum_def, enum_value, self.path, e)
-    if enum_name_result.is_err {
-        throw enum_name_result.error
-    }
-    mut enum_name := enum_name_result.value
-
-    # Check if this variant has a payload type
-    mut variant_payload_type_ptr := enum_def.enum_map.get(enum_name)
-    mut payload_data: Ptr = NULL
-    mut payload_type: Ptr = NULL
-    if variant_payload_type_ptr.data.ne(NULL) {
-        mut vtype_ptr := variant_payload_type_ptr.data
-        if vtype_ptr.data.ne(NULL) {
-            mut vtype := vtype_ptr.data
-            # This variant has a payload, read it from arena
-            # TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
-            mut payload_size := 0
-            switch vtype {
-            case ValueType.TCustom(type_name):
-                if type_name.eq("Bool") {
-                    payload_size = 1
-                } else if type_name.eq("I64") {
-                    payload_size = 8
-                } else if type_name.eq("Str") {
-                    payload_size = 16  # Str is always 16 bytes (pointer + size)
-                } else {
-                    # Check if this is a struct or enum type
-                    mut type_symbol_ptr := self.scope_stack.lookup_symbol(type_name)
-                    if type_symbol_ptr.data.ne(NULL) {
-                        mut type_symbol := type_symbol_ptr.data
-                        switch type_symbol.value_type {
-                        case ValueType.TType(TTypeDef.TStructDef):
-                            # Get struct size
-                            mut size_result := self.get_type_size(type_name)
-                            if size_result.is_ok {
-                                payload_size = size_result.value
-                            }
-                        case ValueType.TType(TTypeDef.TEnumDef):
-                            # For enum payloads, recursively get the enum to determine size
-                            mut inner_enum_result := self.get_enum_at_offset(type_name, offset.add(8), e)
-                            if inner_enum_result.is_ok {
-                                mut inner_enum := inner_enum_result.value
-                                # Size is: 8 bytes (tag) + payload bytes
-                                mut total_size := 8
-                                if inner_enum.payload.data.ne(NULL) {
-                                    mut inner_payload := inner_enum.payload.data
-                                    total_size = total_size.add(inner_payload.len())
-                                }
-                                payload_size = total_size
-                            }
-                        case _:
-                            payload_size = 0
-                        }
-                    }
-                }
-            case _:
-                payload_size = 0
-            }
-            if payload_size.gt(0) {
-                mut payload_offset := offset.add(8)
-                mut payload_end := payload_offset.add(payload_size)
-                if payload_end.lteq(Arena_g().memory.len()) {
-                    mut payload_bytes_result := Arena_g().memory.slice(payload_offset, payload_end)
-                    if payload_bytes_result.is_ok {
-                        mut payload_bytes := payload_bytes_result.value
-                        payload_data = Ptr.new()
-                        payload_data.data = payload_bytes
-                        payload_type = Ptr.new()
-                        payload_type.data = vtype
-                    }
-                }
-            }
-        }
-    }
-
-    mut result := EnumVal.new()
-    result.enum_type = enum_type
-    result.enum_name = enum_name
-    result.payload = payload_data
-    result.payload_type = payload_type
-    return result
-}
-
-# TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
-Context.insert_enum := proc(mut self: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
-    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
-    if enum_def_ptr.data.eq(NULL) {
-        throw e.lang_error(self.path, "context", format("insert_enum: Enum definition for '", enum_type, "' not found"))
-    }
-    mut enum_def := enum_def_ptr.data
-
-    mut parts := pre_normalized_enum_name.split(".")
-    if parts.len().eq(0) {
-        throw e.lang_error(self.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
-    }
-    mut enum_name := parts.get(parts.len().sub(1))
-
-    mut enum_value_result := Context.get_variant_pos(enum_def, enum_name, self.path, e)
-    if enum_value_result.is_err {
-        throw enum_value_result.error
-    }
-    mut enum_value := enum_value_result.value
-
-    # Check if there's payload data to store
-    mut payload_data: Ptr = NULL
-    mut payload_type: Ptr = NULL
-    if self.temp_enum_payload.data.ne(NULL) {
-        mut temp_payload := self.temp_enum_payload.data
-        payload_data = Ptr.new()
-        payload_data.data = temp_payload.0  # data
-        payload_type = Ptr.new()
-        payload_type.data = temp_payload.1  # vtype
-    }
-
-    mut is_field := id.contains(".")
-    if is_field {
-        mut offset_ptr := self.scope_stack.lookup_var(id)
-        if offset_ptr.data.ne(NULL) {
-            mut offset := offset_ptr.data
-            # Update existing enum value
-            mut enum_value_bytes := i64_to_le_bytes(enum_value)
-            Arena_g().memory.copy_from_slice(offset, offset.add(8), enum_value_bytes)
-            # Store payload if present
-            if payload_data.data.ne(NULL) {
-                mut payload_bytes := payload_data.data
-                mut payload_offset := offset.add(8)
-                mut payload_end := payload_offset.add(payload_bytes.len())
-                # Ensure arena has enough space
-                if Arena_g().memory.len().lt(payload_end) {
-                    Arena_g().memory.resize(payload_end, 0)
-                }
-                Arena_g().memory.copy_from_slice(payload_offset, payload_end, payload_bytes)
-            }
-        } else {
-            mut offset := Arena_g().memory.len()
-            mut enum_value_bytes := i64_to_le_bytes(enum_value)
-            Arena_g().memory.extend_from_slice(enum_value_bytes)
-            # Store payload if present
-            if payload_data.data.ne(NULL) {
-                mut payload_bytes := payload_data.data
-                Arena_g().memory.extend_from_slice(payload_bytes)
-            }
-            self.scope_stack.frames.last_mut().arena_index.insert(id, offset)
-        }
-    } else {
-        mut offset := Arena_g().memory.len()
-        mut enum_value_bytes := i64_to_le_bytes(enum_value)
-        Arena_g().memory.extend_from_slice(enum_value_bytes)
-        # Store payload if present
-        if payload_data.data.ne(NULL) {
-            mut payload_bytes := payload_data.data
-            Arena_g().memory.extend_from_slice(payload_bytes)
-        }
-        self.scope_stack.frames.last_mut().arena_index.insert(id, offset)
-    }
-
-    # Clear the temp payload after using it
-    self.temp_enum_payload = NULL
-
-    mut result := EnumVal.new()
-    result.enum_type = enum_type
-    result.enum_name = enum_name
-    result.payload = payload_data
-    result.payload_type = payload_type
-    return result
-}
-
-Context.insert_array := proc(mut self: Context, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str, IndexOutOfBoundsError, AllocError {
-    # All array types now use the generic Array
-    mut array_type := "Array"
-
-    self.insert_struct(name, array_type, e)
-
-    mut len := values.len().to_i64()
-    mut elem_size_result := self.get_type_size(elem_type)
-    mut elem_size: I64 = 0
-    if elem_size_result.is_ok {
-        elem_size = elem_size_result.value
-    } else {
-        mut err := elem_size_result.error
-        throw e.lang_error(self.path, "context", err)
-    }
-    mut total_size := len.mul(elem_size).to_usize()
-
-    # Allocate memory
-    mut ptr := Arena_g().memory.len()
-    Arena_g().memory.resize(ptr.add(total_size), 0)
-
-    # Write values into allocated buffer
-    mut i: I64 = 0
-    while i.lt(values.len().to_i64()) {
-        mut val := values.get(i.to_usize())
-        mut offset := ptr.add(i.mul(elem_size).to_usize())
-        # TODO FIX: Bool can't be removed yet - array initialization needs to parse "true"/"false" strings
-        if elem_type.eq("Bool") {
-            mut stored: U8 = 0
-            if val.eq("true") {
-                stored = 1
-            }
-            mut set_result := Arena_g().memory.set(offset, stored)
-            if set_result.is_err {
-                throw set_result.error
-            }
-        } else if elem_type.eq("U8") {
-            mut parse_result := val.parse_u8()
-            if parse_result.is_ok {
-                mut byte := parse_result.value
-                mut set_result := Arena_g().memory.set(offset, byte)
-                if set_result.is_err {
-                    throw set_result.error
-                }
-            } else {
-                mut err := parse_result.error
-                throw e.lang_error(self.path, "context", "ERROR: insert_array: invalid U8 '".concat(err).concat("'"))
-            }
-        } else if elem_type.eq("I64") {
-            mut parse_result := val.parse_i64()
-            if parse_result.is_ok {
-                mut n := parse_result.value
-                mut bytes := i64_to_le_bytes(n)
-                mut copy_result := Arena_g().memory.copy_from_slice(offset, offset.add(8), bytes)
-                if copy_result.is_err {
-                    throw copy_result.error
-                }
-            } else {
-                mut err := parse_result.error
-                throw e.lang_error(self.path, "context", "ERROR: insert_array: invalid I64 '".concat(err).concat("'"))
-            }
-        } else if elem_type.eq("Str") {
-            mut j: I64 = 0
-            while j.lt(values.len().to_i64()) {
-                mut val_inner := values.get(j.to_usize())
-                mut offset_inner := ptr.add(j.mul(elem_size).to_usize())
-
-                mut temp_id := name.concat("_").concat(j.to_string())
-                self.scope_stack.declare_symbol(temp_id, SymbolInfo.new_with(
-                    ValueType.TCustom("Str"),
-                    false,
-                    false,
-                    false
-                ))
-
-                self.insert_string(temp_id, val_inner, e)
-
-                mut str_offset_opt := self.scope_stack.lookup_var(temp_id)
-                if str_offset_opt.data.eq(NULL) {
-                    throw e.lang_error(self.path, "context", "ERROR: insert_array: missing arena offset for '".concat(temp_id).concat("'"))
-                }
-                mut str_offset := str_offset_opt.data
-                mut slice_result := Arena_g().memory.slice(str_offset, str_offset.add(elem_size))
-                if slice_result.is_ok {
-                    mut str_bytes := slice_result.value
-                    mut copy_result := Arena_g().memory.copy_from_slice(offset_inner, offset_inner.add(elem_size), str_bytes)
-                    if copy_result.is_err {
-                        throw copy_result.error
-                    }
-                }
-                j = j.add(1)
-            }
-        } else {
-            throw e.lang_error(self.path, "context", "insert_array: unsupported element type '".concat(elem_type).concat("'"))
-        }
-        i = i.add(1)
-    }
-
-    # Write ptr, len (and cap for Vec) using calculated offsets
-    mut ptr_field_path := name.concat(".ptr")
-    mut ptr_offset_opt := self.scope_stack.lookup_var(ptr_field_path)
-    mut ptr_offset: I64 = 0
-    if ptr_offset_opt.data.ne(NULL) {
-        ptr_offset = ptr_offset_opt.data
-    } else {
-        mut offset_result := self.get_field_offset(ptr_field_path)
-        if offset_result.is_ok {
-            ptr_offset = offset_result.value
-        } else {
-            mut err := offset_result.error
-            throw e.lang_error(self.path, "context", "insert_array: ".concat(err))
-        }
-    }
-    mut ptr_bytes := i64_to_le_bytes(ptr.to_i64())
-    mut copy_result1 := Arena_g().memory.copy_from_slice(ptr_offset, ptr_offset.add(8), ptr_bytes)
-    if copy_result1.is_err {
-        throw copy_result1.error
-    }
-
-    # Set _len field (required for both Array and Vec)
-    mut len_bytes := i64_to_le_bytes(len)
-    mut len_field_path := name.concat("._len")
-    mut len_offset_opt := self.scope_stack.lookup_var(len_field_path)
-    mut len_offset: I64 = 0
-    if len_offset_opt.data.ne(NULL) {
-        len_offset = len_offset_opt.data
-    } else {
-        mut offset_result := self.get_field_offset(len_field_path)
-        if offset_result.is_ok {
-            len_offset = offset_result.value
-        } else {
-            mut err := offset_result.error
-            throw e.lang_error(self.path, "context", "insert_array: ".concat(err))
-        }
-    }
-    mut copy_result2 := Arena_g().memory.copy_from_slice(len_offset, len_offset.add(8), len_bytes)
-    if copy_result2.is_err {
-        throw copy_result2.error
-    }
-
-    # Set cap field (only exists in Vec, not in Array)
-    mut cap_field_path := name.concat(".cap")
-    mut cap_offset_result := self.get_field_offset(cap_field_path)
-    if cap_offset_result.is_ok {
-        mut cap_offset := cap_offset_result.value
-        mut copy_result3 := Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
-        if copy_result3.is_err {
-            throw copy_result3.error
-        }
-    } else {
-        mut cap_offset_opt := self.scope_stack.lookup_var(cap_field_path)
-        if cap_offset_opt.data.ne(NULL) {
-            mut cap_offset := cap_offset_opt.data
-            mut copy_result3 := Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
-            if copy_result3.is_err {
-                throw copy_result3.error
-            }
-        }
-    }
-
-    # For generic Array, also set type_name and type_size fields
-    if array_type.eq("Array") {
-        # Set type_name field (it's a Str, so we need to store it properly)
-        mut type_name_offset_opt := self.scope_stack.lookup_var(name.concat(".type_name"))
-        if type_name_offset_opt.data.ne(NULL) {
-            mut type_name_offset := type_name_offset_opt.data
-            mut temp_id := name.concat("_type_name_temp")
-            self.scope_stack.declare_symbol(temp_id, SymbolInfo.new_with(
-                ValueType.TCustom("Str"),
-                false,
+            SymbolInfo.new_with(
+                decl.value_type,
+                decl.is_mut,
                 false,
                 false
-            ))
-            self.insert_string(temp_id, elem_type, e)
-            mut str_offset_opt := self.scope_stack.lookup_var(temp_id)
-            if str_offset_opt.data.ne(NULL) {
-                mut str_offset := str_offset_opt.data
-                mut str_size_result := self.get_type_size("Str")
-                if str_size_result.is_ok {
-                    mut str_size := str_size_result.value
-                    mut slice_result := Arena_g().memory.slice(str_offset, str_offset.add(str_size))
-                    if slice_result.is_ok {
-                        mut str_bytes := slice_result.value
-                        mut copy_result4 := Arena_g().memory.copy_from_slice(type_name_offset, type_name_offset.add(str_size), str_bytes)
-                        if copy_result4.is_err {
-                            throw copy_result4.error
-                        }
-                    }
-                }
+            )
+        )
+
+        switch decl.value_type {
+        case ValueType.TCustom(nested_type_name):
+            if self.scope_stack.lookup_struct(nested_type_name).data.ne(NULL) {
+                self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
             }
+        case _:
+            # Not a custom type
         }
-
-        # Set type_size field
-        mut type_size_offset_opt := self.scope_stack.lookup_var(name.concat(".type_size"))
-        if type_size_offset_opt.data.ne(NULL) {
-            mut type_size_offset := type_size_offset_opt.data
-            mut size_bytes := i64_to_le_bytes(elem_size)
-            mut copy_result5 := Arena_g().memory.copy_from_slice(type_size_offset, type_size_offset.add(8), size_bytes)
-            if copy_result5.is_err {
-                throw copy_result5.error
-            }
-        }
-    }
-}
-
-# Helper function to insert a Bool value using insert_struct
-insert_bool := proc(mut context: Context, id: Str, bool_str: Str, e: Expr) throws Str, IndexOutOfBoundsError, AllocError {
-    # Parse the bool value
-    mut parse_result := bool_str.parse_bool()
-    mut bool_to_insert: Bool = false
-    if parse_result.is_ok {
-        bool_to_insert = parse_result.value
-    } else {
-        throw e.lang_error(context.path, "context", "Invalid bool literal '".concat(bool_str).concat("'"))
-    }
-    mut stored: U8 = 0
-    if bool_to_insert {
-        stored = 1
-    }
-
-    # Check if this is an assignment to an existing instance field
-    mut is_instance_field := false
-    if id.contains(".") {
-        mut parts := id.split(".")
-        mut base := parts.get(0)
-        mut sym_opt := context.scope_stack.lookup_symbol(base)
-        if sym_opt.data.ne(NULL) {
-            mut sym := sym_opt.data
-            switch sym.value_type {
-            case ValueType.TType(_):
-                is_instance_field = false
-            case _:
-                is_instance_field = true
-            }
-        }
-    }
-
-    if is_instance_field {
-        # For instance field, write directly to the .data field
-        mut field_id := id.concat(".data")
-        mut offset_opt := context.scope_stack.lookup_var(field_id)
-        if offset_opt.data.eq(NULL) {
-            throw e.lang_error(context.path, "context", "Bool field '".concat(id).concat(".data' not found"))
-        }
-        mut offset := offset_opt.data
-        mut set_result := Arena_g().memory.set(offset, stored)
-        if set_result.is_err {
-            throw set_result.error
-        }
-    } else {
-        # For new variable, create the struct and set value
-        context.insert_struct(id, "Bool", e)
-        mut field_id := id.concat(".data")
-        mut offset_opt := context.scope_stack.lookup_var(field_id)
-        if offset_opt.data.eq(NULL) {
-            throw e.lang_error(context.path, "context", "Bool field '".concat(id).concat(".data' not found"))
-        }
-        mut offset := offset_opt.data
-        mut set_result := Arena_g().memory.set(offset, stored)
-        if set_result.is_err {
-            throw set_result.error
-        }
+        member_idx = member_idx.add(1)
     }
 }
