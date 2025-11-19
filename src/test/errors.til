@@ -210,6 +210,38 @@ test_catch_error_with_str_field := proc() {
 }
 test_catch_error_with_str_field()
 
+// Test rethrowing error field as different type
+trigger_out_of_bounds := func() returns I64 throws Str, AllocError {
+    mut arr := Array.new(I64, 2)
+    mut val := 0
+    arr.get(10, val)  // Intentionally out of bounds
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg  // Rethrow the message field as Str
+    }
+
+    return 0
+}
+
+test_rethrow_error_field := proc() {
+    mut caught := false
+    mut error_msg := ""
+
+    _ := trigger_out_of_bounds()
+
+    catch (err: Str) {
+        caught = true
+        error_msg = err
+    }
+    catch (err: AllocError) {
+        // Ignore AllocError for this test
+    }
+
+    assert(loc(), caught)
+    assert_eq_str(loc(), "src/core/core.til:594:52:Array.get: index out of bounds", error_msg)
+}
+test_rethrow_error_field()
+
 // ==============================================================================
 // TODO: Features that could be added to error handling
 // ==============================================================================

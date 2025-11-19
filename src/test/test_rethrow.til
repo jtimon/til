@@ -1,0 +1,78 @@
+mode test
+
+// ==============================================================================
+// Bug reproduction tests for catch variable arena issue
+// See: doc/todo/catch_variable_arena_bug.md
+//
+// BOTH TESTS FAIL: The caught error variable 'err' is not accessible in the
+// catch block. Trying to access err.msg causes:
+// "get_struct: get_field_offset: base variable 'err' not found in arena_index"
+// ==============================================================================
+
+// Test 1: Throwing a field from a caught error (as a different type)
+// This tests catching a structured error and rethrowing just its message
+// EXPECTED RESULT: Should catch IndexOutOfBoundsError and rethrow as Str
+// ACTUAL RESULT: Runtime error when accessing err.msg
+get_out_of_bounds_throw := func() returns I64 throws Str, AllocError {
+    mut arr := Array.new(I64, 2)
+    arr.set(0, 1)
+    arr.set(1, 2)
+
+    // Intentionally access out of bounds to trigger runtime error
+    mut val := 0
+    mut msg := ""
+    arr.get(10, val)
+
+    catch (err: IndexOutOfBoundsError) {
+        // BUG: Cannot access err.msg directly in throw statement
+        // This line causes runtime error: "base variable 'err' not found in arena_index"
+        msg = err.msg
+        throw msg
+    }
+
+    return val
+}
+
+test_rethrow_as_string := proc() {
+    println("test_rethrow_as_string: starting")
+    mut caught := false
+    mut error_msg := ""
+
+    println("test_rethrow_as_string: calling get_out_of_bounds_throw")
+    result := get_out_of_bounds_throw()
+
+    println("test_rethrow_as_string: after get_out_of_bounds_throw call")
+    catch (err: Str) {
+        println("test_rethrow_as_string: caught Str!")
+        caught = true
+        error_msg = err
+    }
+    catch (err: AllocError) {
+        println("test_rethrow_as_string: caught AllocError")
+    }
+
+    println("test_rethrow_as_string: checking assertions")
+    assert(loc(), caught)
+    assert_eq_str(loc(), "src/core/core.til:594:52:Array.get: index out of bounds", error_msg)
+}
+test_rethrow_as_string()
+
+// Test 2: Simple baseline test - returning a field from a struct parameter
+// This should work fine and serves as a control test
+Vec2 := struct {
+    mut x: I64 = 0
+    mut y: I64 = 0
+}
+
+get_y := func(v: Vec2) returns I64 {
+    return v.y
+}
+
+test_return_field_baseline := proc() {
+    mut my_vec := Vec2()
+    my_vec.x = 10
+    my_vec.y = 20
+    result := get_y(my_vec)
+    assert_eq(loc(), 20, result)
+}
+test_return_field_baseline()
