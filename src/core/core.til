@@ -265,12 +265,11 @@ or := func(args: ..Bool) returns Bool {
             return true
         }
     }
+    return false
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "or: IndexOutOfBoundsError should never happen")
     }
-
-    return false
 }
 
 and := func(args: ..Bool) returns Bool {
@@ -281,12 +280,11 @@ and := func(args: ..Bool) returns Bool {
             return false
         }
     }
+    return true
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "and: IndexOutOfBoundsError should never happen")
     }
-
-    return true
 }
 
 Bool := struct {
@@ -496,6 +494,154 @@ Str := struct {
 
     size := func(self: Str) returns I64 {
         return self.cap
+    }
+
+    contains := func(self: Str, needle: Str) returns Bool {
+        # Returns true if needle is found in self
+        if needle.len().gt(self.len()) {
+            return false
+        }
+        if needle.len().eq(0) {
+            return false
+        }
+
+        mut max_start := self.len().sub(needle.len())
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for needle_idx in 0..needle.len() {
+                mut self_byte : U8 = 0
+                mut needle_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(needle_idx)), 1)
+                memcpy(to_ptr(needle_byte), add(needle.c_string, needle_idx), 1)
+
+                if not(U8.eq(self_byte, needle_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    rfind := func(self: Str, needle: Str) returns I64 {
+        # Returns the last index where needle starts in self, or sub(0, 1) if not found
+        if needle.len().gt(self.len()) {
+            return sub(0, 1)
+        }
+        if needle.len().eq(0) {
+            return sub(0, 1)
+        }
+
+        mut last_found := sub(0, 1)
+        mut max_start := self.len().sub(needle.len())
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for needle_idx in 0..needle.len() {
+                mut self_byte : U8 = 0
+                mut needle_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(needle_idx)), 1)
+                memcpy(to_ptr(needle_byte), add(needle.c_string, needle_idx), 1)
+
+                if not(U8.eq(self_byte, needle_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                last_found = start_idx
+            }
+        }
+
+        return last_found
+    }
+
+    replace := func(self: Str, from: Str, to: Str) returns Str throws AllocError {
+        # Simple replace: replaces all occurrences of 'from' with 'to'
+        if from.len().eq(0) {
+            return self.clone()
+        }
+
+        # Count occurrences
+        mut count := 0
+        mut max_start := self.len().sub(from.len())
+        if max_start.lt(0) {
+            return self.clone()
+        }
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for from_idx in 0..from.len() {
+                mut self_byte : U8 = 0
+                mut from_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(from_idx)), 1)
+                memcpy(to_ptr(from_byte), add(from.c_string, from_idx), 1)
+
+                if not(U8.eq(self_byte, from_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                count = count.add(1)
+            }
+        }
+
+        if count.eq(0) {
+            return self.clone()
+        }
+
+        # Calculate result size
+        mut removed_bytes := count.mul(from.len())
+        mut added_bytes := count.mul(to.len())
+        mut new_cap := self.len().sub(removed_bytes).add(added_bytes)
+
+        mut result := Str()
+        result.cap = new_cap
+        result.c_string = malloc(new_cap)
+        if NULL.eq(result.c_string) {
+            throw AllocError.new(format(loc(), "Str.replace: malloc failed for ", I64.to_str(new_cap), " bytes"))
+        }
+
+        # Build result
+        mut read_pos := 0
+        mut write_pos := 0
+
+        while read_pos.lt(self.len()) {
+            # Check if 'from' matches at current position
+            mut matches := false
+            if read_pos.lteq(self.len().sub(from.len())) {
+                matches = true
+                for from_idx in 0..from.len() {
+                    mut self_byte : U8 = 0
+                    mut from_byte : U8 = 0
+                    memcpy(to_ptr(self_byte), add(self.c_string, read_pos.add(from_idx)), 1)
+                    memcpy(to_ptr(from_byte), add(from.c_string, from_idx), 1)
+
+                    if not(U8.eq(self_byte, from_byte)) {
+                        matches = false
+                    }
+                }
+            }
+
+            if matches {
+                # Copy 'to' string
+                memcpy(add(result.c_string, write_pos), to.c_string, to.len())
+                write_pos = write_pos.add(to.len())
+                read_pos = read_pos.add(from.len())
+            } else {
+                # Copy one byte
+                mut byte : U8 = 0
+                memcpy(to_ptr(byte), add(self.c_string, read_pos), 1)
+                memcpy(add(result.c_string, write_pos), to_ptr(byte), 1)
+                write_pos = write_pos.add(1)
+                read_pos = read_pos.add(1)
+            }
+        }
+
+        return result
     }
 }
 
@@ -978,6 +1124,59 @@ Map := struct {
 
         // Key not found
         throw KeyNotFoundError.new(format(loc(), "Key not found in map"))
+    }
+
+    // Remove key-value pair from map
+    // Does nothing if key doesn't exist
+    remove := proc(mut self: Map, key: Dynamic) {
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self._size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if key_str.eq(existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                // Key found - remove by shifting all subsequent elements down
+                mut j := i
+                while lt(j, sub(self._size, 1)) {
+                    // Shift keys
+                    mut src_key_ptr := add(self.keys.ptr, mul(add(j, 1), self.key_type_size))
+                    mut dst_key_ptr := add(self.keys.ptr, mul(j, self.key_type_size))
+                    memcpy(dst_key_ptr, src_key_ptr, self.key_type_size)
+
+                    // Shift values
+                    mut src_val_ptr := add(self.values.ptr, mul(add(j, 1), self.value_type_size))
+                    mut dst_val_ptr := add(self.values.ptr, mul(j, self.value_type_size))
+                    memcpy(dst_val_ptr, src_val_ptr, self.value_type_size)
+
+                    j = add(j, 1)
+                }
+
+                // Decrease size
+                self._size = sub(self._size, 1)
+                self.keys._len = sub(self.keys._len, 1)
+                self.values._len = sub(self.values._len, 1)
+                return
+            }
+            i = add(i, 1)
+        }
+        // Key not found - do nothing
     }
 
     // Check if key exists in map

@@ -175,7 +175,7 @@ scan_reserved_words := func(identifier: Str) returns TokenType {
     return TokenType.Identifier
 }
 
-scan_tokens := proc(source: Str) returns Vec throws Str {
+scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
     mut tokens := Vec.new(Token)
 
     eof_pos := source.len()
@@ -525,7 +525,7 @@ Lexer := struct {
         return t
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token throws Str {
+    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         index := add(self.current, offset)
         if gteq(index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
@@ -534,19 +534,10 @@ Lexer := struct {
         }
         mut t := Token()
         self.tokens.get(index, t)
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
         return t
     }
 
-    next := func(self: Lexer) returns Token throws Str {
+    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         return self.peek_ahead(1)
     }
 
@@ -567,7 +558,7 @@ Lexer := struct {
         return t
     }
 
-    advance := func(mut self: Lexer, count: I64) throws Str {
+    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         next_index := add(self.current, count)
         if gt(next_index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
@@ -576,36 +567,18 @@ Lexer := struct {
             throw err
         }
         self.current = next_index
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
-    go_back := func(mut self: Lexer, count: I64) throws Str {
+    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
         if gt(count, self.current) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current), " would underflow")
             throw err
         }
         self.current = sub(self.current, count)
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
-        catch (err: I64_OverflowError) {
-            throw err.msg
-        }
-        catch (err: AllocError) {
-            throw err.msg
-        }
     }
 
-    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
+    expect := func(mut self: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
         p := self.peek()
         switch p.token_type {
         case expected:
@@ -621,7 +594,7 @@ Lexer := struct {
 
 // Workaround for Bug #8: Uncaptured return values propagate up call stack
 // This standalone function allows callers to capture the return value with _ := lexer_expect(...)
-lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str {
+lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws IndexOutOfBoundsError, Str, I64_OverflowError, AllocError {
     p := lexer.peek()
     switch p.token_type {
     case expected:
@@ -692,18 +665,9 @@ token_type_to_str := func(tt: TokenType) returns Str {
     }
 }
 
-build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str {
-    mut result := "Suggestion: use 'mut' instead"
-
+build_var_suggestion := func(tokens: Array, var_index: I64) returns Str throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
     // Check if pattern is: var <identifier> = <value>
-    mut should_check := false
-    mut check_result := var_index.add(3)
-    mut tokens_length := tokens.len()
-    if lt(check_result, tokens_length) {
-        should_check = true
-    }
-
-    if should_check {
+    if lt(var_index.add(3), tokens.len()) {
         mut ident_token := Token()
         mut equals_token := Token()
         mut value_token := Token()
@@ -729,20 +693,10 @@ build_var_suggestion := func(tokens: Vec, var_index: I64) returns Str throws Str
         }
 
         if and(is_identifier, is_equal) {
-            result = format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
+            return format("Suggestion: mut ", ident_token.token_str, " := ", value_token.token_str)
         }
     }
-
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
-    catch (err: AllocError) {
-        throw err.msg
-    }
-    return result
+    return "Suggestion: use 'mut' instead"
 }
 
 print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
@@ -752,7 +706,7 @@ print_lex_error := proc(path: Str, t: Token, mut errors_found: I64, msg: Str) {
     errors_found.inc()
 }
 
-print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut errors_found: I64) throws Str {
+print_if_lex_error := proc(path: Str, tokens: Array, index: I64, t: Token, mut errors_found: I64) throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
     switch t.token_type {
     case TokenType.Invalid:
         print_lex_error(path, t, errors_found, "Invalid character")
@@ -826,7 +780,7 @@ print_if_lex_error := proc(path: Str, tokens: Vec, index: I64, t: Token, mut err
     }
 }
 
-print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
+print_lex_errors := proc(tokens: Array, path: Str) returns I64 throws IndexOutOfBoundsError, I64_OverflowError, AllocError {
     mut errors_found := 0
     mut tokens_len := tokens.len()
     for i in 0..tokens_len {
@@ -834,13 +788,10 @@ print_lex_errors := proc(tokens: Vec, path: Str) returns I64 throws Str {
         tokens.get(i, t)
         print_if_lex_error(path, tokens, i, t, errors_found)
     }
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg
-    }
     return errors_found
 }
 
-lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError {
+lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     mut l := Lexer()
     l.path = path
     tokens := scan_tokens(source)

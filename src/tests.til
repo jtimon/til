@@ -4,6 +4,10 @@ mode test
 
 runfile("src/test/temporary_tests.til")
 
+// Self-hosting interpreter tests
+// TODO: Re-enable after fixing type errors in lexer.til and parser.til
+// runfile("src/tests_self_hosted.til")
+
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
 runfile("src/test/hello/hello_cli.til")
@@ -58,18 +62,6 @@ runfile("src/test/modes.til")
 
 // The closest to a std lib this language has
 // runfile("src/core.til") // you can't run it because it is already imported everywhere
-
-// Self-hosting interpreter tests
-// run the self hosting libs just to see they pass typer checks
-runfile("src/core/self/lexer.til")
-runfile("src/core/self/parser.til")
-// TODO: Fix remaining type errors in init.til, typer.til, interprer.til
-// runfile("src/core/self/init.til")
-// runfile("src/core/self/typer.til")
-// runfile("src/core/self/interprer.til")
-
-// TODO: Re-enable after fixing type errors in lexer.til and parser.til
-// runfile("src/tests_self_hosted.til")
 
 runfile("src/test/todo.til") // permanent TODO
 

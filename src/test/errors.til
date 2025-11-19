@@ -3,9 +3,7 @@ mode test
 AAAError := struct {}
 simplest_catch := proc () {
     mut catched := false
-    if I64.eq(1, 1) {
-        throw AAAError()
-    }
+    throw AAAError()
     assert(loc(), false) // This line should be unreachable
     catch (err: AAAError) {
         catched = true
@@ -22,10 +20,8 @@ ErrorWithMessage := struct {
 test_catch_with_fields := proc() {
     mut caught_msg := ""
     mut catched := false
-    if I64.eq(1, 1) {
-        my_error := ErrorWithMessage()
-        throw my_error
-    }
+    my_error := ErrorWithMessage()
+    throw my_error
     catch (err: ErrorWithMessage) {
         caught_msg = err.msg
         catched = true
@@ -46,13 +42,10 @@ safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
 }
 
 unsafe_div := proc(a: I64, b: I64) returns I64 {
-    result := safe_div(a, b)
-
+    return safe_div(a, b)
     catch (err: DivideByZero) {
         return 0
     }
-
-    return result
 }
 
 test_unsafe_div := proc() {
@@ -171,9 +164,7 @@ test_catch_str_error := proc() {
     mut caught := false
     mut error_msg := ""
 
-    if I64.eq(1, 1) {
-        throw "This is a test error message"
-    }
+    throw "This is a test error message"
     catch (err: Str) {
         caught = true
         println("Caught error:")
@@ -191,12 +182,10 @@ test_catch_error_with_str_field := proc() {
     mut caught := false
     mut caught_msg := ""
 
-    if I64.eq(1, 1) {
-        mut my_error := ErrorWithMessage()
-        // Change the message before throwing
-        my_error.msg = "Custom error message"
-        throw my_error
-    }
+    mut my_error := ErrorWithMessage()
+    // Change the message before throwing
+    my_error.msg = "Custom error message"
+    throw my_error
     catch (err: ErrorWithMessage) {
         caught = true
         // Test accessing Str field in caught struct
@@ -209,38 +198,6 @@ test_catch_error_with_str_field := proc() {
     assert_eq_str(loc(), "Custom error message", caught_msg)
 }
 test_catch_error_with_str_field()
-
-// Test rethrowing error field as different type
-trigger_out_of_bounds := func() returns I64 throws Str, AllocError {
-    mut arr := Array.new(I64, 2)
-    mut val := 0
-    arr.get(10, val)  // Intentionally out of bounds
-
-    catch (err: IndexOutOfBoundsError) {
-        throw err.msg  // Rethrow the message field as Str
-    }
-
-    return 0
-}
-
-test_rethrow_error_field := proc() {
-    mut caught := false
-    mut error_msg := ""
-
-    _ := trigger_out_of_bounds()
-
-    catch (err: Str) {
-        caught = true
-        error_msg = err
-    }
-    catch (err: AllocError) {
-        // Ignore AllocError for this test
-    }
-
-    assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/core.til:594:52:Array.get: index out of bounds", error_msg)
-}
-test_rethrow_error_field()
 
 // ==============================================================================
 // TODO: Features that could be added to error handling

@@ -42,14 +42,12 @@ my_string : Str = "test" // 'Str' (font-lock-type-face in emacs)
 // Builtins
 result := add(1, 2) // 'add' (font-lock-builtin-face in emacs)
 return_printed := func() returns Str {
-    str_result := format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
+    return format("He", "llo") // 'format' (font-lock-builtin-face in emacs)
 
     // Catch unexpected errors at end (empty in func since funcs can't call procs like println/exit)
     catch (err: AllocError) {}
     catch (err: IndexOutOfBoundsError) {}
     catch (err: I64_OverflowError) {}
-
-    return str_result
 }
 printed := return_printed()
 

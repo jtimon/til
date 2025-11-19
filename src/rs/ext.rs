@@ -624,7 +624,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     context.imports_wip.remove(&path);
     context.imports_done.insert(path, result.clone());
     context.path = original_path;
-    return result.map(|_| EvalResult::new(""))
+    result.map(|_| EvalResult::new(""))
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
