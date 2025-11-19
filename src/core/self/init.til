@@ -580,10 +580,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case node_type:
             throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(node_type), "'"))
         }
-
-                }
-            }
-        case ValueType.TCustom(custom_type_name):
+    case ValueType.TCustom(custom_type_name):
             # Check if it's an enum first
             mut enum_ptr := context.scope_stack.lookup_enum(custom_type_name)
             if enum_ptr.data.ne(NULL) {
@@ -762,8 +759,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case _:
             return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
         }
-
-    }
     throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
 }
 
@@ -807,7 +802,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
         current_type = symbol_ptr.data.value_type
 
         # If there are no parameters, just return the type of the first identifier
-        if e.params.is_empty() {
+        if e.params.len().eq(0) {
             return current_type
         }
 
@@ -815,7 +810,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
         mut param_idx := 0
         while param_idx.lt(e.params.len()) {
             mut cursor := e.params.get(param_idx)
-            mut member_name: Str
+            mut member_name := ""
             switch cursor.node_type {
             case NodeType.Identifier(n):
                 member_name = n
@@ -917,7 +912,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Read and parse the imported file
     mut read_result := fs_read_to_string(path)
-    mut source: Str
+    mut source := ""
     if read_result.is_ok {
         source = read_result.value
     } else {
@@ -933,27 +928,23 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Lex the imported file
     mut lexer_result := lexer_from_source(path, source)
-    mut lexer: Lexer
-    if lexer_result.is_ok {
-        lexer = lexer_result.value
-    } else {
+    if lexer_result.is_err {
         mut orig_path_clone := original_path
         context.path = original_path
         context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", orig_path_clone, ":\n", lexer_result.error))
     }
+    mut lexer := lexer_result.value
 
     # Parse mode
     mut mode_result := parse_mode(path, lexer)
-    mut mode: Mode
-    if mode_result.is_ok {
-        mode = mode_result.value
-    } else {
+    if mode_result.is_err {
         mut orig_path_clone := original_path
         context.path = original_path
         context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", orig_path_clone, ":\n", mode_result.error))
     }
+    mut mode := mode_result.value
 
     # Check if mode can be imported
     if not(can_be_imported(mode)) {
@@ -1961,16 +1952,18 @@ Context.insert_struct_at_offset := proc(mut self: Context, id: Str, custom_type_
                 }
                 mut variant := parts.get(1)
                 mut variant_keys := enum_def.enum_map.keys()
-                mut index := -1
+                mut index := 0
+                mut found := false
                 mut var_idx := 0
                 while var_idx.lt(variant_keys.len()) {
                     mut v := variant_keys.get(var_idx)
                     if v.eq(variant) {
                         index = var_idx
+                        found = true
                     }
                     var_idx = var_idx.add(1)
                 }
-                if index.eq(-1) {
+                if found.not() {
                     throw e.lang_error(self.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", member_name, "'"))
                 }
                 mut index_bytes := i64_to_ne_bytes(index)
@@ -2159,7 +2152,7 @@ Context.insert_string := proc(mut self: Context, id: Str, value_str: Str, e: Exp
             throw e.lang_error(self.path, "context", "ERROR: 'Str' struct definition not found")
         }
 
-        # Not yet inserted — insert fresh inlined Str
+        # Not yet inserted - insert fresh inlined Str
         mut str_def_ptr := self.scope_stack.lookup_struct("Str")
         if str_def_ptr.data.ne(NULL) {
             mut str_def := str_def_ptr.data
@@ -2769,8 +2762,8 @@ insert_bool := proc(mut context: Context, id: Str, bool_str: Str, e: Expr) throw
 
     # Check if this is an assignment to an existing instance field
     mut is_instance_field := false
-    if id.contains('.') {
-        mut parts := id.split('.')
+    if id.contains(".") {
+        mut parts := id.split(".")
         mut base := parts.get(0)
         mut sym_opt := context.scope_stack.lookup_symbol(base)
         if sym_opt.data.ne(NULL) {
