@@ -133,7 +133,7 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
         },
         NodeType::Identifier(name) => {
             if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
-                errors.push(e.error(&context.path, "type", &format!("Undefined symbol {}", name)));
+                errors.push(e.error(&context.path, "type", &format!("Undefined symbol '{}'", name)));
             }
         },
         NodeType::Declaration(decl) => {
