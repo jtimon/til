@@ -469,7 +469,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
                         // Valid: struct type
                         context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo{value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
                         // Register struct fields for type checking
-                        context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
+                        context.register_struct_fields_for_typecheck(&arg.name, custom_type_name, e);
                     },
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         // Valid: enum type
@@ -910,7 +910,7 @@ fn check_declaration(context: &mut Context, e: &Expr, decl: &Declaration) -> Vec
                 // During type checking, register struct fields so they can be accessed in the code
                 // Memory allocation and default value evaluation happens during runtime in eval_declaration
                 if context.scope_stack.lookup_struct(&custom_type).is_some() {
-                    context.register_struct_fields_for_typecheck(&decl.name, &custom_type);
+                    context.register_struct_fields_for_typecheck(&decl.name, &custom_type, e);
                 }
             }
             ValueType::TFunction(FunctionType::FTFunc) | ValueType::TFunction(FunctionType::FTProc) | ValueType::TFunction(FunctionType::FTMacro) => {

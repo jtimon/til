@@ -606,14 +606,18 @@ pub fn lexer_from_source(path: &String, source: String) -> Result<Lexer, String>
     let mut lexer = Lexer::new(source);
     lexer.path = path.clone();  // Set the correct path for error messages
     if lexer.len() < 1 {
-        return Err(format!("{}:{}:{} compiler ERROR: End of file not found.", path, 1, 0));
+        return Err(format!("{}:1:0: rstil compiler ERROR: End of file not found.\nExplanation: This should never happen, this is a bug in the language.", path));
     } else if lexer.is_eof(0) {
-        return Err(format!("{}:{}:{} compiler ERROR: Nothing to be done", path, 0, 0));
+        // Use the first token for the error
+        let t = &lexer.tokens[0];
+        return Err(t.lang_error(path, "Nothing to be done"));
     }
 
     let errors_found = print_lex_errors(&lexer.tokens, &path);
     if errors_found > 0 {
-        return Err(format!("Compiler errors: {} lexical errors found", errors_found));
+        // Use the first token for the summary error
+        let t = &lexer.tokens[0];
+        return Err(t.error(path, &format!("{} lexical errors found", errors_found)));
     }
     return Ok(lexer);
 }

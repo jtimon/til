@@ -120,12 +120,12 @@ KeyNotFoundError := struct {
     }
 }
 
-loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to __loc for consistency
+loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to _loc for consistency
 
 // Individual location components for flexible error formatting
-__file := ext_func() returns Str; // Returns current file path
-__line := ext_func() returns I64; // Returns current line number
-__col  := ext_func() returns I64; // Returns current column number
+_file := ext_func() returns Str; // Returns current file path
+_line := ext_func() returns I64; // Returns current line number
+_col  := ext_func() returns I64; // Returns current column number
 
 // Comparisons are hateful, plus two of them are probably enough for now:
 lt        := ext_func(a: I64, b: I64) returns Bool;

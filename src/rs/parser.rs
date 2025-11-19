@@ -1384,7 +1384,8 @@ pub fn parse_tokens(lexer: &mut Lexer) -> Result<Expr, String> {
         i = i + 1;
     }
     if unparsed_tokens > 0 {
-        return Err(format!("Total unparsed tokens: {}/{}", unparsed_tokens, lexer_len));
+        let t = lexer.get_token(lexer.current)?;
+        return Err(t.error(&lexer.path, &format!("Total unparsed tokens: {}/{}", unparsed_tokens, lexer_len)));
     }
     return Ok(e)
 }
