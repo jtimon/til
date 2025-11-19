@@ -78,23 +78,25 @@ ScopeStack := struct {
         self.frames.push(frame)
     }
 
-    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError, FullError {
+    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
         if self.frames.len().lteq(1) {
             throw "Cannot pop global scope"
         }
 
-        mut popped := self.frames.pop()
+        mut popped := ScopeFrame()
+        self.frames.pop(popped)
         return popped
     }
 
-    lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.arena_index.contains_key(name) {
-                mut offset_str := frame.arena_index.get(name)
+                mut offset_str := ""
+                frame.arena_index.get(name, offset_str)
                 mut ptr := Ptr()
                 ptr.data = offset_str.to_i64()
                 return ptr
@@ -120,20 +122,22 @@ ScopeStack := struct {
     }
 
     // Helper to get the actual symbol (not just checking if it exists)
-    get_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws Str, IndexOutOfBoundsError {
+    get_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws Str, IndexOutOfBoundsError, KeyNotFoundError {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.symbols.contains_key(name) {
-                return frame.symbols.get(name)
+                mut symbol := SymbolInfo()
+                frame.symbols.get(name, symbol)
+                return symbol
             }
             i = i.sub(1)
         }
         throw format("Symbol '", name, "' not found")
     }
 
-    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError {
+    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().eq(0) {
             throw "No active scope"
         }
@@ -152,7 +156,7 @@ ScopeStack := struct {
         self.frames.set(last_idx, current_frame)
     }
 
-    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws IndexOutOfBoundsError {
+    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -178,13 +182,14 @@ ScopeStack := struct {
         return Ptr()  // NULL - not found
     }
 
-    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
             if current_frame.arena_index.contains_key(name) {
-                mut offset_str := current_frame.arena_index.get(name)
+                mut offset_str := ""
+                current_frame.arena_index.get(name, offset_str)
                 current_frame.arena_index.remove(name)
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
@@ -196,7 +201,7 @@ ScopeStack := struct {
     }
 
     // Insert a variable without a corresponding symbol (simpler than declare_var)
-    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws IndexOutOfBoundsError {
+    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -222,20 +227,22 @@ ScopeStack := struct {
     }
 
     // Helper to get the actual function definition
-    get_func := func(self: ScopeStack, name: Str) returns SFuncDef throws Str, IndexOutOfBoundsError {
+    get_func := func(self: ScopeStack, name: Str) returns SFuncDef throws Str, IndexOutOfBoundsError, KeyNotFoundError {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.funcs.contains_key(name) {
-                return frame.funcs.get(name)
+                mut func_def := SFuncDef()
+                frame.funcs.get(name, func_def)
+                return func_def
             }
             i = i.sub(1)
         }
         throw format("Function '", name, "' not found")
     }
 
-    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws IndexOutOfBoundsError {
+    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -261,20 +268,22 @@ ScopeStack := struct {
     }
 
     // Helper to get the actual enum definition
-    get_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws Str, IndexOutOfBoundsError {
+    get_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws Str, IndexOutOfBoundsError, KeyNotFoundError {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.enums.contains_key(name) {
-                return frame.enums.get(name)
+                mut enum_def := SEnumDef()
+                frame.enums.get(name, enum_def)
+                return enum_def
             }
             i = i.sub(1)
         }
         throw format("Enum '", name, "' not found")
     }
 
-    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws IndexOutOfBoundsError {
+    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -300,20 +309,22 @@ ScopeStack := struct {
     }
 
     // Helper to get the actual struct definition
-    get_struct := func(self: ScopeStack, name: Str) returns SStructDef throws Str, IndexOutOfBoundsError {
+    get_struct := func(self: ScopeStack, name: Str) returns SStructDef throws Str, IndexOutOfBoundsError, KeyNotFoundError {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
             self.frames.get(i, frame)
             if frame.structs.contains_key(name) {
-                return frame.structs.get(name)
+                mut struct_def := SStructDef()
+                frame.structs.get(name, struct_def)
+                return struct_def
             }
             i = i.sub(1)
         }
         throw format("Struct '", name, "' not found")
     }
 
-    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws IndexOutOfBoundsError {
+    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -323,7 +334,7 @@ ScopeStack := struct {
         }
     }
 
-    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws IndexOutOfBoundsError, AllocError {
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws IndexOutOfBoundsError, AllocError, FullError {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
         mut prefix_len := prefix.len()
@@ -373,8 +384,9 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsE
     switch param.node_type {
     case NodeType.Identifier(f_name):
         func_name = f_name
-    case node_type:
-        throw e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", enum_to_str(node_type), "'"))
+    case _:
+        mut node_type_str := enum_to_str(param.node_type)
+        throw e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", node_type_str, "'"))
     }
     return func_name
 }
@@ -617,7 +629,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if struct_ptr.data.eq(NULL) {
                 throw e.lang_error(context.path, "type", format("type '", f_name, "' not found in context"))
             }
-            mut struct_def := struct_ptr.data
+            mut struct_def := context.scope_stack.get_struct(custom_type_name)
 
             mut after_dot: Expr
             if id_expr.params.len().eq(0) {
@@ -650,19 +662,21 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 mut method_name := format(intermediate_type_name, ".", final_member_name)
                                 mut method_ptr := context.scope_stack.lookup_func(method_name)
                                 if method_ptr.data.ne(NULL) {
-                                    return value_type_func_proc(context.path, e, method_name, method_ptr.data)
+                                    mut method_def := context.scope_stack.get_func(method_name)
+                                    return value_type_func_proc(context.path, e, method_name, method_def)
                                 }
 
                                 # Try UFCS: standalone function with intermediate type as first arg
                                 mut standalone_ptr := context.scope_stack.lookup_func(final_member_name)
                                 if standalone_ptr.data.ne(NULL) {
-                                    return value_type_func_proc(context.path, e, final_member_name, standalone_ptr.data)
+                                    mut standalone_def := context.scope_stack.get_func(final_member_name)
+                                    return value_type_func_proc(context.path, e, final_member_name, standalone_def)
                                 }
 
                                 # Check if it's a struct with this member as a field
                                 mut intermediate_struct_ptr := context.scope_stack.lookup_struct(intermediate_type_name)
                                 if intermediate_struct_ptr.data.ne(NULL) {
-                                    mut intermediate_struct_def := intermediate_struct_ptr.data
+                                    mut intermediate_struct_def := context.scope_stack.get_struct(intermediate_type_name)
                                     mut member_ptr := intermediate_struct_def.get_member(final_member_name)
                                     if member_ptr.data.ne(NULL) {
                                         # It's a field access - return the field's type
@@ -717,7 +731,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if array_struct_ptr.data.eq(NULL) {
                 throw e.lang_error(context.path, "type", format("struct '", custom_type_name, "' not found in context"))
             }
-            mut struct_def := array_struct_ptr.data
+            mut struct_def := context.scope_stack.get_struct(custom_type_name)
 
             mut after_dot: Expr
             if id_expr.params.len().eq(0) {
@@ -825,7 +839,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
                 if struct_ptr.data.eq(NULL) {
                     throw e.error(context.path, "type", format("Struct '", name, "' not found"))
                 }
-                mut struct_def := struct_ptr.data
+                mut struct_def := context.scope_stack.get_struct(name)
                 mut decl := struct_def.get_member_or_err(member_name, name, context.path, e)
                 current_type = decl.value_type
 
@@ -835,7 +849,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
                 if enum_ptr.data.eq(NULL) {
                     throw e.error(context.path, "type", format("Enum '", name, "' not found"))
                 }
-                mut enum_def := enum_ptr.data
+                mut enum_def := context.scope_stack.get_enum(name)
                 if enum_def.enum_map.contains_key(member_name) {
                     return ValueType.TCustom(name)
                 }
@@ -847,7 +861,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
                 if struct_ptr.data.eq(NULL) {
                     throw e.error(context.path, "type", format("Struct '", custom_type_name, "' not found"))
                 }
-                mut struct_def := struct_ptr.data
+                mut struct_def := context.scope_stack.get_struct(custom_type_name)
                 mut decl := struct_def.get_member_or_err(member_name, custom_type_name, context.path, e)
                 current_type = decl.value_type
 
@@ -1274,13 +1288,14 @@ Context := struct {
         if NULL.eq(struct_def_ptr.data) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
         }
-        mut struct_def := struct_def_ptr.data
+        mut struct_def := self.scope_stack.get_struct(custom_type_name)
 
         mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
         if NULL.eq(instance_symbol_ptr.data) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
         }
-        mut is_mut := instance_symbol_ptr.data.is_mut
+        mut instance_symbol := self.scope_stack.get_symbol(instance_name)
+        mut is_mut := instance_symbol.is_mut
 
         mut base_offset_ptr := self.scope_stack.lookup_var(instance_name)
         if NULL.eq(base_offset_ptr.data) {
@@ -1370,7 +1385,7 @@ Context := struct {
         if NULL.eq(struct_def_ptr.data) {
             return
         }
-        mut struct_def := struct_def_ptr.data
+        mut struct_def := self.scope_stack.get_struct(custom_type_name)
 
         mut members := struct_def.members.entries()
         mut member_idx := 0
@@ -1379,7 +1394,7 @@ Context := struct {
             mut field_name := entry.key
             mut decl := entry.value
 
-            mut combined_name := instance_name.concat(".").concat(field_name)
+            mut combined_name := format(instance_name, ".", field_name)
             self.scope_stack.declare_symbol(
                 combined_name,
                 SymbolInfo.new_with(
