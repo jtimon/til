@@ -1027,11 +1027,9 @@ pub struct Context {
     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
     // Two-phase imports: separate caches for declaration and value initialization
     pub imports_declarations_done: HashSet<String>, // tracks which imports have had declarations copied (init phase)
-    pub imports_values_done: HashMap<String, Result<EvalResult, String>>, // tracks which imports have had values initialized (eval phase)
     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
-    // DEPRECATED: old single-phase cache, kept for compatibility
-    #[allow(dead_code)]
-    imports_done: HashMap<String, Result<EvalResult, String>>,
+    // Reused across phases: cleared between init and eval
+    pub imports_done: HashMap<String, Result<EvalResult, String>>,
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
@@ -1056,9 +1054,8 @@ impl Context {
             scope_stack,
             temp_enum_payload: None,
             imports_declarations_done: HashSet::new(),
-            imports_values_done: HashMap::new(),
             imports_wip: HashSet::new(),
-            imports_done: HashMap::new(), // DEPRECATED
+            imports_done: HashMap::new(),
         });
     }
 

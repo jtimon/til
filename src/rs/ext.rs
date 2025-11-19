@@ -592,7 +592,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let path = import_path_to_file_path(&result.value);
 
     // If imported values already initialized, use the cache (Phase 2)
-    match context.imports_values_done.get(&path) {
+    match context.imports_done.get(&path) {
         Some(import_result) => return import_result.clone(),
         None => match context.imports_wip.contains(&path) {
             true => {
@@ -626,7 +626,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     context.imports_wip.remove(&path);
-    context.imports_values_done.insert(path, result.clone());
+    context.imports_done.insert(path, result.clone());
     context.path = original_path;
     return result
 }
