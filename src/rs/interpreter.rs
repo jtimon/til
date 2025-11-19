@@ -1816,8 +1816,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                         // For pass-by-reference (non-copy, non-Type), just share the offset
                                         if !arg.is_copy && custom_type_name != "Type" {
-                                            let src_offset = context.scope_stack.lookup_var(id_)
-                                                .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+                                            let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
+                                                offset
+                                            } else if id_.contains('.') {
+                                                // Field path - calculate offset dynamically
+                                                context.get_field_offset(id_)
+                                                    .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-reference: {}", err)))?
+                                            } else {
+                                                return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                            };
 
                                             // Create symbol for parameter
                                             function_context.scope_stack.declare_symbol(arg.name.clone(), SymbolInfo {
@@ -1883,8 +1890,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             } else {
                                                 // Temporarily register source struct's base offset and symbol in function_context
                                                 // so that copy_fields() can calculate field offsets dynamically
-                                                let src_offset = context.scope_stack.lookup_var(id_)
-                                                    .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))?;
+                                                let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
+                                                    offset
+                                                } else if id_.contains('.') {
+                                                    // Field path - calculate offset dynamically
+                                                    context.get_field_offset(id_)
+                                                        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
+                                                } else {
+                                                    return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
+                                                };
                                                 let src_symbol = context.scope_stack.lookup_symbol(id_).cloned()
                                                     .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context symbols", id_)))?;
 
