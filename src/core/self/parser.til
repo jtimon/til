@@ -81,7 +81,7 @@ SStructDef := struct {
             }
             i = i.add(1)
         }
-        throw format("Member '", member_name, "' not found")
+        throw format(loc(), "Member '", member_name, "' not found")
     }
 
     // Helper to find a member by name or return an error
@@ -876,7 +876,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str, Allo
                     case TokenType.LeftParen:
                         // Continue with method call parsing below
                     case:
-                        throw format(next_peek.line.to_str(), ":", next_peek.col.to_str(), ": Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'")
+                        throw next_peek.error(format("Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'"))
                     }
                 case:
                     throw method_t.error("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "'")
@@ -961,7 +961,7 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
             return e
         }
         if not(ent.tag().eq(NodeType.Identifier("").tag())) {
-            throw token_lang_error(t, "a series of identifiers and dots should have been parsed as identifier or function call")
+            throw t.lang_error("a series of identifiers and dots should have been parsed as identifier or function call")
         }
 
         next_t = lexer.peek()
@@ -972,7 +972,7 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
             name := get_combined_name(e)
             return parse_assignment(lexer, t, name)
         case:
-            throw token_lang_error(t, "While parsing a '.', this should never happen")
+            throw t.lang_error("While parsing a '.', this should never happen")
         }
     case TokenType.Equal:
         lexer.advance(1)

@@ -88,10 +88,10 @@ scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, 
 
     tokens.push(t)
     catch (err: AllocError) {
-        throw format("scan_tokens: AllocError while pushing token: ", err.msg)
+        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)
     }
     catch (err: FullError) {
-        throw "scan_tokens: tokens array full"
+        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: tokens array full")
     }
 }
 
@@ -459,13 +459,13 @@ scan_tokens := proc(source: Str) returns Vec throws Str, AllocError {
     scan_push_token(tokens, TokenType.Eof, "End of file", line, 0);
 
     catch (err: IndexOutOfBoundsError) {
-        throw "scan_tokens: IndexOutOfBoundsError"
+        throw format(loc(), "scan_tokens: IndexOutOfBoundsError: ", err.msg)
     }
     catch (err: I64_OverflowError) {
-        throw "scan_tokens: I64_OverflowError"
+        throw format(loc(), "scan_tokens: I64_OverflowError: ", err.msg)
     }
     catch (err: AllocError) {
-        throw "scan_tokens: AllocError"
+        throw format(loc(), "scan_tokens: AllocError: ", err.msg)
     }
     return tokens
 }
@@ -811,7 +811,7 @@ lexer_from_source := proc(path: Str, source: Str) returns Lexer throws Str, Inde
 
     errors := print_lex_errors(tokens, path)
     if gt(errors, 0) {
-        throw format("Compiler errors: ", I64.to_str(errors), " lexical errors found")
+        throw format(loc(), "Compiler errors: ", I64.to_str(errors), " lexical errors found")
     }
 
     return l
