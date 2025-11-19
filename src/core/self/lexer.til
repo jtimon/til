@@ -585,8 +585,8 @@ Lexer := struct {
             self.advance(1)
             return p
         case:
-            throw format(
-                "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
+            throw p.error(format(
+                "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
         }
     }
 
@@ -601,8 +601,8 @@ lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws
         lexer.advance(1)
         return p
     case:
-        throw format(
-            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'")
+        throw p.error(format(
+            "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
     }
 }
 

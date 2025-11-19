@@ -690,7 +690,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
-        throw format(t2.line.to_str(), ":", t2.col.to_str(), ": expected identifier after 'enum {{', found EOF.")
+        throw t2.error("expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
     enum_map := Map.new(Str, ValueType)
@@ -757,7 +757,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
-        throw format(t2.line.to_str(), ":", t2.col.to_str(), ": expected 'identifier' after 'struct {{', found EOF.")
+        throw t2.error("expected 'identifier' after 'struct {{', found EOF.")
     }
     lexer.advance(1)
     body := parse_body(lexer, TokenType.RightBrace)
