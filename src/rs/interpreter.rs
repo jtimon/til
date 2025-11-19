@@ -2752,7 +2752,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                             // Register field symbols for UFCS method resolution (e.g., self.cap.eq())
                             if let Some(_struct_def) = function_context.scope_stack.lookup_struct(custom_type_name) {
-                                function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name, e);
+                                function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
                             }
 
                             // Track that this parameter was passed by reference
@@ -2889,7 +2889,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             }
 
                                             // Register field symbols for UFCS method resolution
-                                            function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name, e);
+                                            function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
 
                                             // Track that this was passed by reference
                                             pass_by_ref_params.insert(arg.name.clone());

@@ -2,7 +2,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::collections::{HashMap, HashSet};
 
-use crate::rs::lexer::{lexer_from_source};
+use crate::rs::lexer::{lexer_from_source, Token, TokenType};
 use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::parser::{
     INFER_TYPE,
@@ -1042,9 +1042,17 @@ impl Context {
         let mut scope_stack = ScopeStack::new();
         scope_stack.push(ScopeType::Global); // Initialize global scope
 
+        // Create a dummy token for mode initialization errors
+        let dummy_token = Token {
+            token_type: TokenType::Mode,
+            token_str: mode_name.to_string(),
+            line: 0,
+            col: 0,
+        };
+
         return Ok(Context {
             path: path.to_string(),
-            mode: mode_from_name(mode_name)?,
+            mode: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
             imports_declarations_done: HashSet::new(),
