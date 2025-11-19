@@ -51,6 +51,21 @@ pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     Ok(EvalResult::new(&format!("{}:{}:{}:", file, line, col)))
 }
 
+pub fn func___file(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__file", 0, false)?;
+    Ok(EvalResult::new(&context.path.clone()))
+}
+
+pub fn func___line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__line", 0, false)?;
+    Ok(EvalResult::new(&(e.line as i64).to_string()))
+}
+
+pub fn func___col(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "__col", 0, false)?;
+    Ok(EvalResult::new(&(e.col as i64).to_string()))
+}
+
 // ---------- eval memory
 
 pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
