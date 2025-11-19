@@ -1,4 +1,6 @@
-use crate::rs::init::{Context, SymbolInfo, get_value_type, get_func_name_in_call, insert_bool, get_u8};
+use std::collections::HashMap;
+use std::convert::TryInto;
+use crate::rs::init::{Context, SymbolInfo, EnumVal, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -34,6 +36,1040 @@ impl Arena {
             })
         }
     }
+
+    // === EVAL-PHASE MEMORY OPERATIONS ===
+    // These methods manage runtime memory allocation and access
+    // They take Context as parameter to access type info and arena_index
+
+    pub fn get_u8(ctx: &Context, id: &str, e: &Expr) -> Result<u8, String> {
+        // Try direct lookup first (for base variables)
+        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+            offset
+        } else if id.contains('.') {
+            // For field paths, calculate offset dynamically
+            ctx.get_field_offset(id).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
+            })?
+        } else {
+            return Err(e.lang_error(&ctx.path, "context", &format!("u8 not found for id '{}'", id)));
+        };
+
+        Arena::g().memory.get(offset).copied()
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Invalid u8 read for id '{}'", id)))
+    }
+
+    pub fn get_i64(ctx: &Context, id: &str, e: &Expr) -> Result<i64, String> {
+        // Try direct lookup first (for base variables)
+        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+            offset
+        } else if id.contains('.') {
+            // For field paths, calculate offset dynamically
+            ctx.get_field_offset(id).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
+            })?
+        } else {
+            return Err(e.lang_error(&ctx.path, "context", &format!("i64 not found for id '{}'", id)));
+        };
+
+        match Arena::g().memory[offset..offset + 8].try_into() {
+            Ok(bytes) => Ok(i64::from_ne_bytes(bytes)),
+            Err(_) => Err(e.lang_error(&ctx.path, "context", &format!("Invalid i64 read for id '{}'", id))),
+        }
+    }
+
+    pub fn insert_i64(ctx: &mut Context, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
+        let v = i64_str.parse::<i64>()
+            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid i64 literal '{}'", i64_str)))?;
+        let bytes = v.to_ne_bytes();
+
+        let is_instance_field = if id.contains('.') {
+            // Check if base is an instance variable (not a struct type)
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            // If base is in symbols and is NOT a struct type, it's an instance field access
+            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field paths, calculate offset dynamically
+            let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                // Pre-registered field (old path)
+                offset
+            } else {
+                // Calculate offset from struct definition
+                ctx.get_field_offset(id).map_err(|err| {
+                    e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
+                })?
+            };
+
+            // Ensure arena has enough space
+            let required_len = offset + 8;
+            if Arena::g().memory.len() < required_len {
+                Arena::g().memory.resize(required_len, 0);
+            }
+
+            Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
+            return Ok(())
+        }
+
+        // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(&bytes);
+        ctx.scope_stack.insert_var(id.to_string(), offset);
+        return Ok(())
+    }
+
+    // REM: Can't be moved to TIL until compilation - needs way to calculate size from TIL declarations
+    pub fn insert_u8(ctx: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
+        let v = u8_str.parse::<u8>()
+            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
+        let bytes = [v];
+
+        let is_instance_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field paths, calculate offset dynamically
+            let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                // Pre-registered field (old path)
+                offset
+            } else {
+                // Calculate offset from struct definition
+                ctx.get_field_offset(id).map_err(|err| {
+                    e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
+                })?
+            };
+            Arena::g().memory[offset] = v;
+            return Ok(())
+        }
+
+        let offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(&bytes);
+        ctx.scope_stack.insert_var(id.to_string(), offset);
+        return Ok(())
+    }
+
+    pub fn get_type_size(ctx: &Context, type_name: &str) -> Result<usize, String> {
+        match type_name {
+            "U8"   => return Ok(1),
+            "I64"  => return Ok(8),
+            _ => {},
+        }
+        if let Some(enum_def) = ctx.scope_stack.lookup_enum(type_name) {
+            // Calculate maximum variant size (8 bytes for tag + largest payload)
+            let mut max_size = 8; // Start with tag size
+
+            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
+                if let Some(payload_type) = payload_type_opt {
+                    let payload_size = match payload_type {
+                        ValueType::TCustom(t) => Arena::get_type_size(ctx, t)?,
+                        _ => {
+                            return Err(format!(
+                                "get_type_size: unsupported payload type in enum '{}': {:?}",
+                                type_name, payload_type
+                            ));
+                        }
+                    };
+                    let variant_total = 8 + payload_size; // tag + payload
+                    if variant_total > max_size {
+                        max_size = variant_total;
+                    }
+                }
+            }
+
+            return Ok(max_size);
+        }
+
+        if let Some(struct_def) = ctx.scope_stack.lookup_struct(type_name) {
+            // Check if struct has size() method (associated function)
+            // If it does, ideally we'd use TIL's implementation, but we need an instance
+            let has_size = struct_def.get_member("size")
+                .map(|decl| !decl.is_mut)
+                .unwrap_or(false);
+
+            if has_size {
+                // TODO: Type has size() method - ideally call TIL's implementation
+                // But get_type_size() asks for type's struct size (for field offsets),
+                // while instance.size() returns data size (which varies per instance)
+                // For now, fall through to calculate struct field size
+                // Consider: should we even be using get_type_size for collection types?
+            }
+
+            // Fallback: Calculate size of struct's fields manually
+            let mut total_size = 0;
+
+            for (field_name, decl) in &struct_def.members {
+                if !decl.is_mut {
+                    continue;
+                }
+
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(t) => {
+                        Arena::get_type_size(ctx, t)?
+                    }
+                    _ => {
+                        return Err(format!(
+                            "get_type_size: unsupported value type '{}' in '{}.{}'",
+                            value_type_to_str(&decl.value_type),
+                            type_name,
+                            field_name
+                        ));
+                    }
+                };
+
+                total_size += field_size;
+            }
+
+            Ok(total_size)
+        } else {
+            Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
+        }
+    }
+
+    /// Calculate the offset of a specific field within a struct type
+    /// This walks through the struct definition and sums up field sizes until reaching the target field
+    pub fn calculate_field_offset(ctx: &Context, struct_type: &str, field_name: &str) -> Result<usize, String> {
+        let struct_def = ctx.scope_stack.lookup_struct(struct_type)
+            .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
+
+        let mut current_offset = 0;
+
+        for (member_name, decl) in &struct_def.members {
+            if !decl.is_mut {
+                continue; // Skip immutable fields
+            }
+
+            // If we found the target field, return its offset
+            if member_name == field_name {
+                return Ok(current_offset);
+            }
+
+            // Otherwise, add this field's size and continue
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
+                _ => return Err(format!(
+                    "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
+                    value_type_to_str(&decl.value_type), struct_type, member_name
+                )),
+            };
+
+            current_offset += field_size;
+        }
+
+        Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
+    }
+
+    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    /// Handles nested field access by walking the path and calculating offsets dynamically
+    pub fn get_field_offset(ctx: &Context, field_path: &str) -> Result<usize, String> {
+        let parts: Vec<&str> = field_path.split('.').collect();
+        if parts.is_empty() {
+            return Err(format!("get_field_offset: empty field path"));
+        }
+
+        // Start with the base variable's offset
+        let base_var = parts[0];
+        let mut current_offset = ctx.scope_stack.lookup_var(base_var)
+            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+
+        // Get the base variable's type
+        let mut current_type = match ctx.scope_stack.lookup_symbol(base_var) {
+            Some(symbol) => match &symbol.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
+            },
+            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
+        };
+
+        // Walk through the remaining parts of the path
+        for field_name in &parts[1..] {
+            // Calculate the offset of this field within the current struct type
+            let field_offset = Arena::calculate_field_offset(ctx, &current_type, field_name)?;
+            current_offset += field_offset;
+
+            // Update current_type to the type of this field (for nested access)
+            let struct_def = ctx.scope_stack.lookup_struct(&current_type)
+                .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
+
+            let field_decl = struct_def.members.iter()
+                .find(|(name, _)| name == field_name)
+                .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
+
+            current_type = match &field_decl.1.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => {
+                    // If this is the last part and it's a primitive, that's fine
+                    if field_name == parts.last().unwrap() {
+                        break;
+                    }
+                    return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
+                }
+            };
+        }
+
+        Ok(current_offset)
+    }
+
+    // TODO all args should be passed as pointers/references and we wouldn't need this
+    pub fn copy_fields(ctx: &mut Context, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
+        let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: definition for '{}' not found", custom_type_name)))?;
+
+        let is_mut = ctx.scope_stack.lookup_symbol(dest)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination symbol '{}' not found", dest)))?
+            .is_mut;
+
+        let dest_base_offset = ctx.scope_stack.lookup_var(dest)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
+
+        let members: Vec<(String, Declaration)> = struct_def
+            .members
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+
+        let mut current_offset = 0;
+        for (field_name, decl) in members {
+            if !decl.is_mut {
+                continue;
+            }
+
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(name) => Arena::get_type_size(ctx, name)?,
+                _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
+            };
+
+            let src_key = format!("{}.{}", src, field_name);
+            let dest_key = format!("{}.{}", dest, field_name);
+
+            // Try to get source offset - first from arena_index, then calculate dynamically
+            let src_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
+                offset
+            } else {
+                // Calculate offset dynamically from struct definition
+                match Arena::get_field_offset(ctx, &src_key) {
+                    Ok(offset) => offset,
+                    Err(_) => {
+                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+                        current_offset += field_size;
+                        continue;
+                    }
+                }
+            };
+
+            let dest_offset = dest_base_offset + current_offset;
+
+            ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
+            ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut,
+                is_copy: false,
+                is_own: false,
+            });
+
+            Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
+
+            if let ValueType::TCustom(type_name) = &decl.value_type {
+                if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                    Arena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
+                        e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
+                    })?;
+                }
+            }
+
+            current_offset += field_size;
+        }
+
+        Ok(())
+    }
+
+    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
+        Arena::insert_struct_at_offset(ctx, id, custom_type_name, None, e)
+    }
+
+    fn insert_struct_at_offset(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<(), String> {
+
+        // Lookup the struct definition
+        let struct_def = match ctx.scope_stack.lookup_struct(custom_type_name) {
+            Some(struct_def_) => struct_def_.clone(),
+            None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: definition for '{}' not found", custom_type_name))),
+        };
+
+        // Determine mutability from symbols table
+        let is_mut = match ctx.scope_stack.lookup_symbol(id) {
+            Some(symbol_info_) => symbol_info_.is_mut,
+            None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: id '{}' for struct '{}' not found in symbols", id, custom_type_name))),
+        };
+
+        // Calculate total size (for now no alignment)
+        let mut total_size = 0;
+        let mut field_offsets = HashMap::new();
+
+        for (member_name, decl) in struct_def.members.iter() {
+            if !decl.is_mut {
+                continue;
+            }
+
+            let field_size = match &decl.value_type {
+                ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
+                _ => return Err(e.lang_error(&ctx.path, "context", "insert_struct: Unsupported value type in struct")),
+            };
+
+            field_offsets.insert(member_name.clone(), total_size);
+            total_size += field_size;
+        }
+
+        // Either use existing offset (for nested structs) or allocate new memory
+        let offset = match existing_offset {
+            Some(off) => off,
+            None => {
+                let off = Arena::g().memory.len();
+                Arena::g().memory.resize(off + total_size, 0);
+                off
+            }
+        };
+        ctx.scope_stack.insert_var(id.to_string(), offset);
+
+        // Store each field's default value
+        for (member_name, decl) in struct_def.members.iter() {
+            if !decl.is_mut {
+                continue;
+            }
+
+            let field_offset = match field_offsets.get(member_name) {
+                Some(offset) => offset,
+                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
+            };
+
+            let default_expr = struct_def.default_values.get(member_name);
+            let default_value = match default_expr {
+                Some(e2) => {
+                    let res = eval_expr(ctx, e2)?;
+                    if res.is_throw {
+                        return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
+                    }
+                    res.value
+                },
+                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
+            };
+
+            match &decl.value_type {
+                ValueType::TCustom(type_name) => {
+                    if let Some(enum_def) = ctx.scope_stack.lookup_enum(type_name) {
+                        let parts: Vec<&str> = default_value.split('.').collect();
+                        if parts.len() != 2 || parts[0] != type_name {
+                            return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
+                        }
+                        let variant = parts[1];
+                        let index = match enum_def.enum_map.keys().position(|v| v == variant) {
+                            Some(i) => i as i64,
+                            None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
+                        };
+                        Arena::g().memory[offset + field_offset..offset + field_offset + 8]
+                            .copy_from_slice(&index.to_ne_bytes());
+                    } else {
+                        match type_name.as_str() {
+                            "U8" => {
+                                let v = default_value.parse::<u8>().map_err(|_| {
+                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
+                                })?;
+                                Arena::g().memory[offset + field_offset] = v;
+                            },
+                            "I64" => {
+                                let v = default_value.parse::<i64>().map_err(|_| {
+                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
+                                })?;
+                                Arena::g().memory[offset + field_offset..offset + field_offset + 8]
+                                    .copy_from_slice(&v.to_ne_bytes());
+                            },
+                            _ => {
+                                if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                                    let combined_name = format!("{}.{}", id, member_name);
+                                    ctx.scope_stack.declare_symbol(
+                                        combined_name.clone(),
+                                        SymbolInfo {
+                                            value_type: ValueType::TCustom(type_name.clone()),
+                                            is_mut: true,
+                                            is_copy: false,
+                                            is_own: false,
+                                        },
+                                    );
+
+                                    // Special case: Str field initialization
+                                    if type_name == "Str" {
+                                        // Register inline offset BEFORE insert_string so it writes to the inline space
+                                        let field_arena_offset = offset + field_offset;
+                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
+                                        Arena::insert_string(ctx, &combined_name, &default_value, e)?;
+                                    } else {
+                                        // Use existing offset for nested struct (inline allocation)
+                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
+                                        Arena::insert_struct_at_offset(ctx, &combined_name, type_name, Some(offset + field_offset), e)
+                                            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
+                                    }
+                                } else {
+                                    return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown field type '{}'", type_name)));
+                                }
+                            },
+                        }
+                    }
+                },
+                _ => {
+                    return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unsupported field value type '{}'", value_type_to_str(&decl.value_type))));
+                }
+            }
+
+            let combined_name = format!("{}.{}", id, member_name);
+            let field_arena_offset = offset + field_offset;
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
+            ctx.scope_stack.declare_symbol(
+                combined_name,
+                SymbolInfo {
+                    value_type: decl.value_type.clone(),
+                    is_mut,
+                    is_copy: false,
+                    is_own: false,
+                },
+            );
+        }
+
+        // Map immutable fields by copying arena_index entries from the type to the instance
+        for (_member_name, decl) in struct_def.members.iter() {
+            if decl.is_mut {
+                continue; // Skip mutable fields (already handled above)
+            }
+
+            // Immutable struct fields are handled generically through struct_defs
+            // No special cases needed anymore
+        }
+
+        Ok(())
+    }
+
+    pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
+        let is_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        // Allocate string data
+        let string_offset = Arena::g().memory.len();
+        Arena::g().memory.extend_from_slice(value_str.as_bytes());
+        Arena::g().memory.push(0); // null terminator
+        let string_offset_bytes = (string_offset as i64).to_ne_bytes();
+        let len_bytes = (value_str.len() as i64).to_ne_bytes();
+
+        if is_field {
+            if let Some(base_offset) = ctx.scope_stack.lookup_var(id) {
+                if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
+                    let members = str_def.members.clone();
+                    let mut current_offset = 0;
+
+                    for (member_name, decl) in members.iter() {
+                        if !decl.is_mut {
+                            continue;
+                        }
+
+                        let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                        let absolute_offset = base_offset + current_offset;
+                        let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
+
+                        if member_name == "c_string" {
+                            target_slice.copy_from_slice(&string_offset_bytes);
+                        } else if member_name == "cap" {
+                            target_slice.copy_from_slice(&len_bytes);
+                        }
+
+                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
+                        current_offset += type_size;
+                    }
+                    return Ok(())
+                }
+                return Err(e.lang_error(&ctx.path, "context", "ERROR: 'Str' struct definition not found"))
+            }
+
+            // Not yet inserted — insert fresh inlined Str
+            if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
+                let members = str_def.members.clone();
+                let struct_offset = Arena::g().memory.len();
+                let mut current_offset = 0;
+
+                for (member_name, decl) in members.iter() {
+                    if !decl.is_mut {
+                        continue;
+                    }
+
+                    let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                    if Arena::g().memory.len() < struct_offset + current_offset + type_size {
+                        Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
+                    }
+
+                    let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
+                    if member_name == "c_string" {
+                        field_slice.copy_from_slice(&string_offset_bytes);
+                    } else if member_name == "cap" {
+                        field_slice.copy_from_slice(&len_bytes);
+                    }
+
+                    ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), struct_offset + current_offset);
+                    current_offset += type_size;
+                }
+
+                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), struct_offset);
+                return Ok(())
+            }
+            return Err(e.lang_error(&ctx.path, "context", "'Str' struct definition not found"))
+        }
+
+        Arena::insert_struct(ctx, id, "Str", e)?;
+        let c_string_offset = match ctx.scope_stack.lookup_var(&format!("{}.c_string", id)) {
+            Some(offset) => offset,
+            None => {
+                return Err(e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))
+            }
+        };
+        let cap_offset = match ctx.scope_stack.lookup_var(&format!("{}.cap", id)) {
+            Some(offset) => offset,
+            None => {
+                return Err(e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))
+            }
+        };
+
+        Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+        Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+
+        return Ok(())
+    }
+
+    /// Helper function to insert primitive types (I64, U8, Bool, Str) based on value_type
+    pub fn insert_primitive(
+        ctx: &mut Context,
+        var_name: &str,
+        value_type: &ValueType,
+        value: &str,
+        e: &Expr
+    ) -> Result<(), String> {
+        match value_type {
+            ValueType::TCustom(type_name) if type_name == "I64" => {
+                Arena::insert_i64(ctx, var_name, &value.to_string(), e)
+            },
+            ValueType::TCustom(type_name) if type_name == "U8" => {
+                Arena::insert_u8(ctx, var_name, &value.to_string(), e)
+            },
+            // TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
+            ValueType::TCustom(type_name) if type_name == "Bool" => {
+                Arena::insert_bool(ctx, var_name, &value.to_string(), e)
+            },
+            ValueType::TCustom(type_name) if type_name == "Str" => {
+                Arena::insert_string(ctx, var_name, &value.to_string(), e)
+            },
+            _ => Err(e.lang_error(&ctx.path, "eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
+        }
+    }
+
+    // Helper function to insert a Bool value using insert_struct
+    pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
+        // Parse the bool value
+        let bool_to_insert = bool_str.parse::<bool>()
+            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
+        let stored = if bool_to_insert { 1 } else { 0 };
+
+        // Check if this is an assignment to an existing instance field
+        let is_instance_field = if id.contains('.') {
+            let parts: Vec<&str> = id.split('.').collect();
+            let base = parts[0];
+            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+                !matches!(&sym.value_type, ValueType::TType(_))
+            })
+        } else {
+            false
+        };
+
+        if is_instance_field {
+            // For instance field, write directly to the .data field
+            let field_id = format!("{}.data", id);
+            let offset = ctx.scope_stack.lookup_var(&field_id)
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
+            Arena::g().memory[offset] = stored;
+        } else {
+            // For new variable, create the struct and set value
+            Arena::insert_struct(ctx, id, "Bool", e)?;
+            let field_id = format!("{}.data", id);
+            let offset = ctx.scope_stack.lookup_var(&field_id)
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
+            Arena::g().memory[offset] = stored;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_enum_at_offset(ctx: &Context, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
+
+        // Read enum from a specific offset (used for nested enum payloads)
+        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
+                                            .map_err(|_| e.lang_error(&ctx.path, "context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
+
+        let enum_def = ctx.scope_stack.lookup_enum(enum_type)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
+
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &ctx.path, e)?;
+
+        // Check if this variant has a payload type
+        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let (payload_data, payload_type) = match variant_payload_type {
+            Some(Some(vtype)) => {
+                // This variant has a payload - recursively determine size
+                let payload_size = Arena::get_payload_size_for_type(ctx, vtype, offset + 8, e)?;
+                if payload_size > 0 {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_size;
+                    if payload_end <= Arena::g().memory.len() {
+                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        (Some(payload_bytes), Some(vtype.clone()))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            },
+            _ => (None, None),
+        };
+
+        Ok(EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name,
+            payload: payload_data,
+            payload_type,
+        })
+    }
+
+    pub fn get_payload_size_for_type(ctx: &Context, vtype: &ValueType, offset: usize, e: &Expr) -> Result<usize, String> {
+        match vtype {
+            ValueType::TCustom(type_name) if type_name == "I64" => Ok(8),
+            ValueType::TCustom(type_name) => {
+                match ctx.scope_stack.lookup_symbol(type_name) {
+                    Some(type_symbol) => {
+                        match &type_symbol.value_type {
+                            ValueType::TType(TTypeDef::TStructDef) => {
+                                Arena::get_type_size(ctx, type_name).map_err(|e| e.to_string())
+                            },
+                            ValueType::TType(TTypeDef::TEnumDef) => {
+                                // Recursively get the inner enum's size
+                                let inner_enum = Arena::get_enum_at_offset(ctx, type_name, offset, e)?;
+                                let mut total_size = 8; // variant tag
+                                if let Some(inner_payload) = &inner_enum.payload {
+                                    total_size += inner_payload.len();
+                                }
+                                Ok(total_size)
+                            },
+                            _ => Ok(0),
+                        }
+                    },
+                    None => Ok(0),
+                }
+            },
+            _ => Ok(0),
+        }
+    }
+
+    pub fn get_enum(ctx: &Context, id: &str, e: &Expr) -> Result<EnumVal, String> {
+
+        let symbol_info = ctx.scope_stack.lookup_symbol(id)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
+
+        let enum_type = match &symbol_info.value_type {
+            ValueType::TCustom(custom_type_name) => custom_type_name,
+            _ => return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
+        };
+
+        // Try to get offset - first from arena_index, then calculate dynamically for fields
+        let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+            offset
+        } else if id.contains('.') {
+            // Field path - calculate offset dynamically
+            Arena::get_field_offset(ctx, id)
+                .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
+        } else {
+            return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))
+        };
+
+        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
+        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
+                                            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
+
+        let enum_def = ctx.scope_stack.lookup_enum(enum_type)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
+
+        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &ctx.path, e)?;
+
+        // Check if this variant has a payload type
+        let variant_payload_type = enum_def.enum_map.get(&enum_name);
+        let (payload_data, payload_type) = match variant_payload_type {
+            Some(Some(vtype)) => {
+                // This variant has a payload, read it from arena
+                // TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
+                let payload_size = match vtype {
+                    ValueType::TCustom(type_name) if type_name == "Bool" => 1,
+                    ValueType::TCustom(type_name) if type_name == "I64" => 8,
+                    ValueType::TCustom(type_name) if type_name == "Str" => {
+                        16  // Str is always 16 bytes (pointer + size)
+                    },
+                    ValueType::TCustom(type_name) => {
+                        // Check if this is a struct or enum type
+                        match ctx.scope_stack.lookup_symbol(type_name) {
+                            Some(type_symbol) => {
+                                match &type_symbol.value_type {
+                                    ValueType::TType(TTypeDef::TStructDef) => {
+                                        // Get struct size
+                                        Arena::get_type_size(ctx, type_name).unwrap_or(0)
+                                    },
+                                    ValueType::TType(TTypeDef::TEnumDef) => {
+                                        // For enum payloads, recursively get the enum to determine size
+                                        let inner_enum = Arena::get_enum_at_offset(ctx, type_name, offset + 8, e)?;
+                                        // Size is: 8 bytes (tag) + payload bytes
+                                        let mut total_size = 8;
+                                        if let Some(inner_payload) = &inner_enum.payload {
+                                            total_size += inner_payload.len();
+                                        }
+                                        total_size
+                                    },
+                                    _ => 0,
+                                }
+                            },
+                            None => 0,
+                        }
+                    },
+                    _ => 0,
+                };
+                if payload_size > 0 {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_size;
+                    if payload_end <= Arena::g().memory.len() {
+                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
+                        (Some(payload_bytes), Some(vtype.clone()))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            },
+            _ => (None, None),
+        };
+
+        Ok(EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name,
+            payload: payload_data,
+            payload_type,
+        })
+    }
+
+    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
+    pub fn insert_enum(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
+
+        let enum_def = ctx.scope_stack.lookup_enum(enum_type)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
+
+        let enum_name = pre_normalized_enum_name.split('.').last()
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_enum: Invalid enum name format '{}'", pre_normalized_enum_name)))?;
+
+        let enum_value = Context::get_variant_pos(enum_def, enum_name, &ctx.path, e)?;
+
+        // Check if there's payload data to store
+        let (payload_data, payload_type) = match &ctx.temp_enum_payload {
+            Some((data, vtype)) => (Some(data.clone()), Some(vtype.clone())),
+            None => (None, None),
+        };
+
+        let is_field = id.contains('.');
+        if is_field {
+            if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                // Update existing enum value
+                Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    let payload_offset = offset + 8;
+                    let payload_end = payload_offset + payload_bytes.len();
+                    // Ensure arena has enough space
+                    if Arena::g().memory.len() < payload_end {
+                        Arena::g().memory.resize(payload_end, 0);
+                    }
+                    Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
+                }
+            } else {
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    Arena::g().memory.extend_from_slice(&payload_bytes);
+                }
+                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
+            }
+        } else {
+            let offset = Arena::g().memory.len();
+            Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+            // Store payload if present
+            if let Some(payload_bytes) = &payload_data {
+                Arena::g().memory.extend_from_slice(&payload_bytes);
+            }
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
+        }
+
+        // Clear the temp payload after using it
+        ctx.temp_enum_payload = None;
+
+        Ok(EnumVal {
+            enum_type: enum_type.to_string(),
+            enum_name: enum_name.to_string(),
+            payload: payload_data,
+            payload_type,
+        })
+    }
+
+    pub fn insert_array(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
+        // All array types now use the generic Array
+        let array_type = "Array".to_string();
+
+        Arena::insert_struct(ctx, name, &array_type, e)?;
+
+        let len = values.len() as i64;
+        let elem_size = match Arena::get_type_size(ctx, elem_type) {
+            Ok(sz) => sz,
+            Err(err) => return Err(e.lang_error(&ctx.path, "context", &err)),
+        };
+        let total_size = (len as usize) * elem_size;
+
+        // Allocate memory
+        let ptr = Arena::g().memory.len();
+        Arena::g().memory.resize(ptr + total_size, 0);
+
+        // Write values into allocated buffer
+        for (i, val) in values.iter().enumerate() {
+            let offset = ptr + i * elem_size;
+            // TODO FIX: Bool can't be removed yet - array initialization needs to parse "true"/"false" strings
+            match elem_type {
+                "Bool" => {
+                    let stored = if val.as_str() == "true" { 1 } else { 0 };
+                    Arena::g().memory[offset] = stored;
+                },
+                "U8" => {
+                    match val.parse::<u8>() {
+                        Ok(byte) => Arena::g().memory[offset] = byte,
+                        Err(err) => return Err(e.lang_error(&ctx.path, "context", &format!("ERROR: insert_array: invalid U8 '{}'", &err)))
+                    }
+                },
+                "I64" => {
+                    match val.parse::<i64>() {
+                        Ok(n) => {
+                            let bytes = n.to_ne_bytes();
+                            Arena::g().memory[offset..offset+8].copy_from_slice(&bytes);
+                        },
+                        Err(err) => return Err(e.lang_error(&ctx.path, "context", &format!("ERROR: insert_array: invalid I64 '{}'", &err)))
+                    }
+                },
+                "Str" => {
+                    for (i, val) in values.iter().enumerate() {
+                        let offset = ptr + i * elem_size;
+
+                        let temp_id = format!("{}_{}", name, i);
+                        ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
+                            value_type: ValueType::TCustom("Str".to_string()),
+                            is_mut: false,
+                            is_copy: false,
+                            is_own: false,
+                        });
+
+                        Arena::insert_string(ctx, &temp_id, val, e)?;
+
+                        let str_offset = match ctx.scope_stack.lookup_var(&temp_id) {
+                            Some(off) => off,
+                            None => return Err(e.lang_error(&ctx.path, "context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
+                        };
+                        Arena::g().memory[offset..offset + elem_size]
+                            .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
+                    }
+                }
+
+                _ => {
+                    return Err(e.lang_error(&ctx.path, "context", &format!("insert_array: unsupported element type '{}'", elem_type)))
+                }
+            }
+        }
+
+        // Write ptr, len (and cap for Vec) using calculated offsets
+        let ptr_field_path = format!("{}.ptr", name);
+        let ptr_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&ptr_field_path) {
+            offset
+        } else {
+            Arena::get_field_offset(ctx, &ptr_field_path).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("insert_array: {}", err))
+            })?
+        };
+        Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
+
+        // Set _len field (required for both Array and Vec)
+        let len_bytes = len.to_ne_bytes();
+        let len_field_path = format!("{}._len", name);
+        let len_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&len_field_path) {
+            offset
+        } else {
+            Arena::get_field_offset(ctx, &len_field_path).map_err(|err| {
+                e.lang_error(&ctx.path, "context", &format!("insert_array: {}", err))
+            })?
+        };
+        Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
+
+        // Note: Array doesn't have a cap field (only Vec has cap)
+        // This function only creates Array structs (see line 2058)
+
+        // For generic Array, also set type_name and type_size fields
+        if array_type == "Array" {
+            // Set type_name field (it's a Str, so we need to store it properly)
+            let type_name_offset_opt = ctx.scope_stack.lookup_var(&format!("{}.type_name", name));
+            if let Some(type_name_offset) = type_name_offset_opt {
+                let temp_id = format!("{}_type_name_temp", name);
+                ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
+                    value_type: ValueType::TCustom("Str".to_string()),
+                    is_mut: false,
+                    is_copy: false,
+                    is_own: false,
+                });
+                Arena::insert_string(ctx, &temp_id, &elem_type.to_string(), e)?;
+                if let Some(str_offset) = ctx.scope_stack.lookup_var(&temp_id) {
+                    let str_size = Arena::get_type_size(ctx, "Str")?;
+                    Arena::g().memory[type_name_offset..type_name_offset + str_size]
+                        .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
+                }
+            }
+
+            // Set type_size field
+            if let Some(type_size_offset) = ctx.scope_stack.lookup_var(&format!("{}.type_size", name)) {
+                let size_bytes = (elem_size as i64).to_ne_bytes();
+                Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -65,7 +1101,7 @@ pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, 
 
     // Read the .data field (which is a U8)
     let data_field = format!("{}.data", id);
-    let u8_val = get_u8(context, &data_field, e)?;
+    let u8_val = Arena::get_u8(context, &data_field, e)?;
 
     // Convert U8 to bool (0 = false, non-zero = true)
     Ok(u8_val != 0)
@@ -77,10 +1113,10 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
     context.get_struct(id, e)?;
 
     // Read the c_string field (I64 pointer to string data in Arena)
-    let c_string_ptr = context.get_i64(&format!("{}.c_string", id), e)? as usize;
+    let c_string_ptr = Arena::get_i64(context, &format!("{}.c_string", id), e)? as usize;
 
     // Read the cap field (I64 length)
-    let length = context.get_i64(&format!("{}.cap", id), e)? as usize;
+    let length = Arena::get_i64(context, &format!("{}.cap", id), e)? as usize;
 
     // Bounds check
     if c_string_ptr + length > Arena::g().memory.len() {
@@ -116,7 +1152,7 @@ fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -
     // The value should be the identifier name of the Bool instance
     let bool_id = &result.value;
     let data_field_id = format!("{}.data", bool_id);
-    let u8_val = get_u8(context, &data_field_id, expr)?;
+    let u8_val = Arena::get_u8(context, &data_field_id, expr)?;
     Ok(u8_val != 0)
 }
 
@@ -229,7 +1265,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                         return Err(case.error(&context.path, "eval", "Pattern matching requires switch value to be a variable"));
                     };
 
-                    let enum_val = context.get_enum(enum_var_name, &case)?;
+                    let enum_val = Arena::get_enum(context, enum_var_name, &case)?;
 
                     // Check if variant matches (enum_val.enum_name should match variant_name)
                     let full_variant = format!("{}.{}", enum_val.enum_type, enum_val.enum_name);
@@ -262,7 +1298,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                         );
 
                                         // Now insert the value
-                                        insert_bool(context, binding_var, &bool_val.to_string(), &case)?;
+                                        Arena::insert_bool(context, binding_var, &bool_val.to_string(), &case)?;
                                     }
                                     ValueType::TCustom(type_name) if type_name == "I64" => {
                                         if payload_bytes.len() != 8 {
@@ -283,7 +1319,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             }
                                         );
 
-                                        context.insert_i64(binding_var, &i64_val.to_string(), &case)?;
+                                        Arena::insert_i64(context, binding_var, &i64_val.to_string(), &case)?;
                                     }
                                     ValueType::TCustom(type_name) if type_name == "Str" => {
                                         // For Str, the payload contains pointer + size (16 bytes total)
@@ -321,10 +1357,10 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                             }
                                             let str_bytes = &Arena::g().memory[ptr..ptr + len];
                                             let string_value = String::from_utf8_lossy(str_bytes).to_string();
-                                            context.insert_string(binding_var, &string_value, &case)?;
+                                            Arena::insert_string(context, binding_var, &string_value, &case)?;
                                         } else {
                                             let empty_string = String::new();
-                                            context.insert_string(binding_var, &empty_string, &case)?;
+                                            Arena::insert_string(context, binding_var, &empty_string, &case)?;
                                         }
                                     }
                                     ValueType::TCustom(type_name) => {
@@ -348,7 +1384,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 );
 
                                                 // Allocate destination struct in arena
-                                                context.insert_struct(binding_var, type_name, &case)?;
+                                                Arena::insert_struct(context, binding_var, type_name, &case)?;
 
                                                 // Get destination offset
                                                 let dest_offset = context.scope_stack.lookup_var(binding_var).ok_or_else(|| {
@@ -356,7 +1392,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 })?;
 
                                                 // Validate payload size
-                                                let struct_size = context.get_type_size(type_name)
+                                                let struct_size = Arena::get_type_size(&context, type_name)
                                                     .map_err(|err| case.error(&context.path, "eval", &err))?;
                                                 if payload_bytes.len() != struct_size {
                                                     return Err(case.error(&context.path, "eval", &format!(
@@ -432,7 +1468,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 }
 
                                                 // Insert the enum
-                                                context.insert_enum(binding_var, type_name, &enum_val_str, &case)?;
+                                                Arena::insert_enum(context, binding_var, type_name, &enum_val_str, &case)?;
                                             },
                                             _ => {
                                                 // Other types not yet implemented
@@ -552,7 +1588,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 NodeType::Identifier(s) => s,
                 _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
             };
-            context.insert_struct(&id_name, &name, e)?;
+            Arena::insert_struct(context, &id_name, &name, e)?;
             // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
             return Ok(EvalResult::new(match id_name.as_str() {
                 "Bool" => "false",
@@ -608,7 +1644,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             match &type_symbol.value_type {
                                 ValueType::TType(TTypeDef::TStructDef) => {
                                     // Get struct size
-                                    let struct_size = context.get_type_size(struct_type_name)
+                                    let struct_size = Arena::get_type_size(&context, struct_type_name)
                                         .map_err(|err| e.error(&context.path, "eval", &err))?;
 
                                     // Get struct variable name from the original expression or create temporary for literals
@@ -627,7 +1663,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             is_own: false,
                                             });
 
-                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            Arena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
                                             temp_var_name
                                         },
                                         NodeType::Identifier(name) => name.clone(),
@@ -644,7 +1680,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             is_own: false,
                                             });
 
-                                            context.insert_string(&temp_var_name, &string_value.to_string(), e)?;
+                                            Arena::insert_string(context, &temp_var_name, &string_value.to_string(), e)?;
                                             temp_var_name
                                         },
                                         NodeType::LLiteral(Literal::Number(_)) if struct_type_name == "I64" => {
@@ -660,7 +1696,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                             is_own: false,
                                             });
 
-                                            context.insert_i64(&temp_var_name, &i64_value.to_string(), e)?;
+                                            Arena::insert_i64(context, &temp_var_name, &i64_value.to_string(), e)?;
                                             temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Struct payload must be a variable identifier or literal, got {:?}", payload_expr.node_type))),
@@ -703,14 +1739,14 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
 
                                             // The result is the enum variant name (e.g., "InnerEnum.ValueA")
                                             // insert_enum will use context.temp_enum_payload for the payload bytes
-                                            context.insert_enum(&temp_var_name, struct_type_name, &nested_result.value, e)?;
+                                            Arena::insert_enum(context, &temp_var_name, struct_type_name, &nested_result.value, e)?;
                                             temp_var_name
                                         },
                                         _ => return Err(e.error(&context.path, "eval", &format!("Enum payload must be a variable identifier or enum constructor, got {:?}", payload_expr.node_type))),
                                     };
 
                                     // Get the full enum value including its payload
-                                    let enum_val = context.get_enum(&enum_var_name, e)?;
+                                    let enum_val = Arena::get_enum(context, &enum_var_name, e)?;
 
                                     // Calculate total enum size: 8 bytes tag + payload bytes
                                     let mut enum_bytes = Vec::new();
@@ -863,7 +1899,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                     // TODO FIX: Bool can't be removed yet - causes "Cannot declare 'MyStruct.associated_constant' of custom type 'Bool'" error
                                     match type_name.as_str() {
                                         "I64" | "U8" | "Bool" | "Str" => {
-                                            context.insert_primitive(&combined_name, &member_value_type, &expr_result_str, e)?;
+                                            Arena::insert_primitive(context, &combined_name, &member_value_type, &expr_result_str, e)?;
                                         },
                                         _ => {
                                             return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
@@ -928,7 +1964,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                     }
                     let expr_result_str = result.value;
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
-                    context.insert_primitive(&declaration.name, &value_type, &expr_result_str, e)?;
+                    Arena::insert_primitive(context, &declaration.name, &value_type, &expr_result_str, e)?;
                     return Ok(EvalResult::new(""))
                 },
                 _ => {
@@ -943,7 +1979,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             return Ok(result); // Propagate throw
                         }
                         let enum_expr_result_str = &result.value;
-                        context.insert_enum(&declaration.name, custom_type_name, enum_expr_result_str, e)?;
+                        Arena::insert_enum(context, &declaration.name, custom_type_name, enum_expr_result_str, e)?;
 
                     } else if custom_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
                         // Special case for instantiation
@@ -951,7 +1987,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
                                     if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
-                                        context.insert_struct(&declaration.name, custom_type_name, e)?;
+                                        Arena::insert_struct(context, &declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
                                 }
@@ -971,8 +2007,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 
                         if declaration.is_mut && !is_temp_return_val {
                             // Allocate space and copy fields for mut declaration (independent copy)
-                            context.insert_struct(&declaration.name, custom_type_name, e)?;
-                            context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
+                            Arena::insert_struct(context, &declaration.name, custom_type_name, e)?;
+                            Arena::copy_fields(context, custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
                             if let Some(offset) = context.scope_stack.lookup_var(&expr_result_str) {
@@ -1037,7 +2073,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                         return Ok(result); // Propagate throw
                     }
                     let expr_result_str = result.value;
-                    context.insert_primitive(var_name, &value_type, &expr_result_str, e)?;
+                    Arena::insert_primitive(context, var_name, &value_type, &expr_result_str, e)?;
                 },
                 _ => {
                     let custom_symbol_info = match context.scope_stack.lookup_symbol(custom_type_name) {
@@ -1051,7 +2087,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            context.insert_enum(var_name, &custom_type_name, &expr_result_str, e)?;
+                            Arena::insert_enum(context, var_name, &custom_type_name, &expr_result_str, e)?;
                         },
                         ValueType::TType(TTypeDef::TStructDef) => {
                             let result = eval_expr(context, inner_e)?;
@@ -1059,7 +2095,7 @@ fn eval_assignment(var_name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                                 return Ok(result); // Propagate throw
                             }
                             let expr_result_str = result.value;
-                            context.copy_fields(custom_type_name, &expr_result_str, var_name, inner_e)?;
+                            Arena::copy_fields(context, custom_type_name, &expr_result_str, var_name, inner_e)?;
                         },
                         other_value_type => {
                             return Err(inner_e.lang_error(&context.path, "eval", &format!("Cannot assign '{}' of custom type '{}' of value type '{}'.",
@@ -1095,11 +2131,11 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
         ValueType::TCustom(ref custom_type_name) => {
             match custom_type_name.as_str() {
                 "I64" => {
-                    let result = context.get_i64(&format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = Arena::get_i64(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 "U8" => {
-                    let result = get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
+                    let result = Arena::get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
                 // TODO FIX: Bool field reading uses bool_from_context to read the .data byte
@@ -1149,7 +2185,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
             if name == custom_type_name {
                 return Err(e.lang_error(&context.path, "eval", &format!("Cannot use enum type '{}' as a value", name)));
             }
-            let enum_val = context.get_enum(name, e)?;
+            let enum_val = Arena::get_enum(context, name, e)?;
             // Set temp_enum_payload so that if this enum is assigned to another variable,
             // the payload will be preserved
             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
@@ -1210,10 +2246,10 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
             match current_type {
                 ValueType::TCustom(ref custom_type_name) => {
                     match custom_type_name.as_str() {
-                        "I64" => match context.get_i64(&current_name, e)? {
+                        "I64" => match Arena::get_i64(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        "U8" => match get_u8(context, &current_name, e)? {
+                        "U8" => match Arena::get_u8(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
                         // TODO FIX: Bool identifier reading uses bool_from_context to get value
@@ -1231,7 +2267,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                             };
                             match &custom_symbol_info.value_type {
                                 ValueType::TType(TTypeDef::TEnumDef) => {
-                                    let enum_val = context.get_enum(&current_name, inner_e)?;
+                                    let enum_val = Arena::get_enum(context, &current_name, inner_e)?;
                                     // Set temp_enum_payload so that if this enum is assigned to another variable,
                                     // the payload will be preserved
                                     if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
@@ -1288,11 +2324,11 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                 let custom_type_name_clone = custom_type_name.clone();
                 match custom_type_name_clone.as_str() {
                     "I64" => {
-                        let val = context.get_i64(name, e)?;
+                        let val = Arena::get_i64(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()))
                     },
                     "U8" => {
-                        let val = get_u8(context, name, e)?;
+                        let val = Arena::get_u8(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     // TODO FIX: Bool identifier evaluation uses bool_from_context
@@ -1392,7 +2428,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                 if thrown_type == "Str" {
                                     // The thrown value is the actual string content, not a struct instance name
                                     // Create a proper Str struct for the catch variable
-                                    context.insert_string(var_name, &throw_result.value, stmt)?;
+                                    Arena::insert_string(context, var_name, &throw_result.value, stmt)?;
                                 } else if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
                                     let source_name = &throw_result.value;
                                     // Clone the members to avoid borrow conflict
@@ -1511,7 +2547,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     is_copy: arg.is_copy,
                     is_own: arg.is_own,
                 });
-                function_context.insert_array(&arg.name, &multi_value_type, &values, e)?;
+                Arena::insert_array(&mut function_context, &arg.name, &multi_value_type, &values, e)?;
 
                 // We've consumed all remaining parameters, break out of loop
                 break;
@@ -1533,7 +2569,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     is_copy: false,
                                 is_own: false,
                                 });
-                                function_context.insert_string(&arg.name, id_name, e)?;
+                                Arena::insert_string(&mut function_context, &arg.name, id_name, e)?;
                                 param_index += 1;
                                 continue; // Skip eval_expr for this parameter
                             }
@@ -1549,7 +2585,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             if let Some(type_sym) = context.scope_stack.lookup_symbol(arg_type_name) {
                                 if type_sym.value_type == ValueType::TType(TTypeDef::TEnumDef) {
                                     // This is an enum variable, get its value to preserve payload
-                                    match context.get_enum(id_name, e) {
+                                    match Arena::get_enum(context, id_name, e) {
                                         Ok(enum_val) => {
                                             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
                                                 Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()))
@@ -1733,17 +2769,17 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 match custom_type_name.as_str() {
                     "I64" => {
-                        function_context.insert_i64(&arg.name, &result_str, e)?;
+                        Arena::insert_i64(&mut function_context, &arg.name, &result_str, e)?;
                     },
                     "U8" => {
-                        function_context.insert_u8(&arg.name, &result_str, e)?;
+                        Arena::insert_u8(&mut function_context, &arg.name, &result_str, e)?;
                     },
                     // TODO FIX: Bool function argument uses insert_bool helper
                     "Bool" => {
-                        insert_bool(&mut function_context, &arg.name, &result_str, e)?;
+                        Arena::insert_bool(&mut function_context, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        function_context.insert_string(&arg.name, &result_str, e)?;
+                        Arena::insert_string(&mut function_context, &arg.name, &result_str, e)?;
                     },
                     _ => {
                         let custom_symbol = function_context.scope_stack.lookup_symbol(custom_type_name).ok_or_else(|| {
@@ -1753,7 +2789,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             ValueType::TType(TTypeDef::TEnumDef) => {
                                 // Transfer payload from outer context if present
                                 function_context.temp_enum_payload = context.temp_enum_payload.clone();
-                                function_context.insert_enum(&arg.name, &custom_type_name, &result_str, e)?;
+                                Arena::insert_enum(&mut function_context, &arg.name, &custom_type_name, &result_str, e)?;
                             },
                             ValueType::TType(TTypeDef::TStructDef) => {
                                 // Bug #10 fix: Handle field access chains like s.items
@@ -1859,7 +2895,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
                                             // For copy parameters, allocate and copy
-                                            function_context.insert_struct(&arg.name, &custom_type_name, e)?;
+                                            Arena::insert_struct(&mut function_context, &arg.name, &custom_type_name, e)?;
 
                                             // If we saved offsets, restore them with temp keys for copy_fields
                                             if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
@@ -1874,7 +2910,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
                                                 }
 
-                                                function_context.copy_fields(&custom_type_name, &temp_key, &arg.name, e)?;
+                                                Arena::copy_fields(&mut function_context, &custom_type_name, &temp_key, &arg.name, e)?;
 
                                                 // Clean up temp keys
                                                 for (orig_key, _) in offsets.iter() {
@@ -1904,7 +2940,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                                 function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(id_.clone(), src_offset);
                                                 function_context.scope_stack.declare_symbol(id_.clone(), src_symbol);
-                                                function_context.copy_fields(&custom_type_name, &id_, &arg.name, e)?;
+                                                Arena::copy_fields(&mut function_context, &custom_type_name, &id_, &arg.name, e)?;
                                                 function_context.scope_stack.remove_var(id_);
                                                 function_context.scope_stack.remove_symbol(id_);
                                             }
@@ -1913,8 +2949,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                        function_context.insert_struct(&arg.name, &custom_type_name, e)?;
-                                        function_context.copy_fields(&custom_type_name, &source_id, &arg.name, e)?;
+                                        Arena::insert_struct(&mut function_context, &arg.name, &custom_type_name, e)?;
+                                        Arena::copy_fields(&mut function_context, &custom_type_name, &source_id, &arg.name, e)?;
                                     },
                                 }
                             },
@@ -1977,16 +3013,16 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         let was_passed_by_ref = pass_by_ref_params.contains(&arg_name);
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
-                let val = function_context.get_i64(&arg_name, e)?;
-                context.insert_i64(&source_name, &val.to_string(), e)?;
+                let val = Arena::get_i64(context, &arg_name, e)?;
+                Arena::insert_i64(context, &source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
-                let val = get_u8(&function_context, &arg_name, e)?;
-                context.insert_u8(&source_name, &val.to_string(), e)?;
+                let val = Arena::get_u8(&function_context, &arg_name, e)?;
+                Arena::insert_u8(context, &source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = string_from_context(&function_context, &arg_name, e)?;
-                context.insert_string(&source_name, &val.to_string(), e)?;
+                Arena::insert_string(context, &source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) => {
                 let symbol_info = match context.scope_stack.lookup_symbol(type_name) {
@@ -1997,8 +3033,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        let val = function_context.get_enum(&arg_name, e)?;
-                        context.insert_enum(&source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                        let val = Arena::get_enum(context, &arg_name, e)?;
+                        Arena::insert_enum(context, &source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         // TODO this can be simplified once we pass all args by reference
@@ -2073,7 +3109,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 }
 
                                 // This is a variable, copy it from function context to caller context
-                                let val = function_context.get_enum(&result_str, e)?;
+                                let val = Arena::get_enum(context, &result_str, e)?;
                                 let return_instance = format!("{}{}", RETURN_INSTANCE_NAME, Arena::g().temp_id_counter);
                                 Arena::g().temp_id_counter += 1;
 
@@ -2082,7 +3118,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     context.temp_enum_payload = Some((payload_data, payload_type));
                                 }
 
-                                context.insert_enum(&return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                                Arena::insert_enum(context, &return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
                                 return Ok(EvalResult::new_return(&return_instance))
                             },
                             _ => {

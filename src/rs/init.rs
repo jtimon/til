@@ -10,7 +10,6 @@ use crate::rs::parser::{
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
-use crate::rs::interpreter::{Arena, EvalResult, eval_expr};
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
