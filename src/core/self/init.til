@@ -394,7 +394,7 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsE
 value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
     mut returns_len := func_def.return_types.len()
     if returns_len.eq(0) {
-        throw e.error("type", format("func '", name, "' does not return anything"))
+        throw e.error(path, "type", format("func '", name, "' does not return anything"))
     }
     if returns_len.eq(1) {
         mut return_type := ValueType()
@@ -403,15 +403,15 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         case ValueType.TCustom(type_str):
             return ValueType.TCustom(type_str)
         case:
-            throw e.error("type", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
+            throw e.error(path, "type", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
         }
     }
-    throw e.todo_error("type", format("func '", name, "' returns multiple values"))
+    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
 }
 
 get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError, FullError, AllocError, I64_OverflowError {
     if id_expr.params.len().eq(0) {
-        throw e.error("type", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
+        throw e.error(context.path, "type", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
     }
 
     // Get the last param (the method name)
@@ -425,7 +425,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
         method_name = name
     case:
         mut node_type_str := enum_to_str(method_name_expr.node_type)
-        throw e.error("type", format("Expected identifier for method name, found '", node_type_str, "'"))
+        throw e.error(context.path, "type", format("Expected identifier for method name, found '", node_type_str, "'"))
     }
 
     // Check if it's a regular function

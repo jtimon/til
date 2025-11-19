@@ -169,31 +169,31 @@ Expr := struct {
         exit(1)
     }
 
-    lang_error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+    lang_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         if phase.eq("warning") {
-            return format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
+            return format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
         }
-        return format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
+        return format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
     }
 
-    todo_error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+    todo_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         if phase.eq("warning") {
-            return format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
+            return format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
         }
-        return format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
+        return format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
     }
 
-    error := func(self: Expr, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
+    error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         if phase.eq("warning") {
-            return format(line_str, ":", col_str, ": WARNING: ", msg)
+            return format(path, ":", line_str, ":", col_str, ": WARNING: ", msg)
         }
-        return format(line_str, ":", col_str, ": ", phase, " ERROR: ", msg)
+        return format(path, ":", line_str, ":", col_str, ": ", phase, " ERROR: ", msg)
     }
 
     params_clone := func(self: Expr) returns Vec throws AllocError, FullError, IndexOutOfBoundsError {
