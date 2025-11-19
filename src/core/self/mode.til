@@ -20,7 +20,7 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
     return true
 }
 
-mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, AllocError {
+mode_from_name := func(mode_name: Str, t: Token) returns ModeDef throws Str, FullError, AllocError {
     if mode_name.eq("lib") {
         mut m := ModeDef()
         m.name = mode_name
@@ -85,7 +85,7 @@ mode_from_name := func(mode_name: Str) returns ModeDef throws Str, FullError, Al
         return m
     }
 
-    throw format("0:0: ", LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'")
+    throw t.error(format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
 }
 
 parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
@@ -97,14 +97,14 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     case TokenType.Identifier:
         // continue
     case:
-        throw "0:0: Expected identifier after 'mode'"
+        throw t.error("Expected identifier after 'mode'")
     }
     mode_name := t.token_str
-    m := mode_from_name(mode_name)
+    m := mode_from_name(mode_name, t)
 
     m_name := m.name
     if m_name.eq("safe_script") {
-        throw format(path, ":0:0: mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead")
+        throw t.error(format("mode '", m.name, "' is not properly supported in '", LANG_NAME, "' yet. Try mode 'script' instead"))
     }
 
     _ := lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode

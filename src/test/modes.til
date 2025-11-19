@@ -2,26 +2,37 @@ mode test
 
 import("src.core.self.mode")
 
+// Create a dummy token for testing mode_from_name (which requires a Token for error reporting)
+make_dummy_token := func() returns Token {
+    mut t := Token()
+    t.token_type = TokenType.Mode
+    t.token_str = "test"
+    t.line = 0
+    t.col = 0
+    return t
+}
+dummy_token := make_dummy_token()
+
 // Test can_be_imported function
 test_can_be_imported := proc() {
     // lib mode can be imported
-    lib_mode := mode_from_name("lib")
+    lib_mode := mode_from_name("lib", dummy_token)
     assert(loc(), can_be_imported(lib_mode))
 
     // pure mode can be imported
-    pure_mode := mode_from_name("pure")
+    pure_mode := mode_from_name("pure", dummy_token)
     assert(loc(), can_be_imported(pure_mode))
 
     // script mode cannot be imported (has base calls and mut)
-    script_mode := mode_from_name("script")
+    script_mode := mode_from_name("script", dummy_token)
     assert(loc(), not(can_be_imported(script_mode)))
 
     // cli mode cannot be imported (needs main proc)
-    cli_mode := mode_from_name("cli")
+    cli_mode := mode_from_name("cli", dummy_token)
     assert(loc(), not(can_be_imported(cli_mode)))
 
     // test mode cannot be imported (has base calls)
-    test_mode := mode_from_name("test")
+    test_mode := mode_from_name("test", dummy_token)
     assert(loc(), not(can_be_imported(test_mode)))
 
     catch (err: Str) {
@@ -44,7 +55,7 @@ test_can_be_imported()
 
 // Test mode_from_name function for lib mode
 test_mode_lib := proc() {
-    m := mode_from_name("lib")
+    m := mode_from_name("lib", dummy_token)
 
     assert_eq_str(loc(), "lib", m.name)
     assert(loc(), m.allows_procs)
@@ -74,7 +85,7 @@ test_mode_lib()
 
 // Test mode_from_name function for pure mode
 test_mode_pure := proc() {
-    m := mode_from_name("pure")
+    m := mode_from_name("pure", dummy_token)
 
     assert_eq_str(loc(), "pure", m.name)
     assert(loc(), not(m.allows_procs))
@@ -104,7 +115,7 @@ test_mode_pure()
 
 // Test mode_from_name function for script mode
 test_mode_script := proc() {
-    m := mode_from_name("script")
+    m := mode_from_name("script", dummy_token)
 
     assert_eq_str(loc(), "script", m.name)
     assert(loc(), m.allows_procs)
@@ -134,7 +145,7 @@ test_mode_script()
 
 // Test mode_from_name function for cli mode
 test_mode_cli := proc() {
-    m := mode_from_name("cli")
+    m := mode_from_name("cli", dummy_token)
 
     assert_eq_str(loc(), "cli", m.name)
     assert(loc(), m.allows_procs)
@@ -164,7 +175,7 @@ test_mode_cli()
 
 // Test mode_from_name function for test mode
 test_mode_test := proc() {
-    m := mode_from_name("test")
+    m := mode_from_name("test", dummy_token)
 
     assert_eq_str(loc(), "test", m.name)
     assert(loc(), m.allows_procs)
@@ -206,7 +217,7 @@ test_mode_test()
 test_mode_invalid := proc() {
     mut threw_error := false
 
-    m := mode_from_name("invalid_mode")
+    m := mode_from_name("invalid_mode", dummy_token)
 
     catch (err: Str) {
         threw_error = true
