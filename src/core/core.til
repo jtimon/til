@@ -528,15 +528,15 @@ Str := struct {
     }
 
     rfind := func(self: Str, needle: Str) returns I64 {
-        # Returns the last index where needle starts in self, or -1 if not found
+        # Returns the last index where needle starts in self, or sub(0, 1) if not found
         if needle.len().gt(self.len()) {
-            return -1
+            return sub(0, 1)
         }
         if needle.len().eq(0) {
-            return -1
+            return sub(0, 1)
         }
 
-        mut last_found := -1
+        mut last_found := sub(0, 1)
         mut max_start := self.len().sub(needle.len())
 
         for start_idx in 0..max_start.add(1) {

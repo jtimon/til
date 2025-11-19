@@ -122,12 +122,12 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
             return Err(format!("{}:{}", &path, error_string));
         },
     };
-    context.mode = mode;
+    context.mode_def = mode;
     if print_extra {
-        println!("Mode: {}", context.mode.name);
+        println!("Mode: {}", context.mode_def.name);
     }
 
-    for import_str in context.mode.imports.clone() {
+    for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
@@ -162,7 +162,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         errors.extend(rs::typer::basic_mode_checks(&context, &e));
 
         // For modes that require a main proc, add an implicit call to main
-        if context.mode.needs_main_proc {
+        if context.mode_def.needs_main_proc {
             let mut main_params = Vec::new();
             main_params.push(Expr{node_type: NodeType::Identifier("main".to_string()), line: 0, col: 0, params: Vec::new()});
             for str_arg in main_args {
@@ -213,7 +213,7 @@ fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String>
 }
 
 fn run_file_with_context(is_import: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
-    let previous_mode = context.mode.clone();
+    let previous_mode = context.mode_def.clone();
     if !is_import {
         println!("Running file '{}'", &path);
     }
@@ -232,10 +232,10 @@ fn run_file_with_context(is_import: bool, context: &mut Context, path: &String, 
     let skip_init = is_import && context.imports_declarations_done.contains(path);
     let run_result = main_run(!is_import, skip_init, context, &path, source, main_args)?;
 
-    if is_import && !can_be_imported(&context.mode) {
-        return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode.name))
+    if is_import && !can_be_imported(&context.mode_def) {
+        return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode_def.name))
     }
-    context.mode = previous_mode; // restore the context mode of the calling file
+    context.mode_def = previous_mode; // restore the context mode of the calling file
     return Ok(run_result)
 }
 
