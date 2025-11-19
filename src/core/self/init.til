@@ -2050,53 +2050,311 @@ Context.insert_struct_at_offset := proc(mut self: Context, id: Str, custom_type_
     }
 }
 
-    // Register struct field symbols for type checking without evaluating defaults or allocating memory
-    // This allows type checking of struct method bodies without triggering evaluation errors
-    pub fn register_struct_fields_for_typecheck(&mut self, instance_name: &str, struct_type_name: &str) {
-        // Get instance mutability from symbols
-        let instance_is_mut = self.scope_stack.lookup_symbol(instance_name)
-            .map(|info| info.is_mut || info.is_copy || info.is_own)
-            .unwrap_or(false);
+# Register struct field symbols for type checking without evaluating defaults or allocating memory
+# This allows type checking of struct method bodies without triggering evaluation errors
+Context.register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws AllocError, IndexOutOfBoundsError {
+    # Get instance mutability from symbols
+    mut instance_is_mut := false
+    mut instance_symbol_ptr := self.scope_stack.lookup_symbol(instance_name)
+    if instance_symbol_ptr.data.ne(NULL) {
+        mut info := instance_symbol_ptr.data
+        instance_is_mut = info.is_mut.or(info.is_copy).or(info.is_own)
+    }
 
-        if let Some(struct_def) = self.scope_stack.lookup_struct(struct_type_name).cloned() {
-            for (member_name, decl) in &struct_def.members {
-                let combined_name = format!("{}.{}", instance_name, member_name);
-                // Field inherits mutability from instance (if instance is const, fields are const too)
-                let field_is_mut = instance_is_mut && decl.is_mut;
+    mut struct_ptr := self.scope_stack.lookup_struct(struct_type_name)
+    if struct_ptr.data.ne(NULL) {
+        mut struct_def := struct_ptr.data
+        mut member_keys := struct_def.members.keys()
+        mut mem_idx := 0
+        while mem_idx.lt(member_keys.len()) {
+            mut member_name := member_keys.get(mem_idx)
+            mut decl := struct_def.members.get(member_name)
+            mut combined_name := format(instance_name, ".", member_name)
+            # Field inherits mutability from instance (if instance is const, fields are const too)
+            mut field_is_mut := instance_is_mut.and(decl.is_mut)
 
-                self.scope_stack.declare_symbol(
-                    combined_name.clone(),
-                    SymbolInfo {
-                        value_type: decl.value_type.clone(),
-                        is_mut: field_is_mut,
-                        is_copy: decl.is_copy,
-                        is_own: decl.is_own,
-                    },
-                );
+            self.scope_stack.declare_symbol(
+                combined_name,
+                SymbolInfo.new(decl.value_type, field_is_mut, decl.is_copy, decl.is_own)
+            )
 
-                // Recursively register nested struct fields
-                if let ValueType::TCustom(ref nested_type) = decl.value_type {
-                    if self.scope_stack.lookup_struct(nested_type).is_some() {
-                        self.register_struct_fields_for_typecheck(&combined_name, nested_type);
+            # Recursively register nested struct fields
+            switch decl.value_type {
+            case ValueType.TCustom(nested_type):
+                mut nested_struct_ptr := self.scope_stack.lookup_struct(nested_type)
+                if nested_struct_ptr.data.ne(NULL) {
+                    self.register_struct_fields_for_typecheck(combined_name, nested_type)
+                }
+            case _:
+                # Not a custom type, continue
+            }
+
+            mem_idx = mem_idx.add(1)
+        }
+    }
+}
+
+Context.insert_string := proc(mut self: Context, id: Str, value_str: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    mut is_field := false
+    if id.contains(".") {
+        mut parts := id.split(".")
+        mut base := parts.get(0)
+        mut symbol_ptr := self.scope_stack.lookup_symbol(base)
+        if symbol_ptr.data.ne(NULL) {
+            mut sym := symbol_ptr.data
+            switch sym.value_type {
+            case ValueType.TType(_):
+                is_field = false
+            case _:
+                is_field = true
+            }
+        }
+    }
+
+    # Allocate string data
+    mut string_offset := Arena_g().memory.len()
+    Arena_g().memory.extend_from_slice(value_str.as_bytes())
+    Arena_g().memory.push(0)  # null terminator
+    mut string_offset_bytes := i64_to_ne_bytes(string_offset)
+    mut len_bytes := i64_to_ne_bytes(value_str.len())
+
+    if is_field {
+        mut base_offset_ptr := self.scope_stack.lookup_var(id)
+        if base_offset_ptr.data.ne(NULL) {
+            mut base_offset := base_offset_ptr.data
+            mut str_def_ptr := self.scope_stack.lookup_struct("Str")
+            if str_def_ptr.data.ne(NULL) {
+                mut str_def := str_def_ptr.data
+                mut member_keys := str_def.members.keys()
+                mut current_offset := 0
+
+                mut mem_idx := 0
+                while mem_idx.lt(member_keys.len()) {
+                    mut member_name := member_keys.get(mem_idx)
+                    mut decl := str_def.members.get(member_name)
+                    if not(decl.is_mut) {
+                        mem_idx = mem_idx.add(1)
+                        continue
+                    }
+
+                    mut type_size_result := self.get_type_size(value_type_to_str(decl.value_type))
+                    if type_size_result.is_err {
+                        throw type_size_result.error
+                    }
+                    mut type_size := type_size_result.value
+                    mut absolute_offset := base_offset.add(current_offset)
+
+                    if member_name.eq("c_string") {
+                        Arena_g().memory.copy_from_slice(absolute_offset, absolute_offset.add(type_size), string_offset_bytes)
+                    } else if member_name.eq("cap") {
+                        Arena_g().memory.copy_from_slice(absolute_offset, absolute_offset.add(type_size), len_bytes)
+                    }
+
+                    self.scope_stack.frames.last_mut().arena_index.insert(format(id, ".", member_name), absolute_offset)
+                    current_offset = current_offset.add(type_size)
+                    mem_idx = mem_idx.add(1)
+                }
+                return
+            }
+            throw e.lang_error(self.path, "context", "ERROR: 'Str' struct definition not found")
+        }
+
+        # Not yet inserted — insert fresh inlined Str
+        mut str_def_ptr := self.scope_stack.lookup_struct("Str")
+        if str_def_ptr.data.ne(NULL) {
+            mut str_def := str_def_ptr.data
+            mut member_keys := str_def.members.keys()
+            mut struct_offset := Arena_g().memory.len()
+            mut current_offset := 0
+
+            mut mem_idx := 0
+            while mem_idx.lt(member_keys.len()) {
+                mut member_name := member_keys.get(mem_idx)
+                mut decl := str_def.members.get(member_name)
+                if not(decl.is_mut) {
+                    mem_idx = mem_idx.add(1)
+                    continue
+                }
+
+                mut type_size_result := self.get_type_size(value_type_to_str(decl.value_type))
+                if type_size_result.is_err {
+                    throw type_size_result.error
+                }
+                mut type_size := type_size_result.value
+                if Arena_g().memory.len().lt(struct_offset.add(current_offset).add(type_size)) {
+                    Arena_g().memory.resize(struct_offset.add(current_offset).add(type_size), 0)
+                }
+
+                if member_name.eq("c_string") {
+                    Arena_g().memory.copy_from_slice(struct_offset.add(current_offset), struct_offset.add(current_offset).add(type_size), string_offset_bytes)
+                } else if member_name.eq("cap") {
+                    Arena_g().memory.copy_from_slice(struct_offset.add(current_offset), struct_offset.add(current_offset).add(type_size), len_bytes)
+                }
+
+                self.scope_stack.frames.last_mut().arena_index.insert(format(id, ".", member_name), struct_offset.add(current_offset))
+                current_offset = current_offset.add(type_size)
+                mem_idx = mem_idx.add(1)
+            }
+
+            self.scope_stack.frames.last_mut().arena_index.insert(id, struct_offset)
+            return
+        }
+        throw e.lang_error(self.path, "context", "'Str' struct definition not found")
+    }
+
+    self.insert_struct(id, "Str", e)
+    mut c_string_key := format(id, ".c_string")
+    mut c_string_offset_ptr := self.scope_stack.lookup_var(c_string_key)
+    if c_string_offset_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("insert_string: missing '", id, ".c_string'"))
+    }
+    mut c_string_offset := c_string_offset_ptr.data
+
+    mut cap_key := format(id, ".cap")
+    mut cap_offset_ptr := self.scope_stack.lookup_var(cap_key)
+    if cap_offset_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("insert_string: missing '", id, ".cap'"))
+    }
+    mut cap_offset := cap_offset_ptr.data
+
+    Arena_g().memory.copy_from_slice(c_string_offset, c_string_offset.add(8), string_offset_bytes)
+    Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
+}
+
+Context.insert_primitive := proc(
+    mut self: Context,
+    var_name: Str,
+    value_type: ValueType,
+    value: Str,
+    e: Expr
+) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    switch value_type {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64") {
+            self.insert_i64(var_name, value, e)
+        } else if type_name.eq("U8") {
+            self.insert_u8(var_name, value, e)
+        } else if type_name.eq("Bool") {
+            # TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
+            insert_bool(self, var_name, value, e)
+        } else if type_name.eq("Str") {
+            self.insert_string(var_name, value, e)
+        } else {
+            throw e.lang_error(self.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
+        }
+    case _:
+        throw e.lang_error(self.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
+    }
+}
+
+Context.get_enum_at_offset := func(self: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
+    # Read enum from a specific offset (used for nested enum payloads)
+    mut enum_value_bytes_result := Arena_g().memory.slice(offset, offset.add(8))
+    if enum_value_bytes_result.is_err {
+        throw e.lang_error(self.path, "context", "get_enum_at_offset: Failed to convert bytes to i64")
+    }
+    mut enum_value_bytes := enum_value_bytes_result.value
+    mut enum_value := i64_from_le_bytes(enum_value_bytes)
+
+    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
+    if enum_def_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("get_enum_at_offset: Enum definition for '", enum_type, "' not found"))
+    }
+    mut enum_def := enum_def_ptr.data
+
+    mut enum_name_result := Context.variant_pos_to_str(enum_def, enum_value, self.path, e)
+    if enum_name_result.is_err {
+        throw enum_name_result.error
+    }
+    mut enum_name := enum_name_result.value
+
+    # Check if this variant has a payload type
+    mut variant_payload_type_ptr := enum_def.enum_map.get(enum_name)
+    mut payload_data: Ptr = NULL
+    mut payload_type: Ptr = NULL
+    if variant_payload_type_ptr.data.ne(NULL) {
+        mut vtype_ptr := variant_payload_type_ptr.data
+        if vtype_ptr.data.ne(NULL) {
+            mut vtype := vtype_ptr.data
+            # This variant has a payload - recursively determine size
+            mut payload_size_result := self.get_payload_size_for_type(vtype, offset.add(8), e)
+            if payload_size_result.is_err {
+                throw payload_size_result.error
+            }
+            mut payload_size := payload_size_result.value
+            if payload_size.gt(0) {
+                mut payload_offset := offset.add(8)
+                mut payload_end := payload_offset.add(payload_size)
+                if payload_end.lteq(Arena_g().memory.len()) {
+                    mut payload_bytes_result := Arena_g().memory.slice(payload_offset, payload_end)
+                    if payload_bytes_result.is_ok {
+                        mut payload_bytes := payload_bytes_result.value
+                        payload_data = Ptr.new()
+                        payload_data.data = payload_bytes
+                        payload_type = Ptr.new()
+                        payload_type.data = vtype
                     }
                 }
             }
         }
     }
 
-    pub fn insert_string(self: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
-        let is_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            self.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
-            })
-        } else {
-            false
-        };
+    mut result := EnumVal.new()
+    result.enum_type = enum_type
+    result.enum_name = enum_name
+    result.payload = payload_data
+    result.payload_type = payload_type
+    return result
+}
 
-        // Allocate string data
-        let string_offset = Arena::g().memory.len();
+Context.get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+    switch vtype {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64") {
+            return 8
+        }
+        mut type_symbol_ptr := self.scope_stack.lookup_symbol(type_name)
+        if type_symbol_ptr.data.ne(NULL) {
+            mut type_symbol := type_symbol_ptr.data
+            switch type_symbol.value_type {
+            case ValueType.TType(TTypeDef.TStructDef):
+                mut size_result := self.get_type_size(type_name)
+                if size_result.is_err {
+                    throw size_result.error
+                }
+                return size_result.value
+            case ValueType.TType(TTypeDef.TEnumDef):
+                # Recursively get the inner enum's size
+                mut inner_enum_result := self.get_enum_at_offset(type_name, offset, e)
+                if inner_enum_result.is_err {
+                    throw inner_enum_result.error
+                }
+                mut inner_enum := inner_enum_result.value
+                mut total_size := 8  # variant tag
+                if inner_enum.payload.data.ne(NULL) {
+                    mut inner_payload := inner_enum.payload.data
+                    total_size = total_size.add(inner_payload.len())
+                }
+                return total_size
+            case _:
+                return 0
+            }
+        }
+        return 0
+    case _:
+        return 0
+    }
+}
+
+Context.get_enum := func(self: Context, id: Str, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
+    mut symbol_info_ptr := self.scope_stack.lookup_symbol(id)
+    if symbol_info_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("get_enum: Symbol '", id, "' not found"))
+    }
+    mut symbol_info := symbol_info_ptr.data
+
+    mut enum_type: Str
+    switch symbol_info.value_type {
         Arena::g().memory.extend_from_slice(value_str.as_bytes());
         Arena::g().memory.push(0); // null terminator
         let string_offset_bytes = (string_offset as i64).to_ne_bytes();
