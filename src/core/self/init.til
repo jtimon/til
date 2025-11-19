@@ -2355,499 +2355,459 @@ Context.get_enum := func(self: Context, id: Str, e: Expr) returns EnumVal throws
 
     mut enum_type: Str
     switch symbol_info.value_type {
-        Arena::g().memory.extend_from_slice(value_str.as_bytes());
-        Arena::g().memory.push(0); // null terminator
-        let string_offset_bytes = (string_offset as i64).to_ne_bytes();
-        let len_bytes = (value_str.len() as i64).to_ne_bytes();
-
-        if is_field {
-            if let Some(base_offset) = self.scope_stack.lookup_var(id) {
-                if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
-                    let members = str_def.members.clone();
-                    let mut current_offset = 0;
-
-                    for (member_name, decl) in members.iter() {
-                        if !decl.is_mut {
-                            continue;
-                        }
-
-                        let type_size = self.get_type_size(&value_type_to_str(&decl.value_type))?;
-                        let absolute_offset = base_offset + current_offset;
-                        let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
-
-                        if member_name == "c_string" {
-                            target_slice.copy_from_slice(&string_offset_bytes);
-                        } else if member_name == "cap" {
-                            target_slice.copy_from_slice(&len_bytes);
-                        }
-
-                        self.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
-                        current_offset += type_size;
-                    }
-                    return Ok(())
-                }
-                return Err(e.lang_error(&self.path, "context", "ERROR: 'Str' struct definition not found"))
-            }
-
-            // Not yet inserted — insert fresh inlined Str
-            if let Some(str_def) = self.scope_stack.lookup_struct("Str") {
-                let members = str_def.members.clone();
-                let struct_offset = Arena::g().memory.len();
-                let mut current_offset = 0;
-
-                for (member_name, decl) in members.iter() {
-                    if !decl.is_mut {
-                        continue;
-                    }
-
-                    let type_size = self.get_type_size(&value_type_to_str(&decl.value_type))?;
-                    if Arena::g().memory.len() < struct_offset + current_offset + type_size {
-                        Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
-                    }
-
-                    let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
-                    if member_name == "c_string" {
-                        field_slice.copy_from_slice(&string_offset_bytes);
-                    } else if member_name == "cap" {
-                        field_slice.copy_from_slice(&len_bytes);
-                    }
-
-                    self.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), struct_offset + current_offset);
-                    current_offset += type_size;
-                }
-
-                self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), struct_offset);
-                return Ok(())
-            }
-            return Err(e.lang_error(&self.path, "context", "'Str' struct definition not found"))
-        }
-
-        self.insert_struct(id, "Str", e)?;
-        let c_string_offset = match self.scope_stack.lookup_var(&format!("{}.c_string", id)) {
-            Some(offset) => offset,
-            None => {
-                return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.c_string'", id)))
-            }
-        };
-        let cap_offset = match self.scope_stack.lookup_var(&format!("{}.cap", id)) {
-            Some(offset) => offset,
-            None => {
-                return Err(e.lang_error(&self.path, "context", &format!("insert_string: missing '{}.cap'", id)))
-            }
-        };
-
-        Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
-        Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
-
-        return Ok(())
+    case ValueType.TCustom(custom_type_name):
+        enum_type = custom_type_name
+    case _:
+        throw e.lang_error(self.path, "context", format("get_enum: '", id, "' is not a custom enum type"))
     }
 
-    /// Helper function to insert primitive types (I64, U8, Bool, Str) based on value_type
-    pub fn insert_primitive(
-        &mut self,
-        var_name: &str,
-        value_type: &ValueType,
-        value: &str,
-        e: &Expr
-    ) -> Result<(), String> {
-        match value_type {
-            ValueType::TCustom(type_name) if type_name == "I64" => {
-                self.insert_i64(var_name, &value.to_string(), e)
-            },
-            ValueType::TCustom(type_name) if type_name == "U8" => {
-                self.insert_u8(var_name, &value.to_string(), e)
-            },
-            // TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
-            ValueType::TCustom(type_name) if type_name == "Bool" => {
-                insert_bool(self, var_name, &value.to_string(), e)
-            },
-            ValueType::TCustom(type_name) if type_name == "Str" => {
-                self.insert_string(var_name, &value.to_string(), e)
-            },
-            _ => Err(e.lang_error(&self.path, "eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
-        }
+    mut offset_ptr := self.scope_stack.lookup_var(id)
+    if offset_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("get_enum: Arena index for '", id, "' not found"))
     }
+    mut offset := offset_ptr.data
 
-    pub fn get_enum_at_offset(&self, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
-        // Read enum from a specific offset (used for nested enum payloads)
-        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
-        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
-                                            .map_err(|_| e.lang_error(&self.path, "context", "get_enum_at_offset: Failed to convert bytes to i64"))?);
+    mut enum_value_bytes_result := Arena_g().memory.slice(offset, offset.add(8))
+    if enum_value_bytes_result.is_err {
+        throw e.lang_error(self.path, "context", format("get_enum: Failed to convert bytes to i64 for '", id, "'"))
+    }
+    mut enum_value_bytes := enum_value_bytes_result.value
+    mut enum_value := i64_from_le_bytes(enum_value_bytes)
 
-        let enum_def = self.scope_stack.lookup_enum(enum_type)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum_at_offset: Enum definition for '{}' not found", enum_type)))?;
+    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
+    if enum_def_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("get_enum: Enum definition for '", enum_type, "' not found"))
+    }
+    mut enum_def := enum_def_ptr.data
 
-        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
+    mut enum_name_result := Context.variant_pos_to_str(enum_def, enum_value, self.path, e)
+    if enum_name_result.is_err {
+        throw enum_name_result.error
+    }
+    mut enum_name := enum_name_result.value
 
-        // Check if this variant has a payload type
-        let variant_payload_type = enum_def.enum_map.get(&enum_name);
-        let (payload_data, payload_type) = match variant_payload_type {
-            Some(Some(vtype)) => {
-                // This variant has a payload - recursively determine size
-                let payload_size = self.get_payload_size_for_type(vtype, offset + 8, e)?;
-                if payload_size > 0 {
-                    let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_size;
-                    if payload_end <= Arena::g().memory.len() {
-                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
-                        (Some(payload_bytes), Some(vtype.clone()))
-                    } else {
-                        (None, None)
-                    }
+    # Check if this variant has a payload type
+    mut variant_payload_type_ptr := enum_def.enum_map.get(enum_name)
+    mut payload_data: Ptr = NULL
+    mut payload_type: Ptr = NULL
+    if variant_payload_type_ptr.data.ne(NULL) {
+        mut vtype_ptr := variant_payload_type_ptr.data
+        if vtype_ptr.data.ne(NULL) {
+            mut vtype := vtype_ptr.data
+            # This variant has a payload, read it from arena
+            # TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
+            mut payload_size := 0
+            switch vtype {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Bool") {
+                    payload_size = 1
+                } else if type_name.eq("I64") {
+                    payload_size = 8
+                } else if type_name.eq("Str") {
+                    payload_size = 16  # Str is always 16 bytes (pointer + size)
                 } else {
-                    (None, None)
-                }
-            },
-            _ => (None, None),
-        };
-
-        Ok(EnumVal {
-            enum_type: enum_type.to_string(),
-            enum_name,
-            payload: payload_data,
-            payload_type,
-        })
-    }
-
-    pub fn get_payload_size_for_type(&self, vtype: &ValueType, offset: usize, e: &Expr) -> Result<usize, String> {
-        match vtype {
-            ValueType::TCustom(type_name) if type_name == "I64" => Ok(8),
-            ValueType::TCustom(type_name) => {
-                match self.scope_stack.lookup_symbol(type_name) {
-                    Some(type_symbol) => {
-                        match &type_symbol.value_type {
-                            ValueType::TType(TTypeDef::TStructDef) => {
-                                self.get_type_size(type_name).map_err(|e| e.to_string())
-                            },
-                            ValueType::TType(TTypeDef::TEnumDef) => {
-                                // Recursively get the inner enum's size
-                                let inner_enum = self.get_enum_at_offset(type_name, offset, e)?;
-                                let mut total_size = 8; // variant tag
-                                if let Some(inner_payload) = &inner_enum.payload {
-                                    total_size += inner_payload.len();
+                    # Check if this is a struct or enum type
+                    mut type_symbol_ptr := self.scope_stack.lookup_symbol(type_name)
+                    if type_symbol_ptr.data.ne(NULL) {
+                        mut type_symbol := type_symbol_ptr.data
+                        switch type_symbol.value_type {
+                        case ValueType.TType(TTypeDef.TStructDef):
+                            # Get struct size
+                            mut size_result := self.get_type_size(type_name)
+                            if size_result.is_ok {
+                                payload_size = size_result.value
+                            }
+                        case ValueType.TType(TTypeDef.TEnumDef):
+                            # For enum payloads, recursively get the enum to determine size
+                            mut inner_enum_result := self.get_enum_at_offset(type_name, offset.add(8), e)
+                            if inner_enum_result.is_ok {
+                                mut inner_enum := inner_enum_result.value
+                                # Size is: 8 bytes (tag) + payload bytes
+                                mut total_size := 8
+                                if inner_enum.payload.data.ne(NULL) {
+                                    mut inner_payload := inner_enum.payload.data
+                                    total_size = total_size.add(inner_payload.len())
                                 }
-                                Ok(total_size)
-                            },
-                            _ => Ok(0),
+                                payload_size = total_size
+                            }
+                        case _:
+                            payload_size = 0
                         }
-                    },
-                    None => Ok(0),
+                    }
                 }
-            },
-            _ => Ok(0),
+            case _:
+                payload_size = 0
+            }
+            if payload_size.gt(0) {
+                mut payload_offset := offset.add(8)
+                mut payload_end := payload_offset.add(payload_size)
+                if payload_end.lteq(Arena_g().memory.len()) {
+                    mut payload_bytes_result := Arena_g().memory.slice(payload_offset, payload_end)
+                    if payload_bytes_result.is_ok {
+                        mut payload_bytes := payload_bytes_result.value
+                        payload_data = Ptr.new()
+                        payload_data.data = payload_bytes
+                        payload_type = Ptr.new()
+                        payload_type.data = vtype
+                    }
+                }
+            }
         }
     }
 
-    pub fn get_enum(&self, id: &str, e: &Expr) -> Result<EnumVal, String> {
-        let symbol_info = self.scope_stack.lookup_symbol(id)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
-
-        let enum_type = match &symbol_info.value_type {
-            ValueType::TCustom(custom_type_name) => custom_type_name,
-            _ => return Err(e.lang_error(&self.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
-        };
-
-        let offset = self.scope_stack.lookup_var(id)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))?;
-
-        let enum_value_bytes = &Arena::g().memory[offset..offset + 8];
-        let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
-                                            .map_err(|_| e.lang_error(&self.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
-
-        let enum_def = self.scope_stack.lookup_enum(enum_type)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
-
-        let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &self.path, e)?;
-
-        // Check if this variant has a payload type
-        let variant_payload_type = enum_def.enum_map.get(&enum_name);
-        let (payload_data, payload_type) = match variant_payload_type {
-            Some(Some(vtype)) => {
-                // This variant has a payload, read it from arena
-                // TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
-                let payload_size = match vtype {
-                    ValueType::TCustom(type_name) if type_name == "Bool" => 1,
-                    ValueType::TCustom(type_name) if type_name == "I64" => 8,
-                    ValueType::TCustom(type_name) if type_name == "Str" => {
-                        16  // Str is always 16 bytes (pointer + size)
-                    },
-                    ValueType::TCustom(type_name) => {
-                        // Check if this is a struct or enum type
-                        match self.scope_stack.lookup_symbol(type_name) {
-                            Some(type_symbol) => {
-                                match &type_symbol.value_type {
-                                    ValueType::TType(TTypeDef::TStructDef) => {
-                                        // Get struct size
-                                        self.get_type_size(type_name).unwrap_or(0)
-                                    },
-                                    ValueType::TType(TTypeDef::TEnumDef) => {
-                                        // For enum payloads, recursively get the enum to determine size
-                                        let inner_enum = self.get_enum_at_offset(type_name, offset + 8, e)?;
-                                        // Size is: 8 bytes (tag) + payload bytes
-                                        let mut total_size = 8;
-                                        if let Some(inner_payload) = &inner_enum.payload {
-                                            total_size += inner_payload.len();
-                                        }
-                                        total_size
-                                    },
-                                    _ => 0,
-                                }
-                            },
-                            None => 0,
-                        }
-                    },
-                    _ => 0,
-                };
-                if payload_size > 0 {
-                    let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_size;
-                    if payload_end <= Arena::g().memory.len() {
-                        let payload_bytes = Arena::g().memory[payload_offset..payload_end].to_vec();
-                        (Some(payload_bytes), Some(vtype.clone()))
-                    } else {
-                        (None, None)
-                    }
-                } else {
-                    (None, None)
-                }
-            },
-            _ => (None, None),
-        };
-
-        Ok(EnumVal {
-            enum_type: enum_type.to_string(),
-            enum_name,
-            payload: payload_data,
-            payload_type,
-        })
-    }
-
-    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
-    pub fn insert_enum(&mut self, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
-        let enum_def = self.scope_stack.lookup_enum(enum_type)
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
-
-        let enum_name = pre_normalized_enum_name.split('.').last()
-            .ok_or_else(|| e.lang_error(&self.path, "context", &format!("insert_enum: Invalid enum name format '{}'", pre_normalized_enum_name)))?;
-
-        let enum_value = Context::get_variant_pos(enum_def, enum_name, &self.path, e)?;
-
-        // Check if there's payload data to store
-        let (payload_data, payload_type) = match &self.temp_enum_payload {
-            Some((data, vtype)) => (Some(data.clone()), Some(vtype.clone())),
-            None => (None, None),
-        };
-
-        let is_field = id.contains('.');
-        if is_field {
-            if let Some(offset) = self.scope_stack.lookup_var(id) {
-                // Update existing enum value
-                Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
-                // Store payload if present
-                if let Some(payload_bytes) = &payload_data {
-                    let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_bytes.len();
-                    // Ensure arena has enough space
-                    if Arena::g().memory.len() < payload_end {
-                        Arena::g().memory.resize(payload_end, 0);
-                    }
-                    Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
-                }
-            } else {
-                let offset = Arena::g().memory.len();
-                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
-                // Store payload if present
-                if let Some(payload_bytes) = &payload_data {
-                    Arena::g().memory.extend_from_slice(&payload_bytes);
-                }
-                self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
-            }
-        } else {
-            let offset = Arena::g().memory.len();
-            Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
-            // Store payload if present
-            if let Some(payload_bytes) = &payload_data {
-                Arena::g().memory.extend_from_slice(&payload_bytes);
-            }
-            self.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
-        }
-
-        // Clear the temp payload after using it
-        self.temp_enum_payload = None;
-
-        Ok(EnumVal {
-            enum_type: enum_type.to_string(),
-            enum_name: enum_name.to_string(),
-            payload: payload_data,
-            payload_type,
-        })
-    }
-
-    pub fn insert_array(&mut self, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
-        // All array types now use the generic Array
-        let array_type = "Array".to_string();
-
-        self.insert_struct(name, &array_type, e)?;
-
-        let len = values.len() as i64;
-        let elem_size = match self.get_type_size(elem_type) {
-            Ok(sz) => sz,
-            Err(err) => return Err(e.lang_error(&self.path, "context", &err)),
-        };
-        let total_size = (len as usize) * elem_size;
-
-        // Allocate memory
-        let ptr = Arena::g().memory.len();
-        Arena::g().memory.resize(ptr + total_size, 0);
-
-        // Write values into allocated buffer
-        for (i, val) in values.iter().enumerate() {
-            let offset = ptr + i * elem_size;
-            // TODO FIX: Bool can't be removed yet - array initialization needs to parse "true"/"false" strings
-            match elem_type {
-                "Bool" => {
-                    let stored = if val.as_str() == "true" { 1 } else { 0 };
-                    Arena::g().memory[offset] = stored;
-                },
-                "U8" => {
-                    match val.parse::<u8>() {
-                        Ok(byte) => Arena::g().memory[offset] = byte,
-                        Err(err) => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: invalid U8 '{}'", &err)))
-                    }
-                },
-                "I64" => {
-                    match val.parse::<i64>() {
-                        Ok(n) => {
-                            let bytes = n.to_ne_bytes();
-                            Arena::g().memory[offset..offset+8].copy_from_slice(&bytes);
-                        },
-                        Err(err) => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: invalid I64 '{}'", &err)))
-                    }
-                },
-                "Str" => {
-                    for (i, val) in values.iter().enumerate() {
-                        let offset = ptr + i * elem_size;
-
-                        let temp_id = format!("{}_{}", name, i);
-                        self.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
-                            value_type: ValueType::TCustom("Str".to_string()),
-                            is_mut: false,
-                            is_copy: false,
-                            is_own: false,
-                        });
-
-                        self.insert_string(&temp_id, val, e)?;
-
-                        let str_offset = match self.scope_stack.lookup_var(&temp_id) {
-                            Some(off) => off,
-                            None => return Err(e.lang_error(&self.path, "context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
-                        };
-                        Arena::g().memory[offset..offset + elem_size]
-                            .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
-                    }
-                }
-
-                _ => {
-                    return Err(e.lang_error(&self.path, "context", &format!("insert_array: unsupported element type '{}'", elem_type)))
-                }
-            }
-        }
-
-        // Write ptr, len (and cap for Vec) using calculated offsets
-        let ptr_field_path = format!("{}.ptr", name);
-        let ptr_offset = if let Some(offset) = self.scope_stack.lookup_var(&ptr_field_path) {
-            offset
-        } else {
-            self.get_field_offset(&ptr_field_path).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("insert_array: {}", err))
-            })?
-        };
-        Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
-
-        // Set _len field (required for both Array and Vec)
-        let len_bytes = len.to_ne_bytes();
-        let len_field_path = format!("{}._len", name);
-        let len_offset = if let Some(offset) = self.scope_stack.lookup_var(&len_field_path) {
-            offset
-        } else {
-            self.get_field_offset(&len_field_path).map_err(|err| {
-                e.lang_error(&self.path, "context", &format!("insert_array: {}", err))
-            })?
-        };
-        Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
-
-        // Set cap field (only exists in Vec, not in Array)
-        let cap_field_path = format!("{}.cap", name);
-        if let Ok(cap_offset) = self.get_field_offset(&cap_field_path) {
-            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
-        } else if let Some(cap_offset) = self.scope_stack.lookup_var(&cap_field_path) {
-            Arena::g().memory[cap_offset..cap_offset+8].copy_from_slice(&len_bytes);
-        }
-
-        // For generic Array, also set type_name and type_size fields
-        if array_type == "Array" {
-            // Set type_name field (it's a Str, so we need to store it properly)
-            let type_name_offset_opt = self.scope_stack.lookup_var(&format!("{}.type_name", name));
-            if let Some(type_name_offset) = type_name_offset_opt {
-                let temp_id = format!("{}_type_name_temp", name);
-                self.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
-                    value_type: ValueType::TCustom("Str".to_string()),
-                    is_mut: false,
-                    is_copy: false,
-                    is_own: false,
-                });
-                self.insert_string(&temp_id, &elem_type.to_string(), e)?;
-                if let Some(str_offset) = self.scope_stack.lookup_var(&temp_id) {
-                    let str_size = self.get_type_size("Str")?;
-                    Arena::g().memory[type_name_offset..type_name_offset + str_size]
-                        .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
-                }
-            }
-
-            // Set type_size field
-            if let Some(type_size_offset) = self.scope_stack.lookup_var(&format!("{}.type_size", name)) {
-                let size_bytes = (elem_size as i64).to_ne_bytes();
-                Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
-            }
-        }
-
-        Ok(())
-    }
-
+    mut result := EnumVal.new()
+    result.enum_type = enum_type
+    result.enum_name = enum_name
+    result.payload = payload_data
+    result.payload_type = payload_type
+    return result
 }
 
-// Helper function to insert a Bool value using insert_struct
-pub fn insert_bool(context: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-    // Parse the bool value
-    let bool_to_insert = bool_str.parse::<bool>()
-        .map_err(|_| e.lang_error(&context.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
-    let stored = if bool_to_insert { 1 } else { 0 };
+# TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
+Context.insert_enum := proc(mut self: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str, IndexOutOfBoundsError, AllocError {
+    mut enum_def_ptr := self.scope_stack.lookup_enum(enum_type)
+    if enum_def_ptr.data.eq(NULL) {
+        throw e.lang_error(self.path, "context", format("insert_enum: Enum definition for '", enum_type, "' not found"))
+    }
+    mut enum_def := enum_def_ptr.data
 
-    // Check if this is an assignment to an existing instance field
-    let is_instance_field = if id.contains('.') {
-        let parts: Vec<&str> = id.split('.').collect();
-        let base = parts[0];
-        context.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-            !matches!(&sym.value_type, ValueType::TType(_))
-        })
-    } else {
-        false
-    };
+    mut parts := pre_normalized_enum_name.split(".")
+    if parts.len().eq(0) {
+        throw e.lang_error(self.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
+    }
+    mut enum_name := parts.get(parts.len().sub(1))
 
-    if is_instance_field {
-        // For instance field, write directly to the .data field
-        let field_id = format!("{}.data", id);
-        let offset = context.scope_stack.lookup_var(&field_id)
-            .ok_or_else(|| e.lang_error(&context.path, "context", &format!("Bool field '{}.data' not found", id)))?;
-        Arena::g().memory[offset] = stored;
-    } else {
-        // For new variable, create the struct and set value
-        context.insert_struct(id, "Bool", e)?;
-        let field_id = format!("{}.data", id);
-        let offset = context.scope_stack.lookup_var(&field_id)
-            .ok_or_else(|| e.lang_error(&context.path, "context", &format!("Bool field '{}.data' not found", id)))?;
-        Arena::g().memory[offset] = stored;
+    mut enum_value_result := Context.get_variant_pos(enum_def, enum_name, self.path, e)
+    if enum_value_result.is_err {
+        throw enum_value_result.error
+    }
+    mut enum_value := enum_value_result.value
+
+    # Check if there's payload data to store
+    mut payload_data: Ptr = NULL
+    mut payload_type: Ptr = NULL
+    if self.temp_enum_payload.data.ne(NULL) {
+        mut temp_payload := self.temp_enum_payload.data
+        payload_data = Ptr.new()
+        payload_data.data = temp_payload.0  # data
+        payload_type = Ptr.new()
+        payload_type.data = temp_payload.1  # vtype
     }
 
-    Ok(())
+    mut is_field := id.contains(".")
+    if is_field {
+        mut offset_ptr := self.scope_stack.lookup_var(id)
+        if offset_ptr.data.ne(NULL) {
+            mut offset := offset_ptr.data
+            # Update existing enum value
+            mut enum_value_bytes := i64_to_le_bytes(enum_value)
+            Arena_g().memory.copy_from_slice(offset, offset.add(8), enum_value_bytes)
+            # Store payload if present
+            if payload_data.data.ne(NULL) {
+                mut payload_bytes := payload_data.data
+                mut payload_offset := offset.add(8)
+                mut payload_end := payload_offset.add(payload_bytes.len())
+                # Ensure arena has enough space
+                if Arena_g().memory.len().lt(payload_end) {
+                    Arena_g().memory.resize(payload_end, 0)
+                }
+                Arena_g().memory.copy_from_slice(payload_offset, payload_end, payload_bytes)
+            }
+        } else {
+            mut offset := Arena_g().memory.len()
+            mut enum_value_bytes := i64_to_le_bytes(enum_value)
+            Arena_g().memory.extend_from_slice(enum_value_bytes)
+            # Store payload if present
+            if payload_data.data.ne(NULL) {
+                mut payload_bytes := payload_data.data
+                Arena_g().memory.extend_from_slice(payload_bytes)
+            }
+            self.scope_stack.frames.last_mut().arena_index.insert(id, offset)
+        }
+    } else {
+        mut offset := Arena_g().memory.len()
+        mut enum_value_bytes := i64_to_le_bytes(enum_value)
+        Arena_g().memory.extend_from_slice(enum_value_bytes)
+        # Store payload if present
+        if payload_data.data.ne(NULL) {
+            mut payload_bytes := payload_data.data
+            Arena_g().memory.extend_from_slice(payload_bytes)
+        }
+        self.scope_stack.frames.last_mut().arena_index.insert(id, offset)
+    }
+
+    # Clear the temp payload after using it
+    self.temp_enum_payload = NULL
+
+    mut result := EnumVal.new()
+    result.enum_type = enum_type
+    result.enum_name = enum_name
+    result.payload = payload_data
+    result.payload_type = payload_type
+    return result
+}
+
+Context.insert_array := proc(mut self: Context, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str, IndexOutOfBoundsError, AllocError {
+    # All array types now use the generic Array
+    mut array_type := "Array"
+
+    self.insert_struct(name, array_type, e)
+
+    mut len := values.len().to_i64()
+    mut elem_size_result := self.get_type_size(elem_type)
+    mut elem_size: I64 = 0
+    if elem_size_result.is_ok {
+        elem_size = elem_size_result.value
+    } else {
+        mut err := elem_size_result.error
+        throw e.lang_error(self.path, "context", err)
+    }
+    mut total_size := len.mul(elem_size).to_usize()
+
+    # Allocate memory
+    mut ptr := Arena_g().memory.len()
+    Arena_g().memory.resize(ptr.add(total_size), 0)
+
+    # Write values into allocated buffer
+    mut i: I64 = 0
+    while i.lt(values.len().to_i64()) {
+        mut val := values.get(i.to_usize())
+        mut offset := ptr.add(i.mul(elem_size).to_usize())
+        # TODO FIX: Bool can't be removed yet - array initialization needs to parse "true"/"false" strings
+        if elem_type.eq("Bool") {
+            mut stored: U8 = 0
+            if val.eq("true") {
+                stored = 1
+            }
+            mut set_result := Arena_g().memory.set(offset, stored)
+            if set_result.is_err {
+                throw set_result.error
+            }
+        } else if elem_type.eq("U8") {
+            mut parse_result := val.parse_u8()
+            if parse_result.is_ok {
+                mut byte := parse_result.value
+                mut set_result := Arena_g().memory.set(offset, byte)
+                if set_result.is_err {
+                    throw set_result.error
+                }
+            } else {
+                mut err := parse_result.error
+                throw e.lang_error(self.path, "context", "ERROR: insert_array: invalid U8 '".concat(err).concat("'"))
+            }
+        } else if elem_type.eq("I64") {
+            mut parse_result := val.parse_i64()
+            if parse_result.is_ok {
+                mut n := parse_result.value
+                mut bytes := i64_to_le_bytes(n)
+                mut copy_result := Arena_g().memory.copy_from_slice(offset, offset.add(8), bytes)
+                if copy_result.is_err {
+                    throw copy_result.error
+                }
+            } else {
+                mut err := parse_result.error
+                throw e.lang_error(self.path, "context", "ERROR: insert_array: invalid I64 '".concat(err).concat("'"))
+            }
+        } else if elem_type.eq("Str") {
+            mut j: I64 = 0
+            while j.lt(values.len().to_i64()) {
+                mut val_inner := values.get(j.to_usize())
+                mut offset_inner := ptr.add(j.mul(elem_size).to_usize())
+
+                mut temp_id := name.concat("_").concat(j.to_string())
+                self.scope_stack.declare_symbol(temp_id, SymbolInfo.new_with(
+                    ValueType.TCustom("Str"),
+                    false,
+                    false,
+                    false
+                ))
+
+                self.insert_string(temp_id, val_inner, e)
+
+                mut str_offset_opt := self.scope_stack.lookup_var(temp_id)
+                if str_offset_opt.data.eq(NULL) {
+                    throw e.lang_error(self.path, "context", "ERROR: insert_array: missing arena offset for '".concat(temp_id).concat("'"))
+                }
+                mut str_offset := str_offset_opt.data
+                mut slice_result := Arena_g().memory.slice(str_offset, str_offset.add(elem_size))
+                if slice_result.is_ok {
+                    mut str_bytes := slice_result.value
+                    mut copy_result := Arena_g().memory.copy_from_slice(offset_inner, offset_inner.add(elem_size), str_bytes)
+                    if copy_result.is_err {
+                        throw copy_result.error
+                    }
+                }
+                j = j.add(1)
+            }
+        } else {
+            throw e.lang_error(self.path, "context", "insert_array: unsupported element type '".concat(elem_type).concat("'"))
+        }
+        i = i.add(1)
+    }
+
+    # Write ptr, len (and cap for Vec) using calculated offsets
+    mut ptr_field_path := name.concat(".ptr")
+    mut ptr_offset_opt := self.scope_stack.lookup_var(ptr_field_path)
+    mut ptr_offset: I64 = 0
+    if ptr_offset_opt.data.ne(NULL) {
+        ptr_offset = ptr_offset_opt.data
+    } else {
+        mut offset_result := self.get_field_offset(ptr_field_path)
+        if offset_result.is_ok {
+            ptr_offset = offset_result.value
+        } else {
+            mut err := offset_result.error
+            throw e.lang_error(self.path, "context", "insert_array: ".concat(err))
+        }
+    }
+    mut ptr_bytes := i64_to_le_bytes(ptr.to_i64())
+    mut copy_result1 := Arena_g().memory.copy_from_slice(ptr_offset, ptr_offset.add(8), ptr_bytes)
+    if copy_result1.is_err {
+        throw copy_result1.error
+    }
+
+    # Set _len field (required for both Array and Vec)
+    mut len_bytes := i64_to_le_bytes(len)
+    mut len_field_path := name.concat("._len")
+    mut len_offset_opt := self.scope_stack.lookup_var(len_field_path)
+    mut len_offset: I64 = 0
+    if len_offset_opt.data.ne(NULL) {
+        len_offset = len_offset_opt.data
+    } else {
+        mut offset_result := self.get_field_offset(len_field_path)
+        if offset_result.is_ok {
+            len_offset = offset_result.value
+        } else {
+            mut err := offset_result.error
+            throw e.lang_error(self.path, "context", "insert_array: ".concat(err))
+        }
+    }
+    mut copy_result2 := Arena_g().memory.copy_from_slice(len_offset, len_offset.add(8), len_bytes)
+    if copy_result2.is_err {
+        throw copy_result2.error
+    }
+
+    # Set cap field (only exists in Vec, not in Array)
+    mut cap_field_path := name.concat(".cap")
+    mut cap_offset_result := self.get_field_offset(cap_field_path)
+    if cap_offset_result.is_ok {
+        mut cap_offset := cap_offset_result.value
+        mut copy_result3 := Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
+        if copy_result3.is_err {
+            throw copy_result3.error
+        }
+    } else {
+        mut cap_offset_opt := self.scope_stack.lookup_var(cap_field_path)
+        if cap_offset_opt.data.ne(NULL) {
+            mut cap_offset := cap_offset_opt.data
+            mut copy_result3 := Arena_g().memory.copy_from_slice(cap_offset, cap_offset.add(8), len_bytes)
+            if copy_result3.is_err {
+                throw copy_result3.error
+            }
+        }
+    }
+
+    # For generic Array, also set type_name and type_size fields
+    if array_type.eq("Array") {
+        # Set type_name field (it's a Str, so we need to store it properly)
+        mut type_name_offset_opt := self.scope_stack.lookup_var(name.concat(".type_name"))
+        if type_name_offset_opt.data.ne(NULL) {
+            mut type_name_offset := type_name_offset_opt.data
+            mut temp_id := name.concat("_type_name_temp")
+            self.scope_stack.declare_symbol(temp_id, SymbolInfo.new_with(
+                ValueType.TCustom("Str"),
+                false,
+                false,
+                false
+            ))
+            self.insert_string(temp_id, elem_type, e)
+            mut str_offset_opt := self.scope_stack.lookup_var(temp_id)
+            if str_offset_opt.data.ne(NULL) {
+                mut str_offset := str_offset_opt.data
+                mut str_size_result := self.get_type_size("Str")
+                if str_size_result.is_ok {
+                    mut str_size := str_size_result.value
+                    mut slice_result := Arena_g().memory.slice(str_offset, str_offset.add(str_size))
+                    if slice_result.is_ok {
+                        mut str_bytes := slice_result.value
+                        mut copy_result4 := Arena_g().memory.copy_from_slice(type_name_offset, type_name_offset.add(str_size), str_bytes)
+                        if copy_result4.is_err {
+                            throw copy_result4.error
+                        }
+                    }
+                }
+            }
+        }
+
+        # Set type_size field
+        mut type_size_offset_opt := self.scope_stack.lookup_var(name.concat(".type_size"))
+        if type_size_offset_opt.data.ne(NULL) {
+            mut type_size_offset := type_size_offset_opt.data
+            mut size_bytes := i64_to_le_bytes(elem_size)
+            mut copy_result5 := Arena_g().memory.copy_from_slice(type_size_offset, type_size_offset.add(8), size_bytes)
+            if copy_result5.is_err {
+                throw copy_result5.error
+            }
+        }
+    }
+}
+
+# Helper function to insert a Bool value using insert_struct
+insert_bool := proc(mut context: Context, id: Str, bool_str: Str, e: Expr) throws Str, IndexOutOfBoundsError, AllocError {
+    # Parse the bool value
+    mut parse_result := bool_str.parse_bool()
+    mut bool_to_insert: Bool = false
+    if parse_result.is_ok {
+        bool_to_insert = parse_result.value
+    } else {
+        throw e.lang_error(context.path, "context", "Invalid bool literal '".concat(bool_str).concat("'"))
+    }
+    mut stored: U8 = 0
+    if bool_to_insert {
+        stored = 1
+    }
+
+    # Check if this is an assignment to an existing instance field
+    mut is_instance_field := false
+    if id.contains('.') {
+        mut parts := id.split('.')
+        mut base := parts.get(0)
+        mut sym_opt := context.scope_stack.lookup_symbol(base)
+        if sym_opt.data.ne(NULL) {
+            mut sym := sym_opt.data
+            switch sym.value_type {
+            case ValueType.TType(_):
+                is_instance_field = false
+            case _:
+                is_instance_field = true
+            }
+        }
+    }
+
+    if is_instance_field {
+        # For instance field, write directly to the .data field
+        mut field_id := id.concat(".data")
+        mut offset_opt := context.scope_stack.lookup_var(field_id)
+        if offset_opt.data.eq(NULL) {
+            throw e.lang_error(context.path, "context", "Bool field '".concat(id).concat(".data' not found"))
+        }
+        mut offset := offset_opt.data
+        mut set_result := Arena_g().memory.set(offset, stored)
+        if set_result.is_err {
+            throw set_result.error
+        }
+    } else {
+        # For new variable, create the struct and set value
+        context.insert_struct(id, "Bool", e)
+        mut field_id := id.concat(".data")
+        mut offset_opt := context.scope_stack.lookup_var(field_id)
+        if offset_opt.data.eq(NULL) {
+            throw e.lang_error(context.path, "context", "Bool field '".concat(id).concat(".data' not found"))
+        }
+        mut offset := offset_opt.data
+        mut set_result := Arena_g().memory.set(offset, stored)
+        if set_result.is_err {
+            throw set_result.error
+        }
+    }
 }
