@@ -1252,7 +1252,7 @@ Context := struct {
         while idx.lt(variant_keys.len()) {
             mut k := variant_keys.get(idx)
             if k.eq(variant_name) {
-                return idx.to_i64()
+                return idx
             }
             idx = idx.add(1)
         }
@@ -1261,12 +1261,12 @@ Context := struct {
 
     variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError {
         mut keys := selfi.enum_map.keys()
-        if position.lt(0).or(position.gteq(keys.len().to_i64())) {
+        if position.lt(0).or(position.gteq(keys.len())) {
             # Return an error if the position is out of bounds
-            throw e.lang_error(path, "context", format("Error: Invalid position '", position.to_string(), "' for enum variant."))
+            throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant."))
         }
         # If position is valid, return the corresponding variant name
-        return keys.get(position.to_usize())
+        return keys.get(position)
     }
 
     map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
@@ -1298,7 +1298,7 @@ Context := struct {
             mut decl := entry.value
 
             if decl.is_mut {
-                mut combined_name := instance_name.concat(".").concat(field_name)
+                mut combined_name := format(instance_name, ".", field_name)
                 mut field_offset := base_offset.add(current_offset)
                 self.scope_stack.insert_var(combined_name, field_offset)
 
