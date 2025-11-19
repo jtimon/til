@@ -1,5 +1,5 @@
 .PHONY: all tests repl til clean
-all: tests rstil
+all: rstil
 
 rstil: src/rstil.rs
 	@mkdir -p bin
