@@ -861,6 +861,183 @@ if let Some(offset) = function_context.arena_index.get(&arg_name) {
 
 After Phase 3: ~mut~ return logic becomes offset sharing, no copying needed.
 
+* UPDATED 2025-11-18: Return Value Semantics Issue
+
+** Discovery: Inconsistent Copy Semantics
+
+Investigation into the lexer Token bug (commit 411e8cd) revealed a more fundamental issue:
+
+*** Current Behavior
+- **Assignments** (~x = foo()~) → **always copy** struct fields via ~copy_fields()~
+- **Declarations** (~x := foo()~ or ~mut x := foo()~) → **zero-copy optimization** for non-mut and temp return values
+- **Function returns** → structs share offsets instead of copying
+
+*** Code Locations
+
+**** In eval_declaration() (interpreter.rs ~line 975)
+#+BEGIN_SRC rust
+let is_temp_return_val = expr_result_str.starts_with(RETURN_INSTANCE_NAME);
+
+if declaration.is_mut && !is_temp_return_val {
+    // Copy for mut declarations
+    context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
+} else {
+    // Share offset for non-mut OR temp return value (OPTIMIZATION!)
+    let offset = context.scope_stack.lookup_var(&expr_result_str)?;
+    context.scope_stack.frames.last_mut().unwrap().arena_index
+        .insert(declaration.name.to_string(), offset);
+}
+#+END_SRC
+
+The ~!is_temp_return_val~ exception is the problem.
+
+**** In eval_assignment() (interpreter.rs ~line 1067)
+#+BEGIN_SRC rust
+ValueType::TType(TTypeDef::TStructDef) => {
+    context.copy_fields(custom_type_name, &expr_result_str, var_name, inner_e)?;
+},
+#+END_SRC
+
+Assignments ALWAYS copy - no optimization.
+
+**** In function return handling (interpreter.rs ~line 2060)
+#+BEGIN_SRC rust
+// Share the offset instead of copying
+context.scope_stack.frames.last_mut().unwrap().arena_index
+    .insert(return_instance.to_string(), offset);
+context.register_struct_fields_for_typecheck(&return_instance, custom_type_name);
+#+END_SRC
+
+** The Lexer Token Bug (Concrete Example)
+
+The zero-copy optimization caused a subtle bug in the TIL lexer:
+
+#+BEGIN_SRC til
+peek := func(self: Lexer) returns Token {
+    mut t := Token()                    // Local variable allocated in arena
+    self.tokens.get(self.current, t)    // Populate it
+    return t                            // Return reference to local
+}                                       // Arena offset still valid but confusing!
+#+END_SRC
+
+While the arena offset remains valid (arena never frees), this creates confusing semantics:
+- The local variable identifier ~t~ goes out of scope
+- But the arena data persists
+- Caller gets a reference to "orphaned" data
+- If local variables were stack-allocated, this would be a dangling reference
+
+** Problem: Differs from Mainstream Language Conventions
+
+Most modern languages return by-value:
+- **Rust**: ~fn foo() -> Token~ returns by value (with move semantics)
+- **C++**: ~Token foo()~ returns by value (uses RVO/copy elision for efficiency)
+- **Go**: ~func foo() Token~ returns by value
+- **Mojo**: ~fn foo() -> Token~ returns owned value
+
+They use explicit mechanisms for efficiency:
+- Rust: Return ~&Token~ or ~Box<Token>~ explicitly
+- C++: Return ~Token*~ or ~std::unique_ptr<Token>~ explicitly
+- Go: Return ~*Token~ explicitly
+- Mojo: Use ~owned~ return type
+
+** Proposed Solution: Return-by-Value Semantics
+
+Change TIL to return by value (copy) by default, matching mainstream conventions.
+
+*** Implementation Options
+
+**** Option 1: Copy at Declaration Site (Minimal Change)
+
+Remove the ~!is_temp_return_val~ exception:
+
+#+BEGIN_SRC rust
+// In eval_declaration(), always copy for struct declarations
+context.insert_struct(&declaration.name, custom_type_name, e)?;
+context.copy_fields(custom_type_name, &expr_result_str, &declaration.name, e)?;
+#+END_SRC
+
+Pros:
+- Minimal change
+- Uses existing ~copy_fields()~ infrastructure
+- Same pattern as assignments
+
+Cons:
+- Repeats copy logic in multiple places
+- Doesn't address root cause in return handling
+
+**** Option 2: Copy at Return Site (Cleaner)
+
+Copy once when returning from functions:
+
+#+BEGIN_SRC rust
+// In function call return handling
+context.insert_struct(&return_instance, custom_type_name, e)?;
+context.copy_fields(custom_type_name, &result_str, &return_instance, e)?;
+#+END_SRC
+
+Then declarations can:
+- For ~mut~: copy again (independent instance)
+- For non-mut: share the already-copied return value (safe now)
+
+Pros:
+- Cleaner semantics
+- Copy happens in one place
+- Aligns with mainstream language behavior
+
+Cons:
+- Need to handle copying from ~function_context~ to ~context~ (different scopes)
+- More complex than Option 1
+
+**** Option 3: Explicit Return Types (Future)
+
+Add explicit return type modifiers:
+- ~func() returns Token~ → return by value (copy)
+- ~func() returns ref Token~ → return by reference (lifetime-checked)
+- ~func() returns own Token~ → return by ownership transfer
+
+Pros:
+- Most flexible
+- Explicit about semantics
+- Can optimize case-by-case
+
+Cons:
+- Requires lifetime tracking
+- More complex type system
+- Better suited for post-self-hosting
+
+*** Recommended Immediate Action
+
+**Option 1**: Remove ~!is_temp_return_val~ exception as the simplest fix.
+
+This makes return semantics consistent and clear:
+- All struct values are copied when assigned/declared
+- No "magic" zero-copy optimizations
+- Matches mainstream language conventions
+- Easy to understand and debug
+
+Later optimizations can be added with explicit keywords:
+- ~own~ for ownership transfer (already exists)
+- ~copy~ for explicit copying (already exists)
+- Future: ~ref~ for explicit references with lifetime checking
+
+** Relation to Field Offset Refactoring
+
+The field offset refactoring (dynamic calculation) remains valuable independent of return semantics:
+- Removes ~map_instance_fields()~ complexity
+- Simplifies struct handling
+- Enables efficient pass-by-reference for parameters
+- But NOT required for fixing return semantics
+
+Return-by-value can be implemented NOW without field offset refactoring.
+
+** Action Items
+
+1. [ ] Remove ~!is_temp_return_val~ exception in ~eval_declaration()~
+2. [ ] Verify all tests pass with return-by-value semantics
+3. [ ] Document the new behavior in language docs
+4. [ ] Add test cases for return value semantics
+5. [ ] Later: Consider field offset refactoring for parameter passing efficiency
+
 * References
 
 - Mojo ownership model: doc/human/ownership.org
@@ -868,3 +1045,5 @@ After Phase 3: ~mut~ return logic becomes offset sharing, no copying needed.
 - Type checking: src/rs/typer.rs:278-375
 - Arena implementation: src/rs/interpreter.rs:16-37
 - Field copying: src/rs/init.rs:1091-1159
+- Lexer Token bug fix: commit 411e8cd
+- Field offset refactoring: commit abb10d15
