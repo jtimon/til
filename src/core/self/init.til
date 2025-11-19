@@ -172,10 +172,10 @@ ScopeStack := struct {
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
             if current_frame.symbols.contains_key(name) {
-                // Note: Map doesn't support remove(), but this function is unused
+                current_frame.symbols.remove(name)
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
-                ptr.data = 1  // Non-NULL to indicate found
+                ptr.data = 1  // Non-NULL to indicate found and removed
                 return ptr
             }
         }
@@ -190,7 +190,7 @@ ScopeStack := struct {
             if current_frame.arena_index.contains_key(name) {
                 mut offset_str := ""
                 current_frame.arena_index.get(name, offset_str)
-                // Note: Map doesn't support remove(), but this function is unused
+                current_frame.arena_index.remove(name)
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
                 ptr.data = offset_str.to_i64()
