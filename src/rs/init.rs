@@ -775,7 +775,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     };
 
     // Parse mode
-    let mode = match parse_mode(&path, &mut lexer) {
+    let parsed_mode = match parse_mode(&path, &mut lexer) {
         Ok(mode_) => mode_,
         Err(error_string) => {
             let orig_path_clone = original_path.clone();
@@ -787,22 +787,22 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     };
 
     // Check if mode can be imported
-    if !can_be_imported(&mode) {
+    if !can_be_imported(&parsed_mode) {
         context.path = original_path;
         context.imports_wip.remove(&path);
-        return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, mode.name)));
+        return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, parsed_mode.name)));
     }
 
-    let previous_mode = context.mode.clone();
-    context.mode = mode;
+    let previous_mode = context.mode_def.clone();
+    context.mode_def = parsed_mode;
 
     // Process mode imports recursively
-    for import_str in context.mode.imports.clone() {
+    for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
         if let Err(error_string) = init_import_declarations(context, &import_fcall_expr, &import_str) {
-            context.mode = previous_mode;
+            context.mode_def = previous_mode;
             context.path = original_path;
             context.imports_wip.remove(&path);
             return Err(error_string);
@@ -813,7 +813,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     let imported_ast: Expr = match parse_tokens(&mut lexer) {
         Ok(expr) => expr,
         Err(error_string) => {
-            context.mode = previous_mode;
+            context.mode_def = previous_mode;
             let orig_path_clone = original_path.clone();
             context.path = original_path;
             context.imports_wip.remove(&path);
@@ -826,7 +826,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     // This will recursively handle any imports in the imported file
     let errors = init_context(context, &imported_ast);
     if errors.len() > 0 {
-        context.mode = previous_mode;
+        context.mode_def = previous_mode;
         let orig_path_clone = original_path.clone();
         context.path = original_path;
         context.imports_wip.remove(&path);
@@ -838,7 +838,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     }
 
     // Restore context state
-    context.mode = previous_mode;
+    context.mode_def = previous_mode;
     context.path = original_path;
     context.imports_wip.remove(&path);
 
@@ -1003,13 +1003,13 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
             }
         }
         _ => {
-            if !context.mode.allows_base_anything {
-                if context.mode.allows_base_calls {
+            if !context.mode_def.allows_base_anything {
+                if context.mode_def.allows_base_calls {
                     errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
-                                                         context.mode.name, e.node_type)));
+                                                         context.mode_def.name, e.node_type)));
                 } else {
                     errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
-                                                         context.mode.name, e.node_type)));
+                                                         context.mode_def.name, e.node_type)));
                 }
             }
         },
@@ -1018,7 +1018,7 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
 }
 #[derive(Clone)]
 pub struct Context {
-    pub mode: ModeDef, // All contexts need a mode
+    pub mode_def: ModeDef, // All contexts need a mode
     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     pub path: String, // this is needed for core func "loc"
     // Scope stack for proper lexical scoping
@@ -1052,7 +1052,7 @@ impl Context {
 
         return Ok(Context {
             path: path.to_string(),
-            mode: mode_from_name(mode_name, path, &dummy_token)?,
+            mode_def: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
             imports_declarations_done: HashSet::new(),

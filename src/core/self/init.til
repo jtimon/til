@@ -944,22 +944,22 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", orig_path_clone, ":\n", mode_result.error))
     }
-    mut mode := mode_result.value
+    mut parsed_mode := mode_result.value
 
     # Check if mode can be imported
-    if not(can_be_imported(mode)) {
+    if not(can_be_imported(parsed_mode)) {
         context.path = original_path
         context.imports_wip.remove(path)
-        throw e.error(context.path, "import", format("file '", path, "' of mode '", mode.name, "' cannot be imported"))
+        throw e.error(context.path, "import", format("file '", path, "' of mode '", parsed_mode.name, "' cannot be imported"))
     }
 
-    mut previous_mode := context.mode
-    context.mode = mode
+    mut previous_mode := context.mode_def
+    context.mode_def = parsed_mode
 
     # Process mode imports recursively
     mut import_idx := 0
-    while import_idx.lt(context.mode.imports.len()) {
-        mut import_str := context.mode.imports.get(import_idx)
+    while import_idx.lt(context.mode_def.imports.len()) {
+        mut import_str := context.mode_def.imports.get(import_idx)
         mut import_func_name_expr := Expr.new()
         import_func_name_expr.node_type = NodeType.Identifier("import")
         import_func_name_expr.line = 0
@@ -979,7 +979,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
         mut import_result := try_call(init_import_declarations, context, import_fcall_expr, import_str)
         if import_result.is_err {
-            context.mode = previous_mode
+            context.mode_def = previous_mode
             context.path = original_path
             context.imports_wip.remove(path)
             throw import_result.error
@@ -990,22 +990,20 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Parse to AST
     mut ast_result := parse_tokens(lexer)
-    mut imported_ast: Expr
-    if ast_result.is_ok {
-        imported_ast = ast_result.value
-    } else {
-        context.mode = previous_mode
+    if ast_result.is_err {
+        context.mode_def = previous_mode
         mut orig_path_clone := original_path
         context.path = original_path
         context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", orig_path_clone, ":\n", ast_result.error))
     }
+    mut imported_ast := ast_result.value
 
     # Run init_context to extract declarations
     # This will recursively handle any imports in the imported file
     mut errors := init_context(context, imported_ast)
     if errors.len().gt(0) {
-        context.mode = previous_mode
+        context.mode_def = previous_mode
         mut orig_path_clone := original_path
         context.path = original_path
         context.imports_wip.remove(path)
@@ -1020,7 +1018,7 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     }
 
     # Restore context state
-    context.mode = previous_mode
+    context.mode_def = previous_mode
     context.path = original_path
     context.imports_wip.remove(path)
 
@@ -1054,7 +1052,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws AllocErro
             }
             import_path_expr = import_path_expr_result.value
 
-            mut import_path: Str
+            mut import_path := ""
             switch import_path_expr.node_type {
             case NodeType.LLiteral(import_path_str_lit_expr):
                 switch import_path_str_lit_expr {
@@ -1199,11 +1197,11 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws AllocErro
         }
 
     case _:
-        if not(context.mode.allows_base_anything) {
-            if context.mode.allows_base_calls {
-                errors.push(e.error(context.path, "mode", format("mode '", context.mode.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
+        if not(context.mode_def.allows_base_anything) {
+            if context.mode_def.allows_base_calls {
+                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
             } else {
-                errors.push(e.error(context.path, "mode", format("mode '", context.mode.name, "' allows only declarations in the root context, found '", enum_to_str(e.node_type), "'.")))
+                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations in the root context, found '", enum_to_str(e.node_type), "'.")))
             }
         }
     }
@@ -1211,7 +1209,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws AllocErro
 }
 
 Context := struct {
-    mut mode: ModeDef = ModeDef.new()  # All contexts need a mode
+    mut mode_def: ModeDef = ModeDef.new()  # All contexts need a mode
     # TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     mut path: Str = ""  # this is needed for core func "loc"
     # Scope stack for proper lexical scoping
@@ -1242,7 +1240,7 @@ Context.new := func(path: Str, mode_name: Str) returns Context throws Str, Alloc
 
     mut result := Context.new_empty()
     result.path = path
-    result.mode = mode_result.value
+    result.mode_def = mode_result.value
     result.scope_stack = scope_stack
     result.temp_enum_payload = NULL
     result.imports_declarations_done = HashSet.new()
