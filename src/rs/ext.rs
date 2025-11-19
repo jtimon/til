@@ -255,7 +255,7 @@ pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
                 type_name.to_string()
             };
 
-            match context.get_type_size(&actual_type_name) {
+            match Arena::get_type_size(context, &actual_type_name) {
                 Ok(size) => Ok(EvalResult::new(&format!("{}", size))),
                 Err(msg) => Err(e.lang_error(&context.path, "eval", &format!("calling core func size: {}", msg))),
             }

@@ -47,7 +47,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
-            ctx.get_field_offset(id).map_err(|err| {
+            Arena::get_field_offset(ctx, id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
             })?
         } else {
@@ -64,7 +64,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
-            ctx.get_field_offset(id).map_err(|err| {
+            Arena::get_field_offset(ctx, id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
             })?
         } else {
@@ -101,7 +101,7 @@ impl Arena {
                 offset
             } else {
                 // Calculate offset from struct definition
-                ctx.get_field_offset(id).map_err(|err| {
+                Arena::get_field_offset(ctx, id).map_err(|err| {
                     e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
                 })?
             };
@@ -146,7 +146,7 @@ impl Arena {
                 offset
             } else {
                 // Calculate offset from struct definition
-                ctx.get_field_offset(id).map_err(|err| {
+                Arena::get_field_offset(ctx, id).map_err(|err| {
                     e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
@@ -2856,7 +2856,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 offset
                                             } else if id_.contains('.') {
                                                 // Field path - calculate offset dynamically
-                                                context.get_field_offset(id_)
+                                                Arena::get_field_offset(context, id_)
                                                     .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-reference: {}", err)))?
                                             } else {
                                                 return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
@@ -2930,7 +2930,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     offset
                                                 } else if id_.contains('.') {
                                                     // Field path - calculate offset dynamically
-                                                    context.get_field_offset(id_)
+                                                    Arena::get_field_offset(context, id_)
                                                         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
                                                 } else {
                                                     return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
@@ -3013,7 +3013,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         let was_passed_by_ref = pass_by_ref_params.contains(&arg_name);
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
-                let val = Arena::get_i64(context, &arg_name, e)?;
+                let val = Arena::get_i64(&function_context, &arg_name, e)?;
                 Arena::insert_i64(context, &source_name, &val.to_string(), e)?;
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
@@ -3033,7 +3033,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        let val = Arena::get_enum(context, &arg_name, e)?;
+                        let val = Arena::get_enum(&function_context, &arg_name, e)?;
                         Arena::insert_enum(context, &source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
