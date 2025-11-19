@@ -635,8 +635,17 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 if p.params.len() != 3 {
                     errors.push(p.error(&context.path, "type", "Catch must have 3 parameters: variable, type, and body."));
                 } else {
+                    let var_name_expr = &p.params[0];
                     let err_type_expr = &p.params[1];
                     let catch_body_expr = &p.params[2];
+
+                    let var_name = match &var_name_expr.node_type {
+                        NodeType::Identifier(name) => name.clone(),
+                        _ => {
+                            errors.push(var_name_expr.error(&context.path, "type", "Catch variable must be a valid identifier"));
+                            return errors;
+                        }
+                    };
 
                     let caught_type = match &err_type_expr.node_type {
                         NodeType::Identifier(name) => name.clone(),
@@ -653,9 +662,34 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         errors.push(p.error(&context.path, "warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
                     }
 
-                    // Then check body for other thrown exceptions
+                    // Create scoped context for catch body with the error variable registered
+                    let mut temp_context = context.clone();
+                    temp_context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                        value_type: ValueType::TCustom(caught_type.clone()),
+                        is_mut: false,
+                        is_copy: false,
+                        is_own: false,
+                    });
+
+                    // Register struct fields so err.msg etc. can be accessed during type-checking
+                    if let Some(struct_def) = context.scope_stack.lookup_struct(&caught_type) {
+                        for (field_name, field_decl) in &struct_def.members {
+                            let combined_name = format!("{}.{}", var_name, field_name);
+                            temp_context.scope_stack.declare_symbol(
+                                combined_name.clone(),
+                                SymbolInfo {
+                                    value_type: field_decl.value_type.clone(),
+                                    is_mut: false,
+                                    is_copy: false,
+                                    is_own: false,
+                                },
+                            );
+                        }
+                    }
+
+                    // Then check body for other thrown exceptions using temp_context
                     let mut temp_thrown_types = Vec::new();
-                    errors.extend(check_body_returns_throws(context, e, func_def, &catch_body_expr.params, &mut temp_thrown_types, return_found));
+                    errors.extend(check_body_returns_throws(&mut temp_context, e, func_def, &catch_body_expr.params, &mut temp_thrown_types, return_found));
                     thrown_types.extend(temp_thrown_types);
                 }
             },

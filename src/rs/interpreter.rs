@@ -2433,6 +2433,15 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                     let source_name = &throw_result.value;
                                     // Clone the members to avoid borrow conflict
                                     let members = struct_def.members.clone();
+
+                                    // Register the base variable first
+                                    if let Some(base_offset) = context.scope_stack.lookup_var(source_name) {
+                                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(
+                                            var_name.to_string(),
+                                            base_offset
+                                        );
+                                    }
+
                                     for (field_name, field_decl) in &members {
                                         let src_instance_field = format!("{}.{}", source_name, field_name);
                                         let src_type_field = format!("{}.{}", thrown_type, field_name);
@@ -3008,6 +3017,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             // Check if this is a custom type (struct)
             if let Some(type_symbol) = function_context.scope_stack.lookup_symbol(thrown_type_name) {
                 if type_symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                    // Copy the base variable entry first
+                    if let Some(base_offset) = function_context.scope_stack.lookup_var(&result.value) {
+                        context.scope_stack.frames.last_mut().unwrap().arena_index.insert(
+                            result.value.clone(),
+                            base_offset
+                        );
+                    }
+
                     // Copy arena_index and symbol entries for the thrown instance's fields
                     let source_prefix = format!("{}.", &result.value);
 
