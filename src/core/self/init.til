@@ -1157,30 +1157,27 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws AllocErro
                 while mem_idx.lt(member_keys.len()) {
                     mut member_name := member_keys.get(mem_idx)
                     mut member_decl := struct_def.members.get(member_name)
-                    if member_decl.is_mut {
-                        mem_idx = mem_idx.add(1)
-                        continue  # Skip instance fields
-                    }
-                    # Try to find a default_value (required for funcs/consts)
-                    mut member_expr_ptr := struct_def.default_values.get(member_name)
-                    if member_expr_ptr.data.ne(NULL) {
-                        mut member_expr := member_expr_ptr.data
-                        mut member_value_type_result := get_value_type(context, member_expr)
-                        mut member_value_type: ValueType
-                        if member_value_type_result.is_ok {
-                            member_value_type = member_value_type_result.value
-                        } else {
-                            member_value_type = ValueType.TCustom(INFER_TYPE)
-                        }
-                        mut full_name := format(decl.name, ".", member_name)  # Note: using '.' not '::'
-                        # Register in symbols
-                        context.scope_stack.declare_symbol(full_name, SymbolInfo.new(member_value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
-                        # If it's a function, also register in funcs
-                        switch member_expr.node_type {
-                        case NodeType.FuncDef(func_def):
-                            context.scope_stack.declare_func(full_name, func_def)
-                        case _:
-                            # Not a function, skip
+                    if member_decl.is_mut.not() {
+                        # Skip instance fields - only process non-mut fields
+                        # Try to find a default_value (required for funcs/consts)
+                        mut member_expr_ptr := struct_def.default_values.get(member_name)
+                        if member_expr_ptr.data.ne(NULL) {
+                            mut member_expr := member_expr_ptr.data
+                            mut member_value_type_result := get_value_type(context, member_expr)
+                            mut member_value_type := ValueType.TCustom(INFER_TYPE)
+                            if member_value_type_result.is_ok {
+                                member_value_type = member_value_type_result.value
+                            }
+                            mut full_name := format(decl.name, ".", member_name)  # Note: using '.' not '::'
+                            # Register in symbols
+                            context.scope_stack.declare_symbol(full_name, SymbolInfo.new(member_value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
+                            # If it's a function, also register in funcs
+                            switch member_expr.node_type {
+                            case NodeType.FuncDef(func_def):
+                                context.scope_stack.declare_func(full_name, func_def)
+                            case _:
+                                # Not a function, skip
+                            }
                         }
                     }
                     mem_idx = mem_idx.add(1)
