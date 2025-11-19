@@ -207,6 +207,15 @@ Expr := struct {
         }
         return cloned
     }
+
+    clone := func(self: Expr) returns Expr throws AllocError, FullError, IndexOutOfBoundsError {
+        mut cloned := Expr()
+        cloned.node_type = self.node_type
+        cloned.params = self.params_clone()
+        cloned.line = self.line
+        cloned.col = self.col
+        return cloned
+    }
 }
 
 is_literal := func(t: Token) returns Bool {

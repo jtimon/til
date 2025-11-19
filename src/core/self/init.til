@@ -172,10 +172,10 @@ ScopeStack := struct {
             mut current_frame := ScopeFrame()
             self.frames.get(last_idx, current_frame)
             if current_frame.symbols.contains_key(name) {
-                current_frame.symbols.remove(name)
+                // Note: Map doesn't support remove(), but this function is unused
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
-                ptr.data = 1  // Non-NULL to indicate found and removed
+                ptr.data = 1  // Non-NULL to indicate found
                 return ptr
             }
         }
@@ -190,7 +190,7 @@ ScopeStack := struct {
             if current_frame.arena_index.contains_key(name) {
                 mut offset_str := ""
                 current_frame.arena_index.get(name, offset_str)
-                current_frame.arena_index.remove(name)
+                // Note: Map doesn't support remove(), but this function is unused
                 self.frames.set(last_idx, current_frame)
                 mut ptr := Ptr()
                 ptr.data = offset_str.to_i64()
@@ -371,58 +371,61 @@ ScopeStack := struct {
     }
 }
 
-get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
+get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError, FullError {
     mut node_type_str := enum_to_str(e.node_type)
     if not(node_type_str.eq("NodeType.FCall")) {
-        throw e.exit_error("type", "get_func_name_in_call(): expected fcall node.")
+        throw e.lang_error("type", "get_func_name_in_call(): expected fcall node.")
     }
     if e.params.len().eq(0) {
-        throw e.exit_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
+        throw e.lang_error("type", "get_func_name_in_call(): fcall nodes must have at least 1 parameter.")
     }
     mut param := e.get(0)
     mut func_name := ""
     switch param.node_type {
     case NodeType.Identifier(f_name):
         func_name = f_name
-    case _:
-        mut node_type_str := enum_to_str(param.node_type)
-        throw e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", node_type_str, "'"))
+    case:
+        mut param_node_type_str := enum_to_str(param.node_type)
+        throw e.lang_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'"))
     }
     return func_name
 }
 
-value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError {
+value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
     mut returns_len := func_def.return_types.len()
     if returns_len.eq(0) {
-        throw e.error(path, "type", format("func '", name, "' does not return anything"))
+        throw e.error("type", format("func '", name, "' does not return anything"))
     }
     if returns_len.eq(1) {
-        mut return_type := func_def.return_types.get(0)
+        mut return_type := ValueType()
+        func_def.return_types.get(0, return_type)
         switch return_type {
         case ValueType.TCustom(type_str):
             return ValueType.TCustom(type_str)
-        case other:
-            throw e.error(path, "type", format("func '", name, "' returns unsupported type ", value_type_to_str(other)))
+        case:
+            throw e.error("type", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
         }
     }
-    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
+    throw e.todo_error("type", format("func '", name, "' returns multiple values"))
 }
 
-get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError, FullError {
+get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str, IndexOutOfBoundsError, FullError, AllocError, I64_OverflowError {
     if id_expr.params.len().eq(0) {
-        throw e.error(context.path, "type", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
+        throw e.error("type", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
     }
 
     // Get the last param (the method name)
     mut last_idx := id_expr.params.len().sub(1)
-    mut method_name_expr := id_expr.params.get(last_idx)
+    mut method_name_expr := Expr()
+    id_expr.params.get(last_idx, method_name_expr)
 
     mut method_name := ""
     switch method_name_expr.node_type {
     case NodeType.Identifier(name):
         method_name = name
-    case node_type:
-        throw e.error(context.path, "type", format("Expected identifier for method name, found '", enum_to_str(node_type), "'"))
+    case:
+        mut node_type_str := enum_to_str(method_name_expr.node_type)
+        throw e.error("type", format("Expected identifier for method name, found '", node_type_str, "'"))
     }
 
     // Check if it's a regular function
