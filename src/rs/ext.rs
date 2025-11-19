@@ -610,7 +610,7 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     }
     context.path = path.clone();
 
-    let result = match run_file_with_context(true, context, &path, Vec::new()) {
+    let result = match run_file_with_context(true, true, context, &path, Vec::new()) {
         Ok(_) => Ok(()),
         Err(error_string) => {
             context.path = original_path.clone();

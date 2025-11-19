@@ -731,7 +731,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     let original_path = context.path.clone();
 
     // Check if already processed for declarations
-    if context.imports_declarations_done.contains(&path) {
+    if context.imports_done.contains_key(&path) {
         return Ok(()); // Already imported declarations
     }
 
@@ -842,7 +842,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     context.imports_wip.remove(&path);
 
     // Cache that we've processed this import's declarations
-    context.imports_declarations_done.insert(path);
+    context.imports_done.insert(path, Ok(()));
 
     Ok(())
 }
@@ -1024,11 +1024,9 @@ pub struct Context {
     pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
-    // Two-phase imports: separate caches for declaration and value initialization
-    pub imports_declarations_done: HashSet<String>, // tracks which imports have had declarations copied (init phase)
+    // Import tracking
     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
-    // Reused across phases: cleared between init and eval
-    pub imports_done: HashMap<String, Result<(), String>>,
+    pub imports_done: HashMap<String, Result<(), String>>, // cleared between init and eval phases
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
@@ -1052,7 +1050,6 @@ impl Context {
             mode: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
-            imports_declarations_done: HashSet::new(),
             imports_wip: HashSet::new(),
             imports_done: HashMap::new(),
         });

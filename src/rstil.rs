@@ -191,6 +191,9 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
             }
             return Err(format!("Compiler errors: {} type errors found", errors.len()));
         }
+
+        // Clear import cache between init and eval phases so imports are actually evaluated
+        context.imports_done.clear();
     }
 
     return match rs::interpreter::eval_expr(context, &e) {
@@ -204,15 +207,14 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
 fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let mut context = Context::new(path, DEFAULT_MODE)?;
     if path != "src/core/core.til" {
-        let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
-        let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str("src/core/core".to_string())), params: Vec::new(), line: 0, col: 0};
-        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
-        rs::ext::proc_import(&mut context, &import_fcall_expr)?;
+        // Automatically import core.til (needs full init and eval, skip_init=false)
+        let core_path = "src/core/core.til".to_string();
+        run_file_with_context(true, false, &mut context, &core_path, Vec::new())?;
     }
-    return run_file_with_context(false, &mut context, &path, main_args)
+    return run_file_with_context(false, false, &mut context, &path, main_args)
 }
 
-fn run_file_with_context(is_import: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
+fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let previous_mode = context.mode.clone();
     if !is_import {
         println!("Running file '{}'", &path);
@@ -228,8 +230,6 @@ fn run_file_with_context(is_import: bool, context: &mut Context, path: &String, 
             },
         },
     };
-    // Skip init and type check if this is Phase 2 of a two-phase import
-    let skip_init = is_import && context.imports_declarations_done.contains(path);
     let run_result = main_run(!is_import, skip_init, context, &path, source, main_args)?;
 
     if is_import && !can_be_imported(&context.mode) {
