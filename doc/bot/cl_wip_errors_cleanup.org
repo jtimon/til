@@ -336,3 +336,25 @@ See the comprehensive analysis performed before creating this plan:
 - Identified missing =loc()= in Map operations
 - Confirmed Rust macros not currently used
 - Analyzed location tracking capabilities
+
+* Rebase History
+
+** 2025-11-19: Rebased on master after Arena refactoring
+
+The branch was rebased on master commit =e1a14a9= which included a major refactoring (commits =2a9c331= and =e1a14a9=) that moved Arena-related methods from =Context= (init.rs) to =Arena= (interpreter.rs).
+
+*** Impact on our changes:
+1. Methods like =get_type_size=, =get_field_offset=, =calculate_field_offset= were moved from Context to Arena
+2. Our Step 2 changes that added Expr parameters to these methods in init.rs became obsolete
+3. Conflicts resolved by:
+   - Accepting master's Arena-based methods in interpreter.rs
+   - Keeping master's cleaner error handling (already using =e.error()= and =e.lang_error()=)
+   - Removing our init.rs versions of methods that were moved to Arena
+   - Adding Token/TokenType imports to init.rs for mode error handling
+   - Removing Expr parameter from =register_struct_fields_for_typecheck()= calls (master's version doesn't require it)
+
+*** Current status:
+- All commits successfully rebased: Step 0 (plan), Step 1 (location functions), Step 2 (Rust error handling), Step 3 (TIL error handling)
+- Additional commit added to fix compilation issues after rebase
+- All tests passing
+- Ready to continue with Step 4 and Step 5
