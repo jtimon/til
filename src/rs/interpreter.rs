@@ -2662,8 +2662,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
 
                 // Handle ownership transfer for 'own' parameters
+                // Like const/mut: identifiers (including field access) by reference, expressions copied
                 if arg.is_own {
-                    // Check if argument is an identifier (variable being passed)
+                    // Only handle identifiers here (variables and field access)
+                    // Expressions will fall through and be copied
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Transfer arena offset from caller to function context
                         if let Some(offset) = context.scope_stack.lookup_var(source_var) {
@@ -2687,9 +2689,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 }
                             }
 
-                            // TODO: Field access on own parameters needs more work
-                            // The transferred arena_index entries should be sufficient
-                            // but field symbols may need additional setup
+                            // Register field symbols for UFCS method resolution
+                            function_context.register_struct_fields_for_typecheck(&arg.name, custom_type_name);
 
                             // Remove from caller's context (ownership transferred)
                             context.scope_stack.remove_var(source_var);
@@ -2703,20 +2704,19 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             continue; // Skip normal allocation logic
                         }
                     }
-                    // If not an identifier or not found, fall through to normal allocation
-                    // (the value will be allocated fresh in function context)
+                    // If not an identifier, fall through to copy like const/mut do
                 }
 
-                // Phase 3: Pass-by-reference for non-copy, non-Type parameters
+                // Phase 3: Pass-by-reference for non-copy, non-own, non-Type parameters
                 // If argument is a variable (identifier), share arena offset instead of copying
                 // Note: Type parameters need copy semantics for type name storage, so skip them
                 // Note: Dynamic parameters NOW use pass-by-reference (including mut Dynamic)
-                // Note: own parameters also use pass-by-reference (transfer ownership of arena offset)
+                // Note: own parameters are handled separately above and should not fall through here
                 // Works for ALL types thanks to field offset refactoring (commit 2b9d08d):
                 // - Only base offset stored in arena_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
-                if !arg.is_copy && custom_type_name != "Type" {
+                if !arg.is_copy && !arg.is_own && custom_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
@@ -2850,8 +2850,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             (None, None)
                                         };
 
-                                        // For pass-by-reference (non-copy, non-Type), just share the offset
-                                        if !arg.is_copy && custom_type_name != "Type" {
+                                        // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
+                                        if !arg.is_copy && !arg.is_own && custom_type_name != "Type" {
                                             let src_offset = if let Some(offset) = context.scope_stack.lookup_var(id_) {
                                                 offset
                                             } else if id_.contains('.') {
@@ -2950,7 +2950,34 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
                                         Arena::insert_struct(&mut function_context, &arg.name, &custom_type_name, e)?;
+
+                                        // Temporarily register source in function_context for copy_fields
+                                        let src_offset = context.scope_stack.lookup_var(&source_id)
+                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source '{}' not found in caller context", source_id)))?;
+                                        let src_symbol = context.scope_stack.lookup_symbol(&source_id).cloned()
+                                            .ok_or_else(|| e.lang_error(&context.path, "eval", &format!("Source symbol '{}' not found", source_id)))?;
+
+                                        function_context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_id.clone(), src_offset);
+                                        function_context.scope_stack.declare_symbol(source_id.clone(), src_symbol);
                                         Arena::copy_fields(&mut function_context, &custom_type_name, &source_id, &arg.name, e)?;
+                                        function_context.scope_stack.remove_var(&source_id);
+                                        function_context.scope_stack.remove_symbol(&source_id);
+
+                                        // For own parameters, remove the source from caller's context (ownership transferred)
+                                        if arg.is_own {
+                                            context.scope_stack.remove_var(&source_id);
+                                            context.scope_stack.remove_symbol(&source_id);
+                                            // Also remove field entries
+                                            let prefix = format!("{}.", &source_id);
+                                            let keys_to_remove: Vec<String> = context.scope_stack.frames.last().unwrap().arena_index.keys()
+                                                .filter(|k| k.starts_with(&prefix))
+                                                .cloned()
+                                                .collect();
+                                            for key in keys_to_remove {
+                                                context.scope_stack.remove_var(&key);
+                                                context.scope_stack.remove_symbol(&key);
+                                            }
+                                        }
                                     },
                                 }
                             },
