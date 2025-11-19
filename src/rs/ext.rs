@@ -591,27 +591,23 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let original_path = context.path.clone();
     let path = import_path_to_file_path(&result.value);
 
-    // If imported values already initialized, use the cache (Phase 2)
-    match context.imports_values_done.get(&path) {
-        Some(import_result) => return import_result.clone(),
-        None => match context.imports_wip.contains(&path) {
-            true => {
-                // TODO do a more detailed message with backtraces or storing a graph of the dependencies or something
-                return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}: Circular import dependency",
-                                                    path, original_path)))
-            },
-            false => {
-                if !context.imports_wip.insert(path.clone()) {
-                    return Err(e.lang_error(&context.path, "eval", &format!("While trying to import {} from {}: Can't insert in imports_wip",
-                                                             path, original_path)))
-                }
-            },
-        },
+    // Check cache: if already evaluated, return immediately
+    if let Some(import_result) = context.imports_done.get(&path) {
+        return import_result.clone().map(|_| EvalResult::new(""));
     }
+
+    // Check for circular dependencies
+    if context.imports_wip.contains(&path) {
+        return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}: Circular import dependency",
+                                            path, original_path)));
+    }
+
+    // Mark as work-in-progress
+    context.imports_wip.insert(path.clone());
     context.path = path.clone();
 
-    let result = match run_file_with_context(true, context, &path, Vec::new()) {
-        Ok(_) => Ok(EvalResult::new("")),
+    let result = match run_file_with_context(true, true, context, &path, Vec::new()) {
+        Ok(_) => Ok(()),
         Err(error_string) => {
             context.path = original_path.clone();
             // Prepend the imported file path to the error if not already present
@@ -626,9 +622,9 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     };
 
     context.imports_wip.remove(&path);
-    context.imports_values_done.insert(path, result.clone());
+    context.imports_done.insert(path, result.clone());
     context.path = original_path;
-    return result
+    return result.map(|_| EvalResult::new(""))
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

@@ -9,7 +9,6 @@ use crate::rs::parser::{
     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
-use crate::rs::interpreter::EvalResult;
 
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
@@ -732,7 +731,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     let original_path = context.path.clone();
 
     // Check if already processed for declarations
-    if context.imports_declarations_done.contains(&path) {
+    if context.imports_done.contains_key(&path) {
         return Ok(()); // Already imported declarations
     }
 
@@ -843,7 +842,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     context.imports_wip.remove(&path);
 
     // Cache that we've processed this import's declarations
-    context.imports_declarations_done.insert(path);
+    context.imports_done.insert(path, Ok(()));
 
     Ok(())
 }
@@ -1025,13 +1024,9 @@ pub struct Context {
     pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
-    // Two-phase imports: separate caches for declaration and value initialization
-    pub imports_declarations_done: HashSet<String>, // tracks which imports have had declarations copied (init phase)
-    pub imports_values_done: HashMap<String, Result<EvalResult, String>>, // tracks which imports have had values initialized (eval phase)
+    // Import tracking
     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
-    // DEPRECATED: old single-phase cache, kept for compatibility
-    #[allow(dead_code)]
-    imports_done: HashMap<String, Result<EvalResult, String>>,
+    pub imports_done: HashMap<String, Result<(), String>>, // cleared between init and eval phases
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
@@ -1055,10 +1050,8 @@ impl Context {
             mode: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
-            imports_declarations_done: HashSet::new(),
-            imports_values_done: HashMap::new(),
             imports_wip: HashSet::new(),
-            imports_done: HashMap::new(), // DEPRECATED
+            imports_done: HashMap::new(),
         });
     }
 
