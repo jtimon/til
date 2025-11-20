@@ -438,7 +438,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
 
     // Check if it's a regular function
     mut func_ptr := context.scope_stack.lookup_func(method_name)
-    if func_ptr.data.ne(NULL) {
+    if not(NULL.eq(func_ptr.data)) {
         mut func_def := context.scope_stack.get_func(method_name)
         return value_type_func_proc(context.path, e, f_name, func_def)
     }
@@ -456,7 +456,7 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     case ValueType.TCustom(custom_type_name):
         mut id_expr_name := format(custom_type_name, ".", method_name)
         mut method_ptr := context.scope_stack.lookup_func(id_expr_name)
-        if method_ptr.data.ne(NULL) {
+        if not(NULL.eq(method_ptr.data)) {
             mut method_def := context.scope_stack.get_func(id_expr_name)
             return value_type_func_proc(context.path, e, id_expr_name, method_def)
         }
@@ -487,7 +487,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             // Check if this type has an associated method with this name
             mut method_name := format(custom_type_name, ".", f_name)
             mut method_ptr := context.scope_stack.lookup_func(method_name)
-            if method_ptr.data.ne(NULL) {
+            if not(NULL.eq(method_ptr.data)) {
                 // UFCS method exists! Use it instead of standalone function
                 mut func_def := context.scope_stack.get_func(method_name)
                 return value_type_func_proc(context.path, e, method_name, func_def)
@@ -500,7 +500,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
     // Original logic: check for standalone function
     mut func_ptr := context.scope_stack.lookup_func(f_name)
-    if func_ptr.data.ne(NULL) {
+    if not(NULL.eq(func_ptr.data)) {
         mut func_def := context.scope_stack.get_func(f_name)
         return value_type_func_proc(context.path, e, f_name, func_def)
     }
@@ -578,7 +578,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             // variant_value is a Ptr that may be NULL (no payload) or contain a ValueType (has payload)
 
             // Check if variant has a payload (variant_value is non-NULL)
-            if variant_value.data.ne(NULL) {
+            if not(NULL.eq(variant_value.data)) {
                 // This variant expects a payload
                 if e.params.len().lt(2) {
                     // TODO: Get the actual payload type from variant_value and show it
@@ -606,7 +606,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     case ValueType.TCustom(custom_type_name):
             # Check if it's an enum first
             mut enum_ptr := context.scope_stack.lookup_enum(custom_type_name)
-            if enum_ptr.data.ne(NULL) {
+            if not(NULL.eq(enum_ptr.data)) {
                 # It's an enum - try UFCS method call
                 mut after_dot: Expr
                 if id_expr.params.len().eq(0) {
@@ -619,7 +619,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     # Try associated method first
                     mut method_name := format(custom_type_name, ".", after_dot_name)
                     mut method_ptr := context.scope_stack.lookup_func(method_name)
-                    if method_ptr.data.ne(NULL) {
+                    if not(NULL.eq(method_ptr.data)) {
                         return value_type_func_proc(context.path, e, method_name, method_ptr.data)
                     }
 
@@ -672,24 +672,24 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 # First check if it's a method on this type
                                 mut method_name := format(intermediate_type_name, ".", final_member_name)
                                 mut method_ptr := context.scope_stack.lookup_func(method_name)
-                                if method_ptr.data.ne(NULL) {
+                                if not(NULL.eq(method_ptr.data)) {
                                     mut method_def := context.scope_stack.get_func(method_name)
                                     return value_type_func_proc(context.path, e, method_name, method_def)
                                 }
 
                                 # Try UFCS: standalone function with intermediate type as first arg
                                 mut standalone_ptr := context.scope_stack.lookup_func(final_member_name)
-                                if standalone_ptr.data.ne(NULL) {
+                                if not(NULL.eq(standalone_ptr.data)) {
                                     mut standalone_def := context.scope_stack.get_func(final_member_name)
                                     return value_type_func_proc(context.path, e, final_member_name, standalone_def)
                                 }
 
                                 # Check if it's a struct with this member as a field
                                 mut intermediate_struct_ptr := context.scope_stack.lookup_struct(intermediate_type_name)
-                                if intermediate_struct_ptr.data.ne(NULL) {
+                                if not(NULL.eq(intermediate_struct_ptr.data)) {
                                     mut intermediate_struct_def := context.scope_stack.get_struct(intermediate_type_name)
                                     mut member_ptr := intermediate_struct_def.get_member(final_member_name)
-                                    if member_ptr.data.ne(NULL) {
+                                    if not(NULL.eq(member_ptr.data)) {
                                         # It's a field access - return the field's type
                                         mut member_decl := member_ptr.data
                                         return member_decl.value_type
@@ -1483,7 +1483,7 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
     case NodeType.Declaration(decl):
         mut func_lookup := context.scope_stack.lookup_func(decl.name)
         mut symbol_lookup := context.scope_stack.lookup_symbol(decl.name)
-        if func_lookup.data.ne(NULL).or(symbol_lookup.data.ne(NULL)) {
+        if not(NULL.eq(func_lookup.data)).or(not(NULL.eq(symbol_lookup.data))) {
             errors.push(e.error(context.path, "type", format("'", decl.name, "' already declared.")))
         }
         if e.params.len().ne(1) {
@@ -1566,7 +1566,7 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
                         # Skip instance fields - only process non-mut fields
                         # Try to find a default_value (required for funcs/consts)
                         mut member_expr_ptr := struct_def.default_values.get(member_name)
-                        if member_expr_ptr.data.ne(NULL) {
+                        if not(NULL.eq(member_expr_ptr.data)) {
                             mut member_expr := member_expr_ptr.data
                             mut member_value_type_result := get_value_type(context, member_expr)
                             mut member_value_type := ValueType.TCustom(INFER_TYPE)
