@@ -695,10 +695,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                         return member_decl.value_type
                                     }
                                 }
-                            case _:
+                            case:
                                 # Intermediate type is not a custom type, fall through
                             }
-                        case _:
+                        case:
                             # Last param is not an identifier, fall through
                         }
                     }
@@ -727,7 +727,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 case NodeType.FuncDef(func_def):
                     mut combined_name := format(custom_type_name, ".", after_dot_name)
                     return value_type_func_proc(context.path, e, combined_name, func_def)
-                case _:
+                case:
                     throw e.error(context.path, "type", format("Cannot call '", f_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
                 }
 
@@ -774,14 +774,14 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 case NodeType.FuncDef(func_def):
                     mut combined_name := format(custom_type_name, ".", after_dot_name)
                     return value_type_func_proc(context.path, e, combined_name, func_def)
-                case _:
+                case:
                     throw e.error(context.path, "type", format("Cannot call '", custom_type_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
                 }
 
             case node_type:
                 throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(node_type), "'"))
             }
-        case _:
+        case:
             return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
         }
     throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
@@ -880,7 +880,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
                 # Variadic parameters are implemented as Array at runtime
                 current_type = ValueType.TCustom("Array")
 
-            case _:
+            case:
                 throw e.error(context.path, "type", format("'", name, "' of type '", value_type_to_str(current_type), "' can't have members"))
             }
 
@@ -1526,7 +1526,7 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
                 case NodeType.FuncDef(func_def):
                     context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
                     context.scope_stack.declare_func(decl.name, func_def)
-                case _:
+                case:
                     errors.push(e.lang_error(context.path, "type", format(value_type_to_str(value_type), "s should have definitions")))
                     return errors
                 }
@@ -1541,7 +1541,7 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
             case NodeType.EnumDef(enum_def):
                 context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
                 context.scope_stack.declare_enum(decl.name, enum_def)
-            case _:
+            case:
                 errors.push(e.lang_error(context.path, "type", "enums should have definitions."))
                 return errors
             }
@@ -1580,14 +1580,14 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
                             switch member_expr.node_type {
                             case NodeType.FuncDef(func_def):
                                 context.scope_stack.declare_func(full_name, func_def)
-                            case _:
+                            case:
                                 # Not a function, skip
                             }
                         }
                     }
                     mem_idx = mem_idx.add(1)
                 }
-            case _:
+            case:
                 errors.push(e.lang_error(context.path, "type", "struct declarations should have definitions."))
                 return errors
             }
@@ -1598,7 +1598,7 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
             context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
         }
 
-    case _:
+    case:
         if not(context.mode_def.allows_base_anything) {
             if context.mode_def.allows_base_calls {
                 errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
@@ -1722,7 +1722,7 @@ Context := struct {
                             throw e.lang_error(self.path, "context", format("map_instance_fields: failed to map nested struct field '", combined_name, "'"))
                         }
                     }
-                case _:
+                case:
                     # Not a custom type
                 }
 
@@ -1735,7 +1735,7 @@ Context := struct {
                         throw size_result.error
                     }
                     field_size = size_result.value
-                case _:
+                case:
                     throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
                 }
 
@@ -1797,7 +1797,7 @@ Context := struct {
                 if not(NULL.eq(nested_struct_ptr.data)) {
                     self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
                 }
-            case _:
+            case:
                 # Not a custom type
             }
             member_idx = member_idx.add(1)
