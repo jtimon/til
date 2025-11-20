@@ -2376,6 +2376,10 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
 pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<EvalResult, String> {
     let mut i = 0;
     let mut pending_throw: Option<EvalResult> = None;
+    eprintln!("DEBUG RUST eval_body: {} statements to process", statements.len());
+    for (idx, stmt) in statements.iter().enumerate() {
+        eprintln!("DEBUG RUST eval_body: statement[{}] = {:?}", idx, stmt.node_type);
+    }
 
     while i < statements.len() {
         let stmt = &statements[i];
@@ -2517,6 +2521,9 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
             // If no pending throw, ignore catch statements
             if NodeType::Catch != stmt.node_type {
                 let result = eval_expr(&mut context, stmt)?;
+                if matches!(stmt.node_type, NodeType::Return) {
+                    eprintln!("DEBUG RUST eval_body: return statement evaluated, result.value='{}', is_return={}", result.value, result.is_return);
+                }
                 if result.is_return {
                     return Ok(result);
                 } else if result.is_throw {
@@ -3034,6 +3041,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
 
     let result = eval_body(context, &func_def.body)?;
+    eprintln!("DEBUG RUST eval_user_func_proc_call after eval_body: result.value='{}', is_return={}, is_throw={}", result.value, result.is_return, result.is_throw);
     if result.is_throw {
         // When throwing from a method, we need to copy the thrown struct's arena_index entries
         // from the function context to the calling context so that catch blocks can access fields
@@ -3141,10 +3149,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     // If function returns a user-defined struct or enum, copy it back to context as temp return val
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
-            // Skip primitive types like I64, U8, Bool, Str
-            // These can be returned directly without temp return value handling
+            // Skip primitive types like I64, U8, Bool
+            // Str is a struct and needs temp return value handling
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
+                "I64" | "U8" | "Bool" => { /* Do nothing for primitive types */ },
                 _ => {
 
                     if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
@@ -3154,6 +3162,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 let offset = if let Some(offset) = context.scope_stack.lookup_var(&result_str) {
                                     offset
                                 } else {
+                                    // Special case for Str: if lookup fails, result_str is the actual string value, not a variable
+                                    // This happens because eval_identifier for Str returns the string content, not the variable name
+                                    if custom_type_name == "Str" {
+                                        context.pop_function_scope(saved_path)?;
+                                        return Ok(EvalResult::new(&result_str));
+                                    }
                                     context.pop_function_scope(saved_path)?;
                                     return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 };
@@ -3219,7 +3233,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         }
     }
 
+    // DEBUG: Print what we're returning
+    eprintln!("DEBUG RUST eval_user_func_proc_call: returning result_str = '{}'", result_str);
     context.pop_function_scope(saved_path)?;
+    eprintln!("DEBUG RUST eval_user_func_proc_call: after pop, result_str = '{}'", result_str);
     return Ok(EvalResult::new(&result_str)) // CLEANUP SITE 7: Return normal value (final return)
 }
 
