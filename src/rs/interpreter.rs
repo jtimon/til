@@ -414,17 +414,15 @@ impl Arena {
         let mut field_offsets = HashMap::new();
 
         for decl in struct_def.members.iter() {
-            if !decl.is_mut {
-                continue;
+            if decl.is_mut {
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
+                    _ => return Err(e.lang_error(&ctx.path, "context", "insert_struct: Unsupported value type in struct")),
+                };
+
+                field_offsets.insert(decl.name.clone(), total_size);
+                total_size += field_size;
             }
-
-            let field_size = match &decl.value_type {
-                ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
-                _ => return Err(e.lang_error(&ctx.path, "context", "insert_struct: Unsupported value type in struct")),
-            };
-
-            field_offsets.insert(decl.name.clone(), total_size);
-            total_size += field_size;
         }
 
         // Either use existing offset (for nested structs) or allocate new memory
@@ -440,11 +438,8 @@ impl Arena {
 
         // Store each field's default value
         for decl in struct_def.members.iter() {
-            if !decl.is_mut {
-                continue;
-            }
-
-            let field_offset = match field_offsets.get(&decl.name) {
+            if decl.is_mut {
+                let field_offset = match field_offsets.get(&decl.name) {
                 Some(offset) => offset,
                 None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing field offset for '{}'", decl.name))),
             };
@@ -539,16 +534,15 @@ impl Arena {
                     is_own: false,
                 },
             );
+            }
         }
 
         // Map immutable fields by copying arena_index entries from the type to the instance
         for decl in struct_def.members.iter() {
-            if decl.is_mut {
-                continue; // Skip mutable fields (already handled above)
+            if !decl.is_mut {
+                // Immutable struct fields are handled generically through struct_defs
+                // No special cases needed anymore
             }
-
-            // Immutable struct fields are handled generically through struct_defs
-            // No special cases needed anymore
         }
 
         Ok(())
@@ -579,22 +573,20 @@ impl Arena {
                     let mut current_offset = 0;
 
                     for decl in members.iter() {
-                        if !decl.is_mut {
-                            continue;
+                        if decl.is_mut {
+                            let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                            let absolute_offset = base_offset + current_offset;
+                            let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
+
+                            if decl.name == "c_string" {
+                                target_slice.copy_from_slice(&string_offset_bytes);
+                            } else if decl.name == "cap" {
+                                target_slice.copy_from_slice(&len_bytes);
+                            }
+
+                            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
+                            current_offset += type_size;
                         }
-
-                        let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
-                        let absolute_offset = base_offset + current_offset;
-                        let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
-
-                        if decl.name == "c_string" {
-                            target_slice.copy_from_slice(&string_offset_bytes);
-                        } else if decl.name == "cap" {
-                            target_slice.copy_from_slice(&len_bytes);
-                        }
-
-                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
-                        current_offset += type_size;
                     }
                     return Ok(())
                 }
@@ -608,24 +600,22 @@ impl Arena {
                 let mut current_offset = 0;
 
                 for decl in members.iter() {
-                    if !decl.is_mut {
-                        continue;
-                    }
+                    if decl.is_mut {
+                        let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                        if Arena::g().memory.len() < struct_offset + current_offset + type_size {
+                            Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
+                        }
 
-                    let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
-                    if Arena::g().memory.len() < struct_offset + current_offset + type_size {
-                        Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
-                    }
+                        let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
+                        if decl.name == "c_string" {
+                            field_slice.copy_from_slice(&string_offset_bytes);
+                        } else if decl.name == "cap" {
+                            field_slice.copy_from_slice(&len_bytes);
+                        }
 
-                    let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
-                    if decl.name == "c_string" {
-                        field_slice.copy_from_slice(&string_offset_bytes);
-                    } else if decl.name == "cap" {
-                        field_slice.copy_from_slice(&len_bytes);
+                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
+                        current_offset += type_size;
                     }
-
-                    ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
-                    current_offset += type_size;
                 }
 
                 ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), struct_offset);

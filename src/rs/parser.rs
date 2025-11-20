@@ -1346,16 +1346,15 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
             lexer.advance(1)?;
             end_found = true;
         } else {
-        if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
-            lexer.expect(TokenType::Semicolon)?; // REM: This is suboptimal but more clear in grep
-            continue;
-        }
-
-        let stmt = match parse_statement(lexer) {
-            Ok(statement) => statement,
-            Err(error_string) => return Err(error_string),
-        };
-        params.push(stmt);
+            if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
+                lexer.expect(TokenType::Semicolon)?; // REM: This is suboptimal but more clear in grep
+            } else {
+                let stmt = match parse_statement(lexer) {
+                    Ok(statement) => statement,
+                    Err(error_string) => return Err(error_string),
+                };
+                params.push(stmt);
+            }
         }
     }
     if end_found {
