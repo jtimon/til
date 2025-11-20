@@ -766,7 +766,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     mut method_name := format(custom_type_name, ".", after_dot_name)
                     mut method_ptr := context.scope_stack.lookup_func(method_name)
                     if not(NULL.eq(method_ptr.data)) {
-                        return value_type_func_proc(context.path, e, method_name, method_ptr.data)
+                        return value_type_func_proc(context.path, e, method_name, context.scope_stack.get_func(method_name))
                     }
 
                     # Fall back to UFCS: try standalone function with enum as first arg
