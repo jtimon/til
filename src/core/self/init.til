@@ -250,7 +250,7 @@ ScopeStack := struct {
         throw format("Function '", name, "' not found")
     }
 
-    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -258,9 +258,18 @@ ScopeStack := struct {
             current_frame.funcs.insert(name, func_def)
             self.frames.set(last_idx, current_frame)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
     }
 
-    lookup_enum := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    lookup_enum := func(self: ScopeStack, name: Str) returns Ptr throws Str {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
@@ -272,11 +281,14 @@ ScopeStack := struct {
             }
             i = i.sub(1)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
         return Ptr()  // NULL - not found
     }
 
     // Helper to get the actual enum definition
-    get_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws Str, IndexOutOfBoundsError, KeyNotFoundError {
+    get_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws Str {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
@@ -287,6 +299,12 @@ ScopeStack := struct {
                 return enum_def
             }
             i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
         }
         throw format("Enum '", name, "' not found")
     }
