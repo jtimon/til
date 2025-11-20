@@ -128,8 +128,10 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             errors.extend(check_fcall_return_usage(context, &e, expr_context));
         },
         NodeType::FuncDef(func_def) => {
-            let mut function_context = context.clone();
-            errors.extend(check_func_proc_types(&func_def, &mut function_context, &e));
+            let current_path = context.path.clone();
+            let saved_path = context.push_function_scope(&current_path);
+            errors.extend(check_func_proc_types(&func_def, context, &e));
+            let _ = context.pop_function_scope(saved_path); // Ignore error in type checking
         },
         NodeType::Identifier(name) => {
             if !(context.scope_stack.lookup_func(name).is_some() || context.scope_stack.lookup_symbol(name).is_some()) {
@@ -663,34 +665,43 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     }
 
                     // Create scoped context for catch body with the error variable registered
-                    let mut temp_context = context.clone();
-                    temp_context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+                    let current_path = context.path.clone();
+                    let saved_path = context.push_function_scope(&current_path);
+                    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
                         value_type: ValueType::TCustom(caught_type.clone()),
                         is_mut: false,
                         is_copy: false,
                         is_own: false,
                     });
 
+                    // Collect field info first to avoid borrow conflicts
+                    let field_info: Vec<_> = if let Some(struct_def) = context.scope_stack.lookup_struct(&caught_type) {
+                        struct_def.members.iter()
+                            .map(|(name, decl)| (name.clone(), decl.value_type.clone()))
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+
                     // Register struct fields so err.msg etc. can be accessed during type-checking
-                    if let Some(struct_def) = context.scope_stack.lookup_struct(&caught_type) {
-                        for (field_name, field_decl) in &struct_def.members {
-                            let combined_name = format!("{}.{}", var_name, field_name);
-                            temp_context.scope_stack.declare_symbol(
-                                combined_name.clone(),
-                                SymbolInfo {
-                                    value_type: field_decl.value_type.clone(),
-                                    is_mut: false,
-                                    is_copy: false,
-                                    is_own: false,
-                                },
-                            );
-                        }
+                    for (field_name, field_type) in field_info {
+                        let combined_name = format!("{}.{}", var_name, field_name);
+                        context.scope_stack.declare_symbol(
+                            combined_name.clone(),
+                            SymbolInfo {
+                                value_type: field_type,
+                                is_mut: false,
+                                is_copy: false,
+                                is_own: false,
+                            },
+                        );
                     }
 
-                    // Then check body for other thrown exceptions using temp_context
+                    // Then check body for other thrown exceptions
                     let mut temp_thrown_types = Vec::new();
-                    errors.extend(check_body_returns_throws(&mut temp_context, e, func_def, &catch_body_expr.params, &mut temp_thrown_types, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, &catch_body_expr.params, &mut temp_thrown_types, return_found));
                     thrown_types.extend(temp_thrown_types);
+                    let _ = context.pop_function_scope(saved_path); // Ignore error in type checking
                 }
             },
 
@@ -887,32 +898,41 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
     }
 
     // Create scoped context for catch body
-    let mut temp_context = context.clone();
-    temp_context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
+    let current_path = context.path.clone();
+    let saved_path = context.push_function_scope(&current_path);
+    context.scope_stack.declare_symbol(var_name.clone(), SymbolInfo {
         value_type: ValueType::TCustom(type_name.clone()),
         is_mut: false,
         is_copy: false,
         is_own: false,
     });
 
+    // Collect field info first to avoid borrow conflicts
+    let field_info: Vec<_> = if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
+        struct_def.members.iter()
+            .map(|(name, decl)| (name.clone(), decl.value_type.clone()))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
     // Map struct fields so err.msg etc. can be accessed during type-checking
-    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-        for (field_name, field_decl) in &struct_def.members {
-            let combined_name = format!("{}.{}", var_name, field_name);
-            temp_context.scope_stack.declare_symbol(
-                combined_name.clone(),
-                SymbolInfo {
-                    value_type: field_decl.value_type.clone(),
-                    is_mut: false,  // Error variables are not mutable in catch blocks
-                    is_copy: false,
-                    is_own: false,
-                },
-            );
-        }
+    for (field_name, field_type) in field_info {
+        let combined_name = format!("{}.{}", var_name, field_name);
+        context.scope_stack.declare_symbol(
+            combined_name.clone(),
+            SymbolInfo {
+                value_type: field_type,
+                is_mut: false,  // Error variables are not mutable in catch blocks
+                is_copy: false,
+                is_own: false,
+            },
+        );
     }
 
     // Catch body statements discard return values
-    errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
+    errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
+    let _ = context.pop_function_scope(saved_path); // Ignore error in type checking
 
     return errors
 }
@@ -1141,19 +1161,23 @@ fn check_switch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
                     if let Some(payload_type_opt) = enum_def.enum_map.get(variant) {
                         if let Some(payload_type) = payload_type_opt {
+                            // Clone payload type before mutable borrow to avoid borrow conflict
+                            let payload_type_clone = payload_type.clone();
                             // Create a temporary context with the binding variable
-                            let mut temp_context = context.clone();
-                            temp_context.scope_stack.declare_symbol(
+                            let current_path = context.path.clone();
+                            let saved_path = context.push_function_scope(&current_path);
+                            context.scope_stack.declare_symbol(
                                 binding_var.clone(),
                                 SymbolInfo {
-                                    value_type: payload_type.clone(),
+                                    value_type: payload_type_clone,
                                     is_mut: false,
                                     is_copy: false,
                                 is_own: false,
                                 }
                             );
                             // Switch case body statements discard return values
-                            errors.extend(check_types_with_context(&mut temp_context, body_expr, ExprContext::ValueDiscarded));
+                            errors.extend(check_types_with_context(context, body_expr, ExprContext::ValueDiscarded));
+                            let _ = context.pop_function_scope(saved_path); // Ignore error in type checking
                         } else {
                             // Variant exists but has no payload
                             errors.push(case_expr.error(&context.path, "type", &format!("Variant '{}' has no payload, cannot use pattern matching", variant)));
@@ -1289,8 +1313,10 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 match &inner_e.node_type {
                     // If the member's default value is a function (method), type check it
                     NodeType::FuncDef(func_def) => {
-                        let mut function_context = context.clone();
-                        errors.extend(check_func_proc_types(&func_def, &mut function_context, &inner_e));
+                        let current_path = context.path.clone();
+                        let saved_path = context.push_function_scope(&current_path);
+                        errors.extend(check_func_proc_types(&func_def, context, &inner_e));
+                        let _ = context.pop_function_scope(saved_path); // Ignore error in type checking
                     },
                     // For other types of members, check type and purity
                     _ => {
