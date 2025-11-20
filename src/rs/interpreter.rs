@@ -1477,12 +1477,12 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                         // Execute the case body with the bound variable available
                         return eval_expr(context, e.get(param_it)?);
                     } else {
-                        // No match, continue to next case
+                        // No match, move to next case
                         param_it += 2;
-                        continue;
                     }
                 }
 
+                if param_it < e.params.len() {
                 let is_match = match &case.node_type {
                     NodeType::Range => {
                         let start = eval_expr(context, &case.params[0])?;
@@ -1525,6 +1525,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     return eval_expr(context, e.get(param_it)?);
                 }
                 param_it += 1;
+                }
             }
             return Ok(EvalResult::new(""))
         },
@@ -2571,6 +2572,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
+                let mut skip_normal_eval = false;
 
                 // Special handling for Dynamic parameters: don't evaluate, just copy the value
                 // When a type like I64, U8, Str is passed to a Dynamic/Type parameter,
@@ -2588,12 +2590,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 });
                                 Arena::insert_string(&mut function_context, &arg.name, id_name, e)?;
                                 param_index += 1;
-                                continue; // Skip eval_expr for this parameter
+                                skip_normal_eval = true;
                             }
                         }
                     }
                     // If it's not a type identifier, fall through to normal evaluation
                 }
+
+                if !skip_normal_eval {
 
                 // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
                 let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
@@ -2678,6 +2682,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     }
                 }
 
+                let mut skip_normal_allocation = false;
+
                 // Handle ownership transfer for 'own' parameters
                 // Like const/mut: identifiers (including field access) by reference, expressions copied
                 if arg.is_own {
@@ -2718,7 +2724,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             }
 
                             param_index += 1;
-                            continue; // Skip normal allocation logic
+                            skip_normal_allocation = true;
                         }
                     }
                     // If not an identifier, fall through to copy like const/mut do
@@ -2776,7 +2782,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             pass_by_ref_params.insert(arg.name.clone());
 
                             param_index += 1;
-                            continue; // Skip allocation logic - we're sharing the offset
+                            skip_normal_allocation = true;
                             }
                         }
                     }
@@ -2784,6 +2790,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     // (expressions must allocate fresh memory)
                 }
 
+                if !skip_normal_allocation {
                 match custom_type_name.as_str() {
                     "I64" => {
                         Arena::insert_i64(&mut function_context, &arg.name, &result_str, e)?;
@@ -3004,6 +3011,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             },
                         }
                     },
+                }
+                }
                 }
 
             },
