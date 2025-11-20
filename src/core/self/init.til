@@ -399,7 +399,7 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str, IndexOutOfBoundsE
     return func_name
 }
 
-value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError, AllocError, I64_OverflowError {
+value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str, IndexOutOfBoundsError {
     mut returns_len := func_def.return_types.len()
     if returns_len.eq(0) {
         throw e.error(path, "type", format("func '", name, "' does not return anything"))
@@ -1655,7 +1655,7 @@ Context := struct {
         return result
     }
 
-    get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str, AllocError, IndexOutOfBoundsError {
+    get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str, IndexOutOfBoundsError {
         mut variant_keys := selfi.enum_map.keys()
         mut idx := 0
         while idx.lt(variant_keys.len()) {
@@ -1669,7 +1669,7 @@ Context := struct {
         throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
     }
 
-    variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError {
+    variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str, IndexOutOfBoundsError {
         mut keys := selfi.enum_map.keys()
         if position.lt(0).or(position.gteq(keys.len())) {
             # Return an error if the position is out of bounds
@@ -1756,7 +1756,7 @@ Context := struct {
         }
     }
 
-    get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str, IndexOutOfBoundsError {
         # Validate that the struct variable exists by checking if we can get its offset
         mut offset_ptr := self.scope_stack.lookup_var(id)
         if not(NULL.eq(offset_ptr.data)) {
