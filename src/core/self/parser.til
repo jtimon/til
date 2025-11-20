@@ -85,11 +85,11 @@ SStructDef := struct {
     }
 
     // Helper to find a member by name or return an error
-    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, e: Expr) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
         member := self.get_member(member_name)
         return member
         catch (err: Str) {
-            throw e.error("type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
+            throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
         }
     }
 }

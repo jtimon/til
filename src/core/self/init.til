@@ -802,7 +802,9 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     # Try to resolve the field access chain (all params except the last)
                     # Example: for e.params.len, resolve "e.params" to get its type
                     mut field_access_expr := id_expr.clone()
-                    field_access_expr.params.pop()  # Remove the last element (method/property name)
+                    # Remove the last element (method/property name)
+                    mut new_len := field_access_expr.params.len().sub(1)
+                    field_access_expr.params._len = new_len
 
                     mut got_intermediate := false
                     mut intermediate_type := ValueType.TCustom("")  # dummy default
@@ -1851,14 +1853,18 @@ Context := struct {
         mut scope_stack := ScopeStack.new()
         scope_stack.push(ScopeType.Global) # Initialize global scope
 
-        mut mode_result := mode_from_name(mode_name)
-        if mode_result.is_err {
-            throw mode_result.error
-        }
+        # Create a dummy token for mode initialization errors
+        mut dummy_token := Token()
+        dummy_token.token_type = TokenType.Mode
+        dummy_token.token_str = mode_name
+        dummy_token.line = 0
+        dummy_token.col = 0
+
+        mut mode_def := mode_from_name(mode_name, dummy_token)
 
         mut result := Context.new_empty()
         result.path = path
-        result.mode_def = mode_result.value
+        result.mode_def = mode_def
         result.scope_stack = scope_stack
         result.temp_enum_payload = NULL
         result.imports_wip = HashSet.new()
