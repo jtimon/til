@@ -109,6 +109,43 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - TODO: Consider standardizing all internal fields to use _ prefix consistently
   - Reason for inconsistency: Incremental development, avoiding breaking changes
 
+- [ ] Fix Variable Shadowing Bug (HIGH PRIORITY)
+  - Status: BUG CONFIRMED - must fix before self-hosting
+  - Design decision: TIL will ALLOW shadowing (like Rust) - decided 2025-11-20
+  - Problem: Nested-scope variable declarations MUTATE outer variables instead of shadowing
+    #+BEGIN_SRC til
+    test_shadowing := proc() {
+        z := 5
+        println(z.to_str())  // Prints: 5
+        {
+            z := 10  // BUG: This MUTATES outer z instead of creating new binding!
+            println(z.to_str())  // Prints: 10
+        }
+        println(z.to_str())  // Prints: 10 (WRONG! Should be 5)
+    }
+    #+END_SRC
+  - Root Cause:
+    - declare_symbol/insert_var use HashMap.insert() which replaces existing values
+    - Nested blocks don't create new scope frames (by design for if/while/switch)
+    - When inner := is used, it mutates the HashMap entry → looks like mutation not shadowing
+  - Residual Code Preventing Shadowing (needs cleanup):
+    - src/rs/init.rs:898-900 - init_context prevents global shadowing (ACTIVE - needs removal)
+    - src/rs/init.rs:120-137 - declare_var has shadowing check (UNUSED - never called)
+  - Why Critical for Self-Hosting:
+    - Self-hosted compiler will have complex nested scopes
+    - Silent mutation causes data corruption that's hard to debug
+    - Could cause wrong code generation or catastrophic compiler bugs
+    - := should never silently mutate - it's a declaration operator
+  - What Needs Fixing:
+    1. Remove shadowing prevention check in init_context (line 898-900)
+    2. Implement proper shadowing in nested blocks
+    3. Allow type-change shadowing (x := 5 then x := "hello")
+    4. Remove or modify unused declare_var function
+  - Implementation approach:
+    - Option A: Create new scope frames for block expressions
+    - Option B: Handle shadowing within same frame (stack-based bindings)
+    - Need to ensure outer binding is restored after inner scope exits
+
 * Notes
 
 Focus on rstil, Not til Implementation:

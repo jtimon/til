@@ -145,128 +145,13 @@ After gaining more experience with the self-hosted codebase, we may consider:
 
 For now, requiring explicit handling is the safer and clearer default.
 
-** TODO Fix Variable Shadowing Bug - BEFORE Self-Hosting              :HIGH:
-:PROPERTIES:
-:DISCOVERED: 2025-11-10
-:UPDATED: 2025-11-20
-:IMPACT: Correctness - causes silent data corruption
-:PRIORITY: High - must fix before self-hosting
-:END:
+** MOVED Variable Shadowing Bug → See pre.org
 
-*** The Bug
+This item was moved to doc/todo/pre.org since it must be fixed BEFORE self-hosting.
 
-Nested-scope variable declarations **mutate** outer variables instead of shadowing them:
+The variable shadowing bug causes nested-scope declarations to mutate outer variables instead of creating shadows. This is a correctness bug that could cause silent data corruption in the self-hosted compiler.
 
-#+BEGIN_SRC til
-test_shadowing := proc() {
-    z := 5
-    println(z.to_str())  // Prints: 5
-
-    {
-        z := 10  // BUG: This MUTATES outer z instead of creating new binding!
-        println(z.to_str())  // Prints: 10
-    }
-
-    println(z.to_str())  // Prints: 10 (WRONG! Should be 5)
-}
-#+END_SRC
-
-*** Root Cause
-
-From src/rs/init.rs:140-144 and :163-167, `declare_symbol` and `insert_var`:
-- Use `HashMap.insert()` which replaces existing values
-- Nested blocks don't create new scope frames (by design for if/while/switch)
-- When inner `:=` is used, it mutates the HashMap entry in the current frame
-- Result: looks like mutation instead of shadowing
-
-*** Design Decision (Made 2025-11-20)
-
-**Decision:** TIL will **ALLOW shadowing** (Option B).
-
-The `:=` operator creates a new binding that shadows outer variables. This means:
-- `x := 5` followed by `x := 10` in same scope: creates shadow
-- `x := 5` followed by inner `{ x := 10 }`: inner shadows, outer unchanged after block
-- Type-change shadowing should work: `x := 5` then `x := "hello"` (shadow with different type)
-
-This aligns with Rust's behavior and provides maximum flexibility.
-
-*** What Needs Fixing
-
-1. **Nested-scope shadowing** - Currently mutates instead of creating new binding
-2. **Type-change shadowing** - Currently fails type checking, should allow shadow
-3. **Cleanup residual code** - May have old error-checking code from when shadowing was forbidden
-
-*** Expected Behavior After Fix
-
-#+BEGIN_SRC til
-// 1. Underscore reuse (already works)
-_ := 5
-_ := 10  // OK - underscore is always special
-
-// 2. Same-scope shadowing (needs to work)
-x := 5
-x := 10  // OK - creates shadow, old binding inaccessible
-
-// 3. Type-change shadowing (currently broken, should work)
-y := 5
-y := "hello"  // OK - shadow with different type
-
-// 4. Nested-scope shadowing (currently BROKEN - this is the main bug)
-z := 5
-{
-    z := 10  // OK - creates shadow in inner scope
-}
-// z is still 5 here (outer binding restored)
-#+END_SRC
-
-*** Why This Is Critical for Self-Hosting
-
-- Self-hosted compiler will have complex nested scopes
-- Silent mutation causes **data corruption** that's hard to debug
-- Could cause wrong code generation or catastrophic compiler bugs
-- `:=` should never silently mutate - it's a declaration operator
-
-*** Implementation Notes
-
-Likely need to:
-1. Create new scope frames for block expressions (or handle shadowing within same frame)
-2. Update `declare_symbol`/`insert_var` to allow shadows without mutating
-3. Remove any type-checker code that prevents type-change shadowing
-4. Add proper scope management for nested blocks
-
-*** Residual Code to Clean Up (Option A - Prevent Shadowing)
-
-Found code that currently PREVENTS shadowing (needs removal/modification):
-
-**** src/rs/init.rs:898-900 (ACTIVE - needs removal)
-In `init_context`, there's a check that prevents declarations if name already exists:
-#+BEGIN_SRC rust
-if context.scope_stack.lookup_func(&decl.name).is_some() ||
-   context.scope_stack.lookup_symbol(&decl.name).is_some() {
-    errors.push(e.error(&context.path, "type",
-                        &format!("'{}' already declared.", decl.name)));
-}
-#+END_SRC
-
-This runs during module initialization and prevents shadowing of global declarations.
-**Action:** Remove this check to allow shadowing.
-
-**** src/rs/init.rs:120-137 (UNUSED - can remove)
-The `declare_var` function has shadowing prevention:
-#+BEGIN_SRC rust
-pub fn declare_var(&mut self, name: String, offset: usize, symbol: SymbolInfo)
-    -> Result<(), String>
-{
-    // Check for redeclaration in current scope only
-    if current_frame.arena_index.contains_key(&name) {
-        return Err(format!("Variable '{}' already declared in this scope", name));
-    }
-    // ...
-}
-#+END_SRC
-
-However, this function is **never called** in the codebase (searched for `.declare_var(`).
-**Action:** Either remove this function entirely, or modify it to allow shadowing if it will be used in future.
+See doc/todo/pre.org for full details and implementation plan.
 
 ** TODO Add Unicode Support to TIL                                    :MEDIUM:
 :PROPERTIES:
