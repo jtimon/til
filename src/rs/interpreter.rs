@@ -2406,6 +2406,10 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                     };
                     if let Some(thrown_type) = &throw_result.thrown_type {
                         if type_name == thrown_type {
+                            // Create new scope for catch block
+                            let current_path = context.path.clone();
+                            let saved_path = context.push_function_scope(&current_path);
+
                             // Bind the error variable to the caught error value
                             context.scope_stack.declare_symbol(var_name.to_string(), SymbolInfo {
                                 value_type: ValueType::TCustom(thrown_type.clone()),
@@ -2495,20 +2499,8 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             let body_expr = &stmt.params[2];
                             let result = eval_body(&mut context, &body_expr.params)?;
 
-                            // Clean up the error variable binding after the catch block
-                            context.scope_stack.remove_symbol(var_name);
-                            context.scope_stack.remove_var(var_name);
-                            // Also remove the field mappings
-                            if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
-                                // Collect field names to avoid borrow conflict
-                                let field_names: Vec<String> = struct_def.members.iter().map(|(name, _)| name.clone()).collect();
-                                for field_name in field_names {
-                                    let combined_name = format!("{}.{}", var_name, field_name);
-                                    context.scope_stack.remove_symbol(&combined_name);
-                                    context.scope_stack.remove_var(&combined_name);
-                                    // Nested struct fields are handled by subsequent iterations
-                                }
-                            }
+                            // Pop catch block scope (automatically cleans up error variable and all field mappings)
+                            context.pop_function_scope(saved_path)?;
 
                             if result.is_return {
                                 return Ok(result);
