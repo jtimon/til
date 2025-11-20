@@ -2755,12 +2755,23 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 // - Only base offset stored in arena_index
                 // - Field offsets calculated dynamically from struct definitions
                 // - Inline memory layout means sharing base offset shares all fields
+                if custom_type_name == "Str" {
+                    eprintln!("DEBUG RUST Str arg: arg.name='{}' is_copy={} is_own={} current_arg.node_type={:?}",
+                             arg.name, arg.is_copy, arg.is_own, current_arg.node_type);
+                }
                 if !arg.is_copy && !arg.is_own && custom_type_name != "Type" {
                     if let NodeType::Identifier(source_var) = &current_arg.node_type {
                         // Only share offset for SIMPLE identifiers (no field access, no params)
                         // Field access like s.cap is also an Identifier node but has params
                         if current_arg.params.is_empty() {
                             // Share arena offset from caller context (zero-copy pass-by-reference)
+                            if let Some(offset) = context.scope_stack.lookup_var(source_var) {
+                            if custom_type_name == "Str" {
+                                eprintln!("DEBUG RUST Str pass-by-ref: source_var='{}' offset={} arg.name='{}'", source_var, offset, arg.name);
+                            }
+                            } else if custom_type_name == "Str" {
+                                eprintln!("DEBUG RUST Str FAILED lookup: source_var='{}' not found in context, frames={}", source_var, context.scope_stack.frames.len());
+                            }
                             if let Some(offset) = context.scope_stack.lookup_var(source_var) {
                             // Create symbol info for parameter using the resolved type
                             let param_symbol = SymbolInfo {
@@ -2818,8 +2829,28 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         Arena::insert_bool(context, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        eprintln!("DEBUG RUST passing Str arg: arg.name='{}' result_str='{}'", arg.name, result_str);
-                        Arena::insert_string(context, &arg.name, &result_str, e)?;
+                        // For Str, check if result_str is a variable name or a string value
+                        // If it's a variable and argument is an Identifier, fall through to struct handling for pass-by-reference
+                        // Otherwise, create a new Str from the value
+                        if matches!(&current_arg.node_type, NodeType::Identifier(_)) && context.scope_stack.lookup_var(&result_str).is_some() {
+                            // result_str is a variable name that exists - fall through to struct handling
+                            // This allows pass-by-reference for mut Str parameters
+                        } else {
+                            // result_str is a string value (literal or expression result) - create new Str
+                            Arena::insert_string(context, &arg.name, &result_str, e)?;
+                            param_index += 1;
+                            continue;
+                        }
+                    },
+                    _ => {},
+                }
+
+                // Now handle as struct (for Str variables that fell through, and other custom types)
+                match custom_type_name.as_str() {
+                    "I64" | "U8" | "Bool" => {
+                        // Already handled above
+                        param_index += 1;
+                        continue;
                     },
                     _ => {
                         let custom_symbol = context.scope_stack.lookup_symbol(custom_type_name).ok_or_else(|| {
