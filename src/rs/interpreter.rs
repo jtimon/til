@@ -2519,6 +2519,22 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
 // ---------- generic eval things
 
 fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    // TODO REFACTOR: Replace context.clone() with scope push/pop
+    // When refactoring:
+    // 1. Replace line 2523-2524 with: let saved_path = context.push_function_scope(&func_def.source_path);
+    // 2. Replace all `function_context` references with `context`
+    // 3. Add context.pop_function_scope(saved_path)? before EACH return statement
+    // 4. Update insert_i64/insert_u8 to check lookup_var() and update in-place for existing variables
+    //
+    // Return paths requiring cleanup (search for "CLEANUP SITE"):
+    // - Line 2540: Propagate throw from variadic args
+    // - Line 2621: Propagate throw from argument evaluation
+    // - Line 3048: Propagate throw from function body
+    // - Line 3136: Return struct instance
+    // - Line 3148: Return enum instance (constructor)
+    // - Line 3162: Return enum instance (variable)
+    // - Line 3175: Return normal value
+    // Plus ~15 error returns that also need cleanup
 
     let mut function_context = context.clone();
     function_context.path = func_def.source_path.clone();  // Use source file path for error messages
@@ -2537,7 +2553,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 for expr in variadic_args {
                     let result = eval_expr(context, expr)?;
                     if result.is_throw {
-                        return Ok(result); // Propagate throw
+                        return Ok(result); // CLEANUP SITE 1: Propagate throw from variadic args
                     }
                     let val = result.value;
                     values.push(val);
@@ -2618,7 +2634,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 let result = eval_expr(context, &current_arg)?;
                 if result.is_throw {
-                    return Ok(result); // Propagate throw
+                    return Ok(result); // CLEANUP SITE 2: Propagate throw from argument evaluation
                 }
                 let result_str = result.value;
 
@@ -3045,7 +3061,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
             }
         }
-        return Ok(result); // Propagate throw
+        return Ok(result); // CLEANUP SITE 3: Propagate throw from function body
     }
     let result_str = result.value;
 
@@ -3133,7 +3149,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 } else {
                                     return Err(e.lang_error(&context.path, "eval", &format!("Missing arena index for return value '{}'", result_str)));
                                 }
-                                return Ok(EvalResult::new_return(&return_instance))
+                                return Ok(EvalResult::new_return(&return_instance)) // CLEANUP SITE 4: Return struct instance
                             },
                             ValueType::TType(TTypeDef::TEnumDef) => {
                                 // For enum returns, check if result_str is a constructor expression or a variable
@@ -3145,7 +3161,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     if let Some((payload_data, payload_type)) = function_context.temp_enum_payload.take() {
                                         context.temp_enum_payload = Some((payload_data, payload_type));
                                     }
-                                    return Ok(EvalResult::new(&result_str));
+                                    return Ok(EvalResult::new(&result_str)); // CLEANUP SITE 5: Return enum constructor
                                 }
 
                                 // This is a variable, copy it from function context to caller context
@@ -3159,7 +3175,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                 }
 
                                 Arena::insert_enum(context, &return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
-                                return Ok(EvalResult::new_return(&return_instance))
+                                return Ok(EvalResult::new_return(&return_instance)) // CLEANUP SITE 6: Return enum variable
                             },
                             _ => {
                                 // Not a struct or enum return, ignore
@@ -3172,7 +3188,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         }
     }
 
-    return Ok(EvalResult::new(&result_str))
+    return Ok(EvalResult::new(&result_str)) // CLEANUP SITE 7: Return normal value (final return)
 }
 
 // ---------- Core function/procedure dispatcher
