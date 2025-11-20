@@ -1137,8 +1137,11 @@ fn get_full_identifier_name(expr: &Expr) -> String {
             // Check if this is a dotted name: Identifier with params
             // For example, "Color.Green" is Identifier("Color") with params=[Identifier("Green")]
             if expr.params.len() == 1 {
-                if let NodeType::Identifier(param_name) = &expr.params[0].node_type {
-                    return format!("{}.{}", name, param_name);
+                match &expr.params[0].node_type {
+                    NodeType::Identifier(param_name) => {
+                        return format!("{}.{}", name, param_name);
+                    },
+                    _ => {}
                 }
             }
             name.clone()
@@ -1171,18 +1174,21 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
         // Get the full variant name (handling dotted names)
         let variant_name = get_full_identifier_name(&left.params[0]);
 
-        if let NodeType::Identifier(binding_var) = &left.params[1].node_type {
-            // Convert FCall to Pattern
-            let pattern_info = PatternInfo {
-                variant_name: variant_name,
-                binding_var: binding_var.clone(),
-            };
-            return Ok(Expr::new_explicit(
-                NodeType::Pattern(pattern_info),
-                Vec::new(),
-                left.line,
-                left.col
-            ));
+        match &left.params[1].node_type {
+            NodeType::Identifier(binding_var) => {
+                // Convert FCall to Pattern
+                let pattern_info = PatternInfo {
+                    variant_name: variant_name,
+                    binding_var: binding_var.clone(),
+                };
+                return Ok(Expr::new_explicit(
+                    NodeType::Pattern(pattern_info),
+                    Vec::new(),
+                    left.line,
+                    left.col
+                ));
+            },
+            _ => {}
         }
     }
 

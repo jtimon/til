@@ -440,8 +440,11 @@ fn scan_tokens(source: String) -> Vec<Token> {
                         if &source[pos..pos+1] == "\\" {
                             pos += 1; // if it's the escape character, skip it
                             if pos + 1 < eof_pos && &source[pos..pos+1] == "\"" {
-                                if let Some(ch) = source.as_bytes().get(pos).copied() {
-                                    lit_string.push(ch as char);
+                                match source.as_bytes().get(pos).copied() {
+                                    Some(ch) => {
+                                        lit_string.push(ch as char);
+                                    },
+                                    None => {}
                                 }
                             } else if pos + 1 < eof_pos && &source[pos..pos+1] == "n" {
                                 lit_string.push('\n');
@@ -456,13 +459,19 @@ fn scan_tokens(source: String) -> Vec<Token> {
                             } else { // If it's something else, just leave it as is for now, I guess
                                 // TODO print some warning with unkown escaped characters?
                                 lit_string.push('\\');
-                                if let Some(ch) = source.as_bytes().get(pos).copied() {
-                                    lit_string.push(ch as char);
+                                match source.as_bytes().get(pos).copied() {
+                                    Some(ch) => {
+                                        lit_string.push(ch as char);
+                                    },
+                                    None => {}
                                 }
                             }
                         } else {
-                            if let Some(ch) = source.as_bytes().get(pos).copied() {
-                                lit_string.push(ch as char);
+                            match source.as_bytes().get(pos).copied() {
+                                Some(ch) => {
+                                    lit_string.push(ch as char);
+                                },
+                                None => {}
                             }
                         }
                         pos += 1;
