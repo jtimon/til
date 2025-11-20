@@ -88,7 +88,10 @@ impl Arena {
             let base = parts[0];
             // If base is in symbols and is NOT a struct type, it's an instance field access
             ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
+                match &sym.value_type {
+                    ValueType::TType(_) => false,
+                    _ => true
+                }
             })
         } else {
             false
@@ -133,7 +136,10 @@ impl Arena {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
             ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
+                match &sym.value_type {
+                    ValueType::TType(_) => false,
+                    _ => true
+                }
             })
         } else {
             false
@@ -553,7 +559,10 @@ impl Arena {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
             ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
+                match &sym.value_type {
+                    ValueType::TType(_) => false,
+                    _ => true
+                }
             })
         } else {
             false
@@ -682,7 +691,10 @@ impl Arena {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
             ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                !matches!(&sym.value_type, ValueType::TType(_))
+                match &sym.value_type {
+                    ValueType::TType(_) => false,
+                    _ => true
+                }
             })
         } else {
             false

@@ -1323,7 +1323,10 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 
                         if let Some(found_type) = found_type_opt {
                             // Check if the value is a numeric literal (for implicit conversion)
-                            let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(Literal::Number(_)));
+                            let is_numeric_literal = match &inner_e.node_type {
+                                NodeType::LLiteral(Literal::Number(_)) => true,
+                                _ => false
+                            };
 
                             match expected_type {
                                 ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type
