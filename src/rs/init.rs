@@ -6,7 +6,7 @@ use crate::rs::lexer::{lexer_from_source, Token, TokenType};
 use crate::rs::mode::{ModeDef, can_be_imported, parse_mode, mode_from_name};
 use crate::rs::parser::{
     INFER_TYPE,
-    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
+    Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, PatternInfo,
     value_type_to_str, str_to_value_type, parse_tokens,
 };
 
@@ -972,14 +972,14 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
-                            for (member_name, member_decl) in &struct_def.members {
+                            for member_decl in &struct_def.members {
                                 if member_decl.is_mut {
                                     continue; // Skip instance fields
                                 }
                                 // Try to find a default_value (required for funcs/consts)
-                                if let Some(member_expr) = struct_def.default_values.get(member_name) {
+                                if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
                                     let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                                    let full_name = format!("{}.{}", decl.name, member_name); // Note: using '.' not '::'
+                                    let full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
                                     // Register in symbols
                                     context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                                     // If it's a function, also register in funcs
@@ -1088,16 +1088,12 @@ impl Context {
         let base_offset = self.scope_stack.lookup_var(instance_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: base offset for '{}' not found", instance_name)))?;
 
-        let members: Vec<(String, Declaration)> = struct_def
-            .members
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let members = struct_def.members.clone();
 
         let mut current_offset = 0;
-        for (field_name, decl) in members {
+        for decl in members {
             if decl.is_mut {
-                let combined_name = format!("{}.{}", instance_name, field_name);
+                let combined_name = format!("{}.{}", instance_name, decl.name);
                 let field_offset = base_offset + current_offset;
                 self.scope_stack.insert_var(combined_name.clone(), field_offset);
 
@@ -1156,8 +1152,8 @@ impl Context {
             None => return,
         };
 
-        for (field_name, decl) in &struct_def.members {
-            let combined_name = format!("{}.{}", instance_name, field_name);
+        for decl in &struct_def.members {
+            let combined_name = format!("{}.{}", instance_name, decl.name);
             self.scope_stack.declare_symbol(
                 combined_name.clone(),
                 SymbolInfo {

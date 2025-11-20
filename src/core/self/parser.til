@@ -787,7 +787,7 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     lexer.advance(1)
     body := parse_body(lexer, TokenType.RightBrace)
 
-    mut members := Vec.new(Declaration)  // Array of (Str, Declaration)
+    mut members := Vec.new(Declaration)  // Vec of Declaration
     mut default_values := Map.new(Str, Expr)  // Map<Str, Expr>
 
     mut i := 0

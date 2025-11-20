@@ -66,7 +66,7 @@ impl SFuncDef {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SStructDef {
-    pub members : Vec<(String, Declaration)>,
+    pub members : Vec<Declaration>,
     pub default_values : HashMap<String, Expr>,
 }
 
@@ -74,8 +74,7 @@ impl SStructDef {
     /// Helper to find a member by name
     pub fn get_member(&self, member_name: &str) -> Option<&Declaration> {
         self.members.iter()
-            .find(|(k, _)| k == member_name)
-            .map(|(_, v)| v)
+            .find(|decl| decl.name == member_name)
     }
 
     /// Helper to find a member by name or return an error
@@ -705,7 +704,7 @@ fn parse_struct_definition(lexer: &mut Lexer) -> Result<Expr, String> {
     for p in body.params {
         match p.node_type {
             NodeType::Declaration(decl) => {
-                members.push((decl.name.clone(), decl.clone()));
+                members.push(decl.clone());
                 if p.params.len() == 1 {
                     match p.params.get(0) {
                         Some(val) => {

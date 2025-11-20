@@ -209,7 +209,7 @@ impl Arena {
             // Fallback: Calculate size of struct's fields manually
             let mut total_size = 0;
 
-            for (field_name, decl) in &struct_def.members {
+            for decl in &struct_def.members {
                 if !decl.is_mut {
                     continue;
                 }
@@ -223,7 +223,7 @@ impl Arena {
                             "get_type_size: unsupported value type '{}' in '{}.{}'",
                             value_type_to_str(&decl.value_type),
                             type_name,
-                            field_name
+                            decl.name
                         ));
                     }
                 };
@@ -245,13 +245,13 @@ impl Arena {
 
         let mut current_offset = 0;
 
-        for (member_name, decl) in &struct_def.members {
+        for decl in &struct_def.members {
             if !decl.is_mut {
                 continue; // Skip immutable fields
             }
 
             // If we found the target field, return its offset
-            if member_name == field_name {
+            if decl.name == field_name {
                 return Ok(current_offset);
             }
 
@@ -260,7 +260,7 @@ impl Arena {
                 ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
                 _ => return Err(format!(
                     "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
-                    value_type_to_str(&decl.value_type), struct_type, member_name
+                    value_type_to_str(&decl.value_type), struct_type, decl.name
                 )),
             };
 
@@ -303,10 +303,10 @@ impl Arena {
                 .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
 
             let field_decl = struct_def.members.iter()
-                .find(|(name, _)| name == field_name)
+                .find(|decl| decl.name == *field_name)
                 .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
 
-            current_type = match &field_decl.1.value_type {
+            current_type = match &field_decl.value_type {
                 ValueType::TCustom(type_name) => type_name.clone(),
                 _ => {
                     // If this is the last part and it's a primitive, that's fine
@@ -333,14 +333,10 @@ impl Arena {
         let dest_base_offset = ctx.scope_stack.lookup_var(dest)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("copy_fields: destination arena offset for '{}' not found", dest)))?;
 
-        let members: Vec<(String, Declaration)> = struct_def
-            .members
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let members = struct_def.members.clone();
 
         let mut current_offset = 0;
-        for (field_name, decl) in members {
+        for decl in members {
             if !decl.is_mut {
                 continue;
             }
@@ -350,8 +346,8 @@ impl Arena {
                 _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
             };
 
-            let src_key = format!("{}.{}", src, field_name);
-            let dest_key = format!("{}.{}", dest, field_name);
+            let src_key = format!("{}.{}", src, decl.name);
+            let dest_key = format!("{}.{}", dest, decl.name);
 
             // Try to get source offset - first from arena_index, then calculate dynamically
             let src_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
@@ -416,7 +412,7 @@ impl Arena {
         let mut total_size = 0;
         let mut field_offsets = HashMap::new();
 
-        for (member_name, decl) in struct_def.members.iter() {
+        for decl in struct_def.members.iter() {
             if !decl.is_mut {
                 continue;
             }
@@ -426,7 +422,7 @@ impl Arena {
                 _ => return Err(e.lang_error(&ctx.path, "context", "insert_struct: Unsupported value type in struct")),
             };
 
-            field_offsets.insert(member_name.clone(), total_size);
+            field_offsets.insert(decl.name.clone(), total_size);
             total_size += field_size;
         }
 
@@ -442,26 +438,26 @@ impl Arena {
         ctx.scope_stack.insert_var(id.to_string(), offset);
 
         // Store each field's default value
-        for (member_name, decl) in struct_def.members.iter() {
+        for decl in struct_def.members.iter() {
             if !decl.is_mut {
                 continue;
             }
 
-            let field_offset = match field_offsets.get(member_name) {
+            let field_offset = match field_offsets.get(&decl.name) {
                 Some(offset) => offset,
-                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing field offset for '{}'", member_name))),
+                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing field offset for '{}'", decl.name))),
             };
 
-            let default_expr = struct_def.default_values.get(member_name);
+            let default_expr = struct_def.default_values.get(&decl.name);
             let default_value = match default_expr {
                 Some(e2) => {
                     let res = eval_expr(ctx, e2)?;
                     if res.is_throw {
-                        return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), member_name)));
+                        return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
                     }
                     res.value
                 },
-                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing default value for field '{}'", member_name))),
+                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing default value for field '{}'", decl.name))),
             };
 
             match &decl.value_type {
@@ -469,12 +465,12 @@ impl Arena {
                     if let Some(enum_def) = ctx.scope_stack.lookup_enum(type_name) {
                         let parts: Vec<&str> = default_value.split('.').collect();
                         if parts.len() != 2 || parts[0] != type_name {
-                            return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, member_name)));
+                            return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid enum default value '{}' for field '{}'", default_value, decl.name)));
                         }
                         let variant = parts[1];
                         let index = match enum_def.enum_map.keys().position(|v| v == variant) {
                             Some(i) => i as i64,
-                            None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, member_name))),
+                            None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown enum variant '{}' for field '{}'", variant, decl.name))),
                         };
                         Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                             .copy_from_slice(&index.to_ne_bytes());
@@ -482,20 +478,20 @@ impl Arena {
                         match type_name.as_str() {
                             "U8" => {
                                 let v = default_value.parse::<u8>().map_err(|_| {
-                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, member_name))
+                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid U8 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
                                 Arena::g().memory[offset + field_offset] = v;
                             },
                             "I64" => {
                                 let v = default_value.parse::<i64>().map_err(|_| {
-                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, member_name))
+                                    e.lang_error(&ctx.path, "context", &format!("insert_struct: Invalid I64 default value '{}' for field '{}'", default_value, decl.name))
                                 })?;
                                 Arena::g().memory[offset + field_offset..offset + field_offset + 8]
                                     .copy_from_slice(&v.to_ne_bytes());
                             },
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
-                                    let combined_name = format!("{}.{}", id, member_name);
+                                    let combined_name = format!("{}.{}", id, decl.name);
                                     ctx.scope_stack.declare_symbol(
                                         combined_name.clone(),
                                         SymbolInfo {
@@ -516,7 +512,7 @@ impl Arena {
                                         // Use existing offset for nested struct (inline allocation)
                                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
                                         Arena::insert_struct_at_offset(ctx, &combined_name, type_name, Some(offset + field_offset), e)
-                                            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, member_name)))?;
+                                            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, decl.name)))?;
                                     }
                                 } else {
                                     return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown field type '{}'", type_name)));
@@ -530,7 +526,7 @@ impl Arena {
                 }
             }
 
-            let combined_name = format!("{}.{}", id, member_name);
+            let combined_name = format!("{}.{}", id, decl.name);
             let field_arena_offset = offset + field_offset;
             ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
             ctx.scope_stack.declare_symbol(
@@ -545,7 +541,7 @@ impl Arena {
         }
 
         // Map immutable fields by copying arena_index entries from the type to the instance
-        for (_member_name, decl) in struct_def.members.iter() {
+        for decl in struct_def.members.iter() {
             if decl.is_mut {
                 continue; // Skip mutable fields (already handled above)
             }
@@ -581,7 +577,7 @@ impl Arena {
                     let members = str_def.members.clone();
                     let mut current_offset = 0;
 
-                    for (member_name, decl) in members.iter() {
+                    for decl in members.iter() {
                         if !decl.is_mut {
                             continue;
                         }
@@ -590,13 +586,13 @@ impl Arena {
                         let absolute_offset = base_offset + current_offset;
                         let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
 
-                        if member_name == "c_string" {
+                        if decl.name == "c_string" {
                             target_slice.copy_from_slice(&string_offset_bytes);
-                        } else if member_name == "cap" {
+                        } else if decl.name == "cap" {
                             target_slice.copy_from_slice(&len_bytes);
                         }
 
-                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), absolute_offset);
+                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), absolute_offset);
                         current_offset += type_size;
                     }
                     return Ok(())
@@ -610,7 +606,7 @@ impl Arena {
                 let struct_offset = Arena::g().memory.len();
                 let mut current_offset = 0;
 
-                for (member_name, decl) in members.iter() {
+                for decl in members.iter() {
                     if !decl.is_mut {
                         continue;
                     }
@@ -621,13 +617,13 @@ impl Arena {
                     }
 
                     let field_slice = &mut Arena::g().memory[struct_offset + current_offset..struct_offset + current_offset + type_size];
-                    if member_name == "c_string" {
+                    if decl.name == "c_string" {
                         field_slice.copy_from_slice(&string_offset_bytes);
-                    } else if member_name == "cap" {
+                    } else if decl.name == "cap" {
                         field_slice.copy_from_slice(&len_bytes);
                     }
 
-                    ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, member_name), struct_offset + current_offset);
+                    ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(format!("{}.{}", id, decl.name), struct_offset + current_offset);
                     current_offset += type_size;
                 }
 
@@ -1863,7 +1859,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                 NodeType::StructDef(struct_def) => {
                     context.scope_stack.declare_struct(declaration.name.to_string(), struct_def.clone());
                     context.scope_stack.declare_symbol(declaration.name.to_string(), SymbolInfo{value_type: value_type.clone(), is_mut: declaration.is_mut, is_copy: declaration.is_copy, is_own: declaration.is_own });
-                    for (_, member_decl) in &struct_def.members {
+                    for member_decl in &struct_def.members {
                         if !member_decl.is_mut {
                             let combined_name = format!("{}.{}", declaration.name, member_decl.name);
                             let default_value = match struct_def.default_values.get(&member_decl.name) {
@@ -2442,10 +2438,10 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                                         );
                                     }
 
-                                    for (field_name, field_decl) in &members {
-                                        let src_instance_field = format!("{}.{}", source_name, field_name);
-                                        let src_type_field = format!("{}.{}", thrown_type, field_name);
-                                        let dst_field = format!("{}.{}", var_name, field_name);
+                                    for field_decl in &members {
+                                        let src_instance_field = format!("{}.{}", source_name, field_decl.name);
+                                        let src_type_field = format!("{}.{}", thrown_type, field_decl.name);
+                                        let dst_field = format!("{}.{}", var_name, field_decl.name);
 
                                         // Add symbol for the field
                                         context.scope_stack.declare_symbol(
@@ -2478,7 +2474,7 @@ pub fn eval_body(mut context: &mut Context, statements: &Vec<Expr>) -> Result<Ev
                             // Also remove the field mappings
                             if let Some(struct_def) = context.scope_stack.lookup_struct(thrown_type) {
                                 // Collect field names to avoid borrow conflict
-                                let field_names: Vec<String> = struct_def.members.iter().map(|(name, _)| name.clone()).collect();
+                                let field_names: Vec<String> = struct_def.members.iter().map(|decl| decl.name.clone()).collect();
                                 for field_name in field_names {
                                     let combined_name = format!("{}.{}", var_name, field_name);
                                     context.scope_stack.remove_symbol(&combined_name);

@@ -673,8 +673,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
 
                     // Register struct fields so err.msg etc. can be accessed during type-checking
                     if let Some(struct_def) = context.scope_stack.lookup_struct(&caught_type) {
-                        for (field_name, field_decl) in &struct_def.members {
-                            let combined_name = format!("{}.{}", var_name, field_name);
+                        for field_decl in &struct_def.members {
+                            let combined_name = format!("{}.{}", var_name, field_decl.name);
                             temp_context.scope_stack.declare_symbol(
                                 combined_name.clone(),
                                 SymbolInfo {
@@ -897,8 +897,8 @@ fn check_catch_statement(context: &mut Context, e: &Expr) -> Vec<String> {
 
     // Map struct fields so err.msg etc. can be accessed during type-checking
     if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-        for (field_name, field_decl) in &struct_def.members {
-            let combined_name = format!("{}.{}", var_name, field_name);
+        for field_decl in &struct_def.members {
+            let combined_name = format!("{}.{}", var_name, field_decl.name);
             temp_context.scope_stack.declare_symbol(
                 combined_name.clone(),
                 SymbolInfo {
@@ -1027,7 +1027,7 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
                 match current_type {
                     ValueType::TCustom(ref type_name) => {
                         if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-                            if let Some((_, field_decl)) = struct_def.members.iter().find(|(name, _)| name == field_name) {
+                            if let Some(field_decl) = struct_def.members.iter().find(|decl| decl.name == *field_name) {
                                 current_type = field_decl.value_type.clone();
                             } else {
                                 errors.push(e.error(&context.path, "type", &format!("Field '{}' not found in struct '{}'", field_name, type_name)));
@@ -1249,7 +1249,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
         return errors
     }
 
-    for (member_name, member_decl) in &struct_def.members {
+    for member_decl in &struct_def.members {
         // Validate that the member's declared type exists (if it's a custom type)
         match &member_decl.value_type {
             ValueType::TCustom(ref custom_type_name) => {
@@ -1259,7 +1259,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                     if context.scope_stack.lookup_symbol(custom_type_name).is_none() {
                         errors.push(e.error(&context.path, "type", &format!(
                             "Struct member '{}' uses undefined type '{}'.\nHint: Make sure '{}' is defined before this struct.",
-                            member_name, custom_type_name, custom_type_name
+                            member_decl.name, custom_type_name, custom_type_name
                         )));
                     } else {
                         // Validate it's actually a type (enum or struct), not a value
@@ -1273,7 +1273,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                             _ => {
                                 errors.push(e.error(&context.path, "type", &format!(
                                     "Struct member '{}' type '{}' is not a valid type (expected enum, struct, or primitive, found {}).",
-                                    member_name, custom_type_name, value_type_to_str(&symbol_info.value_type)
+                                    member_decl.name, custom_type_name, value_type_to_str(&symbol_info.value_type)
                                 )));
                             }
                         }
@@ -1283,7 +1283,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
             _ => {} // Non-custom types (like functions) are handled elsewhere
         }
 
-        match struct_def.default_values.get(member_name) {
+        match struct_def.default_values.get(&member_decl.name) {
             Some(inner_e) => {
                 // println!("inner_e {:?}", inner_e);
                 match &inner_e.node_type {
@@ -1297,7 +1297,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                         // Check if default value calls procs (violates purity of constructors)
                         if is_expr_calling_procs(context, inner_e) {
                             errors.push(inner_e.exit_error("type",
-                                &format!("Struct field '{}' has default value that calls proc. Default values must be pure (can only call funcs, not procs).", member_name)));
+                                &format!("Struct field '{}' has default value that calls proc. Default values must be pure (can only call funcs, not procs).", member_decl.name)));
                         }
 
                         // Check if default value type matches declared member type
@@ -1321,7 +1321,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                             _ if expected_type != &found_type => {
                                 errors.push(inner_e.error(&context.path, "type", &format!(
                                     "Struct field '{}' declared as '{}' but default value has type '{}'.",
-                                    member_name, value_type_to_str(expected_type), value_type_to_str(&found_type)
+                                    member_decl.name, value_type_to_str(expected_type), value_type_to_str(&found_type)
                                 )));
                             },
                             _ => {} // types match; no error
@@ -1330,7 +1330,7 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
                 }
             },
             None => {
-                errors.push(e.todo_error(&context.path, "type", &format!("Member '{}' lacks a default value. Not allowed yet.", member_name)));
+                errors.push(e.todo_error(&context.path, "type", &format!("Member '{}' lacks a default value. Not allowed yet.", member_decl.name)));
             }
         }
     }
