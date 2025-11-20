@@ -1,0 +1,8 @@
+mode test
+
+test_gt := proc() {
+    result := gt(254, 0)
+    println("gt(254, 0) =", Bool.to_str(result))
+    test(loc(), result, "gt(254, 0) should be true")
+}
+test_gt()

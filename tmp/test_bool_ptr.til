@@ -1,0 +1,13 @@
+mode test
+
+test_bool_ptr := proc() {
+    mut b : Bool = false
+    ptr := to_ptr(b)
+    println("to_ptr(b) =", I64.to_str(ptr))
+
+    condition := gt(ptr, 0)
+    println("gt(ptr, 0) =", Bool.to_str(condition))
+
+    test(loc(), condition, "to_ptr(Bool) should return non-zero")
+}
+test_bool_ptr()

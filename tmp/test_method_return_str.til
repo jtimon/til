@@ -1,0 +1,16 @@
+mode script
+
+MyStruct := struct {
+    value : I64 = 0
+
+    get_name := func(self: MyStruct) returns Str {
+        return "MyStruct instance"
+    }
+}
+
+obj := MyStruct()
+name := obj.get_name()
+println("name =", name)
+
+// Also test Bool.to_str directly
+println("true via func:", Bool.to_str(true))

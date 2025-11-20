@@ -1,0 +1,9 @@
+mode test
+
+test_assertm := proc() {
+    result := gt(254, 0)
+    println("result before assertm =", Bool.to_str(result))
+    assertm(loc(), result, "gt(254, 0) should be true")
+    println("assertm passed!")
+}
+test_assertm()

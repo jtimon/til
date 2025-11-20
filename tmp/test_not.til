@@ -1,0 +1,14 @@
+mode test
+
+test_not := proc() {
+    b_true := true
+    b_false := false
+
+    println("not(true) =", Bool.to_str(not(b_true)))
+    println("not(false) =", Bool.to_str(not(b_false)))
+
+    result := gt(254, 0)
+    println("result =", Bool.to_str(result))
+    println("not(result) =", Bool.to_str(not(result)))
+}
+test_not()

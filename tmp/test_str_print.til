@@ -1,0 +1,11 @@
+mode script
+
+println("direct string works")
+s := "variable string"
+println("s =", s)
+
+get_str := func() returns Str {
+    return "returned string"
+}
+result := get_str()
+println("result =", result)

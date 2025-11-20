@@ -1,0 +1,12 @@
+mode test
+
+test_bool := proc() {
+    a := true
+    result_a := Bool.to_str(a)
+    println("result_a =", result_a)
+
+    b := false
+    result_b := Bool.to_str(b)
+    println("result_b =", result_b)
+}
+test_bool()
