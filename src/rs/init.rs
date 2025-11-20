@@ -1175,6 +1175,25 @@ impl Context {
             }
         }
     }
+
+    // Scope management helpers for upcoming context clone refactor
+    // These will replace context cloning with proper scope push/pop
+
+    /// Push a new function scope and switch to the function's source path
+    /// Returns the saved path that should be restored when popping
+    pub fn push_function_scope(&mut self, function_path: &str) -> String {
+        self.scope_stack.push(ScopeType::Function);
+        let saved_path = self.path.clone();
+        self.path = function_path.to_string();
+        saved_path
+    }
+
+    /// Pop the current function scope and restore the previous path
+    pub fn pop_function_scope(&mut self, saved_path: String) -> Result<(), String> {
+        self.path = saved_path;
+        self.scope_stack.pop()?;
+        Ok(())
+    }
 }
 
 
