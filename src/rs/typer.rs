@@ -329,37 +329,37 @@ fn check_fcall(context: &mut Context, e: &Expr) -> Vec<String> {
         // Only check for explicit 'copy' parameters, not regular immutable parameters
         if arg.is_copy {
             // Get the actual type being passed
-            let arg_type = match get_value_type(&context, arg_expr) {
-                Ok(val_type) => val_type,
+            let arg_type_opt = match get_value_type(&context, arg_expr) {
+                Ok(val_type) => Some(val_type),
                 Err(_) => {
                     // Type error already reported, skip clone check
-                    continue;
+                    None
                 }
             };
 
-            // Only check for custom types (user-defined structs)
-            if let ValueType::TCustom(type_name) = &arg_type {
-                // Skip primitive types that are trivially copyable (don't require clone())
-                // These types are copy-by-value and don't need deep cloning
-                // NOTE: Bool removed from this list - it's a regular struct, not a special primitive
-                let primitives = vec!["I64", "U8", "Str"];
-                if primitives.contains(&type_name.as_str()) {
-                    continue;
-                }
+            if let Some(arg_type) = arg_type_opt {
+                // Only check for custom types (user-defined structs)
+                if let ValueType::TCustom(type_name) = &arg_type {
+                    // Skip primitive types that are trivially copyable (don't require clone())
+                    // These types are copy-by-value and don't need deep cloning
+                    // NOTE: Bool removed from this list - it's a regular struct, not a special primitive
+                    let primitives = vec!["I64", "U8", "Str"];
+                    if !primitives.contains(&type_name.as_str()) {
+                        if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
+                            // Check if clone() exists as a const (associated function)
+                            let has_clone = struct_def.get_member("clone")
+                                .map(|decl| !decl.is_mut)
+                                .unwrap_or(false);
 
-                if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-                    // Check if clone() exists as a const (associated function)
-                    let has_clone = struct_def.get_member("clone")
-                        .map(|decl| !decl.is_mut)
-                        .unwrap_or(false);
-
-                    if !has_clone {
-                        errors.push(arg_expr.error(&context.path, "type", &format!(
-                            "Cannot pass struct '{}' to copy parameter '{}' of function '{}'.\n\
-                             Reason: struct '{}' does not implement clone() method.\n\
-                             Suggestion: add 'clone := func(self: {}) returns {} {{ ... }}' to struct '{}'.",
-                            type_name, arg.name, f_name, type_name, type_name, type_name, type_name
-                        )));
+                            if !has_clone {
+                                errors.push(arg_expr.error(&context.path, "type", &format!(
+                                    "Cannot pass struct '{}' to copy parameter '{}' of function '{}'.\n\
+                                     Reason: struct '{}' does not implement clone() method.\n\
+                                     Suggestion: add 'clone := func(self: {}) returns {} {{ ... }}' to struct '{}'.",
+                                    type_name, arg.name, f_name, type_name, type_name, type_name, type_name
+                                )));
+                            }
+                        }
                     }
                 }
             }
@@ -550,10 +550,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             errors.push(p.error(&context.path, "type",
                 "Unreachable code after unconditional return or throw.\n\
                  Suggestion: Remove this code or move it before the return/throw statement."));
-            continue;
-        }
-
-        match &p.node_type {
+        } else {
+            match &p.node_type {
             NodeType::Body => {
                 let mut temp_thrown_types = Vec::new();
                 errors.extend(check_body_returns_throws(context, e, func_def, &p.params, &mut temp_thrown_types, return_found));
@@ -567,38 +565,40 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
                 } else {
                     for i in 0..p.params.len() {
-                        let expected_value_type = match func_def.return_types.get(i) {
-                            Some(t) => t,
+                        let expected_value_type_opt = match func_def.return_types.get(i) {
+                            Some(t) => Some(t),
                             None => {
                                 errors.push(e.lang_error(&context.path, "type", &format!("Fewer return values than provided at position {}", i)));
-                                continue;
+                                None
                             }
                         };
-                        let return_val_e = match p.params.get(i) {
-                            Some(val) => val,
+                        let return_val_e_opt = match p.params.get(i) {
+                            Some(val) => Some(val),
                             None => {
                                 errors.push(e.lang_error(&context.path, "type", &format!("Missing return value at position {}", i)));
-                                continue;
+                                None
                             }
                         };
 
-                        // Recursively check this return expression for throws
-                        errors.extend(
-                            check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_types, return_found));
+                        if let (Some(expected_value_type), Some(return_val_e)) = (expected_value_type_opt, return_val_e_opt) {
+                            // Recursively check this return expression for throws
+                            errors.extend(
+                                check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_types, return_found));
 
-                        match get_value_type(&context, return_val_e) {
-                            Ok(actual_value_type) => {
-                                if expected_value_type != &actual_value_type {
-                                    errors.push(return_val_e.error(&context.path, 
-                                        "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
-                                                         i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
-                                    errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
-                                }
-                            },
-                            Err(error_string) => {
-                                errors.push(error_string);
-                            },
-                        };
+                            match get_value_type(&context, return_val_e) {
+                                Ok(actual_value_type) => {
+                                    if expected_value_type != &actual_value_type {
+                                        errors.push(return_val_e.error(&context.path,
+                                            "type", &format!("Return value in pos {} expected to be '{}', but found '{}' instead",
+                                                             i, value_type_to_str(&expected_value_type), value_type_to_str(&actual_value_type))));
+                                        errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
+                                    }
+                                },
+                                Err(error_string) => {
+                                    errors.push(error_string);
+                                },
+                            };
+                        }
                     }
                 }
             },
@@ -785,37 +785,43 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                 if let Some(initializer) = p.params.get(0) {
                     if let NodeType::FCall = initializer.node_type {
 
-                        let id_expr = match initializer.get(0) {
-                            Ok(id_expr_) => id_expr_,
+                        let id_expr_opt = match initializer.get(0) {
+                            Ok(id_expr_) => Some(id_expr_),
                             Err(err) => {
                                 errors.push(err);
-                                continue;
+                                None
                             },
                         };
-                        if let NodeType::Identifier(name) = &id_expr.node_type {
-                            // Only skip default constructor calls (simple StructName() with no dots)
-                            // Don't skip method calls like Struct.method()
-                            if id_expr.params.is_empty() {
-                                if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
-                                    if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
-                                        continue; // Skip default constructor calls, for instantiations like 'StructName()'
+
+                        let mut is_constructor = false;
+                        if let Some(id_expr) = id_expr_opt {
+                            if let NodeType::Identifier(name) = &id_expr.node_type {
+                                // Only skip default constructor calls (simple StructName() with no dots)
+                                // Don't skip method calls like Struct.method()
+                                if id_expr.params.is_empty() {
+                                    if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
+                                        if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                                            is_constructor = true; // Skip default constructor calls, for instantiations like 'StructName()'
+                                        }
                                     }
                                 }
-                            }
 
-                            // Check for enum constructors (e.g., Color.Green(true))
-                            if id_expr.params.len() == 1 {
-                                if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
-                                    if symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
-                                        if let Some(variant_expr) = id_expr.params.get(0) {
-                                            if let NodeType::Identifier(_variant_name) = &variant_expr.node_type {
-                                                continue; // Skip enum constructor calls, for instantiations like 'Color.Green(true)'
+                                // Check for enum constructors (e.g., Color.Green(true))
+                                if id_expr.params.len() == 1 {
+                                    if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
+                                        if symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                                            if let Some(variant_expr) = id_expr.params.get(0) {
+                                                if let NodeType::Identifier(_variant_name) = &variant_expr.node_type {
+                                                    is_constructor = true; // Skip enum constructor calls, for instantiations like 'Color.Green(true)'
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
                         }
+
+                        if !is_constructor {
                         match get_func_def_for_fcall(&context, initializer) {
                             Ok(Some(called_func_def)) => {
                                 for called_throw in &called_func_def.throw_types {
@@ -840,12 +846,14 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 errors.push(initializer.error(&context.path, "type", &format!("Failed to resolve function in declaration initializer: {}", reason)));
                             }
                         }
+                        }
                     }
                 }
             }
 
 
             _ => {},
+            }
         }
     }
 
@@ -1305,29 +1313,31 @@ fn check_struct_def(context: &mut Context, e: &Expr, struct_def: &SStructDef) ->
 
                         // Check if default value type matches declared member type
                         let expected_type = &member_decl.value_type;
-                        let found_type = match get_value_type(&context, inner_e) {
-                            Ok(val_type) => val_type,
+                        let found_type_opt = match get_value_type(&context, inner_e) {
+                            Ok(val_type) => Some(val_type),
                             Err(error_string) => {
                                 errors.push(error_string);
-                                continue;
+                                None
                             },
                         };
 
-                        // Check if the value is a numeric literal (for implicit conversion)
-                        let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(Literal::Number(_)));
+                        if let Some(found_type) = found_type_opt {
+                            // Check if the value is a numeric literal (for implicit conversion)
+                            let is_numeric_literal = matches!(&inner_e.node_type, NodeType::LLiteral(Literal::Number(_)));
 
-                        match expected_type {
-                            ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type
-                            ValueType::TCustom(tn) if tn == INFER_TYPE => {}, // Type inference is OK
-                            // Allow implicit conversion from I64 literals to U8
-                            ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},
-                            _ if expected_type != &found_type => {
-                                errors.push(inner_e.error(&context.path, "type", &format!(
-                                    "Struct field '{}' declared as '{}' but default value has type '{}'.",
-                                    member_decl.name, value_type_to_str(expected_type), value_type_to_str(&found_type)
-                                )));
-                            },
-                            _ => {} // types match; no error
+                            match expected_type {
+                                ValueType::TCustom(tn) if tn == "Dynamic" || tn == "Type" => {}, // Accept any type for Dynamic/Type
+                                ValueType::TCustom(tn) if tn == INFER_TYPE => {}, // Type inference is OK
+                                // Allow implicit conversion from I64 literals to U8
+                                ValueType::TCustom(tn) if tn == "U8" && found_type == ValueType::TCustom("I64".to_string()) && is_numeric_literal => {},
+                                _ if expected_type != &found_type => {
+                                    errors.push(inner_e.error(&context.path, "type", &format!(
+                                        "Struct field '{}' declared as '{}' but default value has type '{}'.",
+                                        member_decl.name, value_type_to_str(expected_type), value_type_to_str(&found_type)
+                                    )));
+                                },
+                                _ => {} // types match; no error
+                            }
                         }
                     }
                 }
