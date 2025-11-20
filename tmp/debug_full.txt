@@ -1,0 +1,10 @@
+Running file 'src/test/args.til'
+Mode: test
+DEBUG test_str_args: calling test_str_arg
+DEBUG test_str_arg: input s =hello
+DEBUG test_str_arg: result after format =hello world
+DEBUG test_str_arg: about to return, result =hello world
+DEBUG test_str_args: got result =hello world
+DEBUG test_str_args: before assert, result =hello world
+DEBUG test_str_args: result2 =hello world
+src/core/modes/test.til:166:19:assert_eq_str failed: expected 'hello world', found 'hello'

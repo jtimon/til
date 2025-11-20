@@ -1140,7 +1140,11 @@ pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<Stri
 
     // Read string bytes from Arena and convert to String
     let bytes = &Arena::g().memory[c_string_ptr..c_string_ptr + length];
-    Ok(String::from_utf8_lossy(bytes).to_string())
+    let result = String::from_utf8_lossy(bytes).to_string();
+    if id.contains("result") {
+        eprintln!("DEBUG RUST string_from_context: id='{}' c_string_ptr={} length={} result='{}'", id, c_string_ptr, length, result);
+    }
+    Ok(result)
 }
 
 // Helper function to validate conditional statement parameters
@@ -2814,6 +2818,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         Arena::insert_bool(context, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
+                        eprintln!("DEBUG RUST passing Str arg: arg.name='{}' result_str='{}'", arg.name, result_str);
                         Arena::insert_string(context, &arg.name, &result_str, e)?;
                     },
                     _ => {

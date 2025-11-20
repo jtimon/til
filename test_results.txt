@@ -1,0 +1,31 @@
+rustc src/rstil.rs -o bin/rstil
+./bin/rstil src/tests.til
+Running file 'src/tests.til'
+Mode: test
+Running file 'src/test/temporary_tests.til'
+Mode: test
+
+Some versions of 'hello world' in different basic modes:
+
+Running file 'src/test/hello/hello_cli.til'
+Mode: cli
+Hello World!
+Running file 'src/test/hello/hello_lib.til'
+Mode: lib
+Running file 'src/test/hello/hello_pure.til'
+Mode: pure
+Running file 'src/test/hello/hello_script.til'
+Mode: script
+Hello World!
+Running file 'src/test/hello/hello_script_shebang.til'
+Mode: script
+Hello World!
+Running file 'src/test/hello/hello_test.til'
+Mode: test
+
+Some basic tests/examples:
+
+Running file 'src/test/args.til'
+Mode: test
+src/core/modes/test.til:157:19:assert_eq_str failed: expected 'hello world', found 'hello'
+make: *** [Makefile:9: tests] Error 1

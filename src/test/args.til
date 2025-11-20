@@ -50,7 +50,9 @@ test_bool_args := proc() {
 test_bool_args()
 
 test_str_arg := proc(s: Str) returns Str {
+    println("DEBUG test_str_arg: input s =", s)
     result := format(s, " world")
+    println("DEBUG test_str_arg: result after format =", result)
 
     // Catch unexpected errors at end
     catch (err: AllocError) {
@@ -68,12 +70,19 @@ test_str_arg := proc(s: Str) returns Str {
         println(err.msg)
         exit(1)
     }
+    println("DEBUG test_str_arg: about to return, result =", result)
     return result
 }
 
 test_str_args := proc() {
+    println("DEBUG test_str_args: calling test_str_arg")
     result := test_str_arg("hello")
-    assert_eq_str(loc(), "hello world", result)
+    println("DEBUG test_str_args: got result =", result)
+    println("DEBUG test_str_args: before assert, result =", result)
+    // Try creating a new variable from result to see if that helps
+    mut result2 := result
+    println("DEBUG test_str_args: result2 =", result2)
+    assert_eq_str(loc(), "hello world", result2)
 }
 test_str_args()
 
