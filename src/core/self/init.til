@@ -492,8 +492,6 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str {
         mut param_node_type_str := enum_to_str(param.node_type)
         e.exit_error("type", format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'"))
     }
-    return func_name
-
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
@@ -503,6 +501,7 @@ get_func_name_in_call := func(e: Expr) returns Str throws Str {
     catch (err: FullError) {
         throw err.msg
     }
+    return func_name
 }
 
 value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
@@ -520,11 +519,10 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
             throw e.error(path, "type", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
         }
     }
-    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
-
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
+    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
 }
 
 get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str {
@@ -896,8 +894,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         case:
             return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
         }
-    throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
-
     catch (err: KeyNotFoundError) {
         throw err.msg
     }
@@ -910,6 +906,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     catch (err: AllocError) {
         throw err.msg
     }
+    throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
 }
 
 get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
@@ -1045,11 +1042,10 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 # Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
 import_path_to_file_path := func(import_path: Str) returns Str throws Str {
     mut file_path := import_path.replace(".", MAIN_SEPARATOR_STR)
-    return format(file_path, ".til")
-
     catch (err: AllocError) {
         throw err.msg
     }
+    return format(file_path, ".til")
 }
 
 # Import declarations only (no eval) - for init phase
@@ -1765,14 +1761,13 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
             }
         }
     }
-    return errors
-
     catch (err: AllocError) {
         throw err.msg
     }
     catch (err: FullError) {
         throw err.msg
     }
+    return errors
 }
 
 Context := struct {
@@ -1808,14 +1803,13 @@ Context := struct {
         result.temp_enum_payload = NULL
         result.imports_wip = HashSet.new()
         result.imports_done = HashMap.new()
-        return result
-
         catch (err: AllocError) {
             throw err.msg
         }
         catch (err: FullError) {
             throw err.msg
         }
+        return result
     }
 
     get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
@@ -1829,11 +1823,10 @@ Context := struct {
             }
             idx = idx.add(1)
         }
-        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
-
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
+        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
     }
 
     variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
@@ -1845,11 +1838,10 @@ Context := struct {
         # If position is valid, return the corresponding variant name
         mut result := ""  # Default init, will be overwritten by get()
         keys.get(position, result)
-        return result
-
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
+        return result
     }
 
     map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
@@ -1946,11 +1938,10 @@ Context := struct {
             }
             return id
         }
-        throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
-
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
+        throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
     }
 
     register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {

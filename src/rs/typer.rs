@@ -424,6 +424,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
 }
 
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
+    eprintln!("\n=== DEBUG: Analyzing function at line {} in {} ===", e.line, func_def.source_path);
     let mut errors : Vec<String> = Vec::new();
     if !context.mode_def.allows_procs && func_def.is_proc() {
         errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
@@ -545,8 +546,11 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
     let mut unconditional_exit_in_sequence = false;
 
     for p in body.iter() {
+        eprintln!("DEBUG: Processing node {:?} at line {}", p.node_type, p.line);
+
         // Check if we're processing code after an unconditional return or throw
         if unconditional_exit_in_sequence {
+            eprintln!("DEBUG: UNREACHABLE at line {} (unconditional_exit was set)", p.line);
             errors.push(p.error(&context.path, "type",
                 "Unreachable code after unconditional return or throw.\n\
                  Suggestion: Remove this code or move it before the return/throw statement."));
@@ -560,6 +564,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             NodeType::Return => {
                 *return_found = true;
                 unconditional_exit_in_sequence = true;
+                eprintln!("DEBUG: RETURN at line {} - setting unconditional_exit_in_sequence", p.line);
                 if returns_len != p.params.len() {
                     errors.push(p.error(&context.path, "type", &format!("Returning {} values when {} were expected.", p.params.len(), returns_len)));
                     errors.push(e.error(&context.path, "type", "Suggestion: Update returns section here"));
@@ -604,6 +609,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             },
             NodeType::Throw => {
                 unconditional_exit_in_sequence = true;
+                eprintln!("DEBUG: THROW at line {} - setting unconditional_exit_in_sequence", p.line);
                 if p.params.len() != 1 {
                     errors.push(p.error(&context.path, "type", "Throw statement must have exactly one parameter."));
                 } else {
@@ -656,9 +662,14 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     };
 
                     // Remove first, before descending into body
+                    eprintln!("DEBUG: CATCH block for '{}' at line {}, thrown_types before: {:?}",
+                              caught_type, p.line, thrown_types.iter().map(|(t,_)| t).collect::<Vec<_>>());
                     if thrown_types.iter().any(|(t, _)| t == &caught_type) {
                         thrown_types.retain(|(t, _)| t != &caught_type);
+                        eprintln!("DEBUG: CATCH removed '{}', thrown_types after: {:?}",
+                                  caught_type, thrown_types.iter().map(|(t,_)| t).collect::<Vec<_>>());
                     } else {
+                        eprintln!("DEBUG: CATCH WARNING - '{}' not in thrown_types!", caught_type);
                         errors.push(p.error(&context.path, "warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
                     }
 

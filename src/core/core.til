@@ -265,11 +265,10 @@ or := func(args: ..Bool) returns Bool {
             return true
         }
     }
-    return false
-
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "or: IndexOutOfBoundsError should never happen")
     }
+    return false
 }
 
 and := func(args: ..Bool) returns Bool {
@@ -280,11 +279,10 @@ and := func(args: ..Bool) returns Bool {
             return false
         }
     }
-    return true
-
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "and: IndexOutOfBoundsError should never happen")
     }
+    return true
 }
 
 Bool := struct {
