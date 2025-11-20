@@ -13,6 +13,15 @@ SymbolInfo := struct {
     mut is_mut: Bool = false
     mut is_copy: Bool = false
     mut is_own: Bool = false
+
+    new := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool) returns SymbolInfo {
+        mut info := SymbolInfo()
+        info.value_type = value_type
+        info.is_mut = is_mut
+        info.is_copy = is_copy
+        info.is_own = is_own
+        return info
+    }
 }
 
 EnumVal := struct {
@@ -548,6 +557,9 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
     mut func_ptr := context.scope_stack.lookup_func(method_name)
     if not(NULL.eq(func_ptr.data)) {
         mut func_def := context.scope_stack.get_func(method_name)
+        catch (err: KeyNotFoundError) {
+            throw err.msg
+        }
         return value_type_func_proc(context.path, e, f_name, func_def)
     }
 
@@ -566,6 +578,9 @@ get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_exp
         mut method_ptr := context.scope_stack.lookup_func(id_expr_name)
         if not(NULL.eq(method_ptr.data)) {
             mut method_def := context.scope_stack.get_func(id_expr_name)
+            catch (err: KeyNotFoundError) {
+                throw err.msg
+            }
             return value_type_func_proc(context.path, e, id_expr_name, method_def)
         }
         throw e.error(context.path, "type", format("Type '", custom_type_name, "' has no method '", method_name, "'"))
@@ -611,10 +626,16 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if not(NULL.eq(method_ptr.data)) {
                 // UFCS method exists! Use it instead of standalone function
                 mut func_def := context.scope_stack.get_func(method_name)
+                catch (err: KeyNotFoundError) {
+                    throw err.msg
+                }
                 return value_type_func_proc(context.path, e, method_name, func_def)
             }
         case:
             // Not TCustom or no method, fall through
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
         }
         // If we couldn't determine type or no associated method exists, fall through
     }
@@ -667,6 +688,15 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
         case:
             throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
         }
 
 
@@ -906,6 +936,9 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
     catch (err: AllocError) {
         throw err.msg
     }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
     throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
 }
 
@@ -1036,16 +1069,29 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     catch (err: AllocError) {
         throw err.msg
     }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: KeyNotFoundError) {
+        throw err.msg
+    }
 }
 
 # Convert dot-based import path to OS-specific file path
 # Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
 import_path_to_file_path := func(import_path: Str) returns Str throws Str {
     mut file_path := import_path.replace(".", MAIN_SEPARATOR_STR)
+    mut result := format(file_path, ".til")
     catch (err: AllocError) {
         throw err.msg
     }
-    return format(file_path, ".til")
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    return result
 }
 
 # Import declarations only (no eval) - for init phase
@@ -1195,6 +1241,12 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         throw err.msg
     }
     catch (err: FullError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: DuplicatedKeyError) {
         throw err.msg
     }
 }
@@ -1767,6 +1819,12 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
     catch (err: FullError) {
         throw err.msg
     }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
     return errors
 }
 
@@ -1844,7 +1902,7 @@ Context := struct {
         return result
     }
 
-    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str, AllocError, IndexOutOfBoundsError, FullError {
+    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
         mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
         if NULL.eq(struct_def_ptr.data) {
             throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
@@ -1880,7 +1938,7 @@ Context := struct {
 
                 self.scope_stack.declare_symbol(
                     combined_name,
-                    SymbolInfo.new_with(
+                    SymbolInfo.new(
                         decl.value_type,
                         is_mut,
                         false,
@@ -1918,6 +1976,21 @@ Context := struct {
             }
             # Immutable struct fields are handled generically through struct_defs
             member_idx = member_idx.add(1)
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: FullError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
         }
     }
 
@@ -1961,7 +2034,7 @@ Context := struct {
             mut combined_name := format(instance_name, ".", field_name)
             self.scope_stack.declare_symbol(
                 combined_name,
-                SymbolInfo.new_with(
+                SymbolInfo.new(
                     decl.value_type,
                     decl.is_mut,
                     false,
@@ -1984,6 +2057,12 @@ Context := struct {
             throw err.msg
         }
         catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
             throw err.msg
         }
     }
