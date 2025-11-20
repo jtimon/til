@@ -1904,16 +1904,16 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
 
     // Mode validation: check if non-declaration nodes are allowed at root level
     // Corresponds to mode validation in init.rs lines 743-752
-    mut mode := context.mode_def
-    if not(mode.allows_base_anything) {
-        if mode.allows_base_calls {
+    mut current_mode := context.mode_def
+    if not(current_mode.allows_base_anything) {
+        if current_mode.allows_base_calls {
             // Allow declarations and calls only
             if not(node_type_str.eq("NodeType.FCall")) {
-                throw e.error("mode", format("mode '", mode.name, "' allows only declarations and calls in the root context, found ", node_type_str, "."))
+                throw e.error("mode", format("mode '", current_mode.name, "' allows only declarations and calls in the root context, found ", node_type_str, "."))
             }
         } else {
             // Allow declarations only - we already handled declarations above
-            throw e.error("mode", format("mode '", mode.name, "' allows only declarations in the root context, found ", node_type_str, "."))
+            throw e.error("mode", format("mode '", current_mode.name, "' allows only declarations in the root context, found ", node_type_str, "."))
         }
     }
 
