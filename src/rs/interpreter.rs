@@ -652,6 +652,55 @@ impl Arena {
             return Err(e.lang_error(&ctx.path, "context", "'Str' struct definition not found"))
         }
 
+        // Check if variable exists in current frame (for in-place update with pass-by-reference)
+        if let Some(existing_offset) = ctx.scope_stack.lookup_var_current_frame(id) {
+            // Variable exists in current frame - update in-place
+            let c_string_field_name = format!("{}.c_string", id);
+            let cap_field_name = format!("{}.cap", id);
+
+            // Look up field offsets, or create them if missing (for pass-by-reference Str parameters)
+            let c_string_offset = match ctx.scope_stack.lookup_var(&c_string_field_name) {
+                Some(offset) => offset,
+                None => {
+                    // Field offset not registered yet - calculate and register it
+                    if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
+                        let members = str_def.members.clone();
+                        let mut current_offset = 0;
+                        let mut c_str_off = None;
+
+                        for (member_name, decl) in members.iter() {
+                            if !decl.is_mut {
+                                continue;
+                            }
+                            let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                            if member_name == "c_string" {
+                                c_str_off = Some(existing_offset + current_offset);
+                                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(c_string_field_name.clone(), existing_offset + current_offset);
+                            } else if member_name == "cap" {
+                                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(cap_field_name.clone(), existing_offset + current_offset);
+                            }
+                            current_offset += type_size;
+                        }
+                        c_str_off.ok_or_else(|| e.lang_error(&ctx.path, "context", "Str struct missing c_string field"))?
+                    } else {
+                        return Err(e.lang_error(&ctx.path, "context", "'Str' struct definition not found"))
+                    }
+                }
+            };
+            let cap_offset = match ctx.scope_stack.lookup_var(&cap_field_name) {
+                Some(offset) => offset,
+                None => {
+                    return Err(e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}' after registering c_string", cap_field_name)))
+                }
+            };
+
+            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+
+            return Ok(())
+        }
+
+        // Variable doesn't exist yet - create new Str struct
         Arena::insert_struct(ctx, id, "Str", e)?;
         let c_string_offset = match ctx.scope_stack.lookup_var(&format!("{}.c_string", id)) {
             Some(offset) => offset,
@@ -2821,14 +2870,30 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         Arena::insert_bool(context, &arg.name, &result_str, e)?;
                     },
                     "Str" => {
-                        // For Str, check if result_str is a variable name or a string value
-                        // If it's a variable and argument is an Identifier, fall through to struct handling for pass-by-reference
+                        eprintln!("DEBUG Str arg handling: arg.name='{}', current_arg.node_type={:?}", arg.name, current_arg.node_type);
+                        // For Str, check if argument is an Identifier variable
+                        // If so, fall through to struct handling for pass-by-reference
                         // Otherwise, create a new Str from the value
-                        if matches!(&current_arg.node_type, NodeType::Identifier(_)) && context.scope_stack.lookup_var(&result_str).is_some() {
-                            // result_str is a variable name that exists - fall through to struct handling
-                            // This allows pass-by-reference for mut Str parameters
+                        if matches!(&current_arg.node_type, NodeType::Identifier(_)) {
+                            // Argument is an identifier - check if it's a variable (not a literal)
+                            let id_name = match &current_arg.node_type {
+                                NodeType::Identifier(name) => name,
+                                _ => unreachable!(),
+                            };
+                            eprintln!("DEBUG Str arg: checking if '{}' is a variable...", id_name);
+                            if context.scope_stack.lookup_var(id_name).is_some() {
+                                // It's a variable - fall through to struct handling for pass-by-reference
+                                eprintln!("DEBUG Str arg: '{}' is a variable, falling through to pass-by-ref", id_name);
+                            } else {
+                                // It's not a variable (e.g., could be a type name) - create new Str from value
+                                eprintln!("DEBUG Str arg: '{}' is NOT a variable, creating new Str", id_name);
+                                Arena::insert_string(context, &arg.name, &result_str, e)?;
+                                param_index += 1;
+                                continue;
+                            }
                         } else {
-                            // result_str is a string value (literal or expression result) - create new Str
+                            // Not an identifier (literal or expression result) - create new Str from value
+                            eprintln!("DEBUG Str arg: not an identifier, creating new Str");
                             Arena::insert_string(context, &arg.name, &result_str, e)?;
                             param_index += 1;
                             continue;
@@ -2938,19 +3003,31 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Share the offset (pass-by-reference)
                                             context.scope_stack.frames.last_mut().unwrap().arena_index.insert(arg.name.clone(), src_offset);
 
-                                            // Copy nested field offsets (e.g., "o1.inner_vec._len" -> "self._len")
-                                            let caller_arena_index = &context.scope_stack.frames.last().unwrap().arena_index;
-                                            let prefix = format!("{}.", id_);
-                                            let replacement_prefix = format!("{}.", arg.name);
-                                            let mut field_offsets_to_copy = Vec::new();
-                                            for (key, &value) in caller_arena_index.iter() {
-                                                if key.starts_with(&prefix) {
-                                                    let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                                    field_offsets_to_copy.push((new_key, value));
+                                            // Copy nested field offsets (e.g., "text.c_string" -> "s.c_string")
+                                            // Get caller's frame (parent frame) to copy field offsets from
+                                            if context.scope_stack.frames.len() >= 2 {
+                                                let parent_frame_index = context.scope_stack.frames.len() - 2;
+                                                let caller_arena_index = &context.scope_stack.frames[parent_frame_index].arena_index;
+                                                let prefix = format!("{}.", id_);
+                                                let replacement_prefix = format!("{}.", arg.name);
+                                                eprintln!("DEBUG pass-by-ref: Copying field offsets from '{}' to '{}' (prefix='{}', replacement_prefix='{}')", id_, arg.name, prefix, replacement_prefix);
+                                                eprintln!("DEBUG caller_arena_index has {} entries", caller_arena_index.len());
+                                                for (k, v) in caller_arena_index.iter() {
+                                                    eprintln!("  caller: '{}' -> {}", k, v);
                                                 }
-                                            }
-                                            for (key, value) in field_offsets_to_copy {
-                                                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                                                let mut field_offsets_to_copy = Vec::new();
+                                                for (key, &value) in caller_arena_index.iter() {
+                                                    if key.starts_with(&prefix) {
+                                                        let new_key = key.replacen(&prefix, &replacement_prefix, 1);
+                                                        eprintln!("DEBUG: Copying '{}' ({}) -> '{}' ({})", key, value, new_key, value);
+                                                        field_offsets_to_copy.push((new_key, value));
+                                                    }
+                                                }
+                                                for (key, value) in field_offsets_to_copy {
+                                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, value);
+                                                }
+                                            } else {
+                                                eprintln!("DEBUG pass-by-ref: WARNING - not enough frames to copy from parent (frames.len()={})", context.scope_stack.frames.len());
                                             }
 
                                             // Register field symbols for UFCS method resolution
