@@ -1181,6 +1181,7 @@ impl Context {
 
     /// Push a new function scope and switch to the function's source path
     /// Returns the saved path that should be restored when popping
+    #[allow(dead_code)]
     pub fn push_function_scope(&mut self, function_path: &str) -> String {
         self.scope_stack.push(ScopeType::Function);
         let saved_path = self.path.clone();
@@ -1189,6 +1190,7 @@ impl Context {
     }
 
     /// Pop the current function scope and restore the previous path
+    #[allow(dead_code)]
     pub fn pop_function_scope(&mut self, saved_path: String) -> Result<(), String> {
         self.path = saved_path;
         self.scope_stack.pop()?;
