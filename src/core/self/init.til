@@ -61,13 +61,16 @@ ScopeStack := struct {
     mut frames: Vec = Vec.new(ScopeFrame)
 
 
-    new := func() returns ScopeStack throws AllocError {
+    new := func() returns ScopeStack throws Str {
         mut stack := ScopeStack()
         stack.frames = Vec.new(ScopeFrame)
+        catch (err: AllocError) {
+            throw err.msg
+        }
         return stack
     }
 
-    push := proc(mut self: ScopeStack, scope_type: ScopeType) throws AllocError, FullError {
+    push := proc(mut self: ScopeStack, scope_type: ScopeType) throws Str {
         mut frame := ScopeFrame()
         frame.arena_index = Map.new(Str, I64)
         frame.symbols = Map.new(Str, SymbolInfo)
@@ -76,6 +79,12 @@ ScopeStack := struct {
         frame.structs = Map.new(Str, SStructDef)
         frame.scope_type = scope_type
         self.frames.push(frame)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: FullError) {
+            throw err.msg
+        }
     }
 
     pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
@@ -96,7 +105,7 @@ ScopeStack := struct {
         return self.frames.size()
     }
 
-    lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
+    lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws Str {
         // Walk up the stack from innermost to outermost
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
@@ -111,10 +120,16 @@ ScopeStack := struct {
             }
             i = i.sub(1)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
+        }
         return Ptr()  // NULL - not found
     }
 
-    lookup_symbol := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    lookup_symbol := func(self: ScopeStack, name: Str) returns Ptr throws Str {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
@@ -125,6 +140,9 @@ ScopeStack := struct {
                 return ptr
             }
             i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
         return Ptr()  // NULL - not found
     }
@@ -164,7 +182,7 @@ ScopeStack := struct {
         self.frames.set(last_idx, current_frame)
     }
 
-    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -172,9 +190,18 @@ ScopeStack := struct {
             current_frame.symbols.insert(name, symbol)
             self.frames.set(last_idx, current_frame)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
     }
 
-    remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -187,10 +214,13 @@ ScopeStack := struct {
                 return ptr
             }
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
         return Ptr()  // NULL - not found
     }
 
-    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
+    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -205,11 +235,17 @@ ScopeStack := struct {
                 return ptr
             }
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
+        }
         return Ptr()  // NULL - not found
     }
 
     // Insert a variable without a corresponding symbol (simpler than declare_var)
-    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -217,9 +253,18 @@ ScopeStack := struct {
             current_frame.arena_index.insert(name, offset.to_str())
             self.frames.set(last_idx, current_frame)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
     }
 
-    lookup_func := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    lookup_func := func(self: ScopeStack, name: Str) returns Ptr throws Str {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
@@ -230,6 +275,9 @@ ScopeStack := struct {
                 return ptr
             }
             i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
         return Ptr()  // NULL - not found
     }
@@ -309,7 +357,7 @@ ScopeStack := struct {
         throw format("Enum '", name, "' not found")
     }
 
-    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -317,9 +365,18 @@ ScopeStack := struct {
             current_frame.enums.insert(name, enum_def)
             self.frames.set(last_idx, current_frame)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
     }
 
-    lookup_struct := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError {
+    lookup_struct := func(self: ScopeStack, name: Str) returns Ptr throws Str {
         mut i := self.frames.len().sub(1)
         while i.gteq(0) {
             mut frame := ScopeFrame()
@@ -330,6 +387,9 @@ ScopeStack := struct {
                 return ptr
             }
             i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
         return Ptr()  // NULL - not found
     }
@@ -350,7 +410,7 @@ ScopeStack := struct {
         throw format("Struct '", name, "' not found")
     }
 
-    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
         if self.frames.len().gt(0) {
             mut last_idx := self.frames.len().sub(1)
             mut current_frame := ScopeFrame()
@@ -358,9 +418,18 @@ ScopeStack := struct {
             current_frame.structs.insert(name, struct_def)
             self.frames.set(last_idx, current_frame)
         }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
     }
 
-    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws IndexOutOfBoundsError, AllocError, FullError {
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws Str {
         // Collect all keys from all scopes that start with the given prefix
         mut keys := Vec.new(Str)
         mut prefix_len := prefix.len()
@@ -392,6 +461,15 @@ ScopeStack := struct {
                 j = j.add(1)
             }
             i = i.add(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: FullError) {
+            throw err.msg
         }
         return keys
     }
@@ -1875,7 +1953,7 @@ Context := struct {
         }
     }
 
-    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws AllocError, IndexOutOfBoundsError {
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
         mut struct_def_ptr := self.scope_stack.lookup_struct(custom_type_name)
         if NULL.eq(struct_def_ptr.data) {
             return
@@ -1910,6 +1988,12 @@ Context := struct {
                 # Not a custom type
             }
             member_idx = member_idx.add(1)
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
     }
 }
