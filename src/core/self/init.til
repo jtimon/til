@@ -1515,16 +1515,18 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
             import_path_expr = import_path_expr_result.value
 
             mut import_path := ""
-            switch import_path_expr.node_type {
+            mut import_node_type := import_path_expr.node_type
+            switch import_node_type {
             case NodeType.LLiteral(import_path_str_lit_expr):
-                switch import_path_str_lit_expr {
+                mut literal_type := import_path_str_lit_expr
+                switch literal_type {
                 case Literal.Str(import_path_):
                     import_path = import_path_
-                case literal_type:
+                case:
                     errors.push(import_path_expr.exit_error("import", format("Expected literal 'Str' for import, found literal '", enum_to_str(literal_type), "'")))
                     return errors
                 }
-            case import_node_type:
+            case:
                 errors.push(import_path_expr.exit_error("import", format("Expected literal Str for import, found '", enum_to_str(import_node_type), "'")))
                 return errors
             }
