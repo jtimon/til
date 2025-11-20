@@ -88,6 +88,14 @@ ScopeStack := struct {
         return popped
     }
 
+    len := proc(self: ScopeStack) returns I64 {
+        return self.frames.len()
+    }
+
+    size := func(self: ScopeStack) returns I64 {
+        return self.frames.size()
+    }
+
     lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws IndexOutOfBoundsError, KeyNotFoundError {
         // Walk up the stack from innermost to outermost
         mut i := self.frames.len().sub(1)
