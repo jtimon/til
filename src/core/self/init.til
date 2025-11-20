@@ -405,7 +405,7 @@ value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) 
         throw e.error(path, "type", format("func '", name, "' does not return anything"))
     }
     if returns_len.eq(1) {
-        mut return_type := ValueType()
+        mut return_type := ValueType.TCustom("")  # Dummy init, will be overwritten by get()
         func_def.return_types.get(0, return_type)
         switch return_type {
         case ValueType.TCustom(type_str):
