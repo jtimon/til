@@ -1177,6 +1177,13 @@ impl EvalResult {
 
 // Helper function to extract bool value from a Bool struct instance
 pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, String> {
+    // Special case: true/false are now constants, handle them directly
+    match id {
+        "true" => return Ok(true),
+        "false" => return Ok(false),
+        _ => {}
+    }
+
     // Validate the Bool struct exists
     context.get_struct(id, e)?;
 
@@ -2882,10 +2889,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     "U8" => {
                         Arena::insert_u8(context, &arg.name, &result_str, e)?;
                     },
-                    // TODO FIX: Bool function argument uses insert_bool helper
-                    "Bool" => {
-                        Arena::insert_bool(context, &arg.name, &result_str, e)?;
-                    },
                     "Str" => {
                         eprintln!("DEBUG Str arg handling: arg.name='{}', current_arg.node_type={:?}", arg.name, current_arg.node_type);
                         // For Str, check if argument is an Identifier variable
@@ -2921,7 +2924,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                 // Now handle as struct (for Str variables that fell through, and other custom types)
                 match custom_type_name.as_str() {
-                    "I64" | "U8" | "Bool" => {
+                    "I64" | "U8" => {
                         // Already handled above
                         param_index += 1;
                         continue;
@@ -3271,15 +3274,25 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     // If function returns a user-defined struct or enum, copy it back to context as temp return val
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
-            // Skip primitive types like I64, U8, Bool
-            // Str is a struct and needs temp return value handling
+            // Skip primitive types like I64, U8
+            // Str and Bool are structs and need temp return value handling
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" => { /* Do nothing for primitive types */ },
+                "I64" | "U8" => { /* Do nothing for primitive types */ },
                 _ => {
 
                     if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {
                         match custom_symbol.value_type {
                             ValueType::TType(TTypeDef::TStructDef) => {
+                                eprintln!("DEBUG Bool return: custom_type_name='{}', result_str='{}'", custom_type_name, result_str);
+                                // Special case for Bool constants: if result_str is "true" or "false", return directly
+                                // These are Bool constants that can be returned as Str values (e.g., from Bool.to_str)
+                                // Don't create temp variables for these constants
+                                if result_str == "true" || result_str == "false" {
+                                    eprintln!("DEBUG Bool return: Returning Bool constant '{}' directly", result_str);
+                                    context.pop_function_scope(saved_path)?;
+                                    return Ok(EvalResult::new(&result_str));
+                                }
+
                                 // Get the offset from the function scope before popping
                                 let offset = if let Some(offset) = context.scope_stack.lookup_var(&result_str) {
                                     offset
