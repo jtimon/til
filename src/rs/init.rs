@@ -973,18 +973,17 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                             context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());
                             // Register associated funcs and constants (non-mut members only)
                             for member_decl in &struct_def.members {
-                                if member_decl.is_mut {
-                                    continue; // Skip instance fields
-                                }
-                                // Try to find a default_value (required for funcs/consts)
-                                if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
-                                    let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
-                                    let full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
-                                    // Register in symbols
-                                    context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
-                                    // If it's a function, also register in funcs
-                                    if let NodeType::FuncDef(func_def) = &member_expr.node_type {
-                                        context.scope_stack.declare_func(full_name, func_def.clone());
+                                if !member_decl.is_mut {
+                                    // Try to find a default_value (required for funcs/consts)
+                                    if let Some(member_expr) = struct_def.default_values.get(&member_decl.name) {
+                                        let member_value_type = get_value_type(&context, member_expr).unwrap_or(ValueType::TCustom(INFER_TYPE.to_string()));
+                                        let full_name = format!("{}.{}", decl.name, member_decl.name); // Note: using '.' not '::'
+                                        // Register in symbols
+                                        context.scope_stack.declare_symbol(full_name.clone(), SymbolInfo { value_type: member_value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
+                                        // If it's a function, also register in funcs
+                                        if let NodeType::FuncDef(func_def) = &member_expr.node_type {
+                                            context.scope_stack.declare_func(full_name, func_def.clone());
+                                        }
                                     }
                                 }
                             }
