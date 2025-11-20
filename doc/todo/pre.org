@@ -109,7 +109,7 @@ Scope: This focuses on rstil (Rust) implementation issues, NOT on completing the
   - TODO: Consider standardizing all internal fields to use _ prefix consistently
   - Reason for inconsistency: Incremental development, avoiding breaking changes
 
-- [ ] Fix Variable Shadowing Bug (HIGH PRIORITY)
+- [ ] Bug #28: Fix Variable Shadowing Bug (HIGH PRIORITY)
   - Status: BUG CONFIRMED - must fix before self-hosting
   - Design decision: TIL will ALLOW shadowing (like Rust) - decided 2025-11-20
   - Problem: Nested-scope variable declarations MUTATE outer variables instead of shadowing
