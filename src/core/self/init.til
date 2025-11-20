@@ -754,11 +754,11 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             mut enum_ptr := context.scope_stack.lookup_enum(custom_type_name)
             if not(NULL.eq(enum_ptr.data)) {
                 # It's an enum - try UFCS method call
-                mut after_dot: Expr
+                mut after_dot := Expr()
                 if id_expr.params.len().eq(0) {
                     return ValueType.TCustom(f_name)
                 }
-                after_dot = id_expr.params.get(0)
+                id_expr.params.get(0, after_dot)
 
                 switch after_dot.node_type {
                 case NodeType.Identifier(after_dot_name):
@@ -771,10 +771,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
                     # Fall back to UFCS: try standalone function with enum as first arg
                     mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
-                    if ufcs_result.is_ok {
-                        return ufcs_result.value
+                    catch (err: Str) {
+                        throw e.error(context.path, "type", format("enum '", custom_type_name, "' has no method '", after_dot_name, "' and no matching function found for UFCS"))
                     }
-                    throw e.error(context.path, "type", format("enum '", custom_type_name, "' has no method '", after_dot_name, "' and no matching function found for UFCS"))
+                    return ufcs_result
 
                 case:
                     throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
@@ -788,11 +788,11 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
             mut struct_def := context.scope_stack.get_struct(custom_type_name)
 
-            mut after_dot: Expr
+            mut after_dot := Expr()
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(f_name)
             }
-            after_dot = id_expr.params.get(0)
+            id_expr.params.get(0, after_dot)
 
             switch after_dot.node_type {
             case NodeType.Identifier(after_dot_name):
@@ -804,9 +804,15 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                     mut field_access_expr := id_expr.clone()
                     field_access_expr.params.pop()  # Remove the last element (method/property name)
 
-                    mut intermediate_result := get_value_type(context, field_access_expr)
-                    if intermediate_result.is_ok {
-                        mut intermediate_type := intermediate_result.value
+                    mut got_intermediate := false
+                    mut intermediate_type := ValueType.TCustom("")  # dummy default
+                    intermediate_type = get_value_type(context, field_access_expr)
+                    got_intermediate = true
+                    catch (err: Str) {
+                        # Failed to resolve intermediate - just fall through to normal logic
+                    }
+
+                    if got_intermediate {
                         # Successfully resolved intermediate field access
                         # Now check if the last param is a member/method of that type
                         mut last_param := id_expr.params.last()
@@ -855,11 +861,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut member_decl: MemberDecl
                 if member_ptr.data.eq(NULL) {
                     mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
-                    if ufcs_result.is_ok {
-                        return ufcs_result.value
+                    catch (err: Str) {
+                        throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' c"))
                     }
-                    println(ufcs_result.error)
-                    throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' c"))
+                    return ufcs_result
                 }
                 member_decl = member_ptr.data
 
@@ -887,11 +892,11 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
             mut struct_def := context.scope_stack.get_struct(custom_type_name)
 
-            mut after_dot: Expr
+            mut after_dot := Expr()
             if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(custom_type_name)
             }
-            after_dot = id_expr.params.get(0)
+            id_expr.params.get(0, after_dot)
 
             switch after_dot.node_type {
             case NodeType.Identifier(after_dot_name):
@@ -899,11 +904,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 mut member_decl: MemberDecl
                 if member_ptr.data.eq(NULL) {
                     mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
-                    if ufcs_result.is_ok {
-                        return ufcs_result.value
+                    catch (err: Str) {
+                        throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' (variadic)"))
                     }
-                    println(ufcs_result.error)
-                    throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' (variadic)"))
+                    return ufcs_result
                 }
                 member_decl = member_ptr.data
 
@@ -1701,13 +1705,11 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
         }
         inner_e = inner_e_result.value
 
-        mut value_type_result := get_value_type(context, inner_e)
-        mut value_type: ValueType
-        if value_type_result.is_err {
-            errors.push(value_type_result.error)
+        mut value_type := get_value_type(context, inner_e)
+        catch (err: Str) {
+            errors.push(err)
             return errors
         }
-        value_type = value_type_result.value
 
         if decl.value_type.ne(str_to_value_type(INFER_TYPE)) {
             if decl.value_type.eq(ValueType.TCustom("U8")).and(value_type.eq(ValueType.TCustom("I64"))) {
@@ -1774,10 +1776,10 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
                         struct_def.default_values.get(member_name, member_expr_ptr)
                         if not(NULL.eq(member_expr_ptr.data)) {
                             mut member_expr := member_expr_ptr.data
-                            mut member_value_type_result := get_value_type(context, member_expr)
                             mut member_value_type := ValueType.TCustom(INFER_TYPE)
-                            if member_value_type_result.is_ok {
-                                member_value_type = member_value_type_result.value
+                            member_value_type = get_value_type(context, member_expr)
+                            catch (err: Str) {
+                                # Failed to get type - just use INFER_TYPE default
                             }
                             mut full_name := format(decl.name, ".", member_name)  # Note: using '.' not '::'
                             # Register in symbols

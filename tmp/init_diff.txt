@@ -1,0 +1,150 @@
+diff --git a/src/rs/init.rs b/src/rs/init.rs
+index 1075755..e3df4a9 100644
+--- a/src/rs/init.rs
++++ b/src/rs/init.rs
+@@ -9,7 +9,6 @@ use crate::rs::parser::{
+     Expr, NodeType, FunctionType, ValueType, SFuncDef, TTypeDef, Literal, SEnumDef, SStructDef, Declaration, PatternInfo,
+     value_type_to_str, str_to_value_type, parse_tokens,
+ };
+-use crate::rs::interpreter::EvalResult;
+ 
+ // Init phase: Declaration indexing and import processing
+ // This module handles the "context priming" phase that runs before type checking.
+@@ -732,7 +731,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     let original_path = context.path.clone();
+ 
+     // Check if already processed for declarations
+-    if context.imports_declarations_done.contains(&path) {
++    if context.imports_done.contains_key(&path) {
+         return Ok(()); // Already imported declarations
+     }
+ 
+@@ -775,7 +774,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     };
+ 
+     // Parse mode
+-    let parsed_mode = match parse_mode(&path, &mut lexer) {
++    let mode = match parse_mode(&path, &mut lexer) {
+         Ok(mode_) => mode_,
+         Err(error_string) => {
+             let orig_path_clone = original_path.clone();
+@@ -787,22 +786,22 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     };
+ 
+     // Check if mode can be imported
+-    if !can_be_imported(&parsed_mode) {
++    if !can_be_imported(&mode) {
+         context.path = original_path;
+         context.imports_wip.remove(&path);
+-        return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, parsed_mode.name)));
++        return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, mode.name)));
+     }
+ 
+-    let previous_mode = context.mode_def.clone();
+-    context.mode_def = parsed_mode;
++    let previous_mode = context.mode.clone();
++    context.mode = mode;
+ 
+     // Process mode imports recursively
+-    for import_str in context.mode_def.imports.clone() {
++    for import_str in context.mode.imports.clone() {
+         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
+         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
+         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+         if let Err(error_string) = init_import_declarations(context, &import_fcall_expr, &import_str) {
+-            context.mode_def = previous_mode;
++            context.mode = previous_mode;
+             context.path = original_path;
+             context.imports_wip.remove(&path);
+             return Err(error_string);
+@@ -813,7 +812,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     let imported_ast: Expr = match parse_tokens(&mut lexer) {
+         Ok(expr) => expr,
+         Err(error_string) => {
+-            context.mode_def = previous_mode;
++            context.mode = previous_mode;
+             let orig_path_clone = original_path.clone();
+             context.path = original_path;
+             context.imports_wip.remove(&path);
+@@ -826,7 +825,7 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     // This will recursively handle any imports in the imported file
+     let errors = init_context(context, &imported_ast);
+     if errors.len() > 0 {
+-        context.mode_def = previous_mode;
++        context.mode = previous_mode;
+         let orig_path_clone = original_path.clone();
+         context.path = original_path;
+         context.imports_wip.remove(&path);
+@@ -838,12 +837,12 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
+     }
+ 
+     // Restore context state
+-    context.mode_def = previous_mode;
++    context.mode = previous_mode;
+     context.path = original_path;
+     context.imports_wip.remove(&path);
+ 
+     // Cache that we've processed this import's declarations
+-    context.imports_declarations_done.insert(path);
++    context.imports_done.insert(path, Ok(()));
+ 
+     Ok(())
+ }
+@@ -1003,13 +1002,13 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
+             }
+         }
+         _ => {
+-            if !context.mode_def.allows_base_anything {
+-                if context.mode_def.allows_base_calls {
++            if !context.mode.allows_base_anything {
++                if context.mode.allows_base_calls {
+                     errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations and calls in the root context, found {:?}.",
+-                                                         context.mode_def.name, e.node_type)));
++                                                         context.mode.name, e.node_type)));
+                 } else {
+                     errors.push(e.error(&context.path, "mode", &format!("mode '{}' allows only declarations in the root context, found {:?}.",
+-                                                         context.mode_def.name, e.node_type)));
++                                                         context.mode.name, e.node_type)));
+                 }
+             }
+         },
+@@ -1018,20 +1017,16 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
+ }
+ #[derive(Clone)]
+ pub struct Context {
+-    pub mode_def: ModeDef, // All contexts need a mode
++    pub mode: ModeDef, // All contexts need a mode
+     // TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
+     pub path: String, // this is needed for core func "loc"
+     // Scope stack for proper lexical scoping
+     pub scope_stack: ScopeStack,
+     // Temporary storage for enum payload data during construction
+     pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
+-    // Two-phase imports: separate caches for declaration and value initialization
+-    pub imports_declarations_done: HashSet<String>, // tracks which imports have had declarations copied (init phase)
+-    pub imports_values_done: HashMap<String, Result<EvalResult, String>>, // tracks which imports have had values initialized (eval phase)
++    // Import tracking
+     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
+-    // DEPRECATED: old single-phase cache, kept for compatibility
+-    #[allow(dead_code)]
+-    imports_done: HashMap<String, Result<EvalResult, String>>,
++    pub imports_done: HashMap<String, Result<(), String>>, // cleared between init and eval phases
+     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
+     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
+     // REM: TODO change the cached type to support import as returning a struct_def
+@@ -1052,13 +1047,11 @@ impl Context {
+ 
+         return Ok(Context {
+             path: path.to_string(),
+-            mode_def: mode_from_name(mode_name, path, &dummy_token)?,
++            mode: mode_from_name(mode_name, path, &dummy_token)?,
+             scope_stack,
+             temp_enum_payload: None,
+-            imports_declarations_done: HashSet::new(),
+-            imports_values_done: HashMap::new(),
+             imports_wip: HashSet::new(),
+-            imports_done: HashMap::new(), // DEPRECATED
++            imports_done: HashMap::new(),
+         });
+     }
+ 
