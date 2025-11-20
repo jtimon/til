@@ -11,10 +11,11 @@ After reviewing the post-self-hosting TODO list, I've identified several feature
 
 ## Critical Priority - Fix Before Self-Hosting
 
-### 1. Variable Shadowing Bug (MEDIUM → HIGH)
+### 1. Variable Shadowing Bug (MEDIUM → HIGH) ✅ CONFIRMED BUG
 
-**Location:** doc/todo/post.org:148-193
+**Location:** doc/todo/post.org:148-270
 **Current Status:** Nested-scope shadowing MUTATES outer variables instead of creating new bindings
+**Design Decision:** TIL will ALLOW shadowing (like Rust) - decided 2025-11-20
 
 **Why This Is Critical:**
 ```til
@@ -22,17 +23,30 @@ z := 5
 {
     z := 10  // BUG: This mutates outer z instead of creating inner binding
 }
-// z is now 10, not 5!
+// z is now 10, not 5! (WRONG - should be 5)
 ```
 
-This is not a design question—it's a **correctness bug**. During self-hosting, the compiler will have complex nested scopes (functions, blocks, loops, pattern matching). This bug could cause:
+**Root Cause Found:**
+- `declare_symbol`/`insert_var` use `HashMap.insert()` which replaces existing values
+- Nested blocks don't create new scope frames
+- When inner `:=` is used, it mutates the HashMap entry → looks like mutation instead of shadowing
+
+**Residual Code Preventing Shadowing (Option A residues):**
+1. **src/rs/init.rs:898-900** - `init_context` prevents global shadowing (ACTIVE - needs removal)
+2. **src/rs/init.rs:120-137** - `declare_var` has shadowing check (UNUSED - never called)
+
+This is not a design question—it's a **correctness bug**. During self-hosting, the compiler will have complex nested scopes. This bug could cause:
 - Silent data corruption
 - Extremely difficult-to-debug issues
 - Incorrect code generation
 
-**Recommendation:** **FIX IMMEDIATELY** before self-hosting. This could cause catastrophic bugs in the self-hosted compiler.
+**Recommendation:** **FIX IMMEDIATELY** before self-hosting.
 
-**Effort:** Likely a bug in the interpreter's variable lookup. Should be straightforward to fix once located.
+**What Needs Fixing:**
+1. Remove shadowing prevention check in `init_context` (line 898-900)
+2. Implement proper shadowing in nested blocks
+3. Allow type-change shadowing (`x := 5` then `x := "hello"`)
+4. Remove or modify unused `declare_var` function
 
 ---
 
@@ -205,41 +219,50 @@ The following features are genuinely post-self-hosting:
 
 ---
 
-## Recommendation Summary
+## Recommendation Summary (Updated 2025-11-20)
 
 ### Must Fix (Critical Bugs)
 1. ✅ **Variable Shadowing Bug** - Correctness issue, could cause severe bugs
+   - Remove shadowing prevention in init_context (src/rs/init.rs:898-900)
+   - Implement proper nested-scope shadowing
+   - Allow type-change shadowing
 
 ### Strongly Recommend (High Value for Self-Hosting)
-2. ✅ **Unicode Support** - Compiler shouldn't crash on Unicode
-3. ✅ **Better Error Messages** - Massive productivity boost during development
+2. ✅ **Better Error Messages** - Massive productivity boost during development
+   - Always valuable, but identify specific bad error messages first
+   - Ongoing improvement, not a one-time fix
 
 ### Consider (Would Help)
-4. ⚠️ **Namespace-Style Imports** - Cleaner codebase, prevents name conflicts
-5. ⚠️ **Test Coverage** - Find bugs early, before they're in self-hosted compiler
+3. ⚠️ **Test Coverage** - Find bugs early, before they're in self-hosted compiler
+   - Always valuable, but which specific tests are missing?
+   - Needs analysis to identify gaps
 
-### Optional (Depends on Usage)
-6. ❓ **Dynamic Field/Method Access** - Only if Dynamic is heavily used
+### Not Recommended (Explicitly Deferred)
+- ❌ **Unicode Support** - Explicitly decided NOT to do before self-hosting
+- ❌ **Namespace-Style Imports** - Not easy at the moment, defer
+- ❌ **Dynamic Field/Method Access** - Only if heavily used (unlikely)
 
 ### Defer (Genuinely Post-Self-Hosting)
 - Everything else can wait
 
 ---
 
-## Implementation Strategy
+## Implementation Strategy (Revised)
 
-### Phase 1: Critical Fixes (Do First)
-1. Fix nested-scope variable shadowing bug
-2. Add Unicode support to lexer
-3. Improve error messages (locations, stack traces, formatting)
+### Phase 1: Critical Bug Fix (Do First)
+1. **Fix variable shadowing bug**
+   - Remove check at src/rs/init.rs:898-900
+   - Implement proper nested-scope shadowing
+   - Test thoroughly with nested blocks
 
-### Phase 2: Quality of Life (Before Heavy Self-Hosting Work)
-4. Implement namespace imports (if self-hosted design has many modules)
-5. Add test coverage for edge cases
+### Phase 2: Ongoing Improvements (As Needed)
+2. **Better error messages** - Identify and fix specific bad errors as encountered
+3. **Test coverage** - Add tests for specific gaps as discovered
 
-### Phase 3: Optional Enhancements (During Self-Hosting)
-6. Dynamic field access (if needed)
-7. Other improvements as pain points emerge
+### Phase 3: Deferred (Post-Self-Hosting)
+- Unicode support
+- Namespace imports
+- All other enhancements
 
 ---
 
@@ -281,17 +304,20 @@ The other features are genuinely deferrable because:
 
 ---
 
-## Conclusion
+## Conclusion (Updated 2025-11-20)
 
-**Do before self-hosting:**
-1. Fix variable shadowing bug (correctness)
-2. Add Unicode support (robustness)
-3. Improve error messages (productivity)
+**Must do before self-hosting:**
+1. **Fix variable shadowing bug** (correctness) - This is a real bug that causes silent data corruption
 
-**Consider before self-hosting:**
-4. Namespace imports (code organization)
-5. Test coverage (quality assurance)
+**Ongoing improvements (pre and post):**
+2. **Better error messages** (productivity) - Identify specific bad errors and fix as encountered
+3. **Test coverage** (quality) - Add tests for specific gaps as discovered
+
+**Explicitly NOT doing before self-hosting:**
+- Unicode support - Deferred to post-self-hosting
+- Namespace imports - Too complex at the moment
+- All other enhancements from post.org
 
 **Everything else:** Genuinely can wait until after self-hosting is working.
 
-The philosophy should be: **Fix bugs and invest in developer experience before tackling self-hosting**. The time spent on good error messages and Unicode support will pay back 10x during development.
+The philosophy: **Fix critical correctness bugs, then proceed with self-hosting**. The shadowing bug is the only blocking issue. Error messages and tests are ongoing improvements that happen both before and after self-hosting.
