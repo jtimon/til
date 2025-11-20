@@ -989,13 +989,30 @@ impl Arena {
                 ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
             }
         } else {
-            let offset = Arena::g().memory.len();
-            Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
-            // Store payload if present
-            if let Some(payload_bytes) = &payload_data {
-                Arena::g().memory.extend_from_slice(&payload_bytes);
+            // Check if variable exists in current frame (for in-place update with pass-by-reference)
+            if let Some(existing_offset) = ctx.scope_stack.lookup_var_current_frame(id) {
+                // Variable exists - update in-place
+                Arena::g().memory[existing_offset..existing_offset + 8].copy_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    let payload_offset = existing_offset + 8;
+                    let payload_end = payload_offset + payload_bytes.len();
+                    // Ensure arena has enough space
+                    if Arena::g().memory.len() < payload_end {
+                        Arena::g().memory.resize(payload_end, 0);
+                    }
+                    Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
+                }
+            } else {
+                // Variable doesn't exist yet - create new enum
+                let offset = Arena::g().memory.len();
+                Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                // Store payload if present
+                if let Some(payload_bytes) = &payload_data {
+                    Arena::g().memory.extend_from_slice(&payload_bytes);
+                }
+                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
             }
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
         }
 
         // Clear the temp payload after using it
