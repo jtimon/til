@@ -425,7 +425,7 @@ fn check_fcall_return_usage(context: &Context, e: &Expr, expr_context: ExprConte
 
 fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
-    if !context.mode.allows_procs && func_def.is_proc() {
+    if !context.mode_def.allows_procs && func_def.is_proc() {
         errors.push(e.error(&context.path, "type", "Procs not allowed in pure modes"));
     }
     let mut has_variadic = false;
@@ -1662,17 +1662,17 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
                 match &p.node_type {
 
                     NodeType::Declaration(decl) => {
-                        if !context.mode.allows_base_mut && decl.is_mut {
+                        if !context.mode_def.allows_base_mut && decl.is_mut {
                             errors.push(e.error(&context.path, "mode", &format!("mode {} doesn't allow mut declarations of 'mut {}'.\nSuggestion: remove 'mut' or change to mode script or cli",
-                                                                 context.mode.name, decl.name)));
+                                                                 context.mode_def.name, decl.name)));
                         }
                     },
                     NodeType::FCall => {
-                        if !context.mode.allows_base_calls {
+                        if !context.mode_def.allows_base_calls {
                             let f_name = get_func_name_in_call(&p);
                             if f_name != "import" {
                                 errors.push(e.error(&context.path, "mode", &format!("mode {} doesn't allow calls in the root context of the file'.\nSuggestion: remove the call to '{}' or change mode 'test' or 'script'",
-                                                                     context.mode.name, f_name)));
+                                                                     context.mode_def.name, f_name)));
                             }
                         }
                     },
@@ -1685,16 +1685,16 @@ pub fn basic_mode_checks(context: &Context, e: &Expr) -> Vec<String> {
         },
     }
 
-    if context.mode.needs_main_proc {
+    if context.mode_def.needs_main_proc {
         match context.scope_stack.lookup_symbol("main") {
             Some(symbol_info) => {
                 if symbol_info.value_type != ValueType::TFunction(FunctionType::FTProc) {
                     errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc. It was defined as a {} instead",
-                                                         context.mode.name, value_type_to_str(&symbol_info.value_type))));
+                                                         context.mode_def.name, value_type_to_str(&symbol_info.value_type))));
                 }
             },
             None => {
-                errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc.", context.mode.name)));
+                errors.push(e.error(&context.path, "mode", &format!("mode {} requires 'main' to be defined as a proc.", context.mode_def.name)));
             },
         };
     }
