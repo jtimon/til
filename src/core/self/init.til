@@ -836,7 +836,8 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str, 
         # Now, process each nested member.
         mut param_idx := 0
         while param_idx.lt(e.params.len()) {
-            mut cursor := e.params.get(param_idx)
+            mut cursor := Expr()  # Default init, will be overwritten by get()
+            e.params.get(param_idx, cursor)
             mut member_name := ""
             switch cursor.node_type {
             case NodeType.Identifier(n):
@@ -986,7 +987,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     # Process mode imports recursively
     mut import_idx := 0
     while import_idx.lt(context.mode_def.imports.len()) {
-        mut import_str := context.mode_def.imports.get(import_idx)
+        mut import_str := ""  # Default init, will be overwritten by get()
+        context.mode_def.imports.get(import_idx, import_str)
         mut import_func_name_expr := Expr.new()
         import_func_name_expr.node_type = NodeType.Identifier("import")
         import_func_name_expr.line = 0
@@ -1037,7 +1039,8 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
         mut err_idx := 0
         while err_idx.lt(errors.len()) {
-            mut err := errors.get(err_idx)
+            mut err := ""  # Default init, will be overwritten by get()
+            errors.get(err_idx, err)
             error_msg = format(error_msg, path, ":", err, "\n")
             err_idx = err_idx.add(1)
         }
@@ -1441,7 +1444,8 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
     case NodeType.Body:
         mut param_idx := 0
         while param_idx.lt(e.params.len()) {
-            mut se := e.params.get(param_idx)
+            mut se := Expr()  # Default init, will be overwritten by get()
+            e.params.get(param_idx, se)
             mut sub_errors := init_context(context, se)
             errors.extend(sub_errors)
             param_idx = param_idx.add(1)
@@ -1562,12 +1566,15 @@ init_context := proc(mut context: Context, e: Expr) returns Array throws Str, Al
                 mut member_keys := struct_def.members.keys()
                 mut mem_idx := 0
                 while mem_idx.lt(member_keys.len()) {
-                    mut member_name := member_keys.get(mem_idx)
-                    mut member_decl := struct_def.members.get(member_name)
+                    mut member_name := ""  # Default init, will be overwritten by get()
+                    member_keys.get(mem_idx, member_name)
+                    mut member_decl := MemberDecl()  # Default init, will be overwritten by get()
+                    struct_def.members.get(member_name, member_decl)
                     if member_decl.is_mut.not() {
                         # Skip instance fields - only process non-mut fields
                         # Try to find a default_value (required for funcs/consts)
-                        mut member_expr_ptr := struct_def.default_values.get(member_name)
+                        mut member_expr_ptr := Ptr()  # Default init, will be overwritten by get()
+                        struct_def.default_values.get(member_name, member_expr_ptr)
                         if not(NULL.eq(member_expr_ptr.data)) {
                             mut member_expr := member_expr_ptr.data
                             mut member_value_type_result := get_value_type(context, member_expr)
@@ -1652,7 +1659,8 @@ Context := struct {
         mut variant_keys := selfi.enum_map.keys()
         mut idx := 0
         while idx.lt(variant_keys.len()) {
-            mut k := variant_keys.get(idx)
+            mut k := ""  # Default init, will be overwritten by get()
+            variant_keys.get(idx, k)
             if k.eq(variant_name) {
                 return idx
             }
