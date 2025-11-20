@@ -758,13 +758,15 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
         let mut result = Expr::new_parse(NodeType::FCall, lexer.get_token(initial_current)?.clone(), params);
 
         // Handle chained method calls: a.method1().method2().method3()
-        loop {
+        let mut should_continue_chaining = true;
+        while should_continue_chaining {
             let peek_t = lexer.peek();
             if peek_t.token_type != TokenType::Dot {
-                break;
+                should_continue_chaining = false;
             }
 
-            // Consume the dot
+            if should_continue_chaining {
+                // Consume the dot
             lexer.advance(1)?;
 
             // Expect an identifier for the next method name
@@ -796,6 +798,7 @@ fn parse_primary_identifier(lexer: &mut Lexer) -> Result<Expr, String> {
             new_params.extend(method_args.params);
 
             result = Expr::new_parse(NodeType::FCall, method_t, new_params);
+            }
         }
 
         return Ok(result);
@@ -1229,28 +1232,28 @@ fn parse_switch_statement(lexer: &mut Lexer) -> Result<Expr, String> {
         lexer.advance(1)?;
         next_t = lexer.peek();
         let mut body_params : Vec<Expr> = Vec::new();
-        while lexer.current < lexer.len() {
+        let mut should_continue_parsing = true;
+        while lexer.current < lexer.len() && should_continue_parsing {
             if next_t.token_type == TokenType::RightBrace {
-                params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
                 end_found = true;
                 lexer.advance(1)?;
-                break;
-            }
-            if next_t.token_type == TokenType::Case {
-                params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
-                break;
-            }
-            let stmt = match parse_statement(lexer) {
-                Ok(statement) => statement,
-                Err(error_string) => return Err(error_string),
-            };
-            body_params.push(stmt);
-            next_t = lexer.peek();
-            if next_t.token_type == TokenType::Semicolon {
-                lexer.advance(1)?;
+                should_continue_parsing = false;
+            } else if next_t.token_type == TokenType::Case {
+                should_continue_parsing = false;
+            } else {
+                let stmt = match parse_statement(lexer) {
+                    Ok(statement) => statement,
+                    Err(error_string) => return Err(error_string),
+                };
+                body_params.push(stmt);
                 next_t = lexer.peek();
+                if next_t.token_type == TokenType::Semicolon {
+                    lexer.advance(1)?;
+                    next_t = lexer.peek();
+                }
             }
         }
+        params.push(Expr::new_parse(NodeType::Body, t.clone(), body_params));
     }
     if end_found {
         return Ok(Expr::new_parse(NodeType::Switch, lexer.get_token(initial_current)?.clone(), params))
@@ -1342,8 +1345,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
         if token_type == &end_token {
             lexer.advance(1)?;
             end_found = true;
-            break;
-        }
+        } else {
         if token_type == &TokenType::Semicolon { // REM: TokenType::DoubleSemicolon results in a lexical error, no need to parse it
             lexer.expect(TokenType::Semicolon)?; // REM: This is suboptimal but more clear in grep
             continue;
@@ -1354,6 +1356,7 @@ fn parse_body(lexer: &mut Lexer, end_token: TokenType) -> Result<Expr, String> {
             Err(error_string) => return Err(error_string),
         };
         params.push(stmt);
+        }
     }
     if end_found {
         return Ok(Expr::new_parse(NodeType::Body, lexer.get_token(initial_current)?.clone(), params))

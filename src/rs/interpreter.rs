@@ -210,25 +210,23 @@ impl Arena {
             let mut total_size = 0;
 
             for decl in &struct_def.members {
-                if !decl.is_mut {
-                    continue;
+                if decl.is_mut {
+                    let field_size = match &decl.value_type {
+                        ValueType::TCustom(t) => {
+                            Arena::get_type_size(ctx, t)?
+                        }
+                        _ => {
+                            return Err(format!(
+                                "get_type_size: unsupported value type '{}' in '{}.{}'",
+                                value_type_to_str(&decl.value_type),
+                                type_name,
+                                decl.name
+                            ));
+                        }
+                    };
+
+                    total_size += field_size;
                 }
-
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(t) => {
-                        Arena::get_type_size(ctx, t)?
-                    }
-                    _ => {
-                        return Err(format!(
-                            "get_type_size: unsupported value type '{}' in '{}.{}'",
-                            value_type_to_str(&decl.value_type),
-                            type_name,
-                            decl.name
-                        ));
-                    }
-                };
-
-                total_size += field_size;
             }
 
             Ok(total_size)
@@ -246,25 +244,23 @@ impl Arena {
         let mut current_offset = 0;
 
         for decl in &struct_def.members {
-            if !decl.is_mut {
-                continue; // Skip immutable fields
+            if decl.is_mut {
+                // If we found the target field, return its offset
+                if decl.name == field_name {
+                    return Ok(current_offset);
+                }
+
+                // Otherwise, add this field's size and continue
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
+                    _ => return Err(format!(
+                        "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
+                        value_type_to_str(&decl.value_type), struct_type, decl.name
+                    )),
+                };
+
+                current_offset += field_size;
             }
-
-            // If we found the target field, return its offset
-            if decl.name == field_name {
-                return Ok(current_offset);
-            }
-
-            // Otherwise, add this field's size and continue
-            let field_size = match &decl.value_type {
-                ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
-                _ => return Err(format!(
-                    "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
-                    value_type_to_str(&decl.value_type), struct_type, decl.name
-                )),
-            };
-
-            current_offset += field_size;
         }
 
         Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
@@ -293,29 +289,34 @@ impl Arena {
         };
 
         // Walk through the remaining parts of the path
+        let mut should_continue_path = true;
         for field_name in &parts[1..] {
-            // Calculate the offset of this field within the current struct type
-            let field_offset = Arena::calculate_field_offset(ctx, &current_type, field_name)?;
-            current_offset += field_offset;
+            if should_continue_path {
+                // Calculate the offset of this field within the current struct type
+                let field_offset = Arena::calculate_field_offset(ctx, &current_type, field_name)?;
+                current_offset += field_offset;
 
-            // Update current_type to the type of this field (for nested access)
-            let struct_def = ctx.scope_stack.lookup_struct(&current_type)
-                .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
+                // Update current_type to the type of this field (for nested access)
+                let struct_def = ctx.scope_stack.lookup_struct(&current_type)
+                    .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
 
-            let field_decl = struct_def.members.iter()
-                .find(|decl| decl.name == *field_name)
-                .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
+                let field_decl = struct_def.members.iter()
+                    .find(|decl| decl.name == *field_name)
+                    .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
 
-            current_type = match &field_decl.value_type {
-                ValueType::TCustom(type_name) => type_name.clone(),
-                _ => {
-                    // If this is the last part and it's a primitive, that's fine
-                    if field_name == parts.last().unwrap() {
-                        break;
+                current_type = match &field_decl.value_type {
+                    ValueType::TCustom(type_name) => type_name.clone(),
+                    _ => {
+                        // If this is the last part and it's a primitive, that's fine
+                        if field_name == parts.last().unwrap() {
+                            should_continue_path = false;
+                            String::new() // dummy value since we're done
+                        } else {
+                            return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
+                        }
                     }
-                    return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
-                }
-            };
+                };
+            }
         }
 
         Ok(current_offset)
@@ -337,54 +338,54 @@ impl Arena {
 
         let mut current_offset = 0;
         for decl in members {
-            if !decl.is_mut {
-                continue;
-            }
+            if decl.is_mut {
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(name) => Arena::get_type_size(ctx, name)?,
+                    _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
+                };
 
-            let field_size = match &decl.value_type {
-                ValueType::TCustom(name) => Arena::get_type_size(ctx, name)?,
-                _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
-            };
+                let src_key = format!("{}.{}", src, decl.name);
+                let dest_key = format!("{}.{}", dest, decl.name);
 
-            let src_key = format!("{}.{}", src, decl.name);
-            let dest_key = format!("{}.{}", dest, decl.name);
-
-            // Try to get source offset - first from arena_index, then calculate dynamically
-            let src_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
-                offset
-            } else {
-                // Calculate offset dynamically from struct definition
-                match Arena::get_field_offset(ctx, &src_key) {
-                    Ok(offset) => offset,
-                    Err(_) => {
-                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
-                        current_offset += field_size;
-                        continue;
+                // Try to get source offset - first from arena_index, then calculate dynamically
+                let src_offset_result = if let Some(offset) = ctx.scope_stack.lookup_var(&src_key) {
+                    Some(offset)
+                } else {
+                    // Calculate offset dynamically from struct definition
+                    match Arena::get_field_offset(ctx, &src_key) {
+                        Ok(offset) => Some(offset),
+                        Err(_) => {
+                            // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+                            current_offset += field_size;
+                            None
+                        }
                     }
-                }
-            };
+                };
 
-            let dest_offset = dest_base_offset + current_offset;
+                if let Some(src_offset) = src_offset_result {
+                    let dest_offset = dest_base_offset + current_offset;
 
-            ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
-            ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
-                value_type: decl.value_type.clone(),
-                is_mut,
-                is_copy: false,
-                is_own: false,
-            });
+                    ctx.scope_stack.insert_var(dest_key.clone(), dest_offset);
+                    ctx.scope_stack.declare_symbol(dest_key.clone(), SymbolInfo {
+                        value_type: decl.value_type.clone(),
+                        is_mut,
+                        is_copy: false,
+                        is_own: false,
+                    });
 
-            Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
+                    Arena::g().memory.copy_within(src_offset..src_offset + field_size, dest_offset);
 
-            if let ValueType::TCustom(type_name) = &decl.value_type {
-                if ctx.scope_stack.lookup_struct(type_name).is_some() {
-                    Arena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
-                        e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
-                    })?;
+                    if let ValueType::TCustom(type_name) = &decl.value_type {
+                        if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                            Arena::copy_fields(ctx, type_name, &src_key, &dest_key, e).map_err(|_| {
+                                e.lang_error(&ctx.path, "context", &format!("copy_fields: failed to recursively copy field '{}'", dest_key))
+                            })?;
+                        }
+                    }
+
+                    current_offset += field_size;
                 }
             }
-
-            current_offset += field_size;
         }
 
         Ok(())
@@ -1428,11 +1429,14 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 
                                                 // Find variant name by matching the variant position
                                                 let mut found_variant = None;
+                                                let mut found = false;
                                                 for (name, _) in &enum_def.enum_map {
-                                                    let pos = Context::get_variant_pos(enum_def, name, &context.path, &case)?;
-                                                    if pos == variant_pos {
-                                                        found_variant = Some(name.clone());
-                                                        break;
+                                                    if !found {
+                                                        let pos = Context::get_variant_pos(enum_def, name, &context.path, &case)?;
+                                                        if pos == variant_pos {
+                                                            found_variant = Some(name.clone());
+                                                            found = true;
+                                                        }
                                                     }
                                                 }
 
@@ -2543,8 +2547,10 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let mut param_index = 1;
     let mut mut_args: Vec<(String, String, ValueType, bool)> = Vec::new(); // (arg_name, source_name, type, is_pass_by_ref)
     let mut pass_by_ref_params: std::collections::HashSet<String> = std::collections::HashSet::new(); // Track which params used pass-by-ref
+    let mut params_consumed = false;
 
     for arg in &func_def.args {
+        if !params_consumed {
         function_context.scope_stack.declare_symbol(arg.name.to_string(), SymbolInfo {value_type: arg.value_type.clone(), is_mut: arg.is_mut, is_copy: arg.is_copy, is_own: arg.is_own });
         match &arg.value_type {
             ValueType::TMulti(ref multi_value_type) => {
@@ -2571,7 +2577,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 Arena::insert_array(&mut function_context, &arg.name, &multi_value_type, &values, e)?;
 
                 // We've consumed all remaining parameters, break out of loop
-                break;
+                params_consumed = true;
             },
             ValueType::TCustom(ref custom_type_name) => {
                 let current_arg = e.get(param_index)?;
@@ -3019,6 +3025,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         }
 
         param_index += 1;
+        }
     }
 
     let result = eval_body(&mut function_context, &func_def.body)?;

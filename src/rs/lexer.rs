@@ -341,17 +341,19 @@ fn scan_tokens(source: String) -> Vec<Token> {
             }
             scan_push_token(&mut tokens, TokenType::Number, &source[start..pos], line, (start as isize - start_line_pos) as usize);
         } else {
+            let mut should_process_token = true;
 
             let token_type = match &source[pos..pos+1] {
                 // chars to ignore in this language (increment pos, no token, continue loop):
-                " " => { pos += 1; continue; },
-                "\r" => { pos += 1; continue; },
-                "\t" => { pos += 1; continue; },
+                " " => { pos += 1; should_process_token = false; TokenType::Invalid },
+                "\r" => { pos += 1; should_process_token = false; TokenType::Invalid },
+                "\t" => { pos += 1; should_process_token = false; TokenType::Invalid },
                 "\n" => {
                     pos += 1;
                     line = line + 1;
                     start_line_pos = (pos - 1) as isize;
-                    continue;
+                    should_process_token = false;
+                    TokenType::Invalid
                 },
                 // open/close. left/right
                 "(" => TokenType::LeftParen,
@@ -387,7 +389,8 @@ fn scan_tokens(source: String) -> Vec<Token> {
                     while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
                         pos += 1;
                     }
-                    continue;
+                    should_process_token = false;
+                    TokenType::Invalid
                 },
                 "/" => match &source[pos+1..pos+2] {
                     "/" => {
@@ -395,12 +398,14 @@ fn scan_tokens(source: String) -> Vec<Token> {
                         while pos + 1 < eof_pos && &source[pos..pos+1] != "\n" {
                             pos += 1;
                         }
-                        continue;
+                        should_process_token = false;
+                        TokenType::Invalid
                     },
                     "*" => {
                         pos += 2;
                         let mut depth = 1;
-                        while pos < eof_pos - 1 {
+                        let mut should_continue_parsing = true;
+                        while pos < eof_pos - 1 && should_continue_parsing {
                             if &source[pos..pos+2] == "/*" {
                                 depth += 1;
                                 pos += 2;
@@ -408,7 +413,7 @@ fn scan_tokens(source: String) -> Vec<Token> {
                                 depth -= 1;
                                 pos += 2;
                                 if depth == 0 {
-                                    break;
+                                    should_continue_parsing = false;
                                 }
                             } else {
                                 if &source[pos..pos+1] == "\n" {
@@ -421,7 +426,8 @@ fn scan_tokens(source: String) -> Vec<Token> {
                         if depth > 0 {
                             scan_push_token(&mut tokens, TokenType::UnterminatedComment, "/*", line, (pos as isize - start_line_pos) as usize);
                         }
-                        continue;
+                        should_process_token = false;
+                        TokenType::Invalid
                     },
                     _ => TokenType::Slash,
                 },
@@ -484,10 +490,12 @@ fn scan_tokens(source: String) -> Vec<Token> {
                 },
 
             }; // let match
-            if token_type != TokenType::String {
+            if should_process_token && token_type != TokenType::String {
                 scan_push_token(&mut tokens, token_type, &source[start..pos + 1], line, (start as isize - start_line_pos) as usize);
             }
-            pos += 1;
+            if should_process_token {
+                pos += 1;
+            }
         } // else
     } // while
 

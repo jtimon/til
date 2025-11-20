@@ -1023,24 +1023,27 @@ fn check_assignment(context: &mut Context, e: &Expr, var_name: &str) -> Vec<Stri
 
             // Validate field path exists in struct definition
             let mut current_type = base_info.value_type.clone();
+            let mut has_error = false;
             for field_name in &parts[1..] {
-                match current_type {
-                    ValueType::TCustom(ref type_name) => {
-                        if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
-                            if let Some(field_decl) = struct_def.members.iter().find(|decl| decl.name == *field_name) {
-                                current_type = field_decl.value_type.clone();
+                if !has_error {
+                    match current_type {
+                        ValueType::TCustom(ref type_name) => {
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(type_name) {
+                                if let Some(field_decl) = struct_def.members.iter().find(|decl| decl.name == *field_name) {
+                                    current_type = field_decl.value_type.clone();
+                                } else {
+                                    errors.push(e.error(&context.path, "type", &format!("Field '{}' not found in struct '{}'", field_name, type_name)));
+                                    has_error = true;
+                                }
                             } else {
-                                errors.push(e.error(&context.path, "type", &format!("Field '{}' not found in struct '{}'", field_name, type_name)));
-                                break;
+                                errors.push(e.error(&context.path, "type", &format!("Struct '{}' not found", type_name)));
+                                has_error = true;
                             }
-                        } else {
-                            errors.push(e.error(&context.path, "type", &format!("Struct '{}' not found", type_name)));
-                            break;
+                        },
+                        _ => {
+                            errors.push(e.error(&context.path, "type", &format!("Cannot access field '{}' on non-struct type", field_name)));
+                            has_error = true;
                         }
-                    },
-                    _ => {
-                        errors.push(e.error(&context.path, "type", &format!("Cannot access field '{}' on non-struct type", field_name)));
-                        break;
                     }
                 }
             }
