@@ -33,6 +33,7 @@ runfile("src/test/maps.til")
 runfile("src/test/errors.til")
 runfile("src/test/fibonacci.til") // recursive examples
 runfile("src/test/flow.til") // control flow, execution path examples
+runfile("src/test/scope_isolation.til") // scope isolation tests
 runfile("src/test/function_pointers.til")
 runfile("src/test/intro.til")
 runfile("src/test/mut_test.til")
