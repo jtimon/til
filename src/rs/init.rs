@@ -112,6 +112,13 @@ impl ScopeStack {
         None
     }
 
+    /// Check if variable exists in current frame only (not parent frames)
+    pub fn lookup_var_current_frame(&self, name: &str) -> Option<usize> {
+        self.frames.last()
+            .and_then(|frame| frame.arena_index.get(name))
+            .copied()
+    }
+
     pub fn lookup_symbol(&self, name: &str) -> Option<&SymbolInfo> {
         for frame in self.frames.iter().rev() {
             if let Some(sym) = frame.symbols.get(name) {
