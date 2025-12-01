@@ -1,0 +1,245 @@
+
+Translation patterns for converting Rust code to TIL, primarily for self-hosting the compiler/interpreter.
+
+* Overview
+
+TIL and Rust have different idioms, but the translation is mechanical. This guide documents the patterns discovered when analyzing lexer.rs, parser.rs, and init.rs against their TIL counterparts.
+
+* Lexer Patterns (lexer.rs -> lexer.til)
+
+** Match on Option<byte> -> switch on string
+
+Rust:
+#+begin_src rust
+match source.as_bytes().get(pos).copied() {
+    Some(b'0'..=b'9') => ...,
+    Some(b'a'..=b'z') | Some(b'A'..=b'Z') => ...,
+    _ => ...
+}
+#+end_src
+
+TIL:
+#+begin_src til
+c := source.get_substr(pos, pos.add(1))
+switch c {
+    case "0".."9": ...
+    case "a".."z": ...
+    case "A".."Z": ...
+    case: ...
+}
+#+end_src
+
+** String slicing
+
+Rust: ~&source[start..end]~
+TIL: ~source.get_substr(start, end)~
+
+** OR patterns in match
+
+Rust uses ~|~ to combine patterns. TIL uses separate case arms:
+
+Rust:
+#+begin_src rust
+Some(b'a'..=b'z') | Some(b'A'..=b'Z') | Some(b'_') => is_ident()
+#+end_src
+
+TIL:
+#+begin_src til
+case "a".."z": is_ident()
+case "A".."Z": is_ident()
+case "_": is_ident()
+#+end_src
+
+* Parser Patterns (parser.rs -> parser.til)
+
+** OR patterns in match
+
+Rust:
+#+begin_src rust
+match func_type {
+    FunctionType::FTProc | FunctionType::FTProcExt => true,
+    _ => false
+}
+#+end_src
+
+TIL:
+#+begin_src til
+switch func_type {
+    case FTProc: return true
+    case FTProcExt: return true
+    case: return false
+}
+#+end_src
+
+** Vec literals
+
+Rust: ~vec![a, b, c]~
+
+TIL:
+#+begin_src til
+mut v := Vec.new(T)
+v.push(a)
+v.push(b)
+v.push(c)
+#+end_src
+
+* Init Patterns (init.rs -> init.til)
+
+** if let Some(x) = ...
+
+Rust uses ~if let~ for Option destructuring. TIL checks for default/empty value or uses catch blocks:
+
+Rust:
+#+begin_src rust
+if let Some(val) = map.get(key) {
+    // use val
+}
+#+end_src
+
+TIL (check default):
+#+begin_src til
+val := map.get(key)
+if val.ne("") {
+    // use val
+}
+#+end_src
+
+TIL (catch block):
+#+begin_src til
+catch {
+    val := map.get_or_throw(key)
+    // use val
+}
+#+end_src
+
+** Reverse iteration
+
+Rust: ~items.iter().rev()~
+
+TIL:
+#+begin_src til
+mut i := items.len()
+while i.gt(0) {
+    i = i.sub(1)
+    item := items.get(i)
+    // use item
+}
+#+end_src
+
+** Option return types
+
+Rust uses ~Option<T>~ with ~.ok_or_else()~, ~.is_some()~, ~.is_none()~.
+
+TIL uses throw/catch instead:
+- Function throws on not-found instead of returning None
+- Caller uses catch block to handle the error case
+- ~map.contains_key(k)~ to check existence without fetching
+
+** Method chaining with ?
+
+Rust: ~let x = foo()?.bar()?.baz()?;~
+
+TIL: Operations throw on failure, caller catches. No explicit propagation needed.
+
+** Default switch case syntax
+
+Rust uses ~_~ for catch-all. TIL uses empty ~case:~
+
+Rust:
+#+begin_src rust
+match x {
+    Foo::A => ...,
+    _ => ...  // catch-all
+}
+#+end_src
+
+TIL:
+#+begin_src til
+switch x {
+    case Foo.A: ...
+    case: ...  // catch-all (NOT "case _:")
+}
+#+end_src
+
+** NULL pointer comparison
+
+Rust: ~ptr.is_some()~ or ~ptr != NULL~
+
+TIL: Use ~not(NULL.eq(ptr.data))~ - TIL doesn't have ~.ne()~ method:
+
+#+begin_src til
+if not(NULL.eq(func_ptr.data)) {
+    // pointer is valid
+}
+#+end_src
+
+** Vec/Map.get() out-parameter pattern
+
+Rust returns the value directly. TIL uses out-parameter pattern:
+
+Rust:
+#+begin_src rust
+let item = vec.get(i)?;
+let val = map.get(&key)?;
+#+end_src
+
+TIL:
+#+begin_src til
+mut item := T()  // default init
+vec.get(i, item)  // out-parameter, throws IndexOutOfBoundsError
+
+mut val := V()
+map.get(key, val)  // out-parameter, throws KeyNotFoundError
+#+end_src
+
+** Catch blocks placement
+
+In TIL, catch blocks must come BEFORE the final return/throw:
+
+#+begin_src til
+proc my_proc() throws Str {
+    do_something()  // may throw IndexOutOfBoundsError
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("Index error: ", err.msg)
+    }
+
+    return result  // return comes AFTER catch blocks
+}
+#+end_src
+
+** Simplified error handling with throws Str
+
+Complex functions often declare ~throws Str~ only, converting typed errors:
+
+#+begin_src til
+my_func := func() returns T throws Str {
+    // ... code that may throw various errors ...
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("Index error: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("Key error: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw "Allocation failed"
+    }
+
+    return result
+}
+#+end_src
+
+* Summary
+
+The translation is mechanical:
+1. OR patterns (~|~) -> separate case arms
+2. ~if let~ -> check default value or catch block
+3. Iterator methods -> explicit loops
+4. ~Option~ returns -> throw/catch pattern
+5. String slicing -> ~get_substr~
+6. UFCS works similarly: ~a.method(b)~ in both languages
+7. Default case: ~_~ -> empty ~case:~
+8. NULL check: ~!= NULL~ -> ~not(NULL.eq(x))~
+9. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
+10. Catch blocks come before final return/throw
