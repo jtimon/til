@@ -1528,7 +1528,6 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
 
                     // Associated functions used with UFCS (aka methods)
                     if let Some(symbol_info) = context.scope_stack.lookup_symbol(&new_combined_name) {
-
                         match &symbol_info.value_type {
                             ValueType::TCustom(ref custom_type_name) => {
                                 let id_expr_name = format!("{}.{}", custom_type_name, ufcs_func_name);
