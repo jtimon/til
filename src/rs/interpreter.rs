@@ -606,7 +606,8 @@ impl Arena {
         Ok(())
     }
 
-    pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
+    /// Core logic for insert_string - returns Some((string_offset_bytes, len_bytes)) if caller needs to create struct, None if already handled
+    fn insert_string_core(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<Option<([u8; 8], [u8; 8])>, String> {
         let is_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();
             let base = parts[0];
@@ -649,7 +650,7 @@ impl Arena {
                             current_offset += type_size;
                         }
                     }
-                    return Ok(())
+                    return Ok(None)
                 }
                 return Err(e.lang_error(&ctx.path, "context", "ERROR: 'Str' struct definition not found"))
             }
@@ -680,29 +681,40 @@ impl Arena {
                 }
 
                 ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), struct_offset);
-                return Ok(())
+                return Ok(None)
             }
             return Err(e.lang_error(&ctx.path, "context", "'Str' struct definition not found"))
         }
 
-        Arena::insert_struct(ctx, id, "Str", e)?;
-        let c_string_offset = match ctx.scope_stack.lookup_var(&format!("{}.c_string", id)) {
-            Some(offset) => offset,
-            None => {
-                return Err(e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))
-            }
-        };
-        let cap_offset = match ctx.scope_stack.lookup_var(&format!("{}.cap", id)) {
-            Some(offset) => offset,
-            None => {
-                return Err(e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))
-            }
-        };
+        Ok(Some((string_offset_bytes, len_bytes)))
+    }
 
-        Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
-        Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+    pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
+            Arena::insert_struct(ctx, id, "Str", e)?;
+            let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
+            let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))?;
+            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+        }
+        Ok(())
+    }
 
-        return Ok(())
+    pub fn insert_string_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
+            Arena::insert_struct_into_frame(ctx, frame, id, "Str", e)?;
+            let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
+            let cap_offset = frame.arena_index.get(&format!("{}.cap", id))
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.cap'", id)))?;
+            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+        }
+        Ok(())
     }
 
     /// Helper function to insert primitive types (I64, U8, Bool, Str) based on value_type
@@ -952,9 +964,8 @@ impl Arena {
         })
     }
 
-    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
-    pub fn insert_enum(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
-
+    /// Core logic for insert_enum - returns (optional mapping, EnumVal)
+    fn insert_enum_core(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<(Option<(String, usize)>, EnumVal), String> {
         let enum_def = ctx.scope_stack.lookup_enum(enum_type)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
 
@@ -969,56 +980,80 @@ impl Arena {
             None => (None, None),
         };
 
-        let is_field = id.contains('.');
-        if is_field {
-            if let Some(offset) = ctx.scope_stack.lookup_var(id) {
-                // Update existing enum value
-                Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
-                // Store payload if present
-                if let Some(payload_bytes) = &payload_data {
-                    let payload_offset = offset + 8;
-                    let payload_end = payload_offset + payload_bytes.len();
-                    // Ensure arena has enough space
-                    if Arena::g().memory.len() < payload_end {
-                        Arena::g().memory.resize(payload_end, 0);
+        let mapping = {
+            let is_field = id.contains('.');
+            if is_field {
+                if let Some(offset) = ctx.scope_stack.lookup_var(id) {
+                    // Update existing enum value (no new mapping needed)
+                    Arena::g().memory[offset..offset + 8].copy_from_slice(&enum_value.to_le_bytes());
+                    if let Some(payload_bytes) = &payload_data {
+                        let payload_offset = offset + 8;
+                        let payload_end = payload_offset + payload_bytes.len();
+                        if Arena::g().memory.len() < payload_end {
+                            Arena::g().memory.resize(payload_end, 0);
+                        }
+                        Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
                     }
-                    Arena::g().memory[payload_offset..payload_end].copy_from_slice(&payload_bytes);
+                    None
+                } else {
+                    let offset = Arena::g().memory.len();
+                    Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
+                    if let Some(payload_bytes) = &payload_data {
+                        Arena::g().memory.extend_from_slice(&payload_bytes);
+                    }
+                    Some((id.to_string(), offset))
                 }
             } else {
                 let offset = Arena::g().memory.len();
                 Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
-                // Store payload if present
                 if let Some(payload_bytes) = &payload_data {
                     Arena::g().memory.extend_from_slice(&payload_bytes);
                 }
-                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
+                Some((id.to_string(), offset))
             }
-        } else {
-            let offset = Arena::g().memory.len();
-            Arena::g().memory.extend_from_slice(&enum_value.to_le_bytes());
-            // Store payload if present
-            if let Some(payload_bytes) = &payload_data {
-                Arena::g().memory.extend_from_slice(&payload_bytes);
-            }
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(id.to_string(), offset);
-        }
+        };
 
         // Clear the temp payload after using it
         ctx.temp_enum_payload = None;
 
-        Ok(EnumVal {
+        Ok((mapping, EnumVal {
             enum_type: enum_type.to_string(),
             enum_name: enum_name.to_string(),
             payload: payload_data,
             payload_type,
-        })
+        }))
     }
 
-    pub fn insert_array(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
+    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
+    pub fn insert_enum(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
+        let (mapping, enum_val) = Self::insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?;
+        if let Some((key, offset)) = mapping {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, offset);
+        }
+        Ok(enum_val)
+    }
+
+    pub fn insert_enum_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
+        let (mapping, enum_val) = Self::insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?;
+        if let Some((key, offset)) = mapping {
+            frame.arena_index.insert(key, offset);
+        }
+        Ok(enum_val)
+    }
+
+    /// Core logic for insert_array - returns mappings to be inserted by caller
+    fn insert_array_core(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<Vec<(String, usize)>, String> {
         // All array types now use the generic Array
         let array_type = "Array".to_string();
 
-        Arena::insert_struct(ctx, name, &array_type, e)?;
+        // Get struct mappings (don't insert yet)
+        let struct_result = Self::insert_struct_core(ctx, name, &array_type, None, e)?;
+        let mut mappings = struct_result.arena_mappings;
+
+        // Helper to find offset from mappings
+        let find_offset = |mappings: &Vec<(String, usize)>, key: &str| -> Option<usize> {
+            mappings.iter().find(|(k, _)| k == key).map(|(_, v)| *v)
+        };
 
         let len = values.len() as i64;
         let elem_size = match Arena::get_type_size(ctx, elem_type) {
@@ -1060,21 +1095,36 @@ impl Arena {
                         let offset = ptr + i * elem_size;
 
                         let temp_id = format!("{}_{}", name, i);
+                        // Declare temp symbol (insert_struct_core requires it for is_mut lookup)
                         ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
                             value_type: ValueType::TCustom("Str".to_string()),
                             is_mut: false,
                             is_copy: false,
                             is_own: false,
                         });
+                        // For Str elements: call insert_string_core for data, insert_struct_core for Str struct
+                        if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, val, e)? {
+                            let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, e)?;
+                            let c_string_offset = str_struct_result.arena_mappings.iter()
+                                .find(|(k, _)| k == &format!("{}.c_string", temp_id))
+                                .map(|(_, v)| *v)
+                                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.c_string'", temp_id)))?;
+                            let cap_offset = str_struct_result.arena_mappings.iter()
+                                .find(|(k, _)| k == &format!("{}.cap", temp_id))
+                                .map(|(_, v)| *v)
+                                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.cap'", temp_id)))?;
+                            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+                            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
 
-                        Arena::insert_string(ctx, &temp_id, val, e)?;
-
-                        let str_offset = match ctx.scope_stack.lookup_var(&temp_id) {
-                            Some(off) => off,
-                            None => return Err(e.lang_error(&ctx.path, "context", &format!("ERROR: insert_array: missing arena offset for '{}'", temp_id))),
-                        };
-                        Arena::g().memory[offset..offset + elem_size]
-                            .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
+                            // Get the struct base offset and copy to array slot
+                            let str_offset = str_struct_result.arena_mappings.iter()
+                                .find(|(k, _)| k == &temp_id)
+                                .map(|(_, v)| *v)
+                                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
+                            Arena::g().memory[offset..offset + elem_size]
+                                .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
+                            mappings.extend(str_struct_result.arena_mappings);
+                        }
                     }
                 }
 
@@ -1086,25 +1136,15 @@ impl Arena {
 
         // Write ptr, len (and cap for Vec) using calculated offsets
         let ptr_field_path = format!("{}.ptr", name);
-        let ptr_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&ptr_field_path) {
-            offset
-        } else {
-            Arena::get_field_offset(ctx, &ptr_field_path).map_err(|err| {
-                e.lang_error(&ctx.path, "context", &format!("insert_array: {}", err))
-            })?
-        };
+        let ptr_offset = find_offset(&mappings, &ptr_field_path)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}'", ptr_field_path)))?;
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
 
         // Set _len field (required for both Array and Vec)
         let len_bytes = len.to_ne_bytes();
         let len_field_path = format!("{}._len", name);
-        let len_offset = if let Some(offset) = ctx.scope_stack.lookup_var(&len_field_path) {
-            offset
-        } else {
-            Arena::get_field_offset(ctx, &len_field_path).map_err(|err| {
-                e.lang_error(&ctx.path, "context", &format!("insert_array: {}", err))
-            })?
-        };
+        let len_offset = find_offset(&mappings, &len_field_path)
+            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}'", len_field_path)))?;
         Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
 
         // Note: Array doesn't have a cap field (only Vec has cap)
@@ -1113,30 +1153,64 @@ impl Arena {
         // For generic Array, also set type_name and type_size fields
         if array_type == "Array" {
             // Set type_name field (it's a Str, so we need to store it properly)
-            let type_name_offset_opt = ctx.scope_stack.lookup_var(&format!("{}.type_name", name));
-            if let Some(type_name_offset) = type_name_offset_opt {
+            let type_name_field = format!("{}.type_name", name);
+            if let Some(type_name_offset) = find_offset(&mappings, &type_name_field) {
                 let temp_id = format!("{}_type_name_temp", name);
+                // Declare temp symbol (insert_struct_core requires it for is_mut lookup)
                 ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
                     value_type: ValueType::TCustom("Str".to_string()),
                     is_mut: false,
                     is_copy: false,
                     is_own: false,
                 });
-                Arena::insert_string(ctx, &temp_id, &elem_type.to_string(), e)?;
-                if let Some(str_offset) = ctx.scope_stack.lookup_var(&temp_id) {
+                if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, &elem_type.to_string(), e)? {
+                    let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, e)?;
+                    let c_string_offset = str_struct_result.arena_mappings.iter()
+                        .find(|(k, _)| k == &format!("{}.c_string", temp_id))
+                        .map(|(_, v)| *v)
+                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.c_string'", temp_id)))?;
+                    let cap_offset = str_struct_result.arena_mappings.iter()
+                        .find(|(k, _)| k == &format!("{}.cap", temp_id))
+                        .map(|(_, v)| *v)
+                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.cap'", temp_id)))?;
+                    Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+                    Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+
+                    let str_offset = str_struct_result.arena_mappings.iter()
+                        .find(|(k, _)| k == &temp_id)
+                        .map(|(_, v)| *v)
+                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
                     let str_size = Arena::get_type_size(ctx, "Str")?;
                     Arena::g().memory[type_name_offset..type_name_offset + str_size]
                         .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
+                    mappings.extend(str_struct_result.arena_mappings);
                 }
             }
 
             // Set type_size field
-            if let Some(type_size_offset) = ctx.scope_stack.lookup_var(&format!("{}.type_size", name)) {
+            let type_size_field = format!("{}.type_size", name);
+            if let Some(type_size_offset) = find_offset(&mappings, &type_size_field) {
                 let size_bytes = (elem_size as i64).to_ne_bytes();
                 Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
             }
         }
 
+        Ok(mappings)
+    }
+
+    pub fn insert_array(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
+        let mappings = Self::insert_array_core(ctx, name, elem_type, values, e)?;
+        for (key, offset) in mappings {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, offset);
+        }
+        Ok(())
+    }
+
+    pub fn insert_array_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
+        let mappings = Self::insert_array_core(ctx, name, elem_type, values, e)?;
+        for (key, offset) in mappings {
+            frame.arena_index.insert(key, offset);
+        }
         Ok(())
     }
 }
