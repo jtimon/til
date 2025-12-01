@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use crate::rs::init::{Context, SymbolInfo, EnumVal, get_value_type, get_func_name_in_call};
+use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -18,6 +18,12 @@ const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 pub struct Arena {
     pub memory: Vec<u8>,
     pub temp_id_counter: usize,
+}
+
+/// Result from insert_struct_core containing mappings to be stored
+struct StructInsertResult {
+    arena_mappings: Vec<(String, usize)>,
+    symbols: Vec<(String, SymbolInfo)>,
 }
 
 // heap/arena memory (starts at 1 to avoid NULL confusion)
@@ -77,7 +83,8 @@ impl Arena {
         }
     }
 
-    pub fn insert_i64(ctx: &mut Context, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
+    /// Core logic for insert_i64 - returns Some(offset) if caller needs to store it, None if already handled
+    fn insert_i64_core(ctx: &Context, id: &str, i64_str: &String, e: &Expr) -> Result<Option<usize>, String> {
         let v = i64_str.parse::<i64>()
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid i64 literal '{}'", i64_str)))?;
         let bytes = v.to_ne_bytes();
@@ -116,21 +123,33 @@ impl Arena {
             }
 
             Arena::g().memory[offset..offset + 8].copy_from_slice(&bytes);
-            return Ok(())
+            return Ok(None)
         }
 
         // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
         let offset = Arena::g().memory.len();
         Arena::g().memory.extend_from_slice(&bytes);
-        ctx.scope_stack.insert_var(id.to_string(), offset);
-        return Ok(())
+        Ok(Some(offset))
+    }
+
+    pub fn insert_i64(ctx: &mut Context, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(offset) = Self::insert_i64_core(ctx, id, i64_str, e)? {
+            ctx.scope_stack.insert_var(id.to_string(), offset);
+        }
+        Ok(())
+    }
+
+    pub fn insert_i64_into_frame(ctx: &Context, frame: &mut ScopeFrame, id: &str, i64_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(offset) = Self::insert_i64_core(ctx, id, i64_str, e)? {
+            frame.arena_index.insert(id.to_string(), offset);
+        }
+        Ok(())
     }
 
     // REM: Can't be moved to TIL until compilation - needs way to calculate size from TIL declarations
-    pub fn insert_u8(ctx: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
+    fn insert_u8_core(ctx: &Context, id: &str, u8_str: &String, e: &Expr) -> Result<Option<usize>, String> {
         let v = u8_str.parse::<u8>()
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
-        let bytes = [v];
 
         let is_instance_field = if id.contains('.') {
             let parts: Vec<&str> = id.split('.').collect();
@@ -157,13 +176,26 @@ impl Arena {
                 })?
             };
             Arena::g().memory[offset] = v;
-            return Ok(())
+            return Ok(None)
         }
 
         let offset = Arena::g().memory.len();
-        Arena::g().memory.extend_from_slice(&bytes);
-        ctx.scope_stack.insert_var(id.to_string(), offset);
-        return Ok(())
+        Arena::g().memory.push(v);
+        Ok(Some(offset))
+    }
+
+    pub fn insert_u8(ctx: &mut Context, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(offset) = Self::insert_u8_core(ctx, id, u8_str, e)? {
+            ctx.scope_stack.insert_var(id.to_string(), offset);
+        }
+        Ok(())
+    }
+
+    pub fn insert_u8_into_frame(ctx: &Context, frame: &mut ScopeFrame, id: &str, u8_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(offset) = Self::insert_u8_core(ctx, id, u8_str, e)? {
+            frame.arena_index.insert(id.to_string(), offset);
+        }
+        Ok(())
     }
 
     pub fn get_type_size(ctx: &Context, type_name: &str) -> Result<usize, String> {
@@ -397,11 +429,12 @@ impl Arena {
         Ok(())
     }
 
-    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
-        Arena::insert_struct_at_offset(ctx, id, custom_type_name, None, e)
-    }
-
-    fn insert_struct_at_offset(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<(), String> {
+    /// Core logic for insert_struct - does all the work but returns mappings instead of inserting them
+    fn insert_struct_core(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<StructInsertResult, String> {
+        let mut result = StructInsertResult {
+            arena_mappings: Vec::new(),
+            symbols: Vec::new(),
+        };
 
         // Lookup the struct definition
         let struct_def = match ctx.scope_stack.lookup_struct(custom_type_name) {
@@ -440,7 +473,7 @@ impl Arena {
                 off
             }
         };
-        ctx.scope_stack.insert_var(id.to_string(), offset);
+        result.arena_mappings.push((id.to_string(), offset));
 
         // Store each field's default value
         for decl in struct_def.members.iter() {
@@ -494,27 +527,35 @@ impl Arena {
                             _ => {
                                 if ctx.scope_stack.lookup_struct(type_name).is_some() {
                                     let combined_name = format!("{}.{}", id, decl.name);
-                                    ctx.scope_stack.declare_symbol(
-                                        combined_name.clone(),
-                                        SymbolInfo {
-                                            value_type: ValueType::TCustom(type_name.clone()),
-                                            is_mut: true,
-                                            is_copy: false,
-                                            is_own: false,
-                                        },
-                                    );
+                                    let nested_symbol = SymbolInfo {
+                                        value_type: ValueType::TCustom(type_name.clone()),
+                                        is_mut: true,
+                                        is_copy: false,
+                                        is_own: false,
+                                    };
+                                    // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
+                                    ctx.scope_stack.declare_symbol(combined_name.clone(), nested_symbol.clone());
+                                    result.symbols.push((combined_name.clone(), nested_symbol));
 
                                     // Special case: Str field initialization
                                     if type_name == "Str" {
                                         // Register inline offset BEFORE insert_string so it writes to the inline space
                                         let field_arena_offset = offset + field_offset;
+                                        result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+                                        // Need to temporarily insert for insert_string to work
                                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
                                         Arena::insert_string(ctx, &combined_name, &default_value, e)?;
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
-                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), offset + field_offset);
-                                        Arena::insert_struct_at_offset(ctx, &combined_name, type_name, Some(offset + field_offset), e)
+                                        let field_arena_offset = offset + field_offset;
+                                        result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+                                        // Need to temporarily insert for recursive call to work
+                                        ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
+                                        let nested_result = Arena::insert_struct_core(ctx, &combined_name, type_name, Some(field_arena_offset), e)
                                             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, decl.name)))?;
+                                        // Collect nested mappings (but they're already inserted by the temp inserts above)
+                                        result.arena_mappings.extend(nested_result.arena_mappings);
+                                        result.symbols.extend(nested_result.symbols);
                                     }
                                 } else {
                                     return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Unknown field type '{}'", type_name)));
@@ -530,27 +571,38 @@ impl Arena {
 
             let combined_name = format!("{}.{}", id, decl.name);
             let field_arena_offset = offset + field_offset;
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
-            ctx.scope_stack.declare_symbol(
-                combined_name,
-                SymbolInfo {
-                    value_type: decl.value_type.clone(),
-                    is_mut,
-                    is_copy: false,
-                    is_own: false,
-                },
-            );
+            result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+            result.symbols.push((combined_name, SymbolInfo {
+                value_type: decl.value_type.clone(),
+                is_mut,
+                is_copy: false,
+                is_own: false,
+            }));
             }
         }
 
-        // Map immutable fields by copying arena_index entries from the type to the instance
-        for decl in struct_def.members.iter() {
-            if !decl.is_mut {
-                // Immutable struct fields are handled generically through struct_defs
-                // No special cases needed anymore
-            }
-        }
+        Ok(result)
+    }
 
+    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
+        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, e)?;
+        for (name, offset) in result.arena_mappings {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(name, offset);
+        }
+        for (name, symbol) in result.symbols {
+            ctx.scope_stack.declare_symbol(name, symbol);
+        }
+        Ok(())
+    }
+
+    pub fn insert_struct_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
+        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, e)?;
+        for (name, offset) in result.arena_mappings {
+            frame.arena_index.insert(name, offset);
+        }
+        for (name, symbol) in result.symbols {
+            frame.symbols.insert(name, symbol);
+        }
         Ok(())
     }
 
@@ -679,8 +731,8 @@ impl Arena {
         }
     }
 
-    // Helper function to insert a Bool value using insert_struct
-    pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
+    /// Core logic for insert_bool - returns Some(stored_value) if caller needs to create struct, None if already handled
+    fn insert_bool_core(ctx: &Context, id: &str, bool_str: &String, e: &Expr) -> Result<Option<u8>, String> {
         // Parse the bool value
         let bool_to_insert = bool_str.parse::<bool>()
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
@@ -706,15 +758,33 @@ impl Arena {
             let offset = ctx.scope_stack.lookup_var(&field_id)
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
             Arena::g().memory[offset] = stored;
-        } else {
-            // For new variable, create the struct and set value
+            return Ok(None)
+        }
+
+        Ok(Some(stored))
+    }
+
+    // Helper function to insert a Bool value using insert_struct
+    pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
             Arena::insert_struct(ctx, id, "Bool", e)?;
             let field_id = format!("{}.data", id);
             let offset = ctx.scope_stack.lookup_var(&field_id)
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
             Arena::g().memory[offset] = stored;
         }
+        Ok(())
+    }
 
+    pub fn insert_bool_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
+        if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
+            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", e)?;
+            let field_id = format!("{}.data", id);
+            let offset = frame.arena_index.get(&field_id)
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found in frame", id)))?;
+            Arena::g().memory[offset] = stored;
+        }
         Ok(())
     }
 
