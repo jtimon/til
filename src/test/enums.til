@@ -1034,45 +1034,80 @@ test_enum_constructor_in_function()
 // ============================================================================
 // Bug #28 Regression Tests - UFCS fails inside pattern match case bodies
 // See doc/todo/bugs.org for full details
-// TODO: Bug #28 - uncomment entire section when fixed
+// Fixed: Added scope management in check_body_returns_throws for pattern bindings
 // ============================================================================
 
 // Test: UFCS v.push(n) inside switch case WITH binding - Bug #28 manifestation 2
 // This tests the check_body_returns_throws scope issue (typer.rs:739-740)
-//
-// test_bug28_ufcs_push_in_binding := proc() {
-//     val := Color.Number(123)
-//     mut result := 0
-//     switch val {
-//     case Color.Number(n):
-//         mut v := Vec.new(I64)
-//         v.push(n)  // UFCS with arg - FAILS in check_body_returns_throws
-//         result = v.len()
-//     case:
-//         result = 0
-//     }
-//     catch (err: AllocError) { panic(loc(), err.msg) }
-//     catch (err: FullError) { panic(loc(), err.msg) }
-//     assert_eq(loc(), 1, result)
-// }
-// test_bug28_ufcs_push_in_binding()
+test_bug28_ufcs_push_in_binding := proc() {
+    val := Color.Number(123)
+    mut result := 0
+    switch val {
+    case Color.Number(n):
+        mut v := Vec.new(I64)
+        v.push(n)  // UFCS with arg - was failing in check_body_returns_throws
+        result = v.len()
+    case:
+        result = 0
+    }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+    assert_eq(loc(), 1, result)
+}
+test_bug28_ufcs_push_in_binding()
 
 // Test: UFCS v.len() inside switch case WITH binding - Bug #28
 // Tests UFCS without extra args but still in binding context
-//
-// test_bug28_ufcs_len_in_binding := proc() {
-//     val := Color.Number(123)
-//     mut result := 0
-//     switch val {
-//     case Color.Number(n):
-//         mut v := Vec.new(I64)
-//         Vec.push(v, 99)  // fully qualified push (works)
-//         result = v.len()  // UFCS len - may fail in check_body_returns_throws
-//     case:
-//         result = 0
-//     }
-//     catch (err: AllocError) { panic(loc(), err.msg) }
-//     catch (err: FullError) { panic(loc(), err.msg) }
-//     assert_eq(loc(), 1, result)
-// }
-// test_bug28_ufcs_len_in_binding()
+test_bug28_ufcs_len_in_binding := proc() {
+    val := Color.Number(123)
+    mut result := 0
+    switch val {
+    case Color.Number(n):
+        mut v := Vec.new(I64)
+        Vec.push(v, 99)  // fully qualified push (works)
+        result = v.len()  // UFCS len - was failing in check_body_returns_throws
+    case:
+        result = 0
+    }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+    assert_eq(loc(), 1, result)
+}
+test_bug28_ufcs_len_in_binding()
+
+// Additional switch scope tests (not pattern matching)
+// Test: UFCS in enum value-matching case (no binding)
+test_ufcs_in_value_case := proc() {
+    val := Color.Unknown
+    mut result := 0
+    switch val {
+    case Color.Unknown:
+        mut v := Vec.new(I64)
+        v.push(42)  // UFCS in value-matching case
+        result = v.len()
+    case:
+        result = 0
+    }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+    assert_eq(loc(), 1, result)
+}
+test_ufcs_in_value_case()
+
+// Test: UFCS in default case body
+test_ufcs_in_default_case := proc() {
+    val := Color.Green(true)
+    mut result := 0
+    switch val {
+    case Color.Unknown:
+        result = 999
+    case:
+        mut v := Vec.new(I64)
+        v.push(99)  // UFCS in default case body
+        result = v.len()
+    }
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+    assert_eq(loc(), 1, result)
+}
+test_ufcs_in_default_case()

@@ -8,75 +8,43 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-** Bug #28: UFCS fails inside pattern match case bodies with bindings
+(No active bugs)
+
+* Fixed Bugs Summary
+
+** Bug #28: UFCS fails inside pattern match case bodies with bindings :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-02
+:FIXED: 2025-12-02
 :IMPACT: Self-hosting, type checking
-:STATUS: Open
+:STATUS: Fixed
 :END:
 
 *** Description
-UFCS method calls fail with "Could not find function definition" when inside pattern match case bodies that have bindings (e.g., =case Enum.Variant(binding):=).
-
-Two manifestations have been identified:
-1. UFCS on struct field chains: =s.items.len()=
-2. UFCS with arguments on local variables: =v.push(n)=
-
-*** Examples
-
-*Works fine:*
-- =s.items.len()= outside pattern match
-- =v.push(n)= outside pattern match
-- =case Enum.Variant:= (no binding)
-- =Vec.push(v, n)= (fully qualified call)
-
-*Fails:*
-#+BEGIN_EXAMPLE til
-switch val {
-case Enum.Variant(binding):
-    s.items.len()    // FAILS - manifestation 1
-    v.push(n)        // FAILS - manifestation 2
-}
-#+END_EXAMPLE
+UFCS method calls failed with "Could not find function definition" when inside pattern match case bodies that have bindings (e.g., =case Enum.Variant(binding):=).
 
 *** Root Cause
+The =check_body_returns_throws= function ran without proper scope tracking:
+1. Pattern binding variables weren't declared in the scope
+2. Local variables declared within case bodies weren't visible
 
-**** Manifestation 1: UFCS on struct.field.method()
-Location: =typer.rs:1530= in =get_func_def_for_fcall_with_expr=
+*** Fix (2025-12-02)
+Added proper scope management to =check_body_returns_throws= in =typer.rs=:
 
-For =s.items.len()=, the code does =lookup_symbol("s.items")= which fails because it looks for a literal symbol name instead of resolving the field access chain to get the type.
+1. *Pattern binding scope*: When processing switch cases with pattern bindings, push a Block scope and declare the binding variable with its payload type (mirrors =check_switch_statement=).
 
-**** Manifestation 2: UFCS with args in check_body_returns_throws
-Location: =typer.rs:739-740= in =check_body_returns_throws=
+2. *Variable declarations*: When processing Declaration nodes, infer the type from the initializer and declare the variable in the current scope (if not already declared).
 
-The =check_body_returns_throws= function runs *without proper scope tracking*:
-- During normal type-checking: scope depth = 3 (Global + Function + Block) → variable found
-- During throw-checking: scope depth = 2 (Global + Function) → variable NOT found
-
-The Block scope containing local variables like =v= is not present when =check_body_returns_throws= processes the case body.
-
-The error is produced by this code:
-#+BEGIN_SRC rust
-// typer.rs lines 739-741 (NodeType::FCall handler)
-Err(reason) => {
-    errors.push(p.error(&context.path, "type", &reason));
-}
-#+END_SRC
-
-Note: There's an existing "bug #28 fix" at lines 851-857 (in Declaration/Assignment handler) that silently ignores =Err(_)=, but this wasn't applied to the standalone FCall handler.
-
-*** Workaround
-Use fully qualified calls: =Vec.push(v, n)= instead of =v.push(n)=
+Files modified:
+- =src/rs/typer.rs= lines 767-825 (NodeType::Switch handler)
+- =src/rs/typer.rs= lines 828-845 (NodeType::Declaration handler)
 
 *** Test Coverage
-Existing test in =src/test/ufcs.til=:
-- =test_ufcs_struct_field_in_pattern_match= - tests struct field UFCS in pattern match
+- =src/test/ufcs.til=: =test_ufcs_struct_field_in_pattern_match=
+- =src/test/enums.til=: =test_bug28_ufcs_push_in_binding=, =test_bug28_ufcs_len_in_binding=
 
-Regression tests in =src/test/enums.til= (commented out, uncomment when fixed):
-- =test_bug28_ufcs_push_in_binding= - UFCS with args in binding case
-- =test_bug28_ufcs_len_in_binding= - UFCS without args in binding case
+All tests pass.
 
-* Fixed Bugs Summary
 ** Bug #1: Enum Comparison in Switch/Case
 
 - *Status*: ❌ NOT PRESENT - Type system prevents this issue

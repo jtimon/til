@@ -766,6 +766,10 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             }
             NodeType::Switch => {
                 let mut temp_thrown_types = Vec::new();
+                // Get switch expression type for pattern matching
+                let switch_expr_type = p.params.get(0)
+                    .and_then(|switch_expr| get_value_type(context, switch_expr).ok());
+
                 // Analyze the switch expression itself (could throw)
                 if let Some(switch_expr) = p.params.get(0) {
                     errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(switch_expr), &mut temp_thrown_types, return_found));
@@ -776,16 +780,139 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     let case_expr = &p.params[i];
                     let body_expr = &p.params[i + 1];
 
-                    // Check case expression and the body block
+                    // Check case expression
                     errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(case_expr), &mut temp_thrown_types, return_found));
-                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+
+                    // For pattern matching, add the binding variable to scope before checking body
+                    // This mirrors check_switch_statement's scope handling (Bug #28 fix)
+                    if let NodeType::Pattern(PatternInfo { variant_name, binding_var }) = &case_expr.node_type {
+                        if let Some(ValueType::TCustom(ref enum_name)) = switch_expr_type {
+                            let variant = if let Some(dot_pos) = variant_name.rfind('.') {
+                                &variant_name[dot_pos + 1..]
+                            } else {
+                                variant_name.as_str()
+                            };
+
+                            let payload_type = context.scope_stack.lookup_enum(enum_name)
+                                .and_then(|e| e.enum_map.get(variant).cloned())
+                                .flatten();
+
+                            if let Some(payload_type) = payload_type {
+                                context.scope_stack.push(ScopeType::Block);
+                                context.scope_stack.declare_symbol(
+                                    binding_var.clone(),
+                                    SymbolInfo {
+                                        value_type: payload_type,
+                                        is_mut: false,
+                                        is_copy: false,
+                                        is_own: false,
+                                    }
+                                );
+                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+                                context.scope_stack.pop().ok();
+                            } else {
+                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+                            }
+                        } else {
+                            errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+                        }
+                    } else {
+                        errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
+                    }
 
                     i += 2;
                 }
                 thrown_types.extend(temp_thrown_types);
             }
 
-            NodeType::Declaration(_) | NodeType::Assignment(_) => {
+            NodeType::Declaration(decl) => {
+                // Bug #28 fix: Declare variables so subsequent statements can reference them
+                // This mirrors check_declaration's behavior but without full type inference
+                if let Some(initializer) = p.params.get(0) {
+                    // Try to infer the type from the initializer (only if not already declared)
+                    if context.scope_stack.lookup_symbol(&decl.name).is_none() {
+                        if let Ok(value_type) = get_value_type(&context, initializer) {
+                            context.scope_stack.declare_symbol(
+                                decl.name.clone(),
+                                SymbolInfo {
+                                    value_type,
+                                    is_mut: decl.is_mut,
+                                    is_copy: decl.is_copy,
+                                    is_own: decl.is_own,
+                                }
+                            );
+                        }
+                    }
+
+                    if let NodeType::FCall = initializer.node_type {
+                        let id_expr_opt = match initializer.get(0) {
+                            Ok(id_expr_) => Some(id_expr_),
+                            Err(err) => {
+                                errors.push(err);
+                                None
+                            },
+                        };
+
+                        let mut is_constructor = false;
+                        if let Some(id_expr) = id_expr_opt {
+                            if let NodeType::Identifier(name) = &id_expr.node_type {
+                                // Only skip default constructor calls (simple StructName() with no dots)
+                                // Don't skip method calls like Struct.method()
+                                if id_expr.params.is_empty() {
+                                    if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
+                                        if symbol.value_type == ValueType::TType(TTypeDef::TStructDef) {
+                                            is_constructor = true; // Skip default constructor calls, for instantiations like 'StructName()'
+                                        }
+                                    }
+                                }
+
+                                // Check for enum constructors (e.g., Color.Green(true))
+                                if id_expr.params.len() == 1 {
+                                    if let Some(symbol) = context.scope_stack.lookup_symbol(name) {
+                                        if symbol.value_type == ValueType::TType(TTypeDef::TEnumDef) {
+                                            if let Some(variant_expr) = id_expr.params.get(0) {
+                                                if let NodeType::Identifier(_variant_name) = &variant_expr.node_type {
+                                                    is_constructor = true; // Skip enum constructor calls, for instantiations like 'Color.Green(true)'
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if !is_constructor {
+                        match get_func_def_for_fcall(&context, initializer) {
+                            Ok(Some(called_func_def)) => {
+                                for called_throw in &called_func_def.throw_types {
+                                    let called_throw_str = value_type_to_str(called_throw);
+                                    let error_msg = format!(
+                                        "Function throws '{}', but it is not declared in this function's throws section.",
+                                        called_throw_str
+                                    );
+
+                                    thrown_types.push((called_throw_str.clone(), initializer.error(&context.path, "type", &error_msg)));
+                                    thrown_types.push((called_throw_str.clone(), e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")));
+                                }
+
+                                let mut temp_thrown_types = Vec::new();
+                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_types, return_found));
+                                thrown_types.extend(temp_thrown_types);
+                            },
+                            Ok(None) => {
+                                // Struct constructor or enum constructor - no throw checking needed
+                            },
+                            Err(_) => {
+                                // If we can't resolve the function, skip throw checking.
+                                // The main type checking pass already validated the code.
+                            }
+                        }
+                        }
+                    }
+                }
+            }
+
+            NodeType::Assignment(_) => {
                 if let Some(initializer) = p.params.get(0) {
                     if let NodeType::FCall = initializer.node_type {
 
@@ -847,11 +974,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 // Struct constructor or enum constructor - no throw checking needed
                             },
                             Err(_) => {
-                                // Bug #28 fix: check_body_returns_throws runs without full scope tracking,
-                                // so some function lookups may fail (e.g., in pattern match case bodies).
-                                // The main type checking pass (check_types_with_context) already validates
-                                // the code with proper scoping - this function is just for throw propagation.
-                                // If we can't resolve the function, skip throw checking rather than erroring.
+                                // If we can't resolve the function, skip throw checking.
+                                // The main type checking pass already validated the code.
                             }
                         }
                         }
