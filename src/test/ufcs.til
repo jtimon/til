@@ -339,3 +339,36 @@ test_bug10_parser_patterns_fixed := proc() {
     assert_eq(loc(), 5, len_plus_five)
 }
 test_bug10_parser_patterns_fixed()
+
+// Bug #28: UFCS on struct field method chains doesn't work inside pattern match case bodies
+// This is a regression test - the pattern works fine outside pattern matches
+// but fails inside switch case bodies when the case has a pattern binding
+TestPatternEnum := enum {
+    TypeA,
+    TypeB: Str,
+}
+
+TestPatternStruct := struct {
+    mut items: Vec = Vec.new(I64)
+}
+
+test_ufcs_struct_field_in_pattern_match := proc() {
+    mut val := TestPatternEnum.TypeB("test")
+
+    switch val {
+    case TestPatternEnum.TypeB(type_name):
+        mut s := TestPatternStruct()
+        // Bug #28: This should work but currently fails with "Could not find function definition"
+        // The same pattern works fine outside the pattern match case
+        // TODO: Uncomment when Bug #28 is fixed:
+        // items_len := s.items.len()
+        // assert_eq(loc(), 0, items_len)
+
+        // Workaround: use fully qualified call
+        items_len2 := Vec.len(s.items)
+        assert_eq(loc(), 0, items_len2)
+    case:
+        panic(loc(), "Should not reach default case")
+    }
+}
+test_ufcs_struct_field_in_pattern_match()

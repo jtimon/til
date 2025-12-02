@@ -8,6 +8,33 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
+** Bug #28: UFCS on struct.field.method() fails inside pattern match case bodies
+:PROPERTIES:
+:DISCOVERED: 2025-12-02
+:IMPACT: Self-hosting, type checking
+:STATUS: Open
+:END:
+
+*** Description
+UFCS method calls on struct fields (e.g., `s.items.len()`) fail with "Could not find function definition" when inside pattern match case bodies that have bindings.
+
+*** Example
+Works fine:
+- `s.items.len()` outside pattern match
+- `case Enum.Variant:` (no binding)
+
+Fails:
+- `case Enum.Variant(binding):` then `s.items.len()` inside
+
+*** Root Cause
+In typer.rs:1530, `lookup_symbol("s.items")` fails because it looks for a literal symbol name instead of resolving the field access chain.
+
+*** Workaround
+Use fully qualified calls: `Vec.len(s.items)` instead of `s.items.len()`
+
+*** Test Coverage
+Regression test in `src/test/ufcs.til` - `test_ufcs_struct_field_in_pattern_match`
+
 * Fixed Bugs Summary
 ** Bug #1: Enum Comparison in Switch/Case
 
