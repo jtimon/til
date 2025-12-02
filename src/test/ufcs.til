@@ -358,13 +358,11 @@ test_ufcs_struct_field_in_pattern_match := proc() {
     switch val {
     case TestPatternEnum.TypeB(type_name):
         mut s := TestPatternStruct()
-        // Bug #28: This should work but currently fails with "Could not find function definition"
-        // The same pattern works fine outside the pattern match case
-        // TODO: Uncomment when Bug #28 is fixed:
-        // items_len := s.items.len()
-        // assert_eq(loc(), 0, items_len)
+        // Bug #28 FIXED: UFCS on struct.field.method() now works inside pattern match case bodies
+        items_len := s.items.len()
+        assert_eq(loc(), 0, items_len)
 
-        // Workaround: use fully qualified call
+        // Verify workaround still works too
         items_len2 := Vec.len(s.items)
         assert_eq(loc(), 0, items_len2)
     case:
