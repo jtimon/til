@@ -7,8 +7,9 @@ MyNamespace := struct {
     field_static_bool : Bool = true
     field_static_int : I64 = 42
 
-    proc_static := func() returns Str {
-        return "func 'proc_static' in struct 'MyNamespace' is being called"
+    proc_static := proc() {
+        // Side effects (non memoizable effects) are allowed in procs
+        assert_eq(loc(), 42, MyNamespace.field_static_int)
     }
 
     func_static_str := func() returns Str {
@@ -20,9 +21,12 @@ test_namespace_fields := proc() {
     assert_eq_str(loc(), "hello MyNamespace.field_static_str", MyNamespace.field_static_str)
     assert_eq(loc(), 42, MyNamespace.field_static_int)
     test(loc(), MyNamespace.field_static_bool, "field_static_bool should be true")
-    // MyNamespace.proc_static() // TODO method calls as statements
-    // temp_str := MyNamespace.func_static_str() // TODO method calls as primary expr in declaration
-    // println(temp_str)
-    // println(MyNamespace.func_static_str()) // TODO method calls as primary expr as argument
+    MyNamespace.proc_static()
+    assert_eq_str(loc(), MyNamespace.func_static_str(), "func 'func_static_str' in struct 'MyNamespace' has been called")
+    // assert_eq_str(loc(), MyNamespace.proc_static_str(), "func 'func_static_str' in struct 'MyNamespace' has been called") // TODO improve this error messages, only one is good
+// src/test/namespaces.til:26:26: type ERROR: 'MyNamespace' is of type 'struct' and thus can't have a 'proc_static_str' associated function
+// src/test/namespaces.til:26:26: type ERROR: Struct 'MyNamespace' has no member 'proc_static_str'
+// src/test/namespaces.til:26:26: type ERROR: Failed to resolve nested function call: src/test/namespaces.til:26:26: type ERROR: 'MyNamespace' is of type 'struct' and thus can't have a 'proc_static_str' associated function
+
 }
 test_namespace_fields()
