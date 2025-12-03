@@ -2,6 +2,7 @@ mode lib
 
 import("src.core.str")
 import("src.core.bool")
+import("src.core.u8")
 import("src.core.array")
 import("src.core.constants")
 import("src.core.introspection")
@@ -310,54 +311,6 @@ gteq := func(a: I64, b: I64) returns Bool {
         return true
     }
     return false
-}
-
-// Note that I64 and U8 don't have fields because the're the "real core types"
-// think of them as "half-external types" for now
-U8 := struct {
-    // TODO FIX can't use itself as base data, can it?
-    // TODO This is the base of data storage, not I64
-    // mut data: I8 = 0
-
-    len := func(self: I64) returns I64 {
-        return 1
-    }
-
-    eq := func(self: U8, other: U8) returns Bool {
-        return U8.to_i64(self).eq(U8.to_i64(other))
-    }
-
-    to_i64 := func(self: U8) returns I64 {
-        // return cast("I64", self) // TODO implement cast, start easy with U8 to I64
-        u8_to_i64 := ext_func(u8: U8) returns I64;
-        return u8_to_i64(self)
-    }
-
-    // TODO do the rest of the operations, first fake them with i64, until real compilation
-    // TODO rename add into i64_add or something
-    // TODO rename add into I64.add directly in the rust/interpreter side, afterwards
-    u8_add := func(a: U8, b: U8) returns U8 throws U8_OverflowError {
-        return U8.from_i64(add(a.to_i64(), b.to_i64()))
-    }
-
-    from_i64 := func(self: I64) returns U8 throws U8_OverflowError {
-        if lt(self, 0) {
-            throw U8_OverflowError.new(format(loc(), "Negative values cannot be cast into 'U8'"))
-        }
-        if gt(self, MAX_U8) {
-            throw U8_OverflowError.new(format(loc(), "U8: cannot be casted from an I64 greater than: ", I64.to_str(MAX_U8)))
-        }
-        i64_to_u8 := ext_func(i64: I64) returns U8;
-        return i64_to_u8(self)
-    }
-
-    to_str := func(self: U8) returns Str {
-        return I64.to_str(U8.to_i64(self))
-    }
-
-    size := func() returns I64 {
-        return 1
-    }
 }
 
 I64 := struct {
