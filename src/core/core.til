@@ -5,6 +5,7 @@ import("src.core.bool")
 import("src.core.i64")
 import("src.core.str")
 import("src.core.u8")
+import("src.core.mem")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
@@ -47,18 +48,6 @@ exit         := ext_func(code: I64);
 // example_cil: my_matrix : struct = import(matrix)
 // example_python: from matrix import matrix_def as my_matrix_def
 import       := ext_proc(path: Str);
-
-// Memory operations
-NULL   := 0
-size_of := ext_func(type: Type) returns I64;
-to_ptr := ext_func(var_identifier: Dynamic) returns I64;
-type_as_str := ext_func(type: Type) returns Str;
-// TODO Use throws for memory operations, don't return 0 from malloc
-malloc := ext_func(size: I64) returns I64 throws AllocError;
-free   := ext_func(ptr: I64);
-memcpy := ext_func(mut dest: I64, src: I64, size: I64);
-memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64;
-memset := ext_func(mut dest: I64, value: U8, size: I64);
 
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.format(msg))
