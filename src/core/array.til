@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.mem")
+
 /**
  * Array - Fixed-size array.
  * For growable arrays, use Vec instead.

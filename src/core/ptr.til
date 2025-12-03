@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.mem")
+
 /** Ptr - Pointer type wrapping a raw memory address. */
 Ptr := struct {
     mut data: I64 = NULL

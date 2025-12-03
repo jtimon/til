@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.mem")
+
 /**
  * Vec - Dynamic/growable array.
  * Replaces Array.new_dyn() for cases where you need to grow the array.

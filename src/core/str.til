@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.mem")
+
 single_print := ext_proc(args: ..Str);
 // TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
 print_flush  := ext_proc();
