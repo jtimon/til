@@ -1,6 +1,7 @@
 #+TITLE: Plan: Pass-by-Reference with Three Parameter Modes
 #+AUTHOR: TIL Development Team
 #+DATE: 2025-11-12
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Goal
 

@@ -1,6 +1,7 @@
 #+TITLE: Field Offset Calculation Refactor - WIP
 #+DATE: 2025-11-13
 #+AUTHOR: Claude
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Current Goal
 

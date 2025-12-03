@@ -1,6 +1,7 @@
 #+TITLE: Post-Self-Hosting TODO List
 #+AUTHOR: rstil Development
 #+DATE: 2025-11-10
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

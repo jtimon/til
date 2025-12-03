@@ -1,6 +1,7 @@
 #+TITLE: Mandatory Method Requirements
 #+AUTHOR: til Development
 #+DATE: 2025-01-13
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

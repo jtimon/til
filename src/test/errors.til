@@ -242,6 +242,38 @@ test_rethrow_error_field := proc() {
 }
 test_rethrow_error_field()
 
+// Test assigning error field to variable then throwing (Bug #29 regression)
+trigger_out_of_bounds_assign := func() returns I64 throws Str, AllocError {
+    mut arr := Array.new(I64, 2)
+    mut val := 0
+    arr.get(10, val)
+
+    catch (err: IndexOutOfBoundsError) {
+        msg := err.msg  // Assign to variable first
+        throw msg
+    }
+
+    return 0
+}
+
+test_rethrow_error_field_via_assign := proc() {
+    mut caught := false
+    mut error_msg := ""
+
+    _ := trigger_out_of_bounds_assign()
+
+    catch (err: Str) {
+        caught = true
+        error_msg = err
+    }
+    catch (err: AllocError) {
+    }
+
+    assert(loc(), caught)
+    assert_eq_str(loc(), "src/core/core.til:594:52:Array.get: index out of bounds", error_msg)
+}
+test_rethrow_error_field_via_assign()
+
 // ==============================================================================
 // TODO: Features that could be added to error handling
 // ==============================================================================

@@ -1,6 +1,7 @@
 #+TITLE: rstil Bug Fixes - Historical Reference
 #+AUTHOR: rstil Development
 #+DATE: 2025-11-10
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 
@@ -44,6 +45,30 @@ Files modified:
 - =src/test/enums.til=: =test_bug28_ufcs_push_in_binding=, =test_bug28_ufcs_len_in_binding=
 
 All tests pass.
+
+** Bug #29: Catch variable not accessible in arena :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-11-19
+:FIXED: 2025-11-19
+:IMPACT: Error handling, catch blocks
+:STATUS: Fixed
+:END:
+
+*** Description
+Caught error variable (=err=) not properly stored in execution arena. Accessing =err.msg= in catch block caused:
+- Type error: "Undefined symbol 'err'"
+- Runtime error: "base variable 'err' not found in arena_index"
+
+Affected: =throw err.msg=, =return err.msg=, =msg = err.msg= - any field access on caught errors.
+
+*** Fix (2025-11-19, commit 0024caa)
+Properly register catch parameter in both interpreter and typer:
+- =interpreter.rs=: Register base variable when propagating throws (line 3020) and in catch fallback (line 2438)
+- =typer.rs=: Create temp_context with catch parameter before type-checking catch body (lines 665-692)
+
+*** Test Coverage
+- =src/test/errors.til=: =test_rethrow_error_field= (tests =throw err.msg=)
+- =src/test/errors.til=: =test_rethrow_error_field_via_assign= (tests =msg = err.msg= then =throw msg=)
 
 ** Bug #1: Enum Comparison in Switch/Case
 

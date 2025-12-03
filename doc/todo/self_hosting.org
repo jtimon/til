@@ -1,6 +1,7 @@
 #+TITLE: TIL Self-Hosting Progress
 #+AUTHOR: Self-Hosting Homologization Plan
 #+DATE: 2025-01-10
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

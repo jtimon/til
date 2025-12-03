@@ -1,6 +1,7 @@
 #+TITLE: Scope Stack Cloning Elimination Plan
 #+AUTHOR: TIL Development
 #+DATE: 2025-11-18
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

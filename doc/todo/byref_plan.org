@@ -1,6 +1,7 @@
 #+TITLE: Pass-by-Reference Refactoring Plan (Phase 3)
 #+DATE: 2025-11-12
 #+AUTHOR: TIL Development
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

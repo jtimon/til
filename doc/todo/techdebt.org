@@ -2,6 +2,7 @@
 #+DATE: 2025-11-12
 #+UPDATED: 2025-11-14 (Corrected)
 #+AUTHOR: TIL Development
+# BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it
 
 * Overview
 

@@ -1,4 +1,5 @@
 # Scope Stack Refactoring - Preparation Complete
+<!-- BOT: New issues use next number from doc/todo/next_issue_num.txt, then increment it -->
 
 ## Summary
 
