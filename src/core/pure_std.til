@@ -22,15 +22,3 @@ enum_to_str := ext_func(e: Dynamic) returns Str; // TODO Find a better way than 
 // Or for inline enum tag extraction, use enum_to_str() directly and parse the string:
 //   full_str := enum_to_str(my_enum)  // Returns "MyEnum.VariantName"
 //   // Then extract substring after the dot manually where needed
-
-xor := func(a: Bool, b: Bool) returns Bool {
-    return not(a.eq(b))
-}
-
-xnor := func(a: Bool, b: Bool) returns Bool {
-    return a.eq(b)
-}
-
-branchless := func(cond: Bool, a: I64, b: I64) returns I64 {
-    return add(mul(a, Bool.to_i64(cond)), mul(b, Bool.to_i64(not(cond))))
-}
