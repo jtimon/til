@@ -6,19 +6,10 @@ import("src.core.i64")
 import("src.core.str")
 import("src.core.u8")
 import("src.core.mem")
+import("src.core.bounds")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
-
-IndexOutOfBoundsError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns IndexOutOfBoundsError {
-        mut err := IndexOutOfBoundsError()
-        err.msg = msg
-        return err
-    }
-}
 
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to _loc for consistency
 
