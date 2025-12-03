@@ -231,7 +231,7 @@ fn usage() {
     println!("help: Prints this.\n");
 }
 
-fn run_file_or_exit(path: &String, args: Vec<String>) {
+fn interpret_file_or_exit(path: &String, args: Vec<String>) {
     match run_file(path, args) {
         Ok(_) => {},
         Err(err) => {
@@ -257,7 +257,7 @@ fn main() {
         }
         match args[1].as_str() {
             "interpret" => {
-                run_file_or_exit(&args[2], main_args);
+                interpret_file_or_exit(&args[2], main_args);
             },
             "repl" | "build" | "run" => {
                 usage();
@@ -274,14 +274,14 @@ fn main() {
             "repl" => {
                 let mut repl_temp : Vec<String> = Vec::new();
                 repl_temp.push("repl".to_string());
-                run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
+                interpret_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
             },
             "ast" | "interpret" | "build" | "run" |
             "help" | "-help" | "--help" | "--version" | "-v" => {
                 usage();
             },
             _ => {
-                run_file_or_exit(&args[1], Vec::new());
+                interpret_file_or_exit(&args[1], Vec::new());
             },
         }
         return
@@ -290,5 +290,5 @@ fn main() {
     // If not arguments, then repl/interactive "mode"
     let mut repl_temp : Vec<String> = Vec::new();
     repl_temp.push("repl".to_string());
-    run_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
+    interpret_file_or_exit(&SELF_HOSTED_PATH.to_string(), repl_temp);
 }

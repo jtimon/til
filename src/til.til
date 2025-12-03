@@ -8,7 +8,7 @@ CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it c
 REPL_PATH       := "src/core/modes/repl.til"
 
 // Run a file: read, lex, parse, and evaluate
-run_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+interpret_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
     println("Running file '", path, "'")
 
     // Create lexer (reads file internally)
@@ -112,7 +112,7 @@ main := proc(args: ..Str) {
         }
         switch cmd {
         case "interpret" :
-            run_file_or_exit(val1)
+            interpret_file_or_exit(val1)
             catch (err: Str) {
                 println("Error during file execution: ", err)
                 exit(1)
@@ -133,7 +133,7 @@ main := proc(args: ..Str) {
                 println("FullError during file execution")
                 exit(1)
             }
-        // case "interpret" : run_file_or_exit(args.get(1), main_args) // TODO FIX
+        // case "interpret" : interpret_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
         case "build"     : usage()
         case "run"       : usage()
@@ -165,7 +165,7 @@ main := proc(args: ..Str) {
         case "interpret" : usage()
         case "run"       : usage()
         case:
-            run_file_or_exit(path)
+            interpret_file_or_exit(path)
             catch (err: Str) {
                 println("Error during execution:")
                 println(err)
@@ -190,7 +190,7 @@ main := proc(args: ..Str) {
         }
     } else {
         // TEMP: Testing self-hosted compiler on hello_script.til
-        run_file_or_exit("src/test/hello/hello_script.til")
+        interpret_file_or_exit("src/test/hello/hello_script.til")
         catch (err: Str) {
             println("Error during file execution: ", err)
             exit(1)
