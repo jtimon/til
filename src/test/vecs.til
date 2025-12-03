@@ -43,11 +43,6 @@ test_vec_u8 := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_u8()
 
@@ -102,11 +97,6 @@ test_vec_str := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_str()
 
@@ -146,11 +136,6 @@ test_vec_bool := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_bool()
 
@@ -187,11 +172,6 @@ test_vec_i64 := proc() {
     }
     catch(err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch(err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -250,11 +230,6 @@ test_vec_vec2 := proc() {
         println(err.msg)
         exit(1)
     }
-    catch(err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_vec2()
 
@@ -291,11 +266,6 @@ test_vec_growth := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -328,11 +298,6 @@ test_vec_get_out_of_bounds := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 test_vec_get_out_of_bounds()
 
@@ -355,11 +320,6 @@ test_vec_set_out_of_bounds := proc() {
     // Catch unexpected errors at end
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -404,11 +364,6 @@ test_vec_pop := proc() {
     // Catch unexpected errors at end
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }

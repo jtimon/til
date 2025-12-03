@@ -50,7 +50,7 @@ Vec := struct {
     }
 
     /** Push element to end of vec. */
-    push := proc(mut self: Vec, value: Dynamic) throws FullError, AllocError {
+    push := proc(mut self: Vec, value: Dynamic) throws AllocError {
         // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
         //     throw format(loc(), "Vec.push: value type mismatch")
         // }
@@ -58,7 +58,7 @@ Vec := struct {
         if self._len.eq(self.cap) {
             new_cap := mul(self.cap, 2)
             if gt(new_cap, Vec.MAX_CAP) {
-                throw FullError.new(format(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP"))
+                panic(loc(), "Vec.push: capacity exceeded Vec.MAX_CAP")
             }
 
             mut new_ptr := malloc(mul(new_cap, self.type_size))

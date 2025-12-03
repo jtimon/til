@@ -121,9 +121,6 @@ scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, 
     catch (err: AllocError) {
         throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: AllocError while pushing token: ", err.msg)
     }
-    catch (err: FullError) {
-        throw format(line.to_str(), ":", col.to_str(), ": scan_tokens: tokens array full")
-    }
 }
 
 is_digit := func(source: Str, pos: I64) returns Bool throws Str {

@@ -137,11 +137,6 @@ test_map_str_to_array_str := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 // Test Map<U8, Bool>

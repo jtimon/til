@@ -42,9 +42,6 @@ test_cross_file_circular_imports := proc() {
     catch (err: AllocError) {
         panic(loc(), "Unexpected AllocError")
     }
-    catch (err: FullError) {
-        panic(loc(), "Unexpected FullError")
-    }
     catch (err: IndexOutOfBoundsError) {
         panic(loc(), "Unexpected IndexOutOfBoundsError")
     }

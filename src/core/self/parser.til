@@ -261,9 +261,6 @@ Expr := struct {
         catch (err: AllocError) {
             throw concat("Expr.params_clone: ", err.msg)
         }
-        catch (err: FullError) {
-            throw concat("Expr.params_clone: ", err.msg)
-        }
         return cloned
     }
 }
@@ -403,9 +400,6 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
     catch (err: AllocError) {
         throw concat("parse_list: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_list: ", err.msg)
-    }
 
     switch list_t.token_type {
     case TokenType.RightParen:
@@ -423,9 +417,6 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     value := parse_primary(lexer)
     params.push(value)
     catch (err: AllocError) {
-        throw concat("parse_assignment: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("parse_assignment: ", err.msg)
     }
     return Expr.new_parse(NodeType.Assignment(name), t, params)
@@ -595,9 +586,6 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
     catch (err: AllocError) {
         throw concat("parse_func_proc_args: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_func_proc_args: ", err.msg)
-    }
 
     tt := t.token_type
     switch tt {
@@ -659,9 +647,6 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     catch (err: AllocError) {
         throw concat("func_proc_returns: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("func_proc_returns: ", err.msg)
-    }
 
     if end_found {
         return return_types
@@ -716,9 +701,6 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     }
 
     catch (err: AllocError) {
-        throw concat("func_proc_throws: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("func_proc_throws: ", err.msg)
     }
 
@@ -909,9 +891,6 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     catch (err: AllocError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_struct_definition: ", err.msg)
-    }
     catch (err: IndexOutOfBoundsError) {
         throw concat("parse_struct_definition: ", err.msg)
     }
@@ -1032,9 +1011,6 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
         result = e
     }
     catch (err: AllocError) {
-        throw err.msg
-    }
-    catch (err: FullError) {
         throw err.msg
     }
     catch (err: IndexOutOfBoundsError) {
@@ -1217,9 +1193,6 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBo
     catch (err: AllocError) {
         throw concat("return_statement: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("return_statement: ", err.msg)
-    }
 
     initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Return, initial_token, params)
@@ -1255,9 +1228,6 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     catch (err: AllocError) {
         throw concat("parse_throw_statement: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_throw_statement: ", err.msg)
-    }
 
     initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.Throw, initial_token, params)
@@ -1291,9 +1261,6 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
     params.push(body_expr)
 
     catch (err: AllocError) {
-        throw concat("parse_catch_statement: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("parse_catch_statement: ", err.msg)
     }
 
@@ -1346,9 +1313,6 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
     catch (err: AllocError) {
         throw concat("if_statement: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("if_statement: ", err.msg)
-    }
 
     initial_token := lexer.get_token(initial_current)
     return Expr.new_parse(NodeType.If, initial_token, params)
@@ -1375,9 +1339,6 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     params.push(body)
 
     catch (err: AllocError) {
-        throw concat("while_statement: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("while_statement: ", err.msg)
     }
 
@@ -1461,9 +1422,6 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
     final_params.push(while_expr)
 
     catch (err: AllocError) {
-        throw concat("parse_for_statement: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("parse_for_statement: ", err.msg)
     }
 
@@ -1564,9 +1522,6 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     catch (err: AllocError) {
         throw concat("parse_case_expr: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_case_expr: ", err.msg)
-    }
 
     return left
 }
@@ -1657,9 +1612,6 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     catch (err: AllocError) {
         throw concat("parse_switch_statement: ", err.msg)
     }
-    catch (err: FullError) {
-        throw concat("parse_switch_statement: ", err.msg)
-    }
 
     if end_found {
         initial_token := lexer.get_token(initial_current)
@@ -1690,9 +1642,6 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     decl.is_own = false
 
     catch (err: AllocError) {
-        throw concat("parse_declaration: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("parse_declaration: ", err.msg)
     }
 
@@ -1811,9 +1760,6 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     }
 
     catch (err: AllocError) {
-        throw concat("parse_body: ", err.msg)
-    }
-    catch (err: FullError) {
         throw concat("parse_body: ", err.msg)
     }
 

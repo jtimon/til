@@ -3,7 +3,7 @@ mode test
 import("src.core.modes.modes")
 import("src.core.self.interpreter")
 
-test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+test_self_hosting := proc() throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Simple test: just run hello_script.til directly
     println("Self-hosted compiler test: Running hello_script.til...")
 
@@ -104,9 +104,6 @@ run_test := proc() {
     }
     catch (err: I64_OverflowError) {
         println("I64_OverflowError during test")
-    }
-    catch (err: FullError) {
-        println("FullError during test")
     }
 }
 

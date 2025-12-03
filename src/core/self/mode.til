@@ -21,7 +21,7 @@ can_be_imported := func(mode_def: ModeDef) returns Bool {
     return true
 }
 
-mode_from_name := func(mode_name: Str, t: Token) returns ModeDef throws Str, FullError, AllocError {
+mode_from_name := func(mode_name: Str, t: Token) returns ModeDef throws Str, AllocError {
     if mode_name.eq("lib") {
         mut m := ModeDef()
         m.name = mode_name
@@ -89,7 +89,7 @@ mode_from_name := func(mode_name: Str, t: Token) returns ModeDef throws Str, Ful
     throw t.error(format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
 }
 
-parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError, FullError {
+parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
     _ := lexer_expect(lexer, TokenType.Mode)  // Add one for mode
 
     t := lexer.peek()

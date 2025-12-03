@@ -93,9 +93,6 @@ test_parse_file := proc(path: Str) {
     catch (err: Str) {
         exit(1)
     }
-    catch (err: FullError) {
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         exit(1)
     }
@@ -144,11 +141,6 @@ test_parse_mode := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {

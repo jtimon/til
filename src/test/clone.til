@@ -98,10 +98,6 @@ test_vec_clone := proc() {
         println(loc(), "AllocError:", err.msg)
         exit(1)
     }
-    catch(err: FullError) {
-        println(loc(), "FullError:", err.msg)
-        exit(1)
-    }
     catch(err: IndexOutOfBoundsError) {
         println(loc(), "IndexOutOfBoundsError:", err.msg)
         exit(1)
@@ -141,10 +137,6 @@ test_list_clone := proc() {
 
     catch(err: AllocError) {
         println(loc(), "AllocError:", err.msg)
-        exit(1)
-    }
-    catch(err: FullError) {
-        println(loc(), "FullError:", err.msg)
         exit(1)
     }
     catch(err: IndexOutOfBoundsError) {

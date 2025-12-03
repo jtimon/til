@@ -36,11 +36,6 @@ test_list_push_heterogeneous := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -54,11 +49,6 @@ test_list_push_heterogeneous := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -69,11 +59,6 @@ test_list_push_heterogeneous := proc() {
     list.push(Bool, true)
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -103,11 +88,6 @@ test_list_get := proc() {
     list.push(Bool, false)
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -163,11 +143,6 @@ test_list_set_same_size := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 
     // Set index 1 to new I64
     list.set(1, I64, 999)
@@ -204,11 +179,6 @@ test_list_set_different_size := proc() {
     list.push(I64, 3)
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -275,11 +245,6 @@ test_list_with_struct := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 
     assert_eq(loc(), 3, list.len())
 
@@ -327,11 +292,6 @@ test_list_len := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -356,11 +316,6 @@ test_list_out_of_bounds := proc() {
     list.push(I64, 10)
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -394,11 +349,6 @@ test_list_multiple_pushes := proc() {
     }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -448,11 +398,6 @@ test_nested_lists := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 
     mut outer := List.new()
     catch (err: AllocError) {
@@ -465,11 +410,6 @@ test_nested_lists := proc() {
     outer.push(I64, 99)
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }
@@ -553,11 +493,6 @@ test_list_pop := proc() {
 
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
         exit(1)
     }

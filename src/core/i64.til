@@ -28,6 +28,8 @@ I64_OverflowError := struct {
     }
 }
 
+// DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
+
 lteq := func(a: I64, b: I64) returns Bool {
     if lt(a, b) {
         return true

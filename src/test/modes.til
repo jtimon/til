@@ -40,11 +40,6 @@ test_can_be_imported := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -68,11 +63,6 @@ test_mode_lib := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
         exit(1)
     }
     catch (err: AllocError) {
@@ -100,11 +90,6 @@ test_mode_pure := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -130,11 +115,6 @@ test_mode_script := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -158,11 +138,6 @@ test_mode_cli := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
         exit(1)
     }
     catch (err: AllocError) {
@@ -195,11 +170,6 @@ test_mode_test := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
@@ -222,11 +192,6 @@ test_mode_invalid := proc() {
     catch (err: Str) {
         threw_error = true
         // Error was thrown as expected
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
     }
     catch (err: AllocError) {
         println("ERROR:", loc(), "Unexpected AllocError")

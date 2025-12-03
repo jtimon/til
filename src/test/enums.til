@@ -1053,7 +1053,6 @@ test_bug28_ufcs_push_in_binding := proc() {
         result = 0
     }
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
     assert_eq(loc(), 1, result)
 }
 test_bug28_ufcs_push_in_binding()
@@ -1072,7 +1071,6 @@ test_bug28_ufcs_len_in_binding := proc() {
         result = 0
     }
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
     assert_eq(loc(), 1, result)
 }
 test_bug28_ufcs_len_in_binding()
@@ -1091,7 +1089,6 @@ test_ufcs_in_value_case := proc() {
         result = 0
     }
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
     assert_eq(loc(), 1, result)
 }
 test_ufcs_in_value_case()
@@ -1109,7 +1106,6 @@ test_ufcs_in_default_case := proc() {
         result = v.len()
     }
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
     assert_eq(loc(), 1, result)
 }
 test_ufcs_in_default_case()

@@ -9,23 +9,11 @@ import("src.core.u8")
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
 
-// DivideByZero := struct {} // REM Apparently Roc tried this and rolled it back
-
 IndexOutOfBoundsError := struct {
     mut msg: Str = ""
 
     new := func(msg: Str) returns IndexOutOfBoundsError {
         mut err := IndexOutOfBoundsError()
-        err.msg = msg
-        return err
-    }
-}
-
-FullError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns FullError {
-        mut err := FullError()
         err.msg = msg
         return err
     }

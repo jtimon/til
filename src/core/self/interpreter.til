@@ -268,7 +268,7 @@ eval_identifier := proc(context: Context, e: Expr) returns Str throws Str, Index
 
 // Evaluate a declaration - Phase 2: simple types only
 // Handles I64, Str, Bool declarations with initializers
-eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Extract Declaration from node_type
     mut node_type := e.node_type
     mut decl := Declaration()
@@ -320,7 +320,7 @@ eval_declaration := proc(mut context: Context, e: Expr) returns Str throws Str, 
 
 // Evaluate an assignment
 // Phase 2: simple types only, no mutability checking yet
-eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Extract variable name from node_type using pattern matching
     mut node_type := e.node_type
     mut var_name := ""
@@ -373,7 +373,7 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
 }
 
 // Helper: evaluate println function
-eval_println := proc(mut context: Context, params: Array) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_println := proc(mut context: Context, params: Array) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Print each argument (skip params[0] which is the function name)
     mut params_len := params.len()()
     for i in 1..params_len {
@@ -390,7 +390,7 @@ eval_println := proc(mut context: Context, params: Array) returns Str throws Str
 
 // Evaluate a function call
 // Phase 2: basic arithmetic and core functions only
-eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Get function name from params[0]
     mut params_array := e.params
     if lt(params_array.len(), 1) {
@@ -469,7 +469,7 @@ eval_fcall := proc(mut context: Context, e: Expr) returns Str throws Str, AllocE
 }
 
 // Helper: evaluate binary I64 operations
-eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     if lt(params.len(), 3) {
         throw format(loc(), " ERROR: ", op, " requires 2 arguments")
     }
@@ -514,7 +514,7 @@ eval_binary_i64_op := proc(mut context: Context, params: Array, op: Str) returns
 }
 
 // Helper: evaluate comparison operations
-eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     if lt(params.len(), 3) {
         throw format(loc(), " ERROR: ", op, " requires 2 arguments")
     }
@@ -556,7 +556,7 @@ eval_comparison_op := proc(mut context: Context, params: Array, op: Str) returns
 
 // Evaluate a body (sequence of statements)
 // Phase 3: basic catch support (skips catch blocks, doesn't actually handle errors)
-eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError, FullError {
+eval_body := proc(mut context: Context, e: Expr) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Get the statements array
     mut params_array := e.params
     mut num_stmts := params_array.len()

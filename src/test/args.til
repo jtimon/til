@@ -273,11 +273,6 @@ push_value := proc(mut arr: Vec, value: I64) {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 test_mut_array := proc() {
@@ -648,4 +643,3 @@ test_mixed_own := proc() {
     assert_eq(loc(), 20, b)  // b was modified through mut
 }
 test_mixed_own()
-

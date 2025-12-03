@@ -51,11 +51,6 @@ test_mut_array := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)

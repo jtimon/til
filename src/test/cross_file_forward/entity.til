@@ -16,7 +16,7 @@ Entity := struct {
         return e
     }
 
-    add_component := proc(mut self: Entity, comp: Component) throws FullError, AllocError {
+    add_component := proc(mut self: Entity, comp: Component) throws AllocError {
         self.components.push(comp)
     }
 

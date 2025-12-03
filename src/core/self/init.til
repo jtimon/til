@@ -167,7 +167,7 @@ Context := struct {
     }
 
     // Insert I64 value into arena
-    insert_i64 := proc(mut self: Context, var_name: Str, value: I64) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_i64 := proc(mut self: Context, var_name: Str, value: I64) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // For Phase 1: simplified storage - store as string representation
         // Later: store as actual bytes like rstil.rs does
 
@@ -224,7 +224,7 @@ Context := struct {
     }
 
     // Insert Str value into arena
-    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Check if variable already exists
         mut offset_str := self.arena_index.get(var_name)
 
@@ -279,7 +279,7 @@ Context := struct {
     }
 
     // Insert Bool value into arena
-    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Convert bool to string
         mut value_str := "false"
         if value {
@@ -342,7 +342,7 @@ Context := struct {
     }
 
     // Insert U8 value into arena
-    insert_u8 := proc(mut self: Context, var_name: Str, value: U8) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_u8 := proc(mut self: Context, var_name: Str, value: U8) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Convert U8 to I64 then to string for storage
         i64_val := i64(value)
         mut value_str := i64_val.to_str()
@@ -403,7 +403,7 @@ Context := struct {
     }
 
     // Insert Bool value into arena
-    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Convert Bool to I64 (1 for true, 0 for false) then to string for storage
         mut stored_val := 0
         if value {
@@ -610,7 +610,7 @@ Context := struct {
     }
 
     // Insert enum value into arena
-    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Get enum definition
         mut enum_defs_map := self.enum_defs
         mut enum_def_str := enum_defs_map.get(enum_type)
@@ -976,7 +976,7 @@ Context := struct {
     }
 
     // Insert Str value into arena
-    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Simplified storage: store string value directly (like I64/Bool)
         // TODO Phase 3+: Implement proper c_string/cap/len structure
 
@@ -1036,7 +1036,7 @@ Context := struct {
     }
 
     // Insert array into arena
-    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError, IndexOutOfBoundsError, FullError, I64_OverflowError {
+    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
         // Allocate Array struct
         self.insert_struct(var_name, "Array")
 
