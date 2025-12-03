@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.array")
+
 AAAError := struct {}
 simplest_catch := proc () {
     mut catched := false
@@ -238,7 +240,7 @@ test_rethrow_error_field := proc() {
     }
 
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/core.til:619:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:38:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field()
 
@@ -270,7 +272,7 @@ test_rethrow_error_field_via_assign := proc() {
     }
 
     assert(loc(), caught)
-    assert_eq_str(loc(), "src/core/core.til:619:52:Array.get: index out of bounds", error_msg)
+    assert_eq_str(loc(), "src/core/array.til:38:52:Array.get: index out of bounds", error_msg)
 }
 test_rethrow_error_field_via_assign()
 

@@ -1,0 +1,85 @@
+mode lib
+
+/**
+ * Array - Fixed-size array.
+ * For growable arrays, use Vec instead.
+ */
+Array := struct {
+    mut type_name : Str  = ""
+    mut type_size : I64  = 0
+    mut ptr       : I64  = 0
+    mut _len      : I64  = 0
+
+    /** Get number of elements in array. */
+    len := func(self: Array) returns I64 {
+        return self._len
+    }
+
+    /** Get total size in bytes. */
+    size := func(self: Array) returns I64 {
+        return mul(self._len, self.type_size)
+    }
+
+    /** Create new array with specified element type and capacity. */
+    new := proc(T: Type, capacity: I64) returns Array throws AllocError {
+        mut arr := Array()
+        arr.type_name = type_as_str(T)
+        arr.type_size = size_of(T)
+        size_bytes := mul(capacity, arr.type_size)
+        arr.ptr = malloc(size_bytes)
+        memset(arr.ptr, U8.from_i64(0), size_bytes)
+        arr._len = capacity
+        return arr
+    }
+
+    /** Get element at index. */
+    get := proc(self: Array, index: I64, mut T: Dynamic) throws IndexOutOfBoundsError {
+        if gteq(index, self._len) {
+            throw IndexOutOfBoundsError.new(format(loc(), "Array.get: index out of bounds"))
+        }
+
+        // if not(Str.eq(type_as_str(T), self.type_name)) { // TODO FIX
+        //     throw format(loc(), format("Array.get: destination type mismatch: expected '", self.type_name, "' found '", type_as_str(T), "'"))
+        // }
+
+        src := add(self.ptr, mul(index, self.type_size))
+        mut dest := to_ptr(T)
+        memcpy(dest, src, self.type_size)
+    }
+
+    /** Set element at index. */
+    set := proc(mut self: Array, index: I64, value: Dynamic) throws IndexOutOfBoundsError {
+        if gteq(index, self._len) {
+            throw IndexOutOfBoundsError.new(format(loc(), "Array.set: index out of bounds"))
+        }
+
+        // if not(Str.eq(type_as_str(type_of(value)), self.type_name)) { // TODO FIX
+        //     throw format(loc(), "Array.set: value type mismatch")
+        // }
+
+        mut dest := add(self.ptr, mul(index, self.type_size))
+        memcpy(dest, to_ptr(value), self.type_size)
+    }
+
+    /** Free array memory. */
+    delete := proc(mut self: Array) {
+        free(self.ptr)
+        self.ptr = 0
+        self._len = 0
+    }
+
+    /** Clone the array. */
+    clone := func(self: Array) returns Array throws AllocError {
+        mut cloned := Array()
+        cloned.type_name = self.type_name
+        cloned.type_size = self.type_size
+        cloned._len = self._len
+        mut total_bytes := mul(self._len, self.type_size)
+        cloned.ptr = malloc(total_bytes)
+        if NULL.eq(cloned.ptr) {
+            throw AllocError.new(format(loc(), "Array.clone: malloc failed for ", I64.to_str(total_bytes), " bytes"))
+        }
+        memcpy(cloned.ptr, self.ptr, total_bytes)
+        return cloned
+    }
+}

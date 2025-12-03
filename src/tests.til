@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.array")
+
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
 runfile("src/test/temporary_tests.til")
