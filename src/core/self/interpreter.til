@@ -1,6 +1,5 @@
 mode lib
 
-import("src.core.array")
 import("src.core.vec")
 import("src.core.list")
 import("src.core.self.typer")

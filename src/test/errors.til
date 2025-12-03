@@ -1,7 +1,5 @@
 mode test
 
-import("src.core.array")
-
 AAAError := struct {}
 simplest_catch := proc () {
     mut catched := false

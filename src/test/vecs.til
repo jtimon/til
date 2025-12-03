@@ -1,6 +1,5 @@
 mode test
 
-import("src.core.array")
 import("src.core.vec")
 
 test_vec_u8 := proc() {

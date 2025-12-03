@@ -1,6 +1,5 @@
 mode test
 
-import("src.core.array")
 import("src.core.introspection")
 import("src.core.list")
 import("src.core.map")

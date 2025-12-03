@@ -1,6 +1,5 @@
 mode lib
 
-import("src.core.array")
 import("src.core.self.parser")
 
 // Init phase: Context creation and symbol table management

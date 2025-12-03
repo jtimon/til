@@ -1,6 +1,5 @@
 mode cli
 
-import("src.core.array")
 import("src.core.modes.modes")
 import("src.core.self.runner")
 
