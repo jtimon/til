@@ -1,5 +1,9 @@
 mode lib
 
+// Low-level print primitives (before str.til so it can use them)
+single_print := ext_proc(s: Str);
+print_flush  := ext_proc();
+
 import("src.core.array")
 import("src.core.bool")
 import("src.core.bounds")
@@ -18,9 +22,22 @@ _line := ext_func() returns I64; // Returns current line number
 _col  := ext_func() returns I64; // Returns current column number
 
 exit := ext_func(code: I64);
-panic := proc(loc_str: Str, msg: Str) {
-    println(loc_str.format(msg))
+panic := proc(loc_str: Str, msgs: ..Str) {
+    single_print(loc_str)
+    for i in 0..msgs.len() {
+        mut val := ""
+        msgs.get(i, val)
+        single_print(val)
+    }
+    single_print("\n")
+    print_flush()
     exit(1)
+
+    catch(err: IndexOutOfBoundsError) {
+        single_print("panic: IndexOutOfBoundsError should never happen\n")
+        print_flush()
+        exit(1)
+    }
 }
 
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility

@@ -497,6 +497,9 @@ pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 
 // ---------- core procs implementations for eval
 
+// Note: If this prints an Array instead of a Str, check that single_print is declared
+// as `ext_proc(s: Str)` not `ext_proc(args: ..Str)` in core.til. Variadic wrapping
+// bypasses validate_arg_count by passing args as a single Array. (Bug #30)
 pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "single_print", 1, true)?;
 

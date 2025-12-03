@@ -11,11 +11,6 @@ readfile        := ext_proc(path: Str) returns Str;
 writefile       := ext_proc(path: Str, contents: Str) returns Str; // TODO
 runfile         := ext_proc(args: ..Str);
 
-panic2 := proc(loc_str: Str, msgs: ..Str) {
-    // TODO use variadic args in user defined functions. requires arrays
-    exit(1)
-}
-
 assertm := func(loc_str: Str, cond: Bool, msg: Str) {
     // if not(1) { // Uncomment to test import error messages
     if not(cond) {

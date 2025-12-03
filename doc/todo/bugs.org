@@ -9,9 +9,43 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Active Bugs
 
-(No active bugs)
-
 * Fixed Bugs Summary
+
+** Bug #30: ext_proc signature mismatch between TIL and Rust :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-12-03
+:FIXED: 2025-12-03
+:IMPACT: Type safety
+:STATUS: Fixed
+:END:
+
+*** Description
+=single_print= was incorrectly declared as variadic (=..Str=) in TIL, but =proc_single_print= in ext.rs expects exactly 1 argument.
+
+*** Problem
+#+begin_src til
+// Wrong declaration (variadic):
+single_print := ext_proc(args: ..Str);
+
+// Both pass type check AND runtime (variadic wraps args into Array):
+single_print("one")        // Works: Array with 1 element
+single_print("one", "two") // Also "works": prints Array representation
+#+end_src
+
+*** Why It Wasn't Caught
+Variadic parameters get wrapped into an Array before being passed to ext.rs. So =validate_arg_count= sees 1 argument (the Array), passing validation. The function then prints whatever =result.value= is - which would be the Array's string representation instead of the expected Str.
+
+*** Fix (2025-12-03)
+1. Changed declaration from variadic to single parameter in core.til:
+#+begin_src til
+// Correct declaration:
+single_print := ext_proc(s: Str);
+#+end_src
+
+2. Added warning comment to =proc_single_print= in ext.rs referencing Bug #30.
+
+*** Systemic Issue
+The compiler cannot verify that ext_proc TIL declarations match their Rust implementations. Variadic wrapping bypasses =validate_arg_count= by passing all args as a single Array. This is an inherent FFI limitation.
 
 ** Bug #28: UFCS fails inside pattern match case bodies with bindings :FIXED:
 :PROPERTIES:
