@@ -1,5 +1,6 @@
 mode lib
 
+import("src.core.bounds")
 import("src.core.mem")
 
 print := proc(args: ..Str) {
