@@ -1,5 +1,6 @@
 mode lib
 
+import("src.core.list")
 import("src.core.self.typer")
 
 // Interpreter phase: Runtime evaluation and execution

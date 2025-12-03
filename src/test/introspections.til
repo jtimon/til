@@ -1,5 +1,6 @@
 mode test
 
+import("src.core.list")
 import("src.core.map")
 
 // Test Introspection.has_const() - checking for associated functions (consts that are functions)

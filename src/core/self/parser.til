@@ -1,5 +1,6 @@
 mode lib
 
+import("src.core.list")
 import("src.core.map")
 import("src.core.self.lexer")
 import("src.core.self.mode")
