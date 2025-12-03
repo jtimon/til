@@ -1,7 +1,11 @@
 mode lib
 
+single_print := ext_proc(args: ..Str);
+// TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
+print_flush  := ext_proc();
+
 print := proc(args: ..Str) {
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut val := ""
         args.get(i, val)
         single_print(val)
@@ -14,7 +18,7 @@ print := proc(args: ..Str) {
 }
 
 println := proc(args: ..Str) {
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut val := ""
         args.get(i, val)
         single_print(val)
@@ -144,7 +148,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     mut result := Str()
     result.cap = prefix.cap
 
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut arg := ""
         args.get(i, arg)
         result.cap = add(result.cap, arg.cap)
@@ -162,7 +166,7 @@ format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, I
     memcpy(result.c_string, prefix.c_string, prefix.cap)
     offset = prefix.cap
 
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut s := ""
         args.get(i, s)
         memcpy(add(result.c_string, offset), s.c_string, s.cap)

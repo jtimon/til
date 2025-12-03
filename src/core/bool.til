@@ -55,7 +55,7 @@ not := func(b: Bool) returns Bool {
 }
 
 or := func(args: ..Bool) returns Bool {
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut val := false
         args.get(i, val)
         if val {
@@ -71,7 +71,7 @@ or := func(args: ..Bool) returns Bool {
 }
 
 and := func(args: ..Bool) returns Bool {
-    for i in 0..args._len {
+    for i in 0..args.len() {
         mut val := false
         args.get(i, val)
         if not(val) {

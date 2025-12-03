@@ -27,10 +27,6 @@ _file := ext_func() returns Str; // Returns current file path
 _line := ext_func() returns I64; // Returns current line number
 _col  := ext_func() returns I64; // Returns current column number
 
-single_print := ext_proc(args: ..Str);
-// TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
-print_flush  := ext_proc();
-exit         := ext_func(code: I64);
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
 // Example: import("src.core.std") resolves to src/core/std.til (Unix) or src\core\std.til (Windows)
 // TODO use imports in declarations:
@@ -39,6 +35,7 @@ exit         := ext_func(code: I64);
 // example_python: from matrix import matrix_def as my_matrix_def
 import       := ext_proc(path: Str);
 
+exit := ext_func(code: I64);
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.format(msg))
     exit(1)
