@@ -1,5 +1,15 @@
 mode lib
 
+AllocError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns AllocError {
+        mut err := AllocError()
+        err.msg = msg
+        return err
+    }
+}
+
 // Memory operations
 NULL   := 0
 size_of := ext_func(type: Type) returns I64;

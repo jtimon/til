@@ -20,16 +20,6 @@ IndexOutOfBoundsError := struct {
     }
 }
 
-AllocError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns AllocError {
-        mut err := AllocError()
-        err.msg = msg
-        return err
-    }
-}
-
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to _loc for consistency
 
 // Individual location components for flexible error formatting
