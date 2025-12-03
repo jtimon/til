@@ -532,6 +532,31 @@ get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, All
     return s.get_substr(pos, add(pos, 1))
 }
 
+// Simple 2-argument string concatenation that panics on error.
+// Use this in catch blocks where throwing is not allowed.
+concat := func(a: Str, b: Str) returns Str {
+    mut result := Str()
+    result.cap = add(a.cap, b.cap)
+
+    if lt(result.cap, a.cap) {
+        panic(loc(), "concat: integer overflow")
+    }
+
+    result.c_string = malloc(result.cap)
+    if NULL.eq(result.c_string) {
+        panic(loc(), "concat: malloc failed")
+    }
+
+    memcpy(result.c_string, a.c_string, a.cap)
+    memcpy(add(result.c_string, a.cap), b.c_string, b.cap)
+
+    catch (err: AllocError) {
+        panic(loc(), err.msg)
+    }
+
+    return result
+}
+
 format := func(prefix: Str, args: ..Str) returns Str throws I64_OverflowError, IndexOutOfBoundsError, AllocError {
     mut result := Str()
     result.cap = prefix.cap

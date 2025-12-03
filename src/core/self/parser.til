@@ -193,13 +193,13 @@ Expr := struct {
             result = format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
         }
         catch (err: I64_OverflowError) {
-            throw format("Expr.lang_error: ", err.msg)
+            throw concat("Expr.lang_error: ", err.msg)
         }
         catch (err: IndexOutOfBoundsError) {
-            throw format("Expr.lang_error: ", err.msg)
+            throw concat("Expr.lang_error: ", err.msg)
         }
         catch (err: AllocError) {
-            throw format("Expr.lang_error: ", err.msg)
+            throw concat("Expr.lang_error: ", err.msg)
         }
         return result
     }
@@ -214,13 +214,13 @@ Expr := struct {
             result = format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
         }
         catch (err: I64_OverflowError) {
-            throw format("Expr.todo_error: ", err.msg)
+            throw concat("Expr.todo_error: ", err.msg)
         }
         catch (err: IndexOutOfBoundsError) {
-            throw format("Expr.todo_error: ", err.msg)
+            throw concat("Expr.todo_error: ", err.msg)
         }
         catch (err: AllocError) {
-            throw format("Expr.todo_error: ", err.msg)
+            throw concat("Expr.todo_error: ", err.msg)
         }
         return result
     }
@@ -235,13 +235,13 @@ Expr := struct {
             result = format(line_str, ":", col_str, ": ", phase, " ERROR: ", msg)
         }
         catch (err: I64_OverflowError) {
-            throw format("Expr.error: ", err.msg)
+            throw concat("Expr.error: ", err.msg)
         }
         catch (err: IndexOutOfBoundsError) {
-            throw format("Expr.error: ", err.msg)
+            throw concat("Expr.error: ", err.msg)
         }
         catch (err: AllocError) {
-            throw format("Expr.error: ", err.msg)
+            throw concat("Expr.error: ", err.msg)
         }
         return result
     }
@@ -283,7 +283,7 @@ ValueType := enum {
     TMulti: Str,
 }
 
-value_type_to_str := func(arg_type: ValueType) returns Str throws AllocError, I64_OverflowError, IndexOutOfBoundsError {
+value_type_to_str := func(arg_type: ValueType) returns Str throws Str, AllocError, IndexOutOfBoundsError {
     mut result := ""
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
@@ -306,6 +306,9 @@ value_type_to_str := func(arg_type: ValueType) returns Str throws AllocError, I6
         result = format("{}", type_name)
     case:
         result = "unknown"
+    }
+    catch (err: I64_OverflowError) {
+        throw concat("value_type_to_str: ", err.msg)
     }
     return result
 }
@@ -724,9 +727,6 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
     return e
 }
 
@@ -864,19 +864,16 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     params := Vec.new(Expr)
     result := Expr.new_parse(NodeType.StructDef(struct_def), t, params)
     catch (err: AllocError) {
-        throw format("parse_struct_definition: ", err.msg)
+        throw concat("parse_struct_definition: ", err.msg)
     }
     catch (err: FullError) {
-        throw format("parse_struct_definition: ", err.msg)
+        throw concat("parse_struct_definition: ", err.msg)
     }
     catch (err: IndexOutOfBoundsError) {
-        throw format("parse_struct_definition: ", err.msg)
-    }
-    catch (err: I64_OverflowError) {
-        throw format("parse_struct_definition: ", err.msg)
+        throw concat("parse_struct_definition: ", err.msg)
     }
     catch (err: DuplicatedKeyError) {
-        throw format("parse_struct_definition: ", err.msg)
+        throw concat("parse_struct_definition: ", err.msg)
     }
     return result
 }
@@ -1142,13 +1139,13 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
         throw t.error(format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
     }
     catch (err: AllocError) {
-        throw format("parse_primary: ", err.msg)
+        throw concat("parse_primary: ", err.msg)
     }
     catch (err: FullError) {
-        throw format("parse_primary: ", err.msg)
+        throw concat("parse_primary: ", err.msg)
     }
     catch (err: IndexOutOfBoundsError) {
-        throw format("parse_primary: ", err.msg)
+        throw concat("parse_primary: ", err.msg)
     }
     return result
 }
@@ -1215,7 +1212,7 @@ parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     return Expr.new_parse(NodeType.Throw, initial_token, params)
 }
 
-parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1) // consume 'catch'
 
@@ -1246,7 +1243,7 @@ parse_catch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     return Expr.new_parse(NodeType.Catch, initial_token, params)
 }
 
-if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)
     mut params := Vec.new(Expr)
@@ -1292,7 +1289,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Full
     return Expr.new_parse(NodeType.If, initial_token, params)
 }
 
-while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)
     mut params := Vec.new(Expr)
@@ -1316,7 +1313,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     return Expr.new_parse(NodeType.While, initial_token, params)
 }
 
-parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_token := lexer.peek()
     lexer.advance(1) // consume 'for'
 
@@ -1395,7 +1392,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocErro
 
 // Helper function to extract full identifier name from an expression
 // Handles both simple identifiers and dotted names (represented as FCall)
-get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, FullError, IndexOutOfBoundsError {
     mut result := ""
     ent := e.node_type
     switch ent {
@@ -1422,10 +1419,13 @@ get_full_identifier_name := func(e: Expr) returns Str throws Str, AllocError, Fu
             }
         case:
     }
+    catch (err: I64_OverflowError) {
+        throw concat("get_full_identifier_name: ", err.msg)
+    }
     return result
 }
 
-parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     left := parse_primary(lexer)
     t := lexer.peek()
     tt := t.token_type
@@ -1481,7 +1481,7 @@ parse_case_expr := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     return left
 }
 
-parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     t := lexer.peek()
     initial_current := lexer.current
     lexer.advance(1)
@@ -1632,7 +1632,7 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocEr
     }
 }
 
-parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     t := lexer.peek()
     tt := t.token_type
 
@@ -1663,7 +1663,7 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, F
     }
 }
 
-parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     mut params := Vec.new(Expr)
     mut end_found := false
@@ -1712,7 +1712,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
     throw t.error(format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
-parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     e := parse_body(lexer, TokenType.Eof)
 
     mut i := lexer.current

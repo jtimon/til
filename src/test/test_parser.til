@@ -28,11 +28,6 @@ parse_source := proc(source: Str) {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "I64_OverflowError in parse_source")
-        println(err.msg)
-        exit(1)
-    }
 }
 
 // Test parsing simple expressions
@@ -223,11 +218,6 @@ test_parse_body := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 
 }
 
@@ -251,11 +241,6 @@ test_parse_statement := proc() {
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
         println(err.msg)
         exit(1)
     }
