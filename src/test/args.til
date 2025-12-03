@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.vec")
+
 // Test basic argument passing
 
 Vec2 := struct {

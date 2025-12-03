@@ -1,5 +1,6 @@
 mode lib
 
+import("src.core.vec")
 import("src.core.std")
 
 LANG_NAME := "til"

@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.vec")
+
 my_true  := true
 my_int_a := 40
 my_int_b :=  2

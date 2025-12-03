@@ -1,5 +1,6 @@
 mode test
 
+import("src.core.vec")
 import("src.core.list")
 import("src.core.map")
 

@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.vec")
+
 // Introspection - Runtime type information utilities
 //
 // This struct acts as a namespace (has no mutable fields).

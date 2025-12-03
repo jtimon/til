@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.vec")
+
 test_vec_u8 := proc() {
     mut dyn := Vec.new(U8)
     assert_eq(loc(), 0, dyn.len())

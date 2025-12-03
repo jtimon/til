@@ -1,5 +1,7 @@
 mode lib
 
+import("src.core.vec")
+
 /**
  * Generic Map implementation - ordered, not hashed.
  * Uses parallel arrays for keys and values (maintains insertion order).
