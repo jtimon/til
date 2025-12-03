@@ -2,11 +2,11 @@ mode lib
 
 import("src.core.array")
 import("src.core.bool")
+import("src.core.bounds")
 import("src.core.i64")
+import("src.core.mem")
 import("src.core.str")
 import("src.core.u8")
-import("src.core.mem")
-import("src.core.bounds")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
