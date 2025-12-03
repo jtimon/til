@@ -346,6 +346,7 @@ test_bug10_parser_patterns_fixed()
 TestPatternEnum := enum {
     TypeA,
     TypeB: Str,
+    TypeC: I64,
 }
 
 TestPatternStruct := struct {
@@ -370,3 +371,51 @@ test_ufcs_struct_field_in_pattern_match := proc() {
     }
 }
 test_ufcs_struct_field_in_pattern_match()
+
+// Bug #28 additional coverage: UFCS directly on binding variable
+test_ufcs_on_binding_variable := proc() {
+    val := TestPatternEnum.TypeC(42)
+    mut result := 0
+    switch val {
+    case TestPatternEnum.TypeC(n):
+        result = n.add(8)  // UFCS on binding variable itself
+    case:
+        panic(loc(), "Should not reach default case")
+    }
+    assert_eq(loc(), 50, result)
+}
+test_ufcs_on_binding_variable()
+
+// Bug #28 additional coverage: UFCS in nested switch with bindings
+test_ufcs_in_nested_switch_with_bindings := proc() {
+    outer := TestPatternEnum.TypeC(1)
+    inner := TestPatternEnum.TypeB("test")
+    mut result := ""
+    switch outer {
+    case TestPatternEnum.TypeC(n):
+        switch inner {
+        case TestPatternEnum.TypeB(s):
+            result = s
+            mut len := s.len()  // UFCS on nested binding
+            assert_eq(loc(), 4, len)
+        case:
+        }
+    case:
+    }
+    assert_eq_str(loc(), "test", result)
+}
+test_ufcs_in_nested_switch_with_bindings()
+
+// Bug #28 additional coverage: UFCS chain on binding variable
+test_ufcs_chain_on_binding := proc() {
+    val := TestPatternEnum.TypeC(5)
+    mut result := false
+    switch val {
+    case TestPatternEnum.TypeC(n):
+        result = n.gt(3).and(n.lt(10))  // UFCS chain on binding
+    case:
+        panic(loc(), "Should not reach default case")
+    }
+    assert(loc(), result)
+}
+test_ufcs_chain_on_binding()
