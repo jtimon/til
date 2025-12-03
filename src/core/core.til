@@ -20,12 +20,6 @@ IndexOutOfBoundsError := struct {
         err.msg = msg
         return err
     }
-
-    clone := func(self: IndexOutOfBoundsError) returns IndexOutOfBoundsError throws AllocError {
-        mut cloned := IndexOutOfBoundsError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
 }
 
 FullError := struct {
@@ -35,12 +29,6 @@ FullError := struct {
         mut err := FullError()
         err.msg = msg
         return err
-    }
-
-    clone := func(self: FullError) returns FullError throws AllocError {
-        mut cloned := FullError()
-        cloned.msg = self.msg.clone()
-        return cloned
     }
 }
 
@@ -52,12 +40,6 @@ AllocError := struct {
         err.msg = msg
         return err
     }
-
-    clone := func(self: AllocError) returns AllocError throws AllocError {
-        mut cloned := AllocError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
 }
 
 DuplicatedKeyError := struct {
@@ -68,12 +50,6 @@ DuplicatedKeyError := struct {
         err.msg = msg
         return err
     }
-
-    clone := func(self: DuplicatedKeyError) returns DuplicatedKeyError throws AllocError {
-        mut cloned := DuplicatedKeyError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
 }
 
 KeyNotFoundError := struct {
@@ -83,12 +59,6 @@ KeyNotFoundError := struct {
         mut err := KeyNotFoundError()
         err.msg = msg
         return err
-    }
-
-    clone := func(self: KeyNotFoundError) returns KeyNotFoundError throws AllocError {
-        mut cloned := KeyNotFoundError()
-        cloned.msg = self.msg.clone()
-        return cloned
     }
 }
 

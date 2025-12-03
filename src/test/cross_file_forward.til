@@ -1,0 +1,53 @@
+mode test
+
+import("src.core.vec")
+
+// Cross-file forward declaration test
+// Inspired by Jai's approach to circular dependencies
+//
+// This tests that two files can import each other:
+// - entity.til imports component.til (uses Component type)
+// - component.til imports entity.til (uses Entity type)
+//
+// This works because TIL's init phase collects all type declarations
+// before the typer phase checks them, allowing forward references
+// across file boundaries.
+
+import("src.test.cross_file_forward.entity")
+import("src.test.cross_file_forward.component")
+
+test_cross_file_circular_imports := proc() {
+    // Create an entity
+    mut player := Entity.new(1, "Player")
+
+    // Create components that reference back to the entity
+    mut health := Component.new_attached("Health", 100, player)
+    mut armor := Component.new_attached("Armor", 50, player)
+
+    // Add components to entity
+    player.add_component(health)
+    player.add_component(armor)
+
+    // Verify the circular references work
+    test(loc(), player.id.eq(1), "Entity ID should be 1")
+    test(loc(), health.owner_id.eq(1), "Health component should reference entity 1")
+    test(loc(), armor.owner_id.eq(1), "Armor component should reference entity 1")
+
+    // Retrieve component from entity and verify
+    mut retrieved := player.get_component(0)
+    test(loc(), retrieved.value.eq(100), "First component should be Health with value 100")
+
+    println("Cross-file forward declaration test PASSED!")
+
+    catch (err: AllocError) {
+        panic(loc(), "Unexpected AllocError")
+    }
+    catch (err: FullError) {
+        panic(loc(), "Unexpected FullError")
+    }
+    catch (err: IndexOutOfBoundsError) {
+        panic(loc(), "Unexpected IndexOutOfBoundsError")
+    }
+}
+
+test_cross_file_circular_imports()

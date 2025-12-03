@@ -8,12 +8,6 @@ I64_OverflowError := struct {
         err.msg = msg
         return err
     }
-
-    clone := func(self: I64_OverflowError) returns I64_OverflowError throws AllocError {
-        mut cloned := I64_OverflowError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
 }
 
 /** I64 - Signed 64-bit integer type. */

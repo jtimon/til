@@ -1,0 +1,30 @@
+mode lib
+
+import("src.test.cross_file_forward.entity")
+
+/** Component that references its owner Entity - circular with entity.til */
+Component := struct {
+    mut name: Str = ""
+    mut value: I64 = 0
+    mut owner_id: I64 = 0  // Reference back to Entity by ID
+
+    new := proc(name: Str, value: I64) returns Component {
+        mut c := Component()
+        c.name = name
+        c.value = value
+        c.owner_id = 0
+        return c
+    }
+
+    /** Attach this component to an entity */
+    attach_to := proc(mut self: Component, entity: Entity) {
+        self.owner_id = entity.id
+    }
+
+    /** Create a component already attached to an entity */
+    new_attached := proc(name: Str, value: I64, entity: Entity) returns Component {
+        mut c := Component.new(name, value)
+        c.owner_id = entity.id
+        return c
+    }
+}

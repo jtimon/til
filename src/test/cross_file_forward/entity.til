@@ -1,0 +1,28 @@
+mode lib
+
+import("src.test.cross_file_forward.component")
+
+/** Entity that contains Components - but Component also references Entity */
+Entity := struct {
+    mut id: I64 = 0
+    mut name: Str = ""
+    mut components: Vec = Vec()  // Will hold Component instances
+
+    new := proc(id: I64, name: Str) returns Entity throws AllocError {
+        mut e := Entity()
+        e.id = id
+        e.name = name
+        e.components = Vec.new(Component)
+        return e
+    }
+
+    add_component := proc(mut self: Entity, comp: Component) throws FullError, AllocError {
+        self.components.push(comp)
+    }
+
+    get_component := proc(self: Entity, index: I64) returns Component throws IndexOutOfBoundsError {
+        mut comp := Component()
+        self.components.get(index, comp)
+        return comp
+    }
+}

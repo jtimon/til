@@ -8,12 +8,6 @@ U8_OverflowError := struct {
         err.msg = msg
         return err
     }
-
-    clone := func(self: U8_OverflowError) returns U8_OverflowError throws AllocError {
-        mut cloned := U8_OverflowError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
 }
 
 /** U8 - Unsigned 8-bit integer type. */
