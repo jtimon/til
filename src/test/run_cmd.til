@@ -1,0 +1,12 @@
+mode safe_script
+
+import("src.core.std.std")  // for assertm
+
+// Ensure tmp/ exists for tests that need temp files
+_ := run_cmd("mkdir", "-p", "tmp")
+
+// Test: directories in root
+// This test enforces root directory stability - update when intentionally changed
+// Using explicit paths since safe_script doesn't allow sh for glob expansion
+dirs := run_cmd("ls", "-d", "bin/", "bots/", "doc/", "editor/", "img/", "scratch/", "src/", "tmp/")
+assertm(loc(), dirs.eq("bin/\nbots/\ndoc/\neditor/\nimg/\nscratch/\nsrc/\ntmp/\n"), dirs)

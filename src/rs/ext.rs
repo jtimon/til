@@ -10,9 +10,15 @@ use crate::rs::interpreter::{Arena, EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
+use std::process::Command;
 use crate::{main_run, run_file, run_file_with_context};
 
 // ---------- Helper functions
+
+// General whitelist for all modes
+const ALLOWED_COMMANDS: [&str; 3] = ["ls", "mkdir", "find"];
+// More restrictive whitelist for safe_script mode
+const SAFE_COMMANDS: [&str; 2] = ["ls", "mkdir"];
 
 /// Macro to evaluate an expression and propagate throws early
 macro_rules! eval_or_throw {
@@ -648,6 +654,63 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     };
 
     Ok(EvalResult::new(&source))
+}
+
+// WARNING: run_cmd executes shell commands.
+// In mode safe_script, only whitelisted commands are allowed (configurable).
+// In other modes, arbitrary commands can be executed - use with caution.
+pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    // run_cmd(args...) - runs a command with arguments, returns stdout as string
+    // First arg is the command, remaining args are passed to it
+    if e.params.len() < 2 {
+        return Err(e.error(&context.path, "eval", "run_cmd requires at least 1 argument (the command)"));
+    }
+
+    let cmd_result = eval_expr(context, e.get(1)?)?;
+    if cmd_result.is_throw {
+        return Ok(cmd_result);
+    }
+    let cmd = cmd_result.value;
+
+    // Check command against whitelists
+    if context.mode_def.name == "safe_script" {
+        if !SAFE_COMMANDS.contains(&cmd.as_str()) {
+            return Err(e.error(&context.path, "eval", &format!("Command '{}' not in safe_script whitelist: {:?}", cmd, SAFE_COMMANDS)));
+        }
+    } else {
+        if !ALLOWED_COMMANDS.contains(&cmd.as_str()) {
+            return Err(e.error(&context.path, "eval", &format!("Command '{}' not in allowed whitelist: {:?}", cmd, ALLOWED_COMMANDS)));
+        }
+    }
+
+    let mut args: Vec<String> = Vec::new();
+    for i in 2..e.params.len() {
+        let arg_result = eval_expr(context, e.get(i)?)?;
+        if arg_result.is_throw {
+            return Ok(arg_result);
+        }
+        args.push(arg_result.value);
+    }
+
+    let output = Command::new(&cmd)
+        .args(&args)
+        .output();
+
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                Ok(EvalResult::new(&stdout))
+            } else {
+                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                let code = out.status.code().unwrap_or(-1);
+                Err(e.error(&context.path, "eval", &format!("Command '{}' failed with code {}: {}", cmd, code, stderr)))
+            }
+        },
+        Err(err) => {
+            Err(e.error(&context.path, "eval", &format!("Failed to run command '{}': {}", cmd, err)))
+        }
+    }
 }
 
 // ---------- Introspection functions

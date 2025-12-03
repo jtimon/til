@@ -56,7 +56,7 @@ pub fn mode_from_name(mode_name: &str, path: &str, t: &Token) -> Result<ModeDef,
                     allows_base_mut      : true,
                     allows_base_anything : true,
                     needs_main_proc      : false,
-                    imports              : vec![],
+                    imports              : vec!["src/core/modes/safe_script".to_string()],
         }),
         "cli" => Ok(
             ModeDef{name                 : mode_name.to_string(),
@@ -94,10 +94,6 @@ pub fn parse_mode(path: &String, lexer: &mut Lexer) -> Result<ModeDef, String> {
         Ok(mode_) => mode_,
         Err(err_) => return Err(err_),
     };
-
-    if m.name == "safe_script" {
-        return Err(t.error(path, &format!("mode '{}' is not properly supported in '{}' yet. Try mode '{}' instead", m.name, LANG_NAME, "script")));
-    }
 
     lexer.expect(TokenType::Identifier)?; // Add one for the identifier of the mode
     return Ok(m);

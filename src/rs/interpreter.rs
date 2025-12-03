@@ -3554,6 +3554,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "single_print" => ext::proc_single_print(context, &e),
         "print_flush" => ext::proc_print_flush(context, &e),
         "readfile" => ext::proc_readfile(context, &e),
+        "run_cmd" => ext::proc_run_cmd(context, &e),
         "runfile" => ext::proc_runfile(context, &e),
         "has_const" => ext::func_has_const(context, &e),
         "has_field" => ext::func_has_field(context, &e),

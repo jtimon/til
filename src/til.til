@@ -72,7 +72,9 @@ build_file_or_exit := proc(path: Str) {
 }
 
 run_file_or_exit := proc(path: Str) {
-    TODO(loc(), "run_file_or_exit")
+    build_file_or_exit(path)
+    // TODO: run_cmd(binary_path, args...)
+    TODO(loc(), "run_file_or_exit: execute compiled binary")
 }
 
 usage := proc() {
