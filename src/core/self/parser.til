@@ -353,7 +353,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
     return e
 }
 
-parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError, AllocError, FullError, IndexOutOfBoundsError {
+parse_list := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     mut rightparent_found := false
     mut params := Vec.new(Expr)
     initial_current := lexer.current
@@ -395,7 +395,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, I64_OverflowError,
     }
 }
 
-parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     _ := lexer_expect(lexer, TokenType.Equal)
     mut params := Vec.new(Expr)
     value := parse_primary(lexer)
@@ -806,7 +806,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     return e
 }
 
-parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError, DuplicatedKeyError {
+parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     _ := lexer_expect(lexer, TokenType.Struct)
     t := lexer.peek()
     tt := t.token_type
@@ -862,7 +862,23 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str, Alloc
     struct_def.members = members
     struct_def.default_values = default_values
     params := Vec.new(Expr)
-    return Expr.new_parse(NodeType.StructDef(struct_def), t, params)
+    result := Expr.new_parse(NodeType.StructDef(struct_def), t, params)
+    catch (err: AllocError) {
+        throw format("parse_struct_definition: ", err.msg)
+    }
+    catch (err: FullError) {
+        throw format("parse_struct_definition: ", err.msg)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("parse_struct_definition: ", err.msg)
+    }
+    catch (err: I64_OverflowError) {
+        throw format("parse_struct_definition: ", err.msg)
+    }
+    catch (err: DuplicatedKeyError) {
+        throw format("parse_struct_definition: ", err.msg)
+    }
+    return result
 }
 
 parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
@@ -984,9 +1000,6 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     catch (err: IndexOutOfBoundsError) {
         throw err.msg
     }
-    catch (err: I64_OverflowError) {
-        throw err.msg
-    }
     return result
 }
 
@@ -1030,7 +1043,7 @@ get_combined_name := func(e: Expr) returns Str throws Str {
     return to_return
 }
 
-parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type
@@ -1096,7 +1109,7 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, Al
     }
 }
 
-parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     t := lexer.peek()
     mut result := Expr()
 
@@ -1128,13 +1141,19 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str, AllocError, Ful
     case:
         throw t.error(format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
     }
-    catch (err: DuplicatedKeyError) {
-        throw err.msg
+    catch (err: AllocError) {
+        throw format("parse_primary: ", err.msg)
+    }
+    catch (err: FullError) {
+        throw format("parse_primary: ", err.msg)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format("parse_primary: ", err.msg)
     }
     return result
 }
 
-return_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+return_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)
     mut params := Vec.new(Expr)
@@ -1165,7 +1184,7 @@ return_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, 
     return Expr.new_parse(NodeType.Return, initial_token, params)
 }
 
-parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_throw_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     initial_current := lexer.current
     lexer.advance(1)
     mut params := Vec.new(Expr)
@@ -1552,7 +1571,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, AllocE
     throw t.error("Expected '}}' to end switch.")
 }
 
-parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     t := lexer.peek()
     decl_name := t.token_str
     initial_current := lexer.current
@@ -1576,7 +1595,7 @@ parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explici
     return Expr.new_parse(NodeType.Declaration(decl), initial_token, params)
 }
 
-parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError, I64_OverflowError {
+parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, AllocError, FullError, IndexOutOfBoundsError {
     t := lexer.peek()
     mut next_t := lexer.next()
     mut next_token_type := next_t.token_type

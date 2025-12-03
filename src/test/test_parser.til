@@ -285,11 +285,6 @@ test_parse_statement_identifier := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 
 }
 
@@ -316,11 +311,6 @@ test_parse_declaration := proc() {
         println(err.msg)
         exit(1)
     }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
 
 }
 
@@ -344,11 +334,6 @@ test_parse_list := proc() {
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
         println(err.msg)
         exit(1)
     }
