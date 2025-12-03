@@ -1,0 +1,68 @@
+mode lib
+
+I64_OverflowError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns I64_OverflowError {
+        mut err := I64_OverflowError()
+        err.msg = msg
+        return err
+    }
+
+    clone := func(self: I64_OverflowError) returns I64_OverflowError throws AllocError {
+        mut cloned := I64_OverflowError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
+}
+
+/** I64 - Signed 64-bit integer type. */
+// Note that I64 and U8 don't have fields because they're the "real core types"
+// think of them as "half-external types" for now
+I64 := struct {
+    // mut data : Array = Array.new("U8", size_of(U8), 8) // TODO Use [8]U8 for this one
+
+    eq := func(a: I64, b: I64) returns Bool {
+        // REM We can't use the variadic or from here without mutual recusrion and a stack overflow
+        if gt(a, b) {
+            return false
+        }
+        if gt(b, a) {
+            return false
+        }
+        if lt(a, b) {
+            return false
+        }
+        if lt(b, a) {
+            return false
+        }
+        return true
+    }
+
+    to_str := func(self: I64) returns Str {
+        i64_to_str := ext_func(a: I64) returns Str;
+        return i64_to_str(self)
+    }
+
+    from_str := func(str: Str) returns I64 {
+        str_to_i64 := ext_func(a: Str) returns I64;
+        return str_to_i64(str) // TODO: this can fail and panic from rust
+    }
+
+    inc := proc(mut self: I64) {
+        self = add(self, 1)
+    }
+
+    dec := proc(mut self: I64) {
+        self = sub(self, 1)
+    }
+
+    // TODO: implement operators and allow operator overload
+    __add__ := func(self: I64, other: I64) returns I64 {
+        return add(self, other)
+    }
+
+    size := func() returns I64 {
+        return 8
+    }
+}
