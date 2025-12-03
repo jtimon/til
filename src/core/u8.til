@@ -1,5 +1,9 @@
 mode lib
 
+U8_SIZE   := 1
+MIN_U8    := 0
+MAX_U8    := 255
+
 U8_OverflowError := struct {
     mut msg: Str = ""
 

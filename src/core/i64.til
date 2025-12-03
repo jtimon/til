@@ -1,5 +1,23 @@
 mode lib
 
+// Comparisons are hateful, plus two of them are probably enough for now:
+lt        := ext_func(a: I64, b: I64) returns Bool;
+gt        := ext_func(a: I64, b: I64) returns Bool;
+
+// Minimal arithmehics are fair and necessary
+add       := ext_func(a: I64, b: I64) returns I64;
+sub       := ext_func(a: I64, b: I64) returns I64;
+mul       := ext_func(a: I64, b: I64) returns I64;
+div       := ext_func(a: I64, b: I64) returns I64;
+mod       := ext_func(a: I64, b: I64) returns I64;
+
+I64_SIZE  := 8
+// TODO we can't declare negative constants before declaring ext sub()
+// TODO negative literal number support
+MIN_I64   := sub(0, 922337203)
+MAX_I64   := 9223372036854775807 // REM This is a lie, see bellow.
+// MIN_I64   := sub(0, 9223372036854775808) // FIX Invalid number literal '9223372036854775808': number too large to fit in target t
+
 I64_OverflowError := struct {
     mut msg: Str = ""
 
@@ -8,6 +26,26 @@ I64_OverflowError := struct {
         err.msg = msg
         return err
     }
+}
+
+lteq := func(a: I64, b: I64) returns Bool {
+    if lt(a, b) {
+        return true
+    }
+    if a.eq(b) {
+        return true
+    }
+    return false
+}
+
+gteq := func(a: I64, b: I64) returns Bool {
+    if gt(a, b) {
+        return true
+    }
+    if a.eq(b) {
+        return true
+    }
+    return false
 }
 
 /** I64 - Signed 64-bit integer type. */

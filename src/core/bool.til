@@ -46,3 +46,42 @@ Bool := struct {
 
 false := Bool.from_i64(0)
 true := Bool.from_i64(1)
+
+not := func(b: Bool) returns Bool {
+    if b {
+        return false
+    }
+    return true
+}
+
+or := func(args: ..Bool) returns Bool {
+    for i in 0..args._len {
+        mut val := false
+        args.get(i, val)
+        if val {
+            return true
+        }
+    }
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "or: IndexOutOfBoundsError should never happen")
+    }
+
+    return false
+}
+
+and := func(args: ..Bool) returns Bool {
+    for i in 0..args._len {
+        mut val := false
+        args.get(i, val)
+        if not(val) {
+            return false
+        }
+    }
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "and: IndexOutOfBoundsError should never happen")
+    }
+
+    return true
+}

@@ -69,17 +69,6 @@ _file := ext_func() returns Str; // Returns current file path
 _line := ext_func() returns I64; // Returns current line number
 _col  := ext_func() returns I64; // Returns current column number
 
-// Comparisons are hateful, plus two of them are probably enough for now:
-lt        := ext_func(a: I64, b: I64) returns Bool;
-gt        := ext_func(a: I64, b: I64) returns Bool;
-
-// Minimal arithmehics are fair and necessary
-add       := ext_func(a: I64, b: I64) returns I64;
-sub       := ext_func(a: I64, b: I64) returns I64;
-mul       := ext_func(a: I64, b: I64) returns I64;
-div       := ext_func(a: I64, b: I64) returns I64;
-mod       := ext_func(a: I64, b: I64) returns I64;
-
 single_print := ext_proc(args: ..Str);
 // TODO temporary optimization since things are really slow since we have so many Array implementations here (loaded and checked with each test)
 print_flush  := ext_proc();
@@ -104,93 +93,7 @@ memcpy := ext_func(mut dest: I64, src: I64, size: I64);
 memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64;
 memset := ext_func(mut dest: I64, value: U8, size: I64);
 
-print := proc(args: ..Str) {
-    for i in 0..args._len {
-        mut val := ""
-        args.get(i, val)
-        single_print(val)
-    }
-    print_flush()
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "print: IndexOutOfBoundsError should never happen")
-    }
-}
-
-println := proc(args: ..Str) {
-    for i in 0..args._len {
-        mut val := ""
-        args.get(i, val)
-        single_print(val)
-    }
-    single_print("\n")
-    print_flush()
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "println: IndexOutOfBoundsError should never happen")
-    }
-}
-
 panic := proc(loc_str: Str, msg: Str) {
     println(loc_str.format(msg))
     exit(1)
-}
-
-not := func(b: Bool) returns Bool {
-    if b {
-        return false
-    }
-    return true
-}
-
-or := func(args: ..Bool) returns Bool {
-    for i in 0..args._len {
-        mut val := false
-        args.get(i, val)
-        if val {
-            return true
-        }
-    }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "or: IndexOutOfBoundsError should never happen")
-    }
-
-    return false
-}
-
-and := func(args: ..Bool) returns Bool {
-    for i in 0..args._len {
-        mut val := false
-        args.get(i, val)
-        if not(val) {
-            return false
-        }
-    }
-
-    catch(err: IndexOutOfBoundsError) {
-        panic(loc(), "and: IndexOutOfBoundsError should never happen")
-    }
-
-    return true
-}
-
-lteq := func(a: I64, b: I64) returns Bool {
-    if lt(a, b) {
-        return true
-    }
-    if a.eq(b) {
-        return true
-    }
-    return false
-}
-
-gteq := func(a: I64, b: I64) returns Bool {
-    if gt(a, b) {
-        return true
-    }
-    if a.eq(b) {
-        return true
-    }
-    return false
 }

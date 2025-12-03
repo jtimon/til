@@ -1,5 +1,32 @@
 mode lib
 
+print := proc(args: ..Str) {
+    for i in 0..args._len {
+        mut val := ""
+        args.get(i, val)
+        single_print(val)
+    }
+    print_flush()
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "print: IndexOutOfBoundsError should never happen")
+    }
+}
+
+println := proc(args: ..Str) {
+    for i in 0..args._len {
+        mut val := ""
+        args.get(i, val)
+        single_print(val)
+    }
+    single_print("\n")
+    print_flush()
+
+    catch(err: IndexOutOfBoundsError) {
+        panic(loc(), "println: IndexOutOfBoundsError should never happen")
+    }
+}
+
 /** Str - String type with c_string pointer and capacity. */
 // TODO get rid of special cases for Str besides literals
 Str := struct {
