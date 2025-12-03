@@ -67,6 +67,14 @@ interpret_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoun
     // Success - no need to print result for test mode
 }
 
+build_file_or_exit := proc(path: Str) {
+    TODO(loc(), "build_file_or_exit")
+}
+
+run_file_or_exit := proc(path: Str) {
+    TODO(loc(), "run_file_or_exit")
+}
+
 usage := proc() {
     println("Usage: ", LANG_NAME, " [command] [path]\n");
     println("Entering no arguments is equavalent to: '", LANG_NAME, " repl'");
@@ -135,8 +143,8 @@ main := proc(args: ..Str) {
             }
         // case "interpret" : interpret_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
-        case "build"     : usage()
-        case "run"       : usage()
+        case "build"     : build_file_or_exit(val1)
+        case "run"       : run_file_or_exit(val1)
         case:
             println("command '", cmd, "' not implemented.")
             usage()
