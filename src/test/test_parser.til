@@ -13,11 +13,6 @@ parse_source := proc(source: Str) {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "FullError in parse_source")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "IndexOutOfBoundsError in parse_source")
         println(err.msg)
@@ -198,11 +193,6 @@ test_parse_body := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -217,11 +207,6 @@ test_parse_statement := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
@@ -240,11 +225,6 @@ test_parse_statement_identifier := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -261,11 +241,6 @@ test_parse_declaration := proc() {
         println(err)
         exit(1)
     }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
         println(err.msg)
@@ -280,11 +255,6 @@ test_parse_list := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: FullError) {
-        println("ERROR:", loc(), "Unexpected FullError")
-        println(err.msg)
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
