@@ -1,0 +1,58 @@
+mode lib
+
+/** Ptr - Pointer type wrapping a raw memory address. */
+Ptr := struct {
+    mut data: I64 = NULL
+
+    // TODO FIX should type error because size is already declared
+    size_of := func() returns I64 { return size_of(I64) }
+
+    new_by_size := proc(size: I64) returns Ptr throws AllocError {
+        if size.lteq(0) {
+            throw AllocError.new(format(loc(), "Ptr.new_by_size: invalid size ", size.to_str()))
+        }
+        mut p := Ptr()
+        p.data = malloc(size)
+        if NULL.eq(p.data) {
+            throw AllocError.new(format(loc(), "Ptr.new: failed to allocate ", size.to_str(), " bytes"))
+        }
+        return p
+    }
+
+    new := proc(T: Type) returns Ptr throws AllocError {
+        return Ptr.new_by_size(size_of(T))
+    }
+
+    delete := proc(self: Ptr) throws AllocError {
+        if NULL.eq(self.data) {
+            throw AllocError.new(format(loc(), "Ptr.free: trying to free a NULL pointer"))
+        }
+        free(self.data)
+    }
+
+    /** Ptr.offset is danger-ous, also known as "pointer arythmetics". */
+    offset := proc(self: Ptr, offset: I64) returns Ptr {
+        mut p := Ptr()
+        p.data = add(self.data, offset)
+        return p
+    }
+
+    // cast := macro(self: Ptr, type_name: Str) returns Dynamic {
+    //     // TODO: This cast is purely cosmetic for now.
+    //     // Proper type-changing macros are not implemented yet.
+    //     return self
+    // }
+
+    copy_from := proc(mut self: Ptr, src: Ptr, size: I64) {
+        // TODO this should fail if self arg is not declared as mut
+        memcpy(self.data, src.data, size)
+    }
+
+    copy_to := proc(self: Ptr, mut dest: Ptr, size: I64) {
+        memcpy(dest.data, self.data, size)
+    }
+
+    set_zero := proc(mut self: Ptr, size: I64) {
+        memset(self.data, U8.from_i64(0), size)
+    }
+}
