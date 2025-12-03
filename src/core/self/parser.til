@@ -342,7 +342,7 @@ str_to_value_type := func(arg_type: Str) returns ValueType {
     return ValueType.TCustom(arg_type)
 }
 
-parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str {
+parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, IndexOutOfBoundsError {
     params := Vec.new(Expr)
     tt := t.token_type
     mut node_type := NodeType.Body  // Default, will be overwritten

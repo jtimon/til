@@ -182,6 +182,11 @@ test_parse_literal := proc() {
         println(err)
         exit(1)
     }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
 
 }
 

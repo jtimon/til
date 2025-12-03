@@ -561,13 +561,15 @@ Lexer := struct {
         return t
     }
 
+    // TODO: If advance/go_back maintain the invariant that current is always valid,
+    // peek shouldn't need to throw IndexOutOfBoundsError
     peek := func(self: Lexer) returns Token throws IndexOutOfBoundsError {
         mut t := Token()
         self.tokens.get(self.current, t)
         return t
     }
 
-    peek_ahead := func(self: Lexer, offset: I64) returns Token throws Str {
+    peek_ahead := func(self: Lexer, offset: I64) returns Token throws IndexOutOfBoundsError, Str {
         index := add(self.current, offset)
         if gteq(index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
@@ -576,9 +578,6 @@ Lexer := struct {
         }
         mut t := Token()
         self.tokens.get(index, t)
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
         catch (err: I64_OverflowError) {
             throw err.msg
         }
@@ -588,7 +587,7 @@ Lexer := struct {
         return t
     }
 
-    next := func(self: Lexer) returns Token throws Str {
+    next := func(self: Lexer) returns Token throws IndexOutOfBoundsError, Str {
         return self.peek_ahead(1)
     }
 
@@ -609,7 +608,7 @@ Lexer := struct {
         return t
     }
 
-    advance := func(mut self: Lexer, count: I64) throws Str {
+    advance := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, Str {
         next_index := add(self.current, count)
         if gt(next_index, self.tokens.len()) {
             mut err := IndexOutOfBoundsError()
@@ -618,9 +617,6 @@ Lexer := struct {
             throw err
         }
         self.current = next_index
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
         catch (err: I64_OverflowError) {
             throw err.msg
         }
@@ -629,16 +625,13 @@ Lexer := struct {
         }
     }
 
-    go_back := func(mut self: Lexer, count: I64) throws Str {
+    go_back := func(mut self: Lexer, count: I64) throws IndexOutOfBoundsError, Str {
         if gt(count, self.current) {
             mut err := IndexOutOfBoundsError()
             err.msg = format("Go back by ", I64.to_str(count), " from ", I64.to_str(self.current), " would underflow")
             throw err
         }
         self.current = sub(self.current, count)
-        catch (err: IndexOutOfBoundsError) {
-            throw err.msg
-        }
         catch (err: I64_OverflowError) {
             throw err.msg
         }
