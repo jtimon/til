@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.map")
+
 // Test Str.clone()
 test_str_clone := proc() {
     original := "hello"

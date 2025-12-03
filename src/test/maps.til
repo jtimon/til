@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.map")
+
 Vec2 := struct {
     mut x : I64 = 0
     mut y : I64 = 0
