@@ -13,11 +13,6 @@ parse_source := proc(source: Str) {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "AllocError in parse_source")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: FullError) {
         println("ERROR:", loc(), "FullError in parse_source")
         println(err.msg)
@@ -103,13 +98,13 @@ test_parse_file := proc(path: Str) {
     catch (err: Str) {
         exit(1)
     }
-    catch (err: AllocError) {
-        exit(1)
-    }
     catch (err: FullError) {
         exit(1)
     }
     catch (err: IndexOutOfBoundsError) {
+        exit(1)
+    }
+    catch (err: AllocError) {
         exit(1)
     }
     catch (err: I64_OverflowError) {
@@ -156,11 +151,6 @@ test_parse_mode := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
@@ -168,6 +158,11 @@ test_parse_mode := proc() {
     }
     catch (err: IndexOutOfBoundsError) {
         println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
         println(err.msg)
         exit(1)
     }
@@ -203,11 +198,6 @@ test_parse_body := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
@@ -227,11 +217,6 @@ test_parse_statement := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
@@ -255,11 +240,6 @@ test_parse_statement_identifier := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
@@ -281,11 +261,6 @@ test_parse_declaration := proc() {
         println(err)
         exit(1)
     }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
     catch (err: FullError) {
         println("ERROR:", loc(), "Unexpected FullError")
         println(err.msg)
@@ -305,11 +280,6 @@ test_parse_list := proc() {
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")
         println(err)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
         exit(1)
     }
     catch (err: FullError) {
