@@ -1,7 +1,7 @@
 mode cli
 
 import("src.core.modes.modes")
-import("src.core.self.interpreter")
+import("src.core.self.runner")
 
 // LANG_NAME is defined in lexer.til
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
