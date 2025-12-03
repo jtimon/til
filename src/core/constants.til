@@ -1,4 +1,0 @@
-mode lib
-
-// TODO we can't use sub from core.til before constants.til, wait for negative literal number support
-// MIN_I64   := sub(0, 9223372036854775808)

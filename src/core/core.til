@@ -2,7 +2,6 @@ mode lib
 
 import("src.core.array")
 import("src.core.bool")
-import("src.core.constants")
 import("src.core.i64")
 import("src.core.str")
 import("src.core.u8")
