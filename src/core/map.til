@@ -2,6 +2,26 @@ mode lib
 
 import("src.core.vec")
 
+DuplicatedKeyError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns DuplicatedKeyError {
+        mut err := DuplicatedKeyError()
+        err.msg = msg
+        return err
+    }
+}
+
+KeyNotFoundError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns KeyNotFoundError {
+        mut err := KeyNotFoundError()
+        err.msg = msg
+        return err
+    }
+}
+
 /**
  * Generic Map implementation - ordered, not hashed.
  * Uses parallel arrays for keys and values (maintains insertion order).

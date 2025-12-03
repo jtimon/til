@@ -41,26 +41,6 @@ AllocError := struct {
     }
 }
 
-DuplicatedKeyError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns DuplicatedKeyError {
-        mut err := DuplicatedKeyError()
-        err.msg = msg
-        return err
-    }
-}
-
-KeyNotFoundError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns KeyNotFoundError {
-        mut err := KeyNotFoundError()
-        err.msg = msg
-        return err
-    }
-}
-
 loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to _loc for consistency
 
 // Individual location components for flexible error formatting
