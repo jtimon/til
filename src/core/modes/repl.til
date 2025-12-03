@@ -2,7 +2,7 @@
 // Suggestion: run 'make repl' from another terminal insted
 mode script
 
-import("src.core.std")
+import("src.core.std.std")
 
 __LANG_NAME := "til(interactive)"
 

@@ -1,7 +1,7 @@
 mode lib
 
-import("src.core.vec")
-import("src.core.list")
+import("src.core.std.vec")
+import("src.core.std.list")
 import("src.core.self.typer")
 
 // Interpreter phase: Runtime evaluation and execution

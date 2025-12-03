@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.vec")
+import("src.core.std.vec")
 
 // Introspection - Runtime type information utilities
 //

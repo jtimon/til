@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.list")
+import("src.core.std.list")
 
 // List tests for heterogeneous collections
 // List.push() and List.set() now take type as first parameter: list.push(I64, 42)

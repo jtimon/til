@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.vec")
+import("src.core.std.vec")
 import("src.core.self.lexer")
 
 ModeDef := struct {

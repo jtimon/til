@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.vec")
+import("src.core.std.vec")
 
 Vec2 := struct {
     mut x : I64 = 0
