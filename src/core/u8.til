@@ -1,5 +1,21 @@
 mode lib
 
+U8_OverflowError := struct {
+    mut msg: Str = ""
+
+    new := func(msg: Str) returns U8_OverflowError {
+        mut err := U8_OverflowError()
+        err.msg = msg
+        return err
+    }
+
+    clone := func(self: U8_OverflowError) returns U8_OverflowError throws AllocError {
+        mut cloned := U8_OverflowError()
+        cloned.msg = self.msg.clone()
+        return cloned
+    }
+}
+
 /** U8 - Unsigned 8-bit integer type. */
 // Note that I64 and U8 don't have fields because they're the "real core types"
 // think of them as "half-external types" for now

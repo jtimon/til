@@ -1,12 +1,10 @@
 mode lib
 
-import("src.core.str")
-import("src.core.bool")
-import("src.core.u8")
-import("src.core.ptr")
 import("src.core.array")
+import("src.core.bool")
 import("src.core.constants")
-import("src.core.introspection")
+import("src.core.str")
+import("src.core.u8")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
@@ -24,22 +22,6 @@ I64_OverflowError := struct {
 
     clone := func(self: I64_OverflowError) returns I64_OverflowError throws AllocError {
         mut cloned := I64_OverflowError()
-        cloned.msg = self.msg.clone()
-        return cloned
-    }
-}
-
-U8_OverflowError := struct {
-    mut msg: Str = ""
-
-    new := func(msg: Str) returns U8_OverflowError {
-        mut err := U8_OverflowError()
-        err.msg = msg
-        return err
-    }
-
-    clone := func(self: U8_OverflowError) returns U8_OverflowError throws AllocError {
-        mut cloned := U8_OverflowError()
         cloned.msg = self.msg.clone()
         return cloned
     }
@@ -305,4 +287,3 @@ I64 := struct {
         return 8
     }
 }
-

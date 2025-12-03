@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.ptr")
+
 test_pointers := proc() {
     mut got_error := false
     bad_p := Ptr.new_by_size(0) // Allocating 0 or less bytes must throw AllocError
