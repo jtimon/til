@@ -369,3 +369,162 @@ test_vec_pop := proc() {
     }
 }
 test_vec_pop()
+
+test_vec_extend := proc() {
+    mut dest := Vec.new(I64)
+    dest.push(1)
+    dest.push(2)
+
+    mut src := Vec.new(I64)
+    src.push(3)
+    src.push(4)
+    src.push(5)
+
+    assert_eq(loc(), 2, dest.len())
+    assert_eq(loc(), 3, src.len())
+
+    dest.extend(src)
+
+    assert_eq(loc(), 5, dest.len())
+    assert_eq(loc(), 3, src.len()) // src should be unchanged
+
+    // Verify all values
+    mut val := 0
+    dest.get(0, val)
+    assert_eq(loc(), 1, val)
+    dest.get(1, val)
+    assert_eq(loc(), 2, val)
+    dest.get(2, val)
+    assert_eq(loc(), 3, val)
+    dest.get(3, val)
+    assert_eq(loc(), 4, val)
+    dest.get(4, val)
+    assert_eq(loc(), 5, val)
+
+    dest.delete()
+    src.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_extend()
+
+test_vec_extend_empty := proc() {
+    mut dest := Vec.new(Str)
+    dest.push("a")
+    dest.push("b")
+
+    mut empty := Vec.new(Str)
+
+    dest.extend(empty) // Extending with empty vec should be no-op
+
+    assert_eq(loc(), 2, dest.len())
+
+    mut val := ""
+    dest.get(0, val)
+    assert_eq_str(loc(), "a", val)
+    dest.get(1, val)
+    assert_eq_str(loc(), "b", val)
+
+    dest.delete()
+    empty.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_extend_empty()
+
+test_vec_remove := proc() {
+    mut vec := Vec.new(I64)
+    vec.push(10)
+    vec.push(20)
+    vec.push(30)
+    vec.push(40)
+
+    assert_eq(loc(), 4, vec.len())
+
+    // Remove middle element (index 1 = value 20)
+    vec.remove(1)
+
+    assert_eq(loc(), 3, vec.len())
+
+    mut val := 0
+    vec.get(0, val)
+    assert_eq(loc(), 10, val)
+    vec.get(1, val)
+    assert_eq(loc(), 30, val) // 30 shifted to index 1
+    vec.get(2, val)
+    assert_eq(loc(), 40, val) // 40 shifted to index 2
+
+    // Remove first element
+    vec.remove(0)
+
+    assert_eq(loc(), 2, vec.len())
+    vec.get(0, val)
+    assert_eq(loc(), 30, val)
+    vec.get(1, val)
+    assert_eq(loc(), 40, val)
+
+    // Remove last element
+    vec.remove(1)
+
+    assert_eq(loc(), 1, vec.len())
+    vec.get(0, val)
+    assert_eq(loc(), 30, val)
+
+    vec.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_remove()
+
+test_vec_remove_out_of_bounds := proc() {
+    mut vec := Vec.new(I64)
+    vec.push(42)
+
+    // Try to remove index that's out of bounds
+    vec.remove(5)
+    panic(loc(), "Expected IndexOutOfBoundsError for remove with invalid index")
+
+    catch (err: IndexOutOfBoundsError) {
+        test(loc(), true, "IndexOutOfBoundsError correctly thrown for remove")
+    }
+
+    vec.delete()
+
+    // Catch unexpected errors at end
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_remove_out_of_bounds()

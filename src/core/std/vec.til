@@ -143,4 +143,49 @@ Vec := struct {
         memcpy(cloned.ptr, self.ptr, used_bytes)
         return cloned
     }
+
+    /** Extend vec with all elements from another vec. */
+    extend := proc(mut self: Vec, other: Vec) throws AllocError {
+        mut i := 0
+        while i.lt(other._len) {
+            // Copy element from other to self
+            src := add(other.ptr, mul(i, other.type_size))
+
+            // Ensure capacity
+            if self._len.eq(self.cap) {
+                new_cap := mul(self.cap, 2)
+                if gt(new_cap, Vec.MAX_CAP) {
+                    panic(loc(), "Vec.extend: capacity exceeded Vec.MAX_CAP")
+                }
+                mut new_ptr := malloc(mul(new_cap, self.type_size))
+                memcpy(new_ptr, self.ptr, mul(self._len, self.type_size))
+                free(self.ptr)
+                self.ptr = new_ptr
+                self.cap = new_cap
+            }
+
+            mut dest := add(self.ptr, mul(self._len, self.type_size))
+            memcpy(dest, src, self.type_size)
+            self._len = add(self._len, 1)
+            i = add(i, 1)
+        }
+    }
+
+    /** Remove element at index, shifting remaining elements left. */
+    remove := proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError {
+        if gteq(index, self._len) {
+            throw IndexOutOfBoundsError.new(format(loc(), "Vec.remove: index out of bounds"))
+        }
+
+        // Shift elements left
+        mut i := index
+        while i.lt(sub(self._len, 1)) {
+            src := add(self.ptr, mul(add(i, 1), self.type_size))
+            dest := add(self.ptr, mul(i, self.type_size))
+            memcpy(dest, src, self.type_size)
+            i = add(i, 1)
+        }
+
+        self._len = sub(self._len, 1)
+    }
 }
