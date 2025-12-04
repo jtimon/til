@@ -213,7 +213,7 @@ fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr
     let template_offset = Arena::g().default_instances.get(type_name).copied()
         .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance",
             &format!("template for '{}' not found", type_name)))?;
-    Arena::insert_struct_from_template(ctx, id, type_name, template_offset, e)
+    Arena::insert_struct(ctx, id, type_name, template_offset, e)
 }
 
 /// Insert a struct instance into a specific frame using cached template.
@@ -222,7 +222,7 @@ fn insert_struct_instance_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, 
     let template_offset = Arena::g().default_instances.get(type_name).copied()
         .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance_into_frame",
             &format!("template for '{}' not found", type_name)))?;
-    Arena::insert_struct_from_template_into_frame(ctx, frame, id, type_name, template_offset, e)
+    Arena::insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

@@ -40,6 +40,15 @@ impl Arena {
     // These methods manage runtime memory allocation and access
     // They take Context as parameter to access type info and arena_index
 
+    /// Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
+    fn is_instance_field(ctx: &Context, id: &str) -> bool {
+        if !id.contains('.') { return false; }
+        let base = id.split('.').next().unwrap();
+        ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
+            !matches!(sym.value_type, ValueType::TType(_))
+        })
+    }
+
     pub fn get_u8(ctx: &Context, id: &str, e: &Expr) -> Result<u8, String> {
         // Try direct lookup first (for base variables)
         let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
@@ -82,22 +91,7 @@ impl Arena {
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid i64 literal '{}'", i64_str)))?;
         let bytes = v.to_ne_bytes();
 
-        let is_instance_field = if id.contains('.') {
-            // Check if base is an instance variable (not a struct type)
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            // If base is in symbols and is NOT a struct type, it's an instance field access
-            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                match &sym.value_type {
-                    ValueType::TType(_) => false,
-                    _ => true
-                }
-            })
-        } else {
-            false
-        };
-
-        if is_instance_field {
+        if Self::is_instance_field(ctx, id) {
             // For instance field paths, calculate offset dynamically
             let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
@@ -144,20 +138,7 @@ impl Arena {
         let v = u8_str.parse::<u8>()
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid u8 literal '{}'", u8_str)))?;
 
-        let is_instance_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                match &sym.value_type {
-                    ValueType::TType(_) => false,
-                    _ => true
-                }
-            })
-        } else {
-            false
-        };
-
-        if is_instance_field {
+        if Self::is_instance_field(ctx, id) {
             // For instance field paths, calculate offset dynamically
             let offset = if let Some(offset) = ctx.scope_stack.lookup_var(id) {
                 // Pre-registered field (old path)
@@ -488,7 +469,7 @@ impl Arena {
 
     /// Insert a struct by copying from a cached template.
     /// Much faster than insert_struct_core for subsequent instances of the same type.
-    pub fn insert_struct_from_template(ctx: &mut Context, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
+    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
         // Get struct size
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
@@ -515,7 +496,7 @@ impl Arena {
     }
 
     /// Insert a struct from template into a specific frame (for function parameters).
-    pub fn insert_struct_from_template_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
+    pub fn insert_struct_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
         // Get struct size
         let struct_size = ctx.get_type_size(custom_type_name)?;
 
@@ -557,60 +538,9 @@ impl Arena {
         Ok(())
     }
 
-    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, defaults: &HashMap<String, String>, e: &Expr) -> Result<(), String> {
-        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, defaults, e)?;
-        for (name, offset) in result.arena_mappings {
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(name, offset);
-        }
-        for (name, symbol) in result.symbols {
-            ctx.scope_stack.declare_symbol(name, symbol);
-        }
-        Ok(())
-    }
-
-    pub fn insert_struct_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, defaults: &HashMap<String, String>, e: &Expr) -> Result<(), String> {
-        // Temporarily push frame so symbol lookups work in core function
-        let empty_frame = ScopeFrame {
-            arena_index: std::collections::HashMap::new(),
-            symbols: std::collections::HashMap::new(),
-            funcs: std::collections::HashMap::new(),
-            enums: std::collections::HashMap::new(),
-            structs: std::collections::HashMap::new(),
-            scope_type: ScopeType::Function,
-        };
-        let taken_frame = std::mem::replace(frame, empty_frame);
-        ctx.scope_stack.frames.push(taken_frame);
-
-        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, defaults, e);
-
-        // Pop frame back
-        *frame = ctx.scope_stack.frames.pop().unwrap();
-
-        // Now apply results to the frame
-        let result = result?;
-        for (name, offset) in result.arena_mappings {
-            frame.arena_index.insert(name, offset);
-        }
-        for (name, symbol) in result.symbols {
-            frame.symbols.insert(name, symbol);
-        }
-        Ok(())
-    }
-
     /// Core logic for insert_string - returns Some((string_offset_bytes, len_bytes)) if caller needs to create struct, None if already handled
     fn insert_string_core(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<Option<([u8; 8], [u8; 8])>, String> {
-        let is_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                match &sym.value_type {
-                    ValueType::TType(_) => false,
-                    _ => true
-                }
-            })
-        } else {
-            false
-        };
+        let is_field = Self::is_instance_field(ctx, id);
 
         // Allocate string data
         let string_offset = Arena::g().memory.len();
@@ -686,7 +616,7 @@ impl Arena {
             let template_offset = Arena::g().default_instances.get("Str")
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_string", "Str template not found - ensure str.til is imported"))?;
-            Arena::insert_struct_from_template(ctx, id, "Str", template_offset, e)?;
+            Arena::insert_struct(ctx, id, "Str", template_offset, e)?;
             let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
@@ -703,7 +633,7 @@ impl Arena {
             let template_offset = Arena::g().default_instances.get("Str")
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported"))?;
-            Arena::insert_struct_from_template_into_frame(ctx, frame, id, "Str", template_offset, e)?;
+            Arena::insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)?;
             let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
@@ -749,21 +679,7 @@ impl Arena {
             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
         let stored = if bool_to_insert { 1 } else { 0 };
 
-        // Check if this is an assignment to an existing instance field
-        let is_instance_field = if id.contains('.') {
-            let parts: Vec<&str> = id.split('.').collect();
-            let base = parts[0];
-            ctx.scope_stack.lookup_symbol(base).map_or(false, |sym| {
-                match &sym.value_type {
-                    ValueType::TType(_) => false,
-                    _ => true
-                }
-            })
-        } else {
-            false
-        };
-
-        if is_instance_field {
+        if Self::is_instance_field(ctx, id) {
             // For instance field, write directly to the .data field
             let field_id = format!("{}.data", id);
             let offset = ctx.scope_stack.lookup_var(&field_id)
@@ -782,7 +698,7 @@ impl Arena {
             let template_offset = Arena::g().default_instances.get("Bool")
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool", "Bool template not found - ensure bool.til is imported"))?;
-            Arena::insert_struct_from_template(ctx, id, "Bool", template_offset, e)?;
+            Arena::insert_struct(ctx, id, "Bool", template_offset, e)?;
             let field_id = format!("{}.data", id);
             let offset = ctx.scope_stack.lookup_var(&field_id)
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
@@ -797,7 +713,7 @@ impl Arena {
             let template_offset = Arena::g().default_instances.get("Bool")
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool_into_frame", "Bool template not found - ensure bool.til is imported"))?;
-            Arena::insert_struct_from_template_into_frame(ctx, frame, id, "Bool", template_offset, e)?;
+            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", template_offset, e)?;
             let field_id = format!("{}.data", id);
             let offset = frame.arena_index.get(&field_id)
                 .copied()
