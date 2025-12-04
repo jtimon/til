@@ -268,7 +268,7 @@ impl Arena {
     }
 
     /// Core logic for insert_struct - does all the work but returns mappings instead of inserting them
-    fn insert_struct_core(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, e: &Expr) -> Result<StructInsertResult, String> {
+    fn insert_struct_core(ctx: &mut Context, id: &str, custom_type_name: &str, existing_offset: Option<usize>, defaults: &HashMap<String, String>, e: &Expr) -> Result<StructInsertResult, String> {
         let mut result = StructInsertResult {
             arena_mappings: Vec::new(),
             symbols: Vec::new(),
@@ -321,16 +321,9 @@ impl Arena {
                 None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing field offset for '{}'", decl.name))),
             };
 
-            let default_expr = struct_def.default_values.get(&decl.name);
-            let default_value = match default_expr {
-                Some(e2) => {
-                    let res = eval_expr(ctx, e2)?;
-                    if res.is_throw {
-                        return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Thrown '{}' while evaluating default value for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
-                    }
-                    res.value
-                },
-                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing default value for field '{}'", decl.name))),
+            let default_value = match defaults.get(&decl.name) {
+                Some(v) => v.clone(),
+                None => return Err(e.lang_error(&ctx.path, "context", &format!("insert_struct: Missing pre-evaluated default for field '{}'", decl.name))),
             };
 
             match &decl.value_type {
@@ -389,7 +382,12 @@ impl Arena {
                                         result.arena_mappings.push((combined_name.clone(), field_arena_offset));
                                         // Need to temporarily insert for recursive call to work
                                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
-                                        let nested_result = Arena::insert_struct_core(ctx, &combined_name, type_name, Some(field_arena_offset), e)
+                                        // Extract nested defaults (field.subfield -> subfield)
+                                        let prefix = format!("{}.", decl.name);
+                                        let nested_defaults: HashMap<String, String> = defaults.iter()
+                                            .filter_map(|(k, v)| k.strip_prefix(&prefix).map(|rest| (rest.to_string(), v.clone())))
+                                            .collect();
+                                        let nested_result = Arena::insert_struct_core(ctx, &combined_name, type_name, Some(field_arena_offset), &nested_defaults, e)
                                             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("insert_struct: Failed to initialize nested struct '{}.{}'", id, decl.name)))?;
                                         // Collect nested mappings (but they're already inserted by the temp inserts above)
                                         result.arena_mappings.extend(nested_result.arena_mappings);
@@ -422,8 +420,8 @@ impl Arena {
         Ok(result)
     }
 
-    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
-        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, e)?;
+    pub fn insert_struct(ctx: &mut Context, id: &str, custom_type_name: &str, defaults: &HashMap<String, String>, e: &Expr) -> Result<(), String> {
+        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, defaults, e)?;
         for (name, offset) in result.arena_mappings {
             ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(name, offset);
         }
@@ -433,7 +431,7 @@ impl Arena {
         Ok(())
     }
 
-    pub fn insert_struct_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, e: &Expr) -> Result<(), String> {
+    pub fn insert_struct_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, defaults: &HashMap<String, String>, e: &Expr) -> Result<(), String> {
         // Temporarily push frame so symbol lookups work in core function
         let empty_frame = ScopeFrame {
             arena_index: std::collections::HashMap::new(),
@@ -446,7 +444,7 @@ impl Arena {
         let taken_frame = std::mem::replace(frame, empty_frame);
         ctx.scope_stack.frames.push(taken_frame);
 
-        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, e);
+        let result = Arena::insert_struct_core(ctx, id, custom_type_name, None, defaults, e);
 
         // Pop frame back
         *frame = ctx.scope_stack.frames.pop().unwrap();
@@ -547,7 +545,13 @@ impl Arena {
 
     pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
-            Arena::insert_struct(ctx, id, "Str", e)?;
+            // SPECIAL CASE: Str is a built-in type with simple literal defaults.
+            // We inline them here to avoid calling eval_struct_defaults from within Arena.
+            // If Str struct changes, update these defaults!
+            let mut str_defaults = HashMap::new();
+            str_defaults.insert("c_string".to_string(), "0".to_string());
+            str_defaults.insert("cap".to_string(), "0".to_string());
+            Arena::insert_struct(ctx, id, "Str", &str_defaults, e)?;
             let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
@@ -560,7 +564,13 @@ impl Arena {
 
     pub fn insert_string_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
-            Arena::insert_struct_into_frame(ctx, frame, id, "Str", e)?;
+            // SPECIAL CASE: Str is a built-in type with simple literal defaults.
+            // We inline them here to avoid calling eval_struct_defaults from within Arena.
+            // If Str struct changes, update these defaults!
+            let mut str_defaults = HashMap::new();
+            str_defaults.insert("c_string".to_string(), "0".to_string());
+            str_defaults.insert("cap".to_string(), "0".to_string());
+            Arena::insert_struct_into_frame(ctx, frame, id, "Str", &str_defaults, e)?;
             let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
@@ -635,7 +645,12 @@ impl Arena {
     // Helper function to insert a Bool value using insert_struct
     pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            Arena::insert_struct(ctx, id, "Bool", e)?;
+            // SPECIAL CASE: Bool is a built-in type with simple literal defaults.
+            // We inline them here to avoid calling eval_struct_defaults from within Arena.
+            // If Bool struct changes, update these defaults!
+            let mut bool_defaults = HashMap::new();
+            bool_defaults.insert("data".to_string(), "0".to_string());
+            Arena::insert_struct(ctx, id, "Bool", &bool_defaults, e)?;
             let field_id = format!("{}.data", id);
             let offset = ctx.scope_stack.lookup_var(&field_id)
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
@@ -646,7 +661,12 @@ impl Arena {
 
     pub fn insert_bool_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", e)?;
+            // SPECIAL CASE: Bool is a built-in type with simple literal defaults.
+            // We inline them here to avoid calling eval_struct_defaults from within Arena.
+            // If Bool struct changes, update these defaults!
+            let mut bool_defaults = HashMap::new();
+            bool_defaults.insert("data".to_string(), "0".to_string());
+            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", &bool_defaults, e)?;
             let field_id = format!("{}.data", id);
             let offset = frame.arena_index.get(&field_id)
                 .copied()
@@ -920,8 +940,19 @@ impl Arena {
         // All array types now use the generic Array
         let array_type = "Array".to_string();
 
+        // SPECIAL CASE: Array is a built-in type with known defaults.
+        // We inline them here to avoid calling eval_struct_defaults from within Arena.
+        // Array has: type_name (Str), type_size (I64), ptr (I64), _len (I64)
+        let mut array_defaults = HashMap::new();
+        array_defaults.insert("type_name".to_string(), "".to_string());
+        array_defaults.insert("type_name.c_string".to_string(), "0".to_string());
+        array_defaults.insert("type_name.cap".to_string(), "0".to_string());
+        array_defaults.insert("type_size".to_string(), "0".to_string());
+        array_defaults.insert("ptr".to_string(), "0".to_string());
+        array_defaults.insert("_len".to_string(), "0".to_string());
+
         // Get struct mappings (don't insert yet)
-        let struct_result = Self::insert_struct_core(ctx, name, &array_type, None, e)?;
+        let struct_result = Self::insert_struct_core(ctx, name, &array_type, None, &array_defaults, e)?;
         let mut mappings = struct_result.arena_mappings;
 
         // Helper to find offset from mappings
@@ -978,7 +1009,11 @@ impl Arena {
                         });
                         // For Str elements: call insert_string_core for data, insert_struct_core for Str struct
                         if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, val, e)? {
-                            let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, e)?;
+                            // SPECIAL CASE: Str defaults inlined (see insert_string)
+                            let mut str_defaults = HashMap::new();
+                            str_defaults.insert("c_string".to_string(), "0".to_string());
+                            str_defaults.insert("cap".to_string(), "0".to_string());
+                            let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, &str_defaults, e)?;
                             let c_string_offset = str_struct_result.arena_mappings.iter()
                                 .find(|(k, _)| k == &format!("{}.c_string", temp_id))
                                 .map(|(_, v)| *v)
@@ -1038,7 +1073,11 @@ impl Arena {
                     is_own: false,
                 });
                 if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, &elem_type.to_string(), e)? {
-                    let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, e)?;
+                    // SPECIAL CASE: Str defaults inlined (see insert_string)
+                    let mut str_defaults = HashMap::new();
+                    str_defaults.insert("c_string".to_string(), "0".to_string());
+                    str_defaults.insert("cap".to_string(), "0".to_string());
+                    let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, &str_defaults, e)?;
                     let c_string_offset = str_struct_result.arena_mappings.iter()
                         .find(|(k, _)| k == &format!("{}.c_string", temp_id))
                         .map(|(_, v)| *v)
@@ -1201,6 +1240,44 @@ fn validate_func_arg_count(path: &str, e: &Expr, name: &str, func_def: &SFuncDef
     }
 
     Ok(())
+}
+
+/// Pre-evaluate all default values for a struct type, including nested structs.
+/// Returns a map from field name (with dotted paths for nested) to evaluated string value.
+fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<HashMap<String, String>, String> {
+    let struct_def = match ctx.scope_stack.lookup_struct(struct_type) {
+        Some(def) => def.clone(),
+        None => return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("struct '{}' not found", struct_type))),
+    };
+
+    let mut defaults = HashMap::new();
+    for decl in struct_def.members.iter() {
+        if decl.is_mut {
+            if let Some(default_expr) = struct_def.default_values.get(&decl.name) {
+                let res = eval_expr(ctx, default_expr)?;
+                if res.is_throw {
+                    return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("thrown '{}' while evaluating default for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
+                }
+                defaults.insert(decl.name.clone(), res.value);
+
+                // Handle nested structs recursively
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    // Skip primitives, enums, and Str (handled specially)
+                    if type_name != "U8" && type_name != "I64" && type_name != "Str" {
+                        if ctx.scope_stack.lookup_enum(type_name).is_none() {
+                            if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                                let nested = eval_struct_defaults(ctx, type_name, e)?;
+                                for (k, v) in nested {
+                                    defaults.insert(format!("{}.{}", decl.name, k), v);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(defaults)
 }
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -1411,7 +1488,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 );
 
                                                 // Allocate destination struct in arena
-                                                Arena::insert_struct(context, binding_var, type_name, &case)?;
+                                                let defaults = eval_struct_defaults(context, type_name, &case)?;
+                                                Arena::insert_struct(context, binding_var, type_name, &defaults, &case)?;
 
                                                 // Get destination offset
                                                 let dest_offset = context.scope_stack.lookup_var(binding_var).ok_or_else(|| {
@@ -1618,7 +1696,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 NodeType::Identifier(s) => s,
                 _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
             };
-            Arena::insert_struct(context, &id_name, &name, e)?;
+            let defaults = eval_struct_defaults(context, &name, e)?;
+            Arena::insert_struct(context, &id_name, &name, &defaults, e)?;
             // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
             return Ok(EvalResult::new(match id_name.as_str() {
                 "Bool" => "false",
@@ -2017,7 +2096,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
                                     if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
-                                        Arena::insert_struct(context, &declaration.name, custom_type_name, e)?;
+                                        let defaults = eval_struct_defaults(context, custom_type_name, e)?;
+                                        Arena::insert_struct(context, &declaration.name, custom_type_name, &defaults, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
                                 }
@@ -2037,7 +2117,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 
                         if declaration.is_mut && !is_temp_return_val {
                             // Allocate space and copy fields for mut declaration (independent copy)
-                            Arena::insert_struct(context, &declaration.name, custom_type_name, e)?;
+                            let defaults = eval_struct_defaults(context, custom_type_name, e)?;
+                            Arena::insert_struct(context, &declaration.name, custom_type_name, &defaults, e)?;
                             Arena::copy_fields(context, custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
@@ -2973,7 +3054,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
                                             // For copy parameters, allocate and copy
-                                            Arena::insert_struct_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
+                                            let defaults = eval_struct_defaults(context, &custom_type_name, e)?;
+                                            Arena::insert_struct_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, &defaults, e)?;
 
                                             // Push frame temporarily for copy_fields (needs dest accessible)
                                             context.scope_stack.frames.push(function_frame);
@@ -3033,7 +3115,8 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                        Arena::insert_struct_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
+                                        let defaults = eval_struct_defaults(context, &custom_type_name, e)?;
+                                        Arena::insert_struct_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, &defaults, e)?;
 
                                         // Push frame temporarily for copy_fields
                                         context.scope_stack.frames.push(function_frame);
