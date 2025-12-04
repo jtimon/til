@@ -53,7 +53,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
-            Arena::get_field_offset(ctx, id).map_err(|err| {
+            ctx.get_field_offset( id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_u8: {}", err))
             })?
         } else {
@@ -70,7 +70,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // For field paths, calculate offset dynamically
-            Arena::get_field_offset(ctx, id).map_err(|err| {
+            ctx.get_field_offset( id).map_err(|err| {
                 e.lang_error(&ctx.path, "context", &format!("get_i64: {}", err))
             })?
         } else {
@@ -111,7 +111,7 @@ impl Arena {
                 offset
             } else {
                 // Calculate offset from struct definition
-                Arena::get_field_offset(ctx, id).map_err(|err| {
+                ctx.get_field_offset( id).map_err(|err| {
                     e.lang_error(&ctx.path, "context", &format!("insert_i64: {}", err))
                 })?
             };
@@ -171,7 +171,7 @@ impl Arena {
                 offset
             } else {
                 // Calculate offset from struct definition
-                Arena::get_field_offset(ctx, id).map_err(|err| {
+                ctx.get_field_offset( id).map_err(|err| {
                     e.lang_error(&ctx.path, "context", &format!("insert_u8: {}", err))
                 })?
             };
@@ -198,168 +198,6 @@ impl Arena {
         Ok(())
     }
 
-    pub fn get_type_size(ctx: &Context, type_name: &str) -> Result<usize, String> {
-        match type_name {
-            "U8"   => return Ok(1),
-            "I64"  => return Ok(8),
-            _ => {},
-        }
-        if let Some(enum_def) = ctx.scope_stack.lookup_enum(type_name) {
-            // Calculate maximum variant size (8 bytes for tag + largest payload)
-            let mut max_size = 8; // Start with tag size
-
-            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
-                if let Some(payload_type) = payload_type_opt {
-                    let payload_size = match payload_type {
-                        ValueType::TCustom(t) => Arena::get_type_size(ctx, t)?,
-                        _ => {
-                            return Err(format!(
-                                "get_type_size: unsupported payload type in enum '{}': {:?}",
-                                type_name, payload_type
-                            ));
-                        }
-                    };
-                    let variant_total = 8 + payload_size; // tag + payload
-                    if variant_total > max_size {
-                        max_size = variant_total;
-                    }
-                }
-            }
-
-            return Ok(max_size);
-        }
-
-        if let Some(struct_def) = ctx.scope_stack.lookup_struct(type_name) {
-            // Check if struct has size() method (associated function)
-            // If it does, ideally we'd use TIL's implementation, but we need an instance
-            let has_size = struct_def.get_member("size")
-                .map(|decl| !decl.is_mut)
-                .unwrap_or(false);
-
-            if has_size {
-                // TODO: Type has size() method - ideally call TIL's implementation
-                // But get_type_size() asks for type's struct size (for field offsets),
-                // while instance.size() returns data size (which varies per instance)
-                // For now, fall through to calculate struct field size
-                // Consider: should we even be using get_type_size for collection types?
-            }
-
-            // Fallback: Calculate size of struct's fields manually
-            let mut total_size = 0;
-
-            for decl in &struct_def.members {
-                if decl.is_mut {
-                    let field_size = match &decl.value_type {
-                        ValueType::TCustom(t) => {
-                            Arena::get_type_size(ctx, t)?
-                        }
-                        _ => {
-                            return Err(format!(
-                                "get_type_size: unsupported value type '{}' in '{}.{}'",
-                                value_type_to_str(&decl.value_type),
-                                type_name,
-                                decl.name
-                            ));
-                        }
-                    };
-
-                    total_size += field_size;
-                }
-            }
-
-            Ok(total_size)
-        } else {
-            Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
-        }
-    }
-
-    /// Calculate the offset of a specific field within a struct type
-    /// This walks through the struct definition and sums up field sizes until reaching the target field
-    pub fn calculate_field_offset(ctx: &Context, struct_type: &str, field_name: &str) -> Result<usize, String> {
-        let struct_def = ctx.scope_stack.lookup_struct(struct_type)
-            .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
-
-        let mut current_offset = 0;
-
-        for decl in &struct_def.members {
-            if decl.is_mut {
-                // If we found the target field, return its offset
-                if decl.name == field_name {
-                    return Ok(current_offset);
-                }
-
-                // Otherwise, add this field's size and continue
-                let field_size = match &decl.value_type {
-                    ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
-                    _ => return Err(format!(
-                        "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
-                        value_type_to_str(&decl.value_type), struct_type, decl.name
-                    )),
-                };
-
-                current_offset += field_size;
-            }
-        }
-
-        Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
-    }
-
-    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
-    /// Handles nested field access by walking the path and calculating offsets dynamically
-    pub fn get_field_offset(ctx: &Context, field_path: &str) -> Result<usize, String> {
-        let parts: Vec<&str> = field_path.split('.').collect();
-        if parts.is_empty() {
-            return Err(format!("get_field_offset: empty field path"));
-        }
-
-        // Start with the base variable's offset
-        let base_var = parts[0];
-        let mut current_offset = ctx.scope_stack.lookup_var(base_var)
-            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
-
-        // Get the base variable's type
-        let mut current_type = match ctx.scope_stack.lookup_symbol(base_var) {
-            Some(symbol) => match &symbol.value_type {
-                ValueType::TCustom(type_name) => type_name.clone(),
-                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
-            },
-            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
-        };
-
-        // Walk through the remaining parts of the path
-        let mut should_continue_path = true;
-        for field_name in &parts[1..] {
-            if should_continue_path {
-                // Calculate the offset of this field within the current struct type
-                let field_offset = Arena::calculate_field_offset(ctx, &current_type, field_name)?;
-                current_offset += field_offset;
-
-                // Update current_type to the type of this field (for nested access)
-                let struct_def = ctx.scope_stack.lookup_struct(&current_type)
-                    .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
-
-                let field_decl = struct_def.members.iter()
-                    .find(|decl| decl.name == *field_name)
-                    .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
-
-                current_type = match &field_decl.value_type {
-                    ValueType::TCustom(type_name) => type_name.clone(),
-                    _ => {
-                        // If this is the last part and it's a primitive, that's fine
-                        if field_name == parts.last().unwrap() {
-                            should_continue_path = false;
-                            String::new() // dummy value since we're done
-                        } else {
-                            return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
-                        }
-                    }
-                };
-            }
-        }
-
-        Ok(current_offset)
-    }
-
     // TODO all args should be passed as pointers/references and we wouldn't need this
     pub fn copy_fields(ctx: &mut Context, custom_type_name: &str, src: &str, dest: &str, e: &Expr) -> Result<(), String> {
         let struct_def = ctx.scope_stack.lookup_struct(custom_type_name)
@@ -378,7 +216,7 @@ impl Arena {
         for decl in members {
             if decl.is_mut {
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => Arena::get_type_size(ctx, name)?,
+                    ValueType::TCustom(name) => ctx.get_type_size( name)?,
                     _ => return Err(e.lang_error(&ctx.path, "context", &format!("copy_fields: unsupported field type '{}'", value_type_to_str(&decl.value_type)))),
                 };
 
@@ -390,7 +228,7 @@ impl Arena {
                     Some(offset)
                 } else {
                     // Calculate offset dynamically from struct definition
-                    match Arena::get_field_offset(ctx, &src_key) {
+                    match ctx.get_field_offset( &src_key) {
                         Ok(offset) => Some(offset),
                         Err(_) => {
                             // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
@@ -455,7 +293,7 @@ impl Arena {
         for decl in struct_def.members.iter() {
             if decl.is_mut {
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(type_name) => Arena::get_type_size(ctx, type_name)?,
+                    ValueType::TCustom(type_name) => ctx.get_type_size( type_name)?,
                     _ => return Err(e.lang_error(&ctx.path, "context", "insert_struct: Unsupported value type in struct")),
                 };
 
@@ -654,7 +492,7 @@ impl Arena {
 
                     for decl in members.iter() {
                         if decl.is_mut {
-                            let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                            let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
                             let absolute_offset = base_offset + current_offset;
                             let target_slice = &mut Arena::g().memory[absolute_offset..absolute_offset + type_size];
 
@@ -681,7 +519,7 @@ impl Arena {
 
                 for decl in members.iter() {
                     if decl.is_mut {
-                        let type_size = Arena::get_type_size(ctx, &value_type_to_str(&decl.value_type))?;
+                        let type_size = ctx.get_type_size( &value_type_to_str(&decl.value_type))?;
                         if Arena::g().memory.len() < struct_offset + current_offset + type_size {
                             Arena::g().memory.resize(struct_offset + current_offset + type_size, 0);
                         }
@@ -868,7 +706,7 @@ impl Arena {
                     Some(type_symbol) => {
                         match &type_symbol.value_type {
                             ValueType::TType(TTypeDef::TStructDef) => {
-                                Arena::get_type_size(ctx, type_name).map_err(|e| e.to_string())
+                                ctx.get_type_size( type_name).map_err(|e| e.to_string())
                             },
                             ValueType::TType(TTypeDef::TEnumDef) => {
                                 // Recursively get the inner enum's size
@@ -904,7 +742,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // Field path - calculate offset dynamically
-            Arena::get_field_offset(ctx, id)
+            ctx.get_field_offset( id)
                 .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
         } else {
             return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))
@@ -938,7 +776,7 @@ impl Arena {
                                 match &type_symbol.value_type {
                                     ValueType::TType(TTypeDef::TStructDef) => {
                                         // Get struct size
-                                        Arena::get_type_size(ctx, type_name).unwrap_or(0)
+                                        ctx.get_type_size( type_name).unwrap_or(0)
                                     },
                                     ValueType::TType(TTypeDef::TEnumDef) => {
                                         // For enum payloads, recursively get the enum to determine size
@@ -1092,7 +930,7 @@ impl Arena {
         };
 
         let len = values.len() as i64;
-        let elem_size = match Arena::get_type_size(ctx, elem_type) {
+        let elem_size = match ctx.get_type_size( elem_type) {
             Ok(sz) => sz,
             Err(err) => return Err(e.lang_error(&ctx.path, "context", &err)),
         };
@@ -1216,7 +1054,7 @@ impl Arena {
                         .find(|(k, _)| k == &temp_id)
                         .map(|(_, v)| *v)
                         .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
-                    let str_size = Arena::get_type_size(ctx, "Str")?;
+                    let str_size = ctx.get_type_size( "Str")?;
                     Arena::g().memory[type_name_offset..type_name_offset + str_size]
                         .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
                     mappings.extend(str_struct_result.arena_mappings);
@@ -1581,7 +1419,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 })?;
 
                                                 // Validate payload size
-                                                let struct_size = Arena::get_type_size(&context, type_name)
+                                                let struct_size = context.get_type_size( type_name)
                                                     .map_err(|err| case.error(&context.path, "eval", &err))?;
                                                 if payload_bytes.len() != struct_size {
                                                     return Err(case.error(&context.path, "eval", &format!(
@@ -1836,7 +1674,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                             match &type_symbol.value_type {
                                 ValueType::TType(TTypeDef::TStructDef) => {
                                     // Get struct size
-                                    let struct_size = Arena::get_type_size(&context, struct_type_name)
+                                    let struct_size = context.get_type_size( struct_type_name)
                                         .map_err(|err| e.error(&context.path, "eval", &err))?;
 
                                     // Get struct variable name from the original expression or create temporary for literals
@@ -3087,7 +2925,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                 offset
                                             } else if id_.contains('.') {
                                                 // Field path - calculate offset dynamically
-                                                Arena::get_field_offset(context, id_)
+                                                context.get_field_offset( id_)
                                                     .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-reference: {}", err)))?
                                             } else {
                                                 return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))
@@ -3173,7 +3011,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                                     offset
                                                 } else if id_.contains('.') {
                                                     // Field path - calculate offset dynamically
-                                                    Arena::get_field_offset(context, id_)
+                                                    context.get_field_offset( id_)
                                                         .map_err(|err| e.lang_error(&context.path, "eval", &format!("Pass-by-copy: {}", err)))?
                                                 } else {
                                                     return Err(e.lang_error(&context.path, "eval", &format!("Source struct '{}' not found in caller context arena_index", id_)))

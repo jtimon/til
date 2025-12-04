@@ -1076,7 +1076,6 @@ impl Context {
     }
 
     pub fn map_instance_fields(&mut self, custom_type_name: &str, instance_name: &str, e: &Expr) -> Result<(), String> {
-        use crate::rs::interpreter::Arena;
         let struct_def = self.scope_stack.lookup_struct(custom_type_name)
             .ok_or_else(|| e.lang_error(&self.path, "context", &format!("map_instance_fields: definition for '{}' not found", custom_type_name)))?;
 
@@ -1115,7 +1114,7 @@ impl Context {
                 }
 
                 let field_size = match &decl.value_type {
-                    ValueType::TCustom(name) => Arena::get_type_size(self, name)?,
+                    ValueType::TCustom(name) => self.get_type_size(name)?,
                     _ => return Err(e.lang_error(&self.path, "context", &format!(
                         "map_instance_fields: Unsupported value type '{}'", value_type_to_str(&decl.value_type)
                     ))),
@@ -1129,14 +1128,13 @@ impl Context {
     }
 
     pub fn get_struct(&self, id: &str, e: &Expr) -> Result<String, String> {
-        use crate::rs::interpreter::Arena;
         // Validate that the struct variable exists by checking if we can get its offset
         if self.scope_stack.lookup_var(id).is_some() {
             // Direct variable lookup succeeded
             Ok(id.to_string())
         } else if id.contains('.') {
             // For field paths, validate we can calculate offset
-            Arena::get_field_offset(self, id).map_err(|err| {
+            self.get_field_offset(id).map_err(|err| {
                 e.lang_error(&self.path, "context", &format!("get_struct: {}", err))
             })?;
             Ok(id.to_string())
@@ -1190,6 +1188,157 @@ impl Context {
         self.path = saved_path;
         self.scope_stack.pop()?;
         Ok(())
+    }
+
+    /// Get the size of a type in bytes
+    pub fn get_type_size(&self, type_name: &str) -> Result<usize, String> {
+        match type_name {
+            "U8"   => return Ok(1),
+            "I64"  => return Ok(8),
+            _ => {},
+        }
+        if let Some(enum_def) = self.scope_stack.lookup_enum(type_name) {
+            // Calculate maximum variant size (8 bytes for tag + largest payload)
+            let mut max_size = 8; // Start with tag size
+
+            for (_variant_name, payload_type_opt) in &enum_def.enum_map {
+                if let Some(payload_type) = payload_type_opt {
+                    let payload_size = match payload_type {
+                        ValueType::TCustom(t) => self.get_type_size(t)?,
+                        _ => {
+                            return Err(format!(
+                                "get_type_size: unsupported payload type in enum '{}': {:?}",
+                                type_name, payload_type
+                            ));
+                        }
+                    };
+                    let variant_total = 8 + payload_size; // tag + payload
+                    if variant_total > max_size {
+                        max_size = variant_total;
+                    }
+                }
+            }
+
+            return Ok(max_size);
+        }
+
+        if let Some(struct_def) = self.scope_stack.lookup_struct(type_name) {
+            // Check if struct has size() method (associated function)
+            let has_size = struct_def.get_member("size")
+                .map(|decl| !decl.is_mut)
+                .unwrap_or(false);
+
+            if has_size {
+                // TODO: Type has size() method - ideally call TIL's implementation
+                // But get_type_size() asks for type's struct size (for field offsets),
+                // while instance.size() returns data size (which varies per instance)
+                // For now, fall through to calculate struct field size
+            }
+
+            // Fallback: Calculate size of struct's fields manually
+            let mut total_size = 0;
+
+            for decl in &struct_def.members {
+                if decl.is_mut {
+                    let field_size = match &decl.value_type {
+                        ValueType::TCustom(t) => {
+                            self.get_type_size(t)?
+                        }
+                        _ => {
+                            return Err(format!(
+                                "get_type_size: unsupported value type '{}' in '{}.{}'",
+                                value_type_to_str(&decl.value_type),
+                                type_name,
+                                decl.name
+                            ));
+                        }
+                    };
+
+                    total_size += field_size;
+                }
+            }
+
+            Ok(total_size)
+        } else {
+            Err(format!("get_type_size: type '{}' not found in struct or enum defs", type_name))
+        }
+    }
+
+    /// Calculate the offset of a specific field within a struct type
+    pub fn calculate_field_offset(&self, struct_type: &str, field_name: &str) -> Result<usize, String> {
+        let struct_def = self.scope_stack.lookup_struct(struct_type)
+            .ok_or_else(|| format!("calculate_field_offset: struct '{}' not found", struct_type))?;
+
+        let mut current_offset = 0;
+
+        for decl in &struct_def.members {
+            if decl.is_mut {
+                if decl.name == field_name {
+                    return Ok(current_offset);
+                }
+
+                let field_size = match &decl.value_type {
+                    ValueType::TCustom(type_name) => self.get_type_size(type_name)?,
+                    _ => return Err(format!(
+                        "calculate_field_offset: unsupported field type '{}' in '{}.{}'",
+                        value_type_to_str(&decl.value_type), struct_type, decl.name
+                    )),
+                };
+
+                current_offset += field_size;
+            }
+        }
+
+        Err(format!("calculate_field_offset: field '{}' not found in struct '{}'", field_name, struct_type))
+    }
+
+    /// Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    pub fn get_field_offset(&self, field_path: &str) -> Result<usize, String> {
+        let parts: Vec<&str> = field_path.split('.').collect();
+        if parts.is_empty() {
+            return Err(format!("get_field_offset: empty field path"));
+        }
+
+        let base_var = parts[0];
+        let mut current_offset = self.scope_stack.lookup_var(base_var)
+            .ok_or_else(|| format!("get_field_offset: base variable '{}' not found in arena_index", base_var))?;
+
+        let mut current_type = match self.scope_stack.lookup_symbol(base_var) {
+            Some(symbol) => match &symbol.value_type {
+                ValueType::TCustom(type_name) => type_name.clone(),
+                _ => return Err(format!("get_field_offset: base variable '{}' is not a struct", base_var)),
+            },
+            None => return Err(format!("get_field_offset: base variable '{}' not found in symbols", base_var)),
+        };
+
+        let mut should_continue_path = true;
+        for field_name in &parts[1..] {
+            if should_continue_path {
+                let field_offset = self.calculate_field_offset(&current_type, field_name)?;
+                current_offset += field_offset;
+
+                let struct_def = self.scope_stack.lookup_struct(&current_type)
+                    .ok_or_else(|| format!("get_field_offset: struct '{}' not found", current_type))?;
+
+                let field_decl = struct_def.members.iter()
+                    .find(|decl| decl.name == *field_name)
+                    .ok_or_else(|| format!("get_field_offset: field '{}' not found in struct '{}'", field_name, current_type))?;
+
+                current_type = match &field_decl.value_type {
+                    ValueType::TCustom(type_name) => type_name.clone(),
+                    _ => {
+                        if field_name == parts.last().unwrap() {
+                            should_continue_path = false;
+                            String::new()
+                        } else {
+                            return Err(format!("get_field_offset: field '{}' in '{}' is not a struct, cannot continue path", field_name, current_type));
+                        }
+                    }
+                };
+            }
+        }
+
+        Ok(current_offset)
     }
 }
 

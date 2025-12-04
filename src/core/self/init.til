@@ -8,22 +8,6 @@ import("src.core.set")
 // Unix path separator (Windows not supported in TIL)
 MAIN_SEPARATOR_STR := "/"
 
-// TODO: These should be implemented in interpreter.til once it's translated
-// For now, placeholders that always throw (and return dummy to satisfy type checker)
-Arena_get_type_size := func(context: Context, type_name: Str) returns I64 throws Str {
-    if true {
-        throw format("Arena_get_type_size not implemented: ", type_name)
-    }
-    return 0
-}
-
-Arena_get_field_offset := func(context: Context, field_path: Str) returns I64 throws Str {
-    if true {
-        throw format("Arena_get_field_offset not implemented: ", field_path)
-    }
-    return 0
-}
-
 // Init phase: Declaration indexing and import processing
 // This module handles the "context priming" phase that runs before type checking.
 // No eval, no arena access - declarations only.
@@ -1898,7 +1882,7 @@ Context := struct {
                 mut field_size := 0
                 switch decl.value_type {
                 case ValueType.TCustom(name):
-                    field_size = Arena_get_type_size(self, name)
+                    field_size = self.get_type_size(name)
                     // Errors propagate via throws Str
                 case:
                     throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
@@ -1935,13 +1919,238 @@ Context := struct {
         }
         if id.contains(".") {
             # For field paths, validate we can calculate offset
-            _ := Arena_get_field_offset(self, id)
+            _ := self.get_field_offset(id)
             catch (err: Str) {
                 throw e.lang_error(self.path, "context", format("get_struct: ", err))
             }
             return id
         }
         throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
+    }
+
+    // Get the size of a type in bytes
+    get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
+        if type_name.eq("U8") {
+            return 1
+        }
+        if type_name.eq("I64") {
+            return 8
+        }
+
+        // Check if it's an enum
+        mut found_enum := false
+        mut enum_def := SEnumDef()
+        enum_def = self.scope_stack.lookup_enum(type_name)
+        found_enum = true
+        catch (err: KeyNotFoundError) {
+            // Not an enum
+        }
+
+        if found_enum {
+            // Calculate maximum variant size (8 bytes for tag + largest payload)
+            mut max_size := 8  // Start with tag size
+
+            mut keys := enum_def.enum_map.keys
+            mut i := 0
+            while i.lt(keys.len()) {
+                mut variant_name := ""
+                keys.get(i, variant_name)
+                mut payload_type := ValueType.TCustom("")
+                enum_def.enum_map.get(variant_name, payload_type)
+
+                // Check if payload type has content (not empty string)
+                switch payload_type {
+                case ValueType.TCustom(t):
+                    if not(t.eq("")) {
+                        payload_size := self.get_type_size(t)
+                        variant_total := add(8, payload_size)  // tag + payload
+                        if variant_total.gt(max_size) {
+                            max_size = variant_total
+                        }
+                    }
+                case:
+                    // No payload or unsupported type
+                }
+                i = i.add(1)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                throw format("get_type_size: index error in enum '", type_name, "'")
+            }
+            catch (err: KeyNotFoundError) {
+                throw format("get_type_size: key error in enum '", type_name, "'")
+            }
+
+            return max_size
+        }
+
+        // Check if it's a struct
+        mut found_struct := false
+        mut struct_def := SStructDef()
+        struct_def = self.scope_stack.lookup_struct(type_name)
+        found_struct = true
+        catch (err: KeyNotFoundError) {
+            // Not a struct
+        }
+
+        if found_struct {
+            // Calculate size of struct's fields manually
+            mut total_size := 0
+
+            mut j := 0
+            while j.lt(struct_def.members.len()) {
+                mut decl := Declaration()
+                struct_def.members.get(j, decl)
+
+                if decl.is_mut {
+                    mut field_size := 0
+                    switch decl.value_type {
+                    case ValueType.TCustom(t):
+                        field_size = self.get_type_size(t)
+                    case:
+                        throw format("get_type_size: unsupported value type '", value_type_to_str(decl.value_type), "' in '", type_name, ".", decl.name, "'")
+                    }
+                    total_size = total_size.add(field_size)
+                }
+                j = j.add(1)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                throw format("get_type_size: index error in struct '", type_name, "'")
+            }
+
+            return total_size
+        }
+
+        throw format("get_type_size: type '", type_name, "' not found in struct or enum defs")
+    }
+
+    // Calculate the offset of a specific field within a struct type
+    calculate_field_offset := func(self: Context, struct_type: Str, field_name: Str) returns I64 throws Str {
+        mut struct_def := self.scope_stack.lookup_struct(struct_type)
+        catch (err: KeyNotFoundError) {
+            throw format("calculate_field_offset: struct '", struct_type, "' not found")
+        }
+
+        mut current_offset := 0
+
+        mut i := 0
+        while i.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(i, decl)
+
+            if decl.is_mut {
+                if decl.name.eq(field_name) {
+                    return current_offset
+                }
+
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(t):
+                    field_size = self.get_type_size(t)
+                case:
+                    throw format("calculate_field_offset: unsupported field type '", value_type_to_str(decl.value_type), "' in '", struct_type, ".", decl.name, "'")
+                }
+
+                current_offset = current_offset.add(field_size)
+            }
+            i = i.add(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw format("calculate_field_offset: index error in struct '", struct_type, "'")
+        }
+
+        throw format("calculate_field_offset: field '", field_name, "' not found in struct '", struct_type, "'")
+    }
+
+    // Get the absolute arena offset for a field path (e.g., "my_vec._len")
+    get_field_offset := func(self: Context, field_path: Str) returns I64 throws Str {
+        mut parts := field_path.split(".")
+        catch (err: AllocError) {
+            throw format("get_field_offset: alloc error splitting '", field_path, "'")
+        }
+        if parts.len().eq(0) {
+            throw "get_field_offset: empty field path"
+        }
+
+        mut base_var := ""
+        parts.get(0, base_var)
+        catch (err: IndexOutOfBoundsError) {
+            throw "get_field_offset: empty field path"
+        }
+
+        mut base_ptr := self.scope_stack.lookup_var(base_var)
+        catch (err: KeyNotFoundError) {
+            throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
+        }
+        mut current_offset := base_ptr.data
+
+        // Get the base variable's type
+        mut base_symbol := self.scope_stack.lookup_symbol(base_var)
+        catch (err: KeyNotFoundError) {
+            throw format("get_field_offset: base variable '", base_var, "' not found in symbols")
+        }
+
+        mut current_type := ""
+        switch base_symbol.value_type {
+        case ValueType.TCustom(t):
+            current_type = t
+        case:
+            throw format("get_field_offset: base variable '", base_var, "' is not a struct")
+        }
+
+        // Walk through the remaining parts of the path
+        mut should_continue_path := true
+        mut idx := 1
+        while idx.lt(parts.len()) {
+            if should_continue_path {
+                mut field_name := ""
+                parts.get(idx, field_name)
+
+                field_offset := self.calculate_field_offset(current_type, field_name)
+                current_offset = current_offset.add(field_offset)
+
+                // Update current_type to the type of this field (for nested access)
+                mut struct_def := self.scope_stack.lookup_struct(current_type)
+                catch (err: KeyNotFoundError) {
+                    throw format("get_field_offset: struct '", current_type, "' not found")
+                }
+
+                // Find the field declaration
+                mut field_found := false
+                mut field_decl := Declaration()
+                mut fi := 0
+                while fi.lt(struct_def.members.len()) {
+                    mut decl := Declaration()
+                    struct_def.members.get(fi, decl)
+                    if decl.name.eq(field_name) {
+                        field_decl = decl
+                        field_found = true
+                    }
+                    fi = fi.add(1)
+                }
+                catch (err: IndexOutOfBoundsError) {
+                    throw format("get_field_offset: index error finding field '", field_name, "'")
+                }
+
+                if not(field_found) {
+                    throw format("get_field_offset: field '", field_name, "' not found in struct '", current_type, "'")
+                }
+
+                switch field_decl.value_type {
+                case ValueType.TCustom(t):
+                    current_type = t
+                case:
+                    // If this is the last part and it's a primitive, that's fine
+                    if idx.eq(parts.len().sub(1)) {
+                        should_continue_path = false
+                    } else {
+                        throw format("get_field_offset: field '", field_name, "' in '", current_type, "' is not a struct, cannot continue path")
+                    }
+                }
+            }
+            idx = idx.add(1)
+        }
+
+        return current_offset
     }
 
     register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
