@@ -267,6 +267,58 @@ Map := struct {
         return false
     }
 
+    /** Remove key from map. Does nothing if key doesn't exist. */
+    remove := proc(mut self: Map, key: Dynamic) {
+        mut i := 0
+        mut keys_arr := self.keys
+        while lt(i, self._size) {
+            // Special case for Str keys: compare content, not struct bytes
+            mut keys_match := 0
+            if Str.eq(self.key_type_name, "Str") {
+                // For Str keys, use Str.eq() to compare content
+                mut existing_key := ""
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                memcpy(to_ptr(existing_key), existing_key_ptr, self.key_type_size)
+                mut key_str := ""
+                memcpy(to_ptr(key_str), to_ptr(key), self.key_type_size)
+                if key_str.eq(existing_key) {
+                    keys_match = 0
+                } else {
+                    keys_match = 1
+                }
+            } else {
+                mut existing_key_ptr := add(keys_arr.ptr, mul(i, self.key_type_size))
+                keys_match = memcmp(to_ptr(key), existing_key_ptr, self.key_type_size)
+            }
+
+            if keys_match.eq(0) {
+                // Key found - remove by shifting all subsequent elements down
+                mut j := i
+                while lt(j, sub(self._size, 1)) {
+                    // Shift keys
+                    mut src_key_ptr := add(self.keys.ptr, mul(add(j, 1), self.key_type_size))
+                    mut dst_key_ptr := add(self.keys.ptr, mul(j, self.key_type_size))
+                    memcpy(dst_key_ptr, src_key_ptr, self.key_type_size)
+
+                    // Shift values
+                    mut src_val_ptr := add(self.values.ptr, mul(add(j, 1), self.value_type_size))
+                    mut dst_val_ptr := add(self.values.ptr, mul(j, self.value_type_size))
+                    memcpy(dst_val_ptr, src_val_ptr, self.value_type_size)
+
+                    j = add(j, 1)
+                }
+
+                // Decrease size
+                self._size = sub(self._size, 1)
+                self.keys._len = sub(self.keys._len, 1)
+                self.values._len = sub(self.values._len, 1)
+                return
+            }
+            i = add(i, 1)
+        }
+        // Key not found - do nothing
+    }
+
     /** Get position (index) of key in insertion order.
      *  Returns -1 if key not found.
      *  Useful for enum variant tags which depend on insertion order. */
