@@ -78,6 +78,200 @@ Str := struct {
     size := func(self: Str) returns I64 {
         return self.cap
     }
+
+    contains := func(self: Str, needle: Str) returns Bool {
+        # Returns true if needle is found in self
+        if needle.len().gt(self.len()) {
+            return false
+        }
+        if needle.len().eq(0) {
+            return false
+        }
+
+        mut max_start := self.len().sub(needle.len())
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for needle_idx in 0..needle.len() {
+                mut self_byte : U8 = 0
+                mut needle_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(needle_idx)), 1)
+                memcpy(to_ptr(needle_byte), add(needle.c_string, needle_idx), 1)
+
+                if not(U8.eq(self_byte, needle_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    rfind := func(self: Str, needle: Str) returns I64 {
+        # Returns the last index where needle starts in self, or sub(0, 1) if not found
+        if needle.len().gt(self.len()) {
+            return sub(0, 1)
+        }
+        if needle.len().eq(0) {
+            return sub(0, 1)
+        }
+
+        mut last_found := sub(0, 1)
+        mut max_start := self.len().sub(needle.len())
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for needle_idx in 0..needle.len() {
+                mut self_byte : U8 = 0
+                mut needle_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(needle_idx)), 1)
+                memcpy(to_ptr(needle_byte), add(needle.c_string, needle_idx), 1)
+
+                if not(U8.eq(self_byte, needle_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                last_found = start_idx
+            }
+        }
+
+        return last_found
+    }
+
+    replace := func(self: Str, from: Str, to: Str) returns Str throws AllocError {
+        # Replace all occurrences of 'from' with 'to' in self
+        if from.len().eq(0) {
+            return self.clone()
+        }
+
+        # First, count occurrences to calculate result size
+        mut count := 0
+        mut search_start := 0
+        while search_start.le(self.len().sub(from.len())) {
+            mut matches := true
+            for i in 0..from.len() {
+                mut self_byte : U8 = 0
+                mut from_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, search_start.add(i)), 1)
+                memcpy(to_ptr(from_byte), add(from.c_string, i), 1)
+                if not(U8.eq(self_byte, from_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                count = count.add(1)
+                search_start = search_start.add(from.len())
+            } else {
+                search_start = search_start.add(1)
+            }
+        }
+
+        if count.eq(0) {
+            return self.clone()
+        }
+
+        # Calculate new size: original - (count * from.len) + (count * to.len)
+        mut new_len := self.len().sub(count.mul(from.len())).add(count.mul(to.len()))
+
+        mut result := Str()
+        result.cap = new_len
+        result.c_string = malloc(new_len)
+        if NULL.eq(result.c_string) {
+            throw AllocError.new(format(loc(), "Str.replace: malloc failed for ", I64.to_str(new_len), " bytes"))
+        }
+
+        # Now build the result
+        mut src_idx := 0
+        mut dst_idx := 0
+        while src_idx.lt(self.len()) {
+            # Check if 'from' matches at current position
+            mut matches := true
+            if src_idx.le(self.len().sub(from.len())) {
+                for i in 0..from.len() {
+                    mut self_byte : U8 = 0
+                    mut from_byte : U8 = 0
+                    memcpy(to_ptr(self_byte), add(self.c_string, src_idx.add(i)), 1)
+                    memcpy(to_ptr(from_byte), add(from.c_string, i), 1)
+                    if not(U8.eq(self_byte, from_byte)) {
+                        matches = false
+                    }
+                }
+            } else {
+                matches = false
+            }
+
+            if matches {
+                # Copy 'to' string
+                memcpy(add(result.c_string, dst_idx), to.c_string, to.len())
+                dst_idx = dst_idx.add(to.len())
+                src_idx = src_idx.add(from.len())
+            } else {
+                # Copy single byte
+                memcpy(add(result.c_string, dst_idx), add(self.c_string, src_idx), 1)
+                dst_idx = dst_idx.add(1)
+                src_idx = src_idx.add(1)
+            }
+        }
+
+        return result
+    }
+
+    split := func(self: Str, delimiter: Str) returns Vec throws AllocError, IndexOutOfBoundsError, FullError {
+        # Split string by delimiter, return Vec of Str
+        mut parts := Vec.new(Str)
+
+        if delimiter.len().eq(0) {
+            parts.push(self.clone())
+            return parts
+        }
+
+        mut start := 0
+        mut pos := 0
+
+        while pos.le(self.len().sub(delimiter.len())) {
+            mut matches := true
+            for i in 0..delimiter.len() {
+                mut self_byte : U8 = 0
+                mut delim_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, pos.add(i)), 1)
+                memcpy(to_ptr(delim_byte), add(delimiter.c_string, i), 1)
+                if not(U8.eq(self_byte, delim_byte)) {
+                    matches = false
+                }
+            }
+
+            if matches {
+                # Found delimiter - extract part from start to pos
+                if pos.gt(start) {
+                    part := self.get_substr(start, pos)
+                    parts.push(part)
+                } else {
+                    # Empty part
+                    parts.push("")
+                }
+                start = pos.add(delimiter.len())
+                pos = start
+            } else {
+                pos = pos.add(1)
+            }
+        }
+
+        # Add remaining part after last delimiter
+        if start.lt(self.len()) {
+            part := self.get_substr(start, self.len())
+            parts.push(part)
+        } else {
+            if start.eq(self.len()) {
+                parts.push("")
+            }
+        }
+
+        return parts
+    }
 }
 
 /** Get a substring from start (inclusive) to end (exclusive). */
