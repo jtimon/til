@@ -647,10 +647,9 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             mut member_decl := Declaration()
             mut member_idx := 0
             mut found_member := false
-            // TODO: Remove workaround when Bug #28 is fixed
-            while member_idx.lt(Vec.len(struct_def.members)) {
+            while member_idx.lt(struct_def.members.len()) {
                 mut temp_member := Declaration()
-                Vec.get(struct_def.members, member_idx, temp_member)
+                struct_def.members.get(member_idx, temp_member)
                 if Str.eq(temp_member.name, after_dot_name) {
                     member_decl = temp_member
                     found_member = true
@@ -661,8 +660,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 throw e.error(context.path, "type", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
             }
             mut member_default_value := Expr()  # Default init, will be overwritten by get()
-            // TODO: Remove workaround when Bug #28 is fixed
-            Map.get(struct_def.default_values, after_dot_name, member_default_value)
+            struct_def.default_values.get(after_dot_name, member_default_value)
             catch (key_err: KeyNotFoundError) {
                 throw e.error(context.path, "type", format("Struct '", f_name, "' has no default value for '", after_dot_name, "'"))
             }
@@ -701,32 +699,32 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
         switch after_dot.node_type {
         case NodeType.Identifier(variant_name):
             // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
-            mut variant_value := Ptr()  # Default init, will be overwritten by get()
-            // TODO: Remove workaround when Bug #28 is fixed
-            Map.get(enum_def.enum_map, variant_name, variant_value)
-            // variant_value is a Ptr that may be NULL (no payload) or contain a ValueType (has payload)
+            mut variant_value := ValueType.TCustom("")  // Default init
+            enum_def.enum_map.get(variant_name, variant_value)
 
-            // Check if variant has a payload (variant_value is non-NULL)
-            if not(NULL.eq(variant_value.data)) {
-                // This variant expects a payload
-                // TODO: Remove workaround when Bug #28 is fixed
-                if Vec.len(e.params).lt(2) {
-                    // TODO: Get the actual payload type from variant_value and show it
-                    throw e.error(context.path, "type", format("Enum constructor ", f_name, ".", variant_name, " expects a payload"))
-                }
-                // Type check the payload argument
-                mut payload_expr := e.get(1)
-                mut payload_actual_type := get_value_type(context, payload_expr)
+            // Check if variant has a payload (ValueType.TCustom("") means no payload)
+            switch variant_value {
+            case ValueType.TCustom(payload_type_name):
+                if not(payload_type_name.eq("")) {
+                    // This variant expects a payload
+                    if e.params.len().lt(2) {
+                        throw e.error(context.path, "type", format("Enum constructor ", f_name, ".", variant_name, " expects a payload of type '", payload_type_name, "'"))
+                    }
+                    // Type check the payload argument
+                    mut payload_expr := e.get(1)
+                    mut payload_actual_type := get_value_type(context, payload_expr)
 
-                // TODO: Verify payload type matches expected type
-                // This would require unwrapping the ValueType from variant_value
-                // For now, we just accept any payload
-            } else {
-                // This variant doesn't have a payload
-                // TODO: Remove workaround when Bug #28 is fixed
-                if Vec.len(e.params).gt(1) {
-                    throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
+                    // TODO: Verify payload type matches expected type
+                    // For now, we just accept any payload
+                } else {
+                    // This variant doesn't have a payload (empty string means None)
+                    if e.params.len().gt(1) {
+                        throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
+                    }
                 }
+            case:
+                // Non-TCustom payload types are not currently supported
+                throw e.todo_error(context.path, "type", format("Enum variant payload type '", value_type_to_str(variant_value), "' not yet supported"))
             }
 
             // Return the enum type
@@ -746,11 +744,10 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             if found_enum {
                 # It's an enum - try UFCS method call
                 mut after_dot := Expr()
-                // TODO: Remove workaround when Bug #28 is fixed
-                if Vec.len(id_expr.params).eq(0) {
+                if id_expr.params.len().eq(0) {
                     return ValueType.TCustom(f_name)
                 }
-                Vec.get(id_expr.params, 0, after_dot)
+                id_expr.params.get(0, after_dot)
 
                 switch after_dot.node_type {
                 case NodeType.Identifier(after_dot_name):
@@ -791,24 +788,21 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
             }
 
             mut after_dot := Expr()
-            // TODO: Remove workaround when Bug #28 is fixed
-            if Vec.len(id_expr.params).eq(0) {
+            if id_expr.params.len().eq(0) {
                 return ValueType.TCustom(f_name)
             }
-            Vec.get(id_expr.params, 0, after_dot)
+            id_expr.params.get(0, after_dot)
 
             switch after_dot.node_type {
             case NodeType.Identifier(after_dot_name):
                 # Bug #10 fix: Check if we have a multi-level chain like struct.field.method
                 # If id_expr.params has 2+ elements, try to resolve all-but-last as field access
-                // TODO: Remove workaround when Bug #28 is fixed
-                if Vec.len(id_expr.params).gteq(2) {
+                if id_expr.params.len().gteq(2) {
                     # Try to resolve the field access chain (all params except the last)
                     # Example: for e.params.len, resolve "e.params" to get its type
                     mut field_access_expr := id_expr.clone()
                     # Remove the last element (method/property name)
-                    // TODO: Remove workaround when Bug #28 is fixed
-                    mut new_len := Vec.len(field_access_expr.params).sub(1)
+                    mut new_len := field_access_expr.params.len().sub(1)
                     field_access_expr.params._len = new_len
 
                     mut got_intermediate := false
@@ -823,8 +817,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                         # Successfully resolved intermediate field access
                         # Now check if the last param is a member/method of that type
                         mut last_param := Expr()
-                        // TODO: Remove workaround when Bug #28 is fixed
-                        Vec.get(id_expr.params, Vec.len(id_expr.params).sub(1), last_param)
+                        id_expr.params.get(id_expr.params.len().sub(1), last_param)
 
                         switch last_param.node_type {
                         case NodeType.Identifier(final_member_name):
@@ -866,7 +859,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                                 if found_intermediate_struct {
                                     mut found_member := false
                                     mut member_decl := Declaration()
-                                    // TODO: Remove workaround when Bug #28 is fixed
                                     member_decl = SStructDef.get_member(intermediate_struct_def, final_member_name)
                                     found_member = true
                                     catch (member_err: Str) {
@@ -887,7 +879,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 # Original logic: single-level access (struct.member)
-                // TODO: Remove workaround when Bug #28 is fixed
                 mut member_decl := SStructDef.get_member(struct_def, after_dot_name)
                 catch (err: Str) {
                     // member not found, try UFCS
@@ -899,8 +890,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 mut member_default_value := Expr()  # Default init, will be overwritten by get()
-                // TODO: Remove workaround when Bug #28 is fixed
-                Map.get(struct_def.default_values, after_dot_name, member_default_value)
+                struct_def.default_values.get(after_dot_name, member_default_value)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no default value for '", after_dot_name, "'"))
                 }
@@ -933,7 +923,6 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
 
             switch after_dot.node_type {
             case NodeType.Identifier(after_dot_name):
-                // TODO: Remove workaround when Bug #28 is fixed
                 mut member_decl := SStructDef.get_member(struct_def, after_dot_name)
                 catch (err: Str) {
                     // member not found, try UFCS
@@ -945,8 +934,7 @@ get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws
                 }
 
                 mut member_default_value := Expr()  # Default init, will be overwritten by get()
-                // TODO: Remove workaround when Bug #28 is fixed
-                Map.get(struct_def.default_values, after_dot_name, member_default_value)
+                struct_def.default_values.get(after_dot_name, member_default_value)
                 catch (key_err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no default value for '", after_dot_name, "' (variadic)"))
                 }
@@ -1021,17 +1009,15 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
         mut current_type := symbol.value_type
 
         # If there are no parameters, just return the type of the first identifier
-        // TODO: Remove workaround when Bug #28 is fixed
-        if Vec.len(e.params).eq(0) {
+        if e.params.len().eq(0) {
             return current_type
         }
 
         # Now, process each nested member.
         mut param_idx := 0
-        // TODO: Remove workaround when Bug #28 is fixed
-        while param_idx.lt(Vec.len(e.params)) {
+        while param_idx.lt(e.params.len()) {
             mut cursor := Expr()  # Default init, will be overwritten by get()
-            Vec.get(e.params, param_idx, cursor)
+            e.params.get(param_idx, cursor)
             mut member_name := ""
             switch cursor.node_type {
             case NodeType.Identifier(n):
@@ -1047,7 +1033,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("Struct '", name, "' not found"))
                 }
-                // TODO: Remove workaround when Bug #28 is fixed
                 mut decl := SStructDef.get_member_or_err(struct_def, member_name, name, context.path, e)
                 current_type = decl.value_type
 
@@ -1057,7 +1042,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("Enum '", name, "' not found"))
                 }
-                // TODO: Remove workaround when Bug #28 is fixed
                 if Map.contains_key(enum_def.enum_map, member_name) {
                     return ValueType.TCustom(name)
                 }
@@ -1069,7 +1053,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
                 catch (err: KeyNotFoundError) {
                     throw e.error(context.path, "type", format("Struct '", custom_type_name, "' not found"))
                 }
-                // TODO: Remove workaround when Bug #28 is fixed
                 mut decl := SStructDef.get_member_or_err(struct_def, member_name, custom_type_name, context.path, e)
                 current_type = decl.value_type
 
@@ -1089,7 +1072,6 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
     case NodeType.Pattern(pattern_info):
         # Extract enum type from "EnumType.Variant" format
         mut variant_name := pattern_info.variant_name
-        // TODO: Remove workaround when Bug #28 is fixed
         mut dot_pos := Str.rfind(variant_name, ".")
         if dot_pos.gteq(0) {
             mut enum_type := get_substr(variant_name, 0, dot_pos)
@@ -1207,11 +1189,9 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
 
     # Process mode imports recursively
     mut import_idx := 0
-    // TODO: Remove workaround when Bug #28 is fixed
-    while import_idx.lt(Vec.len(context.mode_def.imports)) {
+    while import_idx.lt(context.mode_def.imports.len()) {
         mut import_str := ""  # Default init, will be overwritten by get()
-        // TODO: Remove workaround when Bug #28 is fixed
-        Vec.get(context.mode_def.imports, import_idx, import_str)
+        context.mode_def.imports.get(import_idx, import_str)
         mut import_func_name_expr := Expr()
         import_func_name_expr.node_type = NodeType.Identifier("import")
         import_func_name_expr.line = 0
@@ -1258,18 +1238,16 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     # Run init_context to extract declarations
     # This will recursively handle any imports in the imported file
     mut errors := init_context(context, imported_ast)
-    // TODO: Remove workaround when Bug #28 is fixed
-    if Vec.len(errors).gt(0) {
+    if errors.len().gt(0) {
         context.mode_def = previous_mode
         mut orig_path_clone := original_path
         context.path = original_path
         context.imports_wip.remove(path)
         mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
         mut err_idx := 0
-        // TODO: Remove workaround when Bug #28 is fixed
-        while err_idx.lt(Vec.len(errors)) {
+        while err_idx.lt(errors.len()) {
             mut err := ""  # Default init, will be overwritten by get()
-            Vec.get(errors, err_idx, err)
+            errors.get(err_idx, err)
             error_msg = format(error_msg, path, ":", err, "\n")
             err_idx = err_idx.add(1)
         }
@@ -1279,11 +1257,9 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     # Restore context state
     context.mode_def = previous_mode
     context.path = original_path
-    // TODO: Remove workaround when Bug #28 is fixed
     Set.remove(context.imports_wip, path)
 
     # Cache that we've processed this import's declarations
-    // TODO: Remove workaround when Bug #28 is fixed
     Map.insert(context.imports_done, path, true)
 
     catch (err: AllocError) {
@@ -1383,16 +1359,14 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         }
 
         // Must have exactly one param (the initializer expression)
-        // TODO: Remove workaround when Bug #28 is fixed
-        if not(eq(Vec.len(e.params), 1)) {
+        if not(eq(e.params.len(), 1)) {
             throw format(loc(), " ERROR: Declaration of '", decl.name, "' must have exactly one value")
         }
 
         // Get the initializer expression
         mut inner_e := Expr()
         mut params := e.params
-        // TODO: Remove workaround when Bug #28 is fixed
-        Vec.get(params, 0, inner_e)
+        params.get(0, inner_e)
 
         // Get value type of initializer
         value_type := get_value_type(context, inner_e)
@@ -1404,13 +1378,11 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         value_type_str := enum_to_str(value_type)
 
         // Handle functions
-        // TODO: Remove workaround when Bug #28 is fixed
         if Str.eq(value_type_str, "ValueType.TFunction") {
             // Extract function definition from inner_e
             mut inner_node_type := inner_e.node_type
             inner_node_type_str := enum_to_str(inner_node_type)
 
-            // TODO: Remove workaround when Bug #28 is fixed
             if Str.eq(inner_node_type_str, "NodeType.FuncDef") {
                 mut func_def := SFuncDef()
                 switch inner_node_type {
@@ -1424,16 +1396,13 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_func(context.scope_stack, decl.name, func_def)
             }
             return
         }
 
         // Handle enum definitions
-        // TODO: Remove workaround when Bug #28 is fixed
         if Str.eq(value_type_str, "ValueType.TType") {
             mut ttype_def := TTypeDef.TEnumDef
             switch value_type {
@@ -1444,7 +1413,6 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
             }
             ttype_str := enum_to_str(ttype_def)
 
-            // TODO: Remove workaround when Bug #28 is fixed
             if Str.eq(ttype_str, "TTypeDef.TEnumDef") {
                 // Extract enum definition from inner_e
                 mut inner_node_type := inner_e.node_type
@@ -1460,14 +1428,11 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_enum(context.scope_stack, decl.name, enum_def)
                 return
             }
 
-            // TODO: Remove workaround when Bug #28 is fixed
             if Str.eq(ttype_str, "TTypeDef.TStructDef") {
                 // Extract struct definition from inner_e
                 mut inner_node_type := inner_e.node_type
@@ -1483,9 +1448,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
-                // TODO: Remove workaround when Bug #28 is fixed
                 ScopeStack.declare_struct(context.scope_stack, decl.name, struct_def)
 
                 // TODO: Register associated functions and constants
@@ -1501,22 +1464,18 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         }
 
         // Handle custom types and multi types
-        // TODO: Remove workaround when Bug #28 is fixed
         if Str.eq(value_type_str, "ValueType.TCustom") {
             mut symbol := SymbolInfo()
             symbol.value_type = value_type
             symbol.is_mut = decl.is_mut
-            // TODO: Remove workaround when Bug #28 is fixed
             ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
             return
         }
 
-        // TODO: Remove workaround when Bug #28 is fixed
         if Str.eq(value_type_str, "ValueType.TMulti") {
             mut symbol := SymbolInfo()
             symbol.value_type = value_type
             symbol.is_mut = decl.is_mut
-            // TODO: Remove workaround when Bug #28 is fixed
             ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
             return
         }
@@ -1525,7 +1484,6 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         mut symbol := SymbolInfo()
         symbol.value_type = value_type
         symbol.is_mut = decl.is_mut
-        // TODO: Remove workaround when Bug #28 is fixed
         ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
         return
     }
@@ -1743,7 +1701,7 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
                         # Try to find a default_value (required for funcs/consts)
                         mut has_default_value := false
                         mut member_expr := Expr()  # Default init, will be overwritten by get()
-                        Map.get(struct_def.default_values, member_name, member_expr)
+                        struct_def.default_values.get(member_name, member_expr)
                         has_default_value = true
                         catch (key_err: KeyNotFoundError) {
                             # No default value, skip this member
