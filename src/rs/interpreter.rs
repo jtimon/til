@@ -39,19 +39,6 @@ impl EvalResult {
     }
 }
 
-// Helper function to extract bool value from a Bool struct instance
-pub fn bool_from_context(context: &Context, id: &str, e: &Expr) -> Result<bool, String> {
-    // Validate the Bool struct exists
-    context.get_struct(id, e)?;
-
-    // Read the .data field (which is a U8)
-    let data_field = format!("{}.data", id);
-    let u8_val = Arena::get_u8(context, &data_field, e)?;
-
-    // Convert U8 to bool (0 = false, non-zero = true)
-    Ok(u8_val != 0)
-}
-
 // Helper function to extract String value from a Str struct instance
 pub fn string_from_context(context: &Context, id: &str, e: &Expr) -> Result<String, String> {
     // Validate the Str struct exists
@@ -86,15 +73,15 @@ fn validate_conditional_params(path: &str, e: &Expr, stmt_type: &str, min: usize
 }
 
 // Helper to evaluate boolean conditions for if/while statements.
-// Supports both legacy string bools ("true"/"false") and Bool struct instances.
 fn eval_condition_to_bool(context: &Context, result: &EvalResult, expr: &Expr) -> Result<bool, String> {
-    // First try parsing as string bool (backwards compatibility)
-    if let Ok(b) = result.value.parse::<bool>() {
-        return Ok(b);
+    // Handle "true" and "false" directly (builtins return these, and they're the constant names)
+    match result.value.as_str() {
+        "true" => return Ok(true),
+        "false" => return Ok(false),
+        _ => {}
     }
 
-    // Otherwise, assume it's a Bool struct instance - read its .data field
-    // The value should be the identifier name of the Bool instance
+    // Otherwise it's a Bool struct identifier - read its .data field
     let bool_id = &result.value;
     let data_field_id = format!("{}.data", bool_id);
     let u8_val = Arena::get_u8(context, &data_field_id, expr)?;
@@ -325,30 +312,8 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                         // Extract payload into the binding variable
                         if let Some(payload_type) = &enum_val.payload_type {
                             if let Some(payload_bytes) = &enum_val.payload {
-                                // Use the existing payload extraction logic
-                                // We need to insert the payload into context with the binding_var name
-                                // TODO FIX: Bool enum payload extraction - needs special handling to read 1 byte and create Bool value
+                                // Extract payload and bind to variable
                                 match payload_type {
-                                    ValueType::TCustom(type_name) if type_name == "Bool" => {
-                                        if payload_bytes.len() != 1 {
-                                            return Err(case.error(&context.path, "eval", "Invalid Bool payload size"));
-                                        }
-                                        let bool_val = payload_bytes[0] != 0;
-
-                                        // First add the symbol to context
-                                        context.scope_stack.declare_symbol(
-                                            binding_var.clone(),
-                                            SymbolInfo {
-                                                value_type: ValueType::TCustom("Bool".to_string()),
-                                                is_mut: false,
-                                                is_copy: false,
-                                            is_own: false,
-                                            }
-                                        );
-
-                                        // Now insert the value
-                                        Arena::insert_bool(context, binding_var, &bool_val.to_string(), &case)?;
-                                    }
                                     ValueType::TCustom(type_name) if type_name == "I64" => {
                                         if payload_bytes.len() != 8 {
                                             return Err(case.error(&context.path, "eval", "Invalid I64 payload size"));
@@ -641,12 +606,10 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
             };
             insert_struct_instance(context, &id_name, &name, e)?;
-            // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
             return Ok(EvalResult::new(match id_name.as_str() {
-                "Bool" => "false",
                 "U8" | "I64" => "0",
                 "Str" => "",
-                _ => id_name, // TODO Where is the struct being inserted in this case? Is this returned value even used?
+                _ => id_name,
             }))
         }
     }
@@ -948,16 +911,16 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                         return Ok(result); // Propagate throw
                                     }
                                     let expr_result_str = result.value;
-                                    // TODO FIX: Bool can't be removed yet - causes "Cannot declare 'MyStruct.associated_constant' of custom type 'Bool'" error
                                     match type_name.as_str() {
-                                        "I64" | "U8" | "Bool" | "Str" => {
+                                        "I64" | "U8" => {
                                             Arena::insert_primitive(context, &combined_name, &member_value_type, &expr_result_str, e)?;
                                         },
+                                        "Str" => {
+                                            Arena::insert_string(context, &combined_name, &expr_result_str, e)?;
+                                        },
                                         _ => {
-                                            return Err(e.todo_error(&context.path, "eval", &format!("Cannot declare '{}.{}' of custom type '{}'",
-                                                                                     &declaration.name,
-                                                                                     &member_decl.name,
-                                                                                     type_name)));
+                                            insert_struct_instance(context, &combined_name, type_name, e)?;
+                                            Arena::copy_fields(context, type_name, &expr_result_str, &combined_name, e)?;
                                         },
                                     }
                                 },
@@ -1009,9 +972,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
         },
 
         ValueType::TCustom(ref custom_type_name) => {
-            // TODO FIX: Bool can't be removed yet - causes "Could not find arena index for 'false'" error for bootstrap constants
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "Str" => {
+                "I64" | "U8" | "Str" => {
                     let result = eval_expr(context, inner_e)?;
                     if result.is_throw {
                         return Ok(result); // Propagate throw
@@ -1192,17 +1154,11 @@ fn eval_identifier_expr_struct_member(name: &str, inner_name: &str, context: &mu
                     let result = Arena::get_u8(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
-                // TODO FIX: Bool field reading uses bool_from_context to read the .data byte
-                "Bool" => {
-                    let result = bool_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
-                    return Ok(EvalResult::new(&result.to_string()))
-                },
                 "Str" => {
                     let result = string_from_context(context, &format!("{}.{}", name, inner_name), inner_e)?;
                     return Ok(EvalResult::new(&result.to_string()))
                 },
-                _ => Err(inner_e.lang_error(&context.path, "eval", &format!("evaluating member '{}.{}' of custom type '{}' is not supported yet",
-                                                             name, inner_name, value_type_to_str(&member_decl.value_type)))),
+                _ => Ok(EvalResult::new(&format!("{}.{}", name, inner_name))),
             }
         },
         _ => Err(inner_e.lang_error(&context.path, "eval", &format!("struct '{}' has no const (static) member '{}' of struct value type '{}'",
@@ -1306,10 +1262,6 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                         "U8" => match Arena::get_u8(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
-                        // TODO FIX: Bool identifier reading uses bool_from_context to get value
-                        "Bool" => match bool_from_context(context, &current_name, e)? {
-                            result => Ok(EvalResult::new(&result.to_string())),
-                        },
                         "Str" => match string_from_context(context, &current_name, e)? {
                             result => Ok(EvalResult::new(&result.to_string())),
                         },
@@ -1383,11 +1335,6 @@ fn eval_identifier_expr(name: &str, context: &mut Context, e: &Expr) -> Result<E
                     },
                     "U8" => {
                         let val = Arena::get_u8(context, name, e)?;
-                        return Ok(EvalResult::new(&val.to_string()));
-                    },
-                    // TODO FIX: Bool identifier evaluation uses bool_from_context
-                    "Bool" => {
-                        let val = bool_from_context(context, name, e)?;
                         return Ok(EvalResult::new(&val.to_string()));
                     },
                     "Str" => {
@@ -1868,10 +1815,6 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     "U8" => {
                         Arena::insert_u8_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
-                    // TODO FIX: Bool function argument uses insert_bool helper
-                    "Bool" => {
-                        Arena::insert_bool_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
-                    },
                     "Str" => {
                         Arena::insert_string_into_frame(context, &mut function_frame, &arg.name, &result_str, e)?;
                     },
@@ -2177,7 +2120,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     let saved_return_offset: Option<usize> = if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "Str" => None,
+                "I64" | "U8" | "Str" => None,
                 _ => context.scope_stack.lookup_var(&result_str),
             }
         } else {
@@ -2314,9 +2257,9 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     // NOTE: Frame already popped above, using saved_return_offset and saved_enum_value
     if func_def.return_types.len() == 1 {
         if let ValueType::TCustom(ref custom_type_name) = func_def.return_types[0] {
-            // Skip core types like I64, Bool, String, U8
+            // Skip primitive types I64, U8, Str - they return values directly
             match custom_type_name.as_str() {
-                "I64" | "U8" | "Bool" | "Str" => { /* Do nothing for core types */ },
+                "I64" | "U8" | "Str" => { /* Do nothing for primitive types */ },
                 _ => {
 
                     if let Some(custom_symbol) = context.scope_stack.lookup_symbol(custom_type_name) {

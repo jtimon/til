@@ -646,7 +646,7 @@ impl Arena {
         Ok(())
     }
 
-    /// Helper function to insert primitive types (I64, U8, Bool, Str) based on value_type
+    /// Helper function to insert primitive types (I64, U8, Str) based on value_type
     pub fn insert_primitive(
         ctx: &mut Context,
         var_name: &str,
@@ -661,66 +661,11 @@ impl Arena {
             ValueType::TCustom(type_name) if type_name == "U8" => {
                 Arena::insert_u8(ctx, var_name, &value.to_string(), e)
             },
-            // TODO FIX: Bool special case for insert_primitive - needed for bootstrap and primitives handling
-            ValueType::TCustom(type_name) if type_name == "Bool" => {
-                Arena::insert_bool(ctx, var_name, &value.to_string(), e)
-            },
             ValueType::TCustom(type_name) if type_name == "Str" => {
                 Arena::insert_string(ctx, var_name, &value.to_string(), e)
             },
             _ => Err(e.lang_error(&ctx.path, "eval", &format!("insert_primitive: Unsupported type {:?}", value_type)))
         }
-    }
-
-    /// Core logic for insert_bool - returns Some(stored_value) if caller needs to create struct, None if already handled
-    fn insert_bool_core(ctx: &Context, id: &str, bool_str: &String, e: &Expr) -> Result<Option<u8>, String> {
-        // Parse the bool value
-        let bool_to_insert = bool_str.parse::<bool>()
-            .map_err(|_| e.lang_error(&ctx.path, "context", &format!("Invalid bool literal '{}'", bool_str)))?;
-        let stored = if bool_to_insert { 1 } else { 0 };
-
-        if Self::is_instance_field(ctx, id) {
-            // For instance field, write directly to the .data field
-            let field_id = format!("{}.data", id);
-            let offset = ctx.scope_stack.lookup_var(&field_id)
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
-            Arena::g().memory[offset] = stored;
-            return Ok(None)
-        }
-
-        Ok(Some(stored))
-    }
-
-    // Helper function to insert a Bool value using insert_struct
-    pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-        if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            // Create Bool struct from template
-            let template_offset = Arena::g().default_instances.get("Bool")
-                .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool", "Bool template not found - ensure bool.til is imported"))?;
-            Arena::insert_struct(ctx, id, "Bool", template_offset, e)?;
-            let field_id = format!("{}.data", id);
-            let offset = ctx.scope_stack.lookup_var(&field_id)
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
-            Arena::g().memory[offset] = stored;
-        }
-        Ok(())
-    }
-
-    pub fn insert_bool_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
-        if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            // Create Bool struct from template
-            let template_offset = Arena::g().default_instances.get("Bool")
-                .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool_into_frame", "Bool template not found - ensure bool.til is imported"))?;
-            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", template_offset, e)?;
-            let field_id = format!("{}.data", id);
-            let offset = frame.arena_index.get(&field_id)
-                .copied()
-                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found in frame", id)))?;
-            Arena::g().memory[offset] = stored;
-        }
-        Ok(())
     }
 
     pub fn get_enum_at_offset(ctx: &Context, enum_type: &str, offset: usize, e: &Expr) -> Result<EnumVal, String> {
@@ -829,9 +774,7 @@ impl Arena {
         let (payload_data, payload_type) = match variant_payload_type {
             Some(Some(vtype)) => {
                 // This variant has a payload, read it from arena
-                // TODO FIX: Bool payload size hardcoded to 1 byte - should get from struct definition
                 let payload_size = match vtype {
-                    ValueType::TCustom(type_name) if type_name == "Bool" => 1,
                     ValueType::TCustom(type_name) if type_name == "I64" => 8,
                     ValueType::TCustom(type_name) if type_name == "Str" => {
                         16  // Str is always 16 bytes (pointer + size)
@@ -982,9 +925,8 @@ impl Arena {
         Ok(enum_val)
     }
 
-    /// Core logic for insert_array - returns mappings to be inserted by caller
     /// Insert an Array for variadic arguments into a function frame.
-    /// Follows the same pattern as insert_bool_into_frame - uses insert_struct_into_frame internally.
+    /// Uses insert_struct_into_frame internally.
     pub fn insert_array_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
         // Create Array struct using template
         let template_offset = Arena::g().default_instances.get("Array").copied()
@@ -1003,10 +945,6 @@ impl Arena {
         for (i, val) in values.iter().enumerate() {
             let offset = ptr + i * elem_size;
             match elem_type {
-                "Bool" => {
-                    let stored = if val.as_str() == "true" { 1 } else { 0 };
-                    Arena::g().memory[offset] = stored;
-                },
                 "U8" => {
                     let byte = val.parse::<u8>()
                         .map_err(|err| e.lang_error(&ctx.path, "insert_array", &format!("invalid U8 '{}'", err)))?;
@@ -1033,7 +971,11 @@ impl Arena {
                         .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
                 },
                 _ => {
-                    return Err(e.lang_error(&ctx.path, "insert_array", &format!("unsupported element type '{}'", elem_type)))
+                    // Struct element - val is identifier, copy from source
+                    let src_offset = ctx.scope_stack.lookup_var(val)
+                        .ok_or_else(|| e.lang_error(&ctx.path, "insert_array", &format!("struct source '{}' not found", val)))?;
+                    Arena::g().memory[offset..offset + elem_size]
+                        .copy_from_slice(&Arena::g().memory[src_offset..src_offset + elem_size]);
                 }
             }
         }
