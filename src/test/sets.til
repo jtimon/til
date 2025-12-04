@@ -1,0 +1,151 @@
+mode test
+
+// Test Set - Dynamic collection of unique elements
+
+test_set_new := proc() {
+    mut s := Set.new(Str)
+    assert_eq(loc(), 0, s.len())
+    assert(loc(), not(s.contains("hello")))
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+test_set_new()
+
+test_set_insert := proc() {
+    mut s := Set.new(Str)
+
+    // First insert should succeed
+    mut result1 := s.insert("hello")
+    assert(loc(), result1)
+    assert_eq(loc(), 1, s.len())
+    assert(loc(), s.contains("hello"))
+
+    // Second insert of same element should fail
+    mut result2 := s.insert("hello")
+    assert(loc(), not(result2))
+    assert_eq(loc(), 1, s.len())
+
+    // Insert different element should succeed
+    mut result3 := s.insert("world")
+    assert(loc(), result3)
+    assert_eq(loc(), 2, s.len())
+    assert(loc(), s.contains("world"))
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_insert()
+
+test_set_contains := proc() {
+    mut s := Set.new(Str)
+    _ := s.insert("apple")
+    _ := s.insert("banana")
+    _ := s.insert("cherry")
+
+    assert(loc(), s.contains("apple"))
+    assert(loc(), s.contains("banana"))
+    assert(loc(), s.contains("cherry"))
+    assert(loc(), not(s.contains("durian")))
+    assert(loc(), not(s.contains("")))
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_contains()
+
+test_set_remove := proc() {
+    mut s := Set.new(Str)
+    _ := s.insert("one")
+    _ := s.insert("two")
+    _ := s.insert("three")
+    assert_eq(loc(), 3, s.len())
+
+    // Remove middle element
+    s.remove("two")
+    assert_eq(loc(), 2, s.len())
+    assert(loc(), s.contains("one"))
+    assert(loc(), not(s.contains("two")))
+    assert(loc(), s.contains("three"))
+
+    // Remove first element
+    s.remove("one")
+    assert_eq(loc(), 1, s.len())
+    assert(loc(), not(s.contains("one")))
+    assert(loc(), s.contains("three"))
+
+    // Remove last element
+    s.remove("three")
+    assert_eq(loc(), 0, s.len())
+    assert(loc(), not(s.contains("three")))
+
+    // Remove non-existent element (should do nothing)
+    s.remove("four")
+    assert_eq(loc(), 0, s.len())
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_remove()
+
+test_set_i64 := proc() {
+    mut s := Set.new(I64)
+
+    _ := s.insert(42)
+    _ := s.insert(100)
+    _ := s.insert(0)
+
+    assert_eq(loc(), 3, s.len())
+    assert(loc(), s.contains(42))
+    assert(loc(), s.contains(100))
+    assert(loc(), s.contains(0))
+    assert(loc(), not(s.contains(999)))
+
+    // Duplicate insert
+    mut dup := s.insert(42)
+    assert(loc(), not(dup))
+    assert_eq(loc(), 3, s.len())
+
+    // Remove
+    s.remove(100)
+    assert_eq(loc(), 2, s.len())
+    assert(loc(), not(s.contains(100)))
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_i64()
+
+test_set_clone := proc() {
+    mut s := Set.new(Str)
+    _ := s.insert("a")
+    _ := s.insert("b")
+
+    mut cloned := s.clone()
+    assert_eq(loc(), 2, cloned.len())
+    assert(loc(), cloned.contains("a"))
+    assert(loc(), cloned.contains("b"))
+
+    // Modify original, clone should be unaffected
+    s.remove("a")
+    assert_eq(loc(), 1, s.len())
+    assert_eq(loc(), 2, cloned.len())
+    assert(loc(), cloned.contains("a"))
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_clone()
+
+test_set_delete := proc() {
+    mut s := Set.new(Str)
+    _ := s.insert("x")
+    _ := s.insert("y")
+    assert_eq(loc(), 2, s.len())
+
+    s.delete()
+    assert_eq(loc(), 0, s.len())
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: FullError) { panic(loc(), err.msg) }
+}
+test_set_delete()

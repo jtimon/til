@@ -1,0 +1,167 @@
+mode lib
+
+// Set depends on Vec, Str, Bool, I64, mem functions - all in core.til at this point
+
+Set := struct {
+    mut elem_type_name: Str = ""      // e.g., "Str", "I64"
+    mut elem_type_size: I64 = 0       // from size_of(ElemType)
+    mut elements: Vec = Vec()         // Dynamic array of elements
+    mut _size: I64 = 0                // Number of elements (internal, use len() to access)
+
+    /**
+     * Create new empty set with specified element type
+     * Example: Set.new(Str)
+     */
+    new := proc(ElemType: Type) returns Set throws AllocError {
+        mut s := Set()
+        s.elem_type_name = type_as_str(ElemType)
+        s.elem_type_size = size_of(ElemType)
+        s.elements = Vec.new_from_type_info(s.elem_type_name, s.elem_type_size)
+        s._size = 0
+        return s
+    }
+
+    /**
+     * Insert element into set
+     * Returns true if element was inserted (not already present)
+     * Returns false if element already exists
+     */
+    insert := proc(mut self: Set, elem: Dynamic) returns Bool throws AllocError {
+        // Check if element already exists
+        mut i := 0
+        mut elems_arr := self.elements
+        while lt(i, self._size) {
+            mut elems_match := 0
+            if Str.eq(self.elem_type_name, "Str") {
+                // For Str elements, use Str.eq() to compare content
+                mut existing_elem := ""
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                mut elem_str := ""
+                memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
+                if elem_str.eq(existing_elem) {
+                    elems_match = 0
+                } else {
+                    elems_match = 1
+                }
+            } else {
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+            }
+
+            if elems_match.eq(0) {
+                // Element already exists
+                return false
+            }
+            i = add(i, 1)
+        }
+
+        // Element not found, add it
+        elems_arr.push(elem)
+        self.elements = elems_arr
+        self._size = add(self._size, 1)
+        return true
+    }
+
+    /** Remove element from set. Does nothing if element doesn't exist. */
+    remove := proc(mut self: Set, elem: Dynamic) {
+        mut i := 0
+        mut elems_arr := self.elements
+        while lt(i, self._size) {
+            mut elems_match := 0
+            if Str.eq(self.elem_type_name, "Str") {
+                mut existing_elem := ""
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                mut elem_str := ""
+                memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
+                if elem_str.eq(existing_elem) {
+                    elems_match = 0
+                } else {
+                    elems_match = 1
+                }
+            } else {
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+            }
+
+            if elems_match.eq(0) {
+                // Element found - remove by shifting all subsequent elements down
+                mut j := i
+                while lt(j, sub(self._size, 1)) {
+                    mut src_ptr := add(self.elements.ptr, mul(add(j, 1), self.elem_type_size))
+                    mut dst_ptr := add(self.elements.ptr, mul(j, self.elem_type_size))
+                    memcpy(dst_ptr, src_ptr, self.elem_type_size)
+                    j = add(j, 1)
+                }
+
+                // Decrease size
+                self._size = sub(self._size, 1)
+                self.elements._len = sub(self.elements._len, 1)
+                return
+            }
+            i = add(i, 1)
+        }
+        // Element not found - do nothing
+    }
+
+    /** Check if element exists in set */
+    contains := proc(self: Set, elem: Dynamic) returns Bool {
+        mut i := 0
+        mut elems_arr := self.elements
+        while lt(i, self._size) {
+            mut elems_match := 0
+            if Str.eq(self.elem_type_name, "Str") {
+                mut existing_elem := ""
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                memcpy(to_ptr(existing_elem), existing_elem_ptr, self.elem_type_size)
+                mut elem_str := ""
+                memcpy(to_ptr(elem_str), to_ptr(elem), self.elem_type_size)
+                if elem_str.eq(existing_elem) {
+                    elems_match = 0
+                } else {
+                    elems_match = 1
+                }
+            } else {
+                mut existing_elem_ptr := add(elems_arr.ptr, mul(i, self.elem_type_size))
+                elems_match = memcmp(to_ptr(elem), existing_elem_ptr, self.elem_type_size)
+            }
+
+            if elems_match.eq(0) {
+                return true
+            }
+            i = add(i, 1)
+        }
+        return false
+    }
+
+    /** Get number of elements in set */
+    len := proc(self: Set) returns I64 {
+        return self._size
+    }
+
+    /** Get total size in bytes */
+    size := func(self: Set) returns I64 {
+        return mul(self._size, self.elem_type_size)
+    }
+
+    /** Free set memory and reset */
+    delete := proc(mut self: Set) {
+        mut elems_arr := self.elements
+        elems_arr.delete()
+        self._size = 0
+    }
+
+    clone := func(self: Set) returns Set throws AllocError {
+        mut cloned := Set()
+        cloned.elem_type_name = self.elem_type_name
+        cloned.elem_type_size = self.elem_type_size
+        cloned.elements = self.elements.clone()
+        cloned._size = self._size
+        return cloned
+    }
+}
+
+// List - Dynamic heterogeneous collection (also known as Tuple)
+// Stores elements of different types in contiguous memory
+// Type information tracked via parallel metadata vectors
