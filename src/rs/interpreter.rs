@@ -912,11 +912,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                     }
                                     let expr_result_str = result.value;
                                     match type_name.as_str() {
-                                        "I64" | "U8" => {
+                                        "I64" | "U8" | "Str" => {
                                             Arena::insert_primitive(context, &combined_name, &member_value_type, &expr_result_str, e)?;
-                                        },
-                                        "Str" => {
-                                            Arena::insert_string(context, &combined_name, &expr_result_str, e)?;
                                         },
                                         _ => {
                                             insert_struct_instance(context, &combined_name, type_name, e)?;
