@@ -982,8 +982,29 @@ impl Arena {
         Ok(enum_val)
     }
 
-    /// Core logic for insert_array - returns mappings to be inserted by caller
-    fn insert_array_core(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<Vec<(String, usize)>, String> {
+    pub fn insert_array_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
+        // Temporarily push frame so symbol lookups work
+        let empty_frame = ScopeFrame {
+            arena_index: std::collections::HashMap::new(),
+            symbols: std::collections::HashMap::new(),
+            funcs: std::collections::HashMap::new(),
+            enums: std::collections::HashMap::new(),
+            structs: std::collections::HashMap::new(),
+            scope_type: ScopeType::Function,
+        };
+        let taken_frame = std::mem::replace(frame, empty_frame);
+        ctx.scope_stack.frames.push(taken_frame);
+
+        let result = Self::insert_array_into_frame_inner(ctx, name, elem_type, values, e);
+
+        // Pop frame back
+        *frame = ctx.scope_stack.frames.pop().unwrap();
+
+        result
+    }
+
+    /// Inner implementation that works with the current scope frame
+    fn insert_array_into_frame_inner(ctx: &mut Context, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
         // All array types now use the generic Array
         let array_type = "Array".to_string();
 
@@ -998,23 +1019,23 @@ impl Arena {
         array_defaults.insert("ptr".to_string(), "0".to_string());
         array_defaults.insert("_len".to_string(), "0".to_string());
 
-        // Get struct mappings (don't insert yet)
+        // Create Array struct and insert mappings directly into current frame
         let struct_result = Self::insert_struct_core(ctx, name, &array_type, None, &array_defaults, e)?;
-        let mut mappings = struct_result.arena_mappings;
-
-        // Helper to find offset from mappings
-        let find_offset = |mappings: &Vec<(String, usize)>, key: &str| -> Option<usize> {
-            mappings.iter().find(|(k, _)| k == key).map(|(_, v)| *v)
-        };
+        for (key, offset) in struct_result.arena_mappings {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, offset);
+        }
+        for (key, symbol) in struct_result.symbols {
+            ctx.scope_stack.frames.last_mut().unwrap().symbols.insert(key, symbol);
+        }
 
         let len = values.len() as i64;
-        let elem_size = match ctx.get_type_size( elem_type) {
+        let elem_size = match ctx.get_type_size(elem_type) {
             Ok(sz) => sz,
             Err(err) => return Err(e.lang_error(&ctx.path, "context", &err)),
         };
         let total_size = (len as usize) * elem_size;
 
-        // Allocate memory
+        // Allocate memory for elements
         let ptr = Arena::g().memory.len();
         Arena::g().memory.resize(ptr + total_size, 0);
 
@@ -1079,7 +1100,10 @@ impl Arena {
                                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
                             Arena::g().memory[offset..offset + elem_size]
                                 .copy_from_slice(&Arena::g().memory[str_offset..str_offset + elem_size]);
-                            mappings.extend(str_struct_result.arena_mappings);
+                            // Insert Str mappings into frame
+                            for (key, off) in str_struct_result.arena_mappings {
+                                ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, off);
+                            }
                         }
                     }
                 }
@@ -1090,97 +1114,68 @@ impl Arena {
             }
         }
 
-        // Write ptr, len (and cap for Vec) using calculated offsets
+        // Write ptr, len using offsets from frame
         let ptr_field_path = format!("{}.ptr", name);
-        let ptr_offset = find_offset(&mappings, &ptr_field_path)
+        let ptr_offset = ctx.scope_stack.lookup_var(&ptr_field_path)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}'", ptr_field_path)))?;
         Arena::g().memory[ptr_offset..ptr_offset+8].copy_from_slice(&(ptr as i64).to_ne_bytes());
 
-        // Set _len field (required for both Array and Vec)
+        // Set _len field
         let len_bytes = len.to_ne_bytes();
         let len_field_path = format!("{}._len", name);
-        let len_offset = find_offset(&mappings, &len_field_path)
+        let len_offset = ctx.scope_stack.lookup_var(&len_field_path)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}'", len_field_path)))?;
         Arena::g().memory[len_offset..len_offset+8].copy_from_slice(&len_bytes);
 
-        // Note: Array doesn't have a cap field (only Vec has cap)
-        // This function only creates Array structs (see line 2058)
+        // Set type_name field (it's a Str, so we need to store it properly)
+        let type_name_field = format!("{}.type_name", name);
+        if let Some(type_name_offset) = ctx.scope_stack.lookup_var(&type_name_field) {
+            let temp_id = format!("{}_type_name_temp", name);
+            // Declare temp symbol (insert_struct_core requires it for is_mut lookup)
+            ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
+                value_type: ValueType::TCustom("Str".to_string()),
+                is_mut: false,
+                is_copy: false,
+                is_own: false,
+            });
+            if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, &elem_type.to_string(), e)? {
+                // SPECIAL CASE: Str defaults inlined (see insert_string)
+                let mut str_defaults = HashMap::new();
+                str_defaults.insert("c_string".to_string(), "0".to_string());
+                str_defaults.insert("cap".to_string(), "0".to_string());
+                let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, &str_defaults, e)?;
+                let c_string_offset = str_struct_result.arena_mappings.iter()
+                    .find(|(k, _)| k == &format!("{}.c_string", temp_id))
+                    .map(|(_, v)| *v)
+                    .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.c_string'", temp_id)))?;
+                let cap_offset = str_struct_result.arena_mappings.iter()
+                    .find(|(k, _)| k == &format!("{}.cap", temp_id))
+                    .map(|(_, v)| *v)
+                    .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.cap'", temp_id)))?;
+                Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
+                Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
 
-        // For generic Array, also set type_name and type_size fields
-        if array_type == "Array" {
-            // Set type_name field (it's a Str, so we need to store it properly)
-            let type_name_field = format!("{}.type_name", name);
-            if let Some(type_name_offset) = find_offset(&mappings, &type_name_field) {
-                let temp_id = format!("{}_type_name_temp", name);
-                // Declare temp symbol (insert_struct_core requires it for is_mut lookup)
-                ctx.scope_stack.declare_symbol(temp_id.clone(), SymbolInfo {
-                    value_type: ValueType::TCustom("Str".to_string()),
-                    is_mut: false,
-                    is_copy: false,
-                    is_own: false,
-                });
-                if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, &temp_id, &elem_type.to_string(), e)? {
-                    // SPECIAL CASE: Str defaults inlined (see insert_string)
-                    let mut str_defaults = HashMap::new();
-                    str_defaults.insert("c_string".to_string(), "0".to_string());
-                    str_defaults.insert("cap".to_string(), "0".to_string());
-                    let str_struct_result = Self::insert_struct_core(ctx, &temp_id, "Str", None, &str_defaults, e)?;
-                    let c_string_offset = str_struct_result.arena_mappings.iter()
-                        .find(|(k, _)| k == &format!("{}.c_string", temp_id))
-                        .map(|(_, v)| *v)
-                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.c_string'", temp_id)))?;
-                    let cap_offset = str_struct_result.arena_mappings.iter()
-                        .find(|(k, _)| k == &format!("{}.cap", temp_id))
-                        .map(|(_, v)| *v)
-                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing '{}.cap'", temp_id)))?;
-                    Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
-                    Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
-
-                    let str_offset = str_struct_result.arena_mappings.iter()
-                        .find(|(k, _)| k == &temp_id)
-                        .map(|(_, v)| *v)
-                        .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
-                    let str_size = ctx.get_type_size( "Str")?;
-                    Arena::g().memory[type_name_offset..type_name_offset + str_size]
-                        .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
-                    mappings.extend(str_struct_result.arena_mappings);
+                let str_offset = str_struct_result.arena_mappings.iter()
+                    .find(|(k, _)| k == &temp_id)
+                    .map(|(_, v)| *v)
+                    .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_array: missing arena offset for '{}'", temp_id)))?;
+                let str_size = ctx.get_type_size("Str")?;
+                Arena::g().memory[type_name_offset..type_name_offset + str_size]
+                    .copy_from_slice(&Arena::g().memory[str_offset..str_offset + str_size]);
+                // Insert Str mappings into frame
+                for (key, off) in str_struct_result.arena_mappings {
+                    ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, off);
                 }
             }
-
-            // Set type_size field
-            let type_size_field = format!("{}.type_size", name);
-            if let Some(type_size_offset) = find_offset(&mappings, &type_size_field) {
-                let size_bytes = (elem_size as i64).to_ne_bytes();
-                Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
-            }
         }
 
-        Ok(mappings)
-    }
-
-    pub fn insert_array_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, name: &str, elem_type: &str, values: &Vec<String>, e: &Expr) -> Result<(), String> {
-        // Temporarily push frame so symbol lookups work in core function
-        let empty_frame = ScopeFrame {
-            arena_index: std::collections::HashMap::new(),
-            symbols: std::collections::HashMap::new(),
-            funcs: std::collections::HashMap::new(),
-            enums: std::collections::HashMap::new(),
-            structs: std::collections::HashMap::new(),
-            scope_type: ScopeType::Function,
-        };
-        let taken_frame = std::mem::replace(frame, empty_frame);
-        ctx.scope_stack.frames.push(taken_frame);
-
-        let result = Self::insert_array_core(ctx, name, elem_type, values, e);
-
-        // Pop frame back
-        *frame = ctx.scope_stack.frames.pop().unwrap();
-
-        // Now apply mappings to the frame
-        let mappings = result?;
-        for (key, offset) in mappings {
-            frame.arena_index.insert(key, offset);
+        // Set type_size field
+        let type_size_field = format!("{}.type_size", name);
+        if let Some(type_size_offset) = ctx.scope_stack.lookup_var(&type_size_field) {
+            let size_bytes = (elem_size as i64).to_ne_bytes();
+            Arena::g().memory[type_size_offset..type_size_offset + 8].copy_from_slice(&size_bytes);
         }
+
         Ok(())
     }
 }
