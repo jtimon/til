@@ -85,6 +85,57 @@ v.push(c)
 
 * Init Patterns (init.rs -> init.til)
 
+** Not-equal comparisons (ne -> not(eq()))
+
+TIL does not have a ~ne~ function. Use ~not(eq())~ instead:
+
+Rust:
+#+begin_src rust
+if a != b { ... }
+if x.len() != 0 { ... }
+#+end_src
+
+TIL:
+#+begin_src til
+if not(a.eq(b)) { ... }
+if not(x.len().eq(0)) { ... }
+#+end_src
+
+IMPORTANT: Do NOT use ~.ne()~ - it doesn't exist in TIL. Always use ~not(eq())~ or ~not(...eq(...))~.
+
+** Enum comparisons (use switch, not eq)
+
+Enums do NOT have an ~.eq()~ method. Use ~switch~ to compare enum values:
+
+Rust:
+#+begin_src rust
+if value_type == ValueType::TInfer { ... }
+if my_enum != SomeEnum::Variant { ... }
+#+end_src
+
+TIL:
+#+begin_src til
+// For equality check, use switch with a boolean flag
+mut is_infer := false
+switch value_type {
+case ValueType.TInfer:
+    is_infer = true
+case:
+    // Other variants
+}
+if is_infer { ... }
+
+// For inequality, negate the flag
+if not(is_infer) { ... }
+#+end_src
+
+For enum comparisons where you need to compare two enum values, use ~enum_to_str()~:
+#+begin_src til
+if enum_to_str(enum_a).eq(enum_to_str(enum_b)) { ... }
+#+end_src
+
+IMPORTANT: Do NOT use ~.eq()~ on enums - it doesn't exist. Use ~switch~ or ~enum_to_str()~.
+
 ** if let Some(x) = ...
 
 Rust uses ~if let~ for Option destructuring. TIL checks for default/empty value or uses catch blocks:
@@ -99,7 +150,7 @@ if let Some(val) = map.get(key) {
 TIL (check default):
 #+begin_src til
 val := map.get(key)
-if val.ne("") {
+if not(val.eq("")) {
     // use val
 }
 #+end_src
@@ -126,13 +177,43 @@ while i.gt(0) {
 }
 #+end_src
 
-** Option return types
+** Return type and error translation patterns
+
+This is the canonical mapping from Rust return types to TIL throws:
+
+| Rust                        | TIL                                  |
+|-----------------------------+--------------------------------------|
+| ~Result<T, String>~         | ~returns T throws Str~               |
+| ~Option<T>~                 | ~returns T throws KeyNotFoundError~  |
+| ~Result<Option<T>, String>~ | ~returns T throws Str, KeyNotFoundError~ |
+
+Examples:
+
+Rust:
+#+begin_src rust
+fn lookup_symbol(&self, name: &str) -> Option<&SymbolInfo> { ... }
+fn parse_expr(&mut self) -> Result<Expr, String> { ... }
+fn try_lookup(&self, name: &str) -> Result<Option<&Value>, String> { ... }
+#+end_src
+
+TIL:
+#+begin_src til
+lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError { ... }
+parse_expr := func(mut self: Parser) returns Expr throws Str { ... }
+try_lookup := func(self: Context, name: Str) returns Value throws Str, KeyNotFoundError { ... }
+#+end_src
+
+IMPORTANT: Internal errors (like ~IndexOutOfBoundsError~ from ~Vec.get()~) should be caught
+internally and NOT exposed in the throws signature. Only expose the semantic error types
+that correspond to the Rust return type.
+
+** Option handling patterns
 
 Rust uses ~Option<T>~ with ~.ok_or_else()~, ~.is_some()~, ~.is_none()~.
 
 TIL uses throw/catch instead:
-- Function throws on not-found instead of returning None
-- Caller uses catch block to handle the error case
+- Function throws ~KeyNotFoundError~ instead of returning None
+- Caller uses catch block to handle the not-found case
 - ~map.contains_key(k)~ to check existence without fetching
 
 ** Method chaining with ?
@@ -236,10 +317,16 @@ The translation is mechanical:
 1. OR patterns (~|~) -> separate case arms
 2. ~if let~ -> check default value or catch block
 3. Iterator methods -> explicit loops
-4. ~Option~ returns -> throw/catch pattern
-5. String slicing -> ~get_substr~
-6. UFCS works similarly: ~a.method(b)~ in both languages
-7. Default case: ~_~ -> empty ~case:~
-8. NULL check: ~!= NULL~ -> ~not(NULL.eq(x))~
-9. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
-10. Catch blocks come before final return/throw
+4. Return type translation:
+   - ~Result<T, String>~ -> ~returns T throws Str~
+   - ~Option<T>~ -> ~returns T throws KeyNotFoundError~
+   - ~Result<Option<T>, String>~ -> ~returns T throws Str, KeyNotFoundError~
+5. Internal errors (IndexOutOfBoundsError, AllocError, etc.) should be caught internally, not exposed
+6. String slicing -> ~get_substr~
+7. UFCS works similarly: ~a.method(b)~ in both languages
+8. Default case: ~_~ -> empty ~case:~
+9. NULL check: ~!= NULL~ -> ~not(NULL.eq(x))~
+10. ~vec.get(i)~ -> out-parameter: ~vec.get(i, out_val)~
+11. Catch blocks come before final return/throw
+12. Not-equal: ~!=~ or ~.ne()~ -> ~not(eq())~ or ~not(x.eq(y))~ (TIL has no ~ne~ function)
+13. Enum comparison: ~==~ on enums -> use ~switch~ with boolean flag, or ~enum_to_str()~ (enums have no ~eq~ method)

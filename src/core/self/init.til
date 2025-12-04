@@ -1,1554 +1,1303 @@
 mode lib
 
+import("src.core.array")
+import("src.core.ptr")
 import("src.core.self.parser")
+import("src.core.set")
 
-// Init phase: Context creation and symbol table management
-// Corresponds to src/rs/init.rs in the Rust implementation
-//
-// IMPLEMENTATION STATUS (~91% complete):
-//
-// COMPLETED:
-// Phase 1: Foundation
-// - Context struct with all fields (arena, symbols, funcs, enum_defs, struct_defs, imports tracking)
-// - Type serialization: SFuncDef serialization/deserialization ("FUNC|type|return_type")
-// - Type serialization: SStructDef serialization ("STRUCT|field1=Type1|field2=Type2|...")
-// - Type serialization: SymbolInfo serialization/deserialization ("VALUE_TYPE|is_mut")
-// - Basic struct support: get_type_size, insert_struct, map_instance_fields
-// - String storage: get_str, insert_str (simplified arena storage)
-//
-// Phase 2: Enum and Array Support
-// - Enum methods: get_enum, insert_enum, get_enum_at_offset (simplified without payloads)
-// - Payload size calculation: get_payload_size_for_type (handles Bool, I64, structs, enums)
-// - Array method: insert_array (empty array allocation)
-// - Helper methods: get_i64_at_offset, set_i64_at_offset, insert_bool_at_offset
-//
-// Phase 3: Struct Operations
-// - Struct field operations: copy_fields, register_struct_fields_for_typecheck
-// - Recursive nested struct handling
-//
-// Core Type Inference:
-// - get_value_type: handles literals, funcdefs, enums, structs, ranges, identifiers, patterns
-// - Member access with actual type resolution (parses struct definitions)
-// - get_fcall_value_type: UFCS method resolution, standalone funcs, constructors (fully working)
-// - value_type_func_proc: function return type checking
-// - str_to_value_type: parse ValueType from string representation
-//
-// Arena Methods (simplified string-based storage):
-// - get/insert for I64, U8, Bool, Str
-// - Offset-based helpers for direct arena access
-//
-// Declaration Processing:
-// - process_declarations: registers funcs, enums, structs with serialization
-// - Mode validation: checks allows_base_anything and allows_base_calls
-// - Enum helpers: get_variant_pos, variant_pos_to_str
-//
-// NOT YET IMPLEMENTED (~9% remaining):
-// - init_import_declarations: needs file I/O, lexing, parsing, recursive import handling
-// - Enum payload handling (basic tags only, no payload bytes)
-// - Array initialization with values (empty arrays only)
-// - Proper byte-level c_string/cap/len for strings (architectural change)
-// - Associated function registration (needs parser to store Expr in default_values)
-//
-// KEY APPROACH:
-// Using simplified serialization formats for complex types:
-// - Functions: "FUNC|<function_type>|<return_type>"
-// - Structs: "STRUCT|field1=Type1|field2=Type2|..."
-// - Arena storage: string representations instead of raw bytes
-// This approach is sufficient for basic single-file TIL programs.
+// Unix path separator (Windows not supported in TIL)
+MAIN_SEPARATOR_STR := "/"
 
-// Tracks information about a declared symbol (variable, constant, etc.)
+// TODO: These should be implemented in interpreter.til once it's translated
+// For now, placeholders that always throw (and return dummy to satisfy type checker)
+Arena_get_type_size := func(context: Context, type_name: Str) returns I64 throws Str {
+    if true {
+        throw format("Arena_get_type_size not implemented: ", type_name)
+    }
+    return 0
+}
+
+Arena_get_field_offset := func(context: Context, field_path: Str) returns I64 throws Str {
+    if true {
+        throw format("Arena_get_field_offset not implemented: ", field_path)
+    }
+    return 0
+}
+
+// Init phase: Declaration indexing and import processing
+// This module handles the "context priming" phase that runs before type checking.
+// No eval, no arena access - declarations only.
+//
+// Translated from src/rs/init.rs
+
 SymbolInfo := struct {
-    mut value_type: ValueType = ValueType.TFunction  // Type of the symbol
-    mut is_mut: Bool = false                          // Whether the symbol is mutable
+    mut value_type: ValueType = ValueType.TFunction
+    mut is_mut: Bool = false
+    mut is_copy: Bool = false
+    mut is_own: Bool = false
+
+    new := func(value_type: ValueType, is_mut: Bool, is_copy: Bool, is_own: Bool) returns SymbolInfo {
+        mut info := SymbolInfo()
+        info.value_type = value_type
+        info.is_mut = is_mut
+        info.is_copy = is_copy
+        info.is_own = is_own
+        return info
+    }
 }
 
-// Represents an enum value with its type, variant name, and optional payload
 EnumVal := struct {
-    mut enum_type: Str = ""                            // The enum type name
-    mut enum_name: Str = ""                            // The variant name
-    mut has_payload: Bool = false                      // Whether payload exists
-    mut payload: Str = ""                              // Payload data (simplified - Rust uses Vec<u8>)
-    mut payload_type: ValueType = ValueType.TFunction  // Payload type (TFunction = none)
+    mut enum_type: Str = ""
+    mut enum_name: Str = ""
+    // Payload for tagged unions: stores the associated data
+    // For now, supports Bool (1 byte) and I64 (8 bytes)
+    mut payload: Ptr = Ptr()  // Option<Vec<u8>> in Rust - NULL for None
+    mut payload_type: Ptr = Ptr()  // Option<ValueType> in Rust - NULL for None
 }
 
-// Context for type checking and evaluation
-// Mimics Context struct in rstil.rs
-Context := struct {
-    mut mode_def: ModeDef = ModeDef()          // Mode definition
-    mut path: Str = ""                         // File path for error reporting
-    mut symbols: Map = Map.new(Str, Str)  // symbol_name -> SymbolInfo (as JSON for now)
-    mut funcs: Map = Map.new(Str, Str)  // func_name -> SFuncDef (as JSON for now)
-    mut enum_defs: Map = Map.new(Str, Str)  // enum_name -> SEnumDef (as JSON for now)
-    mut struct_defs: Map = Map.new(Str, Str)  // struct_name -> SStructDef (as JSON for now)
-    mut arena_index: Map = Map.new(Str, Str)  // var_name -> arena_offset (as str)
-    mut arena: Arena = Arena()                 // Memory storage
-    mut temp_enum_payload_exists: Bool = false // Whether temp enum payload exists
-    mut temp_enum_payload: Str = ""            // Temp storage for enum payload during construction
-    mut imports_declarations_done: Map = Map.new(Str, Str)  // Tracks imports with declarations copied
-    mut imports_values_done: Map = Map.new(Str, Str)  // Tracks imports with values initialized
-    mut imports_wip: Map = Map.new(Str, Str)  // Work-in-progress imports for cycle detection
+// Scope stack for proper lexical scoping
+ScopeType := enum {
+    Global,      // Top-level module scope
+    Function,    // Function body
+    Block,       // Generic block (if, else, loop body)
+    Catch        // Catch block (for error handling)
+}
 
-    // Create new context
-    new := proc(mode_def: ModeDef, path: Str) returns Context throws AllocError {
-        mut ctx := Context()
-        ctx.mode_def = mode_def
-        ctx.path = path
-        ctx.symbols = Map.new(Str, Str)
-        ctx.funcs = Map.new(Str, Str)
-        ctx.enum_defs = Map.new(Str, Str)
-        ctx.struct_defs = Map.new(Str, Str)
-        ctx.arena_index = Map.new(Str, Str)
-        ctx.arena = Arena.new()
-        ctx.temp_enum_payload_exists = false
-        ctx.temp_enum_payload = ""
-        ctx.imports_declarations_done = Map.new(Str, Str)
-        ctx.imports_values_done = Map.new(Str, Str)
-        ctx.imports_wip = Map.new(Str, Str)
-        return ctx
-    }
+ScopeFrame := struct {
+    // maps variable names to their offsets in the arena
+    mut arena_index: Map = Map.new(Str, I64)  // HashMap<String, usize> in Rust (stores offsets)
 
-    // Get I64 value from arena at specific offset
-    get_i64_at_offset := func(self: Context, offset: I64) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Read value from arena memory at offset
-        mut value_bytes := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_bytes)
+    // All declared symbols (types, constants, variables, and function names)
+    // This is necessary for so called "context priming" or "declaration indexing"
+    // aka declaring things in whatever order, aka not needing forward declarations
+    // in theory it should only be needed for the "type" phase after the init context phase
+    // but it can be convenient at times in eval or compile phases too, I guess.
+    mut symbols: Map = Map.new(Str, SymbolInfo)
 
-        // Parse back to I64
-        mut value_str := value_bytes
-        return value_str.to_i64()
-    }
+    // All functions, with their function types, signatures and bodies (functions, methods, macros, etc).
+    mut funcs: Map = Map.new(Str, SFuncDef)
 
-    // Set I64 value in arena at specific offset
-    set_i64_at_offset := proc(mut self: Context, offset: I64, value: I64) throws Str, IndexOutOfBoundsError {
-        mut value_str := value.to_str()
-        mut mem_arr := self.arena.memory
-        mem_arr.set(offset, value_str)
-        self.arena.memory = mem_arr
-    }
+    // Enum type definitions (variants and associated data)
+    mut enums: Map = Map.new(Str, SEnumDef)
 
-    // Insert Bool value in arena at specific offset
-    insert_bool_at_offset := proc(mut self: Context, offset: I64, value: Bool) throws Str, IndexOutOfBoundsError {
-        // Store Bool as "true" or "false" string
-        mut value_str := ""
-        if value {
-            value_str = "true"
+    // Struct type definitions (fields and associated constants [including functions, structs are namespaces, almost])
+    mut structs: Map = Map.new(Str, SStructDef)
+
+    // Scope type (helps with cleanup and debugging)
+    mut scope_type: ScopeType = ScopeType.Global
+}
+
+ScopeStack := struct {
+    // Stack of scope frames
+    mut frames: Vec = Vec.new(ScopeFrame)
+
+
+    new := func() returns ScopeStack throws Str {
+        mut stack := ScopeStack()
+        stack.frames = Vec.new(ScopeFrame)
+        catch (err: AllocError) {
+            throw err.msg
         }
-        else {
-            value_str = "false"
-        }
-        mut mem_arr := self.arena.memory
-        mem_arr.set(offset, value_str)
-        self.arena.memory = mem_arr
+        return stack
     }
 
-    // Get I64 value from arena by variable name
-    get_i64 := func(self: Context, var_name: Str) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: I64 variable '", var_name, "' not found in arena")
-        }
-
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read 8 bytes from arena memory at offset
-        // For now, simplified: convert back from string representation
-        // TODO: Implement proper byte-level storage when needed
-        mut value_bytes := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_bytes)
-
-        // Parse back to I64
-        mut value_str := value_bytes
-        return value_str.to_i64()
-    }
-
-    // Insert I64 value into arena
-    insert_i64 := proc(mut self: Context, var_name: Str, value: I64) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // For Phase 1: simplified storage - store as string representation
-        // Later: store as actual bytes like rstil.rs does
-
-        // Check if variable already exists (update vs insert)
-        mut offset_str := self.arena_index.get(var_name)
-        mut value_str := value.to_str()
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory (as string for now)
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value_str)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
-        }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value_str)
-            self.arena.memory = mem_arr
+    push := proc(mut self: ScopeStack, scope_type: ScopeType) throws Str {
+        mut frame := ScopeFrame()
+        frame.arena_index = Map.new(Str, I64)
+        frame.symbols = Map.new(Str, SymbolInfo)
+        frame.funcs = Map.new(Str, SFuncDef)
+        frame.enums = Map.new(Str, SEnumDef)
+        frame.structs = Map.new(Str, SStructDef)
+        frame.scope_type = scope_type
+        self.frames.push(frame)
+        catch (err: AllocError) {
+            throw err.msg
         }
     }
 
-    // Get Str value from arena by variable name
-    get_str := func(self: Context, var_name: Str) returns Str throws Str, IndexOutOfBoundsError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: Str variable '", var_name, "' not found in arena")
+    pop := proc(mut self: ScopeStack) returns ScopeFrame throws Str, IndexOutOfBoundsError {
+        if self.frames.len().lteq(1) {
+            throw "Cannot pop global scope"
         }
 
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read string from arena memory at offset
-        mut value := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value)
-        return value
+        mut popped := ScopeFrame()
+        self.frames.pop(popped)
+        return popped
     }
 
-    // Insert Str value into arena
-    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Check if variable already exists
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
-        }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value)
-            self.arena.memory = mem_arr
-        }
+    len := proc(self: ScopeStack) returns I64 {
+        return self.frames.len()
     }
 
-    // Get Bool value from arena by variable name
-    get_bool := func(self: Context, var_name: Str) returns Bool throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: Bool variable '", var_name, "' not found in arena")
-        }
-
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read bool from arena memory (stored as "true"/"false" string)
-        mut value_str := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_str)
-
-        // Convert string to bool
-        return value_str.eq("true")
+    size := func(self: ScopeStack) returns I64 {
+        return self.frames.size()
     }
 
-    // Insert Bool value into arena
-    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Convert bool to string
-        mut value_str := "false"
-        if value {
-            value_str = "true"
-        }
-
-        // Check if variable already exists
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value_str)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
-        }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value_str)
-            self.arena.memory = mem_arr
-        }
-    }
-
-    // Get U8 value from arena by variable name
-    get_u8 := func(self: Context, var_name: Str) returns U8 throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: U8 variable '", var_name, "' not found in arena")
-        }
-
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read U8 from arena memory at offset
-        mut value_str := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_str)
-
-        // Parse to U8 (stored as string for now, like other types)
-        mut value_str_copy := value_str
-        i64_val := value_str_copy.to_i64()
-        return u8(i64_val)
-    }
-
-    // Insert U8 value into arena
-    insert_u8 := proc(mut self: Context, var_name: Str, value: U8) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Convert U8 to I64 then to string for storage
-        i64_val := i64(value)
-        mut value_str := i64_val.to_str()
-
-        // Check if variable already exists
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value_str)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
-        }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value_str)
-            self.arena.memory = mem_arr
-        }
-    }
-
-    // Get Bool value from arena by variable name
-    get_bool := func(self: Context, var_name: Str) returns Bool throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: Bool variable '", var_name, "' not found in arena")
-        }
-
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read Bool from arena memory at offset (stored as U8: 0 or 1)
-        mut value_str := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_str)
-
-        // Parse to I64 then check if 1 (true) or 0 (false)
-        mut value_str_copy := value_str
-        i64_val := value_str_copy.to_i64()
-        return eq(i64_val, 1)
-    }
-
-    // Insert Bool value into arena
-    insert_bool := proc(mut self: Context, var_name: Str, value: Bool) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Convert Bool to I64 (1 for true, 0 for false) then to string for storage
-        mut stored_val := 0
-        if value {
-            stored_val = 1
-        }
-        mut value_str := stored_val.to_str()
-
-        // Check if variable already exists
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value_str)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
-        }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value_str)
-            self.arena.memory = mem_arr
-        }
-    }
-
-    // Get size in bytes of a type
-    // Corresponds to get_type_size in init.rs
-    get_type_size := func(self: Context, type_name: Str) returns I64 throws Str {
-        // Handle primitive types
-        mut tn_copy := type_name
-        if tn_copy.eq("U8") {
-            return 1
-        }
-        if tn_copy.eq("I64") {
-            return 8
-        }
-        if tn_copy.eq("Bool") {
-            return 1
-        }
-        if tn_copy.eq("Str") {
-            return 24  // c_string (8 bytes ptr) + cap (8 bytes) + len (8 bytes)
-        }
-
-        // Check if it's an enum (all enums are 8 bytes)
-        mut enum_defs_map := self.enum_defs
-        mut enum_def_str := enum_defs_map.get(type_name)
-        if not(enum_def_str.eq("")) {
-            return 8
-        }
-
-        // Check if it's a struct - need to calculate total size
-        mut struct_defs_map := self.struct_defs
-        mut struct_def_str := struct_defs_map.get(type_name)
-        if not(struct_def_str.eq("")) {
-            // Parse serialized struct definition
-            // Format: "STRUCT|field1=Type1|field2=Type2|..."
-            mut parts := struct_def_str.split("|")
-            mut total_size := 0
-
-            // Skip first part ("STRUCT") and iterate through field definitions
-            mut i := 1
-            while lt(i, parts.len) {
-                mut field_def := ""
-                parts.get(i, field_def)
-
-                // Split field_def by "=" to get field_name=field_type
-                mut field_parts := field_def.split("=")
-                if gteq(field_parts.len, 2) {
-                    mut field_type := ""
-                    field_parts.get(1, field_type)
-
-                    // Recursively get the size of this field's type
-                    mut field_size := self.get_type_size(field_type)
-                    total_size = add(total_size, field_size)
-                }
-
-                i = add(i, 1)
+    lookup_var := func(self: ScopeStack, name: Str) returns Ptr throws KeyNotFoundError {
+        // Walk up the stack from innermost to outermost
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            if frame.arena_index.contains_key(name) {
+                mut offset_str := ""
+                frame.arena_index.get(name, offset_str)
+                mut ptr := Ptr()
+                ptr.data = offset_str.to_i64()
+                return ptr
             }
-
-            return total_size
+            i = i.sub(1)
         }
-
-        // Unknown type
-        throw format(loc(), " ERROR: Unknown type '", type_name, "' in get_type_size")
+        catch (err: IndexOutOfBoundsError) {
+            // Internal error - should never happen
+        }
+        catch (err: KeyNotFoundError) {
+            // Internal error from contains_key - should never happen
+        }
+        // Like Rust's None - caller provides error message
+        throw KeyNotFoundError()
     }
 
-    // Get payload size for an enum type at a given offset
-    // Corresponds to get_payload_size_for_type in init.rs
-    get_payload_size_for_type := func(self: Context, vtype: ValueType, offset: I64) returns I64 throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Match on value type
-        mut vtype_str := value_type_to_str(vtype)
-
-        // Extract type name if TCustom
-        mut type_name := ""
-        switch vtype {
-        case ValueType.TCustom(name):
-            type_name = name
-        case:
-            // For non-custom types, return 0
-            return 0
+    lookup_symbol := func(self: ScopeStack, name: Str) returns SymbolInfo throws KeyNotFoundError {
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut symbol := SymbolInfo()
+            mut found := false
+            frame.symbols.get(name, symbol)  // throws KeyNotFoundError if not found
+            found = true
+            catch (err: KeyNotFoundError) {
+                // Not in this frame, try next
+            }
+            if found {
+                return symbol
+            }
+            i = i.sub(1)
         }
-
-        // Handle primitive types
-        if type_name.eq("Bool") {
-            return 1
+        catch (err: IndexOutOfBoundsError) {
+            // Internal error - should never happen
         }
-        if type_name.eq("I64") {
-            return 8
-        }
-
-        // Look up the type in symbols
-        mut symbols_map := self.symbols
-        mut symbol_str := symbols_map.get(type_name)
-        if symbol_str.eq("") {
-            // Type not found in symbols, return 0
-            return 0
-        }
-
-        // Parse symbol to get ValueType and is_mut
-        mut symbol := parse_symbol_info_from_str(symbol_str)
-
-        // Check if it's a struct or enum type
-        mut symbol_vtype_str := value_type_to_str(symbol.value_type)
-
-        // Handle TType(TStructDef)
-        if symbol_vtype_str.contains("TType.TStructDef") {
-            return self.get_type_size(type_name)
-        }
-
-        // Handle TType(TEnumDef)
-        if symbol_vtype_str.contains("TType.TEnumDef") {
-            // For simplified implementation without payloads, just return 8 for variant tag
-            // In full implementation, this would recursively get the inner enum's payload size
-            return 8
-        }
-
-        // For other types, return 0
-        return 0
+        // Like Rust's None - caller provides error message
+        throw KeyNotFoundError()
     }
 
-    // Get enum value from arena by variable name
-    get_enum := func(self: Context, var_name: Str) returns EnumVal throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up symbol to verify it exists
-        mut symbols_map := self.symbols
-        mut symbol_str := symbols_map.get(var_name)
-        if symbol_str.eq("") {
-            throw format(loc(), " ERROR: get_enum: Symbol '", var_name, "' not found")
+    declare_var := proc(mut self: ScopeStack, name: Str, offset: I64, symbol: SymbolInfo) throws Str, IndexOutOfBoundsError, AllocError, DuplicatedKeyError {
+        if self.frames.len().eq(0) {
+            throw "No active scope"
         }
 
-        // TODO: Parse SymbolInfo to get enum_type
-        // For now, assume symbol_str contains type info like "ValueType.TCustom=TypeName"
-        mut enum_type := ""
-        if symbol_str.contains("=") {
-            mut parts := symbol_str.split("=")
-            if gteq(parts.len, 2) {
-                parts.get(1, enum_type)
+        mut last_idx := self.frames.len().sub(1)
+        mut current_frame := ScopeFrame()
+        self.frames.get(last_idx, current_frame)
+
+        // Check for redeclaration in current scope only
+        if current_frame.arena_index.contains_key(name) {
+            throw format("Variable '", name, "' already declared in this scope")
+        }
+
+        current_frame.arena_index.insert(name, offset.to_str())
+        current_frame.symbols.insert(name, symbol)
+        self.frames.set(last_idx, current_frame)
+    }
+
+    declare_symbol := proc(mut self: ScopeStack, name: Str, symbol: SymbolInfo) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.symbols.insert(name, symbol)
+            self.frames.set(last_idx, current_frame)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
+    }
+
+    remove_symbol := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            if current_frame.symbols.contains_key(name) {
+                current_frame.symbols.remove(name)
+                self.frames.set(last_idx, current_frame)
+                mut ptr := Ptr()
+                ptr.data = 1  // Non-NULL to indicate found and removed
+                return ptr
             }
         }
-        if enum_type.eq("") {
-            throw format(loc(), " ERROR: get_enum: Could not determine enum type for '", var_name, "'")
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
-
-        // Get arena offset
-        mut arena_idx := self.arena_index
-        mut offset_str := arena_idx.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: get_enum: Arena index for '", var_name, "' not found")
-        }
-        mut offset := offset_str.to_i64()
-
-        // Read enum value from arena (stored as I64 variant position)
-        mut enum_value := self.get_i64_at_offset(offset)
-
-        // Get enum definition to map position to name
-        mut enum_defs_map := self.enum_defs
-        mut enum_def_str := enum_defs_map.get(enum_type)
-        if enum_def_str.eq("") {
-            throw format(loc(), " ERROR: get_enum: Enum definition for '", enum_type, "' not found")
-        }
-
-        // Get variant name from position
-        mut enum_name := self.variant_pos_to_str(enum_type, enum_value)
-
-        // TODO: Handle payload reading
-        // For now, return enum without payload
-        mut result := EnumVal()
-        result.enum_type = enum_type
-        result.enum_name = enum_name
-        return result
+        return Ptr()  // NULL - not found
     }
 
-    // Insert enum value into arena
-    insert_enum := proc(mut self: Context, var_name: Str, enum_type: Str, enum_variant: Str) returns EnumVal throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Get enum definition
-        mut enum_defs_map := self.enum_defs
-        mut enum_def_str := enum_defs_map.get(enum_type)
-        if enum_def_str.eq("") {
-            throw format(loc(), " ERROR: insert_enum: Enum definition for '", enum_type, "' not found")
-        }
-
-        // Normalize enum_variant (strip type prefix if present)
-        mut normalized_variant := enum_variant
-        if enum_variant.contains(".") {
-            mut parts := enum_variant.split(".")
-            mut last_part := ""
-            mut last_idx := sub(parts.len, 1)
-            parts.get(last_idx, last_part)
-            normalized_variant = last_part
-        }
-
-        // Get variant position
-        mut enum_value := self.get_variant_pos(enum_type, normalized_variant)
-
-        // Check if variable already exists (update vs insert)
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space and store
-            self.insert_i64(var_name, enum_value)
-        }
-        else {
-            // Update existing variable
-            mut offset := offset_str.to_i64()
-            self.set_i64_at_offset(offset, enum_value)
-        }
-
-        // TODO: Handle temp_enum_payload for variants with payloads
-        // For now, return enum without payload
-        mut result := EnumVal()
-        result.enum_type = enum_type
-        result.enum_name = normalized_variant
-        return result
-    }
-
-    // Map struct instance fields to arena offsets
-    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str) throws Str, IndexOutOfBoundsError {
-        // Get struct definition
-        mut struct_defs_map := self.struct_defs
-        mut struct_def_str := struct_defs_map.get(custom_type_name)
-        if struct_def_str.eq("") {
-            throw format(loc(), " ERROR: map_instance_fields: definition for '", custom_type_name, "' not found")
-        }
-
-        // Get instance mutability from symbols
-        mut symbols_map := self.symbols
-        mut symbol_info_str := symbols_map.get(instance_name)
-        if symbol_info_str.eq("") {
-            throw format(loc(), " ERROR: map_instance_fields: instance '", instance_name, "' not found in symbols")
-        }
-        // TODO: Parse SymbolInfo to get is_mut (for now assume mutable)
-        mut is_mut := true
-
-        // Get base offset from arena_index
-        mut arena_index_map := self.arena_index
-        mut base_offset_str := arena_index_map.get(instance_name)
-        if base_offset_str.eq("") {
-            throw format(loc(), " ERROR: map_instance_fields: base offset for '", instance_name, "' not found")
-        }
-        mut base_offset := base_offset_str.to_i64()
-
-        // Parse serialized struct definition
-        // Format: "STRUCT|field1=Type1|field2=Type2|..."
-        mut parts := struct_def_str.split("|")
-        mut current_offset := 0
-
-        // Skip first part ("STRUCT") and iterate through field definitions
-        mut i := 1
-        while lt(i, parts.len) {
-            mut field_def := ""
-            parts.get(i, field_def)
-
-            // Split field_def by "=" to get field_name=field_type
-            mut field_parts := field_def.split("=")
-            if gteq(field_parts.len, 2) {
-                mut field_name := ""
-                mut field_type := ""
-                field_parts.get(0, field_name)
-                field_parts.get(1, field_type)
-
-                // TODO: Handle immutable fields separately
-                // For now, assume all fields are mutable
-                mut combined_name := format(instance_name, ".", field_name)
-                mut field_offset := add(base_offset, current_offset)
-
-                // Register in arena_index
-                mut arena_map := self.arena_index
-                arena_map.insert(combined_name, field_offset.to_str())
-                self.arena_index = arena_map
-
-                // Register in symbols
-                mut syms := self.symbols
-                // TODO: Serialize SymbolInfo properly (for now just store type)
-                syms.insert(combined_name, format("ValueType.TCustom=", field_type))
-                self.symbols = syms
-
-                // Recursively handle nested structs
-                mut struct_defs := self.struct_defs
-                mut nested_struct_def := struct_defs.get(field_type)
-                if not(nested_struct_def.eq("")) {
-                    self.map_instance_fields(field_type, combined_name)
-                }
-
-                // Calculate field size and increment offset
-                mut field_size := self.get_type_size(field_type)
-                current_offset = add(current_offset, field_size)
+    remove_var := proc(mut self: ScopeStack, name: Str) returns Ptr throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            if current_frame.arena_index.contains_key(name) {
+                mut offset_str := ""
+                current_frame.arena_index.get(name, offset_str)
+                current_frame.arena_index.remove(name)
+                self.frames.set(last_idx, current_frame)
+                mut ptr := Ptr()
+                ptr.data = offset_str.to_i64()
+                return ptr
             }
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: KeyNotFoundError) {
+            throw err.msg
+        }
+        return Ptr()  // NULL - not found
+    }
 
-            i = add(i, 1)
+    // Insert a variable without a corresponding symbol (simpler than declare_var)
+    insert_var := proc(mut self: ScopeStack, name: Str, offset: I64) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.arena_index.insert(name, offset.to_str())
+            self.frames.set(last_idx, current_frame)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
         }
     }
 
-    // Copy struct fields from source to destination
-    copy_fields := proc(mut self: Context, custom_type_name: Str, src: Str, dest: Str) throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Get struct definition
-        mut struct_defs_map := self.struct_defs
-        mut struct_def_str := struct_defs_map.get(custom_type_name)
-        if struct_def_str.eq("") {
-            throw format(loc(), " ERROR: copy_fields: definition for '", custom_type_name, "' not found")
-        }
-
-        // Get destination symbol info (for is_mut)
-        mut symbols_map := self.symbols
-        mut dest_symbol_str := symbols_map.get(dest)
-        if dest_symbol_str.eq("") {
-            throw format(loc(), " ERROR: copy_fields: destination symbol '", dest, "' not found")
-        }
-        // TODO: Parse SymbolInfo to get is_mut
-        mut is_mut := true
-
-        // Get destination base offset
-        mut arena_idx := self.arena_index
-        mut dest_base_offset_str := arena_idx.get(dest)
-        if dest_base_offset_str.eq("") {
-            throw format(loc(), " ERROR: copy_fields: destination arena offset for '", dest, "' not found")
-        }
-        mut dest_base_offset := dest_base_offset_str.to_i64()
-
-        // Parse serialized struct definition
-        // Format: "STRUCT|field1=Type1|field2=Type2|..."
-        mut parts := struct_def_str.split("|")
-        mut current_offset := 0
-
-        // Skip first part ("STRUCT") and iterate through field definitions
-        mut i := 1
-        while lt(i, parts.len) {
-            mut field_def := ""
-            parts.get(i, field_def)
-
-            // Split field_def by "=" to get field_name=field_type
-            mut field_parts := field_def.split("=")
-            if gteq(field_parts.len, 2) {
-                mut field_name := ""
-                mut field_type := ""
-                field_parts.get(0, field_name)
-                field_parts.get(1, field_type)
-
-                // Get field size
-                mut field_size := self.get_type_size(field_type)
-
-                // Build source and destination keys
-                mut src_key := format(src, ".", field_name)
-                mut dest_key := format(dest, ".", field_name)
-
-                // Get source offset
-                mut arena_map := self.arena_index
-                mut src_offset_str := arena_map.get(src_key)
-                if src_offset_str.eq("") {
-                    throw format(loc(), " ERROR: copy_fields: source offset for '", src_key, "' not found")
-                }
-                mut src_offset := src_offset_str.to_i64()
-
-                // Calculate destination offset
-                mut dest_offset := add(dest_base_offset, current_offset)
-
-                // Register destination field in arena_index and symbols
-                mut arena_idx_map := self.arena_index
-                arena_idx_map.insert(dest_key, dest_offset.to_str())
-                self.arena_index = arena_idx_map
-
-                mut syms := self.symbols
-                // TODO: Serialize SymbolInfo properly (for now just store type)
-                syms.insert(dest_key, format("ValueType.TCustom=", field_type))
-                self.symbols = syms
-
-                // Copy memory from source to destination (simplified: copy string value)
-                mut mem_arr := self.arena.memory
-                mut value_str := ""
-                mem_arr.get(src_offset, value_str)
-                mem_arr.set(dest_offset, value_str)
-                self.arena.memory = mem_arr
-
-                // Recursively handle nested structs
-                mut struct_defs := self.struct_defs
-                mut nested_struct_def := struct_defs.get(field_type)
-                if not(nested_struct_def.eq("")) {
-                    self.copy_fields(field_type, src_key, dest_key)
-                }
-
-                current_offset = add(current_offset, field_size)
+    lookup_func := func(self: ScopeStack, name: Str) returns SFuncDef throws KeyNotFoundError {
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut func_def := SFuncDef()
+            mut found := false
+            frame.funcs.get(name, func_def)  // throws KeyNotFoundError if not found
+            found = true
+            catch (err: KeyNotFoundError) {
+                // Not in this frame, try next
             }
-
-            i = add(i, 1)
-        }
-    }
-
-    // Insert struct instance into arena
-    insert_struct := proc(mut self: Context, var_name: Str, custom_type_name: Str) throws Str, AllocError, IndexOutOfBoundsError {
-        // Get struct definition
-        mut struct_defs_map := self.struct_defs
-        mut struct_def_str := struct_defs_map.get(custom_type_name)
-        if struct_def_str.eq("") {
-            throw format(loc(), " ERROR: insert_struct: definition for '", custom_type_name, "' not found")
-        }
-
-        // Get instance mutability from symbols
-        mut symbols_map := self.symbols
-        mut symbol_info_str := symbols_map.get(var_name)
-        if symbol_info_str.eq("") {
-            throw format(loc(), " ERROR: insert_struct: var_name '", var_name, "' not found in symbols")
-        }
-        // TODO: Parse SymbolInfo to get is_mut (for now assume mutable)
-
-        // Calculate total size (reuse get_type_size which already does this)
-        mut total_size := self.get_type_size(custom_type_name)
-
-        // Allocate blob in arena
-        mut arena := self.arena
-        mut offset := arena.memory.len
-        arena.memory.resize(add(offset, total_size))
-        self.arena = arena
-
-        // Register base offset in arena_index
-        mut arena_map := self.arena_index
-        arena_map.insert(var_name, offset.to_str())
-        self.arena_index = arena_map
-
-        // Parse serialized struct definition to initialize fields
-        // Format: "STRUCT|field1=Type1|field2=Type2|..."
-        mut parts := struct_def_str.split("|")
-        mut current_offset := 0
-
-        // Skip first part ("STRUCT") and iterate through field definitions
-        mut i := 1
-        while lt(i, parts.len) {
-            mut field_def := ""
-            parts.get(i, field_def)
-
-            // Split field_def by "=" to get field_name=field_type
-            mut field_parts := field_def.split("=")
-            if gteq(field_parts.len, 2) {
-                mut field_name := ""
-                mut field_type := ""
-                field_parts.get(0, field_name)
-                field_parts.get(1, field_type)
-
-                mut combined_name := format(var_name, ".", field_name)
-                mut field_offset := add(offset, current_offset)
-
-                // Register field in arena_index
-                mut arena_idx := self.arena_index
-                arena_idx.insert(combined_name, field_offset.to_str())
-                self.arena_index = arena_idx
-
-                // Register field in symbols
-                mut syms := self.symbols
-                syms.insert(combined_name, format("ValueType.TCustom=", field_type))
-                self.symbols = syms
-
-                // TODO: Initialize field with default value
-                // For now, fields are zero-initialized by resize()
-
-                // Recursively handle nested structs
-                mut struct_defs := self.struct_defs
-                mut nested_struct_def := struct_defs.get(field_type)
-                if not(nested_struct_def.eq("")) {
-                    self.insert_struct(combined_name, field_type)
-                }
-
-                // Calculate field size and increment offset
-                mut field_size := self.get_type_size(field_type)
-                current_offset = add(current_offset, field_size)
+            if found {
+                return func_def
             }
+            i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // Internal error - should never happen
+        }
+        // Like Rust's None - caller provides error message
+        throw KeyNotFoundError()
+    }
 
-            i = add(i, 1)
+    declare_func := proc(mut self: ScopeStack, name: Str, func_def: SFuncDef) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.funcs.insert(name, func_def)
+            self.frames.set(last_idx, current_frame)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
         }
     }
 
-    // Register struct fields for type checking without evaluating defaults
-    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, struct_type_name: Str) throws Str, AllocError, IndexOutOfBoundsError {
-        // Get struct definition
-        mut struct_defs_map := self.struct_defs
-        mut struct_def_str := struct_defs_map.get(struct_type_name)
-        if struct_def_str.eq("") {
-            // Struct definition not found - silently return (not all types are structs)
-            return
-        }
-
-        // Parse serialized struct definition
-        // Format: "STRUCT|field1=Type1|field2=Type2|..."
-        mut parts := struct_def_str.split("|")
-
-        // Skip first part ("STRUCT") and iterate through field definitions
-        mut i := 1
-        while lt(i, parts.len) {
-            mut field_def := ""
-            parts.get(i, field_def)
-
-            // Split field_def by "=" to get field_name=field_type
-            mut field_parts := field_def.split("=")
-            if gteq(field_parts.len, 2) {
-                mut field_name := ""
-                mut field_type := ""
-                field_parts.get(0, field_name)
-                field_parts.get(1, field_type)
-
-                // Build combined name (instance.field)
-                mut combined_name := format(instance_name, ".", field_name)
-
-                // Register field in symbols for type checking
-                mut syms := self.symbols
-                // TODO: Serialize SymbolInfo properly with is_mut
-                // For now, just store type info
-                syms.insert(combined_name, format("ValueType.TCustom=", field_type))
-                self.symbols = syms
-
-                // Recursively register nested struct fields
-                mut struct_defs := self.struct_defs
-                mut nested_struct_def := struct_defs.get(field_type)
-                if not(nested_struct_def.eq("")) {
-                    self.register_struct_fields_for_typecheck(combined_name, field_type)
-                }
+    lookup_enum := func(self: ScopeStack, name: Str) returns SEnumDef throws KeyNotFoundError {
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut enum_def := SEnumDef()
+            mut found := false
+            frame.enums.get(name, enum_def)  // throws KeyNotFoundError if not found
+            found = true
+            catch (err: KeyNotFoundError) {
+                // Not in this frame, try next
             }
+            if found {
+                return enum_def
+            }
+            i = i.sub(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            // Internal error - should never happen
+        }
+        // Like Rust's None - caller provides error message
+        throw KeyNotFoundError()
+    }
 
-            i = add(i, 1)
+    declare_enum := proc(mut self: ScopeStack, name: Str, enum_def: SEnumDef) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.enums.insert(name, enum_def)
+            self.frames.set(last_idx, current_frame)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
         }
     }
 
-    // Get Str value from arena by variable name
-    get_str := func(self: Context, var_name: Str) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Look up the offset in arena_index
-        mut offset_str := self.arena_index.get(var_name)
-        if offset_str.eq("") {
-            throw format(loc(), " ERROR: Str variable '", var_name, "' not found in arena")
+    lookup_struct := func(self: ScopeStack, name: Str) returns SStructDef throws KeyNotFoundError {
+        mut i := self.frames.len().sub(1)
+        while i.gteq(0) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut struct_def := SStructDef()
+            mut found := false
+            frame.structs.get(name, struct_def)  // throws KeyNotFoundError if not found
+            found = true
+            catch (err: KeyNotFoundError) {
+                // Not in this frame, try next
+            }
+            if found {
+                return struct_def
+            }
+            i = i.sub(1)
         }
-
-        // Convert offset string to I64
-        mut offset_str_copy := offset_str
-        offset := offset_str_copy.to_i64()
-
-        // Read Str from arena memory at offset (stored directly as string)
-        mut value_str := ""
-        mut mem_arr := self.arena.memory
-        mem_arr.get(offset, value_str)
-
-        return value_str
+        catch (err: IndexOutOfBoundsError) {
+            // Internal error - should never happen
+        }
+        // Like Rust's None - caller provides error message
+        throw KeyNotFoundError()
     }
 
-    // Insert Str value into arena
-    insert_str := proc(mut self: Context, var_name: Str, value: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Simplified storage: store string value directly (like I64/Bool)
-        // TODO Phase 3+: Implement proper c_string/cap/len structure
-
-        // Check if variable already exists
-        mut offset_str := self.arena_index.get(var_name)
-
-        if offset_str.eq("") {
-            // New variable - allocate space
-            offset := self.arena.next_offset
-            mut offset_str_new := offset.to_str()
-
-            // Store offset in index
-            mut arena_idx := self.arena_index
-            arena_idx.insert(var_name, offset_str_new)
-            self.arena_index = arena_idx
-
-            // Store value in arena memory
-            mut mem_arr := self.arena.memory
-            mem_arr.push(value)
-            self.arena.memory = mem_arr
-
-            // Update next offset
-            self.arena.next_offset = add(offset, 1)
+    declare_struct := proc(mut self: ScopeStack, name: Str, struct_def: SStructDef) throws Str {
+        if self.frames.len().gt(0) {
+            mut last_idx := self.frames.len().sub(1)
+            mut current_frame := ScopeFrame()
+            self.frames.get(last_idx, current_frame)
+            current_frame.structs.insert(name, struct_def)
+            self.frames.set(last_idx, current_frame)
         }
-        else {
-            // Update existing variable
-            mut offset_str_copy := offset_str
-            offset := offset_str_copy.to_i64()
-
-            mut mem_arr := self.arena.memory
-            mem_arr.set(offset, value)
-            self.arena.memory = mem_arr
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
         }
     }
 
-    // Get enum value at specific arena offset
-    get_enum_at_offset := func(self: Context, enum_type: Str, offset: I64) returns EnumVal throws Str, IndexOutOfBoundsError, I64_OverflowError {
-        // Read enum value from arena at given offset
-        mut enum_value := self.get_i64_at_offset(offset)
-
-        // Get enum definition to map position to name
-        mut enum_defs_map := self.enum_defs
-        mut enum_def_str := enum_defs_map.get(enum_type)
-        if enum_def_str.eq("") {
-            throw format(loc(), " ERROR: get_enum_at_offset: Enum definition for '", enum_type, "' not found")
+    get_symbols_with_prefix := func(self: ScopeStack, prefix: Str) returns Vec throws Str {
+        // Collect all keys from all scopes that start with the given prefix
+        mut keys := Vec.new(Str)
+        mut prefix_len := prefix.len()
+        mut i := 0
+        while i.lt(self.frames.len()) {
+            mut frame := ScopeFrame()
+            self.frames.get(i, frame)
+            mut symbol_keys := frame.symbols.keys
+            mut j := 0
+            while j.lt(symbol_keys.len()) {
+                mut key := ""
+                symbol_keys.get(j, key)
+                // Check if key starts with prefix
+                if key.len().gteq(prefix_len) {
+                    mut matches := true
+                    mut k := 0
+                    while k.lt(prefix_len) {
+                        mut key_char := get_char(key, k)
+                        mut prefix_char := get_char(prefix, k)
+                        if not(key_char.eq(prefix_char)) {
+                            matches = false
+                        }
+                        k = k.add(1)
+                    }
+                    if matches {
+                        keys.push(key)
+                    }
+                }
+                j = j.add(1)
+            }
+            i = i.add(1)
         }
-
-        // Get variant name from position
-        mut enum_name := self.variant_pos_to_str(enum_type, enum_value)
-
-        // TODO: Handle payload reading from offset+8
-        // For now, return enum without payload
-        mut result := EnumVal()
-        result.enum_type = enum_type
-        result.enum_name = enum_name
-        return result
-    }
-
-    // Insert array into arena
-    insert_array := proc(mut self: Context, var_name: Str, elem_type: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-        // Allocate Array struct
-        self.insert_struct(var_name, "Array")
-
-        // Get element type size
-        mut elem_size := self.get_type_size(elem_type)
-
-        // Initialize Array fields
-        // ptr = 0 (no buffer allocated yet)
-        mut ptr_field := format(var_name, ".ptr")
-        mut ptr_offset_str := self.arena_index.get(ptr_field)
-        if not(ptr_offset_str.eq("")) {
-            mut ptr_offset := ptr_offset_str.to_i64()
-            self.set_i64_at_offset(ptr_offset, 0)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
-
-        // len = 0 (empty array)
-        mut len_field := format(var_name, ".len")
-        mut len_offset_str := self.arena_index.get(len_field)
-        if not(len_offset_str.eq("")) {
-            mut len_offset := len_offset_str.to_i64()
-            self.set_i64_at_offset(len_offset, 0)
+        catch (err: AllocError) {
+            throw err.msg
         }
-
-        // cap = 0 (no capacity)
-        mut cap_field := format(var_name, ".cap")
-        mut cap_offset_str := self.arena_index.get(cap_field)
-        if not(cap_offset_str.eq("")) {
-            mut cap_offset := cap_offset_str.to_i64()
-            self.set_i64_at_offset(cap_offset, 0)
-        }
-
-        // is_dyn = false (static array)
-        mut is_dyn_field := format(var_name, ".is_dyn")
-        mut is_dyn_offset_str := self.arena_index.get(is_dyn_field)
-        if not(is_dyn_offset_str.eq("")) {
-            mut is_dyn_offset := is_dyn_offset_str.to_i64()
-            self.insert_bool_at_offset(is_dyn_offset, false)
-        }
-
-        // type_name = elem_type (using insert_str for the type_name field)
-        mut type_name_field := format(var_name, ".type_name")
-        self.insert_str(type_name_field, elem_type)
-
-        // type_size = elem_size
-        mut type_size_field := format(var_name, ".type_size")
-        mut type_size_offset_str := self.arena_index.get(type_size_field)
-        if not(type_size_offset_str.eq("")) {
-            mut type_size_offset := type_size_offset_str.to_i64()
-            self.set_i64_at_offset(type_size_offset, elem_size)
-        }
-
-        // TODO: Support arrays with initial values
-        // For now, creates empty array (len=0, cap=0, ptr=0)
+        return keys
     }
 }
 
-// Get function name from function call expression
-// Corresponds to get_func_name_in_call in init.rs
-get_func_name_in_call := proc(e: Expr) returns Str throws Str, IndexOutOfBoundsError {
-    // Check that this is an FCall node
+get_func_name_in_call := func(e: Expr) returns Str throws Str {
     mut node_type_str := enum_to_str(e.node_type)
     if not(node_type_str.eq("NodeType.FCall")) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected FCall node, got ", node_type_str)
+        throw "get_func_name_in_call(): expected fcall node."
     }
-
-    // Check that we have at least one parameter
-    if lt(e.params.len, 1) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): FCall nodes must have at least 1 parameter")
+    if e.params.len().eq(0) {
+        throw "get_func_name_in_call(): fcall nodes must have at least 1 parameter."
     }
-
-    // Get first parameter (function name)
-    mut params := e.params
-    mut func_name_expr := Expr()
-    params.get(0, func_name_expr)
-
-    // Extract identifier from node_type
-    mut func_node_type := func_name_expr.node_type
-    mut func_node_type_str := enum_to_str(func_node_type)
-    if not(func_node_type_str.eq("NodeType.Identifier")) {
-        throw format(loc(), " ERROR: get_func_name_in_call(): expected Identifier in params[0], got ", func_node_type_str)
-    }
-
-    // Extract the function name string from the Identifier payload using pattern matching
+    mut param := e.get(0)
+    // e.get throws Str on error, will propagate
     mut func_name := ""
-    switch func_node_type {
-    case NodeType.Identifier(name):
-        func_name = name
+    switch param.node_type {
+    case NodeType.Identifier(f_name):
+        func_name = f_name
     case:
-        // Should never happen due to the if check above
+        mut param_node_type_str := enum_to_str(param.node_type)
+        throw format("in get_func_name_in_call(): Identifiers can only contain identifiers, found '", param_node_type_str, "'")
     }
     return func_name
 }
 
-// Check function/proc return type
-// Corresponds to value_type_func_proc in init.rs
-value_type_func_proc := proc(e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
-    // Check that function returns exactly one value
-    mut returns_len := func_def.return_types.len
-
-    if eq(returns_len, 0) {
-        throw format(loc(), " ERROR: func '", name, "' does not return anything")
+value_type_func_proc := func(path: Str, e: Expr, name: Str, func_def: SFuncDef) returns ValueType throws Str {
+    mut returns_len := func_def.return_types.len()
+    if returns_len.eq(0) {
+        throw e.error(path, "type", format("func '", name, "' does not return anything"))
     }
-
-    if gt(returns_len, 1) {
-        throw format(loc(), " TODO: func '", name, "' returns multiple values (not yet supported)")
+    if returns_len.eq(1) {
+        mut return_type := ValueType.TCustom("")  # Dummy init, will be overwritten by get()
+        func_def.return_types.get(0, return_type)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        switch return_type {
+        case ValueType.TCustom(custom_type_str):
+            return return_type
+        case:
+            throw e.error(path, "type", format("func '", name, "' returns unsupported type ", value_type_to_str(return_type)))
+        }
     }
-
-    // Get the return type (should be at index 0)
-    mut returns_arr := func_def.return_types
-    mut return_type := ValueType.TCustom("")
-    returns_arr.get(0, return_type)
-
-    return return_type
+    throw e.todo_error(path, "type", format("func '", name, "' returns multiple values"))
 }
 
-// Get enum variant position by name
-// Corresponds to get_variant_pos in init.rs
-get_variant_pos := proc(enum_def: SEnumDef, variant_name: Str) returns I64 throws Str, IndexOutOfBoundsError {
-    // Get position of variant in enum_map (maintains insertion order)
-    mut enum_map := enum_def.enum_map
-    pos := enum_map.position(variant_name)
-
-    if lt(pos, 0) {
-        throw format(loc(), " ERROR: Enum variant '", variant_name, "' not found in enum map")
+get_ufcs_fcall_value_type := func(context: Context, e: Expr, f_name: Str, id_expr: Expr, symbol: SymbolInfo) returns ValueType throws Str {
+    if id_expr.params.len().eq(0) {
+        throw e.error(context.path, "type", format("Cannot call '", f_name, "', it is not a function or struct, it is a '", value_type_to_str(symbol.value_type), "'"))
     }
 
-    return pos
+    // Get the last param (the method name)
+    mut last_idx := id_expr.params.len().sub(1)
+    mut method_name_expr := Expr()
+    id_expr.params.get(last_idx, method_name_expr)
+
+    mut method_name := ""
+    switch method_name_expr.node_type {
+    case NodeType.Identifier(name):
+        method_name = name
+    case:
+        mut node_type_str := enum_to_str(method_name_expr.node_type)
+        throw e.error(context.path, "type", format("Expected identifier for method name, found '", node_type_str, "'"))
+    }
+
+    // Check if it's a regular function
+    mut found_func := false
+    mut func_def := SFuncDef()
+    func_def = context.scope_stack.lookup_func(method_name)
+    found_func = true
+    catch (err: KeyNotFoundError) {
+        // Not found, continue to check other options
+    }
+    if found_func {
+        return value_type_func_proc(context.path, e, f_name, func_def)
+    }
+
+    // Create identifier expression without the last param (method name) to get the type
+    mut id_without_method := id_expr.clone()
+    mut new_len := id_without_method.params.len().sub(1)
+    id_without_method.params._len = new_len
+
+    // Get the type of the nested identifier
+    mut target_type := get_value_type(context, id_without_method)
+
+    // Check if it's an associated function for this type
+    switch target_type {
+    case ValueType.TCustom(custom_type_name):
+        mut id_expr_name := format(custom_type_name, ".", method_name)
+        mut found_method := false
+        mut method_def := SFuncDef()
+        method_def = context.scope_stack.lookup_func(id_expr_name)
+        found_method = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if found_method {
+            return value_type_func_proc(context.path, e, id_expr_name, method_def)
+        }
+        throw e.error(context.path, "type", format("Type '", custom_type_name, "' has no method '", method_name, "'"))
+    case:
+        throw e.error(context.path, "type", format("'", f_name, "' of type '", value_type_to_str(target_type), "' doesn't support methods"))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
 }
 
-// Get enum variant name by position
-// Corresponds to variant_pos_to_str in init.rs
-variant_pos_to_str := proc(enum_def: SEnumDef, position: I64) returns Str throws Str, IndexOutOfBoundsError, I64_OverflowError {
-    // Get keys array from enum_map
-    mut enum_map := enum_def.enum_map
-    mut map_size := enum_map.len()
+get_fcall_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 
-    // Validate position
-    if lt(position, 0) {
-        mut pos_str := position.to_str()
-        throw format(loc(), " ERROR: Invalid position '", pos_str, "' for enum variant (negative)")
-    }
+    mut f_name := get_func_name_in_call(e)
 
-    if not(lt(position, map_size)) {
-        mut pos_str := position.to_str()
-        mut size_str := map_size.to_str()
-        throw format(loc(), " ERROR: Invalid position '", pos_str, "' for enum variant (max ", size_str, ")")
-    }
+    // Check if this is a UFCS call on a function/expression result
+    // If e has 2+ params (func name + target + args), check if the target's type
+    // has an associated method with this name, prioritizing it over standalone functions
+    if e.params.len().gteq(2) {
+        mut first_arg := e.get(1)  // Get the UFCS target (skip func name at index 0)
 
-    // Get key at position from enum_map.keys array
-    mut variant_name := ""
-    mut keys_arr := enum_map.keys
-    keys_arr.get(position, variant_name)
+        // Try to get the type of the first argument
+        mut target_type := get_value_type(context, first_arg)
+        catch (err: Str) {
+            // Couldn't determine type, fall through
+        }
 
-    return variant_name
-}
-
-// Get value type for an expression (core type inference)
-// Corresponds to get_value_type in init.rs
-get_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
-    // Match on node type
-    mut node_type_str := enum_to_str(e.node_type)
-
-    // Handle literals - use pattern matching to extract LiteralNodeType
-    if node_type_str.eq("NodeType.Literal") {
-        mut node_type := e.node_type
-        switch node_type {
-        case NodeType.Literal(lit_node_type):
-            switch lit_node_type {
-            case LiteralNodeType.I64:
-                return ValueType.TCustom("I64")
-            case LiteralNodeType.Bool:
-                return ValueType.TCustom("Bool")
-            case LiteralNodeType.String:
-                return ValueType.TCustom("Str")
-            case LiteralNodeType.List:
-                return ValueType.TCustom("List")
-            case:
-                lit_type_str := enum_to_str(lit_node_type)
-                throw format(loc(), " ERROR: Unknown literal type: ", lit_type_str)
+        switch target_type {
+        case ValueType.TCustom(custom_type_name):
+            // Check if this type has an associated method with this name
+            mut method_name := format(custom_type_name, ".", f_name)
+            mut found_method := false
+            mut method_func_def := SFuncDef()
+            method_func_def = context.scope_stack.lookup_func(method_name)
+            found_method = true
+            catch (err: KeyNotFoundError) {
+                // Not found, fall through
+            }
+            if found_method {
+                // UFCS method exists! Use it instead of standalone function
+                return value_type_func_proc(context.path, e, method_name, method_func_def)
             }
         case:
-            // Should not happen due to if check above
-            throw format(loc(), " ERROR: Expected NodeType.Literal")
+            // Not TCustom or no method, fall through
         }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        // If we couldn't determine type or no associated method exists, fall through
     }
 
-    // Handle function definitions
-    if node_type_str.eq("NodeType.FuncDef") {
-        // Extract SFuncDef from payload
-        mut func_def := SFuncDef()
-        mut node_type := e.node_type
-        switch node_type {
-        case NodeType.FuncDef(fd):
-            func_def = fd
+    // Original logic: check for standalone function
+    mut found_standalone := false
+    mut standalone_func_def := SFuncDef()
+    standalone_func_def = context.scope_stack.lookup_func(f_name)
+    found_standalone = true
+    catch (err: KeyNotFoundError) {
+        // Not a standalone function
+    }
+    if found_standalone {
+        return value_type_func_proc(context.path, e, f_name, standalone_func_def)
+    }
+
+    // Not a standalone function, check if it's a symbol (type, enum, struct, etc)
+    mut symbol := context.scope_stack.lookup_symbol(f_name)
+    catch (err: KeyNotFoundError) {
+        throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
+    }
+    mut id_expr := e.get(0)
+
+    switch symbol.value_type {
+    case ValueType.TType(TTypeDef.TStructDef):
+        // Handle struct constructor or struct method calls
+        mut struct_def := SStructDef()
+        struct_def = context.scope_stack.lookup_struct(f_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(context.path, "type", format("struct '", f_name, "' not found in context"))
+        }
+
+        // Check if there's a member access after the struct name
+        if id_expr.params.len().eq(0) {
+            // Just "StructName()" - constructor call
+            return ValueType.TCustom(f_name)
+        }
+
+        mut after_dot := Expr()  # Default init, will be overwritten by get()
+        id_expr.params.get(0, after_dot)
+        switch after_dot.node_type {
+        case NodeType.Identifier(after_dot_name):
+            // Inline get_member_or_err logic
+            mut member_decl := Declaration()
+            mut member_idx := 0
+            mut found_member := false
+            // TODO: Remove workaround when Bug #28 is fixed
+            while member_idx.lt(Vec.len(struct_def.members)) {
+                mut temp_member := Declaration()
+                Vec.get(struct_def.members, member_idx, temp_member)
+                if Str.eq(temp_member.name, after_dot_name) {
+                    member_decl = temp_member
+                    found_member = true
+                }
+                member_idx = member_idx.add(1)
+            }
+            if not(found_member) {
+                throw e.error(context.path, "type", format("Struct '", f_name, "' has no member '", after_dot_name, "'"))
+            }
+            mut member_default_value := Expr()  # Default init, will be overwritten by get()
+            // TODO: Remove workaround when Bug #28 is fixed
+            Map.get(struct_def.default_values, after_dot_name, member_default_value)
+            catch (key_err: KeyNotFoundError) {
+                throw e.error(context.path, "type", format("Struct '", f_name, "' has no default value for '", after_dot_name, "'"))
+            }
+
+            switch member_default_value.node_type {
+            case NodeType.FuncDef(func_def):
+                mut combined_name := format(f_name, ".", after_dot_name)
+                return value_type_func_proc(context.path, e, combined_name, func_def)
+            case:
+                throw e.error(context.path, "type", format("Cannot call '", f_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
+            }
         case:
-            // Other node types
+            throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
         }
 
-        // Determine function type
-        func_type := func_def.function_type
-        func_type_str := enum_to_str(func_type)
 
-        if func_type_str.eq("FunctionType.FTFunc") {
+    case ValueType.TType(TTypeDef.TEnumDef):
+        // Handle enum constructor calls like Color.Green(true)
+        mut enum_def := SEnumDef()
+        enum_def = context.scope_stack.lookup_enum(f_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(context.path, "type", format("enum '", f_name, "' not found in context"))
+        }
+
+        // Check if there's a member access (variant) after the enum name
+        if id_expr.params.len().eq(0) {
+            // Just referencing the enum type itself, not constructing
+            return ValueType.TType(TTypeDef.TEnumDef)
+        }
+
+        mut after_dot := Expr()  # Default init, will be overwritten by get()
+        id_expr.params.get(0, after_dot)
+        switch after_dot.node_type {
+        case NodeType.Identifier(variant_name):
+            // Check if this variant exists in the enum (will throw KeyNotFoundError if not)
+            mut variant_value := Ptr()  # Default init, will be overwritten by get()
+            // TODO: Remove workaround when Bug #28 is fixed
+            Map.get(enum_def.enum_map, variant_name, variant_value)
+            // variant_value is a Ptr that may be NULL (no payload) or contain a ValueType (has payload)
+
+            // Check if variant has a payload (variant_value is non-NULL)
+            if not(NULL.eq(variant_value.data)) {
+                // This variant expects a payload
+                // TODO: Remove workaround when Bug #28 is fixed
+                if Vec.len(e.params).lt(2) {
+                    // TODO: Get the actual payload type from variant_value and show it
+                    throw e.error(context.path, "type", format("Enum constructor ", f_name, ".", variant_name, " expects a payload"))
+                }
+                // Type check the payload argument
+                mut payload_expr := e.get(1)
+                mut payload_actual_type := get_value_type(context, payload_expr)
+
+                // TODO: Verify payload type matches expected type
+                // This would require unwrapping the ValueType from variant_value
+                // For now, we just accept any payload
+            } else {
+                // This variant doesn't have a payload
+                // TODO: Remove workaround when Bug #28 is fixed
+                if Vec.len(e.params).gt(1) {
+                    throw e.error(context.path, "type", format("Enum variant ", f_name, ".", variant_name, " does not take a payload"))
+                }
+            }
+
+            // Return the enum type
+            return ValueType.TCustom(f_name)
+        case:
+            throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+        }
+    case ValueType.TCustom(custom_type_name):
+            # Check if it's an enum first
+            mut found_enum := false
+            mut enum_def := SEnumDef()
+            enum_def = context.scope_stack.lookup_enum(custom_type_name)
+            found_enum = true
+            catch (err: KeyNotFoundError) {
+                // Not an enum
+            }
+            if found_enum {
+                # It's an enum - try UFCS method call
+                mut after_dot := Expr()
+                // TODO: Remove workaround when Bug #28 is fixed
+                if Vec.len(id_expr.params).eq(0) {
+                    return ValueType.TCustom(f_name)
+                }
+                Vec.get(id_expr.params, 0, after_dot)
+
+                switch after_dot.node_type {
+                case NodeType.Identifier(after_dot_name):
+                    # Try associated method first
+                    mut method_name := format(custom_type_name, ".", after_dot_name)
+                    mut found_method := false
+                    mut method_func := SFuncDef()
+                    method_func = context.scope_stack.lookup_func(method_name)
+                    found_method = true
+                    catch (method_err: KeyNotFoundError) {
+                        // Method not found
+                    }
+                    if found_method {
+                        return value_type_func_proc(context.path, e, method_name, method_func)
+                    }
+
+                    # Fall back to UFCS: try standalone function with enum as first arg
+                    mut found_ufcs := false
+                    mut ufcs_result := ValueType.TCustom("")  // dummy default
+                    ufcs_result = get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    found_ufcs = true
+                    catch (err: Str) {
+                        throw e.error(context.path, "type", format("enum '", custom_type_name, "' has no method '", after_dot_name, "' and no matching function found for UFCS"))
+                    }
+                    if found_ufcs {
+                        return ufcs_result
+                    }
+
+                case:
+                    throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+                }
+            }
+
+            # Not an enum, try struct
+            mut struct_def := context.scope_stack.lookup_struct(custom_type_name)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "type", format("type '", f_name, "' not found in context"))
+            }
+
+            mut after_dot := Expr()
+            // TODO: Remove workaround when Bug #28 is fixed
+            if Vec.len(id_expr.params).eq(0) {
+                return ValueType.TCustom(f_name)
+            }
+            Vec.get(id_expr.params, 0, after_dot)
+
+            switch after_dot.node_type {
+            case NodeType.Identifier(after_dot_name):
+                # Bug #10 fix: Check if we have a multi-level chain like struct.field.method
+                # If id_expr.params has 2+ elements, try to resolve all-but-last as field access
+                // TODO: Remove workaround when Bug #28 is fixed
+                if Vec.len(id_expr.params).gteq(2) {
+                    # Try to resolve the field access chain (all params except the last)
+                    # Example: for e.params.len, resolve "e.params" to get its type
+                    mut field_access_expr := id_expr.clone()
+                    # Remove the last element (method/property name)
+                    // TODO: Remove workaround when Bug #28 is fixed
+                    mut new_len := Vec.len(field_access_expr.params).sub(1)
+                    field_access_expr.params._len = new_len
+
+                    mut got_intermediate := false
+                    mut intermediate_type := ValueType.TCustom("")  # dummy default
+                    intermediate_type = get_value_type(context, field_access_expr)
+                    got_intermediate = true
+                    catch (err: Str) {
+                        # Failed to resolve intermediate - just fall through to normal logic
+                    }
+
+                    if got_intermediate {
+                        # Successfully resolved intermediate field access
+                        # Now check if the last param is a member/method of that type
+                        mut last_param := Expr()
+                        // TODO: Remove workaround when Bug #28 is fixed
+                        Vec.get(id_expr.params, Vec.len(id_expr.params).sub(1), last_param)
+
+                        switch last_param.node_type {
+                        case NodeType.Identifier(final_member_name):
+                            switch intermediate_type {
+                            case ValueType.TCustom(intermediate_type_name):
+                                # First check if it's a method on this type
+                                mut method_name := format(intermediate_type_name, ".", final_member_name)
+                                mut found_intermediate_method := false
+                                mut intermediate_method_def := SFuncDef()
+                                intermediate_method_def = context.scope_stack.lookup_func(method_name)
+                                found_intermediate_method = true
+                                catch (method_err: KeyNotFoundError) {
+                                    // Method not found
+                                }
+                                if found_intermediate_method {
+                                    return value_type_func_proc(context.path, e, method_name, intermediate_method_def)
+                                }
+
+                                # Try UFCS: standalone function with intermediate type as first arg
+                                mut found_standalone := false
+                                mut standalone_def := SFuncDef()
+                                standalone_def = context.scope_stack.lookup_func(final_member_name)
+                                found_standalone = true
+                                catch (standalone_err: KeyNotFoundError) {
+                                    // Standalone not found
+                                }
+                                if found_standalone {
+                                    return value_type_func_proc(context.path, e, final_member_name, standalone_def)
+                                }
+
+                                # Check if it's a struct with this member as a field
+                                mut found_intermediate_struct := false
+                                mut intermediate_struct_def := SStructDef()
+                                intermediate_struct_def = context.scope_stack.lookup_struct(intermediate_type_name)
+                                found_intermediate_struct = true
+                                catch (struct_err: KeyNotFoundError) {
+                                    // Struct not found
+                                }
+                                if found_intermediate_struct {
+                                    mut found_member := false
+                                    mut member_decl := Declaration()
+                                    // TODO: Remove workaround when Bug #28 is fixed
+                                    member_decl = SStructDef.get_member(intermediate_struct_def, final_member_name)
+                                    found_member = true
+                                    catch (member_err: Str) {
+                                        // Member not found
+                                    }
+                                    if found_member {
+                                        # It's a field access - return the field's type
+                                        return member_decl.value_type
+                                    }
+                                }
+                            case:
+                                # Intermediate type is not a custom type, fall through
+                            }
+                        case:
+                            # Last param is not an identifier, fall through
+                        }
+                    }
+                }
+
+                # Original logic: single-level access (struct.member)
+                // TODO: Remove workaround when Bug #28 is fixed
+                mut member_decl := SStructDef.get_member(struct_def, after_dot_name)
+                catch (err: Str) {
+                    // member not found, try UFCS
+                    mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    catch (ufcs_err: Str) {
+                        throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' c"))
+                    }
+                    return ufcs_result
+                }
+
+                mut member_default_value := Expr()  # Default init, will be overwritten by get()
+                // TODO: Remove workaround when Bug #28 is fixed
+                Map.get(struct_def.default_values, after_dot_name, member_default_value)
+                catch (key_err: KeyNotFoundError) {
+                    throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no default value for '", after_dot_name, "'"))
+                }
+
+                switch member_default_value.node_type {
+                case NodeType.FuncDef(func_def):
+                    mut combined_name := format(custom_type_name, ".", after_dot_name)
+                    return value_type_func_proc(context.path, e, combined_name, func_def)
+                case:
+                    throw e.error(context.path, "type", format("Cannot call '", f_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
+                }
+
+            case:
+                throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+            }
+        case ValueType.TMulti(_):
+            # Variadic parameters are implemented as Array at runtime
+            # Treat them as Array for type checking method calls
+            mut custom_type_name := "Array"
+            mut struct_def := context.scope_stack.lookup_struct(custom_type_name)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(context.path, "type", format("struct '", custom_type_name, "' not found in context"))
+            }
+
+            mut after_dot := Expr()
+            if id_expr.params.len().eq(0) {
+                return ValueType.TCustom(custom_type_name)
+            }
+            id_expr.params.get(0, after_dot)
+
+            switch after_dot.node_type {
+            case NodeType.Identifier(after_dot_name):
+                // TODO: Remove workaround when Bug #28 is fixed
+                mut member_decl := SStructDef.get_member(struct_def, after_dot_name)
+                catch (err: Str) {
+                    // member not found, try UFCS
+                    mut ufcs_result := get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+                    catch (ufcs_err: Str) {
+                        throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no member '", after_dot_name, "' (variadic)"))
+                    }
+                    return ufcs_result
+                }
+
+                mut member_default_value := Expr()  # Default init, will be overwritten by get()
+                // TODO: Remove workaround when Bug #28 is fixed
+                Map.get(struct_def.default_values, after_dot_name, member_default_value)
+                catch (key_err: KeyNotFoundError) {
+                    throw e.error(context.path, "type", format("struct '", custom_type_name, "' has no default value for '", after_dot_name, "' (variadic)"))
+                }
+
+                switch member_default_value.node_type {
+                case NodeType.FuncDef(func_def):
+                    mut combined_name := format(custom_type_name, ".", after_dot_name)
+                    return value_type_func_proc(context.path, e, combined_name, func_def)
+                case:
+                    throw e.error(context.path, "type", format("Cannot call '", custom_type_name, ".", after_dot_name, "', it is not a function, it is '", value_type_to_str(member_decl.value_type), "'"))
+                }
+
+            case:
+                throw e.lang_error(context.path, "type", format("Expected identifier after '", f_name, ".' found '", enum_to_str(after_dot.node_type), "'"))
+            }
+        case:
+            return get_ufcs_fcall_value_type(context, e, f_name, id_expr, symbol)
+        }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    throw e.error(context.path, "type", format("Undefined symbol '", f_name, "'"))
+}
+
+get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
+    switch e.node_type {
+    case NodeType.LLiteral(literal):
+        switch literal {
+        case Literal.Number(num_val):
+            return ValueType.TCustom("I64")
+        case Literal.Str(str_val):
+            return ValueType.TCustom("Str")
+        case Literal.List(list_val):
+            return ValueType.TCustom("List")
+        case:
+            throw e.error(context.path, "type", format("Unsupported literal type '", enum_to_str(literal), "'"))
+        }
+    case NodeType.FuncDef(func_def):
+        switch func_def.function_type {
+        case FunctionType.FTFunc:
             return ValueType.TFunction(FunctionType.FTFunc)
-        }
-        if func_type_str.eq("FunctionType.FTFuncExt") {
+        case FunctionType.FTFuncExt:
             return ValueType.TFunction(FunctionType.FTFunc)
-        }
-        if func_type_str.eq("FunctionType.FTProc") {
+        case FunctionType.FTProc:
             return ValueType.TFunction(FunctionType.FTProc)
-        }
-        if func_type_str.eq("FunctionType.FTProcExt") {
+        case FunctionType.FTProcExt:
             return ValueType.TFunction(FunctionType.FTProc)
-        }
-        if func_type_str.eq("FunctionType.FTMacro") {
+        case FunctionType.FTMacro:
             return ValueType.TFunction(FunctionType.FTMacro)
         }
-
-        throw format(loc(), " ERROR: Unknown function type: ", func_type_str)
-    }
-
-    // Handle enum definitions
-    if node_type_str.eq("NodeType.EnumDef") {
+    case NodeType.EnumDef(_):
         return ValueType.TType(TTypeDef.TEnumDef)
-    }
-
-    // Handle struct definitions
-    if node_type_str.eq("NodeType.StructDef") {
+    case NodeType.StructDef(_):
         return ValueType.TType(TTypeDef.TStructDef)
-    }
-
-    // Handle function calls
-    if node_type_str.eq("NodeType.FCall") {
+    case NodeType.FCall:
         return get_fcall_value_type(context, e)
-    }
+    case NodeType.Range:
+        mut range_elem_type := get_value_type(context, e.get(0))
+        return ValueType.TCustom(format(value_type_to_str(range_elem_type), "Range"))
 
-    // Handle Range expressions
-    if node_type_str.eq("NodeType.Range") {
-        // TODO: Get type of range bounds and return appropriate RangeType
-        // For now, assume I64Range
-        return ValueType.TCustom("I64Range")
-    }
-
-    // Handle identifiers
-    if node_type_str.eq("NodeType.Identifier") {
-        // Extract identifier name using pattern matching
-        mut id_name := ""
-        mut node_type := e.node_type
-        switch node_type {
-        case NodeType.Identifier(name):
-            id_name = name
-        case:
-            // Should never happen due to the if check above
+    case NodeType.Identifier(name):
+        mut symbol := context.scope_stack.lookup_symbol(name)
+        catch (err: KeyNotFoundError) {
+            throw e.error(context.path, "type", format("Undefined symbol '", name, "'"))
         }
-
-        // Look up symbol
-        mut symbols_map := context.symbols
-        mut symbol_str := symbols_map.get(id_name)
-        if symbol_str.eq("") {
-            throw format(loc(), " ERROR: Undefined symbol '", id_name, "'")
-        }
-
-        // Parse SymbolInfo to get actual value_type
-        mut symbol := parse_symbol_info_from_str(symbol_str)
         mut current_type := symbol.value_type
 
-        // If there are no params, return the base type
-        if eq(e.params.len, 0) {
+        # If there are no parameters, just return the type of the first identifier
+        // TODO: Remove workaround when Bug #28 is fixed
+        if Vec.len(e.params).eq(0) {
             return current_type
         }
 
-        // Process member access (e.params contains the chain like obj.field1.field2)
-        mut i := 0
-        mut params := e.params
-        while lt(i, params.len) {
-            mut member_expr := Expr()
-            params.get(i, member_expr)
-
-            // Get member name
-            mut member_node_type := member_expr.node_type
-            member_node_str := enum_to_str(member_node_type)
-            if not(member_node_str.eq("NodeType.Identifier")) {
-                throw format(loc(), " ERROR: Identifiers can only contain identifiers, found ", member_node_str)
-            }
-
+        # Now, process each nested member.
+        mut param_idx := 0
+        // TODO: Remove workaround when Bug #28 is fixed
+        while param_idx.lt(Vec.len(e.params)) {
+            mut cursor := Expr()  # Default init, will be overwritten by get()
+            Vec.get(e.params, param_idx, cursor)
             mut member_name := ""
-            switch member_node_type {
-            case NodeType.Identifier(name):
-                member_name = name
+            switch cursor.node_type {
+            case NodeType.Identifier(n):
+                member_name = n
             case:
-                // Should never happen due to the if check above
+                throw e.lang_error(context.path, "type", format("Identifiers can only contain identifiers, found '", enum_to_str(cursor.node_type), "'"))
             }
 
-            // Check current_type to determine how to resolve member
-            current_type_str := enum_to_str(current_type)
-
-            // Handle TType - accessing enum variant or struct member
-            if current_type_str.eq("ValueType.TType") {
-                mut ttype_def := TTypeDef.TEnumDef
-                switch current_type {
-                case ValueType.TType(ttype):
-                    ttype_def = ttype
-                case:
-                    // other
+            switch current_type {
+            case ValueType.TType(TTypeDef.TStructDef):
+                # If it's a struct, resolve its member
+                mut struct_def := context.scope_stack.lookup_struct(name)
+                catch (err: KeyNotFoundError) {
+                    throw e.error(context.path, "type", format("Struct '", name, "' not found"))
                 }
-                ttype_str := enum_to_str(ttype_def)
+                // TODO: Remove workaround when Bug #28 is fixed
+                mut decl := SStructDef.get_member_or_err(struct_def, member_name, name, context.path, e)
+                current_type = decl.value_type
 
-                if ttype_str.eq("TTypeDef.TEnumDef") {
-                    // Accessing enum variant - check if exists
-                    mut enum_defs_map := context.enum_defs
-                    mut enum_def_str := enum_defs_map.get(id_name)
-                    if not(enum_def_str.eq("")) {
-                        // TODO: Check if variant exists in enum_def
-                        // For now, return TCustom(enum_name)
-                        return ValueType.TCustom(id_name)
-                    }
+            case ValueType.TType(TTypeDef.TEnumDef):
+                # If it's an enum, resolve the variant
+                mut enum_def := context.scope_stack.lookup_enum(name)
+                catch (err: KeyNotFoundError) {
+                    throw e.error(context.path, "type", format("Enum '", name, "' not found"))
                 }
+                // TODO: Remove workaround when Bug #28 is fixed
+                if Map.contains_key(enum_def.enum_map, member_name) {
+                    return ValueType.TCustom(name)
+                }
+                throw e.error(context.path, "type", format("Enum '", name, "' has no value '", member_name, "'"))
 
-                if ttype_str.eq("TTypeDef.TStructDef") {
-                    // Accessing struct member
-                    mut struct_defs_map := context.struct_defs
-                    mut struct_def_str := struct_defs_map.get(id_name)
-                    if not(struct_def_str.eq("")) {
-                        // Parse struct definition to find member type
-                        // Format: "STRUCT|field1=Type1|field2=Type2|..."
-                        mut parts := struct_def_str.split("|")
-                        mut j := 1
-                        while lt(j, parts.len) {
-                            mut field_def := ""
-                            parts.get(j, field_def)
-                            mut field_parts := field_def.split("=")
-                            if gteq(field_parts.len, 2) {
-                                mut fname := ""
-                                mut ftype := ""
-                                field_parts.get(0, fname)
-                                field_parts.get(1, ftype)
-                                if fname.eq(member_name) {
-                                    return ValueType.TCustom(ftype)
-                                }
-                            }
-                            j = add(j, 1)
-                        }
-                        // Member not found
-                        throw format(loc(), " ERROR: Struct '", id_name, "' has no member '", member_name, "'")
-                    }
+            case ValueType.TCustom(custom_type_name):
+                # If it's a custom type (a struct), resolve the member
+                mut struct_def := context.scope_stack.lookup_struct(custom_type_name)
+                catch (err: KeyNotFoundError) {
+                    throw e.error(context.path, "type", format("Struct '", custom_type_name, "' not found"))
                 }
+                // TODO: Remove workaround when Bug #28 is fixed
+                mut decl := SStructDef.get_member_or_err(struct_def, member_name, custom_type_name, context.path, e)
+                current_type = decl.value_type
+
+            case ValueType.TMulti(_variadic_type_name):
+                # Variadic parameters are implemented as Array at runtime
+                current_type = ValueType.TCustom("Array")
+
+            case:
+                throw e.error(context.path, "type", format("'", name, "' of type '", value_type_to_str(current_type), "' can't have members"))
             }
 
-            // Handle TCustom - accessing field on instance
-            if current_type_str.eq("ValueType.TCustom") {
-                mut custom_type_name := ""
-                switch current_type {
-                case ValueType.TCustom(name):
-                    custom_type_name = name
-                case:
-                    // Should never happen due to the if check above
-                }
-
-                // Check if it's a struct instance
-                mut struct_defs_map := context.struct_defs
-                mut struct_def_str := struct_defs_map.get(custom_type_name)
-                if not(struct_def_str.eq("")) {
-                    // Parse struct definition to find member type
-                    // Format: "STRUCT|field1=Type1|field2=Type2|..."
-                    mut parts := struct_def_str.split("|")
-                    mut found := false
-                    mut j := 1
-                    while lt(j, parts.len) {
-                        mut field_def := ""
-                        parts.get(j, field_def)
-                        mut field_parts := field_def.split("=")
-                        if gteq(field_parts.len, 2) {
-                            mut fname := ""
-                            mut ftype := ""
-                            field_parts.get(0, fname)
-                            field_parts.get(1, ftype)
-                            if fname.eq(member_name) {
-                                current_type = ValueType.TCustom(ftype)
-                                found = true
-                            }
-                        }
-                        j = add(j, 1)
-                    }
-                    if not(found) {
-                        throw format(loc(), " ERROR: Struct '", custom_type_name, "' has no member '", member_name, "'")
-                    }
-                }
-            }
-
-            i = add(i, 1)
+            param_idx = param_idx.add(1)
         }
 
-        return current_type
-    }
+        return current_type  # Return the type of the last field (x)
 
-    // Handle Pattern (used in switch/case pattern matching)
-    if node_type_str.eq("NodeType.Pattern") {
-        // Extract enum type from variant_name in "EnumType.Variant" format
-        mut pattern_info := PatternInfo()
-        mut node_type := e.node_type
-        switch node_type {
-        case NodeType.Pattern(pi, _):
-            pattern_info = pi
-        case:
-            // Should never happen
-        }
-
+    case NodeType.Pattern(pattern_info):
+        # Extract enum type from "EnumType.Variant" format
         mut variant_name := pattern_info.variant_name
-
-        // Find last dot to extract enum type
-        if variant_name.contains(".") {
-            // Split and get everything before the last dot
-            mut parts := variant_name.split(".")
-            if gt(parts.len, 1) {
-                // Get all parts except the last one
-                mut enum_type := ""
-                mut i := 0
-                while lt(i, sub(parts.len, 1)) {
-                    mut part := ""
-                    parts.get(i, part)
-                    if gt(i, 0) {
-                        enum_type = format(enum_type, ".", part)
-                    }
-                    else {
-                        enum_type = part
-                    }
-                    i = add(i, 1)
-                }
-                return ValueType.TCustom(enum_type)
-            }
+        // TODO: Remove workaround when Bug #28 is fixed
+        mut dot_pos := Str.rfind(variant_name, ".")
+        if dot_pos.gteq(0) {
+            mut enum_type := get_substr(variant_name, 0, dot_pos)
+            return ValueType.TCustom(enum_type)
         }
-
-        // No dot found - assume whole thing is enum type
+        # If no dot, assume the whole thing is the enum type (shouldn't happen in practice)
         return ValueType.TCustom(variant_name)
+
+    case:
+        throw e.error(context.path, "type", format("get_value_type() not implemented for '", enum_to_str(e.node_type), "' yet."))
     }
 
-    // Not implemented for other node types
-    throw format(loc(), " TODO: get_value_type not fully implemented for node type: ", node_type_str)
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
 }
 
-// Get value type for function call expressions
-// Corresponds to get_fcall_value_type in init.rs
-// Parse serialized function definition to get return type
-// Format: "FUNC|<function_type>|<return_type>"
-parse_func_return_type := proc(serialized: Str) returns Str {
-    // Split by "|" to get parts
-    // Format: parts[0]="FUNC", parts[1]=function_type, parts[2]=return_type
-    mut parts := serialized.split("|")
-    mut return_type := ""
-    if gt(parts.len, 2) {
-        parts.get(2, return_type)
+# Convert dot-based import path to OS-specific file path
+# Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
+import_path_to_file_path := func(import_path: Str) returns Str throws Str {
+    mut file_path := import_path.replace(".", MAIN_SEPARATOR_STR)
+    mut result := format(file_path, ".til")
+    catch (err: AllocError) {
+        throw err.msg
     }
-    return return_type
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    return result
 }
 
-// Parse ValueType from string representation
-// Handles formats like "ValueType.TCustom=I64", "ValueType.TFunction", "ValueType.TType"
-str_to_value_type := proc(s: Str) returns ValueType throws Str, IndexOutOfBoundsError {
-    // Handle TCustom with payload: "ValueType.TCustom=TypeName"
-    if s.contains("ValueType.TCustom=") {
-        mut parts := s.split("=")
-        mut type_name := ""
-        if gt(parts.len, 1) {
-            parts.get(1, type_name)
+# Import declarations only (no eval) - for init phase
+# This processes imports during declaration indexing, copying only declarations
+# to the parent context. The eval phase will later initialize values.
+init_import_declarations := proc(mut context: Context, e: Expr, import_path_str: Str) throws Str {
+    mut path := import_path_to_file_path(import_path_str)
+    mut original_path := context.path
+
+    # Check if already processed for declarations
+    if context.imports_done.contains_key(path) {
+        return  # Already imported declarations
+    }
+
+    # Check for circular imports
+    if context.imports_wip.contains(path) {
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ": Circular import dependency"))
+    }
+
+    # Mark as work-in-progress
+    mut insert_result := context.imports_wip.insert(path)
+    if not(insert_result) {
+        throw e.lang_error(context.path, "import", format("While trying to import ", path, " from ", original_path, ": Can't insert in imports_wip"))
+    }
+
+    # Read and parse the imported file
+    mut source := readfile(path)
+    catch (err: Str) {
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("File '", path, "' not found or could not be read: ", err))
+    }
+
+    context.path = path
+
+    # Lex the imported file
+    mut lexer := lexer_from_source(path, source)
+    catch (err: Str) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
+    }
+
+    # Parse mode
+    mut parsed_mode := parse_mode(path, lexer)
+    catch (err: Str) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
+    }
+    catch (err: I64_OverflowError) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
+    }
+    catch (err: AllocError) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
+    }
+
+    # Check if mode can be imported
+    if not(can_be_imported(parsed_mode)) {
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("file '", path, "' of mode '", parsed_mode.name, "' cannot be imported"))
+    }
+
+    mut previous_mode := context.mode_def
+    context.mode_def = parsed_mode
+
+    # Process mode imports recursively
+    mut import_idx := 0
+    // TODO: Remove workaround when Bug #28 is fixed
+    while import_idx.lt(Vec.len(context.mode_def.imports)) {
+        mut import_str := ""  # Default init, will be overwritten by get()
+        // TODO: Remove workaround when Bug #28 is fixed
+        Vec.get(context.mode_def.imports, import_idx, import_str)
+        mut import_func_name_expr := Expr()
+        import_func_name_expr.node_type = NodeType.Identifier("import")
+        import_func_name_expr.line = 0
+        import_func_name_expr.col = 0
+
+        mut import_path_expr := Expr()
+        import_path_expr.node_type = NodeType.LLiteral(Literal.Str(import_str))
+        import_path_expr.line = 0
+        import_path_expr.col = 0
+
+        mut import_fcall_expr := Expr()
+        import_fcall_expr.node_type = NodeType.FCall
+        import_fcall_expr.params.push(import_func_name_expr)
+        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.line = 0
+        import_fcall_expr.col = 0
+
+        init_import_declarations(context, import_fcall_expr, import_str)
+        catch (err: Str) {
+            context.mode_def = previous_mode
+            context.path = original_path
+            context.imports_wip.remove(path)
+            throw err
         }
-        return ValueType.TCustom(type_name)
+
+        import_idx = import_idx.add(1)
     }
 
-    // Handle TCustom without "=" (older format): "ValueType.TCustom"
-    if s.eq("ValueType.TCustom") {
-        return ValueType.TCustom("INFER_TYPE")
+    # Parse to AST
+    mut imported_ast := parse_tokens(lexer)
+    catch (err: Str) {
+        context.mode_def = previous_mode
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
+    }
+    catch (err: IndexOutOfBoundsError) {
+        context.mode_def = previous_mode
+        context.path = original_path
+        context.imports_wip.remove(path)
+        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
-    // Handle TFunction
-    if s.eq("ValueType.TFunction") {
-        return ValueType.TFunction
-    }
-
-    // Handle TType variants
-    if s.contains("ValueType.TType") {
-        if s.contains("TTypeDef.TStructDef") {
-            return ValueType.TType(TTypeDef.TStructDef)
+    # Run init_context to extract declarations
+    # This will recursively handle any imports in the imported file
+    mut errors := init_context(context, imported_ast)
+    // TODO: Remove workaround when Bug #28 is fixed
+    if Vec.len(errors).gt(0) {
+        context.mode_def = previous_mode
+        mut orig_path_clone := original_path
+        context.path = original_path
+        context.imports_wip.remove(path)
+        mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
+        mut err_idx := 0
+        // TODO: Remove workaround when Bug #28 is fixed
+        while err_idx.lt(Vec.len(errors)) {
+            mut err := ""  # Default init, will be overwritten by get()
+            Vec.get(errors, err_idx, err)
+            error_msg = format(error_msg, path, ":", err, "\n")
+            err_idx = err_idx.add(1)
         }
-        if s.contains("TTypeDef.TEnumDef") {
-            return ValueType.TType(TTypeDef.TEnumDef)
-        }
-        // Default TType
-        return ValueType.TType(TTypeDef.TStructDef)
+        throw error_msg
     }
 
-    // Handle TMulti
-    if s.contains("ValueType.TMulti") {
-        // Simplified - just return empty TMulti
-        return ValueType.TMulti(Vec.new(Str))
-    }
+    # Restore context state
+    context.mode_def = previous_mode
+    context.path = original_path
+    // TODO: Remove workaround when Bug #28 is fixed
+    Set.remove(context.imports_wip, path)
 
-    // Default fallback - treat as TCustom
-    return ValueType.TCustom(s)
-}
+    # Cache that we've processed this import's declarations
+    // TODO: Remove workaround when Bug #28 is fixed
+    Map.insert(context.imports_done, path, true)
 
-// Serialize SymbolInfo to string format
-// Format: "VALUE_TYPE|is_mut"
-// Example: "ValueType.TCustom=I64|true"
-serialize_symbol_info := proc(symbol: SymbolInfo) returns Str {
-    mut value_type_str := value_type_to_str(symbol.value_type)
-    mut is_mut_str := ""
-    if symbol.is_mut {
-        is_mut_str = "true"
-    } else {
-        is_mut_str = "false"
+    catch (err: AllocError) {
+        throw err.msg
     }
-    return format(value_type_str, "|", is_mut_str)
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: DuplicatedKeyError) {
+        throw err.msg
+    }
 }
 
 // Parse SymbolInfo from string format
@@ -1558,7 +1307,7 @@ parse_symbol_info_from_str := proc(serialized: Str) returns SymbolInfo throws St
 
     // Split by "|" to get parts
     mut parts := serialized.split("|")
-    if lt(parts.len, 2) {
+    if lt(parts.len(), 2) {
         // Old format - just value_type string without is_mut
         // Default is_mut to false for backward compatibility
         symbol.value_type = str_to_value_type(serialized)
@@ -1575,110 +1324,10 @@ parse_symbol_info_from_str := proc(serialized: Str) returns SymbolInfo throws St
     symbol.value_type = str_to_value_type(value_type_str)
     symbol.is_mut = is_mut_str.eq("true")
 
+    catch (err: AllocError) {
+        throw err.msg
+    }
     return symbol
-}
-
-get_fcall_value_type := proc(context: Context, e: Expr) returns ValueType throws Str, IndexOutOfBoundsError {
-    // Get function name
-    f_name := get_func_name_in_call(e)
-
-    // Check for UFCS call (2+ params means target + args)
-    if not(lt(e.params.len, 2)) {
-        // Get first arg (the UFCS target)
-        mut first_arg := Expr()
-        mut params := e.params
-        params.get(1, first_arg)
-
-        // Try to get type of first argument
-        mut target_type := get_value_type(context, first_arg)
-        catch (err: Str) {
-            // If we can't determine type, fall through to regular function lookup
-        }
-
-        // Check if target type has an associated method
-        target_type_str := enum_to_str(target_type)
-        if target_type_str.eq("ValueType.TCustom") {
-            mut custom_type_name := ""
-            switch target_type {
-            case ValueType.TCustom(name):
-                custom_type_name = name
-            case:
-                // Should never happen due to the if check above
-            }
-
-            // Check for associated method
-            mut method_name := ""
-            method_name = custom_type_name
-            method_name = method_name.concat(".")
-            method_name = method_name.concat(f_name)
-
-            mut funcs_map := context.funcs
-            mut method_def_str := funcs_map.get(method_name)
-            if not(method_def_str.eq("")) {
-                // Parse return type from serialized function definition
-                mut return_type := parse_func_return_type(method_def_str)
-                if return_type.eq("") {
-                    throw format(loc(), " ERROR: Method '", method_name, "' has no return type")
-                }
-                return ValueType.TCustom(return_type)
-            }
-        }
-    }
-
-    // Check if it's a standalone function
-    mut funcs_map := context.funcs
-    mut func_def_str := funcs_map.get(f_name)
-    if not(func_def_str.eq("")) {
-        // Parse return type from serialized function definition
-        mut return_type := parse_func_return_type(func_def_str)
-        if return_type.eq("") {
-            throw format(loc(), " ERROR: Function '", f_name, "' has no return type")
-        }
-        return ValueType.TCustom(return_type)
-    }
-
-    // Check if it's a struct or enum constructor
-    mut symbols_map := context.symbols
-    mut symbol_str := symbols_map.get(f_name)
-    if not(symbol_str.eq("")) {
-        // Parse symbol to check if it's a type (struct or enum)
-        mut symbol := parse_symbol_info_from_str(symbol_str)
-        mut vtype_str := value_type_to_str(symbol.value_type)
-        if vtype_str.contains("ValueType.TType") {
-            // Get params[0] to check for member access (Struct.field or Enum.Variant)
-            mut params := e.params
-            mut id_expr := Expr()
-            params.get(0, id_expr)
-
-            // Check if id_expr has params (means Struct.field or Enum.Variant)
-            if eq(id_expr.params.len, 0) {
-                // Just the type itself - return TCustom(type_name)
-                return ValueType.TCustom(f_name)
-            }
-
-            // Has params - check enum_defs and struct_defs
-            mut enum_defs_map := context.enum_defs
-            mut enum_def_str := enum_defs_map.get(f_name)
-            if not(enum_def_str.eq("")) {
-                // It's an enum - return TCustom(enum_name)
-                return ValueType.TCustom(f_name)
-            }
-
-            mut struct_defs_map := context.struct_defs
-            mut struct_def_str := struct_defs_map.get(f_name)
-            if not(struct_def_str.eq("")) {
-                // It's a struct - TODO: check if accessing field or calling method
-                // For now, return TCustom(struct_name)
-                return ValueType.TCustom(f_name)
-            }
-        }
-
-        // Other symbol types - return as custom type
-        return ValueType.TCustom(f_name)
-    }
-
-    // Function not found
-    throw format(loc(), " ERROR: Unknown function or constructor '", f_name, "'")
 }
 
 // Process declarations in AST and register them in context
@@ -1691,7 +1340,7 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
     if node_type_str.eq("NodeType.Body") {
         mut i := 0
         mut params := e.params
-        while lt(i, params.len) {
+        while lt(i, params.len()) {
             mut stmt := Expr()
             params.get(i, stmt)
             process_declarations(context, stmt)
@@ -1722,25 +1371,28 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
             // Other node types
         }
 
-        // Check if already declared
-        mut funcs_map := context.funcs
-        mut symbols_map := context.symbols
-        if funcs_map.contains_key(decl.name) {
-            throw format(loc(), " ERROR: '", decl.name, "' already declared")
+        // Check if already declared using scope_stack lookup
+        mut already_declared := false
+        _ := context.scope_stack.lookup_symbol(decl.name)
+        already_declared = true
+        catch (err: KeyNotFoundError) {
+            // Not declared, continue
         }
-        if symbols_map.contains_key(decl.name) {
+        if already_declared {
             throw format(loc(), " ERROR: '", decl.name, "' already declared")
         }
 
         // Must have exactly one param (the initializer expression)
-        if not(eq(e.params.len, 1)) {
+        // TODO: Remove workaround when Bug #28 is fixed
+        if not(eq(Vec.len(e.params), 1)) {
             throw format(loc(), " ERROR: Declaration of '", decl.name, "' must have exactly one value")
         }
 
         // Get the initializer expression
         mut inner_e := Expr()
         mut params := e.params
-        params.get(0, inner_e)
+        // TODO: Remove workaround when Bug #28 is fixed
+        Vec.get(params, 0, inner_e)
 
         // Get value type of initializer
         value_type := get_value_type(context, inner_e)
@@ -1752,12 +1404,14 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         value_type_str := enum_to_str(value_type)
 
         // Handle functions
-        if value_type_str.eq("ValueType.TFunction") {
+        // TODO: Remove workaround when Bug #28 is fixed
+        if Str.eq(value_type_str, "ValueType.TFunction") {
             // Extract function definition from inner_e
             mut inner_node_type := inner_e.node_type
             inner_node_type_str := enum_to_str(inner_node_type)
 
-            if inner_node_type_str.eq("NodeType.FuncDef") {
+            // TODO: Remove workaround when Bug #28 is fixed
+            if Str.eq(inner_node_type_str, "NodeType.FuncDef") {
                 mut func_def := SFuncDef()
                 switch inner_node_type {
                 case NodeType.FuncDef(fd):
@@ -1766,30 +1420,21 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                     // Other node types
                 }
 
-                // Register in symbols and funcs
+                // Register in symbols and funcs using scope_stack
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-                context.symbols = symbols_map
-
-                // Serialize func_def to string for storage
-                // Format: "FUNC|<function_type>|<return_type>"
-                // TODO: Add args, throw_types when needed
-                mut ft_str := enum_to_str(func_def.function_type)
-                mut ret_type := ""
-                if gt(func_def.return_types.len, 0) {
-                    func_def.return_types.get(0, ret_type)
-                }
-                mut serialized := format("FUNC|", ft_str, "|", ret_type)
-                funcs_map.insert(decl.name, serialized)
-                context.funcs = funcs_map
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_func(context.scope_stack, decl.name, func_def)
             }
             return
         }
 
         // Handle enum definitions
-        if value_type_str.eq("ValueType.TType") {
+        // TODO: Remove workaround when Bug #28 is fixed
+        if Str.eq(value_type_str, "ValueType.TType") {
             mut ttype_def := TTypeDef.TEnumDef
             switch value_type {
             case ValueType.TType(ttype):
@@ -1799,7 +1444,8 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
             }
             ttype_str := enum_to_str(ttype_def)
 
-            if ttype_str.eq("TTypeDef.TEnumDef") {
+            // TODO: Remove workaround when Bug #28 is fixed
+            if Str.eq(ttype_str, "TTypeDef.TEnumDef") {
                 // Extract enum definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut enum_def := SEnumDef()
@@ -1810,21 +1456,19 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                     // Other node types
                 }
 
-                // Register in symbols and enum_defs
+                // Register in symbols and enums using scope_stack
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-                context.symbols = symbols_map
-
-                // TODO: Store enum_def properly (currently storing as string)
-                mut enum_defs_map := context.enum_defs
-                enum_defs_map.insert(decl.name, "enum_def_placeholder")
-                context.enum_defs = enum_defs_map
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_enum(context.scope_stack, decl.name, enum_def)
                 return
             }
 
-            if ttype_str.eq("TTypeDef.TStructDef") {
+            // TODO: Remove workaround when Bug #28 is fixed
+            if Str.eq(ttype_str, "TTypeDef.TStructDef") {
                 // Extract struct definition from inner_e
                 mut inner_node_type := inner_e.node_type
                 mut struct_def := SStructDef()
@@ -1835,32 +1479,14 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                     // Other node types
                 }
 
-                // Register in symbols and struct_defs
+                // Register in symbols and structs using scope_stack
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
                 symbol.is_mut = decl.is_mut
-                symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-                context.symbols = symbols_map
-
-                // Serialize struct_def to string for storage
-                // Format: "STRUCT|field1=Type1|field2=Type2|..."
-                mut serialized := "STRUCT"
-                mut members_map := struct_def.members
-                mut i := 0
-                while lt(i, members_map.size) {
-                    mut field_name := ""
-                    mut field_type := ""
-                    mut keys_arr := members_map.keys
-                    mut values_arr := members_map.values
-                    keys_arr.get(i, field_name)
-                    values_arr.get(i, field_type)
-                    serialized = format(serialized, "|", field_name, "=", field_type)
-                    i = add(i, 1)
-                }
-
-                mut struct_defs_map := context.struct_defs
-                struct_defs_map.insert(decl.name, serialized)
-                context.struct_defs = struct_defs_map
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
+                // TODO: Remove workaround when Bug #28 is fixed
+                ScopeStack.declare_struct(context.scope_stack, decl.name, struct_def)
 
                 // TODO: Register associated functions and constants
                 // This requires default_values to store Expr objects rather than strings.
@@ -1875,21 +1501,23 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         }
 
         // Handle custom types and multi types
-        if value_type_str.eq("ValueType.TCustom") {
+        // TODO: Remove workaround when Bug #28 is fixed
+        if Str.eq(value_type_str, "ValueType.TCustom") {
             mut symbol := SymbolInfo()
             symbol.value_type = value_type
             symbol.is_mut = decl.is_mut
-            symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-            context.symbols = symbols_map
+            // TODO: Remove workaround when Bug #28 is fixed
+            ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
             return
         }
 
-        if value_type_str.eq("ValueType.TMulti") {
+        // TODO: Remove workaround when Bug #28 is fixed
+        if Str.eq(value_type_str, "ValueType.TMulti") {
             mut symbol := SymbolInfo()
             symbol.value_type = value_type
             symbol.is_mut = decl.is_mut
-            symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-            context.symbols = symbols_map
+            // TODO: Remove workaround when Bug #28 is fixed
+            ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
             return
         }
 
@@ -1897,8 +1525,8 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         mut symbol := SymbolInfo()
         symbol.value_type = value_type
         symbol.is_mut = decl.is_mut
-        symbols_map.insert(decl.name, serialize_symbol_info(symbol))
-        context.symbols = symbols_map
+        // TODO: Remove workaround when Bug #28 is fixed
+        ScopeStack.declare_symbol(context.scope_stack, decl.name, symbol)
         return
     }
 
@@ -1909,118 +1537,512 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
         if current_mode.allows_base_calls {
             // Allow declarations and calls only
             if not(node_type_str.eq("NodeType.FCall")) {
-                throw e.error("mode", format("mode '", current_mode.name, "' allows only declarations and calls in the root context, found ", node_type_str, "."))
+                throw e.error(context.path, "mode", format("mode '", current_mode.name, "' allows only declarations and calls in the root context, found ", node_type_str, "."))
             }
         } else {
             // Allow declarations only - we already handled declarations above
-            throw e.error("mode", format("mode '", current_mode.name, "' allows only declarations in the root context, found ", node_type_str, "."))
+            throw e.error(context.path, "mode", format("mode '", current_mode.name, "' allows only declarations in the root context, found ", node_type_str, "."))
         }
     }
-
-    // For other node types with allows_base_anything=true, no restriction
-}
-
-// Process import declarations during init phase
-init_import_declarations := proc(mut context: Context, e: Expr, import_path: Str) throws Str, AllocError, IndexOutOfBoundsError {
-    // TODO: Read import file, parse it, copy declarations to parent context
-    // TODO: Track in imports_declarations_done and imports_wip for cycle detection
-    // For now, just throw TODO
-    throw format(loc(), " TODO: init_import_declarations not fully implemented for path '", import_path, "'")
 }
 
 // Context priming / declaration indexing
 // Process AST and register all declarations (funcs, enums, structs, vars)
 // Returns array of error strings (empty if success)
 // Corresponds to init_context in init.rs
-init_context := proc(mut context: Context, e: Expr) returns Array throws Str, AllocError, IndexOutOfBoundsError {
+init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
     mut errors := Vec.new(Str)
 
-    // Match on node type
     switch e.node_type {
     case NodeType.Body:
-        // Recursively process all statements in body
-        mut params := e.params
-        mut i := 0
-        while lt(i, params.len) {
-            mut stmt := Expr()
-            params.get(i, stmt)
-            mut stmt_errors := init_context(context, stmt)
-            // Extend errors array with stmt_errors
-            mut j := 0
-            while lt(j, stmt_errors.len) {
-                mut err_str := ""
-                stmt_errors.get(j, err_str)
-                errors.push(err_str)
-                j = add(j, 1)
+        mut param_idx := 0
+        while param_idx.lt(e.params.len()) {
+            mut se := Expr()  # Default init, will be overwritten by get()
+            e.params.get(param_idx, se)
+            mut sub_errors := init_context(context, se)
+            // Manually extend errors with sub_errors (no Vec.extend in TIL)
+            mut sub_idx := 0
+            while sub_idx.lt(sub_errors.len()) {
+                mut sub_err := ""
+                sub_errors.get(sub_idx, sub_err)
+                catch (idx_err: IndexOutOfBoundsError) {
+                    // Should not happen
+                }
+                errors.push(sub_err)
+                sub_idx = sub_idx.add(1)
             }
-            i = add(i, 1)
+            param_idx = param_idx.add(1)
         }
 
     case NodeType.FCall:
-        // Check if this is an import call
-        f_name := get_func_name_in_call(e)
+        mut f_name := get_func_name_in_call(e)
         if f_name.eq("import") {
-            // TODO: Handle import - extract path and call init_import_declarations
-            TODO(loc(), "import handling not yet implemented in init_context")
+            # Extract import path (must be literal string)
+            mut import_path_expr := e.get(1)
+            catch (err: Str) {
+                errors.push(e.lang_error(context.path, "import", format(context.path, ":", err)))
+                return errors
+            }
+
+            mut import_path := ""
+            mut import_node_type := import_path_expr.node_type
+            switch import_node_type {
+            case NodeType.LLiteral(import_path_str_lit_expr):
+                mut literal_type := import_path_str_lit_expr
+                switch literal_type {
+                case Literal.Str(import_path_):
+                    import_path = import_path_
+                case:
+                    errors.push(import_path_expr.lang_error(context.path, "import", format("Expected literal 'Str' for import, found literal '", enum_to_str(literal_type), "'")))
+                    return errors
+                }
+            case:
+                errors.push(import_path_expr.lang_error(context.path, "import", format("Expected literal Str for import, found '", enum_to_str(import_node_type), "'")))
+                return errors
+            }
+
+            # Process import declarations (no eval)
+            init_import_declarations(context, e, import_path)
+            catch (err: Str) {
+                errors.push(err)
+                return errors
+            }
         }
 
     case NodeType.Declaration(decl):
-        // Check for duplicate declaration
-        mut symbols_map := context.symbols
-        mut funcs_map := context.funcs
-        if symbols_map.contains(decl.name) {
-            errors.push(e.error("type", format("'", decl.name, "' already declared.")))
+        // Check if already declared as func
+        mut found_as_func := false
+        mut existing_func := SFuncDef()
+        existing_func = context.scope_stack.lookup_func(decl.name)
+        found_as_func = true
+        catch (err: KeyNotFoundError) {
+            // Not declared as func
         }
-
-        // Declaration must have exactly one value (the initializer)
-        mut params := e.params
-        if not(params.len.eq(1)) {
-            errors.push(e.exit_error("type", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
+        // Check if already declared as symbol
+        mut found_as_symbol := false
+        mut existing_symbol := SymbolInfo()
+        existing_symbol = context.scope_stack.lookup_symbol(decl.name)
+        found_as_symbol = true
+        catch (err: KeyNotFoundError) {
+            // Not declared as symbol
+        }
+        if found_as_func.or(found_as_symbol) {
+            errors.push(e.error(context.path, "type", format("'", decl.name, "' already declared.")))
+        }
+        if not(e.params.len().eq(1)) {
+            errors.push(e.lang_error(context.path, "type", format("in init_context, while declaring ", decl.name, ", declarations must take exactly one value.")))
+            return errors
+        }
+        mut inner_e := e.get(0)
+        catch (err: Str) {
+            errors.push(err)
             return errors
         }
 
-        // Get the initializer expression
-        mut inner_e := Expr()
-        params.get(0, inner_e)
+        mut value_type := get_value_type(context, inner_e)
+        catch (err: Str) {
+            errors.push(err)
+            return errors
+        }
 
-        // Get value type of initializer
-        // TODO: Call get_value_type once it's fully homologized
-        mut value_type := ValueType.TCustom("TODO_get_value_type")
+        // Check if declared type differs from inferred type
+        // INFER_TYPE is "auto" - used with TCustom
+        mut is_infer_type := false
+        switch decl.value_type {
+        case ValueType.TCustom(type_str):
+            if type_str.eq(INFER_TYPE) {
+                is_infer_type = true
+            }
+        case:
+            // Not custom/infer type
+        }
+        if not(is_infer_type) {
+            // Check for U8/I64 coercion
+            mut is_u8_i64_coercion := false
+            switch decl.value_type {
+            case ValueType.TCustom(dt):
+                if dt.eq("U8") {
+                    switch value_type {
+                    case ValueType.TCustom(vt):
+                        if vt.eq("I64") {
+                            is_u8_i64_coercion = true
+                        }
+                    case:
+                        // Not custom type
+                    }
+                }
+            case:
+                // Not custom type
+            }
+            if is_u8_i64_coercion {
+                value_type = decl.value_type
+            } else {
+                // Check type mismatch using string comparison
+                mut decl_vt_str := enum_to_str(decl.value_type)
+                mut value_vt_str := enum_to_str(value_type)
+                if not(value_vt_str.eq(decl_vt_str)) {
+                    errors.push(e.error(context.path, "type", format("'", decl.name, "' declared of type '", value_type_to_str(decl.value_type), "' but initialized to type '", value_type_to_str(value_type), "'.")))
+                }
+            }
+        }
 
-        // For now, just register symbols with placeholder type
-        // TODO: Complete type checking and proper registration
-        mut symbol_info := SymbolInfo()
-        symbol_info.value_type = value_type
-        symbol_info.is_mut = decl.is_mut
-        context.symbols.set(decl.name, "TODO_serialize_SymbolInfo")
+        switch value_type {
+        case ValueType.TFunction(ftype):
+            switch ftype {
+            case FunctionType.FTFunc:
+            case FunctionType.FTFuncExt:
+            case FunctionType.FTProc:
+            case FunctionType.FTProcExt:
+            case FunctionType.FTMacro:
+                switch inner_e.node_type {
+                case NodeType.FuncDef(func_def):
+                    context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                    context.scope_stack.declare_func(decl.name, func_def)
+                case:
+                    errors.push(e.lang_error(context.path, "type", format(value_type_to_str(value_type), "s should have definitions")))
+                    return errors
+                }
+            }
 
-        TODO(loc(), format("Full declaration processing not yet implemented for '", decl.name, "'"))
+        case ValueType.TType(TTypeDef.TEnumDef):
+            if not(inner_e.params.len().eq(0)) {
+                errors.push(e.lang_error(context.path, "type", format("while declaring ", decl.name, ": enum declarations don't have any parameters in the tree.")))
+                return errors
+            }
+            switch inner_e.node_type {
+            case NodeType.EnumDef(enum_def):
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                context.scope_stack.declare_enum(decl.name, enum_def)
+            case:
+                errors.push(e.lang_error(context.path, "type", "enums should have definitions."))
+                return errors
+            }
+
+        case ValueType.TType(TTypeDef.TStructDef):
+            if not(inner_e.params.len().eq(0)) {
+                errors.push(e.lang_error(context.path, "type", format("while declaring ", decl.name, ", struct declarations must have exactly 0 params.")))
+                return errors
+            }
+            switch inner_e.node_type {
+            case NodeType.StructDef(struct_def):
+                # Register the struct itself
+                context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+                context.scope_stack.declare_struct(decl.name, struct_def)
+                # Register associated funcs and constants (non-mut members only)
+                mut mem_idx := 0
+                while mem_idx.lt(struct_def.members.len()) {
+                    mut member_decl := Declaration()  # Default init, will be overwritten by get()
+                    struct_def.members.get(mem_idx, member_decl)
+                    catch (idx_err: IndexOutOfBoundsError) {
+                        # Should not happen
+                        mem_idx = mem_idx.add(1)
+                    }
+                    mut member_name := member_decl.name
+                    if not(member_decl.is_mut) {
+                        # Skip instance fields - only process non-mut fields
+                        # Try to find a default_value (required for funcs/consts)
+                        mut has_default_value := false
+                        mut member_expr := Expr()  # Default init, will be overwritten by get()
+                        Map.get(struct_def.default_values, member_name, member_expr)
+                        has_default_value = true
+                        catch (key_err: KeyNotFoundError) {
+                            # No default value, skip this member
+                        }
+                        if has_default_value {
+                            mut member_value_type := ValueType.TCustom(INFER_TYPE)
+                            member_value_type = get_value_type(context, member_expr)
+                            catch (err: Str) {
+                                # Failed to get type - just use INFER_TYPE default
+                            }
+                            mut full_name := format(decl.name, ".", member_name)  # Note: using '.' not '::'
+                            # Register in symbols
+                            ScopeStack.declare_symbol(context.scope_stack, full_name, SymbolInfo.new(member_value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
+                            # If it's a function, also register in funcs
+                            switch member_expr.node_type {
+                            case NodeType.FuncDef(func_def):
+                                ScopeStack.declare_func(context.scope_stack, full_name, func_def)
+                            case:
+                                # Not a function, skip
+                            }
+                        }
+                    }
+                    mem_idx = mem_idx.add(1)
+                }
+            case:
+                errors.push(e.lang_error(context.path, "type", "struct declarations should have definitions."))
+                return errors
+            }
+
+        case ValueType.TMulti(_):
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+        case ValueType.TCustom(_):
+            context.scope_stack.declare_symbol(decl.name, SymbolInfo.new(value_type, decl.is_mut, decl.is_copy, decl.is_own))
+        case:
+            # Unreachable - all ValueType variants are covered above
+            # But needed because exhaustiveness check doesn't understand nested patterns like TType(TTypeDef.TEnumDef)
+        }
 
     case:
-        // Other node types - check mode constraints
-        // TODO: Add mode validation
+        if not(context.mode_def.allows_base_anything) {
+            if context.mode_def.allows_base_calls {
+                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations and calls in the root context, found '", enum_to_str(e.node_type), "'.")))
+            } else {
+                errors.push(e.error(context.path, "mode", format("mode '", context.mode_def.name, "' allows only declarations in the root context, found '", enum_to_str(e.node_type), "'.")))
+            }
+        }
     }
-
+    catch (err: AllocError) {
+        throw err.msg
+    }
+    catch (err: I64_OverflowError) {
+        throw err.msg
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
     return errors
 }
 
-// Check if function/proc has variadic arguments
-// Corresponds to func_proc_has_multi_arg in typer.rs
-func_proc_has_multi_arg := proc(func_def: SFuncDef) returns Bool {
-    // TODO: Need to iterate through func_def.args and check for TMulti type
-    // For now, return false (no variadic support in type checking yet)
-    TODO(loc(), "func_proc_has_multi_arg: Need SFuncDef arg iteration")
-    return false
-}
+Context := struct {
+    mut mode_def: ModeDef = ModeDef()  # All contexts need a mode
+    # TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
+    mut path: Str = ""  # this is needed for core func "loc"
+    # Scope stack for proper lexical scoping
+    mut scope_stack: ScopeStack = ScopeStack.new()
+    # Temporary storage for enum payload data during construction
+    mut temp_enum_payload: Ptr = Ptr()  # Ptr to (payload_bytes: Vec, payload_type: ValueType)
+    # Import tracking
+    mut imports_wip: Set = Set.new(Str)  # wip imports (for cycle detection)
+    mut imports_done: Map = Map.new(Str, Bool)  # cleared between init and eval phases
+    # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
+    # REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
+    # REM: TODO change the cached type to support import as returning a struct_def
+    # REM: TODO change the cached type to support import as returning a struct_def
 
-// Get function definition for a function call
-// Corresponds to get_func_def_for_fcall_with_expr in typer.rs
-// Returns Option.Some(SFuncDef) if found, Option.None for struct constructors
-get_func_def_for_fcall := proc(context: Context, e: Expr) returns Option throws Str, IndexOutOfBoundsError {
-    // TODO: Extract function name, look up in context.funcs
-    // TODO: Handle UFCS (Uniform Function Call Syntax)
-    // TODO: Return None for struct constructors
-    // For now, return None to allow struct instantiation
-    TODO(loc(), "get_func_def_for_fcall: Need function lookup implementation")
-    return Option.None
+    # Context methods (insert/get/copy methods moved to Arena in interpreter.til)
+    new := func(path: Str, mode_name: Str) returns Context throws Str {
+        mut scope_stack := ScopeStack.new()
+        scope_stack.push(ScopeType.Global) # Initialize global scope
+
+        # Create a dummy token for mode initialization errors
+        mut dummy_token := Token()
+        dummy_token.token_type = TokenType.Mode
+        dummy_token.token_str = mode_name
+        dummy_token.line = 0
+        dummy_token.col = 0
+
+        mut mode_def := mode_from_name(mode_name, path, dummy_token)
+
+        mut result := Context()
+        result.path = path
+        result.mode_def = mode_def
+        result.scope_stack = scope_stack
+        result.temp_enum_payload = Ptr()
+        result.imports_wip = Set.new(Str)
+        result.imports_done = Map.new(Str, Bool)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return result
+    }
+
+    get_variant_pos := func(selfi: SEnumDef, variant_name: Str, path: Str, e: Expr) returns I64 throws Str {
+        mut variant_keys := selfi.enum_map.keys
+        mut idx := 0
+        while idx.lt(variant_keys.len()) {
+            mut k := ""  # Default init, will be overwritten by get()
+            variant_keys.get(idx, k)
+            if k.eq(variant_name) {
+                return idx
+            }
+            idx = idx.add(1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        throw e.lang_error(path, "context", format("Error: Enum variant '", variant_name, "' not found in enum map."))
+    }
+
+    variant_pos_to_str := func(selfi: SEnumDef, position: I64, path: Str, e: Expr) returns Str throws Str {
+        mut keys := selfi.enum_map.keys
+        if position.lt(0).or(position.gteq(keys.len())) {
+            # Return an error if the position is out of bounds
+            throw e.lang_error(path, "context", format("Error: Invalid position '", I64.to_str(position), "' for enum variant."))
+        }
+        # If position is valid, return the corresponding variant name
+        mut result := ""  # Default init, will be overwritten by get()
+        keys.get(position, result)
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        return result
+    }
+
+    map_instance_fields := proc(mut self: Context, custom_type_name: Str, instance_name: Str, e: Expr) throws Str {
+        mut struct_def := self.scope_stack.lookup_struct(custom_type_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: definition for '", custom_type_name, "' not found"))
+        }
+
+        mut instance_symbol := self.scope_stack.lookup_symbol(instance_name)
+        catch (sym_err: KeyNotFoundError) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: instance '", instance_name, "' not found in symbols"))
+        }
+        mut is_mut := instance_symbol.is_mut
+
+        mut base_offset := self.scope_stack.lookup_var(instance_name)
+        catch (var_err: KeyNotFoundError) {
+            throw e.lang_error(self.path, "context", format("map_instance_fields: base offset for '", instance_name, "' not found"))
+        }
+
+        mut current_offset := 0
+        mut member_idx := 0
+        while member_idx.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(member_idx, decl)
+            catch (idx_err: IndexOutOfBoundsError) {
+                member_idx = member_idx.add(1)
+            }
+            mut field_name := decl.name
+
+            if decl.is_mut {
+                mut combined_name := format(instance_name, ".", field_name)
+                mut field_offset := base_offset.data.add(current_offset)
+                self.scope_stack.insert_var(combined_name, field_offset)
+
+                self.scope_stack.declare_symbol(
+                    combined_name,
+                    SymbolInfo.new(
+                        decl.value_type,
+                        is_mut,
+                        false,
+                        false
+                    )
+                )
+
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    mut found_nested_struct := false
+                    mut nested_struct_def := SStructDef()
+                    nested_struct_def = self.scope_stack.lookup_struct(type_name)
+                    found_nested_struct = true
+                    catch (nested_err: KeyNotFoundError) {
+                        // Nested struct not found
+                    }
+                    if found_nested_struct {
+                        self.map_instance_fields(type_name, combined_name, e)
+                        // Error will propagate via throws Str
+                    }
+                case:
+                    # Not a custom type
+                }
+
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(name):
+                    field_size = Arena_get_type_size(self, name)
+                    // Errors propagate via throws Str
+                case:
+                    throw e.lang_error(self.path, "context", format("map_instance_fields: Unsupported value type '", value_type_to_str(decl.value_type), "'"))
+                }
+
+                current_offset = current_offset.add(field_size)
+            }
+            # Immutable struct fields are handled generically through struct_defs
+            member_idx = member_idx.add(1)
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+    }
+
+    get_struct := func(self: Context, id: Str, e: Expr) returns Str throws Str {
+        # Validate that the struct variable exists by checking if we can get its offset
+        mut found_var := false
+        mut offset := 0
+        offset = self.scope_stack.lookup_var(id)
+        found_var = true
+        catch (err: KeyNotFoundError) {
+            // Not found directly
+        }
+        if found_var {
+            # Direct variable lookup succeeded
+            return id
+        }
+        if id.contains(".") {
+            # For field paths, validate we can calculate offset
+            _ := Arena_get_field_offset(self, id)
+            catch (err: Str) {
+                throw e.lang_error(self.path, "context", format("get_struct: ", err))
+            }
+            return id
+        }
+        throw e.lang_error(self.path, "context", format("struct not found for id '", id, "'"))
+    }
+
+    register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
+        mut found_struct := false
+        mut struct_def := SStructDef()
+        struct_def = self.scope_stack.lookup_struct(custom_type_name)
+        found_struct = true
+        catch (err: KeyNotFoundError) {
+            // Struct not found
+        }
+        if not(found_struct) {
+            return
+        }
+
+        mut member_idx := 0
+        while member_idx.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(member_idx, decl)
+            catch (err: IndexOutOfBoundsError) {
+                throw err.msg
+            }
+            mut field_name := decl.name
+
+            mut combined_name := format(instance_name, ".", field_name)
+            self.scope_stack.declare_symbol(
+                combined_name,
+                SymbolInfo.new(
+                    decl.value_type,
+                    decl.is_mut,
+                    false,
+                    false
+                )
+            )
+
+            switch decl.value_type {
+            case ValueType.TCustom(nested_type_name):
+                mut found_nested := false
+                mut nested_struct_def := SStructDef()
+                nested_struct_def = self.scope_stack.lookup_struct(nested_type_name)
+                found_nested = true
+                catch (nested_err: KeyNotFoundError) {
+                    // Nested struct not found
+                }
+                if found_nested {
+                    self.register_struct_fields_for_typecheck(combined_name, nested_type_name)
+                }
+            case:
+                # Not a custom type
+            }
+            member_idx = member_idx.add(1)
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+    }
 }

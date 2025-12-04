@@ -209,7 +209,7 @@ Both lexers now use identical algorithms and produce byte-for-byte identical out
 - ❌ test_control_flow: memcpy error
 - ❌ test_enums: Parse error "Expected statement, found }"
 - ❌ test_structs: Parse error "Expected statement, found :"
-- ❌ test_switch: Type error "Could not find function defintion"
+- ❌ test_switch: Type error "Could not find function definition"
 - ❌ test_parse_file: Hangs (infinite loop)
 
 *Critical Fixes Needed:*

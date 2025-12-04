@@ -91,10 +91,10 @@ SStructDef := struct {
     }
 
     // Helper to find a member by name or return an error
-    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, e: Expr) returns Declaration throws Str {
+    get_member_or_err := func(self: SStructDef, member_name: Str, struct_name: Str, path: Str, e: Expr) returns Declaration throws Str {
         member := self.get_member(member_name)
         catch (err: Str) {
-            throw e.error("type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
+            throw e.error(path, "type", format("Struct '", struct_name, "' has no member '", member_name, "'"))
         }
         return member
     }
@@ -172,7 +172,16 @@ Expr := struct {
         catch (err: IndexOutOfBoundsError) {
             throw err.msg
         }
-        throw self.lang_error("assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
+        throw self.lang_error("<internal>", "assert", format("Expr index ", i.to_str(), " out of bounds (len: ", self.params.len().to_str(), ")."))
+    }
+
+    clone := func(self: Expr) returns Expr {
+        mut e := Expr()
+        e.node_type = self.node_type
+        e.params = self.params
+        e.line = self.line
+        e.col = self.col
+        return e
     }
 
     exit_error := proc(self: Expr, phase: Str, msg: Str) {
@@ -186,70 +195,52 @@ Expr := struct {
         exit(1)
     }
 
-    lang_error := func(self: Expr, phase: Str, msg: Str) returns Str throws Str {
+    lang_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws Str {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         mut result := ""
         if phase.eq("warning") {
-            result = format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
+            result = format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
         } else {
-            result = format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
+            result = format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: This should never happen, this is a bug in the language.")
         }
-        catch (err: I64_OverflowError) {
-            throw concat("Expr.lang_error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw concat("Expr.lang_error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw concat("Expr.lang_error: ", err.msg)
-        }
+        catch (err: I64_OverflowError) { throw concat("Expr.lang_error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw concat("Expr.lang_error: ", err.msg) }
+        catch (err: AllocError) { throw concat("Expr.lang_error: ", err.msg) }
         return result
     }
 
-    todo_error := func(self: Expr, phase: Str, msg: Str) returns Str throws Str {
+    todo_error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws Str {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         mut result := ""
         if phase.eq("warning") {
-            result = format(line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
+            result = format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " WARNING: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
         } else {
-            result = format(line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
+            result = format(path, ":", line_str, ":", col_str, ": ", LANG_NAME, " ", phase, " ERROR: ", msg, "\nExplanation: Not implemented yet, this is a missing feature in the language.")
         }
-        catch (err: I64_OverflowError) {
-            throw concat("Expr.todo_error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw concat("Expr.todo_error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw concat("Expr.todo_error: ", err.msg)
-        }
+        catch (err: I64_OverflowError) { throw concat("Expr.todo_error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw concat("Expr.todo_error: ", err.msg) }
+        catch (err: AllocError) { throw concat("Expr.todo_error: ", err.msg) }
         return result
     }
 
-    error := func(self: Expr, phase: Str, msg: Str) returns Str throws Str {
+    error := func(self: Expr, path: Str, phase: Str, msg: Str) returns Str throws Str {
         line_str := self.line.to_str()
         col_str := self.col.to_str()
         mut result := ""
         if phase.eq("warning") {
-            result = format(line_str, ":", col_str, ": WARNING: ", msg)
+            result = format(path, ":", line_str, ":", col_str, ": WARNING: ", msg)
         } else {
-            result = format(line_str, ":", col_str, ": ", phase, " ERROR: ", msg)
+            result = format(path, ":", line_str, ":", col_str, ": ", phase, " ERROR: ", msg)
         }
-        catch (err: I64_OverflowError) {
-            throw concat("Expr.error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw concat("Expr.error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw concat("Expr.error: ", err.msg)
-        }
+        catch (err: I64_OverflowError) { throw concat("Expr.error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw concat("Expr.error: ", err.msg) }
+        catch (err: AllocError) { throw concat("Expr.error: ", err.msg) }
         return result
     }
 
-    params_clone := func(self: Expr) returns Vec throws Str, IndexOutOfBoundsError {
+    params_clone := func(self: Expr) returns Vec throws Str {
         mut cloned := Vec.new(Expr)
         mut i := 0
         while i.lt(self.params.len()) {
@@ -258,9 +249,8 @@ Expr := struct {
             cloned.push(elem)
             i = i.add(1)
         }
-        catch (err: AllocError) {
-            throw concat("Expr.params_clone: ", err.msg)
-        }
+        catch (err: AllocError) { throw concat("Expr.params_clone: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw concat("Expr.params_clone: ", err.msg) }
         return cloned
     }
 }
@@ -289,7 +279,7 @@ ValueType := enum {
     TMulti: Str,
 }
 
-value_type_to_str := func(arg_type: ValueType) returns Str throws Str, IndexOutOfBoundsError {
+value_type_to_str := func(arg_type: ValueType) returns Str throws Str {
     mut result := ""
     switch arg_type {
     case ValueType.TType(TTypeDef.TEnumDef):
@@ -313,12 +303,9 @@ value_type_to_str := func(arg_type: ValueType) returns Str throws Str, IndexOutO
     case:
         result = "unknown"
     }
-    catch (err: I64_OverflowError) {
-        throw concat("value_type_to_str: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw concat("value_type_to_str: ", err.msg)
-    }
+    catch (err: I64_OverflowError) { throw concat("value_type_to_str: ", err.msg) }
+    catch (err: AllocError) { throw concat("value_type_to_str: ", err.msg) }
+    catch (err: IndexOutOfBoundsError) { throw concat("value_type_to_str: ", err.msg) }
     return result
 }
 
@@ -354,7 +341,7 @@ parse_literal := func(mut lexer: Lexer, t: Token) returns Expr throws Str, Index
         // TODO: parse and validate number
         node_type = NodeType.LLiteral(Literal.Number(t.token_str))
     case:
-        throw t.error(format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(lexer.path, format("Trying to parse a token that's not a literal as a literal, found '", token_type_to_str(t.token_type), "'."))
     }
 
     e := Expr.new_parse(node_type, t, params)
@@ -384,11 +371,11 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
                 expect_comma = false
                 list_t = lexer.peek()
             } else {
-                throw list_t.error("Unexpected ','.")
+                throw list_t.error(lexer.path, "Unexpected ','.")
             }
         case:
             if expect_comma {
-                throw list_t.error(format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
+                throw list_t.error(lexer.path, format("Expected ')' or ',', found '", token_type_to_str(list_t.token_type), "'."))
             }
             expect_comma = true
             prim := parse_primary(lexer)
@@ -407,7 +394,7 @@ parse_list := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsEr
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.LLiteral(Literal.List("")), initial_token, params)
     case:
-        throw list_t.error("Expected closing parentheses.")
+        throw list_t.error(lexer.path, "Expected closing parentheses.")
     }
 }
 
@@ -422,29 +409,29 @@ parse_assignment := func(mut lexer: Lexer, t: Token, name: Str) returns Expr thr
     return Expr.new_parse(NodeType.Assignment(name), t, params)
 }
 
-validate_mut_copy_own_modifiers := func(t: Token, modifier: Str, is_mut: Bool, is_copy: Bool, is_own: Bool) throws Str {
+validate_mut_copy_own_modifiers := func(t: Token, path: Str, modifier: Str, is_mut: Bool, is_copy: Bool, is_own: Bool) throws Str {
     if modifier.eq("mut") {
         if is_copy {
-            throw t.error("Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
+            throw t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
         }
         if is_own {
-            throw t.error("Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
+            throw t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
         }
     }
     if modifier.eq("copy") {
         if is_mut {
-            throw t.error("Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
+            throw t.error(path, "Cannot use both 'mut' and 'copy' on the same parameter. Use 'mut' for mutable reference or 'copy' for explicit copy.")
         }
         if is_own {
-            throw t.error("Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
+            throw t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
         }
     }
     if modifier.eq("own") {
         if is_mut {
-            throw t.error("Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
+            throw t.error(path, "Cannot use both 'mut' and 'own' on the same parameter. Use 'mut' for mutable reference or 'own' for ownership transfer.")
         }
         if is_copy {
-            throw t.error("Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
+            throw t.error(path, "Cannot use both 'own' and 'copy' on the same parameter. Use 'own' for ownership transfer or 'copy' for explicit copy.")
         }
     }
 }
@@ -469,15 +456,15 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
         case TokenType.RightParen:
             rightparent_found = true
             if expect_colon {
-                throw t.error(format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
+                throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "' before ')'."))
             }
             lexer.advance(1)
         case TokenType.Comma:
             if expect_colon {
-                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
+                throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "', but found ','."))
             }
             if expect_name {
-                throw t.error("Expected arg name before ','.")
+                throw t.error(lexer.path, "Expected arg name before ','.")
             }
             if expect_comma {
                 expect_comma = false
@@ -489,7 +476,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 _ := lexer_expect(lexer, TokenType.Comma)
                 t = lexer.peek()
             } else {
-                throw t.error("Unexpected ','.")
+                throw t.error(lexer.path, "Unexpected ','.")
             }
         case TokenType.Colon:
             if expect_colon {
@@ -505,30 +492,30 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
                 case TokenType.DoubleDot:
                     // continue
                 case:
-                    throw t.error(format("Expected type after '", arg_name, ":', but found '", t.token_str, "'."))
+                    throw t.error(lexer.path, format("Expected type after '", arg_name, ":', but found '", t.token_str, "'."))
                 }
             } else {
-                throw t.error("Unexpected ':'.")
+                throw t.error(lexer.path, "Unexpected ':'.")
             }
         case TokenType.DoubleDot:
             if expect_colon {
-                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '..'."))
+                throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "', but found '..'."))
             }
             if expect_comma {
-                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             if expect_name {
-                throw t.error(format("Expected arg name, found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(lexer.path, format("Expected arg name, found '", token_type_to_str(t.token_type), "'."))
             }
             is_variadic = true
             lexer.advance(1)
             t = lexer.peek()
         case TokenType.Identifier:
             if expect_colon {
-                throw t.error(format("Expected ': Type' after arg name '", arg_name, "', but found '", t.token_str, "'."))
+                throw t.error(lexer.path, format("Expected ': Type' after arg name '", arg_name, "', but found '", t.token_str, "'."))
             }
             if expect_comma {
-                throw t.error(format("Expected ',', found identifier '", t.token_str, "'."))
+                throw t.error(lexer.path, format("Expected ',', found identifier '", t.token_str, "'."))
             }
             if expect_name {
                 arg_name = t.token_str
@@ -556,30 +543,30 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
             t = lexer.peek()
         case TokenType.Mut:
             if not(expect_name) {
-                throw t.error("Unexpected 'mut' in argument list.")
+                throw t.error(lexer.path, "Unexpected 'mut' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, "mut", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "mut", is_mut, is_copy, is_own)
             is_mut = true
             lexer.advance(1)
             t = lexer.peek()
         case TokenType.Copy:
             if not(expect_name) {
-                throw t.error("Unexpected 'copy' in argument list.")
+                throw t.error(lexer.path, "Unexpected 'copy' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, "copy", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "copy", is_mut, is_copy, is_own)
             is_copy = true
             lexer.advance(1)
             t = lexer.peek()
         case TokenType.Own:
             if not(expect_name) {
-                throw t.error("Unexpected 'own' in argument list.")
+                throw t.error(lexer.path, "Unexpected 'own' in argument list.")
             }
-            validate_mut_copy_own_modifiers(t, "own", is_mut, is_copy, is_own)
+            validate_mut_copy_own_modifiers(t, lexer.path, "own", is_mut, is_copy, is_own)
             is_own = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc args."))
+            throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc args."))
         }
     }
 
@@ -592,7 +579,7 @@ parse_func_proc_args := func(mut lexer: Lexer) returns Vec throws Str, IndexOutO
     case TokenType.RightParen:
         return args
     case:
-        throw t.error("Expected closing parentheses.")
+        throw t.error(lexer.path, "Expected closing parentheses.")
     }
 }
 
@@ -629,18 +616,18 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
                 expect_comma = false
                 t = lexer.peek()
             } else {
-                throw t.error("Unexpected ','.")
+                throw t.error(lexer.path, "Unexpected ','.")
             }
         case TokenType.Identifier:
             if expect_comma {
-                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
+            throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc returns."))
         }
     }
 
@@ -651,7 +638,7 @@ func_proc_returns := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBo
     if end_found {
         return return_types
     } else {
-        throw t.error("Expected '{{' or 'throws' after return values.")
+        throw t.error(lexer.path, "Expected '{{' or 'throws' after return values.")
     }
 }
 
@@ -685,18 +672,18 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
                 lexer.advance(1)
                 t = lexer.peek()
             } else {
-                throw t.error("Unexpected ','.")
+                throw t.error(lexer.path, "Unexpected ','.")
             }
         case TokenType.Identifier:
             if expect_comma {
-                throw t.error(format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
+                throw t.error(lexer.path, format("Expected ',', found '", token_type_to_str(t.token_type), "'."))
             }
             return_types.push(str_to_value_type(t.token_str))
             expect_comma = true
             lexer.advance(1)
             t = lexer.peek()
         case:
-            throw t.error(format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc throws."))
+            throw t.error(lexer.path, format("Unexpected '", token_type_to_str(t.token_type), "' in func/proc throws."))
         }
     }
 
@@ -707,7 +694,7 @@ func_proc_throws := func(mut lexer: Lexer) returns Vec throws Str, IndexOutOfBou
     if end_found {
         return return_types
     } else {
-        throw t.error("Expected '{{' after throw values.")
+        throw t.error(lexer.path, "Expected '{{' after throw values.")
     }
 }
 
@@ -715,14 +702,14 @@ parse_func_proc_definition := func(mut lexer: Lexer, function_type: FunctionType
     lexer.advance(1)
     t := lexer.peek()
     if lexer.is_eof(1) {
-        throw t.error("expected '(' after 'func' or 'proc', found EOF.")
+        throw t.error(lexer.path, "expected '(' after 'func' or 'proc', found EOF.")
     }
     tt := t.token_type
     switch tt {
     case TokenType.LeftParen:
         // Continue
     case:
-        throw t.error(format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(lexer.path, format("expected '(' after 'func', found '", token_type_to_str(t.token_type), "'."))
     }
     args := parse_func_proc_args(lexer)
     return_types := func_proc_returns(lexer)
@@ -765,11 +752,11 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.LeftBrace:
         // Continue
     case:
-        throw t.error("Expected '{{' after 'enum'.")
+        throw t.error(lexer.path, "Expected '{{' after 'enum'.")
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
-        throw t2.error("expected identifier after 'enum {{', found EOF.")
+        throw t2.error(lexer.path, "expected identifier after 'enum {{', found EOF.")
     }
     lexer.advance(1)
     mut enum_map := Map.new(Str, ValueType)
@@ -795,7 +782,7 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                     enum_map.set(enum_val_name, str_to_value_type(enum_val_type))
                     lexer.advance(2)
                 case:
-                    throw next2_t.error(format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
+                    throw next2_t.error(lexer.path, format("Expected type identifier after '", enum_val_name, " :', found '", token_type_to_str(next2_t.token_type), "'."))
                 }
             case TokenType.Comma:
                 enum_map.set(enum_val_name, ValueType.TCustom(""))  // None represented as empty TCustom
@@ -805,17 +792,17 @@ enum_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 end_found = true
                 lexer.advance(1)  // Advance past the RightBrace since we peeked it with next()
             case:
-                throw next_t.error(format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
+                throw next_t.error(lexer.path, format("Expected ',' or ':' after '", enum_val_name, "', found '", token_type_to_str(next_t.token_type), "'."))
             }
         case TokenType.Comma:
             // Skip comma
         case:
-            throw it_t.error(format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
+            throw it_t.error(lexer.path, format("Expected '}}' to end enum or a new identifier, found '", token_type_to_str(it_t.token_type), "'."))
         }
         lexer.advance(1)
     }
     if not(end_found) {
-        throw t.error("Expected '}}' to end enum.")
+        throw t.error(lexer.path, "Expected '}}' to end enum.")
     }
     params := Vec.new(Expr)
     mut enum_def := SEnumDef()
@@ -839,11 +826,11 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.LeftBrace:
         // Continue parsing struct
     case:
-        throw t.error("Expected '{{' after 'struct'.")
+        throw t.error(lexer.path, "Expected '{{' after 'struct'.")
     }
     if lexer.is_eof(1) {
         t2 := lexer.peek()
-        throw t2.error("expected 'identifier' after 'struct {{', found EOF.")
+        throw t2.error(lexer.path, "expected 'identifier' after 'struct {{', found EOF.")
     }
     lexer.advance(1)
     body := parse_body(lexer, TokenType.RightBrace)
@@ -875,10 +862,10 @@ parse_struct_definition := func(mut lexer: Lexer) returns Expr throws Str {
                 default_values.insert(decl.name, val)
             } else {
                 // TODO allow not setting default values in struct members
-                throw t.error("all declarations inside struct definitions must have a value for now")
+                throw t.error(lexer.path, "all declarations inside struct definitions must have a value for now")
             }
         } else {
-            throw t.error("expected only declarations inside struct definition")
+            throw t.error(lexer.path, "expected only declarations inside struct definition")
         }
         i = i.add(1)
     }
@@ -922,7 +909,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                 params.push(ident_expr)
                 next_t = lexer.next()
             case:
-                throw next2_t.error(format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
+                throw next2_t.error(lexer.path, format("expected identifier after '", current_identifier, ".', found '", token_type_to_str(next2_t.token_type), "'."))
             }
         case:
             continue_dot_loop = false
@@ -974,10 +961,10 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
                     case TokenType.LeftParen:
                         // Continue with method call parsing below
                     case:
-                        throw next_peek.error(format("Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'"))
+                        throw next_peek.error(lexer.path, format("Expected '(' after method name '", method_name, "', found '", token_type_to_str(next_peek.token_type), "'"))
                     }
                 case:
-                    throw method_t.error(format("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "')"))
+                    throw method_t.error(lexer.path, format("Expected method name after '.', found '", token_type_to_str(method_t.token_type), "')"))
                 }
             case:
                 continue_loop = false
@@ -1019,7 +1006,7 @@ parse_primary_identifier := func(mut lexer: Lexer) returns Expr throws Str {
     return result
 }
 
-get_combined_name := func(e: Expr) returns Str throws Str {
+get_combined_name := func(path: Str, e: Expr) returns Str throws Str {
     mut to_return := ""
     nt := e.node_type
     switch nt {
@@ -1027,7 +1014,7 @@ get_combined_name := func(e: Expr) returns Str throws Str {
             to_return = id_str
             to_return = format(to_return, ".")
         case:
-            throw e.lang_error("parse", "get_combined_name() is to be called with Identifier expressions only")
+            throw e.lang_error(path, "parse", "get_combined_name() is to be called with Identifier expressions only")
     }
 
     mut i := 0
@@ -1040,7 +1027,7 @@ get_combined_name := func(e: Expr) returns Str throws Str {
                 to_return = format(to_return, id_str)
                 to_return = format(to_return, ".")
             case:
-                throw e.lang_error("parse", "the params of an identifier expression must be Identifier expressions only")
+                throw e.lang_error(path, "parse", "the params of an identifier expression must be Identifier expressions only")
         }
         i = i.add(1)
     }
@@ -1089,7 +1076,7 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
             is_identifier = false
         }
         if not(is_identifier) {
-            throw t.lang_error("a series of identifiers and dots should have been parsed as identifier or function call")
+            throw t.lang_error(lexer.path, "a series of identifiers and dots should have been parsed as identifier or function call")
         }
 
         next_t = lexer.peek()
@@ -1097,10 +1084,10 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
         ntt2 := next_token_type
         switch ntt2 {
         case TokenType.Equal:
-            name := get_combined_name(e)
+            name := get_combined_name(lexer.path, e)
             return parse_assignment(lexer, t, name)
         case:
-            throw t.lang_error("While parsing a '.', this should never happen")
+            throw t.lang_error(lexer.path, "While parsing a '.', this should never happen")
         }
     case TokenType.Equal:
         lexer.advance(1)
@@ -1118,10 +1105,10 @@ parse_statement_identifier := func(mut lexer: Lexer) returns Expr throws Str, In
         case TokenType.Equal:
             return parse_declaration(lexer, false, false, INFER_TYPE)
         case:
-            throw t.error(format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+            throw t.error(lexer.path, format("Expected Type or '=' after '", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
         }
     case:
-        throw t.error(format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))
+        throw t.error(lexer.path, format("Expected '(', ':' or '=' after identifier in statement, found '", token_type_to_str(next_token_type), "'."))
     }
 }
 
@@ -1155,7 +1142,7 @@ parse_primary := func(mut lexer: Lexer) returns Expr throws Str {
     case TokenType.Identifier:
         result = parse_primary_identifier(lexer)
     case:
-        throw t.error(format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(lexer.path, format("Expected primary expression, found '", token_type_to_str(t.token_type), "'."))
     }
     catch (err: IndexOutOfBoundsError) {
         throw concat("parse_primary: ", err.msg)
@@ -1282,7 +1269,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw t.error(format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
+        throw t.error(lexer.path, format("Expected '{{' after condition in 'if' statement, found '", token_type_to_str(t.token_type), "'."))
     }
 
     body := parse_body(lexer, TokenType.RightBrace)
@@ -1304,7 +1291,7 @@ if_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBounds
             else_body := parse_body(lexer, TokenType.RightBrace)
             params.push(else_body)
         case:
-            throw t2.error(format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
+            throw t2.error(lexer.path, format("Expected '{{' or 'if' after 'else', found '", token_type_to_str(next.token_type), "'."))
         }
     case:
         // No else clause
@@ -1332,7 +1319,7 @@ while_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw t.error("Expected '{{' after condition in 'while' statement.")
+        throw t.error(lexer.path, "Expected '{{' after condition in 'while' statement.")
     }
 
     body := parse_body(lexer, TokenType.RightBrace)
@@ -1367,7 +1354,7 @@ parse_for_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutO
         case:
     }
     if not(is_range) {
-        throw ident_token.error("Expected range expression (start..end) after 'in'")
+        throw ident_token.error(lexer.path, "Expected range expression (start..end) after 'in'")
     }
     start_expr := range_expr.get(0)
     end_expr := range_expr.get(1)
@@ -1541,7 +1528,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
     case TokenType.LeftBrace:
         lexer.advance(1)
     case:
-        throw t.error("Expected '{{' after primary expression in 'switch' statement.")
+        throw t.error(lexer.path, "Expected '{{' after primary expression in 'switch' statement.")
     }
 
     mut end_found := false
@@ -1552,7 +1539,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         case TokenType.Case:
             // Continue parsing case
         case:
-            throw next_t.error(format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
+            throw next_t.error(lexer.path, format("Expected 'case' in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
         lexer.advance(1)
@@ -1573,7 +1560,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         case TokenType.Colon:
             // Continue parsing case body
         case:
-            throw next_t.error(format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
+            throw next_t.error(lexer.path, format("Expected ':' case <primary_expr> in switch, found '", token_type_to_str(next_t.token_type), "'"))
         }
 
         lexer.advance(1)
@@ -1617,7 +1604,7 @@ parse_switch_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexO
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.Switch, initial_token, params)
     }
-    throw t.error("Expected '}}' to end switch.")
+    throw t.error(lexer.path, "Expected '}}' to end switch.")
 }
 
 parse_declaration := func(mut lexer: Lexer, is_mut: Bool, is_copy: Bool, explicit_type: Str) returns Expr throws Str, IndexOutOfBoundsError {
@@ -1676,13 +1663,13 @@ parse_mut_declaration := func(mut lexer: Lexer) returns Expr throws Str, IndexOu
             case TokenType.Equal:
                 return parse_declaration(lexer, true, false, INFER_TYPE)
             case:
-                throw t.error(format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
+                throw t.error(lexer.path, format("Expected a type identifier or '=' after 'mut ", identifier, " :' in statement, found '", token_type_to_str(next_next_token_type), "'."))
             }
         case:
-            throw t.error(format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
+            throw t.error(lexer.path, format("Expected ':' after 'mut ", identifier, "', found '", token_type_to_str(next_token_type), "'."))
         }
     case:
-        throw t.error(format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
+        throw t.error(lexer.path, format("Expected identifier after 'mut', found '", token_type_to_str(next_token_type), "'."))
     }
 }
 
@@ -1713,7 +1700,7 @@ parse_statement := func(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBou
         lexer.advance(1) // Skip LeftBrace
         return parse_body(lexer, TokenType.RightBrace)
     case:
-        throw t.error(format("Expected statement, found ", token_type_to_str(t.token_type), "."))
+        throw t.error(lexer.path, format("Expected statement, found ", token_type_to_str(t.token_type), "."))
     }
 }
 
@@ -1767,7 +1754,7 @@ parse_body := func(mut lexer: Lexer, end_token: TokenType) returns Expr throws S
         initial_token := lexer.get_token(initial_current)
         return Expr.new_parse(NodeType.Body, initial_token, params)
     }
-    throw t.error(format("Expected '", token_type_to_str(end_token), "' to end body."))
+    throw t.error(lexer.path, format("Expected '", token_type_to_str(end_token), "' to end body."))
 }
 
 parse_tokens := proc(mut lexer: Lexer) returns Expr throws Str, IndexOutOfBoundsError {

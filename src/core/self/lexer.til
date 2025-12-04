@@ -63,49 +63,31 @@ Token := struct {
     mut line: I64 = 0
     mut col: I64 = 0
 
-    lang_error := func(self: Token, msg: Str) returns Str throws Str {
-        result := format(self.line.to_str(), ":", self.col.to_str(), ": ",
+    lang_error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
+        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
             "Explanation: This is not your fault as a user, this is a bug in the language.")
-        catch (err: I64_OverflowError) {
-            throw format("Token.lang_error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("Token.lang_error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw format("Token.lang_error: ", err.msg)
-        }
+        catch (err: I64_OverflowError) { throw format("Token.lang_error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw format("Token.lang_error: ", err.msg) }
+        catch (err: AllocError) { throw format("Token.lang_error: ", err.msg) }
         return result
     }
 
-    todo_error := func(self: Token, msg: Str) returns Str throws Str {
-        result := format(self.line.to_str(), ":", self.col.to_str(), ": ",
+    todo_error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
+        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": ",
             LANG_NAME, " parse ERROR: ", msg, "\n",
             "Explanation: Not implemented yet, this is a missing feature in the language.")
-        catch (err: I64_OverflowError) {
-            throw format("Token.todo_error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("Token.todo_error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw format("Token.todo_error: ", err.msg)
-        }
+        catch (err: I64_OverflowError) { throw format("Token.todo_error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw format("Token.todo_error: ", err.msg) }
+        catch (err: AllocError) { throw format("Token.todo_error: ", err.msg) }
         return result
     }
 
-    error := func(self: Token, msg: Str) returns Str throws Str {
-        result := format(self.line.to_str(), ":", self.col.to_str(), ": parse ERROR: ", msg)
-        catch (err: I64_OverflowError) {
-            throw format("Token.error: ", err.msg)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            throw format("Token.error: ", err.msg)
-        }
-        catch (err: AllocError) {
-            throw format("Token.error: ", err.msg)
-        }
+    error := func(self: Token, path: Str, msg: Str) returns Str throws Str {
+        result := format(path, ":", self.line.to_str(), ":", self.col.to_str(), ": parse ERROR: ", msg)
+        catch (err: I64_OverflowError) { throw format("Token.error: ", err.msg) }
+        catch (err: IndexOutOfBoundsError) { throw format("Token.error: ", err.msg) }
+        catch (err: AllocError) { throw format("Token.error: ", err.msg) }
         return result
     }
 }
@@ -645,7 +627,7 @@ Lexer := struct {
             self.advance(1)
             return p
         case:
-            throw p.error(format(
+            throw p.error(self.path, format(
                 "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
         }
     }
@@ -661,7 +643,7 @@ lexer_expect := func(mut lexer: Lexer, expected: TokenType) returns Token throws
         lexer.advance(1)
         return p
     case:
-        throw p.error(format(
+        throw p.error(lexer.path, format(
             "Expected token '", token_type_to_str(expected), "', but found '", p.token_str, "'"))
     }
 }

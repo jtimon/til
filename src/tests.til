@@ -63,8 +63,8 @@ runfile("src/test/modes.til")
 // run the self hosting libs just to see they pass typer checks
 runfile("src/core/self/lexer.til")
 runfile("src/core/self/parser.til")
-// TODO: Fix remaining type errors in init.til, typer.til, interprer.til
-// runfile("src/core/self/init.til")
+runfile("src/core/self/init.til")
+// TODO: Fix remaining type errors in typer.til, interprer.til
 // runfile("src/core/self/typer.til")
 // runfile("src/core/self/interprer.til")
 

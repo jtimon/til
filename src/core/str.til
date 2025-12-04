@@ -220,7 +220,7 @@ Str := struct {
         return result
     }
 
-    split := func(self: Str, delimiter: Str) returns Vec throws AllocError, IndexOutOfBoundsError, FullError {
+    split := func(self: Str, delimiter: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
         # Split string by delimiter, return Vec of Str
         mut parts := Vec.new(Str)
 
