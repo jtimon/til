@@ -1176,17 +1176,23 @@ fn parse_case_expr(lexer: &mut Lexer) -> Result<Expr, String> {
 
         match &left.params[1].node_type {
             NodeType::Identifier(binding_var) => {
-                // Convert FCall to Pattern
-                let pattern_info = PatternInfo {
-                    variant_name: variant_name,
-                    binding_var: binding_var.clone(),
-                };
-                return Ok(Expr::new_explicit(
-                    NodeType::Pattern(pattern_info),
-                    Vec::new(),
-                    left.line,
-                    left.col
-                ));
+                // Only treat as a binding variable if it's a simple identifier
+                // (no nested params like TTypeDef.TEnumDef)
+                if left.params[1].params.is_empty() {
+                    // Convert FCall to Pattern
+                    let pattern_info = PatternInfo {
+                        variant_name: variant_name,
+                        binding_var: binding_var.clone(),
+                    };
+                    return Ok(Expr::new_explicit(
+                        NodeType::Pattern(pattern_info),
+                        Vec::new(),
+                        left.line,
+                        left.col
+                    ));
+                }
+                // Otherwise, it's a nested pattern like ValueType.TType(TTypeDef.TEnumDef)
+                // Keep it as FCall for now (will be handled by interpreter)
             },
             _ => {}
         }
