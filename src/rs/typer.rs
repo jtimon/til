@@ -1681,7 +1681,7 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     }
                 }
             }
-            return Err(func_expr.lang_error(&context.path, "type", "Could not find function defintion"))
+            return Err(func_expr.lang_error(&context.path, "type", "Could not find function definition"))
         },
         _ => return Err(func_expr.lang_error(&context.path, "type", "Expected Identifier node type"))
     }
