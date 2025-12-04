@@ -64,8 +64,8 @@ runfile("src/test/modes.til")
 runfile("src/core/self/lexer.til")
 runfile("src/core/self/parser.til")
 runfile("src/core/self/init.til")
-// TODO: Fix remaining type errors in typer.til, interprer.til
-// runfile("src/core/self/typer.til")
+// runfile("src/core/self/typer.til")  // TODO: Translation in progress
+// TODO: Fix remaining type errors in interprer.til
 // runfile("src/core/self/interprer.til")
 
 // TODO: Re-enable after fixing type errors in lexer.til and parser.til
