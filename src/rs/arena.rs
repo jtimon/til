@@ -488,7 +488,6 @@ impl Arena {
 
     /// Insert a struct by copying from a cached template.
     /// Much faster than insert_struct_core for subsequent instances of the same type.
-    /// Caller must provide template_offset from get_or_create_default_instance().
     pub fn insert_struct_from_template(ctx: &mut Context, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
         // Get struct size
         let struct_size = ctx.get_type_size(custom_type_name)?;
@@ -516,7 +515,6 @@ impl Arena {
     }
 
     /// Insert a struct from template into a specific frame (for function parameters).
-    /// Caller must provide template_offset from get_or_create_default_instance().
     pub fn insert_struct_from_template_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, custom_type_name: &str, template_offset: usize, e: &Expr) -> Result<(), String> {
         // Get struct size
         let struct_size = ctx.get_type_size(custom_type_name)?;
@@ -684,13 +682,11 @@ impl Arena {
 
     pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
-            // SPECIAL CASE: Str is a built-in type with simple literal defaults.
-            // We inline them here to avoid calling eval_struct_defaults from within Arena.
-            // If Str struct changes, update these defaults!
-            let mut str_defaults = HashMap::new();
-            str_defaults.insert("c_string".to_string(), "0".to_string());
-            str_defaults.insert("cap".to_string(), "0".to_string());
-            Arena::insert_struct(ctx, id, "Str", &str_defaults, e)?;
+            // Create Str struct from template
+            let template_offset = Arena::g().default_instances.get("Str")
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_string", "Str template not found - ensure str.til is imported"))?;
+            Arena::insert_struct_from_template(ctx, id, "Str", template_offset, e)?;
             let c_string_offset = ctx.scope_stack.lookup_var(&format!("{}.c_string", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
@@ -703,13 +699,11 @@ impl Arena {
 
     pub fn insert_string_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
         if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
-            // SPECIAL CASE: Str is a built-in type with simple literal defaults.
-            // We inline them here to avoid calling eval_struct_defaults from within Arena.
-            // If Str struct changes, update these defaults!
-            let mut str_defaults = HashMap::new();
-            str_defaults.insert("c_string".to_string(), "0".to_string());
-            str_defaults.insert("cap".to_string(), "0".to_string());
-            Arena::insert_struct_into_frame(ctx, frame, id, "Str", &str_defaults, e)?;
+            // Create Str struct from template
+            let template_offset = Arena::g().default_instances.get("Str")
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported"))?;
+            Arena::insert_struct_from_template_into_frame(ctx, frame, id, "Str", template_offset, e)?;
             let c_string_offset = frame.arena_index.get(&format!("{}.c_string", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.c_string'", id)))?;
@@ -784,12 +778,11 @@ impl Arena {
     // Helper function to insert a Bool value using insert_struct
     pub fn insert_bool(ctx: &mut Context, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            // SPECIAL CASE: Bool is a built-in type with simple literal defaults.
-            // We inline them here to avoid calling eval_struct_defaults from within Arena.
-            // If Bool struct changes, update these defaults!
-            let mut bool_defaults = HashMap::new();
-            bool_defaults.insert("data".to_string(), "0".to_string());
-            Arena::insert_struct(ctx, id, "Bool", &bool_defaults, e)?;
+            // Create Bool struct from template
+            let template_offset = Arena::g().default_instances.get("Bool")
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool", "Bool template not found - ensure bool.til is imported"))?;
+            Arena::insert_struct_from_template(ctx, id, "Bool", template_offset, e)?;
             let field_id = format!("{}.data", id);
             let offset = ctx.scope_stack.lookup_var(&field_id)
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("Bool field '{}.data' not found", id)))?;
@@ -800,12 +793,11 @@ impl Arena {
 
     pub fn insert_bool_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, bool_str: &String, e: &Expr) -> Result<(), String> {
         if let Some(stored) = Self::insert_bool_core(ctx, id, bool_str, e)? {
-            // SPECIAL CASE: Bool is a built-in type with simple literal defaults.
-            // We inline them here to avoid calling eval_struct_defaults from within Arena.
-            // If Bool struct changes, update these defaults!
-            let mut bool_defaults = HashMap::new();
-            bool_defaults.insert("data".to_string(), "0".to_string());
-            Arena::insert_struct_into_frame(ctx, frame, id, "Bool", &bool_defaults, e)?;
+            // Create Bool struct from template
+            let template_offset = Arena::g().default_instances.get("Bool")
+                .copied()
+                .ok_or_else(|| e.lang_error(&ctx.path, "insert_bool_into_frame", "Bool template not found - ensure bool.til is imported"))?;
+            Arena::insert_struct_from_template_into_frame(ctx, frame, id, "Bool", template_offset, e)?;
             let field_id = format!("{}.data", id);
             let offset = frame.arena_index.get(&field_id)
                 .copied()

@@ -133,15 +133,29 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
     for decl in struct_def.members.iter() {
         if decl.is_mut {
             if let Some(default_expr) = struct_def.default_values.get(&decl.name) {
+                // For nested struct types, eagerly create template BEFORE evaluating default
+                // This handles forward references: Inner1's template is created before Inner1() is evaluated
+                if let ValueType::TCustom(type_name) = &decl.value_type {
+                    // Skip primitives, enums, and Str (handled specially)
+                    if type_name != "U8" && type_name != "I64" && type_name != "Str" {
+                        if ctx.scope_stack.lookup_enum(type_name).is_none() {
+                            if ctx.scope_stack.lookup_struct(type_name).is_some() {
+                                // Eagerly create template for nested struct (handles forward refs)
+                                create_default_instance(ctx, type_name, e)?;
+                            }
+                        }
+                    }
+                }
+
+                // Now evaluate the default expression (template exists if needed)
                 let res = eval_expr(ctx, default_expr)?;
                 if res.is_throw {
                     return Err(e.lang_error(&ctx.path, "eval_struct_defaults", &format!("thrown '{}' while evaluating default for field '{}'", res.thrown_type.unwrap_or_default(), decl.name)));
                 }
                 defaults.insert(decl.name.clone(), res.value);
 
-                // Handle nested structs recursively
+                // Handle nested structs recursively (get their defaults)
                 if let ValueType::TCustom(type_name) = &decl.value_type {
-                    // Skip primitives, enums, and Str (handled specially)
                     if type_name != "U8" && type_name != "I64" && type_name != "Str" {
                         if ctx.scope_stack.lookup_enum(type_name).is_none() {
                             if ctx.scope_stack.lookup_struct(type_name).is_some() {
@@ -159,10 +173,10 @@ fn eval_struct_defaults(ctx: &mut Context, struct_type: &str, e: &Expr) -> Resul
     Ok(defaults)
 }
 
-/// Get or create a default instance template for a struct type.
-/// Returns the arena offset of the template. Template is cached for reuse.
-fn get_or_create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<usize, String> {
-    // Check if template already exists
+/// Create a default instance template for a struct type.
+/// Called eagerly when struct declarations are evaluated.
+fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Result<usize, String> {
+    // Check if template already exists (e.g., from a previous import)
     if let Some(&offset) = Arena::g().default_instances.get(struct_type) {
         return Ok(offset);
     }
@@ -185,12 +199,30 @@ fn get_or_create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr
     // Get the template's arena offset (first mapping is the base struct)
     let template_offset = result.arena_mappings.first()
         .map(|(_, off)| *off)
-        .ok_or_else(|| e.lang_error(&ctx.path, "get_or_create_default_instance", "No arena mapping for template"))?;
+        .ok_or_else(|| e.lang_error(&ctx.path, "create_default_instance", "No arena mapping for template"))?;
 
     // Cache the template offset
     Arena::g().default_instances.insert(struct_type.to_string(), template_offset);
 
     Ok(template_offset)
+}
+
+/// Insert a struct instance using cached template.
+/// Template is guaranteed to exist - created eagerly on eval_declaration.
+fn insert_struct_instance(ctx: &mut Context, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
+    let template_offset = Arena::g().default_instances.get(type_name).copied()
+        .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance",
+            &format!("template for '{}' not found", type_name)))?;
+    Arena::insert_struct_from_template(ctx, id, type_name, template_offset, e)
+}
+
+/// Insert a struct instance into a specific frame using cached template.
+/// Template is guaranteed to exist - created eagerly on eval_declaration.
+fn insert_struct_instance_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, type_name: &str, e: &Expr) -> Result<(), String> {
+    let template_offset = Arena::g().default_instances.get(type_name).copied()
+        .ok_or_else(|| e.lang_error(&ctx.path, "insert_struct_instance_into_frame",
+            &format!("template for '{}' not found", type_name)))?;
+    Arena::insert_struct_from_template_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
 
 pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
@@ -401,8 +433,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                                                 );
 
                                                 // Allocate destination struct in arena (from cached template)
-                                                let template_offset = get_or_create_default_instance(context, type_name, &case)?;
-                                                Arena::insert_struct_from_template(context, binding_var, type_name, template_offset, &case)?;
+                                                insert_struct_instance(context, binding_var, type_name, &case)?;
 
                                                 // Get destination offset
                                                 let dest_offset = context.scope_stack.lookup_var(binding_var).ok_or_else(|| {
@@ -609,8 +640,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                 NodeType::Identifier(s) => s,
                 _ => return Err(e.todo_error(&context.path, "eval", "Expected identifier name for struct instantiation")),
             };
-            let template_offset = get_or_create_default_instance(context, &name, e)?;
-            Arena::insert_struct_from_template(context, &id_name, &name, template_offset, e)?;
+            insert_struct_instance(context, &id_name, &name, e)?;
             // TODO FIX: Bool can't be removed yet - Bool() constructor must return "false" string, not "Bool"
             return Ok(EvalResult::new(match id_name.as_str() {
                 "Bool" => "false",
@@ -957,6 +987,8 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                                                    SymbolInfo{value_type: member_decl.value_type.clone(), is_mut: member_decl.is_mut, is_copy: member_decl.is_copy, is_own: member_decl.is_own });
                         }
                     }
+                    // Eagerly create default instance template for this struct type
+                    create_default_instance(context, &declaration.name, e)?;
                     return Ok(EvalResult::new(""));
                 },
                 _ => return Err(e.lang_error(&context.path, "eval", &format!("Cannot declare {} of type {:?}, expected struct definition.",
@@ -1009,8 +1041,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
                             if let NodeType::Identifier(potentially_struct_name) = &inner_e.params[0].node_type {
                                 if inner_e.params[0].params.is_empty() {
                                     if context.scope_stack.lookup_struct(potentially_struct_name).is_some() {
-                                        let template_offset = get_or_create_default_instance(context, custom_type_name, e)?;
-                                        Arena::insert_struct_from_template(context, &declaration.name, custom_type_name, template_offset, e)?;
+                                        insert_struct_instance(context, &declaration.name, custom_type_name, e)?;
                                         return Ok(EvalResult::new(""))
                                     }
                                 }
@@ -1030,8 +1061,7 @@ fn eval_declaration(declaration: &Declaration, context: &mut Context, e: &Expr) 
 
                         if declaration.is_mut && !is_temp_return_val {
                             // Allocate space and copy fields for mut declaration (independent copy)
-                            let template_offset = get_or_create_default_instance(context, custom_type_name, e)?;
-                            Arena::insert_struct_from_template(context, &declaration.name, custom_type_name, template_offset, e)?;
+                            insert_struct_instance(context, &declaration.name, custom_type_name, e)?;
                             Arena::copy_fields(context, custom_type_name, &expr_result_str, &declaration.name, e)?;
                         } else {
                             // Share offset for non-mut declaration or temp return value (zero-copy transfer)
@@ -1967,8 +1997,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             pass_by_ref_params.insert(arg.name.clone());
                                         } else {
                                             // For copy parameters, allocate and copy
-                                            let template_offset = get_or_create_default_instance(context, &custom_type_name, e)?;
-                                            Arena::insert_struct_from_template_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, template_offset, e)?;
+                                            insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
 
                                             // Push frame temporarily for copy_fields (needs dest accessible)
                                             context.scope_stack.frames.push(function_frame);
@@ -2028,8 +2057,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     _ => {
                                         // For expression arguments (like Vec.new(Expr)), the struct is already
                                         // allocated and evaluated in result_str. We need to copy it to the parameter.
-                                        let template_offset = get_or_create_default_instance(context, &custom_type_name, e)?;
-                                        Arena::insert_struct_from_template_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, template_offset, e)?;
+                                        insert_struct_instance_into_frame(context, &mut function_frame, &arg.name, &custom_type_name, e)?;
 
                                         // Push frame temporarily for copy_fields
                                         context.scope_stack.frames.push(function_frame);
