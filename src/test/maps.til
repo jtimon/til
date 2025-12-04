@@ -465,6 +465,42 @@ test_map_order_after_growth := proc() {
     }
 }
 
+// Test direct .keys field access
+test_map_keys_field := proc() {
+    mut m := Map.new(Str, I64)
+    m.insert("alice", 30)
+    m.insert("bob", 25)
+    m.insert("charlie", 35)
+
+    mut keys := m.keys
+    test(loc(), keys.len().eq(3), "m.keys should have 3 keys")
+
+    mut key := ""
+    keys.get(0, key)
+    test(loc(), key.eq("alice"), "First key should be alice")
+    keys.get(1, key)
+    test(loc(), key.eq("bob"), "Second key should be bob")
+    keys.get(2, key)
+    test(loc(), key.eq("charlie"), "Third key should be charlie")
+
+    m.delete()
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: DuplicatedKeyError) {
+        println("ERROR:", loc(), "Unexpected DuplicatedKeyError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+
 // Run all tests
 test_map_i64_to_i64()
 test_map_str_to_vec2()
@@ -481,4 +517,5 @@ test_map_delete()
 test_map_len_tracking()
 test_map_multiple_overwrites()
 test_map_order_after_growth()
+test_map_keys_field()
 

@@ -64,7 +64,7 @@ runfile("src/test/modes.til")
 runfile("src/core/self/lexer.til")
 runfile("src/core/self/parser.til")
 runfile("src/core/self/init.til")
-// runfile("src/core/self/typer.til")  // TODO: Translation in progress
+runfile("src/core/self/typer.til")
 // TODO: Fix remaining type errors in interprer.til
 // runfile("src/core/self/interprer.til")
 
