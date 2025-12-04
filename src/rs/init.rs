@@ -968,6 +968,18 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
                     }
                     match &inner_e.node_type {
                         NodeType::StructDef(struct_def) => {
+                            // Check for directly recursive struct (infinite size)
+                            for member_decl in &struct_def.members {
+                                if let ValueType::TCustom(ref member_type_name) = member_decl.value_type {
+                                    if member_type_name == &decl.name {
+                                        errors.push(e.error(&context.path, "type", &format!(
+                                            "recursive type '{}' has infinite size\n  --> field '{}' is recursive without indirection\nhelp: insert some indirection (e.g., a Ptr or Vec) to break the cycle",
+                                            decl.name, member_decl.name
+                                        )));
+                                        return errors;
+                                    }
+                                }
+                            }
                             // Register the struct itself
                             context.scope_stack.declare_symbol(decl.name.to_string(), SymbolInfo { value_type: value_type.clone(), is_mut: decl.is_mut, is_copy: decl.is_copy, is_own: decl.is_own });
                             context.scope_stack.declare_struct(decl.name.to_string(), struct_def.clone());

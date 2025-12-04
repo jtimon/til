@@ -1428,6 +1428,25 @@ process_declarations := proc(mut context: Context, e: Expr) throws Str, IndexOut
                     // Other node types
                 }
 
+                // Check for directly recursive struct (infinite size)
+                mut member_idx := 0
+                while member_idx.lt(struct_def.members.len()) {
+                    mut member_decl := Declaration()
+                    struct_def.members.get(member_idx, member_decl)
+                    catch (err: IndexOutOfBoundsError) {
+                        // Should not happen
+                    }
+                    switch member_decl.value_type {
+                    case ValueType.TCustom(member_type_name):
+                        if Str.eq(member_type_name, decl.name) {
+                            throw format("recursive type '", decl.name, "' has infinite size\n  --> field '", member_decl.name, "' is recursive without indirection\nhelp: insert some indirection (e.g., a Ptr or Vec) to break the cycle")
+                        }
+                    case:
+                        // Not a custom type, no recursion possible
+                    }
+                    member_idx = member_idx.add(1)
+                }
+
                 // Register in symbols and structs using scope_stack
                 mut symbol := SymbolInfo()
                 symbol.value_type = value_type
