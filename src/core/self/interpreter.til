@@ -1609,8 +1609,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             result := eval_body(context, body_expr.params)
 
                             // Clean up the error variable binding after the catch block
-                            context.scope_stack.remove_symbol(var_name)
-                            context.scope_stack.remove_var(var_name)
+                            _ := context.scope_stack.remove_symbol(var_name)
+                            _ := context.scope_stack.remove_var(var_name)
                             // Also remove the field mappings
                             mut cleanup_struct_def := SStructDef()
                             mut has_cleanup_struct := false
@@ -1623,8 +1623,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     mut cleanup_field_decl := Declaration()
                                     cleanup_struct_def.members.get(cfi, cleanup_field_decl)
                                     combined_name := format(var_name, ".", cleanup_field_decl.name)
-                                    context.scope_stack.remove_symbol(combined_name)
-                                    context.scope_stack.remove_var(combined_name)
+                                    _ := context.scope_stack.remove_symbol(combined_name)
+                                    _ := context.scope_stack.remove_var(combined_name)
                                     cfi = cfi.add(1)
                                 }
                             }
@@ -1915,14 +1915,14 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
 
                             // Remove from caller's context (ownership transferred)
-                            context.scope_stack.remove_var(source_var)
-                            context.scope_stack.remove_symbol(source_var)
+                            _ := context.scope_stack.remove_var(source_var)
+                            _ := context.scope_stack.remove_symbol(source_var)
                             mut ki2 := 0
                             while ki2.lt(keys_to_transfer.len()) {
                                 mut key := ""
                                 keys_to_transfer.get(ki2, key)
-                                context.scope_stack.remove_var(key)
-                                context.scope_stack.remove_symbol(key)
+                                _ := context.scope_stack.remove_var(key)
+                                _ := context.scope_stack.remove_symbol(key)
                                 ki2 = ki2.add(1)
                             }
 
@@ -2302,7 +2302,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 } else {
                                                     new_key = mapping.name.clone()
                                                 }
-                                                context.scope_stack.remove_var(new_key)
+                                                _ := context.scope_stack.remove_var(new_key)
                                                 ci = ci.add(1)
                                             }
                                         } else {
@@ -2337,8 +2337,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             context.scope_stack.frames.set(lf10_idx, lf10)
                                             context.scope_stack.declare_symbol(id_.clone(), src_symbol.clone())
                                             Arena.copy_fields(context, custom_type_name, id_, arg.name, e)
-                                            context.scope_stack.remove_var(id_)
-                                            context.scope_stack.remove_symbol(id_)
+                                            _ := context.scope_stack.remove_var(id_)
+                                            _ := context.scope_stack.remove_symbol(id_)
                                         }
 
                                         // Pop frame back for remaining arg processing
@@ -2374,16 +2374,16 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     context.scope_stack.frames.set(lf11_idx, lf11)
                                     context.scope_stack.declare_symbol(source_id.clone(), src_symbol.clone())
                                     Arena.copy_fields(context, custom_type_name, source_id, arg.name, e)
-                                    context.scope_stack.remove_var(source_id)
-                                    context.scope_stack.remove_symbol(source_id)
+                                    _ := context.scope_stack.remove_var(source_id)
+                                    _ := context.scope_stack.remove_symbol(source_id)
 
                                     // Pop frame back for remaining arg processing
                                     function_frame = context.scope_stack.frames.pop()
 
                                     // For own parameters, remove the source from caller's context (ownership transferred)
                                     if arg.is_own {
-                                        context.scope_stack.remove_var(source_id)
-                                        context.scope_stack.remove_symbol(source_id)
+                                        _ := context.scope_stack.remove_var(source_id)
+                                        _ := context.scope_stack.remove_symbol(source_id)
                                         // Also remove field entries
                                         prefix := format(source_id, ".")
                                         mut keys_to_remove := Vec.new(Str)
@@ -2402,8 +2402,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         while ri.lt(keys_to_remove.len()) {
                                             mut key := ""
                                             keys_to_remove.get(ri, key)
-                                            context.scope_stack.remove_var(key)
-                                            context.scope_stack.remove_symbol(key)
+                                            _ := context.scope_stack.remove_var(key)
+                                            _ := context.scope_stack.remove_symbol(key)
                                             ri = ri.add(1)
                                         }
                                     }
