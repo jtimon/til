@@ -96,7 +96,7 @@ Arena := struct {
             }
         }
 
-        mut val := 0
+        mut val : U8 = 0
         arena.memory.get(offset, val)
         catch (err: IndexOutOfBoundsError) {
             throw e.lang_error(ctx.path, "context", format("Invalid u8 read for id '", id, "'"))
