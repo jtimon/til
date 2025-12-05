@@ -63,6 +63,33 @@ test_array_static_str := proc() {
 }
 test_array_static_str()
 
+test_array_contains := proc() {
+    mut arr := Array.new(Str, 3)
+    arr.set(0, "apple")
+    arr.set(1, "banana")
+    arr.set(2, "cherry")
+
+    test(loc(), arr.contains("apple"), "contains finds first element")
+    test(loc(), arr.contains("banana"), "contains finds middle element")
+    test(loc(), arr.contains("cherry"), "contains finds last element")
+    test(loc(), not(arr.contains("grape")), "contains returns false for missing element")
+    test(loc(), not(arr.contains("")), "contains returns false for empty string")
+
+    arr.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_array_contains()
+
 test_array_static_bool := proc() {
     mut stat := Array.new(Bool, 3)
     assert_eq(loc(), 3, stat.len())
