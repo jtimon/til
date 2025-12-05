@@ -2816,22 +2816,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         arena.temp_id_counter = arena.temp_id_counter.add(1)
 
                         // Set temp_enum_payload if the enum has a payload
-                        mut has_payload := false
-                        if saved_enum_value.payload.len().gt(0) {
-                            // Check that payload_type is not the default empty TCustom("")
-                            mut payload_type_name := ""
-                            switch saved_enum_value.payload_type {
-                            case ValueType.TCustom(name):
-                                payload_type_name = name
-                            case:
-                                has_payload = true  // Non-TCustom means it's a real type
+                        if not(NULL.eq(saved_enum_value.payload.data)) {
+                            mut payload_vec := Vec.new(U8)
+                            memcpy(to_ptr(payload_vec), saved_enum_value.payload.data, size_of(Vec))
+                            if not(NULL.eq(saved_enum_value.payload_type.data)) {
+                                mut payload_type := ValueType.TCustom("")
+                                memcpy(to_ptr(payload_type), saved_enum_value.payload_type.data, size_of(ValueType))
+                                mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                                context.temp_enum_payload.data = to_ptr(temp_payload)
                             }
-                            if not(payload_type_name.eq("")) {
-                                has_payload = true
-                            }
-                        }
-                        if has_payload {
-                            context.temp_enum_payload = EnumPayload.new(saved_enum_value.payload.clone(), saved_enum_value.payload_type)
                         }
 
                         _ := Arena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
