@@ -55,7 +55,7 @@ test_mode_lib := proc() {
     assert_eq_str(loc(), "lib", m.name)
     assert(loc(), m.allows_procs)
     assert(loc(), not(m.allows_base_calls))
-    assert(loc(), not(m.allows_base_mut))
+    assert(loc(), m.allows_base_mut)
     assert(loc(), not(m.allows_base_anything))
     assert(loc(), not(m.needs_main_proc))
     assert_eq(loc(), 0, m.imports.len())

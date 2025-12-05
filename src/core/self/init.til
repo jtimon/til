@@ -1879,7 +1879,7 @@ Context := struct {
 
             if decl.is_mut {
                 mut combined_name := format(instance_name, ".", field_name)
-                mut field_offset := base_offset.data.add(current_offset)
+                mut field_offset := base_offset.add(current_offset)
                 self.scope_stack.insert_var(combined_name, field_offset)
 
                 self.scope_stack.declare_symbol(
@@ -2107,11 +2107,11 @@ Context := struct {
             throw "get_field_offset: empty field path"
         }
 
-        mut base_ptr := self.scope_stack.lookup_var(base_var)
+        mut base_offset := self.scope_stack.lookup_var(base_var)
         catch (err: KeyNotFoundError) {
             throw format("get_field_offset: base variable '", base_var, "' not found in arena_index")
         }
-        mut current_offset := base_ptr.data
+        mut current_offset := base_offset
 
         // Get the base variable's type
         mut base_symbol := self.scope_stack.lookup_symbol(base_var)
