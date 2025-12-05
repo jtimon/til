@@ -111,6 +111,11 @@ fn to_ast_str(e: &Expr) -> String {
 
 fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
+    // Mark main file as "done" to prevent re-processing via circular imports
+    context.imports_init_done.insert(path.clone());
+    context.imports_typer_done.insert(path.clone());
+    context.imports_eval_done.insert(path.clone());
+
     let mut lexer = match lexer_from_source(&path, source) {
         Ok(_result) => _result,
         Err(error_string) => {
