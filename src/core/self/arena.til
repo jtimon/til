@@ -502,7 +502,7 @@ Arena := struct {
                                         // Extract nested defaults (field.subfield -> subfield)
                                         prefix := format(decl.name, ".")
                                         mut nested_defaults := Map.new(Str, Str)
-                                        default_keys := defaults.keys()
+                                        default_keys := defaults.keys
                                         mut di := 0
                                         while di.lt(default_keys.len()) {
                                             mut dk := ""
