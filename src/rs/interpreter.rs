@@ -185,7 +185,7 @@ fn create_default_instance(ctx: &mut Context, struct_type: &str, e: &Expr) -> Re
 
     // Get the template's arena offset (first mapping is the base struct)
     let template_offset = result.arena_mappings.first()
-        .map(|(_, off)| *off)
+        .map(|m| m.offset)
         .ok_or_else(|| e.lang_error(&ctx.path, "create_default_instance", "No arena mapping for template"))?;
 
     // Cache the template offset

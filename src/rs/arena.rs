@@ -12,9 +12,14 @@ pub struct Arena {
     pub default_instances: HashMap<String, usize>,  // type name → arena offset of default template
 }
 
+pub struct ArenaMapping {
+    pub name: String,
+    pub offset: usize,
+}
+
 /// Result from insert_struct_core containing mappings to be stored
 pub struct StructInsertResult {
-    pub arena_mappings: Vec<(String, usize)>,
+    pub arena_mappings: Vec<ArenaMapping>,
     pub symbols: Vec<(String, SymbolInfo)>,
 }
 
@@ -285,7 +290,7 @@ impl Arena {
                 off
             }
         };
-        result.arena_mappings.push((id.to_string(), offset));
+        result.arena_mappings.push(ArenaMapping { name: id.to_string(), offset });
 
         // Store each field's default value
         for decl in struct_def.members.iter() {
@@ -346,14 +351,14 @@ impl Arena {
                                     if type_name == "Str" {
                                         // Register inline offset BEFORE insert_string so it writes to the inline space
                                         let field_arena_offset = offset + field_offset;
-                                        result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+                                        result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
                                         // Need to temporarily insert for insert_string to work
                                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
                                         Arena::insert_string(ctx, &combined_name, &default_value, e)?;
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
                                         let field_arena_offset = offset + field_offset;
-                                        result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+                                        result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
                                         // Need to temporarily insert for recursive call to work
                                         ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(combined_name.clone(), field_arena_offset);
                                         // Extract nested defaults (field.subfield -> subfield)
@@ -381,7 +386,7 @@ impl Arena {
 
             let combined_name = format!("{}.{}", id, decl.name);
             let field_arena_offset = offset + field_offset;
-            result.arena_mappings.push((combined_name.clone(), field_arena_offset));
+            result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
             result.symbols.push((combined_name, SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
@@ -427,7 +432,7 @@ impl Arena {
         }
 
         // Add base struct mapping
-        result.arena_mappings.push((id.to_string(), base_offset));
+        result.arena_mappings.push(ArenaMapping { name: id.to_string(), offset: base_offset });
 
         // Generate mappings for each field
         for decl in struct_def.members.iter() {
@@ -436,7 +441,7 @@ impl Arena {
                 let field_abs_offset = base_offset + field_rel_offset;
                 let combined_name = format!("{}.{}", id, decl.name);
 
-                result.arena_mappings.push((combined_name.clone(), field_abs_offset));
+                result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_abs_offset });
                 result.symbols.push((combined_name.clone(), SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut,
@@ -485,8 +490,8 @@ impl Arena {
 
         // Generate and apply mappings
         let result = Arena::generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)?;
-        for (name, offset) in result.arena_mappings {
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(name, offset);
+        for m in result.arena_mappings {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(m.name, m.offset);
         }
         for (name, symbol) in result.symbols {
             ctx.scope_stack.declare_symbol(name, symbol);
@@ -528,8 +533,8 @@ impl Arena {
         *frame = ctx.scope_stack.frames.pop().unwrap();
 
         let result = result?;
-        for (name, offset) in result.arena_mappings {
-            frame.arena_index.insert(name, offset);
+        for m in result.arena_mappings {
+            frame.arena_index.insert(m.name, m.offset);
         }
         for (name, symbol) in result.symbols {
             frame.symbols.insert(name, symbol);
