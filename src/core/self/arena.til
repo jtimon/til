@@ -1,0 +1,1483 @@
+mode lib
+
+import("src.core.self.init")
+import("src.core.self.parser")
+
+// Arena: Memory management for the TIL interpreter
+// Extracted from interpreter.rs to enable incremental translation to TIL.
+
+
+ArenaMapping := struct {
+    mut name: Str = ""
+    mut offset: I64 = 0
+}
+
+SymbolEntry := struct {
+    mut name: Str = ""
+    mut info: SymbolInfo = SymbolInfo()
+}
+
+// Result from insert_struct_core containing mappings to be stored
+StructInsertResult := struct {
+    mut arena_mappings: Vec = Vec.new(ArenaMapping)
+    mut symbols: Vec = Vec.new(SymbolEntry)
+}
+
+// Result from insert_string_core containing string offset and length
+StringInsertInfo := struct {
+    mut string_offset: I64 = 0
+    mut str_len: I64 = 0
+}
+
+// Result from insert_enum_core containing optional mapping and enum value
+EnumInsertResult := struct {
+    mut has_mapping: Bool = false
+    mut mapping_name: Str = ""
+    mut mapping_offset: I64 = 0
+    mut enum_val: EnumVal = EnumVal()
+}
+
+Arena := struct {
+    mut memory: Vec = Vec.new(U8)
+    mut temp_id_counter: I64 = 0
+    mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
+
+    new := proc() returns Arena throws Str {
+        mut a := Arena()
+        a.memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return a
+    }
+
+    // === EVAL-PHASE MEMORY OPERATIONS ===
+    // These methods manage runtime memory allocation and access
+    // They take Context as parameter to access type info and arena_index
+
+    // Check if id refers to an instance field (e.g., "myStruct.field") vs a type constant
+    is_instance_field := func(ctx: Context, id: Str) returns Bool {
+        if not(id.contains(".")) {
+            return false
+        }
+        parts := id.split(".")
+        mut base := ""
+        parts.get(0, base)
+        mut sym := ctx.scope_stack.lookup_symbol(base)
+        switch sym.value_type {
+        case ValueType.TType(inner):
+            return false
+        case:
+            return true
+        }
+        catch (err: KeyNotFoundError) {
+            return false
+        }
+        catch (err: IndexOutOfBoundsError) {
+            return false
+        }
+        catch (err: AllocError) {
+            return false
+        }
+    }
+
+    get_u8 := func(ctx: Context, id: Str, e: Expr) returns U8 throws Str {
+        // Try direct lookup first (for base variables)
+        mut offset := ctx.scope_stack.lookup_var(id)
+        catch (err: KeyNotFoundError) {
+            if id.contains(".") {
+                // For field paths, calculate offset dynamically
+                offset = ctx.get_field_offset(id)
+                catch (err2: Str) {
+                    throw e.lang_error(ctx.path, "context", format("get_u8: ", err2))
+                }
+            } else {
+                throw e.lang_error(ctx.path, "context", format("u8 not found for id '", id, "'"))
+            }
+        }
+
+        mut val := 0
+        arena.memory.get(offset, val)
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "context", format("Invalid u8 read for id '", id, "'"))
+        }
+        return val
+    }
+
+    get_i64 := func(ctx: Context, id: Str, e: Expr) returns I64 throws Str {
+        // Try direct lookup first (for base variables)
+        mut offset := ctx.scope_stack.lookup_var(id)
+        catch (err: KeyNotFoundError) {
+            if id.contains(".") {
+                // For field paths, calculate offset dynamically
+                offset = ctx.get_field_offset(id)
+                catch (err2: Str) {
+                    throw e.lang_error(ctx.path, "context", format("get_i64: ", err2))
+                }
+            } else {
+                throw e.lang_error(ctx.path, "context", format("i64 not found for id '", id, "'"))
+            }
+        }
+
+        mut val : I64 = 0
+        memcpy(to_ptr(val), add(arena.memory.ptr, offset), 8)
+        return val
+    }
+
+    // Core logic for insert_i64 - returns offset if caller needs to store it, throws KeyNotFoundError if already handled
+    insert_i64_core := func(ctx: Context, id: Str, i64_str: Str, e: Expr) returns I64 throws Str, KeyNotFoundError {
+        v := I64.from_str(i64_str)
+        // Note: I64.from_str currently panics on invalid input, doesn't throw
+
+        if Arena.is_instance_field(ctx, id) {
+            // For instance field paths, calculate offset dynamically
+            mut offset := ctx.scope_stack.lookup_var(id)
+            catch (err: KeyNotFoundError) {
+                // Calculate offset from struct definition
+                offset = ctx.get_field_offset(id)
+                catch (err2: Str) {
+                    throw e.lang_error(ctx.path, "context", format("insert_i64: ", err2))
+                }
+            }
+
+            // Ensure arena has enough space
+            required_len := add(offset, 8)
+            while arena.memory.len().lt(required_len) {
+                arena.memory.push(0)
+                catch (err: AllocError) {
+                    throw err.msg
+                }
+            }
+
+            memcpy(add(arena.memory.ptr, offset), to_ptr(v), 8)
+            throw KeyNotFoundError.new("already handled")
+        }
+
+        // For non-instance fields (including struct constants like Vec.INIT_CAP), create new entry
+        offset := arena.memory.len()
+        // Extend memory by 8 bytes
+        mut i := 0
+        while i.lt(8) {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), add(to_ptr(v), i), 1)
+            arena.memory.push(byte_val)
+            catch (err: AllocError) {
+                throw err.msg
+            }
+            i = add(i, 1)
+        }
+        return offset
+    }
+
+    insert_i64 := proc(mut ctx: Context, id: Str, i64_str: Str, e: Expr) throws Str {
+        offset := Arena.insert_i64_core(ctx, id, i64_str, e)
+        ctx.scope_stack.insert_var(id, offset)
+        catch (err: KeyNotFoundError) {
+            // Already handled, nothing to store
+        }
+    }
+
+    insert_i64_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, i64_str: Str, e: Expr) throws Str {
+        offset := Arena.insert_i64_core(ctx, id, i64_str, e)
+        frame.arena_index.insert(id, offset)
+        catch (err: KeyNotFoundError) {
+            // Already handled, nothing to store
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
+    }
+
+    // Core logic for insert_u8 - returns offset if caller needs to store it, throws KeyNotFoundError if already handled
+    insert_u8_core := func(ctx: Context, id: Str, u8_str: Str, e: Expr) returns I64 throws Str, KeyNotFoundError {
+        v := U8.from_str(u8_str)
+        // Note: U8.from_str currently panics on invalid input, doesn't throw
+
+        if Arena.is_instance_field(ctx, id) {
+            // For instance field paths, calculate offset dynamically
+            mut offset := ctx.scope_stack.lookup_var(id)
+            catch (err: KeyNotFoundError) {
+                // Calculate offset from struct definition
+                offset = ctx.get_field_offset(id)
+                catch (err2: Str) {
+                    throw e.lang_error(ctx.path, "context", format("insert_u8: ", err2))
+                }
+            }
+            arena.memory.set(offset, v)
+            catch (err: IndexOutOfBoundsError) {
+                throw err.msg
+            }
+            throw KeyNotFoundError.new("already handled")
+        }
+
+        offset := arena.memory.len()
+        arena.memory.push(v)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        return offset
+    }
+
+    insert_u8 := proc(mut ctx: Context, id: Str, u8_str: Str, e: Expr) throws Str {
+        offset := Arena.insert_u8_core(ctx, id, u8_str, e)
+        ctx.scope_stack.insert_var(id, offset)
+        catch (err: KeyNotFoundError) {
+            // Already handled, nothing to store
+        }
+    }
+
+    insert_u8_into_frame := proc(ctx: Context, mut frame: ScopeFrame, id: Str, u8_str: Str, e: Expr) throws Str {
+        offset := Arena.insert_u8_core(ctx, id, u8_str, e)
+        frame.arena_index.insert(id, offset)
+        catch (err: KeyNotFoundError) {
+            // Already handled, nothing to store
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: DuplicatedKeyError) {
+            throw err.msg
+        }
+    }
+
+    // TODO all args should be passed as pointers/references and we wouldn't need this
+    copy_fields := proc(mut ctx: Context, custom_type_name: Str, src: Str, dest: Str, e: Expr) throws Str {
+        mut struct_def := ctx.scope_stack.lookup_struct(custom_type_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("copy_fields: definition for '", custom_type_name, "' not found"))
+        }
+
+        mut dest_sym := ctx.scope_stack.lookup_symbol(dest)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("copy_fields: destination symbol '", dest, "' not found"))
+        }
+        is_mut := dest_sym.is_mut
+
+        mut dest_base_offset := ctx.scope_stack.lookup_var(dest)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("copy_fields: destination arena offset for '", dest, "' not found"))
+        }
+
+        mut current_offset := 0
+        mut mi := 0
+        while mi.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(mi, decl)
+
+            if decl.is_mut {
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(name):
+                    field_size = ctx.get_type_size(name)
+                case:
+                    throw e.lang_error(ctx.path, "context", format("copy_fields: unsupported field type '", value_type_to_str(decl.value_type), "'"))
+                }
+
+                src_key := format(src, ".", decl.name)
+                dest_key := format(dest, ".", decl.name)
+
+                // Try to get source offset - first from arena_index, then calculate dynamically
+                mut src_offset := 0
+                mut have_src_offset := true
+                src_offset = ctx.scope_stack.lookup_var(src_key)
+                catch (err: KeyNotFoundError) {
+                    // Calculate offset dynamically from struct definition
+                    src_offset = ctx.get_field_offset(src_key)
+                    catch (err2: Str) {
+                        // Skip if source field doesn't exist (e.g., is_dyn in Array but not in Vec)
+                        current_offset = add(current_offset, field_size)
+                        have_src_offset = false
+                    }
+                }
+
+                if have_src_offset {
+                    dest_offset := add(dest_base_offset, current_offset)
+
+                    ctx.scope_stack.insert_var(dest_key, dest_offset)
+                    ctx.scope_stack.declare_symbol(dest_key, SymbolInfo.new(decl.value_type, is_mut, false, false))
+
+                    memcpy(add(arena.memory.ptr, dest_offset), add(arena.memory.ptr, src_offset), field_size)
+
+                    switch decl.value_type {
+                    case ValueType.TCustom(type_name):
+                        // Check if it's a struct (not enum)
+                        mut is_struct := true
+                        _ := ctx.scope_stack.lookup_struct(type_name)
+                        catch (err: KeyNotFoundError) {
+                            is_struct = false
+                        }
+                        if is_struct {
+                            Arena.copy_fields(ctx, type_name, src_key, dest_key, e)
+                            catch (err: Str) {
+                                throw e.lang_error(ctx.path, "context", format("copy_fields: failed to recursively copy field '", dest_key, "'"))
+                            }
+                        }
+                    case:
+                    }
+
+                    current_offset = add(current_offset, field_size)
+                }
+            }
+            mi = add(mi, 1)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "context", "copy_fields: IndexOutOfBoundsError iterating members")
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: AllocError) {
+            throw err.msg
+        }
+    }
+
+    // Core logic for insert_struct - does all the work but returns mappings instead of inserting them
+    // existing_offset: -1 means None (allocate new), >= 0 means use that offset
+    insert_struct_core := proc(mut ctx: Context, id: Str, custom_type_name: Str, existing_offset: I64, defaults: Map, e: Expr) returns StructInsertResult throws Str {
+        mut result := StructInsertResult()
+
+        // Lookup the struct definition
+        mut struct_def := ctx.scope_stack.lookup_struct(custom_type_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_struct: definition for '", custom_type_name, "' not found"))
+        }
+
+        // Determine mutability from symbols table
+        mut sym := ctx.scope_stack.lookup_symbol(id)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_struct: id '", id, "' for struct '", custom_type_name, "' not found in symbols"))
+        }
+        is_mut := sym.is_mut
+
+        // Calculate total size (for now no alignment)
+        mut total_size := 0
+        mut field_offsets := Map.new(Str, I64)
+
+        mut mi := 0
+        while mi.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(mi, decl)
+
+            if decl.is_mut {
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    field_size = ctx.get_type_size(type_name)
+                case:
+                    throw e.lang_error(ctx.path, "context", "insert_struct: Unsupported value type in struct")
+                }
+
+                field_offsets.insert(decl.name, total_size)
+                total_size = add(total_size, field_size)
+            }
+            mi = add(mi, 1)
+        }
+
+        // Either use existing offset (for nested structs) or allocate new memory
+        mut offset := existing_offset
+        if existing_offset.lt(0) {
+            offset = arena.memory.len()
+            // Resize by pushing zeros
+            mut ri := 0
+            while ri.lt(total_size) {
+                arena.memory.push(0)
+                ri = add(ri, 1)
+            }
+        }
+        mut base_mapping := ArenaMapping()
+        base_mapping.name = id
+        base_mapping.offset = offset
+        result.arena_mappings.push(base_mapping)
+
+        // Store each field's default value
+        mut mi2 := 0
+        while mi2.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(mi2, decl)
+
+            if decl.is_mut {
+                mut field_offset := 0
+                field_offsets.get(decl.name, field_offset)
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(ctx.path, "context", format("insert_struct: Missing field offset for '", decl.name, "'"))
+                }
+
+                mut default_value := ""
+                defaults.get(decl.name, default_value)
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(ctx.path, "context", format("insert_struct: Missing pre-evaluated default for field '", decl.name, "'"))
+                }
+
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    // Check if it's an enum
+                    mut is_enum := true
+                    mut enum_def := ctx.scope_stack.lookup_enum(type_name)
+                    catch (err: KeyNotFoundError) {
+                        is_enum = false
+                    }
+
+                    if is_enum {
+                        parts := default_value.split(".")
+                        if not(parts.len().eq(2)) {
+                            throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
+                        }
+                        mut part0 := ""
+                        parts.get(0, part0)
+                        if not(part0.eq(type_name)) {
+                            throw e.lang_error(ctx.path, "context", format("insert_struct: Invalid enum default value '", default_value, "' for field '", decl.name, "'"))
+                        }
+                        mut variant := ""
+                        parts.get(1, variant)
+                        // Find variant index
+                        mut index : I64 = 0
+                        mut found_variant := false
+                        mut vi := 0
+                        enum_keys := enum_def.enum_map.keys()
+                        while vi.lt(enum_keys.len()) {
+                            mut key := ""
+                            enum_keys.get(vi, key)
+                            if key.eq(variant) {
+                                index = vi
+                                found_variant = true
+                            }
+                            vi = add(vi, 1)
+                        }
+                        if not(found_variant) {
+                            throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown enum variant '", variant, "' for field '", decl.name, "'"))
+                        }
+                        memcpy(add(arena.memory.ptr, add(offset, field_offset)), to_ptr(index), 8)
+                    } else {
+                        if type_name.eq("U8") {
+                            v := U8.from_str(default_value)
+                            // Note: U8.from_str panics on invalid input, doesn't throw
+                            mut dest_u8 : U8 = v
+                            memcpy(add(arena.memory.ptr, add(offset, field_offset)), to_ptr(dest_u8), 1)
+                        } else {
+                            if type_name.eq("I64") {
+                                v := I64.from_str(default_value)
+                                // Note: I64.from_str panics on invalid input, doesn't throw
+                                memcpy(add(arena.memory.ptr, add(offset, field_offset)), to_ptr(v), 8)
+                            } else {
+                                // Check if it's a struct
+                                mut is_struct := true
+                                _ := ctx.scope_stack.lookup_struct(type_name)
+                                catch (err: KeyNotFoundError) {
+                                    is_struct = false
+                                }
+
+                                if is_struct {
+                                    combined_name := format(id, ".", decl.name)
+                                    nested_symbol := SymbolInfo.new(ValueType.TCustom(type_name), true, false, false)
+                                    // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
+                                    ctx.scope_stack.declare_symbol(combined_name, nested_symbol)
+                                    mut sym_entry := SymbolEntry()
+                                    sym_entry.name = combined_name
+                                    sym_entry.info = nested_symbol
+                                    result.symbols.push(sym_entry)
+
+                                    // Special case: Str field initialization
+                                    if type_name.eq("Str") {
+                                        // Register inline offset BEFORE insert_string so it writes to the inline space
+                                        field_arena_offset := add(offset, field_offset)
+                                        mut str_mapping := ArenaMapping()
+                                        str_mapping.name = combined_name
+                                        str_mapping.offset = field_arena_offset
+                                        result.arena_mappings.push(str_mapping)
+                                        // Need to temporarily insert for insert_string to work
+                                        ctx.scope_stack.last_frame_arena_insert(combined_name, field_arena_offset)
+                                        Arena.insert_string(ctx, combined_name, default_value, e)
+                                    } else {
+                                        // Use existing offset for nested struct (inline allocation)
+                                        field_arena_offset := add(offset, field_offset)
+                                        mut nested_mapping := ArenaMapping()
+                                        nested_mapping.name = combined_name
+                                        nested_mapping.offset = field_arena_offset
+                                        result.arena_mappings.push(nested_mapping)
+                                        // Need to temporarily insert for recursive call to work
+                                        ctx.scope_stack.last_frame_arena_insert(combined_name, field_arena_offset)
+                                        // Extract nested defaults (field.subfield -> subfield)
+                                        prefix := format(decl.name, ".")
+                                        mut nested_defaults := Map.new(Str, Str)
+                                        default_keys := defaults.keys()
+                                        mut di := 0
+                                        while di.lt(default_keys.len()) {
+                                            mut dk := ""
+                                            default_keys.get(di, dk)
+                                            if dk.starts_with(prefix) {
+                                                rest := dk.get_substr(prefix.len(), dk.len())
+                                                mut dv := ""
+                                                defaults.get(dk, dv)
+                                                catch (err: KeyNotFoundError) {
+                                                    panic(loc(), "insert_struct_core: key not found in defaults")
+                                                }
+                                                nested_defaults.insert(rest, dv)
+                                            }
+                                            di = add(di, 1)
+                                        }
+                                        nested_result := Arena.insert_struct_core(ctx, combined_name, type_name, field_arena_offset, nested_defaults, e)
+                                        catch (err: Str) {
+                                            throw e.lang_error(ctx.path, "context", format("insert_struct: Failed to initialize nested struct '", id, ".", decl.name, "'"))
+                                        }
+                                        // Collect nested mappings
+                                        result.arena_mappings.extend(nested_result.arena_mappings)
+                                        result.symbols.extend(nested_result.symbols)
+                                    }
+                                } else {
+                                    throw e.lang_error(ctx.path, "context", format("insert_struct: Unknown field type '", type_name, "'"))
+                                }
+                            }
+                        }
+                    }
+                case:
+                    throw e.lang_error(ctx.path, "context", format("insert_struct: Unsupported field value type '", value_type_to_str(decl.value_type), "'"))
+                }
+
+                combined_name := format(id, ".", decl.name)
+                field_arena_offset := add(offset, field_offset)
+                mut field_mapping := ArenaMapping()
+                field_mapping.name = combined_name
+                field_mapping.offset = field_arena_offset
+                result.arena_mappings.push(field_mapping)
+                mut field_sym := SymbolEntry()
+                field_sym.name = combined_name
+                field_sym.info = SymbolInfo.new(decl.value_type, is_mut, false, false)
+                result.symbols.push(field_sym)
+            }
+            mi2 = add(mi2, 1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "context", "insert_struct_core: IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "context", "insert_struct_core: AllocError")
+        }
+        catch (err: DuplicatedKeyError) {
+            throw e.lang_error(ctx.path, "context", "insert_struct_core: DuplicatedKeyError")
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+
+        return result
+    }
+
+    // Generate arena mappings and symbols for a struct without writing bytes.
+    // Used for template-based insertion where bytes are already memcpy'd.
+    generate_struct_mappings := proc(mut ctx: Context, id: Str, custom_type_name: Str, base_offset: I64, e: Expr) returns StructInsertResult throws Str {
+        mut result := StructInsertResult()
+
+        mut struct_def := ctx.scope_stack.lookup_struct(custom_type_name)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "generate_struct_mappings", format("struct '", custom_type_name, "' not found"))
+        }
+
+        mut sym := ctx.scope_stack.lookup_symbol(id)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "generate_struct_mappings", format("symbol '", id, "' not found"))
+        }
+        is_mut := sym.is_mut
+
+        // Calculate field offsets (same as insert_struct_core)
+        mut current_offset := 0
+        mut field_offsets := Map.new(Str, I64)
+        mut mi := 0
+        while mi.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(mi, decl)
+
+            if decl.is_mut {
+                mut field_size := 0
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    field_size = ctx.get_type_size(type_name)
+                case:
+                    throw e.lang_error(ctx.path, "generate_struct_mappings", "Unsupported value type")
+                }
+                field_offsets.insert(decl.name, current_offset)
+                current_offset = add(current_offset, field_size)
+            }
+            mi = add(mi, 1)
+        }
+
+        // Add base struct mapping
+        mut base_mapping := ArenaMapping()
+        base_mapping.name = id
+        base_mapping.offset = base_offset
+        result.arena_mappings.push(base_mapping)
+
+        // Generate mappings for each field
+        mut mi2 := 0
+        while mi2.lt(struct_def.members.len()) {
+            mut decl := Declaration()
+            struct_def.members.get(mi2, decl)
+
+            if decl.is_mut {
+                mut field_rel_offset := 0
+                field_offsets.get(decl.name, field_rel_offset)
+                catch (err: KeyNotFoundError) {
+                    field_rel_offset = 0
+                }
+                field_abs_offset := add(base_offset, field_rel_offset)
+                combined_name := format(id, ".", decl.name)
+
+                mut field_mapping := ArenaMapping()
+                field_mapping.name = combined_name
+                field_mapping.offset = field_abs_offset
+                result.arena_mappings.push(field_mapping)
+
+                mut field_sym := SymbolEntry()
+                field_sym.name = combined_name
+                field_sym.info = SymbolInfo.new(decl.value_type, is_mut, false, false)
+                result.symbols.push(field_sym)
+
+                // Handle nested structs recursively
+                switch decl.value_type {
+                case ValueType.TCustom(type_name):
+                    if not(type_name.eq("U8")) {
+                        if not(type_name.eq("I64")) {
+                            mut is_struct := true
+                            _ := ctx.scope_stack.lookup_struct(type_name)
+                            catch (err: KeyNotFoundError) {
+                                is_struct = false
+                            }
+                            if is_struct {
+                                // Declare nested symbol first
+                                ctx.scope_stack.declare_symbol(combined_name, SymbolInfo.new(ValueType.TCustom(type_name), true, false, false))
+                                nested := Arena.generate_struct_mappings(ctx, combined_name, type_name, field_abs_offset, e)
+                                result.arena_mappings.extend(nested.arena_mappings)
+                                result.symbols.extend(nested.symbols)
+                            }
+                        }
+                    }
+                case:
+                }
+            }
+            mi2 = add(mi2, 1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "generate_struct_mappings", "IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "generate_struct_mappings", "AllocError")
+        }
+        catch (err: DuplicatedKeyError) {
+            throw e.lang_error(ctx.path, "generate_struct_mappings", "DuplicatedKeyError")
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+
+        return result
+    }
+
+    // Insert a struct by copying from a cached template.
+    // Much faster than insert_struct_core for subsequent instances of the same type.
+    insert_struct := proc(mut ctx: Context, id: Str, custom_type_name: Str, template_offset: I64, e: Expr) throws Str {
+        // Get struct size
+        struct_size := ctx.get_type_size(custom_type_name)
+
+        // Allocate new memory
+        new_offset := arena.memory.len()
+        mut ri := 0
+        while ri.lt(struct_size) {
+            arena.memory.push(0)
+            ri = add(ri, 1)
+        }
+
+        // memcpy from template
+        memcpy(add(arena.memory.ptr, new_offset), add(arena.memory.ptr, template_offset), struct_size)
+
+        // Generate and apply mappings
+        result := Arena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
+        mut mi := 0
+        while mi.lt(result.arena_mappings.len()) {
+            mut m := ArenaMapping()
+            result.arena_mappings.get(mi, m)
+            ctx.scope_stack.last_frame_arena_insert(m.name, m.offset)
+            mi = add(mi, 1)
+        }
+        mut si := 0
+        while si.lt(result.symbols.len()) {
+            mut s := SymbolEntry()
+            result.symbols.get(si, s)
+            ctx.scope_stack.declare_symbol(s.name, s.info)
+            si = add(si, 1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_struct", "IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_struct", "AllocError")
+        }
+    }
+
+    // Insert a struct from template into a specific frame (for function parameters).
+    insert_struct_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, custom_type_name: Str, template_offset: I64, e: Expr) throws Str {
+        // Get struct size
+        struct_size := ctx.get_type_size(custom_type_name)
+
+        // Allocate new memory
+        new_offset := arena.memory.len()
+        mut ri := 0
+        while ri.lt(struct_size) {
+            arena.memory.push(0)
+            ri = add(ri, 1)
+        }
+
+        // memcpy from template
+        memcpy(add(arena.memory.ptr, new_offset), add(arena.memory.ptr, template_offset), struct_size)
+
+        // Temporarily push frame for generate_struct_mappings
+        ctx.scope_stack.frames.push(frame)
+
+        result := Arena.generate_struct_mappings(ctx, id, custom_type_name, new_offset, e)
+
+        // Pop frame back
+        mut popped_frame := ScopeFrame()
+        ctx.scope_stack.frames.pop(popped_frame)
+        frame = popped_frame
+
+        mut mi := 0
+        while mi.lt(result.arena_mappings.len()) {
+            mut m := ArenaMapping()
+            result.arena_mappings.get(mi, m)
+            frame.arena_index.insert(m.name, m.offset)
+            mi = add(mi, 1)
+        }
+        mut si := 0
+        while si.lt(result.symbols.len()) {
+            mut s := SymbolEntry()
+            result.symbols.get(si, s)
+            frame.symbols.insert(s.name, s.info)
+            si = add(si, 1)
+        }
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_struct_into_frame", "IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_struct_into_frame", "AllocError")
+        }
+        catch (err: DuplicatedKeyError) {
+            throw e.lang_error(ctx.path, "insert_struct_into_frame", "DuplicatedKeyError")
+        }
+    }
+
+    // Core logic for insert_string - returns StringInsertInfo if caller needs to create struct, throws KeyNotFoundError if already handled
+    insert_string_core := proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) returns StringInsertInfo throws Str, KeyNotFoundError {
+        is_field := Arena.is_instance_field(ctx, id)
+
+        // Allocate string data
+        string_offset := arena.memory.len()
+        // Push string bytes
+        mut si := 0
+        while si.lt(value_str.len()) {
+            mut byte_val : U8 = 0
+            memcpy(to_ptr(byte_val), add(value_str.c_string, si), 1)
+            arena.memory.push(byte_val)
+            si = add(si, 1)
+        }
+        arena.memory.push(0)  // null terminator
+        str_len := value_str.len()
+
+        if is_field {
+            mut have_base_offset := true
+            mut base_offset := ctx.scope_stack.lookup_var(id)
+            catch (err: KeyNotFoundError) {
+                have_base_offset = false
+            }
+
+            if have_base_offset {
+                mut str_def := ctx.scope_stack.lookup_struct("Str")
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(ctx.path, "context", "ERROR: 'Str' struct definition not found")
+                }
+
+                mut current_offset := 0
+                mut mi := 0
+                while mi.lt(str_def.members.len()) {
+                    mut decl := Declaration()
+                    str_def.members.get(mi, decl)
+
+                    if decl.is_mut {
+                        type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
+                        absolute_offset := add(base_offset, current_offset)
+
+                        if decl.name.eq("c_string") {
+                            memcpy(add(arena.memory.ptr, absolute_offset), to_ptr(string_offset), 8)
+                        } else {
+                            if decl.name.eq("cap") {
+                                memcpy(add(arena.memory.ptr, absolute_offset), to_ptr(str_len), 8)
+                            }
+                        }
+
+                        ctx.scope_stack.last_frame_arena_insert(format(id, ".", decl.name), absolute_offset)
+                        current_offset = add(current_offset, type_size)
+                    }
+                    mi = add(mi, 1)
+                }
+                throw KeyNotFoundError.new("already handled")
+            }
+
+            // Not yet inserted - insert fresh inlined Str
+            mut str_def := ctx.scope_stack.lookup_struct("Str")
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(ctx.path, "context", "'Str' struct definition not found")
+            }
+
+            struct_offset := arena.memory.len()
+            mut current_offset := 0
+
+            mut mi := 0
+            while mi.lt(str_def.members.len()) {
+                mut decl := Declaration()
+                str_def.members.get(mi, decl)
+
+                if decl.is_mut {
+                    type_size := ctx.get_type_size(value_type_to_str(decl.value_type))
+                    // Ensure space
+                    required_len := add(add(struct_offset, current_offset), type_size)
+                    while arena.memory.len().lt(required_len) {
+                        arena.memory.push(0)
+                    }
+
+                    field_offset := add(struct_offset, current_offset)
+                    if decl.name.eq("c_string") {
+                        memcpy(add(arena.memory.ptr, field_offset), to_ptr(string_offset), 8)
+                    } else {
+                        if decl.name.eq("cap") {
+                            memcpy(add(arena.memory.ptr, field_offset), to_ptr(str_len), 8)
+                        }
+                    }
+
+                    ctx.scope_stack.last_frame_arena_insert(format(id, ".", decl.name), field_offset)
+                    current_offset = add(current_offset, type_size)
+                }
+                mi = add(mi, 1)
+            }
+
+            ctx.scope_stack.last_frame_arena_insert(id, struct_offset)
+            throw KeyNotFoundError.new("already handled")
+        }
+
+        mut result := StringInsertInfo()
+        result.string_offset = string_offset
+        result.str_len = str_len
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_string_core", "IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_string_core", "AllocError")
+        }
+
+        return result
+    }
+
+    insert_string := proc(mut ctx: Context, id: Str, value_str: Str, e: Expr) throws Str {
+        info := Arena.insert_string_core(ctx, id, value_str, e)
+        catch (err: KeyNotFoundError) {
+            return
+        }
+        // Create Str struct from template
+        mut template_offset := 0
+        arena.default_instances.get("Str", template_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_string", "Str template not found - ensure str.til is imported")
+        }
+        Arena.insert_struct(ctx, id, "Str", template_offset, e)
+        c_string_offset := ctx.scope_stack.lookup_var(format(id, ".c_string"))
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".c_string'"))
+        }
+        cap_offset := ctx.scope_stack.lookup_var(format(id, ".cap"))
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_string: missing '", id, ".cap'"))
+        }
+        memcpy(add(arena.memory.ptr, c_string_offset), to_ptr(info.string_offset), 8)
+        memcpy(add(arena.memory.ptr, cap_offset), to_ptr(info.str_len), 8)
+
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_string", "IndexOutOfBoundsError")
+        }
+    }
+
+    insert_string_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, value_str: Str, e: Expr) throws Str {
+        info := Arena.insert_string_core(ctx, id, value_str, e)
+        catch (err: KeyNotFoundError) {
+            return
+        }
+        // Create Str struct from template
+        mut template_offset := 0
+        arena.default_instances.get("Str", template_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_string_into_frame", "Str template not found - ensure str.til is imported")
+        }
+        Arena.insert_struct_into_frame(ctx, frame, id, "Str", template_offset, e)
+        mut c_string_offset := 0
+        frame.arena_index.get(format(id, ".c_string"), c_string_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".c_string'"))
+        }
+        mut cap_offset := 0
+        frame.arena_index.get(format(id, ".cap"), cap_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_string_into_frame: missing '", id, ".cap'"))
+        }
+        memcpy(add(arena.memory.ptr, c_string_offset), to_ptr(info.string_offset), 8)
+        memcpy(add(arena.memory.ptr, cap_offset), to_ptr(info.str_len), 8)
+    }
+
+    // Helper function to insert primitive types (I64, U8, Str) based on value_type
+    insert_primitive := proc(mut ctx: Context, var_name: Str, value_type: ValueType, value: Str, e: Expr) throws Str {
+        switch value_type {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("I64") {
+                Arena.insert_i64(ctx, var_name, value, e)
+            } else {
+                if type_name.eq("U8") {
+                    Arena.insert_u8(ctx, var_name, value, e)
+                } else {
+                    if type_name.eq("Str") {
+                        Arena.insert_string(ctx, var_name, value, e)
+                    } else {
+                        throw e.lang_error(ctx.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
+                    }
+                }
+            }
+        case:
+            throw e.lang_error(ctx.path, "eval", format("insert_primitive: Unsupported type ", value_type_to_str(value_type)))
+        }
+    }
+
+    get_enum_at_offset := func(ctx: Context, enum_type: Str, offset: I64, e: Expr) returns EnumVal throws Str {
+        // Read enum from a specific offset (used for nested enum payloads)
+        mut enum_value : I64 = 0
+        memcpy(to_ptr(enum_value), add(arena.memory.ptr, offset), 8)
+
+        mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("get_enum_at_offset: Enum definition for '", enum_type, "' not found"))
+        }
+
+        enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
+
+        // Check if this variant has a payload type
+        mut payload_type := ValueType.TCustom("")
+        enum_def.enum_map.get(enum_name, payload_type)
+        catch (err: KeyNotFoundError) {
+            // No payload
+        }
+
+        mut result := EnumVal()
+        result.enum_type = enum_type
+        result.enum_name = enum_name
+
+        // Check if payload_type is meaningful (not empty string)
+        switch payload_type {
+        case ValueType.TCustom(inner_type):
+            if not(inner_type.eq("")) {
+                // This variant has a payload - recursively determine size
+                payload_size := Arena.get_payload_size_for_type(ctx, payload_type, add(offset, 8), e)
+                if payload_size.gt(0) {
+                    payload_offset := add(offset, 8)
+                    payload_end := add(payload_offset, payload_size)
+                    if payload_end.lteq(arena.memory.len()) {
+                        // Copy payload bytes
+                        mut payload_bytes := Vec.new(U8)
+                        mut pi := 0
+                        while pi.lt(payload_size) {
+                            mut byte_val : U8 = 0
+                            memcpy(to_ptr(byte_val), add(arena.memory.ptr, add(payload_offset, pi)), 1)
+                            payload_bytes.push(byte_val)
+                            pi = add(pi, 1)
+                        }
+                        result.payload = payload_bytes
+                        result.payload_type = payload_type
+                    }
+                }
+            }
+        case:
+        }
+
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "get_enum_at_offset", "AllocError")
+        }
+
+        return result
+    }
+
+    get_payload_size_for_type := func(ctx: Context, vtype: ValueType, offset: I64, e: Expr) returns I64 throws Str {
+        switch vtype {
+        case ValueType.TCustom(type_name):
+            if type_name.eq("I64") {
+                return 8
+            }
+            mut type_symbol := ctx.scope_stack.lookup_symbol(type_name)
+            catch (err: KeyNotFoundError) {
+                return 0
+            }
+            switch type_symbol.value_type {
+            case ValueType.TType(type_def):
+                switch type_def {
+                case TTypeDef.TStructDef:
+                    return ctx.get_type_size(type_name)
+                case TTypeDef.TEnumDef:
+                    // Recursively get the inner enum's size
+                    inner_enum := Arena.get_enum_at_offset(ctx, type_name, offset, e)
+                    mut total_size := 8  // variant tag
+                    if not(NULL.eq(inner_enum.payload.data)) {
+                        mut payload_vec := Vec()
+                        memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
+                        if payload_vec.len().gt(0) {
+                            total_size = add(total_size, payload_vec.len())
+                        }
+                    }
+                    return total_size
+                case:
+                    return 0
+                }
+            case:
+                return 0
+            }
+        case:
+            return 0
+        }
+        return 0
+    }
+
+    get_enum := func(ctx: Context, id: Str, e: Expr) returns EnumVal throws Str {
+        mut symbol_info := ctx.scope_stack.lookup_symbol(id)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("get_enum: Symbol '", id, "' not found"))
+        }
+
+        mut enum_type := ""
+        switch symbol_info.value_type {
+        case ValueType.TCustom(custom_type_name):
+            enum_type = custom_type_name
+        case:
+            throw e.lang_error(ctx.path, "context", format("get_enum: '", id, "' is not a custom enum type"))
+        }
+
+        // Try to get offset - first from arena_index, then calculate dynamically for fields
+        mut offset := ctx.scope_stack.lookup_var(id)
+        catch (err: KeyNotFoundError) {
+            if id.contains(".") {
+                // Field path - calculate offset dynamically
+                offset = ctx.get_field_offset(id)
+                catch (err2: Str) {
+                    throw e.lang_error(ctx.path, "context", format("get_enum: ", err2))
+                }
+            } else {
+                throw e.lang_error(ctx.path, "context", format("get_enum: Arena index for '", id, "' not found"))
+            }
+        }
+
+        mut enum_value : I64 = 0
+        memcpy(to_ptr(enum_value), add(arena.memory.ptr, offset), 8)
+
+        mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("get_enum: Enum definition for '", enum_type, "' not found"))
+        }
+
+        enum_name := Context.variant_pos_to_str(enum_def, enum_value, ctx.path, e)
+
+        // Check if this variant has a payload type
+        mut variant_payload_type := ValueType.TCustom("")
+        enum_def.enum_map.get(enum_name, variant_payload_type)
+        catch (err: KeyNotFoundError) {
+            // No payload type
+        }
+
+        mut result := EnumVal()
+        result.enum_type = enum_type
+        result.enum_name = enum_name
+
+        // Check if payload type is meaningful
+        switch variant_payload_type {
+        case ValueType.TCustom(vtype_name):
+            if not(vtype_name.eq("")) {
+                // This variant has a payload, read it from arena
+                mut payload_size := 0
+                if vtype_name.eq("I64") {
+                    payload_size = 8
+                } else {
+                    if vtype_name.eq("Str") {
+                        payload_size = 16  // Str is always 16 bytes (pointer + size)
+                    } else {
+                        // Check if this is a struct or enum type
+                        mut type_symbol := ctx.scope_stack.lookup_symbol(vtype_name)
+                        catch (err: KeyNotFoundError) {
+                            payload_size = 0
+                        }
+                        switch type_symbol.value_type {
+                        case ValueType.TType(type_def):
+                            switch type_def {
+                            case TTypeDef.TStructDef:
+                                payload_size = ctx.get_type_size(vtype_name)
+                                catch (err: Str) {
+                                    payload_size = 0
+                                }
+                            case TTypeDef.TEnumDef:
+                                // For enum payloads, recursively get the enum to determine size
+                                inner_enum := Arena.get_enum_at_offset(ctx, vtype_name, add(offset, 8), e)
+                                payload_size = 8  // variant tag
+                                if not(NULL.eq(inner_enum.payload.data)) {
+                                    mut payload_vec := Vec()
+                                    memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
+                                    if payload_vec.len().gt(0) {
+                                        payload_size = add(payload_size, payload_vec.len())
+                                    }
+                                }
+                            case:
+                                payload_size = 0
+                            }
+                        case:
+                            payload_size = 0
+                        }
+                    }
+                }
+
+                if payload_size.gt(0) {
+                    payload_offset := add(offset, 8)
+                    payload_end := add(payload_offset, payload_size)
+                    if payload_end.lteq(arena.memory.len()) {
+                        mut payload_bytes := Vec.new(U8)
+                        mut pi := 0
+                        while pi.lt(payload_size) {
+                            mut byte_val : U8 = 0
+                            memcpy(to_ptr(byte_val), add(arena.memory.ptr, add(payload_offset, pi)), 1)
+                            payload_bytes.push(byte_val)
+                            pi = add(pi, 1)
+                        }
+                        result.payload = payload_bytes
+                        result.payload_type = variant_payload_type
+                    }
+                }
+            }
+        case:
+        }
+
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "get_enum", "AllocError")
+        }
+
+        return result
+    }
+
+    // Core logic for insert_enum - returns EnumInsertResult with optional mapping info
+    insert_enum_core := proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumInsertResult throws Str {
+        mut enum_def := ctx.scope_stack.lookup_enum(enum_type)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "context", format("insert_enum: Enum definition for '", enum_type, "' not found"))
+        }
+
+        // Get the last part after the last dot
+        parts := pre_normalized_enum_name.split(".")
+        mut enum_name := ""
+        if parts.len().gt(0) {
+            parts.get(sub(parts.len(), 1), enum_name)
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "context", format("insert_enum: Invalid enum name format '", pre_normalized_enum_name, "'"))
+        }
+
+        enum_value := Context.get_variant_pos(enum_def, enum_name, ctx.path, e)
+
+        // Check if there's payload data to store (dereference Ptr to EnumPayload)
+        mut payload_data := Vec.new(U8)
+        mut payload_type := ValueType.TCustom("")
+        if not(NULL.eq(ctx.temp_enum_payload.data)) {
+            mut temp_payload := EnumPayload()
+            memcpy(to_ptr(temp_payload), ctx.temp_enum_payload.data, size_of(EnumPayload))
+            payload_data = temp_payload.data
+            payload_type = temp_payload.value_type
+        }
+
+        mut result := EnumInsertResult()
+        result.has_mapping = false
+
+        is_field := id.contains(".")
+        if is_field {
+            mut have_offset := true
+            mut offset := ctx.scope_stack.lookup_var(id)
+            catch (err: KeyNotFoundError) {
+                have_offset = false
+            }
+
+            if have_offset {
+                // Update existing enum value (no new mapping needed)
+                memcpy(add(arena.memory.ptr, offset), to_ptr(enum_value), 8)
+                if payload_data.len().gt(0) {
+                    payload_offset := add(offset, 8)
+                    payload_end := add(payload_offset, payload_data.len())
+                    while arena.memory.len().lt(payload_end) {
+                        arena.memory.push(0)
+                    }
+                    mut pi := 0
+                    while pi.lt(payload_data.len()) {
+                        mut byte_val : U8 = 0
+                        payload_data.get(pi, byte_val)
+                        memcpy(add(arena.memory.ptr, add(payload_offset, pi)), to_ptr(byte_val), 1)
+                        pi = add(pi, 1)
+                    }
+                }
+                result.has_mapping = false
+            } else {
+                offset = arena.memory.len()
+                // Write enum value bytes
+                mut ei := 0
+                while ei.lt(8) {
+                    mut byte_val : U8 = 0
+                    memcpy(to_ptr(byte_val), add(to_ptr(enum_value), ei), 1)
+                    arena.memory.push(byte_val)
+                    ei = add(ei, 1)
+                }
+                if payload_data.len().gt(0) {
+                    mut pi := 0
+                    while pi.lt(payload_data.len()) {
+                        mut byte_val : U8 = 0
+                        payload_data.get(pi, byte_val)
+                        arena.memory.push(byte_val)
+                        pi = add(pi, 1)
+                    }
+                }
+                result.has_mapping = true
+                result.mapping_name = id
+                result.mapping_offset = offset
+            }
+        } else {
+            offset := arena.memory.len()
+            // Write enum value bytes
+            mut ei := 0
+            while ei.lt(8) {
+                mut byte_val : U8 = 0
+                memcpy(to_ptr(byte_val), add(to_ptr(enum_value), ei), 1)
+                arena.memory.push(byte_val)
+                ei = add(ei, 1)
+            }
+            if payload_data.len().gt(0) {
+                mut pi := 0
+                while pi.lt(payload_data.len()) {
+                    mut byte_val : U8 = 0
+                    payload_data.get(pi, byte_val)
+                    arena.memory.push(byte_val)
+                    pi = add(pi, 1)
+                }
+            }
+            result.has_mapping = true
+            result.mapping_name = id
+            result.mapping_offset = offset
+        }
+
+        // Clear the temp payload after using it (set to NULL Ptr)
+        ctx.temp_enum_payload = Ptr()
+
+        result.enum_val.enum_type = enum_type
+        result.enum_val.enum_name = enum_name
+        // Store payload via Ptr (Option pattern: NULL = None)
+        if payload_data.len().gt(0) {
+            result.enum_val.payload = Ptr.new(Vec)
+            memcpy(result.enum_val.payload.data, to_ptr(payload_data), size_of(Vec))
+            result.enum_val.payload_type = Ptr.new(ValueType)
+            memcpy(result.enum_val.payload_type.data, to_ptr(payload_type), size_of(ValueType))
+        }
+
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_enum_core", "AllocError")
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_enum_core", "IndexOutOfBoundsError while processing payload")
+        }
+
+        return result
+    }
+
+    // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
+    insert_enum := proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
+        result := Arena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)
+        if result.has_mapping {
+            ctx.scope_stack.last_frame_arena_insert(result.mapping_name, result.mapping_offset)
+        }
+
+        return result.enum_val
+    }
+
+    insert_enum_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
+        // Temporarily push frame so symbol lookups work in core function
+        ctx.scope_stack.frames.push(frame)
+
+        result := Arena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)
+
+        // Pop frame back
+        ctx.scope_stack.frames.pop(frame)
+
+        // Now apply result to the frame
+        if result.has_mapping {
+            frame.arena_index.insert(result.mapping_name, result.mapping_offset)
+        }
+
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_enum_into_frame", "AllocError")
+        }
+        catch (err: DuplicatedKeyError) {
+            throw e.lang_error(ctx.path, "insert_enum_into_frame", "DuplicatedKeyError")
+        }
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_enum_into_frame", "IndexOutOfBoundsError")
+        }
+
+        return result.enum_val
+    }
+
+    /** Insert an Array for variadic arguments into a function frame.
+     *  Uses insert_struct_into_frame internally. */
+    insert_array_into_frame := proc(mut ctx: Context, mut frame: ScopeFrame, name: Str, elem_type: Str, values: Vec, e: Expr) throws Str {
+        // Create Array struct using template
+        mut template_offset := 0
+        arena.default_instances.get("Array", template_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", "Array template not found - ensure array.til is imported")
+        }
+        Arena.insert_struct_into_frame(ctx, frame, name, "Array", template_offset, e)
+
+        len := values.len()
+        elem_size := ctx.get_type_size(elem_type)
+        total_size := mul(len, elem_size)
+
+        // Allocate memory for elements
+        ptr := arena.memory.len()
+        mut j := 0
+        while j.lt(total_size) {
+            arena.memory.push(0)
+            j = add(j, 1)
+        }
+
+        // Write values into allocated buffer
+        mut i := 0
+        while i.lt(len) {
+            offset := add(ptr, mul(i, elem_size))
+            mut val := ""
+            values.get(i, val)
+
+            if Str.eq(elem_type, "U8") {
+                mut byte := Str.parse_u8(val)
+                memcpy(add(arena.memory.ptr, offset), to_ptr(byte), 1)
+            } else if Str.eq(elem_type, "I64") {
+                mut n := Str.parse_i64(val)
+                memcpy(add(arena.memory.ptr, offset), to_ptr(n), 8)
+            } else if Str.eq(elem_type, "Str") {
+                // For Str elements, create temp Str and copy bytes to array slot
+                temp_id := format(name, "_", I64.to_str(i))
+                mut temp_symbol := SymbolInfo()
+                temp_symbol.value_type = ValueType.TCustom("Str")
+                temp_symbol.is_mut = false
+                temp_symbol.is_copy = false
+                temp_symbol.is_own = false
+                frame.symbols.insert(temp_id, temp_symbol)
+
+                Arena.insert_string_into_frame(ctx, frame, temp_id, val, e)
+
+                mut str_offset := 0
+                frame.arena_index.get(temp_id, str_offset)
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(ctx.path, "insert_array", format("missing Str offset for '", temp_id, "'"))
+                }
+                memcpy(add(arena.memory.ptr, offset), add(arena.memory.ptr, str_offset), elem_size)
+            } else {
+                // Struct element - val is identifier, copy from source
+                mut src_offset := 0
+                src_offset = ctx.scope_stack.lookup_var(val)
+                catch (err: KeyNotFoundError) {
+                    throw e.lang_error(ctx.path, "insert_array", format("struct source '", val, "' not found"))
+                }
+                memcpy(add(arena.memory.ptr, offset), add(arena.memory.ptr, src_offset), elem_size)
+            }
+
+            i = add(i, 1)
+        }
+
+        // Update Array fields from frame.arena_index
+        mut ptr_offset := 0
+        frame.arena_index.get(format(name, ".ptr"), ptr_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".ptr'"))
+        }
+        mut ptr_val := ptr
+        memcpy(add(arena.memory.ptr, ptr_offset), to_ptr(ptr_val), 8)
+
+        mut len_offset := 0
+        frame.arena_index.get(format(name, "._len"), len_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, "._len'"))
+        }
+        mut len_val := len
+        memcpy(add(arena.memory.ptr, len_offset), to_ptr(len_val), 8)
+
+        mut type_size_offset := 0
+        frame.arena_index.get(format(name, ".type_size"), type_size_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", format("missing '", name, ".type_size'"))
+        }
+        mut elem_size_val := elem_size
+        memcpy(add(arena.memory.ptr, type_size_offset), to_ptr(elem_size_val), 8)
+
+        // Set type_name field (it's a Str)
+        type_name_field := format(name, ".type_name")
+        temp_type_name_id := format(name, "_type_name_temp")
+        mut temp_symbol2 := SymbolInfo()
+        temp_symbol2.value_type = ValueType.TCustom("Str")
+        temp_symbol2.is_mut = false
+        temp_symbol2.is_copy = false
+        temp_symbol2.is_own = false
+        frame.symbols.insert(temp_type_name_id, temp_symbol2)
+
+        Arena.insert_string_into_frame(ctx, frame, temp_type_name_id, elem_type, e)
+
+        mut temp_str_offset := 0
+        frame.arena_index.get(temp_type_name_id, temp_str_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", "missing type_name temp Str offset")
+        }
+
+        mut type_name_offset := 0
+        frame.arena_index.get(type_name_field, type_name_offset)
+        catch (err: KeyNotFoundError) {
+            throw e.lang_error(ctx.path, "insert_array", format("missing '", type_name_field, "'"))
+        }
+
+        str_size := ctx.get_type_size("Str")
+        memcpy(add(arena.memory.ptr, type_name_offset), add(arena.memory.ptr, temp_str_offset), str_size)
+
+        catch (err: IndexOutOfBoundsError) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", "IndexOutOfBoundsError")
+        }
+        catch (err: AllocError) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", "AllocError")
+        }
+        catch (err: DuplicatedKeyError) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", "DuplicatedKeyError")
+        }
+        catch (err: I64_OverflowError) {
+            throw err.msg
+        }
+    }
+}
+
+// Global arena instance
+mut arena := Arena.new()
