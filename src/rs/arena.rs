@@ -17,10 +17,15 @@ pub struct ArenaMapping {
     pub offset: usize,
 }
 
+pub struct SymbolEntry {
+    pub name: String,
+    pub info: SymbolInfo,
+}
+
 /// Result from insert_struct_core containing mappings to be stored
 pub struct StructInsertResult {
     pub arena_mappings: Vec<ArenaMapping>,
-    pub symbols: Vec<(String, SymbolInfo)>,
+    pub symbols: Vec<SymbolEntry>,
 }
 
 // heap/arena memory (starts at 1 to avoid NULL confusion)
@@ -345,7 +350,7 @@ impl Arena {
                                     };
                                     // Must declare symbol BEFORE recursive call (needed for is_mut lookup)
                                     ctx.scope_stack.declare_symbol(combined_name.clone(), nested_symbol.clone());
-                                    result.symbols.push((combined_name.clone(), nested_symbol));
+                                    result.symbols.push(SymbolEntry { name: combined_name.clone(), info: nested_symbol });
 
                                     // Special case: Str field initialization
                                     if type_name == "Str" {
@@ -387,12 +392,12 @@ impl Arena {
             let combined_name = format!("{}.{}", id, decl.name);
             let field_arena_offset = offset + field_offset;
             result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_arena_offset });
-            result.symbols.push((combined_name, SymbolInfo {
+            result.symbols.push(SymbolEntry { name: combined_name, info: SymbolInfo {
                 value_type: decl.value_type.clone(),
                 is_mut,
                 is_copy: false,
                 is_own: false,
-            }));
+            }});
             }
         }
 
@@ -442,12 +447,12 @@ impl Arena {
                 let combined_name = format!("{}.{}", id, decl.name);
 
                 result.arena_mappings.push(ArenaMapping { name: combined_name.clone(), offset: field_abs_offset });
-                result.symbols.push((combined_name.clone(), SymbolInfo {
+                result.symbols.push(SymbolEntry { name: combined_name.clone(), info: SymbolInfo {
                     value_type: decl.value_type.clone(),
                     is_mut,
                     is_copy: false,
                     is_own: false,
-                }));
+                }});
 
                 // Handle nested structs recursively
                 if let ValueType::TCustom(type_name) = &decl.value_type {
@@ -493,8 +498,8 @@ impl Arena {
         for m in result.arena_mappings {
             ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(m.name, m.offset);
         }
-        for (name, symbol) in result.symbols {
-            ctx.scope_stack.declare_symbol(name, symbol);
+        for s in result.symbols {
+            ctx.scope_stack.declare_symbol(s.name, s.info);
         }
 
         Ok(())
@@ -536,8 +541,8 @@ impl Arena {
         for m in result.arena_mappings {
             frame.arena_index.insert(m.name, m.offset);
         }
-        for (name, symbol) in result.symbols {
-            frame.symbols.insert(name, symbol);
+        for s in result.symbols {
+            frame.symbols.insert(s.name, s.info);
         }
 
         Ok(())
