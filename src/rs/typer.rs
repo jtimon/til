@@ -1694,6 +1694,12 @@ pub fn get_func_def_for_fcall_with_expr(context: &Context, fcall_expr: &mut Expr
                     }
                 }
             }
+            // Check if this is actually a field being called as a function
+            if let Ok(value_type) = get_value_type(context, func_expr) {
+                return Err(func_expr.error(&context.path, "type", &format!(
+                    "Cannot call '{}', it is not a function, it is '{}'",
+                    combined_name, value_type_to_str(&value_type))))
+            }
             return Err(func_expr.lang_error(&context.path, "type", "Could not find function definition"))
         },
         _ => return Err(func_expr.lang_error(&context.path, "type", "Expected Identifier node type"))
