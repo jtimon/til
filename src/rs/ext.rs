@@ -7,7 +7,7 @@ use crate::rs::parser::{
     get_combined_name,
 };
 use crate::rs::arena::Arena;
-use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context, main_run, run_file};
+use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
 use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
@@ -33,7 +33,7 @@ macro_rules! eval_or_throw {
 
 /// Validates that a function/procedure call has the expected number of arguments.
 /// The e.params.len() includes the function name as the first parameter, so we subtract 1.
-fn validate_arg_count(path: &str, e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
+pub fn validate_arg_count(path: &str, e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
     let actual = e.params.len() - 1; // First param is function name
     if actual != expected {
         let func_type = if is_proc { "proc" } else { "func" };
@@ -541,93 +541,6 @@ pub fn proc_input_read_line(context: &mut Context, e: &Expr) -> Result<EvalResul
         .map_err(|_| e.lang_error(&context.path, "eval", &read_line_error_msg))?;
 
     Ok(EvalResult::new(&line))
-}
-
-pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "eval_to_str", 1, true)?;
-
-    let path = "eval".to_string(); // Placeholder path
-    let source_expr = eval_expr(context, e.get(1)?)?;
-    if source_expr.is_throw {
-        return Ok(source_expr); // Propagate throw
-    }
-
-    let str_source = format!("mode script; {}", source_expr.value);
-    return main_run(false, false, context, &path, str_source, Vec::new())
-}
-
-pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() < 2 {
-        return Err(e.lang_error(&context.path, "eval", "Core proc 'runfile' expects at least 1 parameter"));
-    }
-
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let path = result.value;
-
-    let mut main_args = Vec::new();
-    for i in 2..e.params.len() {
-        let arg_result = eval_expr(context, e.get(i)?)?;
-        if arg_result.is_throw {
-            return Ok(arg_result); // Propagate throw
-        }
-        main_args.push(arg_result.value);
-    }
-
-    match run_file(&path, main_args) {
-        Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error(&context.path, "eval", &format!("While running file {path}\n{error_string}"))),
-    }
-}
-
-// Convert dot-based import path to OS-specific file path
-// Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
-fn import_path_to_file_path(import_path: &str) -> String {
-    let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
-    format!("{}.til", file_path)
-}
-
-pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "import", 1, true)?;
-
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-
-    let original_path = context.path.clone();
-    let path = import_path_to_file_path(&result.value);
-
-    // Already done (or in progress)? Skip.
-    // Adding to done at START handles both circular imports and re-imports.
-    if context.imports_eval_done.contains(&path) {
-        return Ok(EvalResult::new(""));
-    }
-
-    // Mark as done immediately - before processing - to handle circular imports
-    context.imports_eval_done.insert(path.clone());
-
-    // Get stored AST from init phase
-    let ast = match context.imported_asts.get(&path) {
-        Some(ast) => ast.clone(),
-        None => return Err(e.error(&context.path, "eval", &format!(
-            "Import {} not found in stored ASTs - init phase should have stored it", path))),
-    };
-
-    context.path = path.clone();
-
-    // Just eval the stored AST - no re-parsing needed
-    let eval_result = eval_expr(context, &ast);
-
-    context.path = original_path;
-
-    match eval_result {
-        Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error(&context.path, "eval", &format!(
-            "While importing {}:\n{}", path, error_string))),
-    }
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

@@ -5,7 +5,7 @@ mode lib
 
 import("src.core.self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
 import("src.core.self.init")         // Context
-import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context, main_run, run_file
+import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context
 import("src.core.self.arena")        // arena (global)
 
 // ---------- Helper functions
@@ -512,90 +512,6 @@ proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult t
         throw e.lang_error(context.path, "eval", read_line_error_msg)
     }
     return EvalResult.new(line)
-}
-
-proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "eval_to_str", 1, true)
-
-    path := "eval"  // Placeholder path
-    source_expr := eval_expr(context, e.get(1))
-    if source_expr.is_throw { return source_expr }
-
-    str_source := format("mode script; ", source_expr.value)
-    catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    return main_run(false, false, context, path, str_source, Vec.new(Str))
-}
-
-proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    if e.params.len().lt(2) {
-        throw e.lang_error(context.path, "eval", "Core proc 'runfile' expects at least 1 parameter")
-    }
-
-    result := eval_expr(context, e.get(1))
-    if result.is_throw { return result }
-    path := result.value
-
-    mut main_args := Vec.new(Str)
-    for i in 2..e.params.len() {
-        arg_result := eval_expr(context, e.get(i))
-        if arg_result.is_throw { return arg_result }
-        main_args.push(arg_result.value)
-    }
-
-    catch (err: AllocError) { throw err.msg }
-    _ := run_file(path, main_args)
-    return EvalResult.new("")
-}
-
-// import_path_to_file_path is defined in init.til
-
-proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    validate_arg_count(context.path, e, "import", 1, true)
-
-    result := eval_expr(context, e.get(1))
-    if result.is_throw {
-        return result // Propagate throw
-    }
-
-    original_path := context.path.clone()
-    path := import_path_to_file_path(result.value)
-
-    // Already done (or in progress)? Skip.
-    // Adding to done at START handles both circular imports and re-imports.
-    if context.imports_eval_done.contains(path) {
-        return EvalResult.new("")
-    }
-
-    // Mark as done immediately - before processing - to handle circular imports
-    _ := context.imports_eval_done.insert(path.clone())
-
-    // Get stored AST from init phase
-    mut ast := Expr()
-    if not(context.imported_asts.contains_key(path)) {
-        throw e.error(context.path, "eval", format(
-            "Import ", path, " not found in stored ASTs - init phase should have stored it"))
-    }
-    context.imported_asts.get(path, ast)
-    catch (err: KeyNotFoundError) {
-        throw e.error(context.path, "eval", format(
-            "Import ", path, " not found in stored ASTs - init phase should have stored it"))
-    }
-
-    context.path = path.clone()
-
-    // Just eval the stored AST - no re-parsing needed
-    eval_result := eval_expr(context, ast)
-
-    context.path = original_path
-
-    if eval_result.is_throw {
-        throw e.error(context.path, "eval", format(
-            "While importing ", path, ":\n", eval_result.value))
-    }
-    catch (err: AllocError) { throw err.msg }
-    return EvalResult.new("")
 }
 
 proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {

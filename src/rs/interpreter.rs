@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
-use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations};
+use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call, init_import_declarations, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -2373,15 +2373,15 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "enum_to_str" => ext::func_enum_to_str(context, &e),
         "u8_to_i64" => ext::func_u8_to_i64(context, &e),
         "i64_to_u8" => ext::func_i64_to_u8(context, &e),
-        "eval_to_str" => ext::proc_eval_to_str(context, &e),
+        "eval_to_str" => proc_eval_to_str(context, &e),
         "exit" => ext::func_exit(context, &e),
-        "import" => ext::proc_import(context, &e),
+        "import" => proc_import(context, &e),
         "input_read_line" => ext::proc_input_read_line(context, &e),
         "single_print" => ext::proc_single_print(context, &e),
         "print_flush" => ext::proc_print_flush(context, &e),
         "readfile" => ext::proc_readfile(context, &e),
         "run_cmd" => ext::proc_run_cmd(context, &e),
-        "runfile" => ext::proc_runfile(context, &e),
+        "runfile" => proc_runfile(context, &e),
         "has_const" => ext::func_has_const(context, &e),
         "has_field" => ext::func_has_field(context, &e),
         _ => {
@@ -2438,7 +2438,7 @@ pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut 
             }
             return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
         }
-        match ext::proc_import(context, &import_fcall_expr) {
+        match proc_import(context, &import_fcall_expr) {
             Ok(_) => {},
             Err(error_string) => {
                 return Err(format!("{}:{}", &path, error_string));
@@ -2538,5 +2538,87 @@ pub fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Con
     }
     context.mode_def = previous_mode; // restore the context mode of the calling file
     return Ok(run_result)
+}
+
+// ---------- proc_eval_to_str, proc_runfile, proc_import (moved from ext.rs)
+
+pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    ext::validate_arg_count(&context.path, e, "eval_to_str", 1, true)?;
+
+    let path = "eval".to_string(); // Placeholder path
+    let source_expr = eval_expr(context, e.get(1)?)?;
+    if source_expr.is_throw {
+        return Ok(source_expr); // Propagate throw
+    }
+
+    let str_source = format!("mode script; {}", source_expr.value);
+    return main_run(false, false, context, &path, str_source, Vec::new())
+}
+
+pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    if e.params.len() < 2 {
+        return Err(e.lang_error(&context.path, "eval", "Core proc 'runfile' expects at least 1 parameter"));
+    }
+
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+    let path = result.value;
+
+    let mut main_args = Vec::new();
+    for i in 2..e.params.len() {
+        let arg_result = eval_expr(context, e.get(i)?)?;
+        if arg_result.is_throw {
+            return Ok(arg_result); // Propagate throw
+        }
+        main_args.push(arg_result.value);
+    }
+
+    match run_file(&path, main_args) {
+        Ok(_) => Ok(EvalResult::new("")),
+        Err(error_string) => Err(e.error(&context.path, "eval", &format!("While running file {path}\n{error_string}"))),
+    }
+}
+
+pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    ext::validate_arg_count(&context.path, e, "import", 1, true)?;
+
+    let result = eval_expr(context, e.get(1)?)?;
+    if result.is_throw {
+        return Ok(result); // Propagate throw
+    }
+
+    let original_path = context.path.clone();
+    let path = import_path_to_file_path(&result.value);
+
+    // Already done (or in progress)? Skip.
+    // Adding to done at START handles both circular imports and re-imports.
+    if context.imports_eval_done.contains(&path) {
+        return Ok(EvalResult::new(""));
+    }
+
+    // Mark as done immediately - before processing - to handle circular imports
+    context.imports_eval_done.insert(path.clone());
+
+    // Get stored AST from init phase
+    let ast = match context.imported_asts.get(&path) {
+        Some(ast) => ast.clone(),
+        None => return Err(e.error(&context.path, "eval", &format!(
+            "Import {} not found in stored ASTs - init phase should have stored it", path))),
+    };
+
+    context.path = path.clone();
+
+    // Just eval the stored AST - no re-parsing needed
+    let eval_result = eval_expr(context, &ast);
+
+    context.path = original_path;
+
+    match eval_result {
+        Ok(_) => Ok(EvalResult::new("")),
+        Err(error_string) => Err(e.error(&context.path, "eval", &format!(
+            "While importing {}:\n{}", path, error_string))),
+    }
 }
 
