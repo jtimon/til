@@ -1548,7 +1548,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     // Create a proper Str struct for the catch variable
                                     Arena.insert_string(context, var_name, throw_result.value, stmt)
                                 } else {
-                                    mut struct_def := StructDef()
+                                    mut struct_def := SStructDef()
                                     mut has_struct := false
                                     struct_def = context.scope_stack.lookup_struct(thrown_type)
                                     has_struct = true
@@ -1612,7 +1612,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             context.scope_stack.remove_symbol(var_name)
                             context.scope_stack.remove_var(var_name)
                             // Also remove the field mappings
-                            mut cleanup_struct_def := StructDef()
+                            mut cleanup_struct_def := SStructDef()
                             mut has_cleanup_struct := false
                             cleanup_struct_def = context.scope_stack.lookup_struct(thrown_type)
                             has_cleanup_struct = true
@@ -1683,32 +1683,42 @@ MutArgEntry := struct {
     mut value_type: ValueType = ValueType.TMulti("")
 }
 
-// MutArgValueType - enum for different mut arg value types
-MutArgValueType := enum {
-    MAVNone,
-    MAVI64,
-    MAVU8,
-    MAVStr,
-    MAVEnum,
-    MAVStruct,
+// MutArgStructData - data for Struct variant of MutArgValue
+MutArgStructData := struct {
+    mut offset: I64 = 0
+    mut type_name: Str = ""
+    mut was_passed_by_ref: Bool = false
+
+    new := func(offset: I64, type_name: Str, was_passed_by_ref: Bool) returns MutArgStructData {
+        mut result := MutArgStructData()
+        result.offset = offset
+        result.type_name = type_name
+        result.was_passed_by_ref = was_passed_by_ref
+        return result
+    }
 }
 
-// MutArgValue - holds a mut arg value with its type
-MutArgValue := struct {
-    mut value_type: MutArgValueType = MutArgValueType.MAVNone
-    mut i64_val: I64 = 0
-    mut u8_val: U8 = U8.from_i64(0)
-    mut str_val: Str = ""
-    mut enum_val: EnumVal = EnumVal()
-    mut struct_offset: I64 = 0
-    mut struct_type_name: Str = ""
-    mut was_passed_by_ref: Bool = false
+// MutArgValue - enum with payloads matching Rust's MutArgValue
+MutArgValue := enum {
+    None,
+    I64: I64,
+    U8: U8,
+    Str: Str,
+    Enum: EnumVal,
+    Struct: MutArgStructData,
 }
 
 // CollectedMutArg - collected mut arg to write back
 CollectedMutArg := struct {
     mut source_name: Str = ""
-    mut value: MutArgValue = MutArgValue()
+    mut value: MutArgValue = MutArgValue.None
+
+    new := func(source_name: Str, value: MutArgValue) returns CollectedMutArg {
+        mut result := CollectedMutArg()
+        result.source_name = source_name
+        result.value = value
+        return result
+    }
 }
 
 eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
@@ -1968,11 +1978,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Must search ALL frames because globals like `true` are in frame 0
                                         prefix := format(source_var, ".")
                                         replacement_prefix := format(arg.name, ".")
-                                        mut field_offsets_to_copy := Vec.new(StrI64Pair)
-                                        mut field_symbols_to_copy := Vec.new(StrSymbolInfoPair)
+                                        mut field_offsets_to_copy := Vec.new(ArenaMapping)
+                                        mut field_symbols_to_copy := Vec.new(SymbolEntry)
                                         mut fi := 0
                                         while fi.lt(context.scope_stack.frames.len()) {
-                                            mut caller_frame := StackFrame()
+                                            mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
                                             arena_keys := caller_frame.arena_index.keys()
@@ -1984,7 +1994,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mut value := 0
                                                     caller_frame.arena_index.get(key, value)
                                                     new_key := key.replace(prefix, replacement_prefix)
-                                                    field_offsets_to_copy.push(StrI64Pair.new(new_key, value))
+                                                    mut mapping := ArenaMapping()
+                                                    mapping.name = new_key
+                                                    mapping.offset = value
+                                                    field_offsets_to_copy.push(mapping)
                                                 }
                                                 aki = aki.add(1)
                                             }
@@ -1998,7 +2011,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mut svalue := SymbolInfo()
                                                     caller_frame.symbols.get(skey, svalue)
                                                     new_skey := skey.replace(prefix, replacement_prefix)
-                                                    field_symbols_to_copy.push(StrSymbolInfoPair.new(new_skey, svalue.clone()))
+                                                    mut entry := SymbolEntry()
+                                                    entry.name = new_skey
+                                                    entry.info = svalue.clone()
+                                                    field_symbols_to_copy.push(entry)
                                                 }
                                                 ski = ski.add(1)
                                             }
@@ -2007,17 +2023,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Insert collected offsets
                                         mut foi := 0
                                         while foi.lt(field_offsets_to_copy.len()) {
-                                            mut fo_pair := StrI64Pair()
-                                            field_offsets_to_copy.get(foi, fo_pair)
-                                            function_frame.arena_index.insert(fo_pair.key, fo_pair.value)
+                                            mut mapping := ArenaMapping()
+                                            field_offsets_to_copy.get(foi, mapping)
+                                            function_frame.arena_index.insert(mapping.name, mapping.offset)
                                             foi = foi.add(1)
                                         }
                                         // Insert collected symbols
                                         mut fsi := 0
                                         while fsi.lt(field_symbols_to_copy.len()) {
-                                            mut fs_pair := StrSymbolInfoPair()
-                                            field_symbols_to_copy.get(fsi, fs_pair)
-                                            function_frame.symbols.insert(fs_pair.key, fs_pair.value)
+                                            mut entry := SymbolEntry()
+                                            field_symbols_to_copy.get(fsi, entry)
+                                            function_frame.symbols.insert(entry.name, entry.info)
                                             fsi = fsi.add(1)
                                         }
 
@@ -2181,11 +2197,11 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Must search ALL frames because globals like `true` are in frame 0
                                         prefix := format(id_, ".")
                                         replacement_prefix := format(arg.name, ".")
-                                        mut field_offsets_to_copy := Vec.new(StrI64Pair)
-                                        mut field_symbols_to_copy := Vec.new(StrSymbolInfoPair)
+                                        mut field_offsets_to_copy := Vec.new(ArenaMapping)
+                                        mut field_symbols_to_copy := Vec.new(SymbolEntry)
                                         mut fi := 0
                                         while fi.lt(context.scope_stack.frames.len()) {
-                                            mut caller_frame := StackFrame()
+                                            mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
                                             arena_keys := caller_frame.arena_index.keys()
@@ -2197,7 +2213,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mut value := 0
                                                     caller_frame.arena_index.get(key, value)
                                                     new_key := key.replace(prefix, replacement_prefix)
-                                                    field_offsets_to_copy.push(StrI64Pair.new(new_key, value))
+                                                    mut mapping := ArenaMapping()
+                                                    mapping.name = new_key
+                                                    mapping.offset = value
+                                                    field_offsets_to_copy.push(mapping)
                                                 }
                                                 aki = aki.add(1)
                                             }
@@ -2211,7 +2230,10 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                     mut svalue := SymbolInfo()
                                                     caller_frame.symbols.get(skey, svalue)
                                                     new_skey := skey.replace(prefix, replacement_prefix)
-                                                    field_symbols_to_copy.push(StrSymbolInfoPair.new(new_skey, svalue.clone()))
+                                                    mut entry := SymbolEntry()
+                                                    entry.name = new_skey
+                                                    entry.info = svalue.clone()
+                                                    field_symbols_to_copy.push(entry)
                                                 }
                                                 ski = ski.add(1)
                                             }
@@ -2220,17 +2242,17 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // Insert collected offsets
                                         mut foi := 0
                                         while foi.lt(field_offsets_to_copy.len()) {
-                                            mut fo_pair := StrI64Pair()
-                                            field_offsets_to_copy.get(foi, fo_pair)
-                                            function_frame.arena_index.insert(fo_pair.key, fo_pair.value)
+                                            mut mapping := ArenaMapping()
+                                            field_offsets_to_copy.get(foi, mapping)
+                                            function_frame.arena_index.insert(mapping.name, mapping.offset)
                                             foi = foi.add(1)
                                         }
                                         // Insert collected symbols
                                         mut fsi := 0
                                         while fsi.lt(field_symbols_to_copy.len()) {
-                                            mut fs_pair := StrSymbolInfoPair()
-                                            field_symbols_to_copy.get(fsi, fs_pair)
-                                            function_frame.symbols.insert(fs_pair.key, fs_pair.value)
+                                            mut entry := SymbolEntry()
+                                            field_symbols_to_copy.get(fsi, entry)
+                                            function_frame.symbols.insert(entry.name, entry.info)
                                             fsi = fsi.add(1)
                                         }
 
@@ -2442,7 +2464,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         // Get the second-to-last frame (caller's frame)
                         frame_count := context.scope_stack.frames.len()
                         if frame_count.gteq(2) {
-                            mut caller_frame := StackFrame()
+                            mut caller_frame := ScopeFrame()
                             context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
                             caller_frame.arena_index.insert(result.value.clone(), base_offset)
                             context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
@@ -2477,7 +2499,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         catch (err: KeyNotFoundError) { }
                         if src_offset_found {
                             if frame_count.gteq(2) {
-                                mut caller_frame := StackFrame()
+                                mut caller_frame := ScopeFrame()
                                 context.scope_stack.frames.get(frame_count.sub(2), caller_frame)
                                 caller_frame.arena_index.insert(src_key.clone(), src_offset)
                                 context.scope_stack.frames.set(frame_count.sub(2), caller_frame)
@@ -2617,13 +2639,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             switch type_name {
             case "I64":
                 val := Arena.get_i64(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_i64(val)))
+                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.I64(val)))
             case "U8":
                 val := Arena.get_u8(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_u8(val)))
+                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.U8(val)))
             case "Str":
                 val := string_from_context(context, m.arg_name, e)
-                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_str(val)))
+                collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Str(val)))
             case:
                 // Custom type (enum or struct)
                 mut symbol_info := SymbolInfo()
@@ -2651,7 +2673,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 }
                 if is_enum_def {
                     val := Arena.get_enum(context, m.arg_name, e)
-                    collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_enum(val)))
+                    collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Enum(val)))
                 } else if is_struct_def {
                     mut offset := 0
                     mut offset_found := false
@@ -2659,7 +2681,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     offset_found = true
                     catch (err: KeyNotFoundError) { }
                     if offset_found {
-                        collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_struct(offset, type_name.clone(), was_passed_by_ref)))
+                        collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Struct(MutArgStructData.new(offset, type_name.clone(), was_passed_by_ref))))
                     } else {
                         context.scope_stack.frames.pop()
                         context.path = saved_path
@@ -2688,24 +2710,26 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     while ci.lt(collected_mut_args.len()) {
         mut c := CollectedMutArg()
         collected_mut_args.get(ci, c)
-        switch c.value.value_type {
-        case MutArgValueType.I64:
-            Arena.insert_i64(context, c.source_name, I64.to_str(c.value.i64_val), e)
-        case MutArgValueType.U8:
-            Arena.insert_u8(context, c.source_name, U8.to_str(c.value.u8_val), e)
-        case MutArgValueType.Str:
-            Arena.insert_string(context, c.source_name, c.value.str_val, e)
-        case MutArgValueType.Enum:
-            Arena.insert_enum(context, c.source_name, c.value.enum_val.enum_type, format(c.value.enum_val.enum_type, ".", c.value.enum_val.enum_name), e)
-        case MutArgValueType.Struct:
+        switch c.value {
+        case MutArgValue.I64(val):
+            Arena.insert_i64(context, c.source_name, I64.to_str(val), e)
+        case MutArgValue.U8(val):
+            Arena.insert_u8(context, c.source_name, U8.to_str(val), e)
+        case MutArgValue.Str(val):
+            Arena.insert_string(context, c.source_name, val, e)
+        case MutArgValue.Enum(enum_val):
+            Arena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
+        case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
             context.scope_stack.frames.get(lf12_idx, lf12)
-            lf12.arena_index.insert(c.source_name.clone(), c.value.struct_offset)
+            lf12.arena_index.insert(c.source_name.clone(), struct_data.offset)
             context.scope_stack.frames.set(lf12_idx, lf12)
-            if not(c.value.was_passed_by_ref) {
-                context.map_instance_fields(c.value.struct_type_name, c.source_name, e)
+            if not(struct_data.was_passed_by_ref) {
+                context.map_instance_fields(struct_data.type_name, c.source_name, e)
             }
+        case MutArgValue.None:
+            // Nothing to do
         }
         ci = ci.add(1)
     }

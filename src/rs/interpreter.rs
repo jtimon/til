@@ -14,7 +14,7 @@ use crate::rs::ext;
 
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 
-use crate::rs::arena::{Arena, ArenaMapping};
+use crate::rs::arena::{Arena, ArenaMapping, SymbolEntry};
 
 /// Saved offsets for struct copy when source and dest have the same name
 struct SavedOffsets {
@@ -1781,27 +1781,27 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             // Must search ALL frames because globals like `true` are in frame 0
                             let prefix = format!("{}.", source_var);
                             let replacement_prefix = format!("{}.", arg.name);
-                            let mut field_offsets_to_copy = Vec::new();
-                            let mut field_symbols_to_copy = Vec::new();
+                            let mut field_offsets_to_copy: Vec<ArenaMapping> = Vec::new();
+                            let mut field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
                             for caller_frame in context.scope_stack.frames.iter() {
                                 for (key, &value) in caller_frame.arena_index.iter() {
                                     if key.starts_with(&prefix) {
                                         let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                        field_offsets_to_copy.push((new_key, value));
+                                        field_offsets_to_copy.push(ArenaMapping { name: new_key, offset: value });
                                     }
                                 }
                                 for (key, value) in caller_frame.symbols.iter() {
                                     if key.starts_with(&prefix) {
                                         let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                        field_symbols_to_copy.push((new_key, value.clone()));
+                                        field_symbols_to_copy.push(SymbolEntry { name: new_key, info: value.clone() });
                                     }
                                 }
                             }
-                            for (key, value) in field_offsets_to_copy {
-                                function_frame.arena_index.insert(key, value);
+                            for mapping in field_offsets_to_copy {
+                                function_frame.arena_index.insert(mapping.name, mapping.offset);
                             }
-                            for (key, value) in field_symbols_to_copy {
-                                function_frame.symbols.insert(key, value);
+                            for entry in field_symbols_to_copy {
+                                function_frame.symbols.insert(entry.name, entry.info);
                             }
 
                             // Track that this parameter was passed by reference
@@ -1921,27 +1921,27 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             // Must search ALL frames because globals like `true` are in frame 0
                                             let prefix = format!("{}.", id_);
                                             let replacement_prefix = format!("{}.", arg.name);
-                                            let mut field_offsets_to_copy = Vec::new();
-                                            let mut field_symbols_to_copy = Vec::new();
+                                            let mut field_offsets_to_copy: Vec<ArenaMapping> = Vec::new();
+                                            let mut field_symbols_to_copy: Vec<SymbolEntry> = Vec::new();
                                             for caller_frame in context.scope_stack.frames.iter() {
                                                 for (key, &value) in caller_frame.arena_index.iter() {
                                                     if key.starts_with(&prefix) {
                                                         let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                                        field_offsets_to_copy.push((new_key, value));
+                                                        field_offsets_to_copy.push(ArenaMapping { name: new_key, offset: value });
                                                     }
                                                 }
                                                 for (key, value) in caller_frame.symbols.iter() {
                                                     if key.starts_with(&prefix) {
                                                         let new_key = key.replacen(&prefix, &replacement_prefix, 1);
-                                                        field_symbols_to_copy.push((new_key, value.clone()));
+                                                        field_symbols_to_copy.push(SymbolEntry { name: new_key, info: value.clone() });
                                                     }
                                                 }
                                             }
-                                            for (key, value) in field_offsets_to_copy {
-                                                function_frame.arena_index.insert(key, value);
+                                            for mapping in field_offsets_to_copy {
+                                                function_frame.arena_index.insert(mapping.name, mapping.offset);
                                             }
-                                            for (key, value) in field_symbols_to_copy {
-                                                function_frame.symbols.insert(key, value);
+                                            for entry in field_symbols_to_copy {
+                                                function_frame.symbols.insert(entry.name, entry.info);
                                             }
 
                                             // Track that this was passed by reference
