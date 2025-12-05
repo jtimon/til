@@ -27,7 +27,7 @@ mode_from_name := proc(mode_name: Str) returns ModeDef throws UnknownModeError {
     case "lib":
         md.allows_procs         = true
         md.allows_base_calls    = false
-        md.allows_base_mut      = false
+        md.allows_base_mut      = true
         md.allows_base_anything = false
         md.needs_main_proc      = false
 

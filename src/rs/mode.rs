@@ -14,7 +14,6 @@ pub struct ModeDef {
 pub fn can_be_imported(mode_def: &ModeDef) -> bool {
     return !(
         mode_def.needs_main_proc || // TODO think harder, why not?
-        mode_def.allows_base_mut ||
         mode_def.allows_base_calls ||
         mode_def.allows_base_anything
     );
@@ -26,7 +25,7 @@ pub fn mode_from_name(mode_name: &str, path: &str, t: &Token) -> Result<ModeDef,
             ModeDef{name                 : mode_name.to_string(),
                     allows_procs         : true,
                     allows_base_calls    : false,
-                    allows_base_mut      : false,
+                    allows_base_mut      : true,
                     allows_base_anything : false,
                     needs_main_proc      : false,
                     imports              : vec![],
