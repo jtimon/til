@@ -1764,14 +1764,27 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
     return errors
 }
 
+// Temporary storage for enum payload data during construction
+EnumPayload := struct {
+    mut data: Vec = Vec.new(U8)
+    mut value_type: ValueType = ValueType.TCustom("")
+
+    clone := func(self: EnumPayload) returns EnumPayload throws AllocError {
+        mut result := EnumPayload()
+        result.data = self.data.clone()
+        result.value_type = self.value_type
+        return result
+    }
+}
+
 Context := struct {
     mut mode_def: ModeDef = ModeDef()  # All contexts need a mode
     # TODO use Context.path to properly report eval errors, or...no, don't refactor the whole eval phase to return Result<String, String>
     mut path: Str = ""  # this is needed for core func "loc"
     # Scope stack for proper lexical scoping
     mut scope_stack: ScopeStack = ScopeStack.new()
-    # Temporary storage for enum payload data during construction
-    mut temp_enum_payload: Ptr = Ptr()  # Ptr to (payload_bytes: Vec, payload_type: ValueType)
+    # Temporary storage for enum payload data during construction (Ptr for Option pattern, NULL = None)
+    mut temp_enum_payload: Ptr = Ptr()  # Ptr to EnumPayload
     # Import tracking
     mut imports_wip: Set = Set.new(Str)  # wip imports (for cycle detection)
     mut imports_done: Map = Map.new(Str, Bool)  # cleared between init and eval phases

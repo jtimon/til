@@ -1026,6 +1026,14 @@ pub fn init_context(context: &mut Context, e: &Expr) -> Vec<String> {
     }
     errors
 }
+
+/// Temporary storage for enum payload data during construction
+#[derive(Clone)]
+pub struct EnumPayload {
+    pub data: Vec<u8>,
+    pub value_type: ValueType,
+}
+
 #[derive(Clone)]
 pub struct Context {
     pub mode_def: ModeDef, // All contexts need a mode
@@ -1034,7 +1042,7 @@ pub struct Context {
     // Scope stack for proper lexical scoping
     pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
-    pub temp_enum_payload: Option<(Vec<u8>, ValueType)>, // (payload_bytes, payload_type)
+    pub temp_enum_payload: Option<EnumPayload>,
     // Import tracking
     pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
     pub imports_done: HashMap<String, Result<(), String>>, // cleared between init and eval phases

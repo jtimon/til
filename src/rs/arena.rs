@@ -9,7 +9,7 @@ use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str};
 pub struct Arena {
     pub memory: Vec<u8>,
     pub temp_id_counter: usize,
-    pub default_instances: HashMap<String, usize>,  // type name → arena offset of default template
+    pub default_instances: HashMap<String, usize>,  // type name -> arena offset of default template
 }
 
 pub struct ArenaMapping {
@@ -26,6 +26,18 @@ pub struct SymbolEntry {
 pub struct StructInsertResult {
     pub arena_mappings: Vec<ArenaMapping>,
     pub symbols: Vec<SymbolEntry>,
+}
+
+/// Result from insert_string_core containing string offset and length bytes
+pub struct StringInsertInfo {
+    pub string_offset_bytes: [u8; 8],
+    pub len_bytes: [u8; 8],
+}
+
+/// Result from insert_enum_core containing optional mapping and enum value
+pub struct EnumInsertResult {
+    pub mapping: Option<ArenaMapping>,
+    pub enum_val: EnumVal,
 }
 
 // heap/arena memory (starts at 1 to avoid NULL confusion)
@@ -548,8 +560,8 @@ impl Arena {
         Ok(())
     }
 
-    /// Core logic for insert_string - returns Some((string_offset_bytes, len_bytes)) if caller needs to create struct, None if already handled
-    fn insert_string_core(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<Option<([u8; 8], [u8; 8])>, String> {
+    /// Core logic for insert_string - returns Some(StringInsertInfo) if caller needs to create struct, None if already handled
+    fn insert_string_core(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<Option<StringInsertInfo>, String> {
         let is_field = Self::is_instance_field(ctx, id);
 
         // Allocate string data
@@ -586,7 +598,7 @@ impl Arena {
                 return Err(e.lang_error(&ctx.path, "context", "ERROR: 'Str' struct definition not found"))
             }
 
-            // Not yet inserted — insert fresh inlined Str
+            // Not yet inserted - insert fresh inlined Str
             if let Some(str_def) = ctx.scope_stack.lookup_struct("Str") {
                 let members = str_def.members.clone();
                 let struct_offset = Arena::g().memory.len();
@@ -617,11 +629,11 @@ impl Arena {
             return Err(e.lang_error(&ctx.path, "context", "'Str' struct definition not found"))
         }
 
-        Ok(Some((string_offset_bytes, len_bytes)))
+        Ok(Some(StringInsertInfo { string_offset_bytes, len_bytes }))
     }
 
     pub fn insert_string(ctx: &mut Context, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
-        if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
+        if let Some(info) = Self::insert_string_core(ctx, id, value_str, e)? {
             // Create Str struct from template
             let template_offset = Arena::g().default_instances.get("Str")
                 .copied()
@@ -631,14 +643,14 @@ impl Arena {
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.c_string'", id)))?;
             let cap_offset = ctx.scope_stack.lookup_var(&format!("{}.cap", id))
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string: missing '{}.cap'", id)))?;
-            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
-            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&info.string_offset_bytes);
+            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&info.len_bytes);
         }
         Ok(())
     }
 
     pub fn insert_string_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, value_str: &String, e: &Expr) -> Result<(), String> {
-        if let Some((string_offset_bytes, len_bytes)) = Self::insert_string_core(ctx, id, value_str, e)? {
+        if let Some(info) = Self::insert_string_core(ctx, id, value_str, e)? {
             // Create Str struct from template
             let template_offset = Arena::g().default_instances.get("Str")
                 .copied()
@@ -650,8 +662,8 @@ impl Arena {
             let cap_offset = frame.arena_index.get(&format!("{}.cap", id))
                 .copied()
                 .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_string_into_frame: missing '{}.cap'", id)))?;
-            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&string_offset_bytes);
-            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&len_bytes);
+            Arena::g().memory[c_string_offset..c_string_offset + 8].copy_from_slice(&info.string_offset_bytes);
+            Arena::g().memory[cap_offset..cap_offset + 8].copy_from_slice(&info.len_bytes);
         }
         Ok(())
     }
@@ -840,8 +852,8 @@ impl Arena {
         })
     }
 
-    /// Core logic for insert_enum - returns (optional mapping, EnumVal)
-    fn insert_enum_core(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<(Option<(String, usize)>, EnumVal), String> {
+    /// Core logic for insert_enum - returns EnumInsertResult with optional mapping and EnumVal
+    fn insert_enum_core(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumInsertResult, String> {
         let enum_def = ctx.scope_stack.lookup_enum(enum_type)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("insert_enum: Enum definition for '{}' not found", enum_type)))?;
 
@@ -852,7 +864,7 @@ impl Arena {
 
         // Check if there's payload data to store
         let (payload_data, payload_type) = match &ctx.temp_enum_payload {
-            Some((data, vtype)) => (Some(data.clone()), Some(vtype.clone())),
+            Some(payload) => (Some(payload.data.clone()), Some(payload.value_type.clone())),
             None => (None, None),
         };
 
@@ -877,7 +889,7 @@ impl Arena {
                     if let Some(payload_bytes) = &payload_data {
                         Arena::g().memory.extend_from_slice(&payload_bytes);
                     }
-                    Some((id.to_string(), offset))
+                    Some(ArenaMapping { name: id.to_string(), offset })
                 }
             } else {
                 let offset = Arena::g().memory.len();
@@ -885,28 +897,31 @@ impl Arena {
                 if let Some(payload_bytes) = &payload_data {
                     Arena::g().memory.extend_from_slice(&payload_bytes);
                 }
-                Some((id.to_string(), offset))
+                Some(ArenaMapping { name: id.to_string(), offset })
             }
         };
 
         // Clear the temp payload after using it
         ctx.temp_enum_payload = None;
 
-        Ok((mapping, EnumVal {
-            enum_type: enum_type.to_string(),
-            enum_name: enum_name.to_string(),
-            payload: payload_data,
-            payload_type,
-        }))
+        Ok(EnumInsertResult {
+            mapping,
+            enum_val: EnumVal {
+                enum_type: enum_type.to_string(),
+                enum_name: enum_name.to_string(),
+                payload: payload_data,
+                payload_type,
+            },
+        })
     }
 
     // TODO Context.insert_enum gets an Expr for errors, any Context method that can throw should too
     pub fn insert_enum(ctx: &mut Context, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
-        let (mapping, enum_val) = Self::insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?;
-        if let Some((key, offset)) = mapping {
-            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(key, offset);
+        let result = Self::insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)?;
+        if let Some(m) = result.mapping {
+            ctx.scope_stack.frames.last_mut().unwrap().arena_index.insert(m.name, m.offset);
         }
-        Ok(enum_val)
+        Ok(result.enum_val)
     }
 
     pub fn insert_enum_into_frame(ctx: &mut Context, frame: &mut ScopeFrame, id: &str, enum_type: &str, pre_normalized_enum_name: &str, e: &Expr) -> Result<EnumVal, String> {
@@ -928,11 +943,11 @@ impl Arena {
         *frame = ctx.scope_stack.frames.pop().unwrap();
 
         // Now apply result to the frame
-        let (mapping, enum_val) = result?;
-        if let Some((key, offset)) = mapping {
-            frame.arena_index.insert(key, offset);
+        let result = result?;
+        if let Some(m) = result.mapping {
+            frame.arena_index.insert(m.name, m.offset);
         }
-        Ok(enum_val)
+        Ok(result.enum_val)
     }
 
     /// Insert an Array for variadic arguments into a function frame.

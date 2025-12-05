@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call};
+use crate::rs::init::{Context, SymbolInfo, EnumVal, EnumPayload, ScopeFrame, ScopeType, get_value_type, get_func_name_in_call};
 use crate::rs::parser::{
     INFER_TYPE,
     Expr, NodeType, Literal, ValueType, TTypeDef, Declaration, PatternInfo, FunctionType, SFuncDef,
@@ -14,7 +14,13 @@ use crate::rs::ext;
 
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
 
-use crate::rs::arena::Arena;
+use crate::rs::arena::{Arena, ArenaMapping};
+
+/// Saved offsets for struct copy when source and dest have the same name
+struct SavedOffsets {
+    offsets: Vec<ArenaMapping>,
+    temp_src_key: String,
+}
 
 
 #[derive(Clone, Debug)]
@@ -481,7 +487,7 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
 
                                                 // Set temp_enum_payload if there's an inner payload
                                                 if let Some(payload_data) = inner_payload {
-                                                    context.temp_enum_payload = Some((payload_data, inner_payload_type.unwrap()));
+                                                    context.temp_enum_payload = Some(EnumPayload { data: payload_data, value_type: inner_payload_type.unwrap() });
                                                 }
 
                                                 // Insert the enum
@@ -797,7 +803,7 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
                     };
 
                     // Store payload in temp location for insert_enum to use
-                    context.temp_enum_payload = Some((payload_bytes, payload_type));
+                    context.temp_enum_payload = Some(EnumPayload { data: payload_bytes, value_type: payload_type });
 
                     // Return the enum variant name
                     return Ok(EvalResult::new(&format!("{}.{}", enum_type, variant_name)));
@@ -1196,7 +1202,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
             // Set temp_enum_payload so that if this enum is assigned to another variable,
             // the payload will be preserved
             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
-                context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+                context.temp_enum_payload = Some(EnumPayload { data: enum_val.payload.clone().unwrap(), value_type: enum_val.payload_type.clone().unwrap() });
             }
             return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
         },
@@ -1274,7 +1280,7 @@ fn eval_custom_expr(e: &Expr, context: &mut Context, name: &str, custom_type_nam
                                     // Set temp_enum_payload so that if this enum is assigned to another variable,
                                     // the payload will be preserved
                                     if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
-                                        context.temp_enum_payload = Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()));
+                                        context.temp_enum_payload = Some(EnumPayload { data: enum_val.payload.clone().unwrap(), value_type: enum_val.payload_type.clone().unwrap() });
                                     }
                                     return Ok(EvalResult::new(&format!("{}.{}", custom_type_name, enum_val.enum_name)))
                                 },
@@ -1616,7 +1622,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 }
 
                 // If this is an enum argument and current_arg is an identifier, get the enum value to preserve payload
-                let enum_payload_backup = if let NodeType::Identifier(id_name) = &current_arg.node_type {
+                let enum_payload_backup: Option<EnumPayload> = if let NodeType::Identifier(id_name) = &current_arg.node_type {
                     if let Some(sym) = context.scope_stack.lookup_symbol(id_name) {
                         if let ValueType::TCustom(arg_type_name) = &sym.value_type {
                             if let Some(type_sym) = context.scope_stack.lookup_symbol(arg_type_name) {
@@ -1625,7 +1631,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                     match Arena::get_enum(context, id_name, e) {
                                         Ok(enum_val) => {
                                             if enum_val.payload.is_some() && enum_val.payload_type.is_some() {
-                                                Some((enum_val.payload.clone().unwrap(), enum_val.payload_type.clone().unwrap()))
+                                                Some(EnumPayload { data: enum_val.payload.clone().unwrap(), value_type: enum_val.payload_type.clone().unwrap() })
                                             } else {
                                                 None
                                             }
@@ -1871,7 +1877,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                         let id_ = &source_id; // Use the full path we calculated
                                         // If source and dest have the same name, we need to save the source offsets
                                         // before insert_struct overwrites them
-                                        let (saved_offsets, temp_src_key) = if id_ == &arg.name {
+                                        let saved_offsets: Option<SavedOffsets> = if id_ == &arg.name {
                                             let mut offsets = Vec::new();
 
                                             // Save all arena_index entries that start with the struct name
@@ -1879,13 +1885,13 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             let prefix = format!("{}.", id_);
                                             for (key, offset) in context.scope_stack.frames.last().unwrap().arena_index.iter() {
                                                 if key == id_ || key.starts_with(&prefix) {
-                                                    offsets.push((key.clone(), *offset));
+                                                    offsets.push(ArenaMapping { name: key.clone(), offset: *offset });
                                                 }
                                             }
 
-                                            (Some(offsets), Some(format!("__temp_src_{}", id_)))
+                                            Some(SavedOffsets { offsets, temp_src_key: format!("__temp_src_{}", id_) })
                                         } else {
-                                            (None, None)
+                                            None
                                         };
 
                                         // For pass-by-reference (non-copy, non-own, non-Type), just share the offset
@@ -1948,28 +1954,28 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                                             context.scope_stack.frames.push(function_frame);
 
                                             // If we saved offsets, restore them with temp keys for copy_fields
-                                            if let (Some(offsets), Some(temp_key)) = (saved_offsets, temp_src_key) {
-                                                for (orig_key, offset) in offsets.iter() {
-                                                    let new_key = if orig_key == id_ {
-                                                        temp_key.clone()
-                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
-                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                            if let Some(saved) = saved_offsets {
+                                                for mapping in saved.offsets.iter() {
+                                                    let new_key = if &mapping.name == id_ {
+                                                        saved.temp_src_key.clone()
+                                                    } else if mapping.name.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", saved.temp_src_key, &mapping.name[id_.len()..])
                                                     } else {
-                                                        orig_key.clone()
+                                                        mapping.name.clone()
                                                     };
-                                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, *offset);
+                                                    context.scope_stack.frames.last_mut().unwrap().arena_index.insert(new_key, mapping.offset);
                                                 }
 
-                                                Arena::copy_fields(context, &custom_type_name, &temp_key, &arg.name, e)?;
+                                                Arena::copy_fields(context, &custom_type_name, &saved.temp_src_key, &arg.name, e)?;
 
                                                 // Clean up temp keys
-                                                for (orig_key, _) in offsets.iter() {
-                                                    let new_key = if orig_key == id_ {
-                                                        temp_key.clone()
-                                                    } else if orig_key.starts_with(&format!("{}.", id_)) {
-                                                        format!("{}{}", temp_key, &orig_key[id_.len()..])
+                                                for mapping in saved.offsets.iter() {
+                                                    let new_key = if &mapping.name == id_ {
+                                                        saved.temp_src_key.clone()
+                                                    } else if mapping.name.starts_with(&format!("{}.", id_)) {
+                                                        format!("{}{}", saved.temp_src_key, &mapping.name[id_.len()..])
                                                     } else {
-                                                        orig_key.clone()
+                                                        mapping.name.clone()
                                                     };
                                                     context.scope_stack.remove_var(&new_key);
                                                 }
@@ -2309,7 +2315,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
                                 // Set temp_enum_payload if the enum has a payload
                                 if let (Some(payload_data), Some(payload_type)) = (val.payload, val.payload_type) {
-                                    context.temp_enum_payload = Some((payload_data, payload_type));
+                                    context.temp_enum_payload = Some(EnumPayload { data: payload_data, value_type: payload_type });
                                 }
 
                                 Arena::insert_enum(context, &return_instance, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
