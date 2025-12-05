@@ -42,11 +42,11 @@ Arena := struct {
     mut temp_id_counter: I64 = 0
     mut default_instances: Map = Map.new(Str, I64)  // type name -> arena offset of default template
 
-    new := proc() returns Arena throws Str {
+    new := proc() returns Arena {
         mut a := Arena()
         a.memory.push(0)  // Reserve first address 0 (invalid), malloc always >0
         catch (err: AllocError) {
-            throw err.msg
+            panic(loc(), err.msg)
         }
         return a
     }
@@ -491,7 +491,7 @@ Arena := struct {
                                         str_mapping.offset = field_arena_offset
                                         result.arena_mappings.push(str_mapping)
                                         // Need to temporarily insert for insert_string to work
-                                        ctx.scope_stack.last_frame_arena_insert(combined_name, field_arena_offset)
+                                        ctx.scope_stack.insert_var(combined_name, field_arena_offset)
                                         Arena.insert_string(ctx, combined_name, default_value, e)
                                     } else {
                                         // Use existing offset for nested struct (inline allocation)
@@ -501,7 +501,7 @@ Arena := struct {
                                         nested_mapping.offset = field_arena_offset
                                         result.arena_mappings.push(nested_mapping)
                                         // Need to temporarily insert for recursive call to work
-                                        ctx.scope_stack.last_frame_arena_insert(combined_name, field_arena_offset)
+                                        ctx.scope_stack.insert_var(combined_name, field_arena_offset)
                                         // Extract nested defaults (field.subfield -> subfield)
                                         prefix := format(decl.name, ".")
                                         mut nested_defaults := Map.new(Str, Str)
@@ -705,7 +705,7 @@ Arena := struct {
         while mi.lt(result.arena_mappings.len()) {
             mut m := ArenaMapping()
             result.arena_mappings.get(mi, m)
-            ctx.scope_stack.last_frame_arena_insert(m.name, m.offset)
+            ctx.scope_stack.insert_var(m.name, m.offset)
             mi = add(mi, 1)
         }
         mut si := 0
@@ -824,7 +824,7 @@ Arena := struct {
                             }
                         }
 
-                        ctx.scope_stack.last_frame_arena_insert(format(id, ".", decl.name), absolute_offset)
+                        ctx.scope_stack.insert_var(format(id, ".", decl.name), absolute_offset)
                         current_offset = add(current_offset, type_size)
                     }
                     mi = add(mi, 1)
@@ -863,13 +863,13 @@ Arena := struct {
                         }
                     }
 
-                    ctx.scope_stack.last_frame_arena_insert(format(id, ".", decl.name), field_offset)
+                    ctx.scope_stack.insert_var(format(id, ".", decl.name), field_offset)
                     current_offset = add(current_offset, type_size)
                 }
                 mi = add(mi, 1)
             }
 
-            ctx.scope_stack.last_frame_arena_insert(id, struct_offset)
+            ctx.scope_stack.insert_var(id, struct_offset)
             throw KeyNotFoundError.new("already handled")
         }
 
@@ -1318,7 +1318,7 @@ Arena := struct {
     insert_enum := proc(mut ctx: Context, id: Str, enum_type: Str, pre_normalized_enum_name: Str, e: Expr) returns EnumVal throws Str {
         result := Arena.insert_enum_core(ctx, id, enum_type, pre_normalized_enum_name, e)
         if result.has_mapping {
-            ctx.scope_stack.last_frame_arena_insert(result.mapping_name, result.mapping_offset)
+            ctx.scope_stack.insert_var(result.mapping_name, result.mapping_offset)
         }
 
         return result.enum_val
@@ -1481,6 +1481,9 @@ Arena := struct {
         }
         catch (err: I64_OverflowError) {
             throw err.msg
+        }
+        catch (err: U8_OverflowError) {
+            throw e.lang_error(ctx.path, "insert_array_into_frame", err.msg)
         }
     }
 }
