@@ -1550,7 +1550,12 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     validate_func_arg_count(&context.path, e, name, func_def)?;
 
     let mut param_index = 1;
-    let mut mut_args: Vec<(String, String, ValueType, bool)> = Vec::new(); // (arg_name, source_name, type, is_pass_by_ref)
+    struct MutArgEntry {
+        arg_name: String,
+        source_name: String,
+        value_type: ValueType,
+    }
+    let mut mut_args: Vec<MutArgEntry> = Vec::new();
     let mut pass_by_ref_params: std::collections::HashSet<String> = std::collections::HashSet::new(); // Track which params used pass-by-ref
     let mut params_consumed = false;
 
@@ -1685,7 +1690,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                             } else {
                                 id_.clone()
                             };
-                            mut_args.push((arg.name.clone(), full_id, ValueType::TCustom(custom_type_name.clone()), false)); // Not pass-by-ref yet, will be set later
+                            mut_args.push(MutArgEntry { arg_name: arg.name.clone(), source_name: full_id, value_type: ValueType::TCustom(custom_type_name.clone()) });
                         },
                         _ => {
                             return Err(e.lang_error(&context.path, "eval", "mut arguments must be passed as identifiers or field access"))
@@ -2166,20 +2171,20 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     }
     let mut collected_mut_args: Vec<CollectedMutArg> = Vec::new();
 
-    for (arg_name, source_name, value_type, _) in &mut_args {
-        let was_passed_by_ref = pass_by_ref_params.contains(arg_name);
-        match value_type {
+    for m in &mut_args {
+        let was_passed_by_ref = pass_by_ref_params.contains(&m.arg_name);
+        match &m.value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
-                let val = Arena::get_i64(context, arg_name, e)?;
-                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::I64(val) });
+                let val = Arena::get_i64(context, &m.arg_name, e)?;
+                collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::I64(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
-                let val = Arena::get_u8(context, arg_name, e)?;
-                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::U8(val) });
+                let val = Arena::get_u8(context, &m.arg_name, e)?;
+                collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::U8(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
-                let val = string_from_context(context, arg_name, e)?;
-                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Str(val) });
+                let val = string_from_context(context, &m.arg_name, e)?;
+                collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Str(val) });
             },
             ValueType::TCustom(ref type_name) => {
                 let symbol_info = match context.scope_stack.lookup_symbol(type_name) {
@@ -2187,17 +2192,17 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     None => {
                         context.scope_stack.frames.pop();
                         context.path = saved_path;
-                        return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Undefined symbol.", arg_name, type_name)))
+                        return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as an mut argument. Undefined symbol.", m.arg_name, type_name)))
                     },
                 };
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
-                        let val = Arena::get_enum(context, arg_name, e)?;
-                        collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Enum(val) });
+                        let val = Arena::get_enum(context, &m.arg_name, e)?;
+                        collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Enum(val) });
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
-                        if let Some(offset) = context.scope_stack.lookup_var(arg_name) {
-                            collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Struct {
+                        if let Some(offset) = context.scope_stack.lookup_var(&m.arg_name) {
+                            collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Struct {
                                 offset,
                                 type_name: type_name.clone(),
                                 was_passed_by_ref,
@@ -2205,14 +2210,14 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                         } else {
                             context.scope_stack.frames.pop();
                             context.path = saved_path;
-                            return Err(e.lang_error(&context.path, "eval", &format!("Missing struct arena index for argument '{}'", arg_name)));
+                            return Err(e.lang_error(&context.path, "eval", &format!("Missing struct arena index for argument '{}'", m.arg_name)));
                         }
                     },
                     _ => {
                         context.scope_stack.frames.pop();
                         context.path = saved_path;
                         return Err(e.lang_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as a mut argument. Not an enum or struct, but a '{}'.",
-                                                                 arg_name, type_name, value_type_to_str(&symbol_info.value_type))))
+                                                                 m.arg_name, type_name, value_type_to_str(&symbol_info.value_type))))
                     },
                 }
 
@@ -2221,7 +2226,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 context.scope_stack.frames.pop();
                 context.path = saved_path;
                 return Err(e.todo_error(&context.path, "eval", &format!("Cannot use '{}' of type '{}' as a mut argument. Only structs and enums allowed for now.",
-                                                         arg_name, value_type_to_str(value_type))))
+                                                         m.arg_name, value_type_to_str(&m.value_type))))
             }
         }
     }
