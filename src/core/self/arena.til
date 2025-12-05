@@ -1382,10 +1382,10 @@ Arena := struct {
             values.get(i, val)
 
             if Str.eq(elem_type, "U8") {
-                mut byte := Str.parse_u8(val)
+                byte := U8.from_str(val)
                 memcpy(add(arena.memory.ptr, offset), to_ptr(byte), 1)
             } else if Str.eq(elem_type, "I64") {
-                mut n := Str.parse_i64(val)
+                n := I64.from_str(val)
                 memcpy(add(arena.memory.ptr, offset), to_ptr(n), 8)
             } else if Str.eq(elem_type, "Str") {
                 // For Str elements, create temp Str and copy bytes to array slot
