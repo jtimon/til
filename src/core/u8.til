@@ -58,6 +58,10 @@ U8 := struct {
         return I64.to_str(U8.to_i64(self))
     }
 
+    from_str := func(s: Str) returns U8 throws U8_OverflowError {
+        return U8.from_i64(I64.from_str(s))
+    }
+
     size := func() returns I64 {
         return 1
     }
