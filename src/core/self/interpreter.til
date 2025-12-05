@@ -1968,8 +1968,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         if should_pass_by_ref {
                             mut pass_by_ref_done := false
                             switch current_arg.node_type {
-                            case NodeType.Identifier:
-                                source_var := current_arg.node_type.Identifier.name
+                            case NodeType.Identifier(source_var):
                                 // Only share offset for SIMPLE identifiers (no field access, no params)
                                 // Field access like s.cap is also an Identifier node but has params
                                 if current_arg.params.len().eq(0) {
