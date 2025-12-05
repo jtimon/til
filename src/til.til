@@ -42,13 +42,13 @@ usage := proc() {
 
 main := proc(args: ..Str) {
 
-    if gt(args.len, 1) {
-        mut main_args := Array.new(Str, sub(args.len, 1))
+    if gt(args.len(), 1) {
+        mut main_args := Array.new(Str, sub(args.len(), 1))
         catch(e: AllocError) {
             println("Fatal: Failed to allocate argument array")
             return
         }
-        for i in 1..args.len {
+        for i in 1..args.len() {
             mut val := ""
             args.get(i, val)
             main_args.set(add(i, 0), val)
@@ -87,7 +87,7 @@ main := proc(args: ..Str) {
             usage()
         }
 
-    } else if gt(args.len, 0) {
+    } else if gt(args.len(), 0) {
         mut path := ""
         args.get(0, path)
         catch(err: IndexOutOfBoundsError) {

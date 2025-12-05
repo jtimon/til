@@ -69,8 +69,7 @@ runfile("src/core/self/typer.til")
 runfile("src/core/self/arena.til")
 runfile("src/core/self/interpreter.til")
 
-// TODO: Re-enable after fixing type errors in lexer.til and parser.til
-// runfile("src/tests_self_hosted.til")
+runfile("src/tests_self_hosted.til")
 
 runfile("src/test/todo.til") // permanent TODO
 
