@@ -5,27 +5,10 @@ mode lib
 
 import("src.core.self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
 import("src.core.self.init")         // Context
-import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context
+import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context, main_run, run_file
 import("src.core.self.arena")        // arena (global)
-// Note: std::io, std::fs, std::process::Command handled via ext functions
-// Note: main_run, run_file are in rstil.rs (main binary)
 
 // ---------- Helper functions
-
-/// Stub for main_run (implemented in rstil.rs binary)
-/// TODO: implement for self-hosted interpreter
-main_run := proc(verbose: Bool, trace: Bool, mut context: Context, path: Str, source: Str, args: Vec) returns EvalResult throws Str {
-    if true {
-        throw "main_run not yet implemented in self-hosted interpreter"
-    }
-    return EvalResult.new("")
-}
-
-/// Stub for run_file (implemented in rstil.rs binary)
-/// TODO: implement for self-hosted interpreter
-run_file := proc(path: Str, args: Vec) throws Str {
-    throw "run_file not yet implemented in self-hosted interpreter"
-}
 
 /// Stub for run_cmd (implemented in rstil.rs binary)
 /// TODO: implement for self-hosted interpreter
@@ -562,10 +545,7 @@ proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws St
     }
 
     catch (err: AllocError) { throw err.msg }
-    run_file(path, main_args)
-    catch (error_string: Str) {
-        throw e.error(context.path, "eval", format("While running file ", path, "\n", error_string))
-    }
+    _ := run_file(path, main_args)
     return EvalResult.new("")
 }
 

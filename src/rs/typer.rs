@@ -1,5 +1,4 @@
-use crate::Context;
-use crate::rs::init::{SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
+use crate::rs::init::{Context, SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,

@@ -5,6 +5,8 @@ import("src.core.self.parser")
 import("src.core.self.typer")
 import("src.core.self.ext")
 import("src.core.self.arena")
+import("src.core.self.mode")         // parse_mode, can_be_imported
+import("src.core.self.lexer")        // lexer_from_source, parse_tokens
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.
@@ -3002,4 +3004,233 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
     return EvalResult.new("")
+}
+
+// ---------- main_run, run_file_with_context, run_file (like rstil.rs)
+
+/// Main run function - lexes, parses, inits, typechecks, and evaluates source code
+/// Follows rstil.rs main_run implementation
+main_run := proc(print_extra: Bool, skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
+    // Mark main file as "done" to prevent re-processing via circular imports
+    _ := context.imports_init_done.insert(path.clone())
+    _ := context.imports_typer_done.insert(path.clone())
+    _ := context.imports_eval_done.insert(path.clone())
+    catch (err: AllocError) { throw err.msg }
+
+    // Lex source
+    mut lexer := lexer_from_source(path, source)
+    catch (err: Str) {
+        throw format(path, ":", err)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format(path, ":", err.msg)
+    }
+
+    // Parse mode
+    mut parsed_mode := parse_mode(path, lexer)
+    catch (err: Str) {
+        throw format(path, ":", err)
+    }
+    context.mode_def = parsed_mode
+    if print_extra {
+        println("Mode: ", context.mode_def.name)
+    }
+
+    // Process mode imports (e.g., test mode auto-imports test helpers)
+    mut import_idx := 0
+    while import_idx.lt(context.mode_def.imports.len()) {
+        mut import_str := ""
+        context.mode_def.imports.get(import_idx, import_str)
+
+        // Create synthetic import expression
+        mut import_func_name_expr := Expr()
+        import_func_name_expr.node_type = NodeType.Identifier("import")
+        import_func_name_expr.line = 0
+        import_func_name_expr.col = 0
+
+        mut import_path_expr := Expr()
+        import_path_expr.node_type = NodeType.LLiteral(Literal.Str(import_str))
+        import_path_expr.line = 0
+        import_path_expr.col = 0
+
+        mut import_fcall_expr := Expr()
+        import_fcall_expr.node_type = NodeType.FCall
+        import_fcall_expr.params.push(import_func_name_expr)
+        import_fcall_expr.params.push(import_path_expr)
+        import_fcall_expr.line = 0
+        import_fcall_expr.col = 0
+
+        // Mode imports need full processing: init, typer, eval
+        init_import_declarations(context, import_fcall_expr, import_str)
+        catch (err: Str) {
+            throw format(path, ":", err)
+        }
+
+        typer_errors := typer_import_declarations(context, import_str)
+        if typer_errors.len().gt(0) {
+            mut err_idx := 0
+            while err_idx.lt(typer_errors.len()) {
+                mut err_msg := ""
+                typer_errors.get(err_idx, err_msg)
+                println(path, ":", err_msg)
+                err_idx = err_idx.add(1)
+            }
+            throw format("Compiler errors: ", typer_errors.len().to_str(), " type errors found")
+        }
+
+        // Eval the import
+        _ := proc_import(context, import_fcall_expr)
+        catch (err: Str) {
+            throw format(path, ":", err)
+        }
+
+        import_idx = import_idx.add(1)
+    }
+
+    // Parse the body
+    mut e := parse_tokens(lexer)
+    catch (err: Str) {
+        throw format(path, ":", err)
+    }
+    catch (err: IndexOutOfBoundsError) {
+        throw format(path, ":", err.msg)
+    }
+
+    // Skip init and type checking if this is Phase 2 of a two-phase import
+    if not(skip_init_and_typecheck) {
+        mut errors := init_context(context, e)
+        catch (err: Str) {
+            throw format(path, ":", err)
+        }
+
+        if errors.len().gt(0) {
+            mut err_idx := 0
+            while err_idx.lt(errors.len()) {
+                mut err_msg := ""
+                errors.get(err_idx, err_msg)
+                println(path, ":", err_msg)
+                err_idx = err_idx.add(1)
+            }
+            throw format("Compiler errors: ", errors.len().to_str(), " declaration errors found")
+        }
+
+        mode_errors := basic_mode_checks(context, e)
+        catch (err: Str) {
+            throw format(path, ":", err)
+        }
+        mut mode_err_idx := 0
+        while mode_err_idx.lt(mode_errors.len()) {
+            mut mode_err := ""
+            mode_errors.get(mode_err_idx, mode_err)
+            errors.push(mode_err)
+            mode_err_idx = mode_err_idx.add(1)
+        }
+
+        // For modes that require a main proc, add an implicit call to main
+        if context.mode_def.needs_main_proc {
+            mut main_ident_expr := Expr()
+            main_ident_expr.node_type = NodeType.Identifier("main")
+            main_ident_expr.line = 0
+            main_ident_expr.col = 0
+
+            mut main_call_expr := Expr()
+            main_call_expr.node_type = NodeType.FCall
+            main_call_expr.params.push(main_ident_expr)
+            main_call_expr.line = 0
+            main_call_expr.col = 0
+
+            // Add string args
+            mut arg_idx := 0
+            while arg_idx.lt(main_args.len()) {
+                mut arg_str := ""
+                main_args.get(arg_idx, arg_str)
+                mut arg_expr := Expr()
+                arg_expr.node_type = NodeType.LLiteral(Literal.Str(arg_str))
+                arg_expr.line = 0
+                arg_expr.col = 0
+                main_call_expr.params.push(arg_expr)
+                arg_idx = arg_idx.add(1)
+            }
+
+            e.params.push(main_call_expr)
+        }
+
+        type_errors := check_types(context, e)
+        catch (err: Str) {
+            throw format(path, ":", err)
+        }
+        mut type_err_idx := 0
+        while type_err_idx.lt(type_errors.len()) {
+            mut type_err := ""
+            type_errors.get(type_err_idx, type_err)
+            errors.push(type_err)
+            type_err_idx = type_err_idx.add(1)
+        }
+
+        // TODO: check_body_returns_throws for root body - needs SFuncDef and ThrownType
+        // For now, skip this check (can be added post-self-hosting)
+
+        if errors.len().gt(0) {
+            mut err_idx := 0
+            while err_idx.lt(errors.len()) {
+                mut err_msg := ""
+                errors.get(err_idx, err_msg)
+                println(path, ":", err_msg)
+                err_idx = err_idx.add(1)
+            }
+            throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    // Evaluate the expression
+    eval_result := eval_expr(context, e)
+    if eval_result.is_throw {
+        throw format(path, ":", eval_result.value)
+    }
+    return eval_result
+}
+
+/// Run a file with an existing context (for imports)
+/// Follows rstil.rs run_file_with_context implementation
+run_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
+    mut previous_mode := context.mode_def
+    if not(is_import) {
+        println("Running file '", path, "'")
+    }
+
+    source := readfile(path)
+    // Note: readfile is ext_proc - if it fails, the error propagates automatically
+
+    run_result := main_run(not(is_import), skip_init, context, path, source, main_args)
+
+    if is_import {
+        if not(can_be_imported(context.mode_def)) {
+            throw format("file '", path, "' of mode '", context.mode_def.name, "' cannot be imported")
+        }
+    }
+
+    context.mode_def = previous_mode  // restore the context mode of the calling file
+    return run_result
+}
+
+/// Run a file from scratch (creates new context, imports core.til first)
+/// Follows rstil.rs run_file implementation
+run_file := proc(path: Str, main_args: Vec) returns EvalResult throws Str {
+    mut context := Context.new(path, "lib")  // default mode, will be overwritten by file's mode
+    // Context.new throws Str on error
+
+    if not(path.eq("src/core/core.til")) {
+        // Automatically import core.til (needs full init and eval, skip_init=false)
+        core_path := "src/core/core.til"
+        mut empty_args := Vec.new(Str)
+        catch (err: AllocError) {
+            throw err.msg
+        }
+        _ := run_file_with_context(true, false, context, core_path, empty_args)
+    }
+
+    return run_file_with_context(false, false, context, path, main_args)
 }

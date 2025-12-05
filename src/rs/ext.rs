@@ -7,12 +7,11 @@ use crate::rs::parser::{
     get_combined_name,
 };
 use crate::rs::arena::Arena;
-use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
+use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context, main_run, run_file};
 use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
 use std::process::Command;
-use crate::{main_run, run_file};
 
 // ---------- Helper functions
 

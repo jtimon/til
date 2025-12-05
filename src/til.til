@@ -1,70 +1,17 @@
 mode cli
 
-import("src.core.modes.modes")
-import("src.core.self.runner")
+import("src.core.self.runner")       // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
+import("src.core.self.lexer")        // LANG_NAME
 
-// LANG_NAME is defined in lexer.til
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/core/modes/repl.til"
 
-// Run a file: read, lex, parse, and evaluate
-interpret_file_or_exit := proc(path: Str) throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
-    println("Running file '", path, "'")
+// ---------- interpret, build, run commands
 
-    // Create lexer (reads file internally)
-    mut lexer := Lexer.new(path)
-
-    // For Phase 2, assume 'test' mode (simple mode that allows everything)
-    mut mode_def := ModeDef()
-    mode_def.name = "test"
-    mode_def.allows_procs = true
-    mode_def.allows_base_mut = true
-    mode_def.allows_base_calls = true
-    mode_def.allows_base_anything = true
-    mode_def.needs_main_proc = false
-
-    println("Mode: ", mode_def.name)
-
-    // Skip mode directive if present
-    // TODO Phase 3: Implement proper mode parsing
-    mut first_token := lexer.peek()
-    mut first_token_str := first_token.token_str
-    if first_token_str.eq("mode") {
-        lexer.advance(1) // skip 'mode'
-        lexer.advance(1) // skip mode name
-    }
-
-    // Parse the file body (sequence of statements until EOF)
-    mut ast := parse_body(lexer, TokenType.Eof)
-
-    // Create context for evaluation
-    mut context := Context.new(mode_def, path)
-
-    // Process declarations (register symbols, functions, types)
-    mut init_errors := init_context(context, ast)
-    if gt(init_errors.len, 0) {
-        mut i := 0
-        while i.lt(init_errors.len) {
-            mut err_msg := ""
-            init_errors.get(i, err_msg)
-            println(err_msg)
-            i = i.add(1)
-        }
-        println("Initialization failed - exiting")
-        exit(1)
-    }
-
-    // Evaluate the AST
-    mut eval_result := eval_expr(context, ast)
-
-    // Handle throw/return
-    if eval_result.is_throw {
-        println("Uncaught exception: ", eval_result.thrown_type, " - ", eval_result.value)
-        exit(1)
-    }
-    // For script mode, result value is ignored
-
-    // Success - no need to print result for test mode
+// Run a file using run_file
+interpret_file_or_exit := proc(path: Str) throws Str, AllocError {
+    mut empty_args := Vec.new(Str)
+    _ := run_file(path, empty_args)
 }
 
 build_file_or_exit := proc(path: Str) {
@@ -131,14 +78,6 @@ main := proc(args: ..Str) {
                 println("AllocError during file execution")
                 exit(1)
             }
-            catch (err: IndexOutOfBoundsError) {
-                println("IndexOutOfBoundsError during file execution")
-                exit(1)
-            }
-            catch (err: I64_OverflowError) {
-                println("I64_OverflowError during file execution")
-                exit(1)
-            }
         // case "interpret" : interpret_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
         case "build"     : build_file_or_exit(val1)
@@ -181,14 +120,6 @@ main := proc(args: ..Str) {
                 println("AllocError during execution")
                 exit(1)
             }
-            catch (err: IndexOutOfBoundsError) {
-                println("IndexOutOfBoundsError during execution")
-                exit(1)
-            }
-            catch (err: I64_OverflowError) {
-                println("I64_OverflowError during execution")
-                exit(1)
-            }
         }
     } else {
         // TEMP: Testing self-hosted compiler on hello_script.til
@@ -199,14 +130,6 @@ main := proc(args: ..Str) {
         }
         catch (err: AllocError) {
             println("AllocError during file execution")
-            exit(1)
-        }
-        catch (err: IndexOutOfBoundsError) {
-            println("IndexOutOfBoundsError during file execution")
-            exit(1)
-        }
-        catch (err: I64_OverflowError) {
-            println("I64_OverflowError during file execution")
             exit(1)
         }
     }
