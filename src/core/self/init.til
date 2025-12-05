@@ -39,8 +39,8 @@ EnumVal := struct {
     mut enum_name: Str = ""
     // Payload for tagged unions: stores the associated data
     // For now, supports Bool (1 byte) and I64 (8 bytes)
-    mut payload: Vec = Vec.new(U8)  // Vec<u8> for payload data
-    mut payload_type: ValueType = ValueType.TCustom("")  // ValueType for payload type (TCustom("") = no payload)
+    mut payload: Ptr = Ptr()  // Ptr to Vec<U8>, NULL = None
+    mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None
 }
 
 // Scope stack for proper lexical scoping

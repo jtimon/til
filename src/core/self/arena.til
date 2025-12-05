@@ -1011,8 +1011,8 @@ Arena := struct {
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
-                        result.payload = payload_bytes
-                        result.payload_type = payload_type
+                        result.payload.data = to_ptr(payload_bytes)
+                        result.payload_type.data = to_ptr(payload_type)
                     }
                 }
             }
@@ -1045,8 +1045,11 @@ Arena := struct {
                     // Recursively get the inner enum's size
                     inner_enum := Arena.get_enum_at_offset(ctx, type_name, offset, e)
                     mut total_size := 8  // variant tag
-                    if inner_enum.payload.len().gt(0) {
-                        total_size = add(total_size, inner_enum.payload.len())
+                    if not(NULL.eq(inner_enum.payload.data)) {
+                        mut payload_vec := Vec.new(U8)
+                        catch (err: AllocError) { throw err.msg }
+                        memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
+                        total_size = add(total_size, payload_vec.len())
                     }
                     return total_size
                 case:
@@ -1139,8 +1142,10 @@ Arena := struct {
                                 // For enum payloads, recursively get the enum to determine size
                                 inner_enum := Arena.get_enum_at_offset(ctx, vtype_name, add(offset, 8), e)
                                 payload_size = 8  // variant tag
-                                if inner_enum.payload.len().gt(0) {
-                                    payload_size = add(payload_size, inner_enum.payload.len())
+                                if not(NULL.eq(inner_enum.payload.data)) {
+                                    mut inner_payload_vec := Vec.new(U8)
+                                    memcpy(to_ptr(inner_payload_vec), inner_enum.payload.data, size_of(Vec))
+                                    payload_size = add(payload_size, inner_payload_vec.len())
                                 }
                             case:
                                 payload_size = 0
@@ -1163,8 +1168,8 @@ Arena := struct {
                             payload_bytes.push(byte_val)
                             pi = add(pi, 1)
                         }
-                        result.payload = payload_bytes
-                        result.payload_type = variant_payload_type
+                        result.payload.data = to_ptr(payload_bytes)
+                        result.payload_type.data = to_ptr(variant_payload_type)
                     }
                 }
             }

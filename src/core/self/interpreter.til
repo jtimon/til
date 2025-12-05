@@ -738,11 +738,13 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                                 enum_bytes = i64_to_le_bytes(variant_pos)
 
                                 // Add payload bytes if present
-                                if not(enum_val.payload.len().eq(0)) {
+                                if not(NULL.eq(enum_val.payload.data)) {
+                                    mut enum_payload_vec := Vec.new(U8)
+                                    memcpy(to_ptr(enum_payload_vec), enum_val.payload.data, size_of(Vec))
                                     mut pi := 0
-                                    while pi.lt(enum_val.payload.len()) {
+                                    while pi.lt(enum_payload_vec.len()) {
                                         mut pb := U8.from_i64(0)
-                                        enum_val.payload.get(pi, pb)
+                                        enum_payload_vec.get(pi, pb)
                                         enum_bytes.push(pb)
                                         pi = pi.add(1)
                                     }
@@ -759,7 +761,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
                     }
 
                     // Store payload in temp location for insert_enum to use
-                    context.temp_enum_payload = EnumPayload.new(payload_bytes, variant_type)
+                    mut temp_payload := EnumPayload.new(payload_bytes, variant_type)
+                    context.temp_enum_payload.data = to_ptr(temp_payload)
 
                     // Return the enum variant name
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1263,18 +1266,17 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         enum_val := Arena.get_enum(context, name, e)
         // Set temp_enum_payload so that if this enum is assigned to another variable,
         // the payload will be preserved
-        if enum_val.payload.len().gt(0) {
-            // Check that payload_type is not the default empty TCustom("")
-            mut is_empty_type := false
-            switch enum_val.payload_type {
-            case ValueType.TCustom(name):
-                if name.eq("") {
-                    is_empty_type = true
-                }
-            case:
-            }
-            if not(is_empty_type) {
-                context.temp_enum_payload = EnumPayload.new(enum_val.payload.clone(), enum_val.payload_type)
+        if not(NULL.eq(enum_val.payload.data)) {
+            // Read payload vec from Ptr
+            mut payload_vec := Vec.new(U8)
+            memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+            // Check if payload_type is set (not NULL)
+            if not(NULL.eq(enum_val.payload_type.data)) {
+                // Read payload_type from Ptr
+                mut payload_type := ValueType.TCustom("")
+                memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                context.temp_enum_payload.data = to_ptr(temp_payload)
             }
         }
         return EvalResult.new(format(custom_type_name, ".", enum_val.enum_name))
@@ -1349,18 +1351,18 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 switch custom_symbol_info.value_type {
                 case ValueType.TType(TTypeDef.TEnumDef):
                     enum_val := Arena.get_enum(context, current_name, last_inner_e)
-                    if enum_val.payload.len().gt(0) {
-                        // Check that payload_type is not the default empty TCustom("")
-                        mut is_empty_type := false
-                        switch enum_val.payload_type {
-                        case ValueType.TCustom(name):
-                            if name.eq("") {
-                                is_empty_type = true
-                            }
-                        case:
-                        }
-                        if not(is_empty_type) {
-                            context.temp_enum_payload = EnumPayload.new(enum_val.payload.clone(), enum_val.payload_type)
+                    // Set temp_enum_payload if this enum has a payload
+                    if not(NULL.eq(enum_val.payload.data)) {
+                        // Read payload vec from Ptr
+                        mut payload_vec := Vec.new(U8)
+                        memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+                        // Check if payload_type is set (not NULL)
+                        if not(NULL.eq(enum_val.payload_type.data)) {
+                            // Read payload_type from Ptr
+                            mut payload_type := ValueType.TCustom("")
+                            memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                            mut temp_payload := EnumPayload.new(payload_vec.clone(), payload_type)
+                            context.temp_enum_payload.data = to_ptr(temp_payload)
                         }
                     }
                     return EvalResult.new(format(curr_type_name_str, ".", enum_val.enum_name))
@@ -1816,9 +1818,15 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             switch type_sym.value_type {
                             case ValueType.TType(TTypeDef.TEnumDef):
                                 enum_val := Arena.get_enum(context, id_name, e)
-                                if enum_val.payload.len().gt(0) {
-                                    enum_payload_backup = EnumPayload.new(enum_val.payload.clone(), enum_val.payload_type)
-                                    has_enum_backup = true
+                                if not(NULL.eq(enum_val.payload.data)) {
+                                    mut payload_vec := Vec.new(U8)
+                                    memcpy(to_ptr(payload_vec), enum_val.payload.data, size_of(Vec))
+                                    if not(NULL.eq(enum_val.payload_type.data)) {
+                                        mut payload_type := ValueType.TCustom("")
+                                        memcpy(to_ptr(payload_type), enum_val.payload_type.data, size_of(ValueType))
+                                        enum_payload_backup = EnumPayload.new(payload_vec.clone(), payload_type)
+                                        has_enum_backup = true
+                                    }
                                 }
                                 catch (err3: Str) { }
                             case:

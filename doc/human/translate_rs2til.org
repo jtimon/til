@@ -254,6 +254,38 @@ if not(NULL.eq(func_ptr.data)) {
 }
 #+end_src
 
+** Option<T> struct fields -> Ptr
+
+Rust uses ~Option<T>~ for optional struct fields. TIL uses ~Ptr~ where ~NULL~ represents ~None~:
+
+Rust:
+#+begin_src rust
+struct EnumVal {
+    pub payload: Option<Vec<u8>>,
+    pub payload_type: Option<ValueType>,
+}
+
+// Usage
+if let Some(payload_type) = &enum_val.payload_type {
+    // use payload_type
+}
+#+end_src
+
+TIL:
+#+begin_src til
+EnumVal := struct {
+    mut payload: Ptr = Ptr()  // Ptr to Vec<U8>, NULL = None
+    mut payload_type: Ptr = Ptr()  // Ptr to ValueType, NULL = None
+}
+
+// Usage - check for NULL to see if present
+if not(NULL.eq(enum_val.payload_type.data)) {
+    // pointer is valid, use it
+}
+#+end_src
+
+Comment pattern: ~# Ptr to T, NULL = None~ or ~// Ptr for Option pattern, NULL = None~
+
 ** Vec/Map.get() out-parameter pattern
 
 Rust returns the value directly. TIL uses out-parameter pattern:
