@@ -1700,7 +1700,6 @@ MutArgStructData := struct {
 
 // MutArgValue - enum with payloads matching Rust's MutArgValue
 MutArgValue := enum {
-    None,
     I64: I64,
     U8: U8,
     Str: Str,
@@ -1711,7 +1710,7 @@ MutArgValue := enum {
 // CollectedMutArg - collected mut arg to write back
 CollectedMutArg := struct {
     mut source_name: Str = ""
-    mut value: MutArgValue = MutArgValue.None
+    mut value: MutArgValue = MutArgValue.I64(0)
 
     new := func(source_name: Str, value: MutArgValue) returns CollectedMutArg {
         mut result := CollectedMutArg()
@@ -2728,8 +2727,6 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             if not(struct_data.was_passed_by_ref) {
                 context.map_instance_fields(struct_data.type_name, c.source_name, e)
             }
-        case MutArgValue.None:
-            // Nothing to do
         }
         ci = ci.add(1)
     }
