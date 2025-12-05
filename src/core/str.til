@@ -309,6 +309,25 @@ get_char := func(s: Str, pos: I64) returns Str throws IndexOutOfBoundsError, All
     return s.get_substr(pos, add(pos, 1))
 }
 
+/** Check if string starts with the given prefix. */
+starts_with := func(s: Str, prefix: Str) returns Bool {
+    if prefix.len().gt(s.len()) {
+        return false
+    }
+    mut i := 0
+    while i.lt(prefix.len()) {
+        mut s_byte : U8 = 0
+        mut p_byte : U8 = 0
+        memcpy(to_ptr(s_byte), add(s.c_string, i), 1)
+        memcpy(to_ptr(p_byte), add(prefix.c_string, i), 1)
+        if not(U8.eq(s_byte, p_byte)) {
+            return false
+        }
+        i = add(i, 1)
+    }
+    return true
+}
+
 /**
  * Simple 2-argument string concatenation that panics on error.
  * Use this in catch blocks where throwing is not allowed.

@@ -34,6 +34,17 @@ test_strings := proc() {
     assert_eq_str(loc(), "\r",  get_char(",,\r", 2))
     // assert_eq_str(loc(), "\0",  get_char(",,\0", 2))
 
+    // starts_with tests
+    hello := "hello"
+    test(loc(), hello.starts_with("he"), "starts_with: 'hello'.starts_with('he') = true")
+    test(loc(), hello.starts_with("hello"), "starts_with: 'hello'.starts_with('hello') = true")
+    test(loc(), hello.starts_with(""), "starts_with: 'hello'.starts_with('') = true")
+    test(loc(), not(hello.starts_with("world")), "starts_with: 'hello'.starts_with('world') = false")
+    test(loc(), not(hello.starts_with("helloworld")), "starts_with: 'hello'.starts_with('helloworld') = false")
+    test(loc(), not(hello.starts_with("ello")), "starts_with: 'hello'.starts_with('ello') = false")
+    test(loc(), empty_str.starts_with(""), "starts_with: ''.starts_with('') = true")
+    test(loc(), not(empty_str.starts_with("a")), "starts_with: ''.starts_with('a') = false")
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }
