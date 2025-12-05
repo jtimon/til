@@ -218,6 +218,9 @@ Arena := struct {
         catch (err: AllocError) {
             throw err.msg
         }
+        catch (err: U8_OverflowError) {
+            throw e.lang_error(ctx.path, "context", err.msg)
+        }
         return offset
     }
 
@@ -561,6 +564,9 @@ Arena := struct {
         }
         catch (err: I64_OverflowError) {
             throw err.msg
+        }
+        catch (err: U8_OverflowError) {
+            throw e.lang_error(ctx.path, "context", err.msg)
         }
 
         return result
