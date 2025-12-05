@@ -2160,22 +2160,26 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
         Enum(EnumVal),
         Struct { offset: usize, type_name: String, was_passed_by_ref: bool },
     }
-    let mut collected_mut_args: Vec<(String, MutArgValue)> = Vec::new();
+    struct CollectedMutArg {
+        source_name: String,
+        value: MutArgValue,
+    }
+    let mut collected_mut_args: Vec<CollectedMutArg> = Vec::new();
 
     for (arg_name, source_name, value_type, _) in &mut_args {
         let was_passed_by_ref = pass_by_ref_params.contains(arg_name);
         match value_type {
             ValueType::TCustom(ref type_name) if type_name == "I64" => {
                 let val = Arena::get_i64(context, arg_name, e)?;
-                collected_mut_args.push((source_name.clone(), MutArgValue::I64(val)));
+                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::I64(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "U8" => {
                 let val = Arena::get_u8(context, arg_name, e)?;
-                collected_mut_args.push((source_name.clone(), MutArgValue::U8(val)));
+                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::U8(val) });
             },
             ValueType::TCustom(ref type_name) if type_name == "Str" => {
                 let val = string_from_context(context, arg_name, e)?;
-                collected_mut_args.push((source_name.clone(), MutArgValue::Str(val)));
+                collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Str(val) });
             },
             ValueType::TCustom(ref type_name) => {
                 let symbol_info = match context.scope_stack.lookup_symbol(type_name) {
@@ -2189,15 +2193,15 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                 match &symbol_info.value_type {
                     ValueType::TType(TTypeDef::TEnumDef) => {
                         let val = Arena::get_enum(context, arg_name, e)?;
-                        collected_mut_args.push((source_name.clone(), MutArgValue::Enum(val)));
+                        collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Enum(val) });
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         if let Some(offset) = context.scope_stack.lookup_var(arg_name) {
-                            collected_mut_args.push((source_name.clone(), MutArgValue::Struct {
+                            collected_mut_args.push(CollectedMutArg { source_name: source_name.clone(), value: MutArgValue::Struct {
                                 offset,
                                 type_name: type_name.clone(),
                                 was_passed_by_ref,
-                            }));
+                            }});
                         } else {
                             context.scope_stack.frames.pop();
                             context.path = saved_path;
@@ -2227,24 +2231,24 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
     context.path = saved_path.clone();
 
     // Write collected mut_args values to caller's frame (now on top)
-    for (source_name, value) in collected_mut_args {
-        match value {
+    for c in collected_mut_args {
+        match c.value {
             MutArgValue::I64(val) => {
-                Arena::insert_i64(context, &source_name, &val.to_string(), e)?;
+                Arena::insert_i64(context, &c.source_name, &val.to_string(), e)?;
             },
             MutArgValue::U8(val) => {
-                Arena::insert_u8(context, &source_name, &val.to_string(), e)?;
+                Arena::insert_u8(context, &c.source_name, &val.to_string(), e)?;
             },
             MutArgValue::Str(val) => {
-                Arena::insert_string(context, &source_name, &val, e)?;
+                Arena::insert_string(context, &c.source_name, &val, e)?;
             },
             MutArgValue::Enum(val) => {
-                Arena::insert_enum(context, &source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
+                Arena::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
             },
             MutArgValue::Struct { offset, type_name, was_passed_by_ref } => {
-                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(source_name.to_string(), offset);
+                context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
                 if !was_passed_by_ref {
-                    context.map_instance_fields(&type_name, &source_name, e)?;
+                    context.map_instance_fields(&type_name, &c.source_name, e)?;
                 }
             },
         }
