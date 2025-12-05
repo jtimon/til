@@ -154,9 +154,9 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
                             mut nested := Map.new(Str, Str)
                             nested = eval_struct_defaults(ctx, type_name, e)
                             // Iterate nested map and insert with prefix
-                            mut keys := nested.keys()
+                            mut keys := nested.keys
                             mut j := 0
-                            while j.lt(keys.len()) {
+                            while j.lt(nested.len()) {
                                 mut k := ""
                                 keys.get(j, k)
                                 mut v := ""
@@ -1503,7 +1503,19 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 dest_prefix := format(var_name, ".")
 
                                 lf2 := context.scope_stack.last_frame()
-                                keys_to_copy := lf2.arena_index.keys_with_prefix(source_prefix)
+                                // Build list of keys with prefix by iterating map.keys Vec
+                                mut keys_to_copy := Vec.new(Str)
+                                mut lf2_arena_keys := lf2.arena_index.keys
+                                mut ai := 0
+                                while ai.lt(lf2.arena_index.len()) {
+                                    mut akey := ""
+                                    lf2_arena_keys.get(ai, akey)
+                                    if akey.starts_with(source_prefix) {
+                                        keys_to_copy.push(akey.clone())
+                                    }
+                                    ai = ai.add(1)
+                                }
+                                catch (err_alloc: AllocError) { }
                                 mut ki := 0
                                 while ki.lt(keys_to_copy.len()) {
                                     mut src_key := ""
@@ -1516,7 +1528,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                         // found_key stays false - var not found
                                     }
                                     if found_key {
-                                        dest_key := src_key.replace(source_prefix, dest_prefix)
+                                        mut dest_key := src_key.replace(source_prefix, dest_prefix)
                                         mut lf3_idx := context.scope_stack.frames.len().sub(1)
                                         mut lf3 := ScopeFrame()
                                         context.scope_stack.frames.get(lf3_idx, lf3)
@@ -1526,8 +1538,19 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     ki = ki.add(1)
                                 }
 
-                                // Also copy symbol mappings for all fields
-                                symbol_keys_to_copy := context.scope_stack.get_symbols_with_prefix(source_prefix)
+                                // Also copy symbol mappings for all fields - build list with prefix
+                                mut symbol_keys_to_copy := Vec.new(Str)
+                                mut lf2_sym_keys := lf2.symbols.keys
+                                mut sai := 0
+                                while sai.lt(lf2.symbols.len()) {
+                                    mut skey := ""
+                                    lf2_sym_keys.get(sai, skey)
+                                    if skey.starts_with(source_prefix) {
+                                        symbol_keys_to_copy.push(skey.clone())
+                                    }
+                                    sai = sai.add(1)
+                                }
+                                catch (err_alloc2: AllocError) { }
                                 mut si := 0
                                 while si.lt(symbol_keys_to_copy.len()) {
                                     mut sym_src_key := ""
@@ -1904,45 +1927,59 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             offset = context.scope_stack.lookup_var(source_var)
                             function_frame.arena_index.insert(arg.name, offset)
 
-                            // Transfer all related entries
+                            // Transfer all related entries - iterate over map keys and filter by prefix
                             prefix := format(source_var, ".")
                             lf6 := context.scope_stack.last_frame()
-                            keys_to_transfer := lf6.arena_index.keys_with_prefix(prefix)
+                            // Build list of keys to transfer by iterating map.keys Vec
+                            mut keys_to_transfer := Vec.new(Str)
+                            mut arena_keys := lf6.arena_index.keys
                             mut ki := 0
-                            while ki.lt(keys_to_transfer.len()) {
+                            while ki.lt(lf6.arena_index.len()) {
                                 mut key := ""
-                                keys_to_transfer.get(ki, key)
+                                arena_keys.get(ki, key)
+                                if key.starts_with(prefix) {
+                                    keys_to_transfer.push(key.clone())
+                                }
+                                ki = ki.add(1)
+                            }
+
+                            // Now process the matching keys
+                            mut ki2 := 0
+                            while ki2.lt(keys_to_transfer.len()) {
+                                mut key := ""
+                                keys_to_transfer.get(ki2, key)
                                 mut field_offset := 0
                                 mut have_field_offset := false
                                 field_offset = context.scope_stack.lookup_var(key)
                                 have_field_offset = true
                                 catch (err_var: KeyNotFoundError) { }
                                 if have_field_offset {
-                                    new_key := key.replace(source_var, arg.name)
+                                    mut new_key := key.replace(source_var, arg.name)
                                     function_frame.arena_index.insert(new_key, field_offset)
                                     mut field_sym := SymbolInfo()
                                     field_sym = context.scope_stack.lookup_symbol(key)
                                     function_frame.symbols.insert(new_key, field_sym.clone())
                                     catch (err_sym: KeyNotFoundError) { }
                                 }
-                                ki = ki.add(1)
+                                ki2 = ki2.add(1)
                             }
 
                             // Remove from caller's context (ownership transferred)
                             _ := context.scope_stack.remove_var(source_var)
                             _ := context.scope_stack.remove_symbol(source_var)
-                            mut ki2 := 0
-                            while ki2.lt(keys_to_transfer.len()) {
+                            mut ki3 := 0
+                            while ki3.lt(keys_to_transfer.len()) {
                                 mut key := ""
-                                keys_to_transfer.get(ki2, key)
+                                keys_to_transfer.get(ki3, key)
                                 _ := context.scope_stack.remove_var(key)
                                 _ := context.scope_stack.remove_symbol(key)
-                                ki2 = ki2.add(1)
+                                ki3 = ki3.add(1)
                             }
 
                             param_index = param_index.add(1)
                             own_handled = true
                             catch (err1: KeyNotFoundError) { }
+                            catch (err_alloc: AllocError) { }
                         case:
                         }
                     }
