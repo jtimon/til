@@ -2377,6 +2377,16 @@ get_func_def_for_fcall_with_expr := proc(context: Context, mut fcall_expr: Expr)
                 // Non-Identifier case, skip
             }
         }
+        // Check if this is actually a field being called as a function
+        mut is_field := true
+        value_type := get_value_type(context, func_expr)
+        catch (err: Str) {
+            is_field = false
+        }
+        if is_field {
+            throw func_expr.error(context.path, "type", format(
+                "Cannot call '", combined_name, "', it is not a function, it is '", value_type_to_str(value_type), "'"))
+        }
         throw func_expr.lang_error(context.path, "type", "Could not find function definition")
     case:
         throw func_expr.lang_error(context.path, "type", "Expected Identifier node type")
