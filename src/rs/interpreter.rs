@@ -2164,12 +2164,17 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
 
     // Collect mut_args values BEFORE popping the function frame
     // (we need to read from the function frame where the args live)
+    struct MutArgStructData {
+        offset: usize,
+        type_name: String,
+        was_passed_by_ref: bool,
+    }
     enum MutArgValue {
         I64(i64),
         U8(u8),
         Str(String),
         Enum(EnumVal),
-        Struct { offset: usize, type_name: String, was_passed_by_ref: bool },
+        Struct(MutArgStructData),
     }
     struct CollectedMutArg {
         source_name: String,
@@ -2208,11 +2213,11 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
                     },
                     ValueType::TType(TTypeDef::TStructDef) => {
                         if let Some(offset) = context.scope_stack.lookup_var(&m.arg_name) {
-                            collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Struct {
+                            collected_mut_args.push(CollectedMutArg { source_name: m.source_name.clone(), value: MutArgValue::Struct(MutArgStructData {
                                 offset,
                                 type_name: type_name.clone(),
                                 was_passed_by_ref,
-                            }});
+                            })});
                         } else {
                             context.scope_stack.frames.pop();
                             context.path = saved_path;
@@ -2256,7 +2261,7 @@ fn eval_user_func_proc_call(func_def: &SFuncDef, name: &str, context: &mut Conte
             MutArgValue::Enum(val) => {
                 Arena::insert_enum(context, &c.source_name, &val.enum_type, &format!("{}.{}", val.enum_type, val.enum_name), e)?;
             },
-            MutArgValue::Struct { offset, type_name, was_passed_by_ref } => {
+            MutArgValue::Struct(MutArgStructData { offset, type_name, was_passed_by_ref }) => {
                 context.scope_stack.frames.last_mut().unwrap().arena_index.insert(c.source_name.to_string(), offset);
                 if !was_passed_by_ref {
                     context.map_instance_fields(&type_name, &c.source_name, e)?;
