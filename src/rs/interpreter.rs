@@ -17,6 +17,88 @@ use crate::rs::ext;
 // Manages arena, memory allocation, and actual program execution.
 
 const RETURN_INSTANCE_NAME : &str = "___temp_return_val_";
+const SKIP_AST             : bool = true;
+
+// ---------- AST to string conversion
+
+fn params_to_ast_str(end_line: bool, e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    for se in e.params.iter() {
+        if end_line {
+            ast_str.push_str(&format!("{}\n", to_ast_str(&se)));
+        } else {
+            ast_str.push_str(&format!("{} ", to_ast_str(&se)));
+        }
+    }
+    return ast_str;
+}
+
+// TODO test this function again and maintain it, but in the self hosting side directly, perhaps
+fn to_ast_str(e: &Expr) -> String {
+    let mut ast_str = "".to_string();
+    match &e.node_type {
+        NodeType::LLiteral(Literal::Number(li64)) => {
+            return li64.to_string();
+        },
+        NodeType::LLiteral(Literal::Str(lstring)) => {
+            return lstring.to_string();
+        },
+        NodeType::DefaultCase => {
+            return "default_case".to_string();
+        }
+        NodeType::Body => {
+            return params_to_ast_str(true, &e)
+        },
+        // NodeType::Declaration(decl) => {
+        //     ast_str.push_str(&format!("(def {} {})", decl.name, to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::Assignment(var_name) => {
+        //     ast_str.push_str(&format!("(set {} {})", var_name, to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        NodeType::FuncDef(func_def) => {
+            match func_def.function_type {
+                FunctionType::FTFunc => return "(func)".to_string(),
+                FunctionType::FTProc => return "(proc)".to_string(),
+                FunctionType::FTMacro => return "(macro)".to_string(),
+                FunctionType::FTFuncExt => return "(ext_func)".to_string(),
+                FunctionType::FTProcExt => return "(ext_proc)".to_string(),
+            }
+        },
+        NodeType::EnumDef(_) => {
+            return "(enum)".to_string();
+        },
+        NodeType::StructDef(_) => {
+            return "(struct)".to_string();
+        },
+        NodeType::Identifier(id_name) => {
+            return id_name.clone();
+        },
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(&e);
+            ast_str.push_str(&format!("({} {})", f_name, params_to_ast_str(false, &e)));
+            return ast_str;
+        },
+        NodeType::LLiteral(Literal::List(_)) => {
+            ast_str.push_str(&format!("({})", params_to_ast_str(false, &e)));
+            return ast_str;
+        },
+        // NodeType::If => {
+        //     ast_str.push_str(&format!("(if {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::While => {
+        //     ast_str.push_str(&format!("(while {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        // NodeType::Switch => {
+        //     ast_str.push_str(&format!("(switch {})", to_ast_str(&e.get(0))));
+        //     return ast_str;
+        // },
+        _ => todo!(),
+    }
+}
 
 use crate::rs::arena::{Arena, ArenaMapping, SymbolEntry};
 
@@ -2452,6 +2534,9 @@ pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut 
             return Err(format!("{}:{}", &path, error_string));
         },
     };
+    if !SKIP_AST {
+        println!("AST: \n{}", to_ast_str(&e));
+    }
 
     // Skip init and type checking if this is Phase 2 of a two-phase import
     // (declarations already registered in Phase 1)
