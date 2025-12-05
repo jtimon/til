@@ -528,10 +528,10 @@ proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws St
 
     catch (err: AllocError) { throw err.msg }
     run_file(path, main_args)
-    return EvalResult.new("")
     catch (error_string: Str) {
         throw e.error(context.path, "eval", format("While running file ", path, "\n", error_string))
     }
+    return EvalResult.new("")
 }
 
 // import_path_to_file_path is defined in init.til
@@ -558,12 +558,12 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
 
     // Get stored AST from init phase
     mut ast := Expr()
-    mut found := false
-    if context.imported_asts.contains_key(path) {
-        ast = context.imported_asts.get(path)
-        found = true
+    if not(context.imported_asts.contains_key(path)) {
+        throw e.error(context.path, "eval", format(
+            "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }
-    if not(found) {
+    ast = context.imported_asts.get(path)
+    catch (err: KeyNotFoundError) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }

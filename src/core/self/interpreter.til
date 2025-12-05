@@ -72,6 +72,8 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
     u8_zero := U8.from_i64(0)
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return not(u8_val.eq(u8_zero))
 }
 
@@ -217,6 +219,8 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     // Cache the template offset
     arena.default_instances.insert(struct_type, template_offset)
     catch (err: DuplicatedKeyError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return template_offset
 }
@@ -477,6 +481,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -688,8 +693,6 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                         nested_result := eval_expr(context, payload_expr)
                                         if nested_result.is_throw {
-                                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-                                            catch (err: KeyNotFoundError) { throw err.msg }
                                             return nested_result
                                         }
 
@@ -706,8 +709,6 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                     nested_result := eval_expr(context, payload_expr)
                                     if nested_result.is_throw {
-                                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                                        catch (err: KeyNotFoundError) { throw err.msg }
                                         return nested_result
                                     }
 
@@ -779,12 +780,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
     mut new_fcall_e := e.clone()
     mut func_def := SFuncDef()
-    mut has_func_def := false
+    func_def = get_func_def_for_fcall_with_expr(context, new_fcall_e)
     catch (err: KeyNotFoundError) {
-        func_def = get_func_def_for_fcall_with_expr(context, new_fcall_e)
-        has_func_def = true
-    }
-    if not(has_func_def) {
         throw e.lang_error(context.path, "eval", "eval_func_proc_call: Instantiations should be handled already")
     }
     if func_def.is_ext() {
@@ -798,11 +795,9 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
             throw e.lang_error(context.path, "eval", "Somehow function without name")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return eval_core_func_proc_call(last_name, context, new_fcall_e, is_proc)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
@@ -812,9 +807,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr) returns EvalResult throws Str {
     inner_e := e.get(0)
     mut value_type := ValueType.TCustom("")
-    catch (err: KeyNotFoundError) {
-        value_type = get_value_type(context, inner_e)
-    }
+    value_type = get_value_type(context, inner_e)
     catch (err: Str) {
         throw e.lang_error(context.path, "eval", err)
     }
@@ -863,41 +856,29 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         } else if s.eq("I64") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         } else if s.eq("U8") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         } else if s.eq("Str") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         } else {
             // Custom type (not I64/U8/Str)
@@ -941,14 +922,13 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         case NodeType.Identifier(potentially_struct_name):
                             if first_param.params.len().eq(0) {
                                 mut is_struct := false
+                                _ := context.scope_stack.lookup_struct(potentially_struct_name)
+                                is_struct = true
                                 catch (err: KeyNotFoundError) {
-                                    _ := context.scope_stack.lookup_struct(potentially_struct_name)
-                                    is_struct = true
+                                    // is_struct stays false - struct not found
                                 }
                                 if is_struct {
                                     insert_struct_instance(context, declaration.name, custom_type_name, e)
-                                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                                    catch (err: KeyNotFoundError) { throw err.msg }
                                     return EvalResult.new("")
                                 }
                             }
@@ -959,8 +939,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 // otherwise continue, it's a function that returns a struct
                 result := eval_expr(context, inner_e)
                 if result.is_throw {
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     return result
                 }
                 expr_result_str := result.value
@@ -977,10 +955,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         Arena.copy_fields(context, custom_type_name, expr_result_str, declaration.name, e)
                     } else {
                         // Share offset for temp return value (zero-copy transfer)
-                        mut offset := 0
-                        catch (err: KeyNotFoundError) {
-                            offset = context.scope_stack.lookup_var(expr_result_str)
-                        }
+                        offset := context.scope_stack.lookup_var(expr_result_str)
                         catch (err: KeyNotFoundError) {
                             throw e.lang_error(context.path, "eval", format("Could not find arena index for '", expr_result_str, "'"))
                         }
@@ -993,25 +968,20 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     }
                 } else {
                     // Share offset for non-mut declaration (zero-copy transfer)
-                    mut offset := 0
-                    catch (err: KeyNotFoundError) {
-                        offset = context.scope_stack.lookup_var(expr_result_str)
-                    }
+                    offset2 := context.scope_stack.lookup_var(expr_result_str)
                     catch (err: KeyNotFoundError) {
                         throw e.lang_error(context.path, "eval", format("Could not find arena index for '", expr_result_str, "'"))
                     }
                     mut last_idx2 := context.scope_stack.frames.len().sub(1)
                     mut last_frame2 := ScopeFrame()
                     context.scope_stack.frames.get(last_idx2, last_frame2)
-                    last_frame2.arena_index.insert(declaration.name, offset)
+                    last_frame2.arena_index.insert(declaration.name, offset2)
                     context.scope_stack.frames.set(last_idx2, last_frame2)
                     context.map_instance_fields(custom_type_name, declaration.name, e)
                 }
             } else {
                 throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(custom_symbol.value_type), "'. Only 'enum' and 'struct' custom types allowed."))
             }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         }
     case ValueType.TType(TTypeDef.TEnumDef):
@@ -1019,8 +989,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         case NodeType.EnumDef(enum_def):
             context.scope_stack.declare_enum(declaration.name, enum_def.clone())
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected enum definition."))
@@ -1038,12 +1006,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 if not(member_decl.is_mut) {
                     combined_name := format(declaration.name, ".", member_decl.name)
                     mut default_value := Expr()
-                    mut has_default := false
+                    struct_def.default_values.get(member_decl.name, default_value)
                     catch (err: KeyNotFoundError) {
-                        struct_def.default_values.get(member_decl.name, default_value)
-                        has_default = true
-                    }
-                    if not(has_default) {
                         throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' expected to have default value."))
                     }
 
@@ -1057,9 +1021,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     case:
                     }
                     if is_infer {
-                        catch (err: KeyNotFoundError) {
-                            member_value_type = get_value_type(context, default_value)
-                        }
+                        member_value_type = get_value_type(context, default_value)
                         catch (err: Str) {
                             throw e.lang_error(context.path, "eval", err)
                         }
@@ -1083,8 +1045,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     case ValueType.TCustom(type_name):
                         result := eval_expr(context, default_value)
                         if result.is_throw {
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-                            catch (err: KeyNotFoundError) { throw err.msg }
                             return result
                         }
                         expr_result_str := result.value
@@ -1115,8 +1075,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
             }
             // Eagerly create default instance template for this struct type
             create_default_instance(context, declaration.name, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot declare ", declaration.name, " of type ", enum_to_str(declaration.value_type), ", expected struct definition."))
@@ -1126,8 +1084,6 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(declaration.name, func_def.clone())
             context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         case:
             throw e.error(context.path, "eval", format("Cannot declare '", declaration.name, "' of type '", value_type_to_str(declaration.value_type), "', expected '", value_type_to_str(value_type), "' definition."))
@@ -1141,6 +1097,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1154,10 +1111,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         }
     }
 
-    mut symbol_info := SymbolInfo()
-    catch (err: KeyNotFoundError) {
-        symbol_info = context.scope_stack.lookup_symbol(base_var_name)
-    }
+    symbol_info := context.scope_stack.lookup_symbol(base_var_name)
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Symbol '", base_var_name, "' not found in context"))
     }
@@ -1174,10 +1128,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
     }
 
     inner_e := e.get(0)
-    mut value_type := ValueType.TCustom("")
-    catch (err: KeyNotFoundError) {
-        value_type = get_value_type(context, inner_e)
-    }
+    value_type := get_value_type(context, inner_e)
     catch (err: Str) {
         throw e.lang_error(context.path, "eval", err)
     }
@@ -1189,8 +1140,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         } else if s.eq("I64") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
@@ -1198,8 +1147,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         } else if s.eq("U8") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
@@ -1207,8 +1154,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         } else if s.eq("Str") {
             result := eval_expr(context, inner_e)
             if result.is_throw {
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return result
             }
             expr_result_str := result.value
@@ -1216,10 +1161,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         } else {
             // Custom type
             custom_type_name := s
-            mut custom_symbol_info := SymbolInfo()
-            catch (err: KeyNotFoundError) {
-                custom_symbol_info = context.scope_stack.lookup_symbol(custom_type_name)
-            }
+            custom_symbol_info := context.scope_stack.lookup_symbol(custom_type_name)
             catch (err: KeyNotFoundError) {
                 throw inner_e.lang_error(context.path, "eval", format("Unknown custom type '", custom_type_name, "'"))
             }
@@ -1228,8 +1170,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
             case ValueType.TType(TTypeDef.TEnumDef):
                 result := eval_expr(context, inner_e)
                 if result.is_throw {
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     return result
                 }
                 expr_result_str := result.value
@@ -1237,8 +1177,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
             case ValueType.TType(TTypeDef.TStructDef):
                 result := eval_expr(context, inner_e)
                 if result.is_throw {
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     return result
                 }
                 expr_result_str := result.value
@@ -1247,8 +1185,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                 throw inner_e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' of custom type '", custom_type_name, "' of value type '", value_type_to_str(custom_symbol_info.value_type), "'."))
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return EvalResult.new("")
     case ValueType.TType(TTypeDef.TStructDef):
         throw e.todo_error(context.path, "eval", format("Cannot assign '", var_name, "' of type '", value_type_to_str(value_type), "'"))
@@ -1256,8 +1192,6 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(var_name, func_def.clone())
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
         case:
             throw e.lang_error(context.path, "eval", format("Cannot assign '", var_name, "' to function type '", value_type_to_str(value_type), "'"))
@@ -1282,39 +1216,26 @@ eval_identifier_expr_struct_member := proc(name: Str, inner_name: Str, mut conte
         combined := format(name, ".", inner_name)
         if custom_type_name.eq("I64") {
             result := Arena.get_i64(context, combined, inner_e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(I64.to_str(result))
         } else if custom_type_name.eq("U8") {
             result := Arena.get_u8(context, combined, inner_e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(U8.to_str(result))
         } else if custom_type_name.eq("Str") {
             result := string_from_context(context, combined, inner_e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(result)
         } else {
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(combined)
         }
     case:
         throw inner_e.lang_error(context.path, "eval", format("struct '", name, "' has no const (static) member '", inner_name, "' of struct value type '", value_type_to_str(member_decl.value_type), "'"))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
 eval_identifier_expr_struct := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
-    mut struct_def := StructDef()
-    catch (err: KeyNotFoundError) {
-        struct_def = context.scope_stack.lookup_struct(name)
-    }
+    struct_def := context.scope_stack.lookup_struct(name)
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Struct '", name, "' not found in context"))
     }
@@ -1322,24 +1243,17 @@ eval_identifier_expr_struct := proc(name: Str, mut context: Context, e: Expr) re
     switch inner_e.node_type {
     case NodeType.Identifier(inner_name):
         member_decl := struct_def.get_member_or_err(inner_name, name, context.path, e)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return eval_identifier_expr_struct_member(name, inner_name, context, inner_e, member_decl)
     case:
         throw e.lang_error(context.path, "eval", format("identifier '", name, "' should only have identifiers inside."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
 eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_name: Str) returns EvalResult throws Str {
-    mut custom_symbol := SymbolInfo()
-    catch (err: KeyNotFoundError) {
-        custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-    }
+    custom_symbol := context.scope_stack.lookup_symbol(custom_type_name)
     catch (err: KeyNotFoundError) {
         throw e.lang_error(context.path, "eval", format("Argument '", name, "' is of undefined type ", custom_type_name, "."))
     }
@@ -1367,13 +1281,9 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 context.temp_enum_payload = EnumPayload.new(enum_val.payload.clone(), enum_val.payload_type)
             }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return EvalResult.new(format(custom_type_name, ".", enum_val.enum_name))
     case ValueType.TType(TTypeDef.TStructDef):
         if e.params.len().eq(0) {
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(name)
         }
 
@@ -1389,19 +1299,13 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                 case ValueType.TType(TTypeDef.TStructDef):
                     throw inner_e.todo_error(context.path, "eval", format("'", current_name, "': StructDef cannot be a field yet"))
                 case ValueType.TCustom(curr_type_name):
-                    mut inner_custom_symbol := SymbolInfo()
-                    catch (err: KeyNotFoundError) {
-                        inner_custom_symbol = context.scope_stack.lookup_symbol(curr_type_name)
-                    }
+                    inner_custom_symbol := context.scope_stack.lookup_symbol(curr_type_name)
                     catch (err: KeyNotFoundError) {
                         throw inner_e.lang_error(context.path, "eval", format("Custom type '", curr_type_name, "' not found in symbols"))
                     }
                     switch inner_custom_symbol.value_type {
                     case ValueType.TType(TTypeDef.TStructDef):
-                        mut struct_def := StructDef()
-                        catch (err: KeyNotFoundError) {
-                            struct_def = context.scope_stack.lookup_struct(curr_type_name)
-                        }
+                        struct_def := context.scope_stack.lookup_struct(curr_type_name)
                         catch (err: KeyNotFoundError) {
                             throw e.lang_error(context.path, "eval", format("Struct '", curr_type_name, "' not found in context"))
                         }
@@ -1433,25 +1337,16 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("I64") {
                 result := Arena.get_i64(context, current_name, e)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return EvalResult.new(I64.to_str(result))
             } else if curr_type_name.eq("U8") {
                 result := Arena.get_u8(context, current_name, e)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return EvalResult.new(U8.to_str(result))
             } else if curr_type_name.eq("Str") {
                 result := string_from_context(context, current_name, e)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return EvalResult.new(result)
             } else {
                 curr_type_name_str := value_type_to_str(current_type)
-                mut custom_symbol_info := SymbolInfo()
-                catch (err: KeyNotFoundError) {
-                    custom_symbol_info = context.scope_stack.lookup_symbol(curr_type_name_str)
-                }
+                custom_symbol_info := context.scope_stack.lookup_symbol(curr_type_name_str)
                 catch (err: KeyNotFoundError) {
                     throw last_inner_e.lang_error(context.path, "eval", format("Unknown custom type '", curr_type_name_str, "'"))
                 }
@@ -1472,12 +1367,8 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                             context.temp_enum_payload = EnumPayload.new(enum_val.payload.clone(), enum_val.payload_type)
                         }
                     }
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     return EvalResult.new(format(curr_type_name_str, ".", enum_val.enum_name))
                 case ValueType.TType(TTypeDef.TStructDef):
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: KeyNotFoundError) { throw err.msg }
                     return EvalResult.new(current_name)
                 case:
                     throw last_inner_e.todo_error(context.path, "eval", format("Cannot access '", current_name, "'. Fields of custom type '", curr_type_name_str, "' not implemented"))
@@ -1489,37 +1380,23 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
     case:
         throw e.lang_error(context.path, "eval", format("'", name, "' of type: '", custom_type_name, "': custom types are supposed to be struct or enum, found '", value_type_to_str(custom_symbol.value_type), "'."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
 eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns EvalResult throws Str {
-    mut symbol_info := SymbolInfo()
-    mut symbol_found := false
+    symbol_info := context.scope_stack.lookup_symbol(name)
     catch (err: KeyNotFoundError) {
-        symbol_info = context.scope_stack.lookup_symbol(name)
-        symbol_found = true
-    }
-
-    if not(symbol_found) {
         throw e.lang_error(context.path, "eval", format("Undefined symbol '", name, "'. This should have been caught in the compile phase."))
     }
 
     switch symbol_info.value_type {
     case ValueType.TFunction(FunctionType.FTFunc):
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return EvalResult.new(name)
     case ValueType.TFunction(FunctionType.FTProc):
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return EvalResult.new(name)
     case ValueType.TFunction(FunctionType.FTMacro):
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return EvalResult.new(name)
     case ValueType.TType(TTypeDef.TEnumDef):
         inner_e := e.get(0)
@@ -1527,49 +1404,33 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
         case NodeType.Identifier(inner_name):
             // TODO check that inner_name is in enum_def
             // TODO check if that inner_name has an optional type
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(format(name, ".", inner_name))
         case:
             throw e.lang_error(context.path, "eval", format("identifier '", name, "' should only have identifiers inside."))
         }
     case ValueType.TType(TTypeDef.TStructDef):
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        catch (err: KeyNotFoundError) { throw err.msg }
         return eval_identifier_expr_struct(name, context, e)
     case ValueType.TCustom(s):
         if s.eq(INFER_TYPE) {
             throw e.lang_error(context.path, "eval", format("Can't infer the type of identifier '", name, "'."))
         } else if s.eq("I64") {
             val := Arena.get_i64(context, name, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(I64.to_str(val))
         } else if s.eq("U8") {
             val := Arena.get_u8(context, name, e)
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new(U8.to_str(val))
         } else if s.eq("Str") {
             if e.params.len().eq(0) {
                 val := string_from_context(context, name, e)
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
-                catch (err: KeyNotFoundError) { throw err.msg }
                 return EvalResult.new(val)
             }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return eval_custom_expr(e, context, name, s)
         } else {
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-            catch (err: KeyNotFoundError) { throw err.msg }
             return eval_custom_expr(e, context, name, s)
         }
     case:
         throw e.todo_error(context.path, "eval", format("Can't use identifier '", name, "'. Type ", value_type_to_str(symbol_info.value_type), " not supported yet."))
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
@@ -1624,10 +1485,10 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                             // Map instance fields for the error variable
                             // First try to find the arena index for proper field mapping
                             mut found_offset := false
-                            mut offset := 0
+                            offset := context.scope_stack.lookup_var(throw_result.value)
+                            found_offset = true
                             catch (err: KeyNotFoundError) {
-                                offset = context.scope_stack.lookup_var(throw_result.value)
-                                found_offset = true
+                                // found_offset stays false - var not found
                             }
 
                             if found_offset {
@@ -1648,15 +1509,20 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     mut src_key := ""
                                     keys_to_copy.get(ki, src_key)
                                     mut src_offset := 0
+                                    mut found_key := false
+                                    src_offset = context.scope_stack.lookup_var(src_key)
+                                    found_key = true
                                     catch (err: KeyNotFoundError) {
-                                        src_offset = context.scope_stack.lookup_var(src_key)
+                                        // found_key stays false - var not found
                                     }
-                                    dest_key := src_key.replace(source_prefix, dest_prefix)
-                                    mut lf3_idx := context.scope_stack.frames.len().sub(1)
-                                    mut lf3 := ScopeFrame()
-                                    context.scope_stack.frames.get(lf3_idx, lf3)
-                                    lf3.arena_index.insert(dest_key, src_offset)
-                                    context.scope_stack.frames.set(lf3_idx, lf3)
+                                    if found_key {
+                                        dest_key := src_key.replace(source_prefix, dest_prefix)
+                                        mut lf3_idx := context.scope_stack.frames.len().sub(1)
+                                        mut lf3 := ScopeFrame()
+                                        context.scope_stack.frames.get(lf3_idx, lf3)
+                                        lf3.arena_index.insert(dest_key, src_offset)
+                                        context.scope_stack.frames.set(lf3_idx, lf3)
+                                    }
                                     ki = ki.add(1)
                                 }
 
@@ -1667,11 +1533,16 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                     mut sym_src_key := ""
                                     symbol_keys_to_copy.get(si, sym_src_key)
                                     mut src_symbol := SymbolInfo()
+                                    mut found_sym := false
+                                    src_symbol = context.scope_stack.lookup_symbol(sym_src_key)
+                                    found_sym = true
                                     catch (err: KeyNotFoundError) {
-                                        src_symbol = context.scope_stack.lookup_symbol(sym_src_key)
+                                        // found_sym stays false - symbol not found
                                     }
-                                    sym_dest_key := sym_src_key.replace(source_prefix, dest_prefix)
-                                    context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone())
+                                    if found_sym {
+                                        sym_dest_key := sym_src_key.replace(source_prefix, dest_prefix)
+                                        context.scope_stack.declare_symbol(sym_dest_key, src_symbol.clone())
+                                    }
                                     si = si.add(1)
                                 }
                             } else {
@@ -1812,6 +1683,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
     catch (err: KeyNotFoundError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -2979,6 +2851,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
 
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { throw err.msg }
+    catch (err: KeyNotFoundError) { throw err.msg }
 
     // Frame already popped above
     return EvalResult.new(result_str) // CLEANUP SITE 7: Return normal value (final return)
