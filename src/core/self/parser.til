@@ -10,6 +10,12 @@ INFER_TYPE := "auto"
 
 SEnumDef := struct {
     mut enum_map: Map = Map.new(Str, ValueType)
+
+    clone := func(self: SEnumDef) returns SEnumDef throws AllocError {
+        mut result := SEnumDef()
+        result.enum_map = self.enum_map.clone()
+        return result
+    }
 }
 
 Declaration := struct {
@@ -18,6 +24,16 @@ Declaration := struct {
     mut is_mut: Bool = false
     mut is_copy: Bool = false
     mut is_own: Bool = false
+
+    clone := func(self: Declaration) returns Declaration throws AllocError {
+        mut result := Declaration()
+        result.name = self.name.clone()
+        result.value_type = self.value_type
+        result.is_mut = self.is_mut
+        result.is_copy = self.is_copy
+        result.is_own = self.is_own
+        return result
+    }
 }
 
 // TODO: PatternInfo is a workaround for homogeneity with TIL's lack of tuple syntax
@@ -43,6 +59,17 @@ SFuncDef := struct {
     mut throw_types: Vec = Vec.new(ValueType)   // "throws" conflicts with TIL keyword
     mut body: Vec = Vec.new(Expr)
     mut source_path: Str = ""  // Path to the file where this function was defined
+
+    clone := func(self: SFuncDef) returns SFuncDef throws AllocError {
+        mut result := SFuncDef()
+        result.function_type = self.function_type
+        result.args = self.args.clone()
+        result.return_types = self.return_types.clone()
+        result.throw_types = self.throw_types.clone()
+        result.body = self.body.clone()
+        result.source_path = self.source_path.clone()
+        return result
+    }
 
     is_proc := func(self: SFuncDef) returns Bool {
         ft := self.function_type
@@ -72,6 +99,13 @@ SFuncDef := struct {
 SStructDef := struct {
     mut members: Vec = Vec.new(Declaration)
     mut default_values: Map = Map.new(Str, Expr)
+
+    clone := func(self: SStructDef) returns SStructDef throws AllocError {
+        mut result := SStructDef()
+        result.members = self.members.clone()
+        result.default_values = self.default_values.clone()
+        return result
+    }
 
     // Helper to find a member by name
     get_member := func(self: SStructDef, member_name: Str) returns Declaration throws Str {

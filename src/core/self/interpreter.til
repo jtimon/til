@@ -849,7 +849,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
 
         if decl_is_u8 {
             if value_is_i64 {
-                value_type = declaration.value_type.clone()
+                value_type = declaration.value_type
             }
         } else if not(enum_to_str(value_type).eq(enum_to_str(declaration.value_type))) {
             throw e.lang_error(context.path, "eval", format("'", declaration.name, "' declared of type ", value_type_to_str(declaration.value_type), " but initialized to type ", value_type_to_str(value_type), "."))
@@ -872,7 +872,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 return result
             }
             expr_result_str := result.value
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: KeyNotFoundError) { throw err.msg }
@@ -885,7 +885,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 return result
             }
             expr_result_str := result.value
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: KeyNotFoundError) { throw err.msg }
@@ -898,7 +898,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 return result
             }
             expr_result_str := result.value
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             Arena.insert_primitive(context, declaration.name, value_type, expr_result_str, e)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: KeyNotFoundError) { throw err.msg }
@@ -906,7 +906,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         } else {
             // Custom type (not I64/U8/Str)
             custom_type_name := s
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             mut custom_symbol := SymbolInfo()
             catch (err: KeyNotFoundError) {
                 custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
@@ -1026,7 +1026,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         switch inner_e.node_type {
         case NodeType.EnumDef(enum_def):
             context.scope_stack.declare_enum(declaration.name, enum_def.clone())
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
@@ -1037,7 +1037,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         switch inner_e.node_type {
         case NodeType.StructDef(struct_def):
             context.scope_stack.declare_struct(declaration.name, struct_def.clone())
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             // Process struct members with default values
             mut mi := 0
             while mi.lt(struct_def.members.len()) {
@@ -1055,7 +1055,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         throw e.lang_error(context.path, "eval", format("Struct member '", declaration.name, ".", member_decl.name, "' expected to have default value."))
                     }
 
-                    mut member_value_type := member_decl.value_type.clone()
+                    mut member_value_type := member_decl.value_type
                     mut is_infer := false
                     switch member_decl.value_type {
                     case ValueType.TCustom(s2):
@@ -1117,7 +1117,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                         throw e.todo_error(context.path, "eval", format("Cannot declare '", declaration.name, ".", member_decl.name, "' of type '", value_type_to_str(member_decl.value_type), "'"))
                     }
 
-                    context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(member_decl.value_type.clone(), member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
+                    context.scope_stack.declare_symbol(combined_name, SymbolInfo.new(member_decl.value_type, member_decl.is_mut, member_decl.is_copy, member_decl.is_own))
                 }
                 mi = mi.add(1)
             }
@@ -1133,7 +1133,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
         switch inner_e.node_type {
         case NodeType.FuncDef(func_def):
             context.scope_stack.declare_func(declaration.name, func_def.clone())
-            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type.clone(), declaration.is_mut, declaration.is_copy, declaration.is_own))
+            context.scope_stack.declare_symbol(declaration.name, SymbolInfo.new(value_type, declaration.is_mut, declaration.is_copy, declaration.is_own))
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: KeyNotFoundError) { throw err.msg }
             return EvalResult.new("")
@@ -1406,7 +1406,7 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
                             throw e.lang_error(context.path, "eval", format("Struct '", curr_type_name, "' not found in context"))
                         }
                         member_decl := struct_def.get_member_or_err(inner_name, curr_type_name, context.path, inner_e)
-                        current_type = member_decl.value_type.clone()
+                        current_type = member_decl.value_type
                         current_name = format(current_name, ".", inner_name)
                     case ValueType.TType(TTypeDef.TEnumDef):
                         throw inner_e.lang_error(context.path, "eval", format("Enum '", current_name, "' does not support nested members"))
@@ -1711,7 +1711,7 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                             dst_field := format(var_name, ".", field_decl.name)
 
                                             // Add symbol for the field
-                                            context.scope_stack.declare_symbol(dst_field, SymbolInfo.new(field_decl.value_type.clone(), false, false, false))
+                                            context.scope_stack.declare_symbol(dst_field, SymbolInfo.new(field_decl.value_type, false, false, false))
 
                                             // Copy arena_index entry for the field
                                             mut field_offset := 0
@@ -1864,7 +1864,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         if not(params_consumed) {
             mut arg := Declaration()
             func_def.args.get(arg_i, arg)
-            function_frame.symbols.insert(arg.name, SymbolInfo.new(arg.value_type.clone(), arg.is_mut, arg.is_copy, arg.is_own))
+            function_frame.symbols.insert(arg.name, SymbolInfo.new(arg.value_type, arg.is_mut, arg.is_copy, arg.is_own))
 
             switch arg.value_type {
             case ValueType.TMulti(multi_value_type):
@@ -2102,7 +2102,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     }
                                     if offset_found {
                                         // Create symbol info for parameter using the resolved type
-                                        param_symbol := SymbolInfo.new(resolved_value_type.clone(), arg.is_mut, arg.is_copy, arg.is_own)
+                                        param_symbol := SymbolInfo.new(resolved_value_type, arg.is_mut, arg.is_copy, arg.is_own)
                                         function_frame.symbols.insert(arg.name.clone(), param_symbol)
                                         function_frame.arena_index.insert(arg.name.clone(), offset)
 
@@ -2318,7 +2318,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         }
 
                                         // Create symbol for parameter
-                                        function_frame.symbols.insert(arg.name.clone(), SymbolInfo.new(resolved_value_type.clone(), arg.is_mut, arg.is_copy, arg.is_own))
+                                        function_frame.symbols.insert(arg.name.clone(), SymbolInfo.new(resolved_value_type, arg.is_mut, arg.is_copy, arg.is_own))
 
                                         // Share the offset (pass-by-reference)
                                         function_frame.arena_index.insert(arg.name.clone(), src_offset)

@@ -311,6 +311,55 @@ my_func := func() returns T throws Str {
 }
 #+end_src
 
+* Clone Methods (derive(Clone) -> manual implementation)
+
+Rust uses ~#[derive(Clone)]~ to auto-generate clone methods. TIL has no derive macros,
+so clone methods must be written manually for each struct/enum that needs them.
+
+Rust:
+#+begin_src rust
+#[derive(Clone)]
+struct MyStruct {
+    field1: String,
+    field2: i64,
+}
+#+end_src
+
+TIL:
+#+begin_src til
+MyStruct := struct {
+    mut field1: Str = ""
+    mut field2: I64 = 0
+
+    clone := func(self: MyStruct) returns MyStruct {
+        mut result := MyStruct()
+        result.field1 = self.field1.clone()
+        result.field2 = self.field2
+        return result
+    }
+}
+#+end_src
+
+Clone behavior by type:
+- Primitives (I64, Bool, U8): direct copy, no clone needed
+- Enums: direct copy, no clone needed (enums are value types in TIL)
+- Str: use ~.clone()~
+- Vec: use ~.clone()~ (deep copy)
+- Map: use ~.clone()~ (deep copy)
+- Structs: create clone method, copy each field appropriately
+
+IMPORTANT: Enums do NOT need clone in TIL. Unlike Rust where ~#[derive(Clone)]~ is needed,
+TIL enums are value types and are automatically copied on assignment. Just assign directly:
+
+#+begin_src til
+// Rust: let copy = my_enum.clone();
+// TIL: just assign - enums copy by value
+copy := my_enum
+#+end_src
+
+IMPORTANT: When a struct contains other structs that need cloning, call their
+clone methods recursively.
+
 * Summary
 
 The translation is mechanical:
