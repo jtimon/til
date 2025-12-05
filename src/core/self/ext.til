@@ -3,519 +3,451 @@ mode lib
 // External/Core functions for TIL interpreter
 // This module contains all built-in core functions and procedures.
 
-use crate::rs::init::Context;
-use crate::rs::parser::{
-    Expr, NodeType, Literal, ValueType,
-    get_combined_name,
-};
-use crate::rs::arena::Arena;
-use crate::rs::interpreter::{EvalResult, eval_expr, string_from_context};
-use std::io;
-use std::io::{ErrorKind, Write};
-use std::fs;
-use std::process::Command;
-use crate::{main_run, run_file};
+import("src.core.self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
+import("src.core.self.init")         // Context
+import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context
+import("src.core.self.arena")        // arena (global)
+// Note: std::io, std::fs, std::process::Command handled via ext functions
+// Note: main_run, run_file are in rstil.rs (main binary)
 
 // ---------- Helper functions
 
 // General whitelist for all modes
-make_allowed_commands := func() returns Array(Str) {
+make_allowed_commands := proc() returns Array {
     mut arr := Array.new(Str, 3)
     arr.set(0, "ls")
     arr.set(1, "mkdir")
     arr.set(2, "find")
+    catch (err: AllocError) { }
+    catch (err: IndexOutOfBoundsError) { }
     return arr
 }
 ALLOWED_COMMANDS := make_allowed_commands()
 
 // More restrictive whitelist for safe_script mode
-make_safe_commands := func() returns Array(Str) {
+make_safe_commands := proc() returns Array {
     mut arr := Array.new(Str, 2)
     arr.set(0, "ls")
     arr.set(1, "mkdir")
+    catch (err: AllocError) { }
+    catch (err: IndexOutOfBoundsError) { }
     return arr
 }
 SAFE_COMMANDS := make_safe_commands()
 
-/// Macro to evaluate an expression and propagate throws early
-macro_rules! eval_or_throw {
-    ($context:expr, $expr:expr) => {{
-        let result = eval_expr($context, $expr)?;
-        if result.is_throw {
-            return Ok(result);
-        }
-        result.value
-    }};
-}
+// Note: Rust's eval_or_throw! macro is replaced by inline pattern:
+//   result := eval_expr(context, e.get(N))
+//   if result.is_throw { return result }
+//   // then use result.value
 
-/// Validates that a function/procedure call has the expected number of arguments.
-/// The e.params.len() includes the function name as the first parameter, so we subtract 1.
-fn validate_arg_count(path: &str, e: &Expr, func_name: &str, expected: usize, is_proc: bool) -> Result<(), String> {
-    let actual = e.params.len() - 1; // First param is function name
-    if actual != expected {
-        let func_type = if is_proc { "proc" } else { "func" };
-        let plural = if expected == 1 { "" } else { "s" };
-        return Err(e.lang_error(path, "eval", &format!(
-            "Core {} '{}' takes exactly {} argument{}",
-            func_type, func_name, expected, plural
-        )));
+// Validates that a function/procedure call has the expected number of arguments.
+// The e.params.len() includes the function name as the first parameter, so we subtract 1.
+validate_arg_count := proc(path: Str, e: Expr, func_name: Str, expected: I64, is_proc: Bool) throws Str {
+    actual := e.params.len().sub(1)  // First param is function name
+    if not(actual.eq(expected)) {
+        mut func_type := "func"
+        if is_proc { func_type = "proc" }
+        mut plural := "s"
+        if expected.eq(1) { plural = "" }
+        throw e.lang_error(path, "eval", format("Core ", func_type, " '", func_name, "' takes exactly ", expected.to_str(), " argument", plural))
     }
-    Ok(())
 }
 
-// ---------- Core functions - called from interpreter.rs dispatcher
+// Read a Str value from context (reads c_string and cap from arena)
+string_from_context := proc(context: Context, id: Str, e: Expr) returns Str throws Str {
+    // Read the c_string field (I64 pointer to string data in Arena)
+    c_string_ptr := Arena.get_i64(context, format(id, ".c_string"), e)
 
-pub fn func_loc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "loc", 0, false)?;
-    let file = context.path.clone();
-    let line = e.line;
-    let col = e.col;
+    // Read the cap field (I64 length)
+    length := Arena.get_i64(context, format(id, ".cap"), e)
 
-    Ok(EvalResult::new(&format!("{}:{}:{}:", file, line, col)))
+    // Bounds check
+    if c_string_ptr.add(length).gt(arena.memory.len()) {
+        throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
+    }
+
+    // Read string bytes from Arena and convert to String
+    mut result := ""
+    mut i := 0
+    while i.lt(length) {
+        mut byte := U8.from_i64(0)
+        arena.memory.get(c_string_ptr.add(i), byte)
+        result = format(result, Str.from_byte(byte))
+        i = i.add(1)
+    }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: U8_OverflowError) { throw err.msg }
+    return result
 }
 
-pub fn func_file(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_file", 0, false)?;
-    Ok(EvalResult::new(&context.path.clone()))
+// ---------- Core functions - called from interpreter dispatcher
+
+func_loc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "loc", 0, false)
+    file := context.path
+    line := e.line
+    col := e.col
+    return EvalResult.new(format(file, ":", line.to_str(), ":", col.to_str(), ":"))
 }
 
-pub fn func_line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_line", 0, false)?;
-    Ok(EvalResult::new(&(e.line as i64).to_string()))
+func_file := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "_file", 0, false)
+    return EvalResult.new(context.path)
 }
 
-pub fn func_col(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "_col", 0, false)?;
-    Ok(EvalResult::new(&(e.col as i64).to_string()))
+func_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "_line", 0, false)
+    return EvalResult.new(e.line.to_str())
+}
+
+func_col := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "_col", 0, false)
+    return EvalResult.new(e.col.to_str())
 }
 
 // ---------- eval memory
 
-pub fn func_malloc(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "malloc", 1, false)?;
+func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "malloc", 1, false)
 
-    let size_str = eval_or_throw!(context, e.get(1)?);
-    let size = size_str.parse::<usize>().map_err(|err| {
-        e.lang_error(&context.path, "eval", &format!("Invalid size for 'malloc': {}", err))
-    })?;
-    let offset = Arena::g().memory.len(); // take *current* end of arena
+    size_result := eval_expr(context, e.get(1))
+    if size_result.is_throw { return size_result }
+    size := I64.from_str(size_result.value)
+    offset := arena.memory.len()  // take *current* end of arena
 
-    if size > 0 {
-        Arena::g().memory.resize(offset + size, 0); // extend safely
+    if size.gt(0) {
+        // extend arena by pushing bytes
+        mut j := 0
+        while j.lt(size) {
+            arena.memory.push(U8.from_i64(0))
+            j = j.add(1)
+        }
     }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
-    if offset == 0 { // TODO: REM: throw AllocError instead of return NULL pointer
-        return Err(e.lang_error(&context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer"))
+    if offset.eq(0) {  // TODO: REM: throw AllocError instead of return NULL pointer
+        throw e.lang_error(context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer")
     }
-    return Ok(EvalResult::new(&offset.to_string()))
+    return EvalResult.new(offset.to_str())
 }
 
-pub fn func_free(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "free", 1, false)?;
+func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "free", 1, false)
 
-    let _ptr_str = eval_or_throw!(context, e.get(1)?);
+    ptr_result := eval_expr(context, e.get(1))
+    if ptr_result.is_throw { return ptr_result }
     // REM: Free does nothing in arena model (for now).
 
-    return Ok(EvalResult::new(""))
+    return EvalResult.new("")
 }
 
-pub fn func_memset(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "memset", 3, false)?;
+func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, U8_OverflowError, I64_OverflowError {
+    validate_arg_count(context.path, e, "memset", 3, false)
 
-    let dest_str = eval_or_throw!(context, e.get(1)?);
-    let value_str = eval_or_throw!(context, e.get(2)?);
-    let size_str = eval_or_throw!(context, e.get(3)?);
+    dest_result := eval_expr(context, e.get(1))
+    if dest_result.is_throw { return dest_result }
+    value_result := eval_expr(context, e.get(2))
+    if value_result.is_throw { return value_result }
+    size_result := eval_expr(context, e.get(3))
+    if size_result.is_throw { return size_result }
 
-    let dest = match dest_str.trim().parse::<i64>() {
-        Ok(v) => v as usize,
-        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid dest (I64): '{}': {}", dest_str, err))),
-    };
+    dest := I64.from_str(dest_result.value)
+    value := U8.from_str(value_result.value)
+    size := I64.from_str(size_result.value)
 
-    let value = match value_str.trim().parse::<u8>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid value (U8): '{}': {}", value_str, err))),
-    };
-
-    let size = match size_str.trim().parse::<i64>() {
-        Ok(v) => v as usize,
-        Err(err) => return Err(e.error(&context.path, "eval", &format!("Invalid size (I64): '{}': {}", size_str, err))),
-    };
-
-    if dest + size > Arena::g().memory.len() {
-        return Err(e.error(&context.path, "eval", &format!(
-            "memset out of bounds: dest={} size={} arena_len={}",
-            dest, size, Arena::g().memory.len()
-        )));
+    arena_len := arena.memory.len()
+    if dest.add(size).gt(arena_len) {
+        throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
-    for i in 0..size {
-        Arena::g().memory[dest + i] = value;
+    mut i := 0
+    while i.lt(size) {
+        arena.memory.set(dest.add(i), value)
+        i = i.add(1)
     }
 
-    Ok(EvalResult::new(""))
+    return EvalResult.new("")
 }
 
-pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "memcpy", 3, false)?;
+func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+    validate_arg_count(context.path, e, "memcpy", 3, false)
 
-    let dest_result = eval_expr(context, e.get(1)?)?;
-    if dest_result.is_throw {
-        return Ok(dest_result); // Propagate throw
-    }
-    let src_result = eval_expr(context, e.get(2)?)?;
-    if src_result.is_throw {
-        return Ok(src_result); // Propagate throw
-    }
-    let size_result = eval_expr(context, e.get(3)?)?;
-    if size_result.is_throw {
-        return Ok(size_result); // Propagate throw
-    }
+    dest_result := eval_expr(context, e.get(1))
+    if dest_result.is_throw { return dest_result }
+    src_result := eval_expr(context, e.get(2))
+    if src_result.is_throw { return src_result }
+    size_result := eval_expr(context, e.get(3))
+    if size_result.is_throw { return size_result }
 
-    let dest_str = dest_result.value;
-    let src_str = src_result.value;
-    let size_str = size_result.value;
+    dest := I64.from_str(dest_result.value)
+    src := I64.from_str(src_result.value)
+    size := I64.from_str(size_result.value)
 
-    let dest = match dest_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid dest (usize): '{}': {}", dest_str, err))),
-    };
-
-    let src = match src_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid src (usize): '{}': {}", src_str, err))),
-    };
-
-    let size = match size_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcpy: Invalid size (usize): '{}': {}", size_str, err))),
-    };
-
-    if dest + size > Arena::g().memory.len() || src + size > Arena::g().memory.len() {
-        return Err(e.error(&context.path, "eval", &format!("memcpy out of bounds: src={} dest={} size={} arena_len={}",
-                                            src, dest, size, Arena::g().memory.len())));
+    arena_len := arena.memory.len()
+    if dest.add(size).gt(arena_len).or(src.add(size).gt(arena_len)) {
+        throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
-    for i in 0..size {
-        Arena::g().memory[dest + i] = Arena::g().memory[src + i];
+    mut i := 0
+    while i.lt(size) {
+        mut src_byte := U8.from_i64(0)
+        arena.memory.get(src.add(i), src_byte)
+        arena.memory.set(dest.add(i), src_byte)
+        i = i.add(1)
     }
 
-    Ok(EvalResult::new(""))
+    return EvalResult.new("")
 }
 
-pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "memcmp", 3, false)?;
+func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "memcmp", 3, false)
 
-    let ptr1_result = eval_expr(context, e.get(1)?)?;
-    if ptr1_result.is_throw {
-        return Ok(ptr1_result); // Propagate throw
-    }
-    let ptr2_result = eval_expr(context, e.get(2)?)?;
-    if ptr2_result.is_throw {
-        return Ok(ptr2_result); // Propagate throw
-    }
-    let size_result = eval_expr(context, e.get(3)?)?;
-    if size_result.is_throw {
-        return Ok(size_result); // Propagate throw
-    }
+    ptr1_result := eval_expr(context, e.get(1))
+    if ptr1_result.is_throw { return ptr1_result }
+    ptr2_result := eval_expr(context, e.get(2))
+    if ptr2_result.is_throw { return ptr2_result }
+    size_result := eval_expr(context, e.get(3))
+    if size_result.is_throw { return size_result }
 
-    let ptr1_str = ptr1_result.value;
-    let ptr2_str = ptr2_result.value;
-    let size_str = size_result.value;
+    ptr1 := I64.from_str(ptr1_result.value)
+    ptr2 := I64.from_str(ptr2_result.value)
+    size := I64.from_str(size_result.value)
 
-    let ptr1 = match ptr1_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid ptr1 (usize): '{}': {}", ptr1_str, err))),
-    };
-
-    let ptr2 = match ptr2_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid ptr2 (usize): '{}': {}", ptr2_str, err))),
-    };
-
-    let size = match size_str.parse::<usize>() {
-        Ok(v) => v,
-        Err(err) => return Err(e.lang_error(&context.path, "eval", &format!("memcmp: Invalid size (usize): '{}': {}", size_str, err))),
-    };
-
-    if ptr1 + size > Arena::g().memory.len() || ptr2 + size > Arena::g().memory.len() {
-        return Err(e.error(&context.path, "eval", &format!("memcmp out of bounds: ptr1={} ptr2={} size={} arena_len={}",
-                                            ptr1, ptr2, size, Arena::g().memory.len())));
+    arena_len := arena.memory.len()
+    if ptr1.add(size).gt(arena_len).or(ptr2.add(size).gt(arena_len)) {
+        throw e.error(context.path, "eval", format("memcmp out of bounds: ptr1=", ptr1.to_str(), " ptr2=", ptr2.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
 
     // Compare bytes
-    for i in 0..size {
-        let byte1 = Arena::g().memory[ptr1 + i];
-        let byte2 = Arena::g().memory[ptr2 + i];
-        if byte1 < byte2 {
-            return Ok(EvalResult::new("-1"));
-        } else if byte1 > byte2 {
-            return Ok(EvalResult::new("1"));
+    mut i := 0
+    while i.lt(size) {
+        mut byte1 := U8.from_i64(0)
+        mut byte2 := U8.from_i64(0)
+        arena.memory.get(ptr1.add(i), byte1)
+        arena.memory.get(ptr2.add(i), byte2)
+        if byte1.lt(byte2) {
+            return EvalResult.new("-1")
+        } else if byte1.gt(byte2) {
+            return EvalResult.new("1")
         }
+        i = i.add(1)
     }
 
     // All bytes equal
-    Ok(EvalResult::new("0"))
+    return EvalResult.new("0")
 }
 
-pub fn func_to_ptr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "to_ptr", 1, false)?;
+func_to_ptr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "to_ptr", 1, false)
 
-    let identifier_expr = e.get(1)?;
-    let combined_name = get_combined_name(&context.path, identifier_expr)?;
-    match context.scope_stack.lookup_var(&combined_name) {
-        Some(addr) => Ok(EvalResult::new(&format!("{}", addr))),
-        None => Err(e.lang_error(&context.path, "eval", &format!("calling core func to_ptr, but '{}' is not a known identifier.", combined_name))),
+    identifier_expr := e.get(1)
+    combined_name := get_combined_name(context.path, identifier_expr)
+    addr := context.scope_stack.lookup_var(combined_name)
+    catch (err: KeyNotFoundError) {
+        throw e.lang_error(context.path, "eval", format("calling core func to_ptr, but '", combined_name, "' is not a known identifier."))
     }
+    return EvalResult.new(addr.to_str())
 }
 
-pub fn func_size_of(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "size_of", 1, false)?;
+func_size_of := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "size_of", 1, false)
 
-    let type_expr = e.get(1)?;
-    match &type_expr.node_type {
-        NodeType::Identifier(type_name) => {
+    type_expr := e.get(1)
+    switch type_expr.node_type {
+        case Identifier(type_name):
             // Check if this identifier is a string variable (Dynamic parameter storing a type name)
-            let actual_type_name = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
-                if let ValueType::TCustom(ref custom_type) = sym.value_type {
-                    if custom_type == "Str" {
-                        // This might be a Dynamic parameter - try to get its string value
-                        match string_from_context(context, type_name, e) {
-                            Ok(stored_type_name) => stored_type_name,
-                            Err(_) => type_name.to_string(),
-                        }
-                    } else {
-                        type_name.to_string()
-                    }
-                } else {
-                    type_name.to_string()
-                }
-            } else {
-                type_name.to_string()
-            };
+            mut actual_type_name := type_name
 
-            match context.get_type_size(&actual_type_name) {
-                Ok(size) => Ok(EvalResult::new(&format!("{}", size))),
-                Err(msg) => Err(e.lang_error(&context.path, "eval", &format!("calling core func size: {}", msg))),
+            // Try to look up symbol - if found and is Str type, get string value
+            mut found_str_type := false
+            sym := context.scope_stack.lookup_symbol(type_name)
+            switch sym.value_type {
+                case TCustom(custom_type):
+                    if custom_type.eq("Str") {
+                        found_str_type = true
+                    }
+                case:
             }
-        },
-        node_type => Err(e.lang_error(&context.path, "eval", &format!("calling core func size_of, but found '{:?}' instead of identifier.",
-                                                       node_type))),
-    }
-}
+            catch (err: KeyNotFoundError) {
+                // Symbol not found, use type_name as-is
+            }
 
-pub fn func_type_as_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "type_as_str", 1, false)?;
-
-    let type_expr = e.get(1)?;
-    match &type_expr.node_type {
-        NodeType::Identifier(type_name) => {
-            // Check if this identifier is a string variable (Dynamic parameter storing a type name)
-            let actual_type_name = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
-                if let ValueType::TCustom(ref custom_type) = sym.value_type {
-                    if custom_type == "Str" {
-                        // This might be a Dynamic parameter - try to get its string value
-                        match string_from_context(context, type_name, e) {
-                            Ok(stored_type_name) => stored_type_name,
-                            Err(_) => type_name.to_string(),
-                        }
-                    } else {
-                        type_name.to_string()
-                    }
-                } else {
-                    type_name.to_string()
+            if found_str_type {
+                // This might be a Dynamic parameter - try to get its string value
+                actual_type_name = string_from_context(context, type_name, e)
+                catch (err: Str) {
+                    actual_type_name = type_name
                 }
-            } else {
-                type_name.to_string()
-            };
+            }
 
-            Ok(EvalResult::new(&actual_type_name))
-        },
-        node_type => Err(e.lang_error(&context.path, "eval", &format!("calling core func type_as_str, but found '{:?}' instead of identifier.",
-                                                       node_type))),
+            size := context.get_type_size(actual_type_name)
+            return EvalResult.new(size.to_str())
+        case:
+            throw e.lang_error(context.path, "eval", "calling core func size_of, but found non-identifier instead of identifier.")
     }
 }
 
-pub fn func_lt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "lt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
+func_type_as_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "type_as_str", 1, false)
+
+    type_expr := e.get(1)
+    switch type_expr.node_type {
+        case Identifier(type_name):
+            // Check if this identifier is a string variable (Dynamic parameter storing a type name)
+            mut actual_type_name := type_name
+
+            // Try to look up symbol - if found and is Str type, get string value
+            mut found_str_type := false
+            sym := context.scope_stack.lookup_symbol(type_name)
+            switch sym.value_type {
+                case TCustom(custom_type):
+                    if custom_type.eq("Str") {
+                        found_str_type = true
+                    }
+                case:
+            }
+            catch (err: KeyNotFoundError) {
+                // Symbol not found, use type_name as-is
+            }
+
+            if found_str_type {
+                // This might be a Dynamic parameter - try to get its string value
+                actual_type_name = string_from_context(context, type_name, e)
+                catch (err: Str) {
+                    actual_type_name = type_name
+                }
+            }
+
+            return EvalResult.new(actual_type_name)
+        case:
+            throw e.lang_error(context.path, "eval", "calling core func type_as_str, but found non-identifier instead of identifier.")
     }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'lt': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'lt': {}", err)))?;
-    Ok(EvalResult::new(&(a < b).to_string()))
 }
 
-pub fn func_gt(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "gt", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'gt': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'gt': {}", err)))?;
-    Ok(EvalResult::new(&(a > b).to_string()))
+func_lt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "lt", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    return EvalResult.new(a.lt(b).to_str())
 }
 
-pub fn func_add(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "add", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'add': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'add': {}", err)))?;
-    Ok(EvalResult::new(&(a + b).to_string()))
+func_gt := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "gt", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    return EvalResult.new(a.gt(b).to_str())
 }
 
-pub fn func_sub(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "sub", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'sub': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'sub': {}", err)))?;
-    Ok(EvalResult::new(&(a - b).to_string()))
+func_add := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "add", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    return EvalResult.new(a.add(b).to_str())
 }
 
-pub fn func_mul(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "mul", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mul': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mul': {}", err)))?;
-    Ok(EvalResult::new(&(a * b).to_string()))
+func_sub := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "sub", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    return EvalResult.new(a.sub(b).to_str())
 }
 
-pub fn func_div(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "div", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'div': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'div': {}", err)))?;
+func_mul := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "mul", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
+    return EvalResult.new(a.mul(b).to_str())
+}
+
+func_div := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "div", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
     // Return 0 for division by zero (safe default, revisit post-self-hosting)
-    if b == 0 {
-        return Ok(EvalResult::new("0"));
+    if b.eq(0) {
+        return EvalResult.new("0")
     }
-    Ok(EvalResult::new(&(a / b).to_string()))
+    return EvalResult.new(a.div(b).to_str())
 }
 
-pub fn func_mod(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "mod", 2, false)?;
-    let a_result = eval_expr(context, e.get(1)?)?;
-    if a_result.is_throw {
-        return Ok(a_result); // Propagate throw
-    }
-    let b_result = eval_expr(context, e.get(2)?)?;
-    if b_result.is_throw {
-        return Ok(b_result); // Propagate throw
-    }
-    let a = a_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mod': {}", err)))?;
-    let b = b_result.value.parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid integer for 'mod': {}", err)))?;
+func_mod := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "mod", 2, false)
+    a_result := eval_expr(context, e.get(1))
+    if a_result.is_throw { return a_result }
+    b_result := eval_expr(context, e.get(2))
+    if b_result.is_throw { return b_result }
+    a := I64.from_str(a_result.value)
+    b := I64.from_str(b_result.value)
     // Return 0 for modulo by zero (safe default, revisit post-self-hosting)
-    if b == 0 {
-        return Ok(EvalResult::new("0"));
+    if b.eq(0) {
+        return EvalResult.new("0")
     }
-    Ok(EvalResult::new(&(a % b).to_string()))
+    return EvalResult.new(a.mod(b).to_str())
 }
 
-pub fn func_str_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "str_to_i64", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let a = result.value
-        .parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid input for 'str_to_i64': {}", err)))?;
-    Ok(EvalResult::new(&a.to_string()))
+func_str_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "str_to_i64", 1, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    a := I64.from_str(result.value)
+    return EvalResult.new(a.to_str())
 }
 
-pub fn func_i64_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "i64_to_str", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let val = result.value;
-    Ok(EvalResult::new(&val))
+func_i64_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "i64_to_str", 1, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    return EvalResult.new(result.value)
 }
 
-pub fn func_enum_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "enum_to_str", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let val = result.value;
-    Ok(EvalResult::new(&val))
+func_enum_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "enum_to_str", 1, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    return EvalResult.new(result.value)
 }
 
-
-
-pub fn func_u8_to_i64(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "u8_to_i64", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let a = result.value
-        .parse::<i64>()
-        .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid input for 'u8_to_i64': {}", err)))?;
-    Ok(EvalResult::new(&a.to_string()))
+func_u8_to_i64 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "u8_to_i64", 1, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    a := I64.from_str(result.value)
+    return EvalResult.new(a.to_str())
 }
 
-pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "i64_to_u8", 1, false)?;
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let val = result.value;
-    Ok(EvalResult::new(&val))
+func_i64_to_u8 := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "i64_to_u8", 1, false)
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    return EvalResult.new(result.value)
 }
 
 // ---------- core procs implementations for eval
@@ -523,256 +455,262 @@ pub fn func_i64_to_u8(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 // Note: If this prints an Array instead of a Str, check that single_print is declared
 // as `ext_proc(s: Str)` not `ext_proc(args: ..Str)` in core.til. Variadic wrapping
 // bypasses validate_arg_count by passing args as a single Array. (Bug #30)
-pub fn proc_single_print(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "single_print", 1, true)?;
+proc_single_print := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "single_print", 1, true)
 
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
 
-    print!("{}", result.value);
-    Ok(EvalResult::new(""))
+    print(result.value)
+    return EvalResult.new("")
 }
 
-pub fn proc_print_flush(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "print_flush", 0, true)?;
-
-    io::stdout().flush().map_err(|err| e.lang_error(&context.path, "eval", &format!("Failed to flush stdout: {}", err)))?;
-    Ok(EvalResult::new(""))
+proc_print_flush := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "print_flush", 0, true)
+    print_flush()
+    return EvalResult.new("")
 }
 
-pub fn proc_input_read_line(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "input_read_line", 1, true)?;
+proc_input_read_line := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "input_read_line", 1, true)
 
-    let first_param = e.get(1)?;
-    let read_line_error_msg = match &first_param.node_type {
-        NodeType::LLiteral(Literal::Str(error_msg_)) => error_msg_.clone(),
-        _ => return Err(e.lang_error(&context.path, "eval", &format!("input_read_line() expects a literal string error message. Found '{:?}' instead.",
-                                                      first_param.node_type))),
-    };
+    first_param := e.get(1)
+    mut read_line_error_msg := ""
+    switch first_param.node_type {
+        case LLiteral(lit):
+            switch lit {
+                case Str(error_msg):
+                    read_line_error_msg = error_msg
+                case:
+                    throw e.lang_error(context.path, "eval", "input_read_line() expects a literal string error message.")
+            }
+        case:
+            throw e.lang_error(context.path, "eval", "input_read_line() expects a literal string error message.")
+    }
 
-    let mut line = String::new();
-    io::stdin()
-        .read_line(&mut line)
-        .map_err(|_| e.lang_error(&context.path, "eval", &read_line_error_msg))?;
-
-    Ok(EvalResult::new(&line))
+    line := input_read_line(read_line_error_msg)
+    catch (err: Str) {
+        throw e.lang_error(context.path, "eval", read_line_error_msg)
+    }
+    return EvalResult.new(line)
 }
 
-pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "eval_to_str", 1, true)?;
+proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "eval_to_str", 1, true)
 
-    let path = "eval".to_string(); // Placeholder path
-    let source_expr = eval_expr(context, e.get(1)?)?;
-    if source_expr.is_throw {
-        return Ok(source_expr); // Propagate throw
-    }
+    path := "eval"  // Placeholder path
+    source_expr := eval_expr(context, e.get(1))
+    if source_expr.is_throw { return source_expr }
 
-    let str_source = format!("mode script; {}", source_expr.value);
-    return main_run(false, false, context, &path, str_source, Vec::new())
+    str_source := format("mode script; ", source_expr.value)
+    return main_run(false, false, context, path, str_source, Vec.new(Str))
 }
 
-pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    if e.params.len() < 2 {
-        return Err(e.lang_error(&context.path, "eval", "Core proc 'runfile' expects at least 1 parameter"));
+proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    if e.params.len().lt(2) {
+        throw e.lang_error(context.path, "eval", "Core proc 'runfile' expects at least 1 parameter")
     }
 
-    let result = eval_expr(context, e.get(1)?)?;
-    if result.is_throw {
-        return Ok(result); // Propagate throw
-    }
-    let path = result.value;
+    result := eval_expr(context, e.get(1))
+    if result.is_throw { return result }
+    path := result.value
 
-    let mut main_args = Vec::new();
+    mut main_args := Vec.new(Str)
     for i in 2..e.params.len() {
-        let arg_result = eval_expr(context, e.get(i)?)?;
-        if arg_result.is_throw {
-            return Ok(arg_result); // Propagate throw
-        }
-        main_args.push(arg_result.value);
+        arg_result := eval_expr(context, e.get(i))
+        if arg_result.is_throw { return arg_result }
+        main_args.push(arg_result.value)
     }
 
-    match run_file(&path, main_args) {
-        Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error(&context.path, "eval", &format!("While running file {path}\n{error_string}"))),
+    run_file(path, main_args)
+    return EvalResult.new("")
+    catch (error_string: Str) {
+        throw e.error(context.path, "eval", format("While running file ", path, "\n", error_string))
     }
 }
 
-// Convert dot-based import path to OS-specific file path
-// Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
-fn import_path_to_file_path(import_path: &str) -> String {
-    let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
-    format!("{}.til", file_path)
-}
+// import_path_to_file_path is defined in init.til
 
-pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "import", 1, true)?;
+proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "import", 1, true)
 
-    let result = eval_expr(context, e.get(1)?)?;
+    result := eval_expr(context, e.get(1))
     if result.is_throw {
-        return Ok(result); // Propagate throw
+        return result // Propagate throw
     }
 
-    let original_path = context.path.clone();
-    let path = import_path_to_file_path(&result.value);
+    original_path := context.path.clone()
+    path := import_path_to_file_path(result.value)
 
     // Already done (or in progress)? Skip.
     // Adding to done at START handles both circular imports and re-imports.
-    if context.imports_eval_done.contains(&path) {
-        return Ok(EvalResult::new(""));
+    if context.imports_eval_done.contains(path) {
+        return EvalResult.new("")
     }
 
     // Mark as done immediately - before processing - to handle circular imports
-    context.imports_eval_done.insert(path.clone());
+    context.imports_eval_done.insert(path.clone())
 
     // Get stored AST from init phase
-    let ast = match context.imported_asts.get(&path) {
-        Some(ast) => ast.clone(),
-        None => return Err(e.error(&context.path, "eval", &format!(
-            "Import {} not found in stored ASTs - init phase should have stored it", path))),
-    };
+    mut ast := Expr()
+    mut found := false
+    if context.imported_asts.contains_key(path) {
+        ast = context.imported_asts.get(path)
+        found = true
+    }
+    if not(found) {
+        throw e.error(context.path, "eval", format(
+            "Import ", path, " not found in stored ASTs - init phase should have stored it"))
+    }
 
-    context.path = path.clone();
+    context.path = path.clone()
 
     // Just eval the stored AST - no re-parsing needed
-    let eval_result = eval_expr(context, &ast);
+    eval_result := eval_expr(context, ast)
 
-    context.path = original_path;
+    context.path = original_path
 
-    match eval_result {
-        Ok(_) => Ok(EvalResult::new("")),
-        Err(error_string) => Err(e.error(&context.path, "eval", &format!(
-            "While importing {}:\n{}", path, error_string))),
+    if eval_result.is_throw {
+        throw e.error(context.path, "eval", format(
+            "While importing ", path, ":\n", eval_result.value))
     }
+    return EvalResult.new("")
 }
 
-pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "readfile", 1, true)?;
+proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "readfile", 1, true)
 
-    let result = eval_expr(context, e.get(1)?)?;
+    result := eval_expr(context, e.get(1))
     if result.is_throw {
-        return Ok(result); // Propagate throw
+        return result // Propagate throw
     }
-    let path = result.value;
+    path := result.value
 
-    let source = match fs::read_to_string(&path) {
-        Ok(file) => file,
-        Err(error) => match error.kind() {
-            ErrorKind::NotFound => return Err(e.error(&context.path, "eval", &format!("File '{}' not found.", path))),
-            other_error => return Err(e.error(&context.path, "eval", &format!("Problem reading file '{}': {}", path, other_error))),
-        },
-    };
-
-    Ok(EvalResult::new(&source))
+    // Call host-provided readfile (when running on rstil)
+    source := readfile(path)
+    catch (err: Str) {
+        throw e.error(context.path, "eval", format("Problem reading file '", path, "': ", err))
+    }
+    return EvalResult.new(source)
 }
 
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
-pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     // run_cmd(args...) - runs a command with arguments, returns stdout as string
     // First arg is the command, remaining args are passed to it
-    if e.params.len() < 2 {
-        return Err(e.error(&context.path, "eval", "run_cmd requires at least 1 argument (the command)"));
+    if e.params.len().lt(2) {
+        throw e.error(context.path, "eval", "run_cmd requires at least 1 argument (the command)")
     }
 
-    let cmd_result = eval_expr(context, e.get(1)?)?;
+    cmd_result := eval_expr(context, e.get(1))
     if cmd_result.is_throw {
-        return Ok(cmd_result);
+        return cmd_result
     }
-    let cmd = cmd_result.value;
+    cmd := cmd_result.value
 
     // Check command against whitelists
-    if context.mode_def.name == "safe_script" {
-        if !SAFE_COMMANDS.contains(&cmd.as_str()) {
-            return Err(e.error(&context.path, "eval", &format!("Command '{}' not in safe_script whitelist: {:?}", cmd, SAFE_COMMANDS)));
+    if context.mode_def.name.eq("safe_script") {
+        if not(SAFE_COMMANDS.contains(cmd)) {
+            throw e.error(context.path, "eval", format("Command '", cmd, "' not in safe_script whitelist"))
         }
     } else {
-        if !ALLOWED_COMMANDS.contains(&cmd.as_str()) {
-            return Err(e.error(&context.path, "eval", &format!("Command '{}' not in allowed whitelist: {:?}", cmd, ALLOWED_COMMANDS)));
+        if not(ALLOWED_COMMANDS.contains(cmd)) {
+            throw e.error(context.path, "eval", format("Command '", cmd, "' not in allowed whitelist"))
         }
     }
 
-    let mut args: Vec<String> = Vec::new();
+    mut args := Vec.new(Str)
     for i in 2..e.params.len() {
-        let arg_result = eval_expr(context, e.get(i)?)?;
+        arg_result := eval_expr(context, e.get(i))
         if arg_result.is_throw {
-            return Ok(arg_result);
+            return arg_result
         }
-        args.push(arg_result.value);
+        args.push(arg_result.value)
     }
 
-    let output = Command::new(&cmd)
-        .args(&args)
-        .output();
-
-    match output {
-        Ok(out) => {
-            if out.status.success() {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                Ok(EvalResult::new(&stdout))
-            } else {
-                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                let code = out.status.code().unwrap_or(-1);
-                Err(e.error(&context.path, "eval", &format!("Command '{}' failed with code {}: {}", cmd, code, stderr)))
-            }
-        },
-        Err(err) => {
-            Err(e.error(&context.path, "eval", &format!("Failed to run command '{}': {}", cmd, err)))
-        }
+    // Call host-provided run_cmd (when running on rstil)
+    output := run_cmd(cmd, args)
+    catch (err: Str) {
+        throw e.error(context.path, "eval", format("Failed to run command '", cmd, "': ", err))
     }
+    return EvalResult.new(output)
 }
 
 // ---------- Introspection functions
 
-pub fn func_has_const(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "has_const", 2, false)?;
+func_has_const := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "has_const", 2, false)
 
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let const_name = eval_or_throw!(context, e.get(2)?);
+    result1 := eval_expr(context, e.get(1))
+    if result1.is_throw { return result1 }
+    type_name := result1.value
 
-    // Check if type exists in struct_defs
-    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-        // Check for immutable field (!is_mut)
-        if let Some(decl) = struct_def.get_member(&const_name) {
-            if !decl.is_mut {
-                return Ok(EvalResult::new("true"));
-            }
-        }
-    }
-
-    Ok(EvalResult::new("false"))
-}
-
-pub fn func_has_field(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "has_field", 2, false)?;
-
-    let type_name = eval_or_throw!(context, e.get(1)?);
-    let field_name = eval_or_throw!(context, e.get(2)?);
+    result2 := eval_expr(context, e.get(2))
+    if result2.is_throw { return result2 }
+    const_name := result2.value
 
     // Check if type exists in struct_defs
-    if let Some(struct_def) = context.scope_stack.lookup_struct(&type_name) {
-        // Check for mutable field (is_mut)
-        if let Some(decl) = struct_def.get_member(&field_name) {
-            if decl.is_mut {
-                return Ok(EvalResult::new("true"));
-            }
-        }
+    struct_def := context.scope_stack.lookup_struct(type_name)
+    // Check for immutable field (!is_mut)
+    decl := struct_def.get_member(const_name)
+    if not(decl.is_mut) {
+        return EvalResult.new("true")
+    }
+    catch (err: KeyNotFoundError) {
+        // Type or member not found
     }
 
-    Ok(EvalResult::new("false"))
+    return EvalResult.new("false")
 }
 
-pub fn func_exit(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    validate_arg_count(&context.path, e, "exit", 1, false)?;
+func_has_field := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "has_field", 2, false)
 
-    let e_exit_code = e.get(1)?;
-    let exit_code = match &e_exit_code.node_type {
-        NodeType::LLiteral(Literal::Number(my_li64)) => my_li64.parse::<i64>()
-            .map_err(|err| e.lang_error(&context.path, "eval", &format!("Invalid number literal '{}': {}", *my_li64, err)))?,
-        node_type => return Err(e.lang_error(&context.path, "eval", &format!("calling core proc 'exit', but found {:?} instead of literal i64 exit code.", node_type))),
-    };
+    result1 := eval_expr(context, e.get(1))
+    if result1.is_throw { return result1 }
+    type_name := result1.value
 
-    std::process::exit(exit_code as i32);
+    result2 := eval_expr(context, e.get(2))
+    if result2.is_throw { return result2 }
+    field_name := result2.value
+
+    // Check if type exists in struct_defs
+    struct_def := context.scope_stack.lookup_struct(type_name)
+    // Check for mutable field (is_mut)
+    decl := struct_def.get_member(field_name)
+    if decl.is_mut {
+        return EvalResult.new("true")
+    }
+    catch (err: KeyNotFoundError) {
+        // Type or member not found
+    }
+
+    return EvalResult.new("false")
+}
+
+func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
+    validate_arg_count(context.path, e, "exit", 1, false)
+
+    e_exit_code := e.get(1)
+
+    // Check if it's a number literal using pattern matching
+    switch e_exit_code.node_type {
+    case NodeType.LLiteral(lit):
+        switch lit {
+        case Literal.Number(num_str):
+            exit_code := I64.from_str(num_str)
+            catch (err: I64_OverflowError) {
+                throw e.lang_error(context.path, "eval", format("Invalid number literal '", num_str, "'"))
+            }
+            exit(exit_code)
+            return EvalResult.new("")  // unreachable, exit() never returns
+        case:
+            // Not a number literal
+        }
+    case:
+        // Not a literal
+    }
+    throw e.lang_error(context.path, "eval", "calling core proc 'exit', but found non-literal instead of literal i64 exit code.")
 }

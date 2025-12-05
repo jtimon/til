@@ -7,20 +7,7 @@ import("src.core.self.typer")
 // Interpreter phase: Runtime evaluation and execution
 // Corresponds to src/rs/interpreter.rs in the Rust implementation
 
-// Global arena for interpreter memory (simplified version)
-// In rstil.rs this is a singleton, here we'll pass it around
-Arena := struct {
-    mut memory: Array = Array()       // Byte array for storage
-    mut next_offset: I64 = 1          // Next available offset (0 is reserved/NULL)
-
-    // Create new arena
-    new := proc() returns Arena throws AllocError {
-        mut a := Arena()
-        a.memory = Vec.new(U8)
-        a.next_offset = 1  // Reserve 0 as invalid/NULL
-        return a
-    }
-}
+// Arena is defined in arena.til and provides the global `arena` variable
 
 // Result of evaluating an expression
 // Corresponds to EvalResult in interpreter.rs
@@ -160,7 +147,7 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str, 
         TODO(loc(), "DefaultCase should not appear in eval outside switch")
         return EvalResult.new("")
 
-    case NodeType.Pattern(_, _):
+    case NodeType.Pattern(pattern_info):
         // Pattern only appears in switch (handled above)
         TODO(loc(), "Pattern should not appear in eval outside switch")
         return EvalResult.new("")
@@ -375,8 +362,7 @@ eval_assignment := proc(mut context: Context, e: Expr) returns Str throws Str, A
 // Helper: evaluate println function
 eval_println := proc(mut context: Context, params: Array) returns Str throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
     // Print each argument (skip params[0] which is the function name)
-    mut params_len := params.len()()
-    for i in 1..params_len {
+    for i in 1..params.len() {
         mut arg_expr := Expr()
         params.get(i, arg_expr)
 
