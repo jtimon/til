@@ -920,7 +920,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                 }
                 if is_fcall {
                     if inner_e.params.len().eq(1) {
-                        first_param := inner_e.params.get(0)
+                        mut first_param := Expr()
+                        inner_e.params.get(0, first_param)
                         switch first_param.node_type {
                         case NodeType.Identifier(potentially_struct_name):
                             if first_param.params.len().eq(0) {
@@ -1290,7 +1291,8 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
 
         mut pi := 0
         while pi.lt(e.params.len()) {
-            inner_e := e.params.get(pi)
+            mut inner_e := Expr()
+            e.params.get(pi, inner_e)
             switch inner_e.node_type {
             case NodeType.Identifier(inner_name):
                 switch current_type {
@@ -1329,7 +1331,8 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
         if e.params.len().eq(0) {
             throw e.lang_error(context.path, "eval", "eval_custom_expr: Expected at least one parameter")
         }
-        last_inner_e := e.params.get(e.params.len().sub(1))
+        mut last_inner_e := Expr()
+        e.params.get(e.params.len().sub(1), last_inner_e)
 
         switch current_type {
         case ValueType.TCustom(curr_type_name):
@@ -1607,7 +1610,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
                                 }
                             }
 
-                            body_expr := stmt.params.get(2)
+                            mut body_expr := Expr()
+                            stmt.params.get(2, body_expr)
                             result := eval_body(context, body_expr.params)
 
                             // Clean up the error variable binding after the catch block
@@ -1748,7 +1752,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 mut values := Vec.new(Str)
                 mut vi := param_index
                 while vi.lt(e.params.len()) {
-                    expr := e.params.get(vi)
+                    mut expr := Expr()
+                    e.params.get(vi, expr)
                     result := eval_expr(context, expr)
                     if result.is_throw {
                         return result
@@ -1869,7 +1874,8 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             if current_arg.params.len().gt(0) {
                                 mut pi2 := 0
                                 while pi2.lt(current_arg.params.len()) {
-                                    param := current_arg.params.get(pi2)
+                                    mut param := Expr()
+                                    current_arg.params.get(pi2, param)
                                     switch param.node_type {
                                     case NodeType.Identifier(field_name):
                                         full_id = format(full_id, ".", field_name)
