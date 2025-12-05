@@ -973,7 +973,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             }
                         }
                     } else {
-                        errors.push(p.error(context.path, "warning", format("Trying to catch '", caught_type, "', but it is not among the thrown types")))
+                        errors.push(p.error(context.path, "type", format("Trying to catch '", caught_type, "', but it is not among the thrown types.")))
                     }
 
                     // Create scoped context for catch body with the error variable registered

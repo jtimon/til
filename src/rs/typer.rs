@@ -718,7 +718,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             }
                         }
                     } else {
-                        errors.push(p.error(&context.path, "warning", &format!("Trying to catch '{}', but it is not among the thrown types", caught_type)));
+                        errors.push(p.error(&context.path, "type", &format!("Trying to catch '{}', but it is not among the thrown types.", caught_type)));
                     }
 
                     // Create scoped context for catch body with the error variable registered
