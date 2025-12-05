@@ -78,6 +78,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return result
 }
 
@@ -200,6 +201,7 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         i = i.add(1)
     }
 
+    catch (err: U8_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -238,6 +240,8 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     }
 
     // All bytes equal
+    catch (err: U8_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return EvalResult.new("0")
 }
 
@@ -503,6 +507,9 @@ proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     if source_expr.is_throw { return source_expr }
 
     str_source := format("mode script; ", source_expr.value)
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return main_run(false, false, context, path, str_source, Vec.new(Str))
 }
 
@@ -522,6 +529,8 @@ proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws St
         main_args.push(arg_result.value)
     }
 
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     run_file(path, main_args)
     return EvalResult.new("")
     catch (error_string: Str) {
@@ -574,6 +583,8 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format(
             "While importing ", path, ":\n", eval_result.value))
     }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -629,6 +640,9 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
         }
         args.push(arg_result.value)
     }
+
+    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Call host-provided run_cmd (when running on rstil)
     output := run_cmd(cmd, args)

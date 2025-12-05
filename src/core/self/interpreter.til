@@ -69,8 +69,12 @@ eval_condition_to_bool := proc(context: Context, result: EvalResult, expr: Expr)
     bool_id := result.value
     data_field_id := format(bool_id, ".data")
     u8_val := Arena.get_u8(context, data_field_id, expr)
+    u8_zero := U8.from_i64(0)
     catch (err: KeyNotFoundError) { throw err.msg }
-    return not(u8_val.eq(U8.from_i64(0)))
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: U8_OverflowError) { throw err.msg }
+    return not(u8_val.eq(u8_zero))
 }
 
 // validate_func_arg_count is in typer.til
@@ -173,6 +177,7 @@ eval_struct_defaults := proc(mut ctx: Context, struct_type: Str, e: Expr) return
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return defaults
 }
 
@@ -214,6 +219,7 @@ create_default_instance := proc(mut ctx: Context, struct_type: Str, e: Expr) ret
     // Cache the template offset
     arena.default_instances.insert(struct_type, template_offset)
     catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
 
     return template_offset
 }
@@ -227,6 +233,8 @@ insert_struct_instance := proc(mut ctx: Context, id: Str, type_name: Str, e: Exp
     mut template_offset := 0
     arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     Arena.insert_struct(ctx, id, type_name, template_offset, e)
 }
 
@@ -239,6 +247,8 @@ insert_struct_instance_into_frame := proc(mut ctx: Context, mut frame: ScopeFram
     mut template_offset := 0
     arena.default_instances.get(type_name, template_offset)
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     Arena.insert_struct_into_frame(ctx, frame, id, type_name, template_offset, e)
 }
 
@@ -479,6 +489,8 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -810,6 +822,9 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: U8_OverflowError) { throw err.msg }
     return eval_user_func_proc_call(func_def, combined_name, context, new_fcall_e)
 }
 
@@ -1147,6 +1162,8 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1277,6 +1294,8 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1309,6 +1328,8 @@ eval_identifier_expr_struct_member := proc(name: Str, inner_name: Str, mut conte
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1332,6 +1353,8 @@ eval_identifier_expr_struct := proc(name: Str, mut context: Context, e: Expr) re
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1491,6 +1514,8 @@ eval_custom_expr := proc(e: Expr, mut context: Context, name: Str, custom_type_n
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1568,6 +1593,8 @@ eval_identifier_expr := proc(name: Str, mut context: Context, e: Expr) returns E
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -1806,6 +1833,8 @@ eval_body := proc(mut context: Context, statements: Vec) returns EvalResult thro
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -2971,6 +3000,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         }
     }
 
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+
     // Frame already popped above
     return EvalResult.new(result_str) // CLEANUP SITE 7: Return normal value (final return)
 }
@@ -3057,5 +3089,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: KeyNotFoundError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: U8_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
