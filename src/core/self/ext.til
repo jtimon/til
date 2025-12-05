@@ -12,6 +12,41 @@ import("src.core.self.arena")        // arena (global)
 
 // ---------- Helper functions
 
+/// Stub for main_run (implemented in rstil.rs binary)
+/// TODO: implement for self-hosted interpreter
+main_run := proc(verbose: Bool, trace: Bool, mut context: Context, path: Str, source: Str, args: Vec) returns EvalResult throws Str {
+    if true {
+        throw "main_run not yet implemented in self-hosted interpreter"
+    }
+    return EvalResult.new("")
+}
+
+/// Stub for run_file (implemented in rstil.rs binary)
+/// TODO: implement for self-hosted interpreter
+run_file := proc(path: Str, args: Vec) throws Str {
+    throw "run_file not yet implemented in self-hosted interpreter"
+}
+
+/// Stub for run_cmd (implemented in rstil.rs binary)
+/// TODO: implement for self-hosted interpreter
+run_cmd := proc(cmd: Str, args: Vec) returns Str throws Str {
+    if true {
+        throw "run_cmd not yet implemented in self-hosted interpreter"
+    }
+    return ""
+}
+
+/// Convert a single byte to a 1-character string
+byte_to_str := func(byte: U8) returns Str throws AllocError {
+    mut s := Str()
+    s.c_string = malloc(2)  // 1 byte + null terminator
+    s.cap = 1
+    memcpy(s.c_string, to_ptr(byte), 1)
+    mut zero : U8 = 0
+    memcpy(add(s.c_string, 1), to_ptr(zero), 1)  // null terminator
+    return s
+}
+
 // General whitelist for all modes
 make_allowed_commands := proc() returns Array {
     mut arr := Array.new(Str, 3)
@@ -72,7 +107,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     while i.lt(length) {
         mut byte := U8.from_i64(0)
         arena.memory.get(c_string_ptr.add(i), byte)
-        result = format(result, Str.from_byte(byte))
+        result = format(result, byte_to_str(byte))
         i = i.add(1)
     }
     catch (err: AllocError) { throw err.msg }
@@ -228,9 +263,9 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         mut byte2 := U8.from_i64(0)
         arena.memory.get(ptr1.add(i), byte1)
         arena.memory.get(ptr2.add(i), byte2)
-        if byte1.lt(byte2) {
+        if U8.to_i64(byte1).lt(U8.to_i64(byte2)) {
             return EvalResult.new("-1")
-        } else if byte1.gt(byte2) {
+        } else if U8.to_i64(byte1).gt(U8.to_i64(byte2)) {
             return EvalResult.new("1")
         }
         i = i.add(1)
@@ -554,7 +589,7 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     }
 
     // Mark as done immediately - before processing - to handle circular imports
-    context.imports_eval_done.insert(path.clone())
+    _ := context.imports_eval_done.insert(path.clone())
 
     // Get stored AST from init phase
     mut ast := Expr()
@@ -562,7 +597,7 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
     }
-    ast = context.imported_asts.get(path)
+    context.imported_asts.get(path, ast)
     catch (err: KeyNotFoundError) {
         throw e.error(context.path, "eval", format(
             "Import ", path, " not found in stored ASTs - init phase should have stored it"))
