@@ -28,6 +28,10 @@ SymbolInfo := struct {
         info.is_own = is_own
         return info
     }
+
+    clone := func(self: SymbolInfo) returns SymbolInfo {
+        return SymbolInfo.new(self.value_type, self.is_mut, self.is_copy, self.is_own)
+    }
 }
 
 EnumVal := struct {
@@ -35,8 +39,8 @@ EnumVal := struct {
     mut enum_name: Str = ""
     // Payload for tagged unions: stores the associated data
     // For now, supports Bool (1 byte) and I64 (8 bytes)
-    mut payload: Ptr = Ptr()  // Option<Vec<u8>> in Rust - NULL for None
-    mut payload_type: Ptr = Ptr()  // Option<ValueType> in Rust - NULL for None
+    mut payload: Vec = Vec.new(U8)  // Vec<u8> for payload data
+    mut payload_type: ValueType = ValueType.TCustom("")  // ValueType for payload type (TCustom("") = no payload)
 }
 
 // Scope stack for proper lexical scoping
@@ -115,6 +119,13 @@ ScopeStack := struct {
 
     size := func(self: ScopeStack) returns I64 {
         return self.frames.size()
+    }
+
+    // REM TODO Use this approach instead of the other workaround in files other than interpreter.til
+    last_frame := func(self: ScopeStack) returns ScopeFrame throws IndexOutOfBoundsError {
+        mut out := ScopeFrame()
+        self.frames.get(self.frames.len().sub(1), out)
+        return out
     }
 
     lookup_var := func(self: ScopeStack, name: Str) returns I64 throws KeyNotFoundError {
@@ -1734,6 +1745,13 @@ init_context := proc(mut context: Context, e: Expr) returns Vec throws Str {
 EnumPayload := struct {
     mut data: Vec = Vec.new(U8)
     mut value_type: ValueType = ValueType.TCustom("")
+
+    new := func(payload_data: Vec, payload_type: ValueType) returns EnumPayload throws AllocError {
+        mut result := EnumPayload()
+        result.data = payload_data.clone()
+        result.value_type = payload_type
+        return result
+    }
 
     clone := func(self: EnumPayload) returns EnumPayload throws AllocError {
         mut result := EnumPayload()

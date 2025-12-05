@@ -1045,12 +1045,8 @@ Arena := struct {
                     // Recursively get the inner enum's size
                     inner_enum := Arena.get_enum_at_offset(ctx, type_name, offset, e)
                     mut total_size := 8  // variant tag
-                    if not(NULL.eq(inner_enum.payload.data)) {
-                        mut payload_vec := Vec()
-                        memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
-                        if payload_vec.len().gt(0) {
-                            total_size = add(total_size, payload_vec.len())
-                        }
+                    if inner_enum.payload.len().gt(0) {
+                        total_size = add(total_size, inner_enum.payload.len())
                     }
                     return total_size
                 case:
@@ -1143,12 +1139,8 @@ Arena := struct {
                                 // For enum payloads, recursively get the enum to determine size
                                 inner_enum := Arena.get_enum_at_offset(ctx, vtype_name, add(offset, 8), e)
                                 payload_size = 8  // variant tag
-                                if not(NULL.eq(inner_enum.payload.data)) {
-                                    mut payload_vec := Vec()
-                                    memcpy(to_ptr(payload_vec), inner_enum.payload.data, size_of(Vec))
-                                    if payload_vec.len().gt(0) {
-                                        payload_size = add(payload_size, payload_vec.len())
-                                    }
+                                if inner_enum.payload.len().gt(0) {
+                                    payload_size = add(payload_size, inner_enum.payload.len())
                                 }
                             case:
                                 payload_size = 0
@@ -1296,12 +1288,10 @@ Arena := struct {
 
         result.enum_val.enum_type = enum_type
         result.enum_val.enum_name = enum_name
-        // Store payload via Ptr (Option pattern: NULL = None)
+        // Store payload directly (Vec and ValueType)
         if payload_data.len().gt(0) {
-            result.enum_val.payload = Ptr.new(Vec)
-            memcpy(result.enum_val.payload.data, to_ptr(payload_data), size_of(Vec))
-            result.enum_val.payload_type = Ptr.new(ValueType)
-            memcpy(result.enum_val.payload_type.data, to_ptr(payload_type), size_of(ValueType))
+            result.enum_val.payload = payload_data.clone()
+            result.enum_val.payload_type = payload_type
         }
 
         catch (err: AllocError) {

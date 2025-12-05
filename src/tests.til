@@ -67,8 +67,7 @@ runfile("src/core/self/parser.til")
 runfile("src/core/self/init.til")
 runfile("src/core/self/typer.til")
 runfile("src/core/self/arena.til")
-// TODO: Fix remaining type errors in interprer.til
-// runfile("src/core/self/interprer.til")
+// runfile("src/core/self/interpreter.til") // TODO: Fix remaining type errors in interprer.til
 
 // TODO: Re-enable after fixing type errors in lexer.til and parser.til
 // runfile("src/tests_self_hosted.til")
