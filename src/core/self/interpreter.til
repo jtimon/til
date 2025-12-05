@@ -1953,10 +1953,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     // Share arena offset from caller context (zero-copy pass-by-reference)
                                     mut offset_found := false
                                     mut offset := 0
-                                    catch (err: KeyNotFoundError) {
-                                        offset = context.scope_stack.lookup_var(source_var)
-                                        offset_found = true
-                                    }
+                                    offset = context.scope_stack.lookup_var(source_var)
+                                    offset_found = true
+                                    catch (err: KeyNotFoundError) { }
                                     if offset_found {
                                         // Create symbol info for parameter using the resolved type
                                         param_symbol := SymbolInfo.new(resolved_value_type, arg.is_mut, arg.is_copy, arg.is_own)
@@ -2047,10 +2046,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             // Custom type (enum or struct)
                             mut custom_symbol := SymbolInfo()
                             mut custom_symbol_found := false
-                            catch (err: KeyNotFoundError) {
-                                custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-                                custom_symbol_found = true
-                            }
+                            custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
+                            custom_symbol_found = true
+                            catch (err: KeyNotFoundError) { }
                             if not(custom_symbol_found) {
                                 throw e.lang_error(context.path, "eval", format("Undefined symbol for custom type '", custom_type_name, "'"))
                             }
@@ -2161,10 +2159,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     if should_share_offset {
                                         mut src_offset := 0
                                         mut src_offset_found := false
-                                        catch (err: KeyNotFoundError) {
-                                            src_offset = context.scope_stack.lookup_var(id_)
-                                            src_offset_found = true
-                                        }
+                                        src_offset = context.scope_stack.lookup_var(id_)
+                                        src_offset_found = true
+                                        catch (err: KeyNotFoundError) { }
                                         if not(src_offset_found) {
                                             if id_.contains(".") {
                                                 // Field path - calculate offset dynamically
@@ -2292,10 +2289,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             // so that copy_fields() can calculate field offsets dynamically
                                             mut src_offset := 0
                                             mut src_offset_found := false
-                                            catch (err: KeyNotFoundError) {
-                                                src_offset = context.scope_stack.lookup_var(id_)
-                                                src_offset_found = true
-                                            }
+                                            src_offset = context.scope_stack.lookup_var(id_)
+                                            src_offset_found = true
+                                            catch (err: KeyNotFoundError) { }
                                             if not(src_offset_found) {
                                                 if id_.contains(".") {
                                                     // Field path - calculate offset dynamically
@@ -2306,10 +2302,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             }
                                             mut src_symbol := SymbolInfo()
                                             mut src_symbol_found := false
-                                            catch (err: KeyNotFoundError) {
-                                                src_symbol = context.scope_stack.lookup_symbol(id_)
-                                                src_symbol_found = true
-                                            }
+                                            src_symbol = context.scope_stack.lookup_symbol(id_)
+                                            src_symbol_found = true
+                                            catch (err: KeyNotFoundError) { }
                                             if not(src_symbol_found) {
                                                 throw e.lang_error(context.path, "eval", format("Source struct '", id_, "' not found in caller context symbols"))
                                             }
@@ -2422,10 +2417,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             // Check if this is a custom type (struct)
             mut type_symbol := SymbolInfo()
             mut type_symbol_found := false
-            catch (err: KeyNotFoundError) {
-                type_symbol = context.scope_stack.lookup_symbol(thrown_type_name)
-                type_symbol_found = true
-            }
+            type_symbol = context.scope_stack.lookup_symbol(thrown_type_name)
+            type_symbol_found = true
+            catch (err: KeyNotFoundError) { }
             if type_symbol_found {
                 mut is_struct_def := false
                 switch type_symbol.value_type {
@@ -2441,10 +2435,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     // Copy the base variable entry first (from function frame to caller frame)
                     mut base_offset := 0
                     mut base_offset_found := false
-                    catch (err: KeyNotFoundError) {
-                        base_offset = context.scope_stack.lookup_var(result.value)
-                        base_offset_found = true
-                    }
+                    base_offset = context.scope_stack.lookup_var(result.value)
+                    base_offset_found = true
+                    catch (err: KeyNotFoundError) { }
                     if base_offset_found {
                         // Get the second-to-last frame (caller's frame)
                         frame_count := context.scope_stack.frames.len()
@@ -2479,10 +2472,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         keys_to_copy.get(kci, src_key)
                         mut src_offset := 0
                         mut src_offset_found := false
-                        catch (err: KeyNotFoundError) {
-                            src_offset = context.scope_stack.lookup_var(src_key)
-                            src_offset_found = true
-                        }
+                        src_offset = context.scope_stack.lookup_var(src_key)
+                        src_offset_found = true
+                        catch (err: KeyNotFoundError) { }
                         if src_offset_found {
                             if frame_count.gteq(2) {
                                 mut caller_frame := StackFrame()
@@ -2502,10 +2494,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                         symbol_keys_to_copy.get(ski, src_key)
                         mut src_symbol := SymbolInfo()
                         mut src_symbol_found := false
-                        catch (err: KeyNotFoundError) {
-                            src_symbol = context.scope_stack.lookup_symbol(src_key)
-                            src_symbol_found = true
-                        }
+                        src_symbol = context.scope_stack.lookup_symbol(src_key)
+                        src_symbol_found = true
+                        catch (err: KeyNotFoundError) { }
                         if src_symbol_found {
                             context.scope_stack.declare_symbol(src_key.clone(), src_symbol.clone())
                         }
@@ -2542,10 +2533,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case "Str":
                 // None for primitives
             case:
-                catch (err: KeyNotFoundError) {
-                    saved_return_offset = context.scope_stack.lookup_var(result_str)
-                    has_saved_return_offset = true
-                }
+                saved_return_offset = context.scope_stack.lookup_var(result_str)
+                has_saved_return_offset = true
+                catch (err: KeyNotFoundError) { }
             }
         }
     }
@@ -2567,10 +2557,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         if is_tcustom {
             mut custom_symbol := SymbolInfo()
             mut custom_symbol_found := false
-            catch (err: KeyNotFoundError) {
-                custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-                custom_symbol_found = true
-            }
+            custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
+            custom_symbol_found = true
+            catch (err: KeyNotFoundError) { }
             if custom_symbol_found {
                 mut is_enum_def := false
                 switch custom_symbol.value_type {
@@ -2585,10 +2574,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 if is_enum_def {
                     if not(result_str.contains(".")) {
                         // This is a variable, not a constructor - save the enum value
-                        catch (err: KeyNotFoundError) {
-                            saved_enum_value = Arena.get_enum(context, result_str, e)
-                            has_saved_enum_value = true
-                        }
+                        saved_enum_value = Arena.get_enum(context, result_str, e)
+                        has_saved_enum_value = true
+                        catch (err: Str) { }
                     }
                 }
             }
@@ -2640,10 +2628,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 // Custom type (enum or struct)
                 mut symbol_info := SymbolInfo()
                 mut symbol_info_found := false
-                catch (err: KeyNotFoundError) {
-                    symbol_info = context.scope_stack.lookup_symbol(type_name)
-                    symbol_info_found = true
-                }
+                symbol_info = context.scope_stack.lookup_symbol(type_name)
+                symbol_info_found = true
+                catch (err: KeyNotFoundError) { }
                 if not(symbol_info_found) {
                     context.scope_stack.frames.pop()
                     context.path = saved_path
@@ -2668,10 +2655,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 } else if is_struct_def {
                     mut offset := 0
                     mut offset_found := false
-                    catch (err: KeyNotFoundError) {
-                        offset = context.scope_stack.lookup_var(m.arg_name)
-                        offset_found = true
-                    }
+                    offset = context.scope_stack.lookup_var(m.arg_name)
+                    offset_found = true
+                    catch (err: KeyNotFoundError) { }
                     if offset_found {
                         collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.new_struct(offset, type_name.clone(), was_passed_by_ref)))
                     } else {
@@ -2747,10 +2733,9 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             case:
                 mut custom_symbol := SymbolInfo()
                 mut custom_symbol_found := false
-                catch (err: KeyNotFoundError) {
-                    custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
-                    custom_symbol_found = true
-                }
+                custom_symbol = context.scope_stack.lookup_symbol(custom_type_name)
+                custom_symbol_found = true
+                catch (err: KeyNotFoundError) { }
                 if custom_symbol_found {
                     mut is_struct_def := false
                     mut is_enum_def := false
@@ -2919,9 +2904,6 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         }
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: KeyNotFoundError) { throw err.msg }
-    catch (err: AllocError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
     catch (err: U8_OverflowError) { throw err.msg }
     return EvalResult.new("")
 }
