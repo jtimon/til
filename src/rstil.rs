@@ -18,7 +18,8 @@ use rs::parser::{
     Expr, NodeType, FunctionType, SFuncDef, Literal,
     parse_tokens,
 };
-use rs::init::Context;
+use rs::init::{Context, init_import_declarations};
+use rs::typer::typer_import_declarations;
 use rs::interpreter::EvalResult;
 
 const DEFAULT_MODE         : &str = "lib";
@@ -127,6 +128,22 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+
+        // Mode imports need full processing: init, typer, eval
+        // (Regular imports have init done during main file's init, but mode imports happen before that)
+        match init_import_declarations(context, &import_fcall_expr, &import_str) {
+            Ok(_) => {},
+            Err(error_string) => {
+                return Err(format!("{}:{}", &path, error_string));
+            },
+        }
+        let typer_errors = typer_import_declarations(context, &import_str);
+        if !typer_errors.is_empty() {
+            for err in &typer_errors {
+                println!("{}:{}", path, err);
+            }
+            return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
+        }
         match rs::ext::proc_import(context, &import_fcall_expr) {
             Ok(_) => {},
             Err(error_string) => {
@@ -188,8 +205,7 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
             return Err(format!("Compiler errors: {} type errors found", errors.len()));
         }
 
-        // Clear import cache between init and eval phases so imports are actually evaluated
-        context.imports_done.clear();
+        // No need to clear import cache - we use separate per-phase tracking now
     }
 
     return match rs::interpreter::eval_expr(context, &e) {

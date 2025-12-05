@@ -1,0 +1,11 @@
+mode lib
+
+import("src.test.circular_b")
+
+TypeA := struct {
+    mut val: I64 = 0
+}
+
+use_b := func(b: TypeB) returns I64 {
+    return b.val
+}

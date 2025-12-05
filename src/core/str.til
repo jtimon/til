@@ -2,6 +2,7 @@ mode lib
 
 import("src.core.bounds")
 import("src.core.mem")
+import("src.core.std.vec")
 
 print := proc(args: ..Str) {
     for i in 0..args.len() {
@@ -151,7 +152,7 @@ Str := struct {
         # First, count occurrences to calculate result size
         mut count := 0
         mut search_start := 0
-        while search_start.le(self.len().sub(from.len())) {
+        while search_start.lteq(self.len().sub(from.len())) {
             mut matches := true
             for i in 0..from.len() {
                 mut self_byte : U8 = 0
@@ -190,7 +191,7 @@ Str := struct {
         while src_idx.lt(self.len()) {
             # Check if 'from' matches at current position
             mut matches := true
-            if src_idx.le(self.len().sub(from.len())) {
+            if src_idx.lteq(self.len().sub(from.len())) {
                 for i in 0..from.len() {
                     mut self_byte : U8 = 0
                     mut from_byte : U8 = 0
@@ -232,7 +233,7 @@ Str := struct {
         mut start := 0
         mut pos := 0
 
-        while pos.le(self.len().sub(delimiter.len())) {
+        while pos.lteq(self.len().sub(delimiter.len())) {
             mut matches := true
             for i in 0..delimiter.len() {
                 mut self_byte : U8 = 0

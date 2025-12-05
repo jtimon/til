@@ -1093,31 +1093,23 @@ import_path_to_file_path := func(import_path: Str) returns Str throws Str {
 
 # Import declarations only (no eval) - for init phase
 # This processes imports during declaration indexing, copying only declarations
-# to the parent context. The eval phase will later initialize values.
+# to the parent context. The typer and eval phases will use the stored AST.
 init_import_declarations := proc(mut context: Context, e: Expr, import_path_str: Str) throws Str {
     mut path := import_path_to_file_path(import_path_str)
     mut original_path := context.path
 
-    # Check if already processed for declarations
-    if context.imports_done.contains_key(path) {
-        return  # Already imported declarations
+    # Already done (or in progress)? Skip.
+    # Adding to done at START handles both circular imports and re-imports.
+    if context.imports_init_done.contains(path) {
+        return
     }
 
-    # Check for circular imports
-    if context.imports_wip.contains(path) {
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ": Circular import dependency"))
-    }
-
-    # Mark as work-in-progress
-    mut insert_result := context.imports_wip.insert(path)
-    if not(insert_result) {
-        throw e.lang_error(context.path, "import", format("While trying to import ", path, " from ", original_path, ": Can't insert in imports_wip"))
-    }
+    # Mark as done immediately - before processing - to handle circular imports
+    _ := context.imports_init_done.insert(path)
 
     # Read and parse the imported file
     mut source := readfile(path)
     catch (err: Str) {
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("File '", path, "' not found or could not be read: ", err))
     }
 
@@ -1127,12 +1119,10 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     mut lexer := lexer_from_source(path, source)
     catch (err: Str) {
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
     catch (err: IndexOutOfBoundsError) {
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
@@ -1140,29 +1130,12 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     mut parsed_mode := parse_mode(path, lexer)
     catch (err: Str) {
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
-    }
-    catch (err: IndexOutOfBoundsError) {
-        context.path = original_path
-        context.imports_wip.remove(path)
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
-    }
-    catch (err: I64_OverflowError) {
-        context.path = original_path
-        context.imports_wip.remove(path)
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
-    }
-    catch (err: AllocError) {
-        context.path = original_path
-        context.imports_wip.remove(path)
-        throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
     # Check if mode can be imported
     if not(can_be_imported(parsed_mode)) {
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("file '", path, "' of mode '", parsed_mode.name, "' cannot be imported"))
     }
 
@@ -1195,7 +1168,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         catch (err: Str) {
             context.mode_def = previous_mode
             context.path = original_path
-            context.imports_wip.remove(path)
             throw err
         }
 
@@ -1207,13 +1179,11 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
     catch (err: Str) {
         context.mode_def = previous_mode
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err))
     }
     catch (err: IndexOutOfBoundsError) {
         context.mode_def = previous_mode
         context.path = original_path
-        context.imports_wip.remove(path)
         throw e.error(context.path, "import", format("While trying to import ", path, " from ", original_path, ":\n", err.msg))
     }
 
@@ -1224,7 +1194,6 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         context.mode_def = previous_mode
         mut orig_path_clone := original_path
         context.path = original_path
-        context.imports_wip.remove(path)
         mut error_msg := format("While trying to import ", path, " from ", orig_path_clone, ":\n")
         mut err_idx := 0
         while err_idx.lt(errors.len()) {
@@ -1236,13 +1205,12 @@ init_import_declarations := proc(mut context: Context, e: Expr, import_path_str:
         throw error_msg
     }
 
+    # Store AST for typer and eval phases
+    Map.insert(context.imported_asts, path, imported_ast)
+
     # Restore context state
     context.mode_def = previous_mode
     context.path = original_path
-    Set.remove(context.imports_wip, path)
-
-    # Cache that we've processed this import's declarations
-    Map.insert(context.imports_done, path, true)
 
     catch (err: AllocError) {
         throw err.msg
@@ -1783,9 +1751,12 @@ Context := struct {
     mut scope_stack: ScopeStack = ScopeStack.new()
     # Temporary storage for enum payload data during construction (Ptr for Option pattern, NULL = None)
     mut temp_enum_payload: Ptr = Ptr()  # Ptr to EnumPayload
-    # Import tracking
-    mut imports_wip: Set = Set.new(Str)  # wip imports (for cycle detection)
-    mut imports_done: Map = Map.new(Str, Bool)  # cleared between init and eval phases
+    # Import tracking - per-phase to allow circular imports
+    # Add to done at START of processing (not end) - handles both circular and re-imports
+    mut imported_asts: Map = Map.new(Str, Expr)  # path -> parsed AST (stored after init, used by typer and eval)
+    mut imports_init_done: Set = Set.new(Str)
+    mut imports_typer_done: Set = Set.new(Str)
+    mut imports_eval_done: Set = Set.new(Str)
     # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     # REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     # REM: TODO change the cached type to support import as returning a struct_def
@@ -1810,8 +1781,10 @@ Context := struct {
         result.mode_def = mode_def
         result.scope_stack = scope_stack
         result.temp_enum_payload = Ptr()
-        result.imports_wip = Set.new(Str)
-        result.imports_done = Map.new(Str, Bool)
+        result.imported_asts = Map.new(Str, Expr)
+        result.imports_init_done = Set.new(Str)
+        result.imports_typer_done = Set.new(Str)
+        result.imports_eval_done = Set.new(Str)
         catch (err: AllocError) {
             throw err.msg
         }

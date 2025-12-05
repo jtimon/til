@@ -1,5 +1,5 @@
 use crate::Context;
-use crate::rs::init::{SymbolInfo, ScopeType, get_value_type, get_func_name_in_call};
+use crate::rs::init::{SymbolInfo, ScopeType, get_value_type, get_func_name_in_call, import_path_to_file_path};
 use crate::rs::parser::{
     INFER_TYPE, Literal,
     Expr, NodeType, ValueType, SEnumDef, SStructDef, SFuncDef, Declaration, PatternInfo, FunctionType, TTypeDef,
@@ -22,6 +22,41 @@ enum ExprContext {
 pub struct ThrownType {
     pub type_str: String,
     pub msg: String,
+}
+
+// Type-check an imported file's AST.
+// Called when the typer encounters an import() call.
+// The AST was stored during init phase; we just run type checking on it.
+pub fn typer_import_declarations(context: &mut Context, import_path_str: &str) -> Vec<String> {
+    let path = import_path_to_file_path(import_path_str);
+
+    // Already done (or in progress)? Skip.
+    // Adding to done at START handles both circular imports and re-imports.
+    if context.imports_typer_done.contains(&path) {
+        return vec![];
+    }
+
+    // Mark as done immediately - before processing - to handle circular imports
+    context.imports_typer_done.insert(path.clone());
+
+    // Get stored AST from init phase
+    let ast = match context.imported_asts.get(&path) {
+        Some(ast) => ast.clone(),
+        None => {
+            // This shouldn't happen - init phase should have stored the AST
+            return vec![format!("typer: Import {} not found in stored ASTs - init phase should have stored it", path)];
+        }
+    };
+
+    // Save and restore context path
+    let original_path = context.path.clone();
+    context.path = path.clone();
+
+    // Run type checking on the imported AST
+    let errors = check_types(context, &ast);
+
+    context.path = original_path;
+    return errors;
 }
 
 fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
@@ -128,6 +163,16 @@ fn check_types_with_context(context: &mut Context, e: &Expr, expr_context: ExprC
             }
         },
         NodeType::FCall => {
+            // Special handling for import() calls - type-check the imported file
+            let f_name = get_func_name_in_call(&e);
+            if f_name == "import" {
+                // Get the import path from the argument
+                if let Ok(path_expr) = e.get(1) {
+                    if let NodeType::LLiteral(Literal::Str(import_path)) = &path_expr.node_type {
+                        errors.extend(typer_import_declarations(context, import_path));
+                    }
+                }
+            }
             errors.extend(check_fcall(context, &e));
             // Check if return value usage is correct for this context
             errors.extend(check_fcall_return_usage(context, &e, expr_context));

@@ -12,7 +12,7 @@ use std::io;
 use std::io::{ErrorKind, Write};
 use std::fs;
 use std::process::Command;
-use crate::{main_run, run_file, run_file_with_context};
+use crate::{main_run, run_file};
 
 // ---------- Helper functions
 
@@ -601,40 +601,34 @@ pub fn proc_import(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     let original_path = context.path.clone();
     let path = import_path_to_file_path(&result.value);
 
-    // Check cache: if already evaluated, return immediately
-    if let Some(import_result) = context.imports_done.get(&path) {
-        return import_result.clone().map(|_| EvalResult::new(""));
+    // Already done (or in progress)? Skip.
+    // Adding to done at START handles both circular imports and re-imports.
+    if context.imports_eval_done.contains(&path) {
+        return Ok(EvalResult::new(""));
     }
 
-    // Check for circular dependencies
-    if context.imports_wip.contains(&path) {
-        return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}: Circular import dependency",
-                                            path, original_path)));
-    }
+    // Mark as done immediately - before processing - to handle circular imports
+    context.imports_eval_done.insert(path.clone());
 
-    // Mark as work-in-progress
-    context.imports_wip.insert(path.clone());
-    context.path = path.clone();
-
-    let result = match run_file_with_context(true, true, context, &path, Vec::new()) {
-        Ok(_) => Ok(()),
-        Err(error_string) => {
-            context.path = original_path.clone();
-            // Prepend the imported file path to the error if not already present
-            let error_with_path = if error_string.starts_with(&path) {
-                error_string
-            } else {
-                format!("{}:{}", path, error_string)
-            };
-            return Err(e.error(&context.path, "eval", &format!("While trying to import {} from {}:\n{}",
-                                                path, original_path, error_with_path)))
-        },
+    // Get stored AST from init phase
+    let ast = match context.imported_asts.get(&path) {
+        Some(ast) => ast.clone(),
+        None => return Err(e.error(&context.path, "eval", &format!(
+            "Import {} not found in stored ASTs - init phase should have stored it", path))),
     };
 
-    context.imports_wip.remove(&path);
-    context.imports_done.insert(path, result.clone());
+    context.path = path.clone();
+
+    // Just eval the stored AST - no re-parsing needed
+    let eval_result = eval_expr(context, &ast);
+
     context.path = original_path;
-    return result.map(|_| EvalResult::new(""))
+
+    match eval_result {
+        Ok(_) => Ok(EvalResult::new("")),
+        Err(error_string) => Err(e.error(&context.path, "eval", &format!(
+            "While importing {}:\n{}", path, error_string))),
+    }
 }
 
 pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

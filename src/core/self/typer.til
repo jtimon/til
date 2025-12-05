@@ -21,6 +21,47 @@ ThrownType := struct {
     mut msg: Str = ""
 }
 
+// Type-check an imported file's AST.
+// Called when the typer encounters an import() call.
+// The AST was stored during init phase; we just run type checking on it.
+typer_import_declarations := proc(mut context: Context, import_path_str: Str) returns Vec throws Str {
+    mut errors := Vec.new(Str)
+    mut path := import_path_to_file_path(import_path_str)
+
+    // Already done (or in progress)? Skip.
+    // Adding to done at START handles both circular imports and re-imports.
+    if context.imports_typer_done.contains(path) {
+        return errors
+    }
+
+    // Mark as done immediately - before processing - to handle circular imports
+    _ := context.imports_typer_done.insert(path)
+
+    // Get stored AST from init phase
+    mut ast := Expr()
+    context.imported_asts.get(path, ast)
+    catch (err: KeyNotFoundError) {
+        // This shouldn't happen - init phase should have stored the AST
+        errors.push(format("typer: Import ", path, " not found in stored ASTs - init phase should have stored it"))
+        return errors
+    }
+
+    // Save and restore context path
+    mut original_path := context.path
+    context.path = path
+
+    // Run type checking on the imported AST
+    errors.extend(check_types(context, ast))
+
+    context.path = original_path
+
+    catch (err: AllocError) {
+        throw err.msg
+    }
+
+    return errors
+}
+
 check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec throws Str {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(0)) {
@@ -158,6 +199,25 @@ check_types_with_context := proc(mut context: Context, e: Expr, expr_context: Ex
             }
         }
     case NodeType.FCall:
+        // Special handling for import() calls - type-check the imported file
+        mut f_name := get_func_name_in_call(e)
+        if f_name.eq("import") {
+            // Get the import path from the argument
+            if e.params.len().gt(1) {
+                mut path_expr := e.get(1)
+                switch path_expr.node_type {
+                case NodeType.LLiteral(lit):
+                    switch lit {
+                    case Literal.Str(import_path):
+                        errors.extend(typer_import_declarations(context, import_path))
+                    case:
+                        // Not a string literal
+                    }
+                case:
+                    // Dynamic import path - can't type-check at compile time
+                }
+            }
+        }
         errors.extend(check_fcall(context, e))
         // Check if return value usage is correct for this context
         errors.extend(check_fcall_return_usage(context, e, expr_context))

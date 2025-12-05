@@ -718,40 +718,31 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
 
 // Convert dot-based import path to OS-specific file path
 // Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
-fn import_path_to_file_path(import_path: &str) -> String {
+pub fn import_path_to_file_path(import_path: &str) -> String {
     let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
     format!("{}.til", file_path)
 }
 
 // Import declarations only (no eval) - for init phase
 // This processes imports during declaration indexing, copying only declarations
-// to the parent context. The eval phase will later initialize values.
-fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &str) -> Result<(), String> {
+// to the parent context. The typer and eval phases will use the stored AST.
+pub fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &str) -> Result<(), String> {
     let path = import_path_to_file_path(import_path_str);
     let original_path = context.path.clone();
 
-    // Check if already processed for declarations
-    if context.imports_done.contains_key(&path) {
-        return Ok(()); // Already imported declarations
+    // Already done (or in progress)? Skip.
+    // Adding to done at START handles both circular imports and re-imports.
+    if context.imports_init_done.contains(&path) {
+        return Ok(());
     }
 
-    // Check for circular imports
-    if context.imports_wip.contains(&path) {
-        return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}: Circular import dependency",
-                                              path, original_path)));
-    }
-
-    // Mark as work-in-progress
-    if !context.imports_wip.insert(path.clone()) {
-        return Err(e.lang_error(&context.path, "import", &format!("While trying to import {} from {}: Can't insert in imports_wip",
-                                                   path, original_path)));
-    }
+    // Mark as done immediately - before processing - to handle circular imports
+    context.imports_init_done.insert(path.clone());
 
     // Read and parse the imported file
     let source: String = match fs::read_to_string(&path) {
         Ok(file) => file,
         Err(error) => {
-            context.imports_wip.remove(&path);
             return match error.kind() {
                 ErrorKind::NotFound => Err(e.error(&context.path, "import", &format!("File '{}' not found", path))),
                 other_error => Err(e.error(&context.path, "import", &format!("Problem reading file '{}': {}", path, other_error))),
@@ -767,7 +758,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         Err(error_string) => {
             let orig_path_clone = original_path.clone();
             context.path = original_path;
-            context.imports_wip.remove(&path);
             return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
@@ -779,7 +769,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         Err(error_string) => {
             let orig_path_clone = original_path.clone();
             context.path = original_path;
-            context.imports_wip.remove(&path);
             return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
@@ -788,7 +777,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
     // Check if mode can be imported
     if !can_be_imported(&mode) {
         context.path = original_path;
-        context.imports_wip.remove(&path);
         return Err(e.error(&context.path, "import", &format!("file '{}' of mode '{}' cannot be imported", path, mode.name)));
     }
 
@@ -803,7 +791,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         if let Err(error_string) = init_import_declarations(context, &import_fcall_expr, &import_str) {
             context.mode_def = previous_mode;
             context.path = original_path;
-            context.imports_wip.remove(&path);
             return Err(error_string);
         }
     }
@@ -815,7 +802,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
             context.mode_def = previous_mode;
             let orig_path_clone = original_path.clone();
             context.path = original_path;
-            context.imports_wip.remove(&path);
             return Err(e.error(&context.path, "import", &format!("While trying to import {} from {}:\n{}",
                                                   path, orig_path_clone, error_string)));
         },
@@ -828,7 +814,6 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         context.mode_def = previous_mode;
         let orig_path_clone = original_path.clone();
         context.path = original_path;
-        context.imports_wip.remove(&path);
         let mut error_msg = format!("While trying to import {} from {}:\n", path, orig_path_clone);
         for err in &errors {
             error_msg.push_str(&format!("{}:{}\n", path, err));
@@ -836,13 +821,12 @@ fn init_import_declarations(context: &mut Context, e: &Expr, import_path_str: &s
         return Err(error_msg);
     }
 
+    // Store AST for typer and eval phases
+    context.imported_asts.insert(path.clone(), imported_ast);
+
     // Restore context state
     context.mode_def = previous_mode;
     context.path = original_path;
-    context.imports_wip.remove(&path);
-
-    // Cache that we've processed this import's declarations
-    context.imports_done.insert(path, Ok(()));
 
     Ok(())
 }
@@ -1043,9 +1027,12 @@ pub struct Context {
     pub scope_stack: ScopeStack,
     // Temporary storage for enum payload data during construction
     pub temp_enum_payload: Option<EnumPayload>,
-    // Import tracking
-    pub imports_wip: HashSet<String>, // wip imports (for cycle detection)
-    pub imports_done: HashMap<String, Result<(), String>>, // cleared between init and eval phases
+    // Import tracking - per-phase to allow circular imports
+    // Add to done at START of processing (not end) - handles both circular and re-imports
+    pub imported_asts: HashMap<String, Expr>,  // path → parsed AST (stored after init, used by typer and eval)
+    pub imports_init_done: HashSet<String>,
+    pub imports_typer_done: HashSet<String>,
+    pub imports_eval_done: HashSet<String>,
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
     // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
@@ -1069,8 +1056,10 @@ impl Context {
             mode_def: mode_from_name(mode_name, path, &dummy_token)?,
             scope_stack,
             temp_enum_payload: None,
-            imports_wip: HashSet::new(),
-            imports_done: HashMap::new(),
+            imported_asts: HashMap::new(),
+            imports_init_done: HashSet::new(),
+            imports_typer_done: HashSet::new(),
+            imports_eval_done: HashSet::new(),
         });
     }
 

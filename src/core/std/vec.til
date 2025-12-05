@@ -181,7 +181,7 @@ Vec := struct {
         mut i := index
         while i.lt(sub(self._len, 1)) {
             src := add(self.ptr, mul(add(i, 1), self.type_size))
-            dest := add(self.ptr, mul(i, self.type_size))
+            mut dest := add(self.ptr, mul(i, self.type_size))
             memcpy(dest, src, self.type_size)
             i = add(i, 1)
         }

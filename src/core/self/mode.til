@@ -88,7 +88,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
     throw t.error(path, format(LANG_NAME, " interpreter implementation doesn't support mode '", mode_name, "'"))
 }
 
-parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, IndexOutOfBoundsError, I64_OverflowError, AllocError {
+parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str {
     _ := lexer_expect(lexer, TokenType.Mode)  // Add one for mode
 
     t := lexer.peek()
@@ -108,5 +108,13 @@ parse_mode := func(path: Str, mut lexer: Lexer) returns ModeDef throws Str, Inde
     }
 
     _ := lexer_expect(lexer, TokenType.Identifier)  // Add one for the identifier of the mode
+
+    catch (err: IndexOutOfBoundsError) {
+        throw err.msg
+    }
+    catch (err: AllocError) {
+        throw err.msg
+    }
+
     return m
 }

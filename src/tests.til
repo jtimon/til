@@ -44,6 +44,7 @@ runfile("src/test/test_lexer.til")
 runfile("src/test/test_parser.til")
 runfile("src/test/structs.til")
 runfile("src/test/forward_declarations.til")
+runfile("src/test/circular_test.til")
 // runfile("src/test/undefined.til") // Should produce compile-time errors for undefined types
 runfile("src/test/func_purity.til")
 runfile("src/test/u8.til")

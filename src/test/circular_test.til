@@ -1,0 +1,22 @@
+mode test
+
+import("src.test.circular_a")
+import("src.test.circular_b")
+
+test_circular := proc() {
+    mut a := TypeA()
+    a.val = 42
+
+    mut b := TypeB()
+    b.val = 100
+
+    // Test that we can use functions from both modules
+    result_a := use_b(b)
+    result_b := use_a(a)
+
+    assert_eq(loc(), 100, result_a)
+    assert_eq(loc(), 42, result_b)
+}
+
+test_circular()
+println("Circular import test passed!")

@@ -96,12 +96,6 @@ test_parse_file := proc(path: Str) {
     catch (err: IndexOutOfBoundsError) {
         exit(1)
     }
-    catch (err: AllocError) {
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        exit(1)
-    }
 }
 
 // Test simple helper functions
@@ -143,22 +137,6 @@ test_parse_mode := proc() {
         println(err)
         exit(1)
     }
-    catch (err: IndexOutOfBoundsError) {
-        println("ERROR:", loc(), "Unexpected IndexOutOfBoundsError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: AllocError) {
-        println("ERROR:", loc(), "Unexpected AllocError")
-        println(err.msg)
-        exit(1)
-    }
-    catch (err: I64_OverflowError) {
-        println("ERROR:", loc(), "Unexpected I64_OverflowError")
-        println(err.msg)
-        exit(1)
-    }
-
 }
 
 test_parse_literal := proc() {
