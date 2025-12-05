@@ -698,7 +698,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                         context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom(struct_type_name), false, false, false))
 
-                                        Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
+                                        _ := Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
                                         enum_var_name = temp_var_name
                                         enum_var_set = true
                                     }
@@ -714,7 +714,7 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
 
                                     context.scope_stack.declare_symbol(temp_var_name, SymbolInfo.new(ValueType.TCustom(struct_type_name), false, false, false))
 
-                                    Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
+                                    _ := Arena.insert_enum(context, temp_var_name, struct_type_name, nested_result.value, e)
                                     enum_var_name = temp_var_name
                                     enum_var_set = true
                                 case:
@@ -906,7 +906,7 @@ eval_declaration := proc(declaration: Declaration, mut context: Context, e: Expr
                     return result
                 }
                 enum_expr_result_str := result.value
-                Arena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)
+                _ := Arena.insert_enum(context, declaration.name, custom_type_name, enum_expr_result_str, e)
             } else if is_struct_def {
                 // Special case for instantiation
                 mut is_fcall := false
@@ -1172,7 +1172,7 @@ eval_assignment := proc(var_name: Str, mut context: Context, e: Expr) returns Ev
                     return result
                 }
                 expr_result_str := result.value
-                Arena.insert_enum(context, var_name, custom_type_name, expr_result_str, e)
+                _ := Arena.insert_enum(context, var_name, custom_type_name, expr_result_str, e)
             case ValueType.TType(TTypeDef.TStructDef):
                 result := eval_expr(context, inner_e)
                 if result.is_throw {
@@ -2082,7 +2082,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             }
                             if is_enum_def {
                                 // Transfer payload from outer context if present (temp_enum_payload already on context)
-                                Arena.insert_enum_into_frame(context, function_frame, arg.name, custom_type_name, result_str, e)
+                                _ := Arena.insert_enum_into_frame(context, function_frame, arg.name, custom_type_name, result_str, e)
                             } else if is_struct_def {
                                 // Bug #10 fix: Handle field access chains like s.items
                                 mut source_id := ""
@@ -2711,13 +2711,13 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
         collected_mut_args.get(ci, c)
         switch c.value {
         case MutArgValue.I64(val):
-            Arena.insert_i64(context, c.source_name, I64.to_str(val), e)
+            _ := Arena.insert_i64(context, c.source_name, I64.to_str(val), e)
         case MutArgValue.U8(val):
-            Arena.insert_u8(context, c.source_name, U8.to_str(val), e)
+            _ := Arena.insert_u8(context, c.source_name, U8.to_str(val), e)
         case MutArgValue.Str(val):
-            Arena.insert_string(context, c.source_name, val, e)
+            _ := Arena.insert_string(context, c.source_name, val, e)
         case MutArgValue.Enum(enum_val):
-            Arena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
+            _ := Arena.insert_enum(context, c.source_name, enum_val.enum_type, format(enum_val.enum_type, ".", enum_val.enum_name), e)
         case MutArgValue.Struct(struct_data):
             mut lf12_idx := context.scope_stack.frames.len().sub(1)
             mut lf12 := ScopeFrame()
@@ -2826,7 +2826,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                             context.temp_enum_payload = EnumPayload.new(saved_enum_value.payload.clone(), saved_enum_value.payload_type)
                         }
 
-                        Arena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
+                        _ := Arena.insert_enum(context, return_instance, saved_enum_value.enum_type, format(saved_enum_value.enum_type, ".", saved_enum_value.enum_name), e)
                         return EvalResult.new_return(return_instance) // CLEANUP SITE 6: Return enum variable
                     }
                 }
