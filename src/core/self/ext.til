@@ -126,9 +126,6 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
         }
     }
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
-    catch (err: U8_OverflowError) { throw err.msg }
-    catch (err: I64_OverflowError) { throw err.msg }
 
     if offset.eq(0) {  // TODO: REM: throw AllocError instead of return NULL pointer
         throw e.lang_error(context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer")
@@ -146,7 +143,7 @@ func_free := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     return EvalResult.new("")
 }
 
-func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, U8_OverflowError, I64_OverflowError {
+func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str, IndexOutOfBoundsError, U8_OverflowError {
     validate_arg_count(context.path, e, "memset", 3, false)
 
     dest_result := eval_expr(context, e.get(1))
@@ -174,7 +171,7 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new("")
 }
 
-func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str, AllocError, IndexOutOfBoundsError, I64_OverflowError {
+func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str, IndexOutOfBoundsError {
     validate_arg_count(context.path, e, "memcpy", 3, false)
 
     dest_result := eval_expr(context, e.get(1))
@@ -530,7 +527,6 @@ proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws St
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     run_file(path, main_args)
     return EvalResult.new("")
     catch (error_string: Str) {
@@ -584,7 +580,6 @@ proc_import := proc(mut context: Context, e: Expr) returns EvalResult throws Str
             "While importing ", path, ":\n", eval_result.value))
     }
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
     return EvalResult.new("")
 }
 
@@ -642,7 +637,6 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     }
 
     catch (err: AllocError) { throw err.msg }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Call host-provided run_cmd (when running on rstil)
     output := run_cmd(cmd, args)
@@ -715,9 +709,6 @@ func_exit := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
         switch lit {
         case Literal.Number(num_str):
             exit_code := I64.from_str(num_str)
-            catch (err: I64_OverflowError) {
-                throw e.lang_error(context.path, "eval", format("Invalid number literal '", num_str, "'"))
-            }
             exit(exit_code)
             return EvalResult.new("")  // unreachable, exit() never returns
         case:
