@@ -2342,7 +2342,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         }
 
                                         // Pop frame back for remaining arg processing
-                                        function_frame = context.scope_stack.frames.pop()
+                                        function_frame = context.scope_stack.pop()
                                     }
                                 } else {
                                     // For expression arguments (like Vec.new(Expr)), the struct is already
@@ -2378,7 +2378,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                     _ := context.scope_stack.remove_symbol(source_id)
 
                                     // Pop frame back for remaining arg processing
-                                    function_frame = context.scope_stack.frames.pop()
+                                    function_frame = context.scope_stack.pop()
 
                                     // For own parameters, remove the source from caller's context (ownership transferred)
                                     if arg.is_own {
@@ -2527,7 +2527,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
             }
         }
         // Pop frame and restore path before returning
-        context.scope_stack.frames.pop()
+        _ := context.scope_stack.pop()
         context.path = saved_path
         return result // CLEANUP SITE 3: Propagate throw from function body
     }
@@ -2653,7 +2653,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                 symbol_info_found = true
                 catch (err: KeyNotFoundError) { }
                 if not(symbol_info_found) {
-                    context.scope_stack.frames.pop()
+                    _ := context.scope_stack.pop()
                     context.path = saved_path
                     throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", type_name, "' as an mut argument. Undefined symbol."))
                 }
@@ -2682,18 +2682,18 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     if offset_found {
                         collected_mut_args.push(CollectedMutArg.new(m.source_name.clone(), MutArgValue.Struct(MutArgStructData.new(offset, type_name.clone(), was_passed_by_ref))))
                     } else {
-                        context.scope_stack.frames.pop()
+                        _ := context.scope_stack.pop()
                         context.path = saved_path
                         throw e.lang_error(context.path, "eval", format("Missing struct arena index for argument '", m.arg_name, "'"))
                     }
                 } else {
-                    context.scope_stack.frames.pop()
+                    _ := context.scope_stack.pop()
                     context.path = saved_path
                     throw e.lang_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", type_name, "' as a mut argument. Not an enum or struct, but a '", value_type_to_str(symbol_info.value_type), "'."))
                 }
             }
         } else {
-            context.scope_stack.frames.pop()
+            _ := context.scope_stack.pop()
             context.path = saved_path
             throw e.todo_error(context.path, "eval", format("Cannot use '", m.arg_name, "' of type '", value_type_to_str(m.value_type), "' as a mut argument. Only structs and enums allowed for now."))
         }
@@ -2701,7 +2701,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
     }
 
     // Pop function frame BEFORE writing mut args back to caller
-    context.scope_stack.frames.pop()
+    _ := context.scope_stack.pop()
     context.path = saved_path.clone()
 
     // Write collected mut_args values to caller's frame (now on top)
