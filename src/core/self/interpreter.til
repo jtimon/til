@@ -2034,7 +2034,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
-                                            arena_keys := caller_frame.arena_index.keys()
+                                            arena_keys := caller_frame.arena_index.keys
                                             mut aki := 0
                                             while aki.lt(arena_keys.len()) {
                                                 mut key := ""
@@ -2051,7 +2051,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 aki = aki.add(1)
                                             }
                                             // Copy symbols entries
-                                            symbol_keys := caller_frame.symbols.keys()
+                                            symbol_keys := caller_frame.symbols.keys
                                             mut ski := 0
                                             while ski.lt(symbol_keys.len()) {
                                                 mut skey := ""
@@ -2190,7 +2190,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         // This includes the base offset and all nested field offsets
                                         prefix := format(id_, ".")
                                         last_frame := context.scope_stack.last_frame()
-                                        arena_keys := last_frame.arena_index.keys()
+                                        arena_keys := last_frame.arena_index.keys
                                         mut ki := 0
                                         while ki.lt(arena_keys.len()) {
                                             mut key := ""
@@ -2253,7 +2253,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                             mut caller_frame := ScopeFrame()
                                             context.scope_stack.frames.get(fi, caller_frame)
                                             // Copy arena_index entries
-                                            arena_keys := caller_frame.arena_index.keys()
+                                            arena_keys := caller_frame.arena_index.keys
                                             mut aki := 0
                                             while aki.lt(arena_keys.len()) {
                                                 mut key := ""
@@ -2270,7 +2270,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 aki = aki.add(1)
                                             }
                                             // Copy symbols entries
-                                            symbol_keys := caller_frame.symbols.keys()
+                                            symbol_keys := caller_frame.symbols.keys
                                             mut ski := 0
                                             while ski.lt(symbol_keys.len()) {
                                                 mut skey := ""
@@ -2438,7 +2438,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                         prefix := format(source_id, ".")
                                         mut keys_to_remove := Vec.new(Str)
                                         lf7 := context.scope_stack.last_frame()
-                                        arena_keys := lf7.arena_index.keys()
+                                        arena_keys := lf7.arena_index.keys
                                         mut ki := 0
                                         while ki.lt(arena_keys.len()) {
                                             mut key := ""
@@ -2526,7 +2526,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                     // Copy arena_index entries (including nested fields like .msg.c_string)
                     mut keys_to_copy := Vec.new(Str)
                     lf8 := context.scope_stack.last_frame()
-                    arena_keys := lf8.arena_index.keys()
+                    arena_keys := lf8.arena_index.keys
                     mut ki := 0
                     while ki.lt(arena_keys.len()) {
                         mut key := ""
