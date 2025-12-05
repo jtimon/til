@@ -16,6 +16,11 @@ ExprContext := enum {
     ValueDiscarded,
 }
 
+ThrownType := struct {
+    mut type_str: Str = ""
+    mut msg: Str = ""
+}
+
 check_enum_def := proc(context: Context, e: Expr, enum_def: SEnumDef) returns Vec throws Str {
     mut errors := Vec.new(Str)
     if not(e.params.len().eq(0)) {
@@ -697,9 +702,8 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     }
 
     mut return_found := false
-    mut thrown_type_strs := Vec.new(Str)
-    mut thrown_type_msgs := Vec.new(Str)
-    errors.extend(check_body_returns_throws(context, e, func_def, func_def.body, thrown_type_strs, thrown_type_msgs, return_found))
+    mut thrown_types := Vec.new(ThrownType)
+    errors.extend(check_body_returns_throws(context, e, func_def, func_def.body, thrown_types, return_found))
 
     if not(return_found).and(func_def.return_types.len().gt(0)) {
         errors.push(e.error(context.path, "type", "No return statments found in function that returns "))
@@ -707,24 +711,22 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
 
     // Filter and report only the thrown types that are not declared
     mut i := 0
-    while i.lt(thrown_type_strs.len()) {
-        mut thrown_type := ""
-        thrown_type_strs.get(i, thrown_type)
-        mut error_msg := ""
-        thrown_type_msgs.get(i, error_msg)
+    while i.lt(thrown_types.len()) {
+        mut te := ThrownType()
+        thrown_types.get(i, te)
 
         mut is_declared := false
         mut j := 0
         while j.lt(func_def.throw_types.len()) {
             mut declared := ValueType.TCustom("")
             func_def.throw_types.get(j, declared)
-            if value_type_to_str(declared).eq(thrown_type) {
+            if value_type_to_str(declared).eq(te.type_str) {
                 is_declared = true
             }
             j = j.add(1)
         }
         if not(is_declared) {
-            errors.push(error_msg)
+            errors.push(te.msg)
         }
         i = i.add(1)
     }
@@ -737,14 +739,14 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
         mut declared_str := value_type_to_str(declared_throw)
 
         mut is_thrown := false
-        mut t := 0
-        while t.lt(thrown_type_strs.len()) {
-            mut thrown := ""
-            thrown_type_strs.get(t, thrown)
-            if thrown.eq(declared_str) {
+        mut ti := 0
+        while ti.lt(thrown_types.len()) {
+            mut te := ThrownType()
+            thrown_types.get(ti, te)
+            if te.type_str.eq(declared_str) {
                 is_thrown = true
             }
-            t = t.add(1)
+            ti = ti.add(1)
         }
         if not(is_thrown) {
             errors.push(e.error(context.path, "warning", format("It looks like `", declared_str, "` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.")))
@@ -765,7 +767,7 @@ check_func_proc_types := proc(func_def: SFuncDef, mut context: Context, e: Expr)
     return errors
 }
 
-check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_type_strs: Vec, mut thrown_type_msgs: Vec, mut return_found: Bool) returns Vec throws Str {
+check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFuncDef, body: Vec, mut thrown_types: Vec, mut return_found: Bool) returns Vec throws Str {
 
     mut errors := Vec.new(Str)
     returns_len := func_def.return_types.len()
@@ -782,11 +784,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
         } else {
             switch p.node_type {
             case NodeType.Body:
-                mut temp_thrown_type_strs := Vec.new(Str)
-                mut temp_thrown_type_msgs := Vec.new(Str)
-                errors.extend(check_body_returns_throws(context, e, func_def, p.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
-                thrown_type_strs.extend(temp_thrown_type_strs)
-                thrown_type_msgs.extend(temp_thrown_type_msgs)
+                mut temp_thrown_types := Vec.new(ThrownType)
+                errors.extend(check_body_returns_throws(context, e, func_def, p.params, temp_thrown_types, return_found))
+                thrown_types.extend(temp_thrown_types)
 
             case NodeType.Return:
                 return_found = true
@@ -817,7 +817,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             // Recursively check this return expression for throws
                             mut single_expr := Vec.new(Expr)
                             single_expr.push(return_val_e)
-                            errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_type_strs, thrown_type_msgs, return_found))
+                            errors.extend(check_body_returns_throws(context, return_val_e, func_def, single_expr, thrown_types, return_found))
 
                             mut actual_value_type := get_value_type(context, return_val_e)
                             if not(value_type_to_str(expected_value_type).eq(value_type_to_str(actual_value_type))) {
@@ -848,10 +848,14 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     case:
                         // Track the thrown type as a string and another string with its error
                         thrown_type_str := value_type_to_str(thrown_type)
-                        thrown_type_strs.push(thrown_type_str)
-                        thrown_type_msgs.push(throw_param.error(context.path, "type", format("Function throws '", thrown_type_str, "', but it is not declared in this function's throws section.")))
-                        thrown_type_strs.push(thrown_type_str)
-                        thrown_type_msgs.push(e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"))
+                        mut te1 := ThrownType()
+                        te1.type_str = thrown_type_str
+                        te1.msg = throw_param.error(context.path, "type", format("Function throws '", thrown_type_str, "', but it is not declared in this function's throws section."))
+                        thrown_types.push(te1)
+                        mut te2 := ThrownType()
+                        te2.type_str = thrown_type_str
+                        te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                        thrown_types.push(te2)
                     }
                     catch (err: Str) {
                         errors.push(err)
@@ -887,24 +891,23 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Remove first, before descending into body
                     mut found_caught := false
                     mut ci := 0
-                    while ci.lt(thrown_type_strs.len()) {
-                        mut t := ""
-                        thrown_type_strs.get(ci, t)
-                        if t.eq(caught_type) {
+                    while ci.lt(thrown_types.len()) {
+                        mut te := ThrownType()
+                        thrown_types.get(ci, te)
+                        if te.type_str.eq(caught_type) {
                             found_caught = true
                         }
                         ci = ci.add(1)
                     }
 
                     if found_caught {
-                        // Remove matching entries from both parallel vecs
+                        // Remove matching entries
                         mut ri := 0
-                        while ri.lt(thrown_type_strs.len()) {
-                            mut t := ""
-                            thrown_type_strs.get(ri, t)
-                            if t.eq(caught_type) {
-                                thrown_type_strs.remove(ri)
-                                thrown_type_msgs.remove(ri)
+                        while ri.lt(thrown_types.len()) {
+                            mut te := ThrownType()
+                            thrown_types.get(ri, te)
+                            if te.type_str.eq(caught_type) {
+                                thrown_types.remove(ri)
                             } else {
                                 ri = ri.add(1)
                             }
@@ -937,11 +940,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     }
 
                     // Then check body for other thrown exceptions
-                    mut temp_thrown_type_strs := Vec.new(Str)
-                    mut temp_thrown_type_msgs := Vec.new(Str)
-                    errors.extend(check_body_returns_throws(context, e, func_def, catch_body_expr.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
-                    thrown_type_strs.extend(temp_thrown_type_strs)
-                    thrown_type_msgs.extend(temp_thrown_type_msgs)
+                    mut temp_thrown_types := Vec.new(ThrownType)
+                    errors.extend(check_body_returns_throws(context, e, func_def, catch_body_expr.params, temp_thrown_types, return_found))
+                    thrown_types.extend(temp_thrown_types)
                     _ := context.scope_stack.pop()
                     catch (err: Str) {
                         // Ignore pop error
@@ -957,10 +958,14 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     called_throw_str := value_type_to_str(called_throw)
                     error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
-                    thrown_type_strs.push(called_throw_str)
-                    thrown_type_msgs.push(p.error(context.path, "type", error_msg))
-                    thrown_type_strs.push(called_throw_str)
-                    thrown_type_msgs.push(e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"))
+                    mut te1 := ThrownType()
+                    te1.type_str = called_throw_str
+                    te1.msg = p.error(context.path, "type", error_msg)
+                    thrown_types.push(te1)
+                    mut te2 := ThrownType()
+                    te2.type_str = called_throw_str
+                    te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                    thrown_types.push(te2)
                     cti = cti.add(1)
                 }
 
@@ -972,11 +977,9 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     switch arg.node_type {
                     case NodeType.FCall:
                         mut nested_func_def := get_func_def_for_fcall(context, arg)
-                        mut temp_thrown_type_strs := Vec.new(Str)
-                        mut temp_thrown_type_msgs := Vec.new(Str)
-                        errors.extend(check_body_returns_throws(context, arg, nested_func_def, arg.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
-                        thrown_type_strs.extend(temp_thrown_type_strs)
-                        thrown_type_msgs.extend(temp_thrown_type_msgs)
+                        mut temp_thrown_types := Vec.new(ThrownType)
+                        errors.extend(check_body_returns_throws(context, arg, nested_func_def, arg.params, temp_thrown_types, return_found))
+                        thrown_types.extend(temp_thrown_types)
                         catch (err: Str) {
                             errors.push(arg.error(context.path, "type", format("Failed to resolve nested function call: ", err)))
                         }
@@ -996,49 +999,44 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                 }
 
             case NodeType.While:
-                mut temp_thrown_type_strs := Vec.new(Str)
-                mut temp_thrown_type_msgs := Vec.new(Str)
+                mut temp_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
                     mut cond_expr := Expr()
                     p.params.get(0, cond_expr)
                     mut single_cond := Vec.new(Expr)
                     single_cond.push(cond_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_types, return_found))
                 }
                 if p.params.len().gt(1) {
                     mut body_expr := Expr()
                     p.params.get(1, body_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs)
-                thrown_type_msgs.extend(temp_thrown_type_msgs)
+                thrown_types.extend(temp_thrown_types)
 
             case NodeType.If:
-                mut temp_thrown_type_strs := Vec.new(Str)
-                mut temp_thrown_type_msgs := Vec.new(Str)
+                mut temp_thrown_types := Vec.new(ThrownType)
                 if p.params.len().gt(0) {
                     mut cond_expr := Expr()
                     p.params.get(0, cond_expr)
                     mut single_cond := Vec.new(Expr)
                     single_cond.push(cond_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_cond, temp_thrown_types, return_found))
                 }
                 if p.params.len().gt(1) {
                     mut then_block := Expr()
                     p.params.get(1, then_block)
-                    errors.extend(check_body_returns_throws(context, e, func_def, then_block.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, then_block.params, temp_thrown_types, return_found))
                 }
                 if p.params.len().gt(2) {
                     mut else_block := Expr()
                     p.params.get(2, else_block)
-                    errors.extend(check_body_returns_throws(context, e, func_def, else_block.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, else_block.params, temp_thrown_types, return_found))
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs)
-                thrown_type_msgs.extend(temp_thrown_type_msgs)
+                thrown_types.extend(temp_thrown_types)
 
             case NodeType.Switch:
-                mut temp_thrown_type_strs := Vec.new(Str)
-                mut temp_thrown_type_msgs := Vec.new(Str)
+                mut temp_thrown_types := Vec.new(ThrownType)
 
                 // Get switch expression type for pattern matching
                 mut switch_expr_type := ValueType.TCustom("")
@@ -1055,7 +1053,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Analyze the switch expression itself (could throw)
                     mut single_switch := Vec.new(Expr)
                     single_switch.push(switch_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_switch, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_switch, temp_thrown_types, return_found))
                 }
 
                 mut si := 1
@@ -1068,7 +1066,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                     // Check case expression
                     mut single_case := Vec.new(Expr)
                     single_case.push(case_expr)
-                    errors.extend(check_body_returns_throws(context, e, func_def, single_case, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                    errors.extend(check_body_returns_throws(context, e, func_def, single_case, temp_thrown_types, return_found))
 
                     // For pattern matching, add the binding variable to scope before checking body
                     // This mirrors check_switch_statement's scope handling (Bug #28 fix)
@@ -1093,7 +1091,7 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             if not(value_type_to_str(payload_type).eq("Bool")) {
                                 context.scope_stack.push(ScopeType.Block)
                                 context.scope_stack.declare_symbol(pattern_info.binding_var, SymbolInfo.new(payload_type, false, false, false))
-                                errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                                errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                                 _ := context.scope_stack.pop()
                                 catch (err: Str) { }
                                 handled = true
@@ -1105,16 +1103,15 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                             // Not a custom type
                         }
                         if not(handled) {
-                            errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                            errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                         }
                     case:
-                        errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
+                        errors.extend(check_body_returns_throws(context, e, func_def, body_expr.params, temp_thrown_types, return_found))
                     }
 
                     si = si.add(2)
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs)
-                thrown_type_msgs.extend(temp_thrown_type_msgs)
+                thrown_types.extend(temp_thrown_types)
 
             case NodeType.Declaration(decl):
                 // Bug #28 fix: Declare variables so subsequent statements can reference them
@@ -1188,18 +1185,20 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
-                                thrown_type_strs.push(called_throw_str)
-                                thrown_type_msgs.push(initializer.error(context.path, "type", error_msg))
-                                thrown_type_strs.push(called_throw_str)
-                                thrown_type_msgs.push(e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"))
+                                mut te1 := ThrownType()
+                                te1.type_str = called_throw_str
+                                te1.msg = initializer.error(context.path, "type", error_msg)
+                                thrown_types.push(te1)
+                                mut te2 := ThrownType()
+                                te2.type_str = called_throw_str
+                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(te2)
                                 cti = cti.add(1)
                             }
 
-                            mut temp_thrown_type_strs := Vec.new(Str)
-                            mut temp_thrown_type_msgs := Vec.new(Str)
-                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
-                            thrown_type_strs.extend(temp_thrown_type_strs)
-                            thrown_type_msgs.extend(temp_thrown_type_msgs)
+                            mut temp_thrown_types := Vec.new(ThrownType)
+                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_types, return_found))
+                            thrown_types.extend(temp_thrown_types)
                             catch (err: Str) {
                                 // If we can't resolve the function, skip throw checking
                             }
@@ -1266,18 +1265,20 @@ check_body_returns_throws := proc(mut context: Context, e: Expr, func_def: SFunc
                                 called_throw_str := value_type_to_str(called_throw)
                                 error_msg := format("Function throws '", called_throw_str, "', but it is not declared in this function's throws section.")
 
-                                thrown_type_strs.push(called_throw_str)
-                                thrown_type_msgs.push(initializer.error(context.path, "type", error_msg))
-                                thrown_type_strs.push(called_throw_str)
-                                thrown_type_msgs.push(e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"))
+                                mut te1 := ThrownType()
+                                te1.type_str = called_throw_str
+                                te1.msg = initializer.error(context.path, "type", error_msg)
+                                thrown_types.push(te1)
+                                mut te2 := ThrownType()
+                                te2.type_str = called_throw_str
+                                te2.msg = e.error(context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block")
+                                thrown_types.push(te2)
                                 cti = cti.add(1)
                             }
 
-                            mut temp_thrown_type_strs := Vec.new(Str)
-                            mut temp_thrown_type_msgs := Vec.new(Str)
-                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_type_strs, temp_thrown_type_msgs, return_found))
-                            thrown_type_strs.extend(temp_thrown_type_strs)
-                            thrown_type_msgs.extend(temp_thrown_type_msgs)
+                            mut temp_thrown_types := Vec.new(ThrownType)
+                            errors.extend(check_body_returns_throws(context, initializer, called_func_def, initializer.params, temp_thrown_types, return_found))
+                            thrown_types.extend(temp_thrown_types)
                             catch (err: Str) {
                                 // If we can't resolve the function, skip throw checking
                             }

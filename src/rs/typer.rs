@@ -19,6 +19,11 @@ enum ExprContext {
     ValueDiscarded,
 }
 
+pub struct ThrownType {
+    pub type_str: String,
+    pub msg: String,
+}
+
 fn check_enum_def(context: &Context, e: &Expr, enum_def: &SEnumDef) -> Vec<String> {
     let mut errors : Vec<String> = Vec::new();
     if e.params.len() != 0 {
@@ -514,26 +519,23 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     }
 
     let mut return_found = false;
-    let mut thrown_type_strs: Vec<String> = Vec::new();
-    let mut thrown_type_msgs: Vec<String> = Vec::new();
-    errors.extend(check_body_returns_throws(context, e, func_def, &func_def.body, &mut thrown_type_strs, &mut thrown_type_msgs, &mut return_found));
+    let mut thrown_types: Vec<ThrownType> = Vec::new();
+    errors.extend(check_body_returns_throws(context, e, func_def, &func_def.body, &mut thrown_types, &mut return_found));
 
     if !return_found && func_def.return_types.len() > 0 {
         errors.push(e.error(&context.path, "type", "No return statments found in function that returns "));
     }
 
     // Filter and report only the thrown types that are not declared
-    for i in 0..thrown_type_strs.len() {
-        let thrown_type = &thrown_type_strs[i];
-        let error_msg = &thrown_type_msgs[i];
-        if !func_def.throw_types.iter().any(|declared| &value_type_to_str(declared) == thrown_type) {
-            errors.push(error_msg.to_string());
+    for te in &thrown_types {
+        if !func_def.throw_types.iter().any(|declared| &value_type_to_str(declared) == &te.type_str) {
+            errors.push(te.msg.clone());
         }
     }
 
     for declared_throw in &func_def.throw_types {
         let declared_str = value_type_to_str(declared_throw);
-        if !thrown_type_strs.iter().any(|t| t == &declared_str) {
+        if !thrown_types.iter().any(|te| te.type_str == declared_str) {
             errors.push(e.error(&context.path, "warning", &format!("It looks like `{}` is declared in the throws section, but this function never throws it.\nSuggestion: You can remove it to improve readability.",
                                                     declared_str)));
         }
@@ -542,7 +544,7 @@ fn check_func_proc_types(func_def: &SFuncDef, context: &mut Context, e: &Expr) -
     return errors
 }
 
-pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_type_strs: &mut Vec<String>, thrown_type_msgs: &mut Vec<String>, return_found: &mut bool) -> Vec<String> {
+pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFuncDef, body: &[Expr], thrown_types: &mut Vec<ThrownType>, return_found: &mut bool) -> Vec<String> {
 
     let mut errors = vec![];
     let returns_len = func_def.return_types.len();
@@ -557,11 +559,9 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
         } else {
             match &p.node_type {
             NodeType::Body => {
-                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
-                errors.extend(check_body_returns_throws(context, e, func_def, &p.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
-                thrown_type_strs.extend(temp_thrown_type_strs);
-                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                errors.extend(check_body_returns_throws(context, e, func_def, &p.params, &mut temp_thrown_types, return_found));
+                thrown_types.extend(temp_thrown_types);
             },
             NodeType::Return => {
                 *return_found = true;
@@ -589,7 +589,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                         if let (Some(expected_value_type), Some(return_val_e)) = (expected_value_type_opt, return_val_e_opt) {
                             // Recursively check this return expression for throws
                             errors.extend(
-                                check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_type_strs, thrown_type_msgs, return_found));
+                                check_body_returns_throws(context, return_val_e, func_def, std::slice::from_ref(return_val_e), thrown_types, return_found));
 
                             match get_value_type(&context, return_val_e) {
                                 Ok(actual_value_type) => {
@@ -626,10 +626,8 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                             } else {
                                 // Track the thrown type as a string and another string with its error
                                 let thrown_type_str = value_type_to_str(&thrown_type);
-                                thrown_type_strs.push(thrown_type_str.clone());
-                                thrown_type_msgs.push(throw_param.error(&context.path, "type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str)));
-                                thrown_type_strs.push(thrown_type_str.clone());
-                                thrown_type_msgs.push(e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"));
+                                thrown_types.push(ThrownType { type_str: thrown_type_str.clone(), msg: throw_param.error(&context.path, "type", &format!("Function throws '{}', but it is not declared in this function's throws section.", thrown_type_str)) });
+                                thrown_types.push(ThrownType { type_str: thrown_type_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
                             }
                         },
                         Err(err) => {
@@ -664,13 +662,12 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     };
 
                     // Remove first, before descending into body
-                    if thrown_type_strs.iter().any(|t| t == &caught_type) {
-                        // Remove matching entries from both parallel vecs
+                    if thrown_types.iter().any(|te| te.type_str == caught_type) {
+                        // Remove matching entries
                         let mut i = 0;
-                        while i < thrown_type_strs.len() {
-                            if thrown_type_strs[i] == caught_type {
-                                thrown_type_strs.remove(i);
-                                thrown_type_msgs.remove(i);
+                        while i < thrown_types.len() {
+                            if thrown_types[i].type_str == caught_type {
+                                thrown_types.remove(i);
                             } else {
                                 i += 1;
                             }
@@ -707,11 +704,9 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     }
 
                     // Then check body for other thrown exceptions
-                    let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                    let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
-                    errors.extend(check_body_returns_throws(context, e, func_def, &catch_body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
-                    thrown_type_strs.extend(temp_thrown_type_strs);
-                    thrown_type_msgs.extend(temp_thrown_type_msgs);
+                    let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                    errors.extend(check_body_returns_throws(context, e, func_def, &catch_body_expr.params, &mut temp_thrown_types, return_found));
+                    thrown_types.extend(temp_thrown_types);
                     context.scope_stack.pop().ok();
                 }
             },
@@ -726,21 +721,17 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                 called_throw_str
                             );
 
-                            thrown_type_strs.push(called_throw_str.clone());
-                            thrown_type_msgs.push(p.error(&context.path, "type", &error_msg));
-                            thrown_type_strs.push(called_throw_str.clone());
-                            thrown_type_msgs.push(e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"));
+                            thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: p.error(&context.path, "type", &error_msg) });
+                            thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
                         }
 
                         for arg in p.params.iter().skip(1) {
                             if let NodeType::FCall = arg.node_type {
                                 match get_func_def_for_fcall(&context, arg) {
                                     Ok(Some(nested_func_def)) => {
-                                        let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                                        let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
-                                        errors.extend(check_body_returns_throws(context, arg, &nested_func_def, &arg.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
-                                        thrown_type_strs.extend(temp_thrown_type_strs);
-                                        thrown_type_msgs.extend(temp_thrown_type_msgs);
+                                        let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                                        errors.extend(check_body_returns_throws(context, arg, &nested_func_def, &arg.params, &mut temp_thrown_types, return_found));
+                                        thrown_types.extend(temp_thrown_types);
                                     },
                                     Ok(None) => {
                                         // Ok(None) is returned for enum constructors and struct instantiation
@@ -764,42 +755,37 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
             }
 
             NodeType::While => {
-                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
+                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
                 if let Some(cond_expr) = p.params.get(0) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), &mut temp_thrown_types, return_found));
                 }
                 if let Some(body_expr) = p.params.get(1) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs);
-                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                thrown_types.extend(temp_thrown_types);
             }
             NodeType::If => {
-                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
+                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
                 if let Some(cond_expr) = p.params.get(0) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(cond_expr), &mut temp_thrown_types, return_found));
                 }
                 if let Some(then_block) = p.params.get(1) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, &then_block.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, &then_block.params, &mut temp_thrown_types, return_found));
                 }
                 if let Some(else_block) = p.params.get(2) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, &else_block.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, &else_block.params, &mut temp_thrown_types, return_found));
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs);
-                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                thrown_types.extend(temp_thrown_types);
             }
             NodeType::Switch => {
-                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
+                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
                 // Get switch expression type for pattern matching
                 let switch_expr_type = p.params.get(0)
                     .and_then(|switch_expr| get_value_type(context, switch_expr).ok());
 
                 // Analyze the switch expression itself (could throw)
                 if let Some(switch_expr) = p.params.get(0) {
-                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(switch_expr), &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(switch_expr), &mut temp_thrown_types, return_found));
                 }
 
                 let mut i = 1;
@@ -808,7 +794,7 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                     let body_expr = &p.params[i + 1];
 
                     // Check case expression
-                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(case_expr), &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                    errors.extend(check_body_returns_throws(context, e, func_def, std::slice::from_ref(case_expr), &mut temp_thrown_types, return_found));
 
                     // For pattern matching, add the binding variable to scope before checking body
                     // This mirrors check_switch_statement's scope handling (Bug #28 fix)
@@ -835,22 +821,21 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         is_own: false,
                                     }
                                 );
-                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
                                 context.scope_stack.pop().ok();
                             } else {
-                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                                errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
                             }
                         } else {
-                            errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                            errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
                         }
                     } else {
-                        errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
+                        errors.extend(check_body_returns_throws(context, e, func_def, &body_expr.params, &mut temp_thrown_types, return_found));
                     }
 
                     i += 2;
                 }
-                thrown_type_strs.extend(temp_thrown_type_strs);
-                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                thrown_types.extend(temp_thrown_types);
             }
 
             NodeType::Declaration(decl) => {
@@ -919,17 +904,13 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         called_throw_str
                                     );
 
-                                    thrown_type_strs.push(called_throw_str.clone());
-                                    thrown_type_msgs.push(initializer.error(&context.path, "type", &error_msg));
-                                    thrown_type_strs.push(called_throw_str.clone());
-                                    thrown_type_msgs.push(e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"));
+                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: initializer.error(&context.path, "type", &error_msg) });
+                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
                                 }
 
-                                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
-                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
-                                thrown_type_strs.extend(temp_thrown_type_strs);
-                                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_types, return_found));
+                                thrown_types.extend(temp_thrown_types);
                             },
                             Ok(None) => {
                                 // Struct constructor or enum constructor - no throw checking needed
@@ -994,17 +975,13 @@ pub fn check_body_returns_throws(context: &mut Context, e: &Expr, func_def: &SFu
                                         called_throw_str
                                     );
 
-                                    thrown_type_strs.push(called_throw_str.clone());
-                                    thrown_type_msgs.push(initializer.error(&context.path, "type", &error_msg));
-                                    thrown_type_strs.push(called_throw_str.clone());
-                                    thrown_type_msgs.push(e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block"));
+                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: initializer.error(&context.path, "type", &error_msg) });
+                                    thrown_types.push(ThrownType { type_str: called_throw_str.clone(), msg: e.error(&context.path, "type", "Suggestion: Either add it to the throws section here, or catch it with a catch block") });
                                 }
 
-                                let mut temp_thrown_type_strs: Vec<String> = Vec::new();
-                                let mut temp_thrown_type_msgs: Vec<String> = Vec::new();
-                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_type_strs, &mut temp_thrown_type_msgs, return_found));
-                                thrown_type_strs.extend(temp_thrown_type_strs);
-                                thrown_type_msgs.extend(temp_thrown_type_msgs);
+                                let mut temp_thrown_types: Vec<ThrownType> = Vec::new();
+                                errors.extend(check_body_returns_throws(context, initializer, &called_func_def, &initializer.params, &mut temp_thrown_types, return_found));
+                                thrown_types.extend(temp_thrown_types);
                             },
                             Ok(None) => {
                                 // Struct constructor or enum constructor - no throw checking needed

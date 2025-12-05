@@ -170,16 +170,15 @@ fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Cont
 
         // Check throw/catch and return things in the root body of the file (for modes script and test, for example)
         let func_def = SFuncDef{args: vec![], body: vec![], function_type: FunctionType::FTProc, return_types: vec![], throw_types: vec![], source_path: path.clone()};
-        let mut thrown_type_strs: Vec<String> = vec![];
-        let mut thrown_type_msgs: Vec<String> = vec![];
+        let mut thrown_types: Vec<rs::typer::ThrownType> = vec![];
         let mut return_found = false;
-        errors.extend(rs::typer::check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_type_strs, &mut thrown_type_msgs, &mut return_found));
+        errors.extend(rs::typer::check_body_returns_throws(context, &e, &func_def, e.params.as_slice(), &mut thrown_types, &mut return_found));
 
         if return_found {
             errors.push(e.error(&path, "type", "Cannot return from the root of the file"));
         }
-        for error_msg in &thrown_type_msgs {
-            errors.push(error_msg.to_string());
+        for t in &thrown_types {
+            errors.push(t.msg.clone());
         }
 
         if errors.len() > 0 {
