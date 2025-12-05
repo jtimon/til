@@ -439,7 +439,7 @@ Arena := struct {
                         mut index : I64 = 0
                         mut found_variant := false
                         mut vi := 0
-                        enum_keys := enum_def.enum_map.keys()
+                        enum_keys := enum_def.enum_map.keys
                         while vi.lt(enum_keys.len()) {
                             mut key := ""
                             enum_keys.get(vi, key)
