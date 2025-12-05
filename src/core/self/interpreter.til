@@ -1954,7 +1954,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                 have_field_offset = true
                                 catch (err_var: KeyNotFoundError) { }
                                 if have_field_offset {
-                                    mut new_key := key.replace(source_var, arg.name)
+                                    mut mut new_key := key.replace(source_var, arg.name)
                                     function_frame.arena_index.insert(new_key, field_offset)
                                     mut field_sym := SymbolInfo()
                                     field_sym = context.scope_stack.lookup_symbol(key)
@@ -2042,7 +2042,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 if key.starts_with(prefix) {
                                                     mut value := 0
                                                     caller_frame.arena_index.get(key, value)
-                                                    new_key := key.replace(prefix, replacement_prefix)
+                                                    mut new_key := key.replace(prefix, replacement_prefix)
                                                     mut mapping := ArenaMapping()
                                                     mapping.name = new_key
                                                     mapping.offset = value
@@ -2261,7 +2261,7 @@ eval_user_func_proc_call := proc(func_def: SFuncDef, name: Str, mut context: Con
                                                 if key.starts_with(prefix) {
                                                     mut value := 0
                                                     caller_frame.arena_index.get(key, value)
-                                                    new_key := key.replace(prefix, replacement_prefix)
+                                                    mut new_key := key.replace(prefix, replacement_prefix)
                                                     mut mapping := ArenaMapping()
                                                     mapping.name = new_key
                                                     mapping.offset = value
