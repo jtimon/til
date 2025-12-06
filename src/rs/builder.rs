@@ -122,6 +122,18 @@ pub fn build(path: &str) -> Result<(), String> {
     let mut imported = HashSet::new();
     imported.insert(path.to_string());
     let mut dep_asts = Vec::new();
+
+    // Auto-import core.til first (like the interpreter does)
+    // TODO: Re-enable once codegen supports core.til's complexity
+    // let core_path = "src/core/core.til";
+    // if path != core_path && !imported.contains(core_path) {
+    //     imported.insert(core_path.to_string());
+    //     let core_ast = parse_file(core_path)?;
+    //     // Collect core.til's imports first
+    //     collect_imports(&core_ast, &mut imported, &mut dep_asts)?;
+    //     dep_asts.push(core_ast);
+    // }
+
     collect_imports(&main_ast, &mut imported, &mut dep_asts)?;
 
     // Merge all ASTs into one

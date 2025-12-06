@@ -162,6 +162,20 @@ build := proc(path: Str) returns Str throws Str {
     mut imported := Vec.new(Str)
     imported.push(path)
     mut dep_asts := Vec.new(Expr)
+
+    // Auto-import core.til first (like the interpreter does)
+    // TODO: Re-enable once codegen supports core.til's complexity
+    // mut core_path := "src/core/core.til"
+    // if not(path.eq(core_path)) {
+    //     if not(is_already_imported(imported, core_path)) {
+    //         imported.push(core_path)
+    //         mut core_ast := parse_file(core_path)
+    //         // Collect core.til's imports first
+    //         collect_imports_single(core_ast, imported, dep_asts)
+    //         dep_asts.push(core_ast)
+    //     }
+    // }
+
     collect_imports_single(main_ast, imported, dep_asts)
 
     // Merge all ASTs into one

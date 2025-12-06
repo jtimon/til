@@ -3,14 +3,17 @@
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef};
 
-// Emit C code from AST (three-pass: structs, functions, then main)
+// Emit C code from AST (four-pass: structs, prototypes, functions, then main)
 pub fn emit(ast: &Expr) -> Result<String, String> {
     let mut output = String::new();
 
     // C boilerplate
-    output.push_str("#include <stdio.h>\n\n");
+    output.push_str("#include <stdio.h>\n");
+    output.push_str("#include <stdlib.h>\n");
+    output.push_str("#include <string.h>\n");
+    output.push_str("#include <stdbool.h>\n\n");
 
-    // First pass: emit struct definitions (before functions)
+    // First pass: emit struct definitions (needed by function prototypes)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
@@ -19,7 +22,17 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         }
     }
 
-    // Second pass: emit function definitions (before main)
+    // Second pass: emit function prototypes (forward declarations)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_func_declaration(child) {
+                emit_func_prototype(child, &mut output)?;
+            }
+        }
+    }
+    output.push_str("\n");
+
+    // Third pass: emit function definitions (before main)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
@@ -31,7 +44,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     // Main function
     output.push_str("int main() {\n");
 
-    // Third pass: emit non-struct, non-function statements
+    // Fourth pass: emit non-struct, non-function statements
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if !is_func_declaration(child) && !is_struct_declaration(child) {
@@ -65,11 +78,14 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 output.push_str("typedef struct {\n");
                 for member in &struct_def.members {
-                    output.push_str("    ");
-                    output.push_str(&til_type_to_c(&member.value_type));
-                    output.push_str(" ");
-                    output.push_str(&member.name);
-                    output.push_str(";\n");
+                    // Skip members with function types (methods)
+                    if let Some(c_type) = til_type_to_c(&member.value_type) {
+                        output.push_str("    ");
+                        output.push_str(&c_type);
+                        output.push_str(" ");
+                        output.push_str(&member.name);
+                        output.push_str(";\n");
+                    }
                 }
                 output.push_str("} ");
                 output.push_str(&decl.name);
@@ -81,21 +97,64 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
     Err("emit_struct_declaration: not a struct declaration".to_string())
 }
 
-// Convert TIL type to C type
-fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> String {
+// Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
+fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
             match name.as_str() {
-                "I64" => "long long".to_string(),
-                "I32" => "int".to_string(),
-                "Bool" => "unsigned char".to_string(),
-                "U8" => "unsigned char".to_string(),
-                "Str" => "const char*".to_string(),
-                _ => name.clone(), // Assume it's a struct type
+                "I64" => Some("long long".to_string()),
+                "I32" => Some("int".to_string()),
+                "Bool" => Some("unsigned char".to_string()),
+                "U8" => Some("unsigned char".to_string()),
+                "Str" => Some("const char*".to_string()),
+                "auto" => None, // Skip inferred types (usually methods)
+                _ => Some(name.clone()), // Assume it's a struct type
             }
         },
-        _ => "int".to_string(), // Default
+        crate::rs::parser::ValueType::TFunction(_) => None, // Skip function types
+        crate::rs::parser::ValueType::TType(_) => None, // Skip type types
+        crate::rs::parser::ValueType::TMulti(_) => None, // Skip variadic types
     }
+}
+
+// Emit a function prototype (forward declaration)
+fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+                // Skip external functions (ext_proc/ext_func) - they're just declarations
+                if func_def.is_ext() {
+                    return Ok(());
+                }
+
+                // Return type
+                if func_def.return_types.is_empty() {
+                    output.push_str("void ");
+                } else {
+                    let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+                    output.push_str(&ret_type);
+                    output.push_str(" ");
+                }
+
+                output.push_str(&decl.name);
+                output.push_str("(");
+
+                // Parameters
+                for (i, arg) in func_def.args.iter().enumerate() {
+                    if i > 0 {
+                        output.push_str(", ");
+                    }
+                    let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+                    output.push_str(&arg_type);
+                    output.push_str(" ");
+                    output.push_str(&arg.name);
+                }
+                output.push_str(");\n");
+                return Ok(());
+            }
+        }
+    }
+    Err("emit_func_prototype: not a function declaration".to_string())
 }
 
 // Check if an expression is a function declaration (name := proc/func)
@@ -115,11 +174,17 @@ fn emit_func_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+                // Skip external functions (ext_proc/ext_func) - they're just declarations
+                if func_def.is_ext() {
+                    return Ok(());
+                }
+
                 // Return type
                 if func_def.return_types.is_empty() {
                     output.push_str("void ");
                 } else {
-                    output.push_str(&til_type_to_c(&func_def.return_types[0]));
+                    let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+                    output.push_str(&ret_type);
                     output.push_str(" ");
                 }
 
@@ -131,7 +196,8 @@ fn emit_func_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
                     if i > 0 {
                         output.push_str(", ");
                     }
-                    output.push_str(&til_type_to_c(&arg.value_type));
+                    let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+                    output.push_str(&arg_type);
                     output.push_str(" ");
                     output.push_str(&arg.name);
                 }
@@ -169,6 +235,10 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
         NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent),
         NodeType::Assignment(name) => emit_assignment(name, expr, output, indent),
         NodeType::Return => emit_return(expr, output, indent),
+        NodeType::If => emit_if(expr, output, indent),
+        NodeType::While => emit_while(expr, output, indent),
+        NodeType::Catch => Ok(()), // Skip catch blocks in C (no exception support)
+        NodeType::Throw => Ok(()), // Skip throw in C
         other => Err(format!("codegen_c: unsupported node type: {:?}", other)),
     }
 }
@@ -273,6 +343,64 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
         emit_expr(&expr.params[0], output, 0)?;
     }
     output.push_str(";\n");
+    Ok(())
+}
+
+fn emit_if(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+    // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
+    if expr.params.len() < 2 {
+        return Err("codegen_c: If requires condition and body".to_string());
+    }
+
+    let indent_str = "    ".repeat(indent);
+    output.push_str(&indent_str);
+    output.push_str("if (");
+    emit_expr(&expr.params[0], output, 0)?;
+    output.push_str(") {\n");
+
+    // Then body
+    emit_body(&expr.params[1], output, indent + 1)?;
+
+    output.push_str(&indent_str);
+    output.push_str("}");
+
+    // Else branch (optional)
+    if expr.params.len() > 2 {
+        // Check if it's an else-if (nested If) or else block
+        if let NodeType::If = &expr.params[2].node_type {
+            output.push_str(" else ");
+            // Emit nested if without extra indentation (it handles its own)
+            emit_if(&expr.params[2], output, indent)?;
+        } else {
+            output.push_str(" else {\n");
+            emit_body(&expr.params[2], output, indent + 1)?;
+            output.push_str(&indent_str);
+            output.push_str("}\n");
+        }
+    } else {
+        output.push_str("\n");
+    }
+
+    Ok(())
+}
+
+fn emit_while(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+    // While: params[0] = condition, params[1] = body
+    if expr.params.len() < 2 {
+        return Err("codegen_c: While requires condition and body".to_string());
+    }
+
+    let indent_str = "    ".repeat(indent);
+    output.push_str(&indent_str);
+    output.push_str("while (");
+    emit_expr(&expr.params[0], output, 0)?;
+    output.push_str(") {\n");
+
+    emit_body(&expr.params[1], output, indent + 1)?;
+
+    output.push_str(&indent_str);
+    output.push_str("}\n");
+
     Ok(())
 }
 
@@ -453,7 +581,17 @@ fn emit_literal(lit: &Literal, output: &mut String) -> Result<(), String> {
     match lit {
         Literal::Str(s) => {
             output.push('"');
-            output.push_str(s);
+            // Escape special characters for C string literals
+            for c in s.chars() {
+                match c {
+                    '\n' => output.push_str("\\n"),
+                    '\r' => output.push_str("\\r"),
+                    '\t' => output.push_str("\\t"),
+                    '\\' => output.push_str("\\\\"),
+                    '"' => output.push_str("\\\""),
+                    _ => output.push(c),
+                }
+            }
             output.push('"');
             Ok(())
         },
