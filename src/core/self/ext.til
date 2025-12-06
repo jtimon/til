@@ -220,6 +220,30 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     return EvalResult.new("")
 }
 
+func_byte_at := proc(mut context: Context, e: Expr) returns EvalResult throws Str, IndexOutOfBoundsError {
+    validate_arg_count(context.path, e, "byte_at", 2, false)
+
+    ptr_result := eval_expr(context, e.get(1))
+    if ptr_result.is_throw { return ptr_result }
+    index_result := eval_expr(context, e.get(2))
+    if index_result.is_throw { return index_result }
+
+    ptr := I64.from_str(ptr_result.value)
+    index := I64.from_str(index_result.value)
+
+    addr := ptr.add(index)
+    arena_len := arena.memory.len()
+    if addr.gteq(arena_len) {
+        throw e.lang_error(context.path, "eval", format("byte_at out of bounds: ptr=", ptr.to_str(), " index=", index.to_str(), " addr=", addr.to_str(), " arena_len=", arena_len.to_str()))
+    }
+
+    mut byte := U8.from_i64(0)
+    arena.memory.get(addr, byte)
+    catch (err: U8_OverflowError) { throw err.msg }
+
+    return EvalResult.new(U8.to_str(byte))
+}
+
 func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
     validate_arg_count(context.path, e, "memcmp", 3, false)
 

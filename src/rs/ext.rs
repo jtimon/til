@@ -185,6 +185,31 @@ pub fn func_memcpy(context: &mut Context, e: &Expr) -> Result<EvalResult, String
     Ok(EvalResult::new(""))
 }
 
+pub fn func_byte_at(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "byte_at", 2, false)?;
+
+    let ptr_str = eval_or_throw!(context, e.get(1)?);
+    let index_str = eval_or_throw!(context, e.get(2)?);
+
+    let ptr = ptr_str.parse::<usize>().map_err(|err| {
+        e.lang_error(&context.path, "eval", &format!("byte_at: Invalid ptr (usize): '{}': {}", ptr_str, err))
+    })?;
+    let index = index_str.parse::<usize>().map_err(|err| {
+        e.lang_error(&context.path, "eval", &format!("byte_at: Invalid index (usize): '{}': {}", index_str, err))
+    })?;
+
+    let addr = ptr + index;
+    if addr >= Arena::g().memory.len() {
+        return Err(e.lang_error(&context.path, "eval", &format!(
+            "byte_at out of bounds: ptr={} index={} addr={} arena_len={}",
+            ptr, index, addr, Arena::g().memory.len()
+        )));
+    }
+
+    let byte = Arena::g().memory[addr];
+    Ok(EvalResult::new(&byte.to_string()))
+}
+
 pub fn func_memcmp(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
     validate_arg_count(&context.path, e, "memcmp", 3, false)?;
 

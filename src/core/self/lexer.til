@@ -105,34 +105,22 @@ scan_push_token := proc(mut tokens: Vec, token_type: TokenType, token_str: Str, 
     }
 }
 
-is_digit := func(source: Str, pos: I64) returns Bool throws Str {
-    switch source.get_substr(pos, pos.add(1)) {
-    case "0".."9": return true
-    case: return false
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw format("is_digit: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format("is_digit: ", err.msg)
-    }
+is_digit := func(source: Str, pos: I64) returns Bool {
+    // Use byte_at for fast character access without allocation
+    // Convert to I64 for comparison (U8 doesn't have gteq/lteq)
+    byte := byte_at(source.c_string, pos).to_i64()
+    // ASCII: '0' = 48, '9' = 57
+    return byte.gteq(48).and(byte.lteq(57))
 }
 
-is_id_start := func(source: Str, pos: I64) returns Bool throws Str {
-    // current_char := Str.get_substr(source, pos, add(pos, 1)) // TODO FIX throws check doesn't propagate for associated functions (unless called as methods)
-    current_char := source.get_substr(pos, pos.add(1))
-    switch current_char {
-    case "a".."z": return true
-    case "A".."Z": return true
-    case "_": return true
-    case:
-    }
-    catch (err: IndexOutOfBoundsError) {
-        throw format("is_id_start: ", err.msg)
-    }
-    catch (err: AllocError) {
-        throw format("is_id_start: ", err.msg)
-    }
+is_id_start := func(source: Str, pos: I64) returns Bool {
+    // Use byte_at for fast character access without allocation
+    // Convert to I64 for comparison (U8 doesn't have gteq/lteq)
+    byte := byte_at(source.c_string, pos).to_i64()
+    // ASCII: a-z = 97-122, A-Z = 65-90, _ = 95
+    if byte.gteq(97).and(byte.lteq(122)) { return true }  // a-z
+    if byte.gteq(65).and(byte.lteq(90)) { return true }   // A-Z
+    if byte.eq(95) { return true }                        // _
     return false
 }
 

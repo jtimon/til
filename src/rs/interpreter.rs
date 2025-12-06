@@ -2455,6 +2455,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
         "free" => ext::func_free(context, &e),
         "memset" => ext::func_memset(context, &e),
         "memcpy" => ext::func_memcpy(context, &e),
+        "byte_at" => ext::func_byte_at(context, &e),
         "memcmp" => ext::func_memcmp(context, &e),
         "lt" => ext::func_lt(context, &e),
         "gt" => ext::func_gt(context, &e),

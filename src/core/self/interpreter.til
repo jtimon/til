@@ -2964,6 +2964,8 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
         return func_memset(context, e)
     } else if name.eq("memcpy") {
         return func_memcpy(context, e)
+    } else if name.eq("byte_at") {
+        return func_byte_at(context, e)
     } else if name.eq("memcmp") {
         return func_memcmp(context, e)
     } else if name.eq("lt") {

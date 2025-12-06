@@ -21,3 +21,4 @@ free   := ext_func(ptr: I64);
 memcpy := ext_func(mut dest: I64, src: I64, size: I64);
 memcmp := ext_func(ptr1: I64, ptr2: I64, size: I64) returns I64;
 memset := ext_func(mut dest: I64, value: U8, size: I64);
+byte_at := ext_func(ptr: I64, index: I64) returns U8;
