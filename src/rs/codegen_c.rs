@@ -244,7 +244,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 }
                 emit_expr(arg, output, 0)?;
             }
-            output.push_str(");\n");
+            output.push_str(")");
+            // Only add statement terminator if this is a statement (indent > 0)
+            if indent > 0 {
+                output.push_str(";\n");
+            }
             Ok(())
         },
     }

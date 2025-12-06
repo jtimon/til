@@ -375,7 +375,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = concat(result, ");\n")
+        result = concat(result, ")")
+        // Only add statement terminator if this is a statement (indent > 0)
+        if gt(indent, 0) {
+            result = concat(result, ";\n")
+        }
         return result
     }
 }
