@@ -3,6 +3,9 @@ use std::convert::TryInto;
 use crate::rs::init::{Context, SymbolInfo, EnumVal, ScopeFrame, ScopeType};
 use crate::rs::parser::{Expr, ValueType, TTypeDef, value_type_to_str};
 
+// Pre-allocate arena to avoid reallocation overhead
+const ARENA_SIZE: usize = 64 * 1024 * 1024; // 64 MB
+
 // Arena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.
 
@@ -50,10 +53,14 @@ impl Arena {
             static mut INSTANCE: Option<Arena> = None;
 
             // Lazy initialization of the singleton instance
-            INSTANCE.get_or_insert_with(|| Arena {
-                memory: vec![0], // REM: first address 0 is reserved (invalid), malloc always >0
-                temp_id_counter: 0, // A temporary ugly hack for return values
-                default_instances: HashMap::new(),
+            INSTANCE.get_or_insert_with(|| {
+                let mut memory = Vec::with_capacity(ARENA_SIZE);
+                memory.push(0); // REM: first address 0 is reserved (invalid), malloc always >0
+                Arena {
+                    memory,
+                    temp_id_counter: 0, // A temporary ugly hack for return values
+                    default_instances: HashMap::new(),
+                }
             })
         }
     }

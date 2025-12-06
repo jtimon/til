@@ -80,7 +80,7 @@ string_from_context := proc(context: Context, id: Str, e: Expr) returns Str thro
     length := Arena.get_i64(context, format(id, ".cap"), e)
 
     // Bounds check
-    if c_string_ptr.add(length).gt(arena.memory.len()) {
+    if c_string_ptr.add(length).gt(arena.memory_len) {
         throw e.lang_error(context.path, "string_from_context", format("string content out of bounds for '", id, "'"))
     }
 
@@ -133,17 +133,17 @@ func_malloc := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     size_result := eval_expr(context, e.get(1))
     if size_result.is_throw { return size_result }
     size := I64.from_str(size_result.value)
-    offset := arena.memory.len()  // take *current* end of arena
+    offset := arena.memory_len  // take *current* end of arena
 
     if size.gt(0) {
         // extend arena by pushing bytes
         mut j := 0
         while j.lt(size) {
-            arena.memory.push(U8.from_i64(0))
+            Arena.push_byte(U8.from_i64(0))
             j = j.add(1)
         }
     }
-    catch (err: AllocError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     if offset.eq(0) {  // TODO: REM: throw AllocError instead of return NULL pointer
         throw e.lang_error(context.path, "eval", "Core func 'malloc' was about to produce a NULL pointer")
@@ -175,7 +175,7 @@ func_memset := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     value := U8.from_str(value_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.memory_len
     if dest.add(size).gt(arena_len) {
         throw e.error(context.path, "eval", format("memset out of bounds: dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -203,7 +203,7 @@ func_memcpy := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     src := I64.from_str(src_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.memory_len
     if dest.add(size).gt(arena_len).or(src.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcpy out of bounds: src=", src.to_str(), " dest=", dest.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -232,7 +232,7 @@ func_byte_at := proc(mut context: Context, e: Expr) returns EvalResult throws St
     index := I64.from_str(index_result.value)
 
     addr := ptr.add(index)
-    arena_len := arena.memory.len()
+    arena_len := arena.memory_len
     if addr.gteq(arena_len) {
         throw e.lang_error(context.path, "eval", format("byte_at out of bounds: ptr=", ptr.to_str(), " index=", index.to_str(), " addr=", addr.to_str(), " arena_len=", arena_len.to_str()))
     }
@@ -258,7 +258,7 @@ func_memcmp := proc(mut context: Context, e: Expr) returns EvalResult throws Str
     ptr2 := I64.from_str(ptr2_result.value)
     size := I64.from_str(size_result.value)
 
-    arena_len := arena.memory.len()
+    arena_len := arena.memory_len
     if ptr1.add(size).gt(arena_len).or(ptr2.add(size).gt(arena_len)) {
         throw e.error(context.path, "eval", format("memcmp out of bounds: ptr1=", ptr1.to_str(), " ptr2=", ptr2.to_str(), " size=", size.to_str(), " arena_len=", arena_len.to_str()))
     }
