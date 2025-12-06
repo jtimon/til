@@ -9,9 +9,12 @@ mod rs {
     pub mod arena;
     pub mod interpreter;
     pub mod ext;
+    pub mod codegen_c;
+    pub mod builder;
 }
 use rs::lexer::LANG_NAME;
 use rs::interpreter::run_file;
+use rs::builder;
 
 const SELF_HOSTED_PATH     : &str = "src/til.til";
 
@@ -27,8 +30,8 @@ fn usage() {
     println!("repl: read eval print loop.");
     println!("interpret: reads a file in provided <path> and evaluates it.");
     // println!("ast: reads a file in provided <path> and prints its abstract syntax tree (aka (lisp-like-syntax ast-from-now-on ) ).");
-    // println!("build: reads a file in provided <path> and compiles it. Not implemented yet.");
-    // println!("run: reads a file in provided <path> and runs it if it compiles. Not implemented yet.");
+    println!("build: reads a file in provided <path> and compiles it to C.");
+    println!("run: reads a file in provided <path>, compiles and runs it.");
     println!("help: Prints this.\n");
 }
 
@@ -40,6 +43,22 @@ fn interpret_file_or_exit(path: &String, args: Vec<String>) {
             std::process::exit(1);
         },
     };
+}
+
+fn build_file_or_exit(path: &String) {
+    match builder::build(path) {
+        Ok(_) => {},
+        Err(err) => {
+            println!("Build error: {}", err);
+            std::process::exit(1);
+        },
+    };
+}
+
+fn run_file_or_exit(path: &String) {
+    build_file_or_exit(path);
+    // TODO: run compiled binary
+    println!("TODO: run compiled binary not implemented");
 }
 
 fn main() {
@@ -60,7 +79,13 @@ fn main() {
             "interpret" => {
                 interpret_file_or_exit(&args[2], main_args);
             },
-            "repl" | "build" | "run" => {
+            "build" => {
+                build_file_or_exit(&args[2]);
+            },
+            "run" => {
+                run_file_or_exit(&args[2]);
+            },
+            "repl" => {
                 usage();
             },
             _ => {
