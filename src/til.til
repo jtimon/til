@@ -2,6 +2,7 @@ mode cli
 
 import("src.core.self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
 import("src.core.self.lexer")        // LANG_NAME
+import("src.core.modes.safe_script") // run_cmd
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/core/modes/repl.til"
@@ -27,8 +28,12 @@ run_file_or_exit := proc(path: Str) {
         println("Build error: ", err)
         return
     }
-    // TODO: run_cmd(binary_path, args...)
-    TODO(loc(), "run_file_or_exit: execute compiled binary")
+    // Run the compiled binary
+    mut exe_path := path.replace(".til", "")
+    _ := run_cmd(exe_path)
+    catch (err: AllocError) {
+        println("Failed to run binary: ", err.msg)
+    }
 }
 
 usage := proc() {

@@ -56,9 +56,30 @@ fn build_file_or_exit(path: &String) {
 }
 
 fn run_file_or_exit(path: &String) {
-    build_file_or_exit(path);
-    // TODO: run compiled binary
-    println!("TODO: run compiled binary not implemented");
+    match rs::builder::build(path) {
+        Ok(_) => {},
+        Err(err) => {
+            println!("Build error: {}", err);
+            std::process::exit(1);
+        },
+    };
+
+    // Run the compiled binary
+    let exe_path = path.replace(".til", "");
+    let status = std::process::Command::new(&exe_path)
+        .status();
+
+    match status {
+        Ok(exit_status) => {
+            if !exit_status.success() {
+                std::process::exit(exit_status.code().unwrap_or(1));
+            }
+        },
+        Err(e) => {
+            println!("Failed to run '{}': {}", exe_path, e);
+            std::process::exit(1);
+        },
+    }
 }
 
 fn main() {
