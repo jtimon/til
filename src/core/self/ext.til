@@ -7,17 +7,9 @@ import("src.core.self.parser")       // Expr, NodeType, Literal, ValueType, get_
 import("src.core.self.init")         // Context
 import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context
 import("src.core.self.arena")        // arena (global)
+import("src.core.modes.safe_script") // run_cmd
 
 // ---------- Helper functions
-
-/// Stub for run_cmd (implemented in rstil.rs binary)
-/// TODO: implement for self-hosted interpreter
-run_cmd := proc(cmd: Str, args: Vec) returns Str throws Str {
-    if true {
-        throw "run_cmd not yet implemented in self-hosted interpreter"
-    }
-    return ""
-}
 
 /// Convert a single byte to a 1-character string
 byte_to_str := func(byte: U8) returns Str throws AllocError {
@@ -569,12 +561,9 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
 
     catch (err: AllocError) { throw err.msg }
 
-    // Call host-provided run_cmd (when running on rstil)
-    output := run_cmd(cmd, args)
-    catch (err: Str) {
-        throw e.error(context.path, "eval", format("Failed to run command '", cmd, "': ", err))
-    }
-    return EvalResult.new(output)
+    // TODO: Call run_cmd once we have Vec-to-variadic splat
+    // run_cmd is imported from safe_script but expects variadic ..Str, not Vec
+    throw e.error(context.path, "eval", "run_cmd not yet implemented in self-hosted interpreter (needs Vec-to-variadic)")
 }
 
 // ---------- Introspection functions

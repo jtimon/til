@@ -16,7 +16,7 @@ use std::process::Command;
 // ---------- Helper functions
 
 // General whitelist for all modes
-const ALLOWED_COMMANDS: [&str; 3] = ["ls", "mkdir", "find"];
+const ALLOWED_COMMANDS: [&str; 4] = ["ls", "mkdir", "find", "gcc"];
 // More restrictive whitelist for safe_script mode
 const SAFE_COMMANDS: [&str; 2] = ["ls", "mkdir"];
 
@@ -561,6 +561,27 @@ pub fn proc_readfile(context: &mut Context, e: &Expr) -> Result<EvalResult, Stri
     };
 
     Ok(EvalResult::new(&source))
+}
+
+pub fn proc_writefile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
+    validate_arg_count(&context.path, e, "writefile", 2, true)?;
+
+    let path_result = eval_expr(context, e.get(1)?)?;
+    if path_result.is_throw {
+        return Ok(path_result);
+    }
+    let path = path_result.value;
+
+    let contents_result = eval_expr(context, e.get(2)?)?;
+    if contents_result.is_throw {
+        return Ok(contents_result);
+    }
+    let contents = contents_result.value;
+
+    match fs::write(&path, &contents) {
+        Ok(_) => Ok(EvalResult::new("")),
+        Err(error) => Err(e.error(&context.path, "eval", &format!("Problem writing file '{}': {}", path, error))),
+    }
 }
 
 // WARNING: run_cmd executes shell commands.

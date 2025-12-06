@@ -3,6 +3,7 @@
 
 use std::fs;
 use std::io::ErrorKind;
+use std::process::Command;
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::parser::parse_tokens;
 use crate::rs::mode::parse_mode;
@@ -50,10 +51,26 @@ pub fn build(path: &str) -> Result<(), String> {
     // Write output file
     let output_path = path.replace(".til", ".c");
     match fs::write(&output_path, &c_code) {
-        Ok(_) => {
-            println!("Wrote C output to '{}'", output_path);
-            Ok(())
+        Ok(_) => println!("Wrote C output to '{}'", output_path),
+        Err(e) => return Err(format!("Failed to write '{}': {}", output_path, e)),
+    }
+
+    // Compile with gcc
+    let exe_path = path.replace(".til", "");
+    let output = Command::new("gcc")
+        .args([&output_path, "-o", &exe_path])
+        .output();
+
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                println!("Compiled executable to '{}'", exe_path);
+                Ok(())
+            } else {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                Err(format!("gcc failed: {}", stderr))
+            }
         },
-        Err(e) => Err(format!("Failed to write '{}': {}", output_path, e)),
+        Err(e) => Err(format!("Failed to run gcc: {}", e)),
     }
 }

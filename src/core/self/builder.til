@@ -5,7 +5,7 @@ import("src.core.self.codegen_c")
 
 // Build a TIL source file to C (default target)
 // Returns the generated C code as a string
-build := proc(path: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError {
+build := proc(path: Str) returns Str throws Str {
     println("Building file '", path, "'")
 
     // Create lexer (reads file internally)
@@ -25,10 +25,15 @@ build := proc(path: Str) returns Str throws Str, AllocError, IndexOutOfBoundsErr
     // Generate C code
     mut c_code := emit(ast)
 
-    // TODO: write to file when file writing is available
-    // For now, just return the C code
-    println("Generated C code:")
-    println(c_code)
+    // Write output file
+    mut output_path := path.replace(".til", ".c")
+    _ := writefile(output_path, c_code)
+    println("Wrote C output to '", output_path, "'")
+
+    // TODO: Compile with gcc (run_cmd not available in lib mode yet)
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return c_code
 }

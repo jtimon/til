@@ -8,7 +8,7 @@ eval_to_expr    := ext_proc(src: Str) returns Expr; // TODO
 
 input_read_line := ext_proc(a: Str) returns Str;
 readfile        := ext_proc(path: Str) returns Str;
-writefile       := ext_proc(path: Str, contents: Str) returns Str; // TODO
+writefile       := ext_proc(path: Str, contents: Str) returns Str;
 runfile         := ext_proc(args: ..Str);
 
 assertm := func(loc_str: Str, cond: Bool, msg: Str) {

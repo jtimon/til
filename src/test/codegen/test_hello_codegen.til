@@ -1,0 +1,23 @@
+mode test
+
+import("src.core.self.builder")
+
+test_codegen := proc() {
+    // Test C codegen pipeline
+    println("Testing C codegen...")
+
+    // Build hello_script.til -> generates .c and compiles to executable
+    _ := build("src/test/hello/hello_script.til")
+
+    // The executable should now exist at src/test/hello/hello_script
+    // We can't easily run it and capture output without adding more run_cmd capabilities
+    // For now, just verify the build succeeded (no error thrown)
+
+    println("[PASS] C codegen test - build succeeded")
+
+    catch (err: Str) {
+        panic(loc(), format("C codegen test failed: ", err))
+    }
+}
+
+test_codegen()

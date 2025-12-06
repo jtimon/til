@@ -71,6 +71,9 @@ runfile("src/core/self/interpreter.til")
 
 runfile("src/tests_self_hosted.til")
 
+// C codegen test
+runfile("src/test/codegen/test_hello_codegen.til")
+
 runfile("src/test/todo.til") // permanent TODO
 
 // REM test exit.til only at the end
