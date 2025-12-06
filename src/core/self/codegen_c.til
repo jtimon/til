@@ -5,21 +5,115 @@ mode lib
 
 import("src.core.self.parser")  // Expr, NodeType, Literal
 
-// Emit C code from AST (wraps in main)
+// Emit C code from AST (two-pass: functions first, then main)
 emit := proc(ast: Expr) returns Str throws Str {
     mut output := ""
 
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n\n")
+
+    // First pass: emit function definitions (before main)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_func_declaration(child) {
+                output = emit_func_declaration(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip function pass
+    }
+
+    // Main function
     output = concat(output, "int main() {\n")
 
-    // Emit body
-    output = emit_expr(ast, output, 1)
+    // Second pass: emit non-function statements
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if not(is_func_declaration(child)) {
+                output = emit_expr(child, output, 1)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, emit directly
+        output = emit_expr(ast, output, 1)
+    }
 
     output = concat(output, "    return 0;\n")
     output = concat(output, "}\n")
 
     return output
+}
+
+// Check if an expression is a function declaration (name := proc/func)
+is_func_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.FuncDef(func_def):
+                return true
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Emit a function declaration as a C function
+emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            switch first.node_type {
+            case NodeType.FuncDef(func_def):
+                // Emit as void function for now
+                result = concat(result, "void ")
+                result = concat(result, decl.name)
+                result = concat(result, "() {\n")
+                // Emit function body
+                mut i := 0
+                mut params_len := first.params.len()
+                while lt(i, params_len) {
+                    mut stmt := Expr()
+                    first.params.get(i, stmt)
+                    result = emit_expr(stmt, result, 1)
+                    i = add(i, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = concat(result, "}\n\n")
+                return result
+            case:
+                throw "emit_func_declaration: not a function"
+            }
+        }
+        throw "emit_func_declaration: empty params"
+    case:
+        throw "emit_func_declaration: not a declaration"
+    }
 }
 
 emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
@@ -30,6 +124,14 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
         return emit_fcall(expr, output, indent)
     case NodeType.LLiteral(lit):
         return emit_literal(lit, output)
+    case NodeType.Declaration(decl):
+        return emit_declaration(decl.name, decl.is_mut, expr, output, indent)
+    case NodeType.Identifier(name):
+        return concat(output, name)
+    case NodeType.FuncDef(func_def):
+        return emit_funcdef(func_def, expr, output, indent)
+    case NodeType.Assignment(name):
+        return emit_assignment(name, expr, output, indent)
     case:
         throw "codegen_c: unsupported node type"
     }
@@ -49,8 +151,104 @@ emit_body := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     return result
 }
 
+emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    mut result := output
+
+    // Add indentation
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+
+    // Check if this is a function definition - skip in main pass
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        switch first.node_type {
+        case NodeType.FuncDef(func_def):
+            // Skip - already emitted before main
+            return output
+        case:
+            // Continue with normal declaration
+        }
+    }
+
+    if is_mut {
+        result = concat(result, "int ")
+        result = concat(result, name)
+        if gt(expr.params.len(), 0) {
+            result = concat(result, " = ")
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = emit_expr(first, result, 0)
+        }
+        result = concat(result, ";\n")
+    } else {
+        result = concat(result, "const int ")
+        result = concat(result, name)
+        if gt(expr.params.len(), 0) {
+            result = concat(result, " = ")
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = emit_expr(first, result, 0)
+        }
+        result = concat(result, ";\n")
+    }
+    return result
+}
+
+emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    // Inline function body (shouldn't be called for top-level funcs)
+    mut result := output
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+    result = concat(result, "{\n")
+    mut i := 0
+    mut params_len := expr.params.len()
+    while lt(i, params_len) {
+        mut stmt := Expr()
+        expr.params.get(i, stmt)
+        result = emit_expr(stmt, result, add(indent, 1))
+        i = add(i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    ind = 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+    result = concat(result, "}\n")
+    return result
+}
+
+emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    mut result := output
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+    result = concat(result, name)
+    result = concat(result, " = ")
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = emit_expr(first, result, 0)
+    }
+    result = concat(result, ";\n")
+    return result
+}
+
 emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
-    // First param is the function name
+    // First param is the function name (or UFCS receiver.method)
     mut params_len := expr.params.len()
     if lt(params_len, 1) {
         throw "codegen_c: FCall with no params"
@@ -58,11 +256,28 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
 
     mut first := Expr()
     expr.params.get(0, first)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     mut func_name := ""
+    mut has_ufcs_receiver := false
+
     switch first.node_type {
     case NodeType.Identifier(name):
-        func_name = name
+        if gt(first.params.len(), 0) {
+            // UFCS: receiver.method() - method name is in nested params
+            mut method_expr := Expr()
+            first.params.get(0, method_expr)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            switch method_expr.node_type {
+            case NodeType.Identifier(method_name):
+                func_name = method_name
+                has_ufcs_receiver = true
+            case:
+                throw "codegen_c: UFCS method name not Identifier"
+            }
+        } else {
+            func_name = name
+        }
     case:
         throw "codegen_c: FCall first param not Identifier"
     }
@@ -79,7 +294,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
     // Hardcoded builtins
     if func_name.eq("println") {
         result = concat(result, "printf(")
-        // Emit args
         mut i := 1
         while lt(i, params_len) {
             if gt(i, 1) {
@@ -90,6 +304,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             result = emit_expr(arg, result, 0)
             i = add(i, 1)
         }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = concat(result, "\"\\n\");\n")
         return result
     } else if func_name.eq("print") {
@@ -104,12 +319,108 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             result = emit_expr(arg, result, 0)
             i = add(i, 1)
         }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = concat(result, ");\n")
         return result
+    } else if func_name.eq("add") {
+        return emit_binop(expr, output, "+", has_ufcs_receiver, first)
+    } else if func_name.eq("sub") {
+        return emit_binop(expr, output, "-", has_ufcs_receiver, first)
+    } else if func_name.eq("mul") {
+        return emit_binop(expr, output, "*", has_ufcs_receiver, first)
+    } else if func_name.eq("div") {
+        return emit_binop(expr, output, "/", has_ufcs_receiver, first)
+    } else if func_name.eq("mod") {
+        return emit_binop(expr, output, "%", has_ufcs_receiver, first)
+    } else if func_name.eq("eq") {
+        return emit_binop(expr, output, "==", has_ufcs_receiver, first)
+    } else if func_name.eq("lt") {
+        return emit_binop(expr, output, "<", has_ufcs_receiver, first)
+    } else if func_name.eq("gt") {
+        return emit_binop(expr, output, ">", has_ufcs_receiver, first)
+    } else if func_name.eq("lteq") {
+        return emit_binop(expr, output, "<=", has_ufcs_receiver, first)
+    } else if func_name.eq("gteq") {
+        return emit_binop(expr, output, ">=", has_ufcs_receiver, first)
+    } else if func_name.eq("test") {
+        // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
+        if lt(params_len, 4) {
+            throw "codegen_c: test requires 3 arguments"
+        }
+        result = concat(result, "if (!(")
+        mut cond := Expr()
+        expr.params.get(2, cond)
+        result = emit_expr(cond, result, 0)
+        result = concat(result, ")) { printf(\"FAIL: %s\\n\", ")
+        mut msg := Expr()
+        expr.params.get(3, msg)
+        result = emit_expr(msg, result, 0)
+        result = concat(result, "); }\n")
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        return result
+    } else if func_name.eq("loc") {
+        return concat(output, "\"\"")
     } else {
-        throw format("codegen_c: unknown function '", func_name, "'")
+        // User-defined function call
+        result = concat(result, func_name)
+        result = concat(result, "(")
+        mut i := 1
+        while lt(i, params_len) {
+            if gt(i, 1) {
+                result = concat(result, ", ")
+            }
+            mut arg := Expr()
+            expr.params.get(i, arg)
+            result = emit_expr(arg, result, 0)
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = concat(result, ");\n")
+        return result
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr) returns Str throws Str {
+    mut result := concat(output, "(")
+
+    if has_ufcs_receiver {
+        // UFCS call: receiver.op(arg) -> (receiver op arg)
+        switch first.node_type {
+        case NodeType.Identifier(name):
+            result = concat(result, name)
+        case:
+            throw "codegen_c: expected identifier"
+        }
+        result = concat(result, " ")
+        result = concat(result, op)
+        result = concat(result, " ")
+        if gt(expr.params.len(), 1) {
+            mut arg := Expr()
+            expr.params.get(1, arg)
+            result = emit_expr(arg, result, 0)
+        } else {
+            throw "codegen_c: UFCS binary op requires 1 argument"
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    } else {
+        // Regular call: op(a, b) -> (a op b)
+        if lt(expr.params.len(), 3) {
+            throw "codegen_c: binary op requires 2 arguments"
+        }
+        mut arg1 := Expr()
+        mut arg2 := Expr()
+        expr.params.get(1, arg1)
+        expr.params.get(2, arg2)
+        result = emit_expr(arg1, result, 0)
+        result = concat(result, " ")
+        result = concat(result, op)
+        result = concat(result, " ")
+        result = emit_expr(arg2, result, 0)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
+
+    result = concat(result, ")")
+    return result
 }
 
 emit_literal := proc(lit: Literal, output: Str) returns Str throws Str {

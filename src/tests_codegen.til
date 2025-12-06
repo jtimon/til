@@ -21,4 +21,16 @@ test_hello_codegen := proc() {
 
 test_hello_codegen()
 
+test_arithmetics_codegen := proc() {
+    println("Testing C codegen with arithmetics.til...")
+    _ := build("src/test/arithmetics.til")
+    println("[PASS] arithmetics.til codegen succeeded")
+
+    catch (err: Str) {
+        panic(loc(), format("C codegen test failed: ", err))
+    }
+}
+
+test_arithmetics_codegen()
+
 println("=== All C Codegen Tests Passed! ===\n")
