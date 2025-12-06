@@ -2174,6 +2174,79 @@ Context := struct {
         return current_offset
     }
 
+    // Get the ValueType for a field path (e.g., "s.color")
+    get_field_type := func(self: Context, field_path: Str) returns ValueType throws Str {
+        mut parts := field_path.split(".")
+        catch (err: AllocError) {
+            throw format("get_field_type: alloc error splitting '", field_path, "'")
+        }
+        if parts.len().eq(0) {
+            throw "get_field_type: empty field path"
+        }
+
+        mut base_var := ""
+        parts.get(0, base_var)
+        catch (err: IndexOutOfBoundsError) {
+            throw "get_field_type: empty field path"
+        }
+
+        // Get the base variable's type
+        mut base_symbol := self.scope_stack.lookup_symbol(base_var)
+        catch (err: KeyNotFoundError) {
+            throw format("get_field_type: base variable '", base_var, "' not found in symbols")
+        }
+
+        mut current_type := ValueType.TCustom("")
+        current_type = base_symbol.value_type
+
+        // Walk through the remaining parts of the path
+        mut idx := 1
+        while idx.lt(parts.len()) {
+            mut field_name := ""
+            parts.get(idx, field_name)
+
+            // Get the type name from current_type
+            mut type_name := ""
+            switch current_type {
+            case ValueType.TCustom(t):
+                type_name = t
+            case:
+                throw format("get_field_type: cannot access field '", field_name, "' on non-struct type")
+            }
+
+            mut struct_def := self.scope_stack.lookup_struct(type_name)
+            catch (err: KeyNotFoundError) {
+                throw format("get_field_type: struct '", type_name, "' not found")
+            }
+
+            // Find the field declaration
+            mut field_found := false
+            mut field_decl := Declaration()
+            mut fi := 0
+            while fi.lt(struct_def.members.len()) {
+                mut decl := Declaration()
+                struct_def.members.get(fi, decl)
+                if decl.name.eq(field_name) {
+                    field_decl = decl
+                    field_found = true
+                }
+                fi = fi.add(1)
+            }
+            catch (err: IndexOutOfBoundsError) {
+                throw format("get_field_type: index error finding field '", field_name, "'")
+            }
+
+            if not(field_found) {
+                throw format("get_field_type: field '", field_name, "' not found in struct '", type_name, "'")
+            }
+
+            current_type = field_decl.value_type
+            idx = idx.add(1)
+        }
+
+        return current_type
+    }
+
     register_struct_fields_for_typecheck := proc(mut self: Context, instance_name: Str, custom_type_name: Str) throws Str {
         mut found_struct := false
         mut struct_def := SStructDef()

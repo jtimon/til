@@ -11,6 +11,84 @@ This document provides a brief changelog of bugs that were fixed in the rstil in
 
 * Fixed Bugs Summary
 
+** Bug #31: Switch on struct field with pattern matching fails :FIXED:
+:PROPERTIES:
+:DISCOVERED: 2025-12-06
+:FIXED: 2025-12-06
+:IMPACT: Self-hosting, pattern matching
+:STATUS: Fixed
+:END:
+
+*** Description
+When using =switch= on a struct field that is an enum (e.g., =switch s.color=), pattern matching with payload extraction failed with "Enum definition for 'StructName' not found" error.
+
+*** Example Problem
+#+BEGIN_EXAMPLE til
+StructWithPayloadEnum := struct {
+    mut color: Color = Color.Unknown
+}
+
+test := proc() {
+    mut s := StructWithPayloadEnum()
+    s.color = Color.Number(42)
+    switch s.color {
+    case Color.Number(n): result = n  // FAILED: Enum definition not found
+    case: result = 0
+    }
+}
+#+END_EXAMPLE
+
+*** Root Cause
+Two issues in interpreter and arena code:
+
+1. *Pattern matching code extracted only base identifier* (interpreter.rs:390-394):
+   When processing =switch s.color=, the code only extracted "s" from =to_switch.node_type= instead of constructing the full path "s.color".
+
+2. *get_enum didn't resolve field types* (arena.rs:764+):
+   =get_enum= looked up the base variable's type instead of the field's type. For "s.color", it got =StructWithPayloadEnum= instead of =Color=.
+
+*** Fix (2025-12-06)
+*Rust side:*
+
+1. *interpreter.rs*: Modified pattern matching code to construct full field path from to_switch expression params:
+#+BEGIN_SRC rust
+let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
+    if !to_switch.params.is_empty() {
+        let mut full_path = name.clone();
+        for param in &to_switch.params {
+            if let NodeType::Identifier(field_name) = &param.node_type {
+                full_path.push('.');
+                full_path.push_str(field_name);
+            }
+        }
+        full_path
+    } else {
+        name.clone()
+    }
+} else { /* error */ };
+#+END_SRC
+
+2. *arena.rs*: Modified =get_enum= to use =get_field_type= for dotted paths:
+#+BEGIN_SRC rust
+let enum_type = if id.contains('.') {
+    match ctx.get_field_type(id) {
+        Ok(ValueType::TCustom(type_name)) => type_name,
+        // ... error handling
+    }
+} else {
+    // original lookup_symbol logic
+};
+#+END_SRC
+
+3. *init.rs*: Added =get_field_type= function to resolve the ValueType for a field path.
+
+*TIL side:*
+- Ported same changes to interpreter.til, arena.til, and init.til
+
+*** Test Coverage
+- src/test/enums.til: =test_switch_on_struct_field= (simple switch on field)
+- src/test/enums.til: =test_switch_on_struct_field_with_payload= (pattern matching with payload)
+
 ** Bug #30: ext_proc signature mismatch between TIL and Rust :FIXED:
 :PROPERTIES:
 :DISCOVERED: 2025-12-03

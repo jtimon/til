@@ -383,10 +383,28 @@ eval_expr := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
 
             if is_pattern {
                 // Get enum variable name from to_switch
+                // For field access (e.g., s.color), construct the full path
                 mut enum_var_name := ""
                 switch to_switch.node_type {
                 case NodeType.Identifier(name):
-                    enum_var_name = name
+                    // Check if this is a field access (has params that are identifiers)
+                    if to_switch.params.len().gt(0) {
+                        enum_var_name = name
+                        mut i := 0
+                        while i.lt(to_switch.params.len()) {
+                            mut param := Expr()
+                            to_switch.params.get(i, param)
+                            switch param.node_type {
+                            case NodeType.Identifier(field_name):
+                                enum_var_name = format(enum_var_name, ".", field_name)
+                            case:
+                                // not an identifier field access
+                            }
+                            i = i.add(1)
+                        }
+                    } else {
+                        enum_var_name = name
+                    }
                 case:
                     throw case_expr.error(context.path, "eval", "Pattern matching requires switch value to be a variable")
                 }

@@ -762,13 +762,21 @@ impl Arena {
     }
 
     pub fn get_enum(ctx: &Context, id: &str, e: &Expr) -> Result<EnumVal, String> {
+        // For field paths (e.g., "s.color"), get the field's type, not the base struct's type
+        let enum_type = if id.contains('.') {
+            match ctx.get_field_type(id) {
+                Ok(ValueType::TCustom(type_name)) => type_name,
+                Ok(_) => return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: field '{}' is not a custom enum type", id))),
+                Err(err) => return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err))),
+            }
+        } else {
+            let symbol_info = ctx.scope_stack.lookup_symbol(id)
+                .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
 
-        let symbol_info = ctx.scope_stack.lookup_symbol(id)
-            .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: Symbol '{}' not found", id)))?;
-
-        let enum_type = match &symbol_info.value_type {
-            ValueType::TCustom(custom_type_name) => custom_type_name,
-            _ => return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
+            match &symbol_info.value_type {
+                ValueType::TCustom(custom_type_name) => custom_type_name.clone(),
+                _ => return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: '{}' is not a custom enum type", id))),
+            }
         };
 
         // Try to get offset - first from arena_index, then calculate dynamically for fields
@@ -776,7 +784,7 @@ impl Arena {
             offset
         } else if id.contains('.') {
             // Field path - calculate offset dynamically
-            ctx.get_field_offset( id)
+            ctx.get_field_offset(id)
                 .map_err(|err| e.lang_error(&ctx.path, "context", &format!("get_enum: {}", err)))?
         } else {
             return Err(e.lang_error(&ctx.path, "context", &format!("get_enum: Arena index for '{}' not found", id)))
@@ -786,7 +794,7 @@ impl Arena {
         let enum_value = i64::from_le_bytes(enum_value_bytes.try_into()
                                             .map_err(|_| e.lang_error(&ctx.path, "context", &format!("get_enum: Failed to convert bytes to i64 for '{}'", id)))?);
 
-        let enum_def = ctx.scope_stack.lookup_enum(enum_type)
+        let enum_def = ctx.scope_stack.lookup_enum(&enum_type)
             .ok_or_else(|| e.lang_error(&ctx.path, "context", &format!("get_enum: Enum definition for '{}' not found", enum_type)))?;
 
         let enum_name = Context::variant_pos_to_str(enum_def, enum_value, &ctx.path, e)?;

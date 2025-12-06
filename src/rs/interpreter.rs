@@ -387,13 +387,26 @@ pub fn eval_expr(context: &mut Context, e: &Expr) -> Result<EvalResult, String> 
                     // Check if the switch value's enum variant matches the pattern
                     // The switch value should be an enum stored as EnumVal
                     // We need to extract the enum value - get the identifier name from to_switch
+                    // For field access (e.g., s.color), construct the full path
                     let enum_var_name = if let NodeType::Identifier(name) = &to_switch.node_type {
-                        name
+                        // Check if this is a field access (has params that are identifiers)
+                        if !to_switch.params.is_empty() {
+                            let mut full_path = name.clone();
+                            for param in &to_switch.params {
+                                if let NodeType::Identifier(field_name) = &param.node_type {
+                                    full_path.push('.');
+                                    full_path.push_str(field_name);
+                                }
+                            }
+                            full_path
+                        } else {
+                            name.clone()
+                        }
                     } else {
                         return Err(case.error(&context.path, "eval", "Pattern matching requires switch value to be a variable"));
                     };
 
-                    let enum_val = Arena::get_enum(context, enum_var_name, &case)?;
+                    let enum_val = Arena::get_enum(context, &enum_var_name, &case)?;
 
                     // Check if variant matches (enum_val.enum_name should match variant_name)
                     let full_variant = format!("{}.{}", enum_val.enum_type, enum_val.enum_name);

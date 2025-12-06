@@ -1109,3 +1109,49 @@ test_ufcs_in_default_case := proc() {
     assert_eq(loc(), 1, result)
 }
 test_ufcs_in_default_case()
+
+// ============================================================================
+// Bug #31 - Switch on struct field (enum field access) fails
+// The interpreter doesn't properly handle field access in switch expressions
+// ============================================================================
+
+StructWithEnum := struct {
+    mut node_type: ExampleEnum = ExampleEnum.A
+}
+
+test_switch_on_struct_field := proc() {
+    mut s := StructWithEnum()
+    s.node_type = ExampleEnum.B
+
+    mut result := ""
+    switch s.node_type {
+    case ExampleEnum.A:
+        result = "got A"
+    case ExampleEnum.B:
+        result = "got B"
+    case:
+        result = "got default"
+    }
+    assert_eq_str(loc(), "got B", result)
+}
+test_switch_on_struct_field()
+
+// Test with pattern matching (payload extraction) on struct field
+StructWithPayloadEnum := struct {
+    mut color: Color = Color.Unknown
+}
+
+test_switch_on_struct_field_with_payload := proc() {
+    mut s := StructWithPayloadEnum()
+    s.color = Color.Number(42)
+
+    mut result := 0
+    switch s.color {
+    case Color.Number(n):
+        result = n
+    case:
+        result = 0
+    }
+    assert_eq(loc(), 42, result)
+}
+test_switch_on_struct_field_with_payload()

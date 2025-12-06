@@ -1349,6 +1349,38 @@ impl Context {
 
         Ok(current_offset)
     }
+
+    /// Get the type for a field path (e.g., "s.color" returns the type of the color field)
+    pub fn get_field_type(&self, field_path: &str) -> Result<ValueType, String> {
+        let parts: Vec<&str> = field_path.split('.').collect();
+        if parts.is_empty() {
+            return Err(format!("get_field_type: empty field path"));
+        }
+
+        let base_var = parts[0];
+        let mut current_type = match self.scope_stack.lookup_symbol(base_var) {
+            Some(symbol) => symbol.value_type.clone(),
+            None => return Err(format!("get_field_type: base variable '{}' not found in symbols", base_var)),
+        };
+
+        for field_name in &parts[1..] {
+            let type_name = match &current_type {
+                ValueType::TCustom(name) => name.clone(),
+                _ => return Err(format!("get_field_type: cannot access field '{}' on non-struct type", field_name)),
+            };
+
+            let struct_def = self.scope_stack.lookup_struct(&type_name)
+                .ok_or_else(|| format!("get_field_type: struct '{}' not found", type_name))?;
+
+            let field_decl = struct_def.members.iter()
+                .find(|decl| decl.name == *field_name)
+                .ok_or_else(|| format!("get_field_type: field '{}' not found in struct '{}'", field_name, type_name))?;
+
+            current_type = field_decl.value_type.clone();
+        }
+
+        Ok(current_type)
+    }
 }
 
 

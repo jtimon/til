@@ -1065,17 +1065,31 @@ Arena := struct {
     }
 
     get_enum := func(ctx: Context, id: Str, e: Expr) returns EnumVal throws Str {
-        mut symbol_info := ctx.scope_stack.lookup_symbol(id)
-        catch (err: KeyNotFoundError) {
-            throw e.lang_error(ctx.path, "context", format("get_enum: Symbol '", id, "' not found"))
-        }
-
+        // For field paths (e.g., "s.color"), get the field's type, not the base struct's type
         mut enum_type := ""
-        switch symbol_info.value_type {
-        case ValueType.TCustom(custom_type_name):
-            enum_type = custom_type_name
-        case:
-            throw e.lang_error(ctx.path, "context", format("get_enum: '", id, "' is not a custom enum type"))
+        if id.contains(".") {
+            field_type := ctx.get_field_type(id)
+            catch (err: Str) {
+                throw e.lang_error(ctx.path, "context", format("get_enum: ", err))
+            }
+            switch field_type {
+            case ValueType.TCustom(type_name):
+                enum_type = type_name
+            case:
+                throw e.lang_error(ctx.path, "context", format("get_enum: field '", id, "' is not a custom enum type"))
+            }
+        } else {
+            mut symbol_info := ctx.scope_stack.lookup_symbol(id)
+            catch (err: KeyNotFoundError) {
+                throw e.lang_error(ctx.path, "context", format("get_enum: Symbol '", id, "' not found"))
+            }
+
+            switch symbol_info.value_type {
+            case ValueType.TCustom(custom_type_name):
+                enum_type = custom_type_name
+            case:
+                throw e.lang_error(ctx.path, "context", format("get_enum: '", id, "' is not a custom enum type"))
+            }
         }
 
         // Try to get offset - first from arena_index, then calculate dynamically for fields
