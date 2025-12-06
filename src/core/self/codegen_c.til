@@ -5,14 +5,105 @@ mode lib
 
 import("src.core.self.parser")  // Expr, NodeType, Literal
 
-// Emit C code from AST (two-pass: functions first, then main)
+// Convert TIL type to C type
+til_type_to_c := func(til_type: ValueType) returns Str {
+    switch til_type {
+    case ValueType.TCustom(name):
+        if name.eq("I64") { return "long long" }
+        else if name.eq("I32") { return "int" }
+        else if name.eq("Bool") { return "unsigned char" }
+        else if name.eq("U8") { return "unsigned char" }
+        else if name.eq("Str") { return "const char*" }
+        else { return name }  // Assume struct type
+    case:
+        return "int"  // Default
+    }
+}
+
+// Check if an expression is a struct declaration (Name := struct {...})
+is_struct_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                return true
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Emit a struct declaration as a C typedef struct
+emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                result = concat(result, "typedef struct {\n")
+                mut i := 0
+                while lt(i, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(i, member)
+                    result = concat(result, "    ")
+                    result = concat(result, til_type_to_c(member.value_type))
+                    result = concat(result, " ")
+                    result = concat(result, member.name)
+                    result = concat(result, ";\n")
+                    i = add(i, 1)
+                }
+                result = concat(result, "} ")
+                result = concat(result, decl.name)
+                result = concat(result, ";\n\n")
+                return result
+            case:
+                throw "emit_struct_declaration: not a struct"
+            }
+        }
+        throw "emit_struct_declaration: empty params"
+    case:
+        throw "emit_struct_declaration: not a declaration"
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+// Emit C code from AST (three-pass: structs, functions, then main)
 emit := proc(ast: Expr) returns Str throws Str {
     mut output := ""
 
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n\n")
 
-    // First pass: emit function definitions (before main)
+    // First pass: emit struct definitions (before functions)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_struct_declaration(child) {
+                output = emit_struct_declaration(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip struct pass
+    }
+
+    // Second pass: emit function definitions (before main)
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -33,7 +124,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     // Main function
     output = concat(output, "int main() {\n")
 
-    // Second pass: emit non-function statements
+    // Third pass: emit non-struct, non-function statements
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -42,7 +133,9 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if not(is_func_declaration(child)) {
-                output = emit_expr(child, output, 1)
+                if not(is_struct_declaration(child)) {
+                    output = emit_expr(child, output, 1)
+                }
             }
             i = add(i, 1)
         }
@@ -90,18 +183,43 @@ emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                // Emit as void function for now
-                result = concat(result, "void ")
+                // Return type
+                if eq(func_def.return_types.len(), 0) {
+                    result = concat(result, "void ")
+                } else {
+                    mut ret_type := ValueType.TCustom("")
+                    func_def.return_types.get(0, ret_type)
+                    result = concat(result, til_type_to_c(ret_type))
+                    result = concat(result, " ")
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                }
+
                 result = concat(result, decl.name)
-                result = concat(result, "() {\n")
-                // Emit function body
+                result = concat(result, "(")
+
+                // Parameters
                 mut i := 0
-                mut params_len := first.params.len()
-                while lt(i, params_len) {
-                    mut stmt := Expr()
-                    first.params.get(i, stmt)
-                    result = emit_expr(stmt, result, 1)
+                while lt(i, func_def.args.len()) {
+                    if gt(i, 0) {
+                        result = concat(result, ", ")
+                    }
+                    mut arg := Declaration()
+                    func_def.args.get(i, arg)
+                    result = concat(result, til_type_to_c(arg.value_type))
+                    result = concat(result, " ")
+                    result = concat(result, arg.name)
                     i = add(i, 1)
+                }
+                result = concat(result, ") {\n")
+
+                // Emit function body
+                mut j := 0
+                mut body_len := func_def.body.len()
+                while lt(j, body_len) {
+                    mut stmt := Expr()
+                    func_def.body.get(j, stmt)
+                    result = emit_expr(stmt, result, 1)
+                    j = add(j, 1)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = concat(result, "}\n\n")
@@ -127,11 +245,29 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     case NodeType.Declaration(decl):
         return emit_declaration(decl.name, decl.is_mut, expr, output, indent)
     case NodeType.Identifier(name):
-        return concat(output, name)
+        // Handle field access (b.val -> b.val)
+        mut result := concat(output, name)
+        mut i := 0
+        while lt(i, expr.params.len()) {
+            mut param := Expr()
+            expr.params.get(i, param)
+            switch param.node_type {
+            case NodeType.Identifier(field):
+                result = concat(result, ".")
+                result = concat(result, field)
+            case:
+                // Not a field access
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        return result
     case NodeType.FuncDef(func_def):
         return emit_funcdef(func_def, expr, output, indent)
     case NodeType.Assignment(name):
         return emit_assignment(name, expr, output, indent)
+    case NodeType.Return:
+        return emit_return(expr, output, indent)
     case:
         throw "codegen_c: unsupported node type"
     }
@@ -149,6 +285,42 @@ emit_body := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
+}
+
+// Check if an expression is a struct construction call (TypeName())
+// Returns the type name if it is, empty string otherwise
+get_struct_construction_type := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return "" }
+            switch first.node_type {
+            case NodeType.Identifier(name):
+                // If it's a PascalCase identifier with no nested params and no other args, assume struct
+                if gt(name.len(), 0) {
+                    // Check if first character is uppercase
+                    mut first_char := name.get_substr(0, 1)
+                    if first_char.is_uppercase() {
+                        if eq(expr.params.len(), 1) {
+                            if eq(first.params.len(), 0) {
+                                return name
+                            }
+                        }
+                    }
+                    catch (err: IndexOutOfBoundsError) { return "" }
+                    catch (err: AllocError) { return "" }
+                }
+                return ""
+            case:
+                return ""
+            }
+        }
+        return ""
+    case:
+        return ""
+    }
 }
 
 emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64) returns Str throws Str {
@@ -170,12 +342,30 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
         case NodeType.FuncDef(func_def):
             // Skip - already emitted before main
             return output
+        case NodeType.StructDef(struct_def):
+            // Skip - already emitted before functions
+            return output
         case:
             // Continue with normal declaration
         }
     }
 
-    if is_mut {
+    // Check if this is a struct construction (TypeName())
+    mut struct_type := ""
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        struct_type = get_struct_construction_type(first)
+    }
+
+    if gt(struct_type.len(), 0) {
+        // Struct variable declaration
+        result = concat(result, struct_type)
+        result = concat(result, " ")
+        result = concat(result, name)
+        result = concat(result, " = {0};\n")
+    } else if is_mut {
         result = concat(result, "int ")
         result = concat(result, name)
         if gt(expr.params.len(), 0) {
@@ -238,6 +428,25 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64) returns
     result = concat(result, name)
     result = concat(result, " = ")
     if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = emit_expr(first, result, 0)
+    }
+    result = concat(result, ";\n")
+    return result
+}
+
+emit_return := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    mut result := output
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+    result = concat(result, "return")
+    if gt(expr.params.len(), 0) {
+        result = concat(result, " ")
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -356,6 +565,22 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
         expr.params.get(3, msg)
         result = emit_expr(msg, result, 0)
         result = concat(result, "); }\n")
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        return result
+    } else if func_name.eq("assert_eq") {
+        // assert_eq(loc, expected, actual) -> if ((expected) != (actual)) { printf("FAIL: assert_eq\n"); }
+        if lt(params_len, 4) {
+            throw "codegen_c: assert_eq requires 3 arguments"
+        }
+        result = concat(result, "if ((")
+        mut expected := Expr()
+        expr.params.get(2, expected)
+        result = emit_expr(expected, result, 0)
+        result = concat(result, ") != (")
+        mut actual := Expr()
+        expr.params.get(3, actual)
+        result = emit_expr(actual, result, 0)
+        result = concat(result, ")) { printf(\"FAIL: assert_eq\\n\"); }\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
     } else if func_name.eq("loc") {

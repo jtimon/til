@@ -80,6 +80,30 @@ Str := struct {
         return self.cap
     }
 
+    /** Check if all characters in the string are uppercase (A-Z).
+     *  Returns false for empty strings or strings containing non-uppercase chars.
+     *  To check only the first character, use: str.get_substr(0, 1).is_uppercase()
+     */
+    is_uppercase := func(self: Str) returns Bool {
+        if self.cap.eq(0) {
+            return false
+        }
+        for i in 0..self.cap {
+            mut byte : U8 = 0
+            memcpy(to_ptr(byte), add(self.c_string, i), 1)
+            // A = 65, Z = 90. Convert to I64 for comparison.
+            mut byte_val : I64 = 0
+            byte_val = U8.to_i64(byte)
+            if lt(byte_val, 65) {
+                return false
+            }
+            if gt(byte_val, 90) {
+                return false
+            }
+        }
+        return true
+    }
+
     contains := func(self: Str, needle: Str) returns Bool {
         # Returns true if needle is found in self
         if needle.len().gt(self.len()) {

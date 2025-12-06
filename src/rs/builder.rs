@@ -4,16 +4,15 @@
 use std::fs;
 use std::io::ErrorKind;
 use std::process::Command;
+use std::collections::HashSet;
 use crate::rs::lexer::lexer_from_source;
-use crate::rs::parser::parse_tokens;
+use crate::rs::parser::{parse_tokens, Expr, NodeType};
 use crate::rs::mode::parse_mode;
 use crate::rs::codegen_c;
+use crate::rs::init::import_path_to_file_path;
 
-// Build a TIL source file to C (default target)
-pub fn build(path: &str) -> Result<(), String> {
-    println!("Building file '{}'", path);
-
-    // Read source file
+// Parse a single file and return its AST
+fn parse_file(path: &str) -> Result<Expr, String> {
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
@@ -26,7 +25,6 @@ pub fn build(path: &str) -> Result<(), String> {
         },
     };
 
-    // Lex
     let mut lexer = match lexer_from_source(&path.to_string(), source) {
         Ok(result) => result,
         Err(error_string) => {
@@ -34,19 +32,103 @@ pub fn build(path: &str) -> Result<(), String> {
         },
     };
 
-    // Parse mode (skip it for codegen)
     let _mode = parse_mode(&path.to_string(), &mut lexer)?;
 
-    // Parse body
-    let ast = match parse_tokens(&mut lexer) {
-        Ok(expr) => expr,
-        Err(error_string) => {
-            return Err(format!("{}:{}", path, error_string));
-        },
-    };
+    match parse_tokens(&mut lexer) {
+        Ok(expr) => Ok(expr),
+        Err(error_string) => Err(format!("{}:{}", path, error_string)),
+    }
+}
+
+// Recursively collect all imports from an AST
+fn collect_imports(ast: &Expr, imported: &mut HashSet<String>, all_asts: &mut Vec<Expr>) -> Result<(), String> {
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if let NodeType::FCall = &child.node_type {
+                if !child.params.is_empty() {
+                    if let NodeType::Identifier(name) = &child.params[0].node_type {
+                        if name == "import" && child.params.len() > 1 {
+                            if let NodeType::LLiteral(crate::rs::parser::Literal::Str(import_path)) = &child.params[1].node_type {
+                                let file_path = import_path_to_file_path(import_path);
+                                if !imported.contains(&file_path) {
+                                    imported.insert(file_path.clone());
+                                    let dep_ast = parse_file(&file_path)?;
+                                    // Recursively collect imports from this dependency
+                                    collect_imports(&dep_ast, imported, all_asts)?;
+                                    all_asts.push(dep_ast);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Merge multiple ASTs into one, filtering out import statements
+fn merge_asts(main_ast: Expr, dep_asts: Vec<Expr>) -> Expr {
+    let mut all_params = Vec::new();
+
+    // Add dependencies first (in order they were collected)
+    for dep in dep_asts {
+        if let NodeType::Body = &dep.node_type {
+            for child in dep.params {
+                // Skip import statements
+                if !is_import_call(&child) {
+                    all_params.push(child);
+                }
+            }
+        }
+    }
+
+    // Add main file contents (skip imports)
+    if let NodeType::Body = &main_ast.node_type {
+        for child in main_ast.params {
+            if !is_import_call(&child) {
+                all_params.push(child);
+            }
+        }
+    }
+
+    Expr {
+        node_type: NodeType::Body,
+        params: all_params,
+        line: main_ast.line,
+        col: main_ast.col,
+    }
+}
+
+fn is_import_call(expr: &Expr) -> bool {
+    if let NodeType::FCall = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::Identifier(name) = &expr.params[0].node_type {
+                return name == "import";
+            }
+        }
+    }
+    false
+}
+
+// Build a TIL source file to C (default target)
+pub fn build(path: &str) -> Result<(), String> {
+    println!("Building file '{}'", path);
+
+    // Parse main file
+    let main_ast = parse_file(path)?;
+
+    // Collect all imports recursively
+    let mut imported = HashSet::new();
+    imported.insert(path.to_string());
+    let mut dep_asts = Vec::new();
+    collect_imports(&main_ast, &mut imported, &mut dep_asts)?;
+
+    // Merge all ASTs into one
+    let merged_ast = merge_asts(main_ast, dep_asts);
 
     // Generate C code
-    let c_code = codegen_c::emit(&ast)?;
+    let c_code = codegen_c::emit(&merged_ast)?;
 
     // Write output file
     let output_path = path.replace(".til", ".c");

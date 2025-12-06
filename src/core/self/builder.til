@@ -3,11 +3,10 @@ mode lib
 import("src.core.self.interpreter")
 import("src.core.self.codegen_c")
 
-// Build a TIL source file to C (default target)
-// Returns the generated C code as a string
-build := proc(path: Str) returns Str throws Str {
-    println("Building file '", path, "'")
+// Note: import_path_to_file_path is available from init.til (via interpreter.til)
 
+// Parse a single file and return its AST
+parse_file := proc(path: Str) returns Expr throws Str {
     // Create lexer (reads file internally)
     mut lexer := Lexer.new(path)
 
@@ -22,8 +21,168 @@ build := proc(path: Str) returns Str throws Str {
     // Parse body
     mut ast := parse_body(lexer, TokenType.Eof)
 
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    return ast
+}
+
+// Check if an expression is an import call
+is_import_call := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.Identifier(name):
+                return name.eq("import")
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Get import path from an import call expression
+// Returns empty string if not an import call or path not found
+get_import_path := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 1) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return "" }
+            switch first.node_type {
+            case NodeType.Identifier(name):
+                if name.eq("import") {
+                    mut import_arg := Expr()
+                    expr.params.get(1, import_arg)
+                    catch (err: IndexOutOfBoundsError) { return "" }
+                    switch import_arg.node_type {
+                    case NodeType.LLiteral(lit):
+                        switch lit {
+                        case Literal.Str(import_path):
+                            return import_path
+                        case:
+                            return ""
+                        }
+                    case:
+                        return ""
+                    }
+                }
+                return ""
+            case:
+                return ""
+            }
+        }
+        return ""
+    case:
+        return ""
+    }
+}
+
+// Check if a file path is in the imported list (Vec of strings)
+is_already_imported := func(imported: Vec, file_path: Str) returns Bool {
+    mut i := 0
+    while lt(i, imported.len()) {
+        mut existing := ""
+        imported.get(i, existing)
+        catch (err: IndexOutOfBoundsError) { return false }
+        if existing.eq(file_path) {
+            return true
+        }
+        i = add(i, 1)
+    }
+    return false
+}
+
+// Collect imports from a single AST (non-recursive, returns new imports found)
+// Uses Vec instead of List to avoid generic type parameter issues
+collect_imports_single := proc(ast: Expr, mut imported: Vec, mut dep_asts: Vec) throws Str {
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            mut import_path := get_import_path(child)
+            if gt(import_path.len(), 0) {
+                mut file_path := import_path_to_file_path(import_path)
+                if not(is_already_imported(imported, file_path)) {
+                    imported.push(file_path)
+                    mut dep_ast := parse_file(file_path)
+                    // Recursively collect imports from this dependency first
+                    collect_imports_single(dep_ast, imported, dep_asts)
+                    dep_asts.push(dep_ast)
+                }
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body
+    }
+    catch (err: AllocError) { throw err.msg }
+}
+
+// Merge dependency AST params into all_params Vec, skipping imports
+merge_dep_params := proc(dep: Expr, mut all_params: Vec) throws Str {
+    switch dep.node_type {
+    case NodeType.Body:
+        mut j := 0
+        while lt(j, dep.params.len()) {
+            mut child := Expr()
+            dep.params.get(j, child)
+            if not(is_import_call(child)) {
+                all_params.push(child)
+            }
+            j = add(j, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body
+    }
+    catch (err: AllocError) { throw err.msg }
+}
+
+// Build a TIL source file to C (default target)
+// Returns the generated C code as a string
+build := proc(path: Str) returns Str throws Str {
+    println("Building file '", path, "'")
+
+    // Parse main file
+    mut main_ast := parse_file(path)
+
+    // Collect all imports recursively using Vec
+    mut imported := Vec.new(Str)
+    imported.push(path)
+    mut dep_asts := Vec.new(Expr)
+    collect_imports_single(main_ast, imported, dep_asts)
+
+    // Merge all ASTs into one
+    mut all_params := Vec.new(Expr)
+
+    // Add dependencies first (in order they were collected)
+    mut i := 0
+    while lt(i, dep_asts.len()) {
+        mut dep := Expr()
+        dep_asts.get(i, dep)
+        merge_dep_params(dep, all_params)
+        i = add(i, 1)
+    }
+
+    // Add main file contents (skip imports)
+    merge_dep_params(main_ast, all_params)
+
+    mut merged_ast := Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
+
     // Generate C code
-    mut c_code := emit(ast)
+    mut c_code := emit(merged_ast)
 
     // Write output file
     mut output_path := path.replace(".til", ".c")
