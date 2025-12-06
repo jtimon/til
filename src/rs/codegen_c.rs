@@ -254,14 +254,24 @@ fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<
     output.push('(');
 
     // For UFCS: receiver.op(arg) -> (receiver op arg)
+    // For type-qualified: Type.op(a, b) -> (a op b) - ignore type prefix
     // For regular: op(a, b) -> (a op b)
     if let Some(receiver) = ufcs_receiver {
-        // UFCS call: emit receiver as first operand
-        emit_identifier_without_nested(receiver, output)?;
-        output.push(' ');
-        output.push_str(op);
-        output.push(' ');
-        if expr.params.len() > 1 {
+        // Check if this is a type-qualified call (Type.op(a, b)) vs instance call (x.op(y))
+        // Type-qualified calls have 2+ args after the function name
+        if expr.params.len() >= 3 {
+            // Type-qualified: Type.op(a, b) -> (a op b)
+            emit_expr(&expr.params[1], output, 0)?;
+            output.push(' ');
+            output.push_str(op);
+            output.push(' ');
+            emit_expr(&expr.params[2], output, 0)?;
+        } else if expr.params.len() >= 2 {
+            // Instance UFCS: x.op(y) -> (x op y)
+            emit_identifier_without_nested(receiver, output)?;
+            output.push(' ');
+            output.push_str(op);
+            output.push(' ');
             emit_expr(&expr.params[1], output, 0)?;
         } else {
             return Err("codegen_c: UFCS binary op requires 1 argument".to_string());

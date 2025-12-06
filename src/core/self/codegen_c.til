@@ -383,18 +383,34 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
 emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr) returns Str throws Str {
     mut result := concat(output, "(")
 
+    // For UFCS: receiver.op(arg) -> (receiver op arg)
+    // For type-qualified: Type.op(a, b) -> (a op b) - ignore type prefix
+    // For regular: op(a, b) -> (a op b)
     if has_ufcs_receiver {
-        // UFCS call: receiver.op(arg) -> (receiver op arg)
-        switch first.node_type {
-        case NodeType.Identifier(name):
-            result = concat(result, name)
-        case:
-            throw "codegen_c: expected identifier"
-        }
-        result = concat(result, " ")
-        result = concat(result, op)
-        result = concat(result, " ")
-        if gt(expr.params.len(), 1) {
+        // Check if this is a type-qualified call (Type.op(a, b)) vs instance call (x.op(y))
+        // Type-qualified calls have 2+ args after the function name
+        if gteq(expr.params.len(), 3) {
+            // Type-qualified: Type.op(a, b) -> (a op b)
+            mut arg1 := Expr()
+            mut arg2 := Expr()
+            expr.params.get(1, arg1)
+            expr.params.get(2, arg2)
+            result = emit_expr(arg1, result, 0)
+            result = concat(result, " ")
+            result = concat(result, op)
+            result = concat(result, " ")
+            result = emit_expr(arg2, result, 0)
+        } else if gteq(expr.params.len(), 2) {
+            // Instance UFCS: x.op(y) -> (x op y)
+            switch first.node_type {
+            case NodeType.Identifier(name):
+                result = concat(result, name)
+            case:
+                throw "codegen_c: expected identifier"
+            }
+            result = concat(result, " ")
+            result = concat(result, op)
+            result = concat(result, " ")
             mut arg := Expr()
             expr.params.get(1, arg)
             result = emit_expr(arg, result, 0)
