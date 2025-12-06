@@ -1,9 +1,9 @@
 mode lib
 
 import("src.core.self.interpreter")
-import("src.core.self.codegen_c")
+// import("src.core.self.codegen_c")  // TODO: enable when codegen is ready
 
 // Build a TIL source file to C (default target)
-build := proc(path: Str) throws Str {
+build := proc(path: Str) {
     TODO(loc(), "build: C codegen not implemented")
 }

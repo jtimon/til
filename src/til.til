@@ -14,11 +14,11 @@ interpret_file_or_exit := proc(path: Str) throws Str, AllocError {
     _ := run_file(path, empty_args)
 }
 
-build_file_or_exit := proc(path: Str) throws Str {
+build_file_or_exit := proc(path: Str) {
     build(path)
 }
 
-run_file_or_exit := proc(path: Str) throws Str {
+run_file_or_exit := proc(path: Str) {
     build(path)
     // TODO: run_cmd(binary_path, args...)
     TODO(loc(), "run_file_or_exit: execute compiled binary")
@@ -82,16 +82,8 @@ main := proc(args: ..Str) {
         case "repl"      : usage()
         case "build"     :
             build_file_or_exit(val1)
-            catch (err: Str) {
-                println("Build error: ", err)
-                exit(1)
-            }
         case "run"       :
             run_file_or_exit(val1)
-            catch (err: Str) {
-                println("Run error: ", err)
-                exit(1)
-            }
         case:
             println("command '", cmd, "' not implemented.")
             usage()
