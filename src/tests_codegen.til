@@ -1,0 +1,24 @@
+mode test
+
+// C codegen tests
+
+import("src.core.self.builder")
+
+println("\n=== C Codegen Tests ===\n")
+
+test_hello_codegen := proc() {
+    println("Testing C codegen with hello_script.til...")
+
+    // Build hello_script.til -> generates .c and compiles to executable
+    _ := build("src/test/hello/hello_script.til")
+
+    println("[PASS] hello_script.til codegen succeeded")
+
+    catch (err: Str) {
+        panic(loc(), format("C codegen test failed: ", err))
+    }
+}
+
+test_hello_codegen()
+
+println("=== All C Codegen Tests Passed! ===\n")
