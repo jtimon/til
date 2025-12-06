@@ -3,7 +3,7 @@
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef};
 
-// Emit C code from AST (four-pass: structs, prototypes, functions, then main)
+// Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr) -> Result<String, String> {
     let mut output = String::new();
 
@@ -13,7 +13,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <string.h>\n");
     output.push_str("#include <stdbool.h>\n\n");
 
-    // First pass: emit struct definitions (needed by function prototypes)
+    // Pass 1: emit struct definitions (only mut fields become struct members)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
@@ -22,7 +22,18 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         }
     }
 
-    // Second pass: emit function prototypes (forward declarations)
+    // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_struct_declaration(child) {
+                emit_struct_constants(child, &mut output)?;
+            }
+        }
+    }
+    output.push_str("\n");
+
+    // Pass 3: emit function prototypes (forward declarations)
+    // 3a: top-level functions
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
@@ -30,9 +41,18 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
             }
         }
     }
+    // 3b: struct functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_struct_declaration(child) {
+                emit_struct_func_prototypes(child, &mut output)?;
+            }
+        }
+    }
     output.push_str("\n");
 
-    // Third pass: emit function definitions (before main)
+    // Pass 4: emit function definitions
+    // 4a: top-level functions
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
@@ -40,11 +60,19 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
             }
         }
     }
+    // 4b: struct functions (with mangled names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_struct_declaration(child) {
+                emit_struct_func_bodies(child, &mut output)?;
+            }
+        }
+    }
 
     // Main function
     output.push_str("int main() {\n");
 
-    // Fourth pass: emit non-struct, non-function statements
+    // Pass 5: emit non-struct, non-function statements
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if !is_func_declaration(child) && !is_struct_declaration(child) {
@@ -71,20 +99,23 @@ fn is_struct_declaration(expr: &Expr) -> bool {
     false
 }
 
-// Emit a struct declaration as a C typedef struct
+// Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
 fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 output.push_str("typedef struct {\n");
                 for member in &struct_def.members {
-                    // Skip members with function types (methods)
-                    if let Some(c_type) = til_type_to_c(&member.value_type) {
-                        output.push_str("    ");
-                        output.push_str(&c_type);
-                        output.push_str(" ");
-                        output.push_str(&member.name);
-                        output.push_str(";\n");
+                    // Only emit mut fields as struct members
+                    // Skip functions and non-mut fields (constants)
+                    if member.is_mut {
+                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                            output.push_str("    ");
+                            output.push_str(&c_type);
+                            output.push_str(" ");
+                            output.push_str(&member.name);
+                            output.push_str(";\n");
+                        }
                     }
                 }
                 output.push_str("} ");
@@ -95,6 +126,155 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
         }
     }
     Err("emit_struct_declaration: not a struct declaration".to_string())
+}
+
+// Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
+fn emit_struct_constants(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+                let struct_name = &decl.name;
+                for member in &struct_def.members {
+                    // Only emit non-mut, non-function fields as constants
+                    if !member.is_mut {
+                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                            // Get the default value
+                            if let Some(default_val) = struct_def.default_values.get(&member.name) {
+                                output.push_str(&c_type);
+                                output.push_str(" ");
+                                output.push_str(struct_name);
+                                output.push_str("_");
+                                output.push_str(&member.name);
+                                output.push_str(" = ");
+                                emit_expr(default_val, output, 0)?;
+                                output.push_str(";\n");
+                            }
+                        }
+                    }
+                }
+                return Ok(());
+            }
+        }
+    }
+    Ok(()) // Not a struct, nothing to emit
+}
+
+// Emit a struct function prototype with mangled name: StructName_funcname
+fn emit_struct_func_prototype(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
+    // Skip external functions
+    if func_def.is_ext() {
+        return Ok(());
+    }
+
+    // Return type
+    if func_def.return_types.is_empty() {
+        output.push_str("void ");
+    } else {
+        let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+        output.push_str(&ret_type);
+        output.push_str(" ");
+    }
+
+    // Mangled name: StructName_funcname
+    output.push_str(struct_name);
+    output.push_str("_");
+    output.push_str(&member.name);
+    output.push_str("(");
+
+    // Parameters
+    for (i, arg) in func_def.args.iter().enumerate() {
+        if i > 0 {
+            output.push_str(", ");
+        }
+        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+        output.push_str(&arg_type);
+        output.push_str(" ");
+        output.push_str(&arg.name);
+    }
+    output.push_str(");\n");
+    Ok(())
+}
+
+// Emit struct function prototypes for all functions in a struct
+fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+                let struct_name = &decl.name;
+                for member in &struct_def.members {
+                    // Check if default_value is a function definition
+                    if let Some(func_expr) = struct_def.default_values.get(&member.name) {
+                        if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                            emit_struct_func_prototype(struct_name, member, func_def, output)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// Emit a struct function body with mangled name: StructName_funcname
+fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
+    // Skip external functions
+    if func_def.is_ext() {
+        return Ok(());
+    }
+
+    // Return type
+    if func_def.return_types.is_empty() {
+        output.push_str("void ");
+    } else {
+        let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+        output.push_str(&ret_type);
+        output.push_str(" ");
+    }
+
+    // Mangled name: StructName_funcname
+    output.push_str(struct_name);
+    output.push_str("_");
+    output.push_str(&member.name);
+    output.push_str("(");
+
+    // Parameters
+    for (i, arg) in func_def.args.iter().enumerate() {
+        if i > 0 {
+            output.push_str(", ");
+        }
+        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+        output.push_str(&arg_type);
+        output.push_str(" ");
+        output.push_str(&arg.name);
+    }
+    output.push_str(") {\n");
+
+    // Emit function body
+    for stmt in &func_def.body {
+        emit_expr(stmt, output, 1)?;
+    }
+    output.push_str("}\n\n");
+    Ok(())
+}
+
+// Emit struct function bodies for all functions in a struct
+fn emit_struct_func_bodies(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+                let struct_name = &decl.name;
+                for member in &struct_def.members {
+                    // Check if default_value is a function definition
+                    if let Some(func_expr) = struct_def.default_values.get(&member.name) {
+                        if let NodeType::FuncDef(func_def) = &func_expr.node_type {
+                            emit_struct_func_body(struct_name, member, func_def, output)?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
@@ -222,8 +402,21 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
         NodeType::LLiteral(lit) => emit_literal(lit, output),
         NodeType::Declaration(decl) => emit_declaration(&decl.name, decl.is_mut, expr, output, indent),
         NodeType::Identifier(name) => {
+            // Check for type-qualified constant access (Type.CONSTANT -> Type_CONSTANT)
+            if !expr.params.is_empty() {
+                let first_char = name.chars().next().unwrap_or('a');
+                if first_char.is_uppercase() {
+                    // Type-qualified access: Type.field -> Type_field
+                    if let NodeType::Identifier(field) = &expr.params[0].node_type {
+                        output.push_str(name);
+                        output.push_str("_");
+                        output.push_str(field);
+                        return Ok(());
+                    }
+                }
+            }
+            // Regular identifier or field access (b.val -> b.val)
             output.push_str(name);
-            // Handle field access (b.val -> b.val)
             for param in &expr.params {
                 if let NodeType::Identifier(field) = &param.node_type {
                     output.push_str(".");
@@ -505,6 +698,52 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
         // User-defined function call
         _ => {
             output.push_str(&indent_str);
+
+            // Check if this is a type-qualified call (Type.func(...))
+            // Type names start with uppercase
+            if let Some(receiver) = ufcs_receiver {
+                if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+                    let first_char = receiver_name.chars().next().unwrap_or('a');
+                    if first_char.is_uppercase() {
+                        // Type-qualified call: Type.func(args...) -> Type_func(args...)
+                        output.push_str(receiver_name);
+                        output.push_str("_");
+                        output.push_str(&func_name);
+                        output.push_str("(");
+                        // Emit all arguments after the function name
+                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                            if i > 0 {
+                                output.push_str(", ");
+                            }
+                            emit_expr(arg, output, 0)?;
+                        }
+                        output.push_str(")");
+                        if indent > 0 {
+                            output.push_str(";\n");
+                        }
+                        return Ok(());
+                    } else {
+                        // Instance UFCS: instance.func(args...) -> func(instance, args...)
+                        // For now, just emit as regular call (TODO: need type info for proper mangling)
+                        output.push_str(&func_name);
+                        output.push_str("(");
+                        // First emit the receiver as first argument
+                        emit_identifier_without_nested(receiver, output)?;
+                        // Then emit remaining arguments
+                        for arg in expr.params.iter().skip(1) {
+                            output.push_str(", ");
+                            emit_expr(arg, output, 0)?;
+                        }
+                        output.push_str(")");
+                        if indent > 0 {
+                            output.push_str(";\n");
+                        }
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Regular function call
             output.push_str(&func_name);
             output.push_str("(");
             // Emit arguments (skip first param which is function name)

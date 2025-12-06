@@ -41,7 +41,7 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     }
 }
 
-// Emit a struct declaration as a C typedef struct
+// Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
 emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
     switch expr.node_type {
@@ -56,11 +56,14 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()
                     struct_def.members.get(i, member)
-                    result = concat(result, "    ")
-                    result = concat(result, til_type_to_c(member.value_type))
-                    result = concat(result, " ")
-                    result = concat(result, member.name)
-                    result = concat(result, ";\n")
+                    // Only emit mut fields as struct members
+                    if member.is_mut {
+                        result = concat(result, "    ")
+                        result = concat(result, til_type_to_c(member.value_type))
+                        result = concat(result, " ")
+                        result = concat(result, member.name)
+                        result = concat(result, ";\n")
+                    }
                     i = add(i, 1)
                 }
                 result = concat(result, "} ")
@@ -78,7 +81,211 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
 
-// Emit C code from AST (four-pass: structs, prototypes, functions, then main)
+// Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
+emit_struct_constants := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                mut struct_name := decl.name
+                mut i := 0
+                while lt(i, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(i, member)
+                    // Only emit non-mut, non-function fields as constants
+                    if not(member.is_mut) {
+                        // Check if default_value is NOT a function (constants only)
+                        mut is_func := false
+                        mut default_val := Expr()
+                        struct_def.default_values.get(member.name, default_val)
+                        switch default_val.node_type {
+                        case NodeType.FuncDef(fd):
+                            is_func = true
+                        case:
+                            is_func = false
+                        }
+                        if not(is_func) {
+                            result = concat(result, til_type_to_c(member.value_type))
+                            result = concat(result, " ")
+                            result = concat(result, struct_name)
+                            result = concat(result, "_")
+                            result = concat(result, member.name)
+                            result = concat(result, " = ")
+                            result = emit_expr(default_val, result, 0)
+                            result = concat(result, ";\n")
+                        }
+                        catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
+                    }
+                    i = add(i, 1)
+                }
+                return result
+            case:
+                return result
+            }
+        }
+        return result
+    case:
+        return result
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+// Emit struct function prototypes with mangled names: StructName_funcname
+emit_struct_func_prototypes := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                mut struct_name := decl.name
+                mut i := 0
+                while lt(i, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(i, member)
+                    // Check if default_value is a function
+                    mut func_expr := Expr()
+                    struct_def.default_values.get(member.name, func_expr)
+                    switch func_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        // Skip external functions
+                        if func_def.is_ext {
+                            // do nothing
+                        } else {
+                            // Return type
+                            if eq(func_def.return_types.len(), 0) {
+                                result = concat(result, "void ")
+                            } else {
+                                mut ret_type := ValueType.TCustom("")
+                                func_def.return_types.get(0, ret_type)
+                                result = concat(result, til_type_to_c(ret_type))
+                                result = concat(result, " ")
+                            }
+                            // Mangled name
+                            result = concat(result, struct_name)
+                            result = concat(result, "_")
+                            result = concat(result, member.name)
+                            result = concat(result, "(")
+                            // Parameters
+                            mut j := 0
+                            while lt(j, func_def.args.len()) {
+                                if gt(j, 0) {
+                                    result = concat(result, ", ")
+                                }
+                                mut arg := Declaration()
+                                func_def.args.get(j, arg)
+                                result = concat(result, til_type_to_c(arg.value_type))
+                                result = concat(result, " ")
+                                result = concat(result, arg.name)
+                                j = add(j, 1)
+                            }
+                            result = concat(result, ");\n")
+                        }
+                    case:
+                        // Not a function
+                    }
+                    catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
+                    i = add(i, 1)
+                }
+                return result
+            case:
+                return result
+            }
+        }
+        return result
+    case:
+        return result
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+// Emit struct function bodies with mangled names: StructName_funcname
+emit_struct_func_bodies := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                mut struct_name := decl.name
+                mut i := 0
+                while lt(i, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(i, member)
+                    // Check if default_value is a function
+                    mut func_expr := Expr()
+                    struct_def.default_values.get(member.name, func_expr)
+                    switch func_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        // Skip external functions
+                        if func_def.is_ext {
+                            // do nothing
+                        } else {
+                            // Return type
+                            if eq(func_def.return_types.len(), 0) {
+                                result = concat(result, "void ")
+                            } else {
+                                mut ret_type := ValueType.TCustom("")
+                                func_def.return_types.get(0, ret_type)
+                                result = concat(result, til_type_to_c(ret_type))
+                                result = concat(result, " ")
+                            }
+                            // Mangled name
+                            result = concat(result, struct_name)
+                            result = concat(result, "_")
+                            result = concat(result, member.name)
+                            result = concat(result, "(")
+                            // Parameters
+                            mut j := 0
+                            while lt(j, func_def.args.len()) {
+                                if gt(j, 0) {
+                                    result = concat(result, ", ")
+                                }
+                                mut arg := Declaration()
+                                func_def.args.get(j, arg)
+                                result = concat(result, til_type_to_c(arg.value_type))
+                                result = concat(result, " ")
+                                result = concat(result, arg.name)
+                                j = add(j, 1)
+                            }
+                            result = concat(result, ") {\n")
+                            // Emit function body
+                            mut k := 0
+                            while lt(k, func_def.body.len()) {
+                                mut stmt := Expr()
+                                func_def.body.get(k, stmt)
+                                result = emit_expr(stmt, result, 1)
+                                k = add(k, 1)
+                            }
+                            result = concat(result, "}\n\n")
+                        }
+                    case:
+                        // Not a function
+                    }
+                    catch (err: KeyNotFoundError) { /* skip member with no default */ }
+                    i = add(i, 1)
+                }
+                return result
+            case:
+                return result
+            }
+        }
+        return result
+    case:
+        return result
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+// Emit C code from AST (multi-pass architecture)
 emit := proc(ast: Expr) returns Str throws Str {
     mut output := ""
 
@@ -88,7 +295,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <string.h>\n")
     output = concat(output, "#include <stdbool.h>\n\n")
 
-    // First pass: emit struct definitions (needed by function prototypes)
+    // Pass 1: emit struct definitions (only mut fields become struct members)
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -106,7 +313,27 @@ emit := proc(ast: Expr) returns Str throws Str {
         // Not a body, skip struct pass
     }
 
-    // Second pass: emit function prototypes (forward declarations)
+    // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_struct_declaration(child) {
+                output = emit_struct_constants(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip constants pass
+    }
+    output = concat(output, "\n")
+
+    // Pass 3: emit function prototypes (forward declarations)
+    // 3a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -123,9 +350,27 @@ emit := proc(ast: Expr) returns Str throws Str {
     case:
         // Not a body, skip prototype pass
     }
+    // 3b: struct functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_struct_declaration(child) {
+                output = emit_struct_func_prototypes(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip struct func prototype pass
+    }
     output = concat(output, "\n")
 
-    // Third pass: emit function definitions (before main)
+    // Pass 4: emit function definitions
+    // 4a: top-level functions
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -142,11 +387,28 @@ emit := proc(ast: Expr) returns Str throws Str {
     case:
         // Not a body, skip function pass
     }
+    // 4b: struct functions (with mangled names)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_struct_declaration(child) {
+                output = emit_struct_func_bodies(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip struct func body pass
+    }
 
     // Main function
     output = concat(output, "int main() {\n")
 
-    // Fourth pass: emit non-struct, non-function statements
+    // Pass 5: emit non-struct, non-function statements
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -328,7 +590,27 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     case NodeType.Declaration(decl):
         return emit_declaration(decl.name, decl.is_mut, expr, output, indent)
     case NodeType.Identifier(name):
-        // Handle field access (b.val -> b.val)
+        // Check for type-qualified constant access (Type.CONSTANT -> Type_CONSTANT)
+        if gt(expr.params.len(), 0) {
+            mut first_char := name.get_substr(0, 1)
+            if first_char.is_uppercase() {
+                // Type-qualified access: Type.field -> Type_field
+                mut param := Expr()
+                expr.params.get(0, param)
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    mut result := concat(output, name)
+                    result = concat(result, "_")
+                    result = concat(result, field)
+                    return result
+                case:
+                    // Fall through to regular handling
+                }
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
+        }
+        // Regular identifier or field access (b.val -> b.val)
         mut result := concat(output, name)
         mut i := 0
         while lt(i, expr.params.len()) {
@@ -670,6 +952,58 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
         return concat(output, "\"\"")
     } else {
         // User-defined function call
+        // Check if this is a type-qualified call (Type.func(...))
+        if has_ufcs_receiver {
+            switch first.node_type {
+            case NodeType.Identifier(receiver_name):
+                mut first_char := receiver_name.get_substr(0, 1)
+                if first_char.is_uppercase() {
+                    // Type-qualified call: Type.func(args...) -> Type_func(args...)
+                    result = concat(result, receiver_name)
+                    result = concat(result, "_")
+                    result = concat(result, func_name)
+                    result = concat(result, "(")
+                    mut i := 1
+                    while lt(i, params_len) {
+                        if gt(i, 1) {
+                            result = concat(result, ", ")
+                        }
+                        mut arg := Expr()
+                        expr.params.get(i, arg)
+                        result = emit_expr(arg, result, 0)
+                        i = add(i, 1)
+                    }
+                    result = concat(result, ")")
+                    if gt(indent, 0) {
+                        result = concat(result, ";\n")
+                    }
+                    return result
+                } else {
+                    // Instance UFCS: instance.func(args...) -> func(instance, args...)
+                    result = concat(result, func_name)
+                    result = concat(result, "(")
+                    result = concat(result, receiver_name)
+                    mut i := 1
+                    while lt(i, params_len) {
+                        result = concat(result, ", ")
+                        mut arg := Expr()
+                        expr.params.get(i, arg)
+                        result = emit_expr(arg, result, 0)
+                        i = add(i, 1)
+                    }
+                    result = concat(result, ")")
+                    if gt(indent, 0) {
+                        result = concat(result, ";\n")
+                    }
+                    return result
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+            case:
+                throw "codegen_c: expected identifier for UFCS receiver"
+            }
+        }
+        // Regular function call
         result = concat(result, func_name)
         result = concat(result, "(")
         mut i := 1
