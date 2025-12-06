@@ -1,9 +1,34 @@
 mode lib
 
 import("src.core.self.interpreter")
-// import("src.core.self.codegen_c")  // TODO: enable when codegen is ready
+import("src.core.self.codegen_c")
 
 // Build a TIL source file to C (default target)
-build := proc(path: Str) {
-    TODO(loc(), "build: C codegen not implemented")
+// Returns the generated C code as a string
+build := proc(path: Str) returns Str throws Str, AllocError, IndexOutOfBoundsError {
+    println("Building file '", path, "'")
+
+    // Create lexer (reads file internally)
+    mut lexer := Lexer.new(path)
+
+    // Parse mode (skip it for codegen)
+    mut first_token := lexer.peek()
+    mut first_token_str := first_token.token_str
+    if first_token_str.eq("mode") {
+        lexer.advance(1) // skip 'mode'
+        lexer.advance(1) // skip mode name
+    }
+
+    // Parse body
+    mut ast := parse_body(lexer, TokenType.Eof)
+
+    // Generate C code
+    mut c_code := emit(ast)
+
+    // TODO: write to file when file writing is available
+    // For now, just return the C code
+    println("Generated C code:")
+    println(c_code)
+
+    return c_code
 }

@@ -3,9 +3,118 @@ mode lib
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-import("src.core.self.parser")  // Expr, NodeType
+import("src.core.self.parser")  // Expr, NodeType, Literal
 
-// Emit C code from AST
+// Emit C code from AST (wraps in main)
 emit := proc(ast: Expr) returns Str throws Str {
-    TODO(loc(), "C codegen: emit not implemented")
+    mut output := ""
+
+    // C boilerplate
+    output = concat(output, "#include <stdio.h>\n\n")
+    output = concat(output, "int main() {\n")
+
+    // Emit body
+    output = emit_expr(ast, output, 1)
+
+    output = concat(output, "    return 0;\n")
+    output = concat(output, "}\n")
+
+    return output
+}
+
+emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    switch expr.node_type {
+    case NodeType.Body:
+        return emit_body(expr, output, indent)
+    case NodeType.FCall:
+        return emit_fcall(expr, output, indent)
+    case NodeType.LLiteral(lit):
+        return emit_literal(lit, output)
+    case:
+        throw concat("codegen_c: unsupported node type")
+    }
+}
+
+emit_body := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    mut result := output
+    mut i := 0
+    while lt(i, expr.params.len) {
+        mut child := Expr()
+        expr.params.get(i, child)
+        result = emit_expr(child, result, indent)
+        i = add(i, 1)
+    }
+    return result
+}
+
+emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    // First param is the function name
+    if lt(expr.params.len, 1) {
+        throw "codegen_c: FCall with no params"
+    }
+
+    mut first := Expr()
+    expr.params.get(0, first)
+
+    mut func_name := ""
+    switch first.node_type {
+    case NodeType.Identifier(name):
+        func_name = name
+    case:
+        throw "codegen_c: FCall first param not Identifier"
+    }
+
+    mut result := output
+
+    // Add indentation
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+
+    // Hardcoded builtins
+    if func_name.eq("println") {
+        result = concat(result, "printf(")
+        // Emit args
+        mut i := 1
+        while lt(i, expr.params.len) {
+            if gt(i, 1) {
+                result = concat(result, ", ")
+            }
+            mut arg := Expr()
+            expr.params.get(i, arg)
+            result = emit_expr(arg, result, 0)
+            i = add(i, 1)
+        }
+        result = concat(result, "\"\\n\");\n")
+        return result
+    } else if func_name.eq("print") {
+        result = concat(result, "printf(")
+        mut i := 1
+        while lt(i, expr.params.len) {
+            if gt(i, 1) {
+                result = concat(result, ", ")
+            }
+            mut arg := Expr()
+            expr.params.get(i, arg)
+            result = emit_expr(arg, result, 0)
+            i = add(i, 1)
+        }
+        result = concat(result, ");\n")
+        return result
+    } else {
+        throw concat("codegen_c: unknown function '", func_name, "'")
+    }
+}
+
+emit_literal := proc(lit: Literal, output: Str) returns Str throws Str {
+    switch lit {
+    case Literal.Str(s):
+        return concat(output, "\"", s, "\"")
+    case Literal.Number(n):
+        return concat(output, n)
+    case:
+        throw "codegen_c: unsupported literal type"
+    }
 }
