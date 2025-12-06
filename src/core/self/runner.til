@@ -1,3 +1,0 @@
-mode lib
-
-import("src.core.self.interpreter")

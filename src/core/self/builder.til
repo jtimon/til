@@ -1,0 +1,9 @@
+mode lib
+
+import("src.core.self.interpreter")
+import("src.core.self.codegen_c")
+
+// Build a TIL source file to C (default target)
+build := proc(path: Str) throws Str {
+    TODO(loc(), "build: C codegen not implemented")
+}

@@ -1,0 +1,11 @@
+mode lib
+
+// C code generator for TIL
+// Translates TIL AST to C source code
+
+import("src.core.self.parser")  // Expr, NodeType
+
+// Emit C code from AST
+emit := proc(ast: Expr) returns Str throws Str {
+    TODO(loc(), "C codegen: emit not implemented")
+}

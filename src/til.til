@@ -1,6 +1,6 @@
 mode cli
 
-import("src.core.self.runner")       // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
+import("src.core.self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
 import("src.core.self.lexer")        // LANG_NAME
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
@@ -14,12 +14,12 @@ interpret_file_or_exit := proc(path: Str) throws Str, AllocError {
     _ := run_file(path, empty_args)
 }
 
-build_file_or_exit := proc(path: Str) {
-    TODO(loc(), "build_file_or_exit")
+build_file_or_exit := proc(path: Str) throws Str {
+    build(path)
 }
 
-run_file_or_exit := proc(path: Str) {
-    build_file_or_exit(path)
+run_file_or_exit := proc(path: Str) throws Str {
+    build(path)
     // TODO: run_cmd(binary_path, args...)
     TODO(loc(), "run_file_or_exit: execute compiled binary")
 }
@@ -80,8 +80,18 @@ main := proc(args: ..Str) {
             }
         // case "interpret" : interpret_file_or_exit(args.get(1), main_args) // TODO FIX
         case "repl"      : usage()
-        case "build"     : build_file_or_exit(val1)
-        case "run"       : run_file_or_exit(val1)
+        case "build"     :
+            build_file_or_exit(val1)
+            catch (err: Str) {
+                println("Build error: ", err)
+                exit(1)
+            }
+        case "run"       :
+            run_file_or_exit(val1)
+            catch (err: Str) {
+                println("Run error: ", err)
+                exit(1)
+            }
         case:
             println("command '", cmd, "' not implemented.")
             usage()
