@@ -15,11 +15,18 @@ interpret_file_or_exit := proc(path: Str) throws Str, AllocError {
 }
 
 build_file_or_exit := proc(path: Str) {
-    build(path)
+    _ := build(path)
+    catch (err: Str) {
+        println("Build error: ", err)
+    }
 }
 
 run_file_or_exit := proc(path: Str) {
-    build(path)
+    _ := build(path)
+    catch (err: Str) {
+        println("Build error: ", err)
+        return
+    }
     // TODO: run_cmd(binary_path, args...)
     TODO(loc(), "run_file_or_exit: execute compiled binary")
 }
