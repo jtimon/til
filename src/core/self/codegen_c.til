@@ -1402,7 +1402,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     case NodeType.StructDef(s):
         throw "codegen_c: StructDef should be handled at top level, not in emit_expr"
     case NodeType.EnumDef(e):
-        throw "codegen_c: EnumDef not yet supported"
+        throw "codegen_c: EnumDef should be handled at top level, not in emit_expr"
     case NodeType.Switch:
         return emit_switch(expr, output, indent, ctx)
     case NodeType.DefaultCase:
@@ -1410,7 +1410,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     case NodeType.Range:
         throw "codegen_c: Range not yet supported"
     case NodeType.Pattern(p):
-        throw "codegen_c: Pattern not yet supported"
+        throw "codegen_c: Pattern should be handled inside emit_switch"
     }
 }
 

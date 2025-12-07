@@ -758,11 +758,11 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Catch => Ok(()), // Catch blocks handled at call site
         NodeType::Throw => emit_throw(expr, output, indent, ctx),
         NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
-        NodeType::EnumDef(_) => Err("codegen_c: EnumDef not yet supported".to_string()),
+        NodeType::EnumDef(_) => Err("codegen_c: EnumDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::Switch => emit_switch(expr, output, indent, ctx),
         NodeType::DefaultCase => Err("codegen_c: DefaultCase should be handled inside emit_switch".to_string()),
         NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
-        NodeType::Pattern(_) => Err("codegen_c: Pattern not yet supported".to_string()),
+        NodeType::Pattern(_) => Err("codegen_c: Pattern should be handled inside emit_switch".to_string()),
     }
 }
 
