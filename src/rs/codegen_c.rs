@@ -8,6 +8,8 @@ use std::collections::HashMap;
 struct CodegenContext {
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
+    // Map variable name -> its type (for UFCS mangling)
+    var_types: HashMap<String, ValueType>,
     // Currently generating function's throw types (if any)
     current_throw_types: Vec<ValueType>,
     // Currently generating function's return types (if any)
@@ -20,6 +22,7 @@ impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
             func_throw_types: HashMap::new(),
+            var_types: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
             temp_counter: 0,
@@ -496,14 +499,18 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_throw_types = func_def.throw_types.clone();
     ctx.current_return_types = func_def.return_types.clone();
 
+    // Clear var_types for new function scope and add function arguments
+    ctx.var_types.clear();
+    for arg in &func_def.args {
+        ctx.var_types.insert(arg.name.clone(), arg.value_type.clone());
+    }
+
     let mangled_name = format!("{}_{}", struct_name, member.name);
     emit_func_signature(&mangled_name, func_def, output, ctx);
     output.push_str(" {\n");
 
-    // Emit function body
-    for stmt in &func_def.body {
-        emit_expr(stmt, output, 1, ctx)?;
-    }
+    // Emit function body with catch pattern detection
+    emit_stmts(&func_def.body, output, 1, ctx)?;
 
     // For throwing void functions, add implicit return 0 at end
     if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
@@ -686,6 +693,12 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
 
+                // Clear var_types for new function scope and add function arguments
+                ctx.var_types.clear();
+                for arg in &func_def.args {
+                    ctx.var_types.insert(arg.name.clone(), arg.value_type.clone());
+                }
+
                 emit_func_signature(&decl.name, func_def, output, ctx);
                 output.push_str(" {\n");
 
@@ -715,7 +728,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::Body => emit_body(expr, output, indent, ctx),
         NodeType::FCall => emit_fcall(expr, output, indent, ctx),
         NodeType::LLiteral(lit) => emit_literal(lit, output),
-        NodeType::Declaration(decl) => emit_declaration(&decl.name, decl.is_mut, expr, output, indent, ctx),
+        NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx),
         NodeType::Identifier(name) => {
             // Check for type-qualified access (Type.field)
             if !expr.params.is_empty() {
@@ -799,7 +812,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
         if let Some(fcall) = maybe_fcall {
             // Get function name from the FCall
-            let func_name = get_fcall_func_name(fcall);
+            let func_name = get_fcall_func_name(fcall, ctx);
 
             // Check if this function is a throwing function
             if let Some(func_name) = func_name {
@@ -834,7 +847,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 }
 
 /// Get the function name from an FCall expression
-fn get_fcall_func_name(expr: &Expr) -> Option<String> {
+fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
     if expr.params.is_empty() {
         return None;
     }
@@ -845,10 +858,23 @@ fn get_fcall_func_name(expr: &Expr) -> Option<String> {
                 // Regular function call
                 Some(name.clone())
             } else {
-                // UFCS: receiver.method() - need to determine mangled name
-                // For now, return just the method name (TODO: proper mangling)
+                // UFCS: receiver.method() - determine mangled name
                 if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    Some(method_name.clone())
+                    // Check if receiver is PascalCase (type-qualified call)
+                    let first_char = name.chars().next().unwrap_or('a');
+                    if first_char.is_uppercase() {
+                        // Type.method -> Type_method
+                        Some(format!("{}_{}", name, method_name))
+                    } else {
+                        // instance.method -> look up instance type for mangling
+                        if let Some(receiver_type) = ctx.var_types.get(name) {
+                            if let ValueType::TCustom(type_name) = receiver_type {
+                                return Some(format!("{}_{}", type_name, method_name));
+                            }
+                        }
+                        // Fallback: just the method name (may not find throw info)
+                        Some(method_name.clone())
+                    }
                 } else {
                     None
                 }
@@ -871,7 +897,7 @@ fn emit_throwing_call(
     let indent_str = "    ".repeat(indent);
 
     // Get function name
-    let func_name = get_fcall_func_name(fcall)
+    let func_name = get_fcall_func_name(fcall, ctx)
         .ok_or_else(|| "emit_throwing_call: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
@@ -1004,8 +1030,10 @@ fn emit_throwing_call(
     Ok(())
 }
 
-fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
+    let name = &decl.name;
+    let is_mut = decl.is_mut;
 
     // Check if this is a struct construction (TypeName())
     let struct_type = if !expr.params.is_empty() {
@@ -1020,6 +1048,16 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
     } else {
         None
     };
+
+    // Track variable type for UFCS mangling
+    // Use the inferred type from struct/enum construction if available
+    if let Some(ref type_name) = struct_type {
+        ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
+    } else if let Some(ref type_name) = enum_type {
+        ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
+    } else {
+        ctx.var_types.insert(name.clone(), decl.value_type.clone());
+    }
 
     if let Some(type_name) = struct_type {
         // Struct variable declaration
@@ -1592,8 +1630,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         }
                         return Ok(());
                     } else {
-                        // Instance UFCS: instance.func(args...) -> func(instance, args...)
-                        // For now, just emit as regular call (TODO: need type info for proper mangling)
+                        // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
+                        // Look up the receiver's type for proper mangling
+                        if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
+                            if let ValueType::TCustom(type_name) = receiver_type {
+                                // Mangle as Type_func
+                                output.push_str(type_name);
+                                output.push_str("_");
+                            }
+                        }
                         output.push_str(&func_name);
                         output.push_str("(");
                         // First emit the receiver as first argument
