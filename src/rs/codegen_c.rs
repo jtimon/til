@@ -432,7 +432,12 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
         NodeType::While => emit_while(expr, output, indent),
         NodeType::Catch => Ok(()), // Skip catch blocks in C (no exception support)
         NodeType::Throw => Ok(()), // Skip throw in C
-        other => Err(format!("codegen_c: unsupported node type: {:?}", other)),
+        NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
+        NodeType::EnumDef(_) => Err("codegen_c: EnumDef not yet supported".to_string()),
+        NodeType::Switch => Err("codegen_c: Switch not yet supported".to_string()),
+        NodeType::DefaultCase => Err("codegen_c: DefaultCase not yet supported".to_string()),
+        NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
+        NodeType::Pattern(_) => Err("codegen_c: Pattern not yet supported".to_string()),
     }
 }
 

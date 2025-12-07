@@ -737,8 +737,18 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     case NodeType.Throw:
         // Skip throw in C codegen (no exception support yet)
         return output
-    case:
-        throw format("codegen_c: unsupported node type: ", enum_to_str(expr.node_type))
+    case NodeType.StructDef(s):
+        throw "codegen_c: StructDef should be handled at top level, not in emit_expr"
+    case NodeType.EnumDef(e):
+        throw "codegen_c: EnumDef not yet supported"
+    case NodeType.Switch:
+        throw "codegen_c: Switch not yet supported"
+    case NodeType.DefaultCase:
+        throw "codegen_c: DefaultCase not yet supported"
+    case NodeType.Range:
+        throw "codegen_c: Range not yet supported"
+    case NodeType.Pattern(p):
+        throw "codegen_c: Pattern not yet supported"
     }
 }
 

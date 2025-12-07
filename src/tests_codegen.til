@@ -6,37 +6,26 @@ import("src.core.self.builder")
 
 println("\n=== C Codegen Tests ===\n")
 
-// Commented out for speed - these work but are slow with self-hosted builder
-# test_hello_codegen := proc() {
-#     println("Testing C codegen with hello_script.til...")
-#     _ := build("src/test/hello/hello_script.til")
-#     println("[PASS] hello_script.til codegen succeeded")
-#     catch (err: Str) {
-#         panic(loc(), format("C codegen test failed: ", err))
-#     }
-# }
-# test_hello_codegen()
+// Test 1: Rust codegen via rstil command
+test_rs_codegen := proc() {
+    println("Testing Rust C codegen with comparisons.til...")
+    _ := run_cmd("./bin/rstil", "build", "src/test/comparisons.til")
+    println("[PASS] Rust codegen: comparisons.til succeeded")
+}
 
-# test_arithmetics_codegen := proc() {
-#     println("Testing C codegen with arithmetics.til...")
-#     _ := build("src/test/arithmetics.til")
-#     println("[PASS] arithmetics.til codegen succeeded")
-#     catch (err: Str) {
-#         panic(loc(), format("C codegen test failed: ", err))
-#     }
-# }
-# test_arithmetics_codegen()
+test_rs_codegen()
 
-test_comparisons_codegen := proc() {
-    println("Testing C codegen with comparisons.til...")
+// Test 2: TIL codegen via self-hosted builder
+test_til_codegen := proc() {
+    println("Testing TIL C codegen with comparisons.til...")
     _ := build("src/test/comparisons.til")
-    println("[PASS] comparisons.til codegen succeeded")
+    println("[PASS] TIL codegen: comparisons.til succeeded")
 
     catch (err: Str) {
-        panic(loc(), format("C codegen test failed: ", err))
+        panic(loc(), format("TIL C codegen test failed: ", err))
     }
 }
 
-test_comparisons_codegen()
+test_til_codegen()
 
 println("=== All C Codegen Tests Passed! ===\n")
