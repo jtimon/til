@@ -3,11 +3,22 @@
 ## Primary Documentation
 Read `doc/bot.org` for full guidelines. Key points below are frequently repeated corrections.
 
+## Various things
+- **NEVER** Use weird unicode symbols anywhere, stay ASCII
+
 ## CRITICAL: Stay Within Project Directory
 - **NEVER** create or read files outside the project directory
 - **NEVER** use /tmp or any path outside this project
 - All temporary files go in `src/test/tmp/` (already gitignored)
 - All work must stay within the project boundaries
+
+## Issue Numbering System - IMPORTANT
+This is shared across ALL tracking documents (bugs.org, dry.org, etc.)
+1. **ALWAYS** read `doc/todo/next_issue_num.txt` first
+2. Use that exact number for new bug/issue
+3. Increment and write back to file immediately
+4. Never reuse numbers, even for closed issues
+5. File location: `doc/todo/next_issue_num.txt` (NOT in `doc/`)
 
 ## Catch Block Style
 **DO NOT** put catch blocks after every statement. Put them at the END of functions.
@@ -37,41 +48,22 @@ test_something := proc() {
 
 ## Test File Locations
 Don't ask where tests go - they're organized by collection type:
-- Vec tests: `src/test/dynamic_arrays.til`
+- Vec tests: `src/test/vecs.til`
 - List tests: `src/test/lists.til`
 - Map tests: `src/test/maps.til`
 - Array tests: `src/test/arrays.til`
-- Temporary/debug: `src/test/tmp/`
-
-## Issue Numbering System - IMPORTANT
-This is shared across ALL tracking documents (bugs.org, dry.org, etc.)
-1. **ALWAYS** read `doc/todo/next_issue_num.txt` first
-2. Use that exact number for new bug/issue
-3. Increment and write back to file immediately
-4. Never reuse numbers, even for closed issues
-5. File location: `doc/todo/next_issue_num.txt` (NOT in `doc/`)
-
-## Bug #24 - Struct Field Mutation
-Struct fields that are collections return COPIES. Must use copy-modify-reassign:
-
-```til
-// WRONG - modifies copy, original unchanged
-self.type_names.push(name)
-
-// CORRECT - copy, modify, reassign
-mut names := self.type_names
-names.push(name)
-self.type_names = names
-```
+- Temporary/debug: `src/test/tmp/` or `src/test/temporary_tests.til`
 
 ## Build Commands
-- `make rstil` - Fast build, just compile the interpreter
-- `make tests` or `make` - Full test suite (slower, for final verification)
-- Use `make rstil` when iterating quickly during development
+- `make rstil` or `make` - Fast build, just compile rstil
+- `make tests` - Full test suite (slower, for final verification)
+- Use `rstil interpret my_test.til` to test single files with the interpreter
+- Use `rstil run my_test.til` to test single files with the compiler (builds and runs)
+- use `rstil repl` for fast doubts about til syntax and functionality (call exit(0) at the end to quit the repl cli)
 
 ## Permissions Already Granted
 Don't ask permission for:
-- `make`, `make tests`, `make rstil`, `cargo`, `rustc`
+- `make`, `make tests`, `make rstil`, `rustc`
 - `python3`, `python` - running any Python scripts within the project
 - `git status`, `git log`, `git diff`, `git add`, `git commit`
 - `timeout N ./bin/rstil file.til`
@@ -111,12 +103,13 @@ Don't ask permission for:
 - Even partial fixes should be documented
 
 ## Commit Process
-1. Update documentation first if anything was fixed/changed
-2. Run `make tests` to verify everything works
-3. If exit code 0, commit
-4. If non-zero, read output and fix
-5. Use heredoc for commit messages
-6. Always include co-author footer
+1) Update documentation first if anything was fixed/changed
+2) Any changes made to rust code, we port to the equavalent files in til (self hosted implementation)
+3) Run `make tests` to verify everything works
+4) If exit code 0, commit
+5) If non-zero, read output and fix
+6) Use heredoc for commit messages
+7) Always include co-author footer
 
 ## File Organization
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
@@ -138,7 +131,7 @@ The word "phase" is reserved for:
 - Parser phase
 - Type checker phase
 - Interpreter phase
-- Compiler phases (when we get there)
+- Compiler phase
 
 For multi-step tasks, use:
 - "Step 1: Add helpers", "Step 2: Refactor getters", etc.
@@ -147,6 +140,7 @@ For multi-step tasks, use:
 ## Common Patterns
 - List.push(Type, value) - type comes first
 - Vec.push(value) - type set at construction
-- Functions throw errors, don't return Result types
+- Functions throw errors, don't return Result or Option types
 - Use `assert_eq(loc(), expected, actual)` for I64
-- Use `test(loc(), condition, "description")` for Bool/Str
+- Use `assert_eq_str(loc(), expected, actual)` for Str
+- Use `test(loc(), condition, "description")` for Bool
