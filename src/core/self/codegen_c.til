@@ -1199,6 +1199,16 @@ emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, fi
     return result
 }
 
+// Emit identifier without its nested params (for UFCS receiver)
+emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str throws Str {
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        return concat(output, name)
+    case:
+        throw "codegen_c: expected identifier"
+    }
+}
+
 emit_literal := proc(lit: Literal, output: Str) returns Str throws Str {
     mut result := ""
     switch lit {
