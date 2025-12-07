@@ -294,6 +294,76 @@ is_enum_declaration := func(expr: Expr) returns Bool {
     }
 }
 
+// Check if an expression is a top-level constant declaration (name := literal)
+// Constants are non-mut declarations with literal values (numbers, strings, bools)
+is_constant_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        // Must not be mutable
+        if decl.is_mut {
+            return false
+        }
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.LLiteral(lit):
+                return true
+            case NodeType.StructDef(struct_def):
+                return false
+            case NodeType.EnumDef(enum_def):
+                return false
+            case NodeType.FuncDef(func_def):
+                return false
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
+// Emit a top-level constant declaration at file scope
+emit_constant_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            switch first.node_type {
+            case NodeType.LLiteral(lit):
+                switch lit {
+                case Literal.Number(n):
+                    result = concat(result, "long long ")
+                    result = concat(result, decl.name)
+                    result = concat(result, " = ")
+                    result = concat(result, n)
+                    result = concat(result, ";\n")
+                case Literal.Str(s):
+                    result = concat(result, "const char* ")
+                    result = concat(result, decl.name)
+                    result = concat(result, " = \"")
+                    result = concat(result, s)
+                    result = concat(result, "\";\n")
+                case:
+                    // Skip list literals for now
+                    result = result
+                }
+            case:
+                result = result
+            }
+        }
+    case:
+        result = result
+    }
+    return result
+}
+
 // Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
 emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
@@ -842,6 +912,24 @@ emit := proc(ast: Expr) returns Str throws Str {
     case:
         // Not a body, skip constants pass
     }
+
+    // Pass 2b: emit top-level constants (non-mut declarations with literal values)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_constant_declaration(child) {
+                output = emit_constant_declaration(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip top-level constants pass
+    }
     output = concat(output, "\n")
 
     // Pass 3: emit function prototypes (forward declarations)
@@ -920,7 +1008,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     // Main function
     output = concat(output, "int main() {\n")
 
-    // Pass 5: emit non-struct, non-function, non-enum statements
+    // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -931,7 +1019,9 @@ emit := proc(ast: Expr) returns Str throws Str {
             if not(is_func_declaration(child)) {
                 if not(is_struct_declaration(child)) {
                     if not(is_enum_declaration(child)) {
-                        output = emit_expr(child, output, 1, ctx)
+                        if not(is_constant_declaration(child)) {
+                            output = emit_expr(child, output, 1, ctx)
+                        }
                     }
                 }
             }

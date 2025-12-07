@@ -83,6 +83,15 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
             }
         }
     }
+
+    // Pass 2b: emit top-level constants (non-mut declarations with literal values)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_constant_declaration(child) {
+                emit_constant_declaration(child, &mut output)?;
+            }
+        }
+    }
     output.push_str("\n");
 
     // Pass 3: emit function prototypes (forward declarations)
@@ -125,10 +134,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     // Main function
     output.push_str("int main() {\n");
 
-    // Pass 5: emit non-struct, non-function, non-enum statements
+    // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) {
+            if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) {
                 emit_expr(child, &mut output, 1, &mut ctx)?;
             }
         }
@@ -162,6 +171,49 @@ fn is_enum_declaration(expr: &Expr) -> bool {
         }
     }
     false
+}
+
+// Check if an expression is a top-level constant declaration (name := literal)
+// Constants are non-mut declarations with literal values (numbers, strings, bools)
+fn is_constant_declaration(expr: &Expr) -> bool {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        // Must not be mutable
+        if decl.is_mut {
+            return false;
+        }
+        if !expr.params.is_empty() {
+            match &expr.params[0].node_type {
+                // Literal values are constants
+                NodeType::LLiteral(_) => return true,
+                // Skip struct, enum, and function definitions
+                NodeType::StructDef(_) | NodeType::EnumDef(_) | NodeType::FuncDef(_) => return false,
+                _ => return false,
+            }
+        }
+    }
+    false
+}
+
+// Emit a top-level constant declaration at file scope
+fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
+                let c_type = match lit {
+                    Literal::Number(_) => "long long",
+                    Literal::Str(_) => "const char*",
+                    Literal::List(_) => return Ok(()), // Skip list literals for now
+                };
+                output.push_str(c_type);
+                output.push_str(" ");
+                output.push_str(&decl.name);
+                output.push_str(" = ");
+                emit_literal(lit, output)?;
+                output.push_str(";\n");
+            }
+        }
+    }
+    Ok(())
 }
 
 // Collect function info (throw types and return types) from AST into context
