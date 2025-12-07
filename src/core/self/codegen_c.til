@@ -579,6 +579,100 @@ emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     }
 }
 
+emit_if := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
+    if lt(expr.params.len(), 2) {
+        throw "codegen_c: If requires condition and body"
+    }
+
+    mut result := output
+    mut i := 0
+    while lt(i, indent) {
+        result = concat(result, "    ")
+        i = add(i, 1)
+    }
+    result = concat(result, "if (")
+
+    mut cond := Expr()
+    expr.params.get(0, cond)
+    result = emit_expr(cond, result, 0)
+    result = concat(result, ") {\n")
+
+    // Then body
+    mut then_body := Expr()
+    expr.params.get(1, then_body)
+    result = emit_body(then_body, result, add(indent, 1))
+
+    i = 0
+    while lt(i, indent) {
+        result = concat(result, "    ")
+        i = add(i, 1)
+    }
+    result = concat(result, "}")
+
+    // Else branch (optional)
+    if gt(expr.params.len(), 2) {
+        mut else_part := Expr()
+        expr.params.get(2, else_part)
+        switch else_part.node_type {
+        case NodeType.If:
+            // else-if: emit inline
+            result = concat(result, " else ")
+            result = emit_if(else_part, result, indent)
+        case:
+            // else block
+            result = concat(result, " else {\n")
+            result = emit_body(else_part, result, add(indent, 1))
+            i = 0
+            while lt(i, indent) {
+                result = concat(result, "    ")
+                i = add(i, 1)
+            }
+            result = concat(result, "}\n")
+        }
+    } else {
+        result = concat(result, "\n")
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    return result
+}
+
+emit_while := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    // While: params[0] = condition, params[1] = body
+    if lt(expr.params.len(), 2) {
+        throw "codegen_c: While requires condition and body"
+    }
+
+    mut result := output
+    mut i := 0
+    while lt(i, indent) {
+        result = concat(result, "    ")
+        i = add(i, 1)
+    }
+    result = concat(result, "while (")
+
+    mut cond := Expr()
+    expr.params.get(0, cond)
+    result = emit_expr(cond, result, 0)
+    result = concat(result, ") {\n")
+
+    // Body
+    mut body := Expr()
+    expr.params.get(1, body)
+    result = emit_body(body, result, add(indent, 1))
+
+    i = 0
+    while lt(i, indent) {
+        result = concat(result, "    ")
+        i = add(i, 1)
+    }
+    result = concat(result, "}\n")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    return result
+}
+
 emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     switch expr.node_type {
     case NodeType.Body:
@@ -633,8 +727,18 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
         return emit_assignment(name, expr, output, indent)
     case NodeType.Return:
         return emit_return(expr, output, indent)
+    case NodeType.If:
+        return emit_if(expr, output, indent)
+    case NodeType.While:
+        return emit_while(expr, output, indent)
+    case NodeType.Catch:
+        // Skip catch blocks in C codegen (no exception support yet)
+        return output
+    case NodeType.Throw:
+        // Skip throw in C codegen (no exception support yet)
+        return output
     case:
-        throw "codegen_c: unsupported node type"
+        throw format("codegen_c: unsupported node type: ", enum_to_str(expr.node_type))
     }
 }
 
