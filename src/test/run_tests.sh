@@ -27,4 +27,8 @@ echo "Testing enums_payload.til..."
 $RSTIL run src/test/enums_payload.til
 echo "[PASS] enums_payload.til"
 
+echo "Testing switch_simple.til..."
+$RSTIL run src/test/switch_simple.til
+echo "[PASS] switch_simple.til"
+
 echo "=== All Compiled Run Tests Passed! ==="

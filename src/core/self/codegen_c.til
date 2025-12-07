@@ -270,7 +270,8 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
     result = concat(result, enum_name)
     result = concat(result, ";\n\n")
 
-    // 4. Emit constructor functions for variants with payloads: Color_make_Green(value)
+    // 4. Emit constructor functions for ALL variants (including no-payload ones)
+    // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
     i = 0
     while lt(i, variants.len()) {
         mut variant_name := ""
@@ -280,34 +281,41 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         enum_def.enum_map.get(variant_name, payload_type)
         catch (err: KeyNotFoundError) { /* no payload */ }
 
-        // Only emit constructors for variants with payloads
+        result = concat(result, "static inline ")
+        result = concat(result, enum_name)
+        result = concat(result, " ")
+        result = concat(result, enum_name)
+        result = concat(result, "_make_")
+        result = concat(result, variant_name)
+        result = concat(result, "(")
+
+        // Parameter for payload (if any)
         if variant_has_payload(payload_type) {
-            result = concat(result, "static inline ")
-            result = concat(result, enum_name)
-            result = concat(result, " ")
-            result = concat(result, enum_name)
-            result = concat(result, "_make_")
-            result = concat(result, variant_name)
-            result = concat(result, "(")
             result = concat(result, til_type_to_c(payload_type))
             result = concat(result, " value) {\n")
+        } else {
+            result = concat(result, "void) {\n")
+        }
 
-            // Constructor body
-            result = concat(result, "    ")
-            result = concat(result, enum_name)
-            result = concat(result, " result = { .tag = ")
-            result = concat(result, enum_name)
-            result = concat(result, "_")
-            result = concat(result, variant_name)
-            result = concat(result, " };\n")
+        // Constructor body
+        result = concat(result, "    ")
+        result = concat(result, enum_name)
+        result = concat(result, " result = { .tag = ")
+        result = concat(result, enum_name)
+        result = concat(result, "_")
+        result = concat(result, variant_name)
+        result = concat(result, " };\n")
 
+        // Set payload if present
+        if variant_has_payload(payload_type) {
             result = concat(result, "    result.payload.")
             result = concat(result, variant_name)
             result = concat(result, " = value;\n")
-
-            result = concat(result, "    return result;\n")
-            result = concat(result, "}\n\n")
         }
+
+        result = concat(result, "    return result;\n")
+        result = concat(result, "}\n\n")
+
         i = add(i, 1)
     }
 
@@ -357,6 +365,29 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                 result = concat(result, "} ")
                 result = concat(result, enum_name)
                 result = concat(result, ";\n\n")
+
+                // Generate constructor functions for consistency with payload enums
+                // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
+                i = 0
+                while lt(i, variants.len()) {
+                    mut variant_name := ""
+                    variants.get(i, variant_name)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    result = concat(result, "static inline ")
+                    result = concat(result, enum_name)
+                    result = concat(result, " ")
+                    result = concat(result, enum_name)
+                    result = concat(result, "_make_")
+                    result = concat(result, variant_name)
+                    result = concat(result, "(void) { return ")
+                    result = concat(result, enum_name)
+                    result = concat(result, "_")
+                    result = concat(result, variant_name)
+                    result = concat(result, "; }\n")
+                    i = add(i, 1)
+                }
+                result = concat(result, "\n")
+
                 return result
             case:
                 throw "emit_enum_declaration: not an enum"
@@ -928,6 +959,223 @@ emit_while := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
     return result
 }
 
+// Result struct for variant info extraction
+VariantInfo := struct {
+    mut type_name: Str = ""
+    mut variant_name: Str = ""
+}
+
+// Extract enum type and variant names from a case pattern expression
+// For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
+get_case_variant_info := func(expr: Expr) returns VariantInfo {
+    mut result := VariantInfo()
+    switch expr.node_type {
+    case NodeType.FCall:
+        // FCall for Type.Variant (without payload extraction)
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return result }
+            switch first.node_type {
+            case NodeType.Identifier(type_name):
+                if gt(first.params.len(), 0) {
+                    mut nested := Expr()
+                    first.params.get(0, nested)
+                    catch (err: IndexOutOfBoundsError) { return result }
+                    switch nested.node_type {
+                    case NodeType.Identifier(variant_name):
+                        result.type_name = type_name
+                        result.variant_name = variant_name
+                        return result
+                    case:
+                        return result
+                    }
+                }
+                return result
+            case:
+                return result
+            }
+        }
+        return result
+    case NodeType.Identifier(name):
+        // Identifier with nested params: Type.Variant
+        if gt(expr.params.len(), 0) {
+            mut nested := Expr()
+            expr.params.get(0, nested)
+            catch (err: IndexOutOfBoundsError) {
+                result.variant_name = name
+                return result
+            }
+            switch nested.node_type {
+            case NodeType.Identifier(variant_name):
+                result.type_name = name
+                result.variant_name = variant_name
+                return result
+            case:
+                result.variant_name = name
+                return result
+            }
+        }
+        result.variant_name = name
+        return result
+    case:
+        return result
+    }
+}
+
+// Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
+parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
+    mut result := VariantInfo()
+    mut dot_pos := variant_name.rfind(".")
+    if gteq(dot_pos, 0) {
+        result.type_name = variant_name.get_substr(0, dot_pos)
+        result.variant_name = variant_name.get_substr(add(dot_pos, 1), variant_name.len())
+        catch (err: IndexOutOfBoundsError) {
+            result.variant_name = variant_name
+        }
+        catch (err: AllocError) {
+            result.variant_name = variant_name
+        }
+        return result
+    }
+    // No dot - just variant name (shouldn't happen in practice)
+    result.variant_name = variant_name
+    return result
+}
+
+emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+    // Switch: params[0] = switch expression
+    // params[1..] = alternating (case_pattern, body) pairs
+    if eq(expr.params.len(), 0) {
+        throw "codegen_c: Switch requires expression"
+    }
+
+    mut result := output
+
+    // Indentation strings
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = concat(indent_str, "    ")
+        ind = add(ind, 1)
+    }
+
+    mut case_indent := ""
+    ind = 0
+    while lt(ind, add(indent, 1)) {
+        case_indent = concat(case_indent, "    ")
+        ind = add(ind, 1)
+    }
+
+    mut body_indent := ""
+    ind = 0
+    while lt(ind, add(indent, 2)) {
+        body_indent = concat(body_indent, "    ")
+        ind = add(ind, 1)
+    }
+
+    // Get the switch expression
+    mut switch_expr := Expr()
+    expr.params.get(0, switch_expr)
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Emit: switch (expr.tag) {
+    result = concat(result, indent_str)
+    result = concat(result, "switch (")
+    result = emit_expr(switch_expr, result, 0)
+    result = concat(result, ".tag) {\n")
+
+    // Process case patterns and bodies in pairs
+    mut i := 1
+    while lt(i, expr.params.len()) {
+        mut case_pattern := Expr()
+        expr.params.get(i, case_pattern)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        mut has_body := lt(add(i, 1), expr.params.len())
+
+        switch case_pattern.node_type {
+        case NodeType.DefaultCase:
+            // default: { ... break; }
+            result = concat(result, case_indent)
+            result = concat(result, "default: {\n")
+            if has_body {
+                mut case_body := Expr()
+                expr.params.get(add(i, 1), case_body)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_body(case_body, result, add(indent, 2))
+            }
+            result = concat(result, body_indent)
+            result = concat(result, "break;\n")
+            result = concat(result, case_indent)
+            result = concat(result, "}\n")
+        case NodeType.Pattern(pattern_info):
+            // case Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
+            mut info := parse_pattern_variant_name(pattern_info.variant_name)
+
+            result = concat(result, case_indent)
+            result = concat(result, "case ")
+            result = concat(result, info.type_name)
+            result = concat(result, "_")
+            result = concat(result, info.variant_name)
+            result = concat(result, ": {\n")
+
+            // Emit payload extraction: PayloadType binding_var = expr.payload.VariantName;
+            // TODO: Replace __auto_type with actual type by looking up enum definition
+            // This would require passing a CodegenContext with enum defs through emit functions
+            result = concat(result, body_indent)
+            result = concat(result, "__auto_type ")
+            result = concat(result, pattern_info.binding_var)
+            result = concat(result, " = ")
+            result = emit_expr(switch_expr, result, 0)
+            result = concat(result, ".payload.")
+            result = concat(result, info.variant_name)
+            result = concat(result, ";\n")
+
+            if has_body {
+                mut case_body := Expr()
+                expr.params.get(add(i, 1), case_body)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_body(case_body, result, add(indent, 2))
+            }
+            result = concat(result, body_indent)
+            result = concat(result, "break;\n")
+            result = concat(result, case_indent)
+            result = concat(result, "}\n")
+        case:
+            // Regular case: Type.Variant -> case Type_Variant: { ... break; }
+            mut info := get_case_variant_info(case_pattern)
+
+            result = concat(result, case_indent)
+            result = concat(result, "case ")
+            if gt(info.type_name.len(), 0) {
+                result = concat(result, info.type_name)
+                result = concat(result, "_")
+            }
+            result = concat(result, info.variant_name)
+            result = concat(result, ": {\n")
+
+            if has_body {
+                mut case_body := Expr()
+                expr.params.get(add(i, 1), case_body)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_body(case_body, result, add(indent, 2))
+            }
+            result = concat(result, body_indent)
+            result = concat(result, "break;\n")
+            result = concat(result, case_indent)
+            result = concat(result, "}\n")
+        }
+
+        i = add(i, 2)  // Move to next case pattern
+    }
+
+    result = concat(result, indent_str)
+    result = concat(result, "}\n")
+
+    return result
+}
+
 emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     switch expr.node_type {
     case NodeType.Body:
@@ -939,19 +1187,31 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     case NodeType.Declaration(decl):
         return emit_declaration(decl.name, decl.is_mut, expr, output, indent)
     case NodeType.Identifier(name):
-        // Check for type-qualified constant access (Type.CONSTANT -> Type_CONSTANT)
+        // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
             mut first_char := name.get_substr(0, 1)
             if first_char.is_uppercase() {
-                // Type-qualified access: Type.field -> Type_field
                 mut param := Expr()
                 expr.params.get(0, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
-                    mut result := concat(output, name)
-                    result = concat(result, "_")
-                    result = concat(result, field)
-                    return result
+                    mut field_first_char := field.get_substr(0, 1)
+                    if field_first_char.is_uppercase() {
+                        // Enum variant: Type.Variant -> Type_make_Variant()
+                        mut result := concat(output, name)
+                        result = concat(result, "_make_")
+                        result = concat(result, field)
+                        result = concat(result, "()")
+                        return result
+                    } else {
+                        // Type-qualified constant: Type.constant -> Type_constant
+                        mut result := concat(output, name)
+                        result = concat(result, "_")
+                        result = concat(result, field)
+                        return result
+                    }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    catch (err: AllocError) { throw err.msg }
                 case:
                     // Fall through to regular handling
                 }
@@ -997,7 +1257,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     case NodeType.EnumDef(e):
         throw "codegen_c: EnumDef not yet supported"
     case NodeType.Switch:
-        throw "codegen_c: Switch not yet supported"
+        return emit_switch(expr, output, indent)
     case NodeType.DefaultCase:
         throw "codegen_c: DefaultCase not yet supported"
     case NodeType.Range:
@@ -1060,7 +1320,9 @@ get_struct_construction_type := func(expr: Expr) returns Str {
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
 // Returns the type name if it is, empty string otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
+// AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
 get_enum_construction_type := func(expr: Expr) returns Str {
+    // Check FCall case: Type.Variant(value) or Type.Variant()
     switch expr.node_type {
     case NodeType.FCall:
         if gt(expr.params.len(), 0) {
@@ -1101,6 +1363,35 @@ get_enum_construction_type := func(expr: Expr) returns Str {
             case:
                 return ""
             }
+        }
+        return ""
+    case NodeType.Identifier(type_name):
+        // Check Identifier case: Type.Variant (no parentheses, no payload)
+        if gt(type_name.len(), 0) {
+            mut type_first_char := type_name.get_substr(0, 1)
+            if type_first_char.is_uppercase() {
+                if gt(expr.params.len(), 0) {
+                    mut nested := Expr()
+                    expr.params.get(0, nested)
+                    catch (err: IndexOutOfBoundsError) { return "" }
+                    switch nested.node_type {
+                    case NodeType.Identifier(variant_name):
+                        if gt(variant_name.len(), 0) {
+                            mut variant_first_char := variant_name.get_substr(0, 1)
+                            if variant_first_char.is_uppercase() {
+                                return type_name
+                            }
+                            catch (err: IndexOutOfBoundsError) { return "" }
+                            catch (err: AllocError) { return "" }
+                        }
+                        return ""
+                    case:
+                        return ""
+                    }
+                }
+            }
+            catch (err: IndexOutOfBoundsError) { return "" }
+            catch (err: AllocError) { return "" }
         }
         return ""
     case:

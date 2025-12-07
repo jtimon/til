@@ -246,14 +246,9 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
     output.push_str(enum_name);
     output.push_str(";\n\n");
 
-    // 4. Emit constructor functions: Color_Green(value) for variants with payloads
+    // 4. Emit constructor functions for ALL variants (including no-payload ones)
+    // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
     for (variant_name, payload_type) in &variants {
-        // Only emit constructors for variants with payloads
-        // (variants without payloads are just enum constants, no function needed)
-        if payload_type.is_none() {
-            continue;
-        }
-
         output.push_str("static inline ");
         output.push_str(enum_name);
         output.push_str(" ");
@@ -330,6 +325,23 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
                 output.push_str("} ");
                 output.push_str(enum_name);
                 output.push_str(";\n\n");
+
+                // Generate constructor functions for consistency with payload enums
+                // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
+                for variant_name in &variants {
+                    output.push_str("static inline ");
+                    output.push_str(enum_name);
+                    output.push_str(" ");
+                    output.push_str(enum_name);
+                    output.push_str("_make_");
+                    output.push_str(variant_name);
+                    output.push_str("(void) { return ");
+                    output.push_str(enum_name);
+                    output.push_str("_");
+                    output.push_str(variant_name);
+                    output.push_str("; }\n");
+                }
+                output.push_str("\n");
 
                 return Ok(());
             }
@@ -581,16 +593,26 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
         NodeType::LLiteral(lit) => emit_literal(lit, output),
         NodeType::Declaration(decl) => emit_declaration(&decl.name, decl.is_mut, expr, output, indent),
         NodeType::Identifier(name) => {
-            // Check for type-qualified constant access (Type.CONSTANT -> Type_CONSTANT)
+            // Check for type-qualified access (Type.field)
             if !expr.params.is_empty() {
                 let first_char = name.chars().next().unwrap_or('a');
                 if first_char.is_uppercase() {
-                    // Type-qualified access: Type.field -> Type_field
                     if let NodeType::Identifier(field) = &expr.params[0].node_type {
-                        output.push_str(name);
-                        output.push_str("_");
-                        output.push_str(field);
-                        return Ok(());
+                        let field_first_char = field.chars().next().unwrap_or('a');
+                        if field_first_char.is_uppercase() {
+                            // Enum variant: Type.Variant -> Type_make_Variant()
+                            output.push_str(name);
+                            output.push_str("_make_");
+                            output.push_str(field);
+                            output.push_str("()");
+                            return Ok(());
+                        } else {
+                            // Type-qualified constant: Type.constant -> Type_constant
+                            output.push_str(name);
+                            output.push_str("_");
+                            output.push_str(field);
+                            return Ok(());
+                        }
                     }
                 }
             }
@@ -613,7 +635,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
         NodeType::Throw => Ok(()), // Skip throw in C
         NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("codegen_c: EnumDef not yet supported".to_string()),
-        NodeType::Switch => Err("codegen_c: Switch not yet supported".to_string()),
+        NodeType::Switch => emit_switch(expr, output, indent),
         NodeType::DefaultCase => Err("codegen_c: DefaultCase not yet supported".to_string()),
         NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err("codegen_c: Pattern not yet supported".to_string()),
@@ -704,7 +726,9 @@ fn get_struct_construction_type(expr: &Expr) -> Option<String> {
 // Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
 // Returns the type name if it is, None otherwise
 // AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
+// AST structure for Color.Unknown: Identifier("Color") -> [Identifier("Unknown")]
 fn get_enum_construction_type(expr: &Expr) -> Option<String> {
+    // Check FCall case: Type.Variant(value) or Type.Variant()
     if let NodeType::FCall = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
@@ -722,6 +746,20 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
             }
         }
     }
+
+    // Check Identifier case: Type.Variant (no parentheses, no payload)
+    if let NodeType::Identifier(type_name) = &expr.node_type {
+        if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+            if !expr.params.is_empty() {
+                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
+                    if variant_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                        return Some(type_name.clone());
+                    }
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -814,6 +852,166 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
     output.push_str(") {\n");
 
     emit_body(&expr.params[1], output, indent + 1)?;
+
+    output.push_str(&indent_str);
+    output.push_str("}\n");
+
+    Ok(())
+}
+
+// Result struct for variant info extraction
+struct VariantInfo {
+    type_name: String,
+    variant_name: String,
+}
+
+// Extract enum type and variant names from a case pattern expression
+// For FCall: Type.Variant -> VariantInfo { type_name: "Type", variant_name: "Variant" }
+fn get_case_variant_info(expr: &Expr) -> VariantInfo {
+    match &expr.node_type {
+        NodeType::FCall => {
+            // FCall for Type.Variant (without payload extraction)
+            if !expr.params.is_empty() {
+                if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
+                    if !expr.params[0].params.is_empty() {
+                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
+                            return VariantInfo {
+                                type_name: type_name.clone(),
+                                variant_name: variant_name.clone(),
+                            };
+                        }
+                    }
+                }
+            }
+            VariantInfo { type_name: String::new(), variant_name: String::new() }
+        },
+        NodeType::Identifier(name) => {
+            // Identifier with nested params: Type.Variant
+            if !expr.params.is_empty() {
+                if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
+                    return VariantInfo {
+                        type_name: name.clone(),
+                        variant_name: variant_name.clone(),
+                    };
+                }
+            }
+            VariantInfo { type_name: String::new(), variant_name: name.clone() }
+        },
+        _ => VariantInfo { type_name: String::new(), variant_name: String::new() },
+    }
+}
+
+// Extract type name and variant name from a Pattern's variant_name (e.g., "Color.Green")
+fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
+    if let Some(dot_pos) = variant_name.rfind('.') {
+        let type_name = variant_name[..dot_pos].to_string();
+        let var_name = variant_name[dot_pos + 1..].to_string();
+        VariantInfo { type_name, variant_name: var_name }
+    } else {
+        // No dot - just variant name (shouldn't happen in practice)
+        VariantInfo { type_name: String::new(), variant_name: variant_name.to_string() }
+    }
+}
+
+fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+    // Switch: params[0] = switch expression
+    // params[1..] = alternating (case_pattern, body) pairs
+    if expr.params.is_empty() {
+        return Err("codegen_c: Switch requires expression".to_string());
+    }
+
+    let indent_str = "    ".repeat(indent);
+    let case_indent = "    ".repeat(indent + 1);
+    let body_indent = "    ".repeat(indent + 2);
+
+    // Get the switch expression - we need to reference it for payload extraction
+    let switch_expr = &expr.params[0];
+
+    // Emit: switch (expr.tag) {
+    output.push_str(&indent_str);
+    output.push_str("switch (");
+    emit_expr(switch_expr, output, 0)?;
+    output.push_str(".tag) {\n");
+
+    // Process case patterns and bodies in pairs
+    let mut i = 1;
+    while i < expr.params.len() {
+        let case_pattern = &expr.params[i];
+        let case_body = if i + 1 < expr.params.len() {
+            Some(&expr.params[i + 1])
+        } else {
+            None
+        };
+
+        match &case_pattern.node_type {
+            NodeType::DefaultCase => {
+                // default: { ... break; }
+                output.push_str(&case_indent);
+                output.push_str("default: {\n");
+                if let Some(body) = case_body {
+                    emit_body(body, output, indent + 2)?;
+                }
+                output.push_str(&body_indent);
+                output.push_str("break;\n");
+                output.push_str(&case_indent);
+                output.push_str("}\n");
+            },
+            NodeType::Pattern(pattern_info) => {
+                // case Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
+                let info = parse_pattern_variant_name(&pattern_info.variant_name);
+
+                output.push_str(&case_indent);
+                output.push_str("case ");
+                output.push_str(&info.type_name);
+                output.push_str("_");
+                output.push_str(&info.variant_name);
+                output.push_str(": {\n");
+
+                // Emit payload extraction: PayloadType binding_var = expr.payload.VariantName;
+                // TODO: Replace __auto_type with actual type by looking up enum definition
+                // This would require passing a CodegenContext with enum defs through emit functions
+                output.push_str(&body_indent);
+                output.push_str("__auto_type ");
+                output.push_str(&pattern_info.binding_var);
+                output.push_str(" = ");
+                emit_expr(switch_expr, output, 0)?;
+                output.push_str(".payload.");
+                output.push_str(&info.variant_name);
+                output.push_str(";\n");
+
+                if let Some(body) = case_body {
+                    emit_body(body, output, indent + 2)?;
+                }
+                output.push_str(&body_indent);
+                output.push_str("break;\n");
+                output.push_str(&case_indent);
+                output.push_str("}\n");
+            },
+            _ => {
+                // Regular case: Type.Variant -> case Type_Variant: { ... break; }
+                let info = get_case_variant_info(case_pattern);
+
+                output.push_str(&case_indent);
+                output.push_str("case ");
+                if !info.type_name.is_empty() {
+                    output.push_str(&info.type_name);
+                    output.push_str("_");
+                }
+                output.push_str(&info.variant_name);
+                output.push_str(": {\n");
+
+                if let Some(body) = case_body {
+                    emit_body(body, output, indent + 2)?;
+                }
+                output.push_str(&body_indent);
+                output.push_str("break;\n");
+                output.push_str(&case_indent);
+                output.push_str("}\n");
+            },
+        }
+
+        i += 2; // Move to next case pattern
+    }
 
     output.push_str(&indent_str);
     output.push_str("}\n");
