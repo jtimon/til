@@ -1,0 +1,22 @@
+mode test
+
+DivideByZero := struct {}
+
+// Simple throwing function
+safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    if I64.eq(b, 0) {
+        throw DivideByZero()
+    }
+    return div(a, b)
+}
+
+// Function that catches the error
+test_catch := proc() {
+    result := safe_div(10, 0)
+    catch (err: DivideByZero) {
+        println("Caught divide by zero!")
+    }
+    println("Done")
+}
+
+test_catch()

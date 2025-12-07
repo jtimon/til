@@ -1,17 +1,55 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType};
+use std::collections::HashMap;
+
+// Codegen context for tracking function info
+struct CodegenContext {
+    // Map function name -> list of throw types
+    func_throw_types: HashMap<String, Vec<ValueType>>,
+    // Currently generating function's throw types (if any)
+    current_throw_types: Vec<ValueType>,
+    // Currently generating function's return types (if any)
+    current_return_types: Vec<ValueType>,
+    // Counter for generating unique temporary variable names
+    temp_counter: usize,
+}
+
+impl CodegenContext {
+    fn new() -> Self {
+        CodegenContext {
+            func_throw_types: HashMap::new(),
+            current_throw_types: Vec::new(),
+            current_return_types: Vec::new(),
+            temp_counter: 0,
+        }
+    }
+
+    fn next_temp(&mut self) -> String {
+        let name = format!("_tmp{}", self.temp_counter);
+        self.temp_counter += 1;
+        name
+    }
+}
 
 // Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr) -> Result<String, String> {
     let mut output = String::new();
+    let mut ctx = CodegenContext::new();
 
     // C boilerplate
     output.push_str("#include <stdio.h>\n");
     output.push_str("#include <stdlib.h>\n");
     output.push_str("#include <string.h>\n");
     output.push_str("#include <stdbool.h>\n\n");
+
+    // Pass 0: collect function throw types for call-site generation
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            collect_func_throw_types(child, &mut ctx);
+        }
+    }
 
     // Pass 1: emit struct definitions (only mut fields become struct members)
     if let NodeType::Body = &ast.node_type {
@@ -35,7 +73,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_constants(child, &mut output)?;
+                emit_struct_constants(child, &mut output, &mut ctx)?;
             }
         }
     }
@@ -46,7 +84,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
-                emit_func_prototype(child, &mut output)?;
+                emit_func_prototype(child, &mut output, &ctx)?;
             }
         }
     }
@@ -54,7 +92,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_func_prototypes(child, &mut output)?;
+                emit_struct_func_prototypes(child, &mut output, &ctx)?;
             }
         }
     }
@@ -65,7 +103,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
-                emit_func_declaration(child, &mut output)?;
+                emit_func_declaration(child, &mut output, &mut ctx)?;
             }
         }
     }
@@ -73,7 +111,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_func_bodies(child, &mut output)?;
+                emit_struct_func_bodies(child, &mut output, &mut ctx)?;
             }
         }
     }
@@ -85,7 +123,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) {
-                emit_expr(child, &mut output, 1)?;
+                emit_expr(child, &mut output, 1, &mut ctx)?;
             }
         }
     }
@@ -120,6 +158,45 @@ fn is_enum_declaration(expr: &Expr) -> bool {
     false
 }
 
+// Collect function throw types from AST into context
+// Handles both top-level functions and struct methods
+fn collect_func_throw_types(expr: &Expr, ctx: &mut CodegenContext) {
+    match &expr.node_type {
+        NodeType::Declaration(decl) => {
+            if !expr.params.is_empty() {
+                match &expr.params[0].node_type {
+                    NodeType::FuncDef(func_def) => {
+                        // Top-level function
+                        if !func_def.throw_types.is_empty() {
+                            ctx.func_throw_types.insert(
+                                decl.name.clone(),
+                                func_def.throw_types.clone()
+                            );
+                        }
+                    },
+                    NodeType::StructDef(struct_def) => {
+                        // Struct methods - use mangled names (StructName_methodName)
+                        let struct_name = &decl.name;
+                        for (member_name, default_expr) in &struct_def.default_values {
+                            if let NodeType::FuncDef(func_def) = &default_expr.node_type {
+                                if !func_def.throw_types.is_empty() {
+                                    let mangled_name = format!("{}_{}", struct_name, member_name);
+                                    ctx.func_throw_types.insert(
+                                        mangled_name,
+                                        func_def.throw_types.clone()
+                                    );
+                                }
+                            }
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        },
+        _ => {}
+    }
+}
+
 // Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
 fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -150,7 +227,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
-fn emit_struct_constants(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
@@ -167,7 +244,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String) -> Result<(), String>
                                 output.push_str("_");
                                 output.push_str(&member.name);
                                 output.push_str(" = ");
-                                emit_expr(default_val, output, 0)?;
+                                emit_expr(default_val, output, 0, ctx)?;
                                 output.push_str(";\n");
                             }
                         }
@@ -387,7 +464,7 @@ fn emit_struct_func_prototype(struct_name: &str, member: &crate::rs::parser::Dec
 }
 
 // Emit struct function prototypes for all functions in a struct
-fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_struct_func_prototypes(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
@@ -396,7 +473,9 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), S
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_prototype(struct_name, member, func_def, output)?;
+                            let mangled_name = format!("{}_{}", struct_name, member.name);
+                            emit_func_signature(&mangled_name, func_def, output, ctx);
+                            output.push_str(";\n");
                         }
                     }
                 }
@@ -407,49 +486,41 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), S
 }
 
 // Emit a struct function body with mangled name: StructName_funcname
-fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
+fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     // Skip external functions
     if func_def.is_ext() {
         return Ok(());
     }
 
-    // Return type
-    if func_def.return_types.is_empty() {
-        output.push_str("void ");
-    } else {
-        let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
-        output.push_str(&ret_type);
-        output.push_str(" ");
-    }
+    // Set current function context
+    ctx.current_throw_types = func_def.throw_types.clone();
+    ctx.current_return_types = func_def.return_types.clone();
 
-    // Mangled name: StructName_funcname
-    output.push_str(struct_name);
-    output.push_str("_");
-    output.push_str(&member.name);
-    output.push_str("(");
-
-    // Parameters
-    for (i, arg) in func_def.args.iter().enumerate() {
-        if i > 0 {
-            output.push_str(", ");
-        }
-        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-        output.push_str(&arg_type);
-        output.push_str(" ");
-        output.push_str(&arg.name);
-    }
-    output.push_str(") {\n");
+    let mangled_name = format!("{}_{}", struct_name, member.name);
+    emit_func_signature(&mangled_name, func_def, output, ctx);
+    output.push_str(" {\n");
 
     // Emit function body
     for stmt in &func_def.body {
-        emit_expr(stmt, output, 1)?;
+        emit_expr(stmt, output, 1, ctx)?;
     }
+
+    // For throwing void functions, add implicit return 0 at end
+    if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+        output.push_str("    return 0;\n");
+    }
+
     output.push_str("}\n\n");
+
+    // Clear current function context
+    ctx.current_throw_types.clear();
+    ctx.current_return_types.clear();
+
     Ok(())
 }
 
 // Emit struct function bodies for all functions in a struct
-fn emit_struct_func_bodies(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
@@ -458,7 +529,7 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String) -> Result<(), Strin
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_body(struct_name, member, func_def, output)?;
+                            emit_struct_func_body(struct_name, member, func_def, output, ctx)?;
                         }
                     }
                 }
@@ -474,7 +545,6 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
         crate::rs::parser::ValueType::TCustom(name) => {
             match name.as_str() {
                 "I64" => Some("long long".to_string()),
-                "I32" => Some("int".to_string()),
                 "Bool" => Some("unsigned char".to_string()),
                 "U8" => Some("unsigned char".to_string()),
                 "Str" => Some("const char*".to_string()),
@@ -488,8 +558,91 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
     }
 }
 
+// Helper to get C type name for a ValueType (for error struct definitions)
+fn value_type_to_c_name(vt: &ValueType) -> String {
+    match vt {
+        ValueType::TCustom(name) => {
+            match name.as_str() {
+                "I64" => "long long".to_string(),
+                "Bool" => "unsigned char".to_string(),
+                "U8" => "unsigned char".to_string(),
+                "Str" => "const char*".to_string(),
+                _ => name.clone(), // struct/error types
+            }
+        },
+        _ => "int".to_string(),
+    }
+}
+
+// Emit function signature (used by both prototype and definition)
+// For throwing functions:
+//   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
+// For non-throwing:
+//   RetType func_name(args...)
+fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String, _ctx: &CodegenContext) {
+    let is_throwing = !func_def.throw_types.is_empty();
+
+    if is_throwing {
+        // Throwing function returns int status code
+        output.push_str("int ");
+    } else {
+        // Non-throwing function returns its actual type
+        if func_def.return_types.is_empty() {
+            output.push_str("void ");
+        } else {
+            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            output.push_str(&ret_type);
+            output.push_str(" ");
+        }
+    }
+
+    output.push_str(func_name);
+    output.push_str("(");
+
+    let mut param_count = 0;
+
+    if is_throwing {
+        // Output params first: return value pointer, then error pointers
+        if !func_def.return_types.is_empty() {
+            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            output.push_str(&ret_type);
+            output.push_str("* _ret");
+            param_count += 1;
+        }
+
+        for (i, throw_type) in func_def.throw_types.iter().enumerate() {
+            if param_count > 0 {
+                output.push_str(", ");
+            }
+            let err_type = value_type_to_c_name(throw_type);
+            output.push_str(&err_type);
+            output.push_str("* _err");
+            output.push_str(&(i + 1).to_string());
+            param_count += 1;
+        }
+    }
+
+    // Input parameters
+    for arg in func_def.args.iter() {
+        if param_count > 0 {
+            output.push_str(", ");
+        }
+        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+        output.push_str(&arg_type);
+        output.push_str(" ");
+        output.push_str(&arg.name);
+        param_count += 1;
+    }
+
+    if param_count == 0 {
+        output.push_str("void");
+    }
+
+    output.push_str(")");
+}
+
 // Emit a function prototype (forward declaration)
-fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_func_prototype(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
@@ -498,29 +651,8 @@ fn emit_func_prototype(expr: &Expr, output: &mut String) -> Result<(), String> {
                     return Ok(());
                 }
 
-                // Return type
-                if func_def.return_types.is_empty() {
-                    output.push_str("void ");
-                } else {
-                    let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
-                    output.push_str(&ret_type);
-                    output.push_str(" ");
-                }
-
-                output.push_str(&decl.name);
-                output.push_str("(");
-
-                // Parameters
-                for (i, arg) in func_def.args.iter().enumerate() {
-                    if i > 0 {
-                        output.push_str(", ");
-                    }
-                    let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-                    output.push_str(&arg_type);
-                    output.push_str(" ");
-                    output.push_str(&arg.name);
-                }
-                output.push_str(");\n");
+                emit_func_signature(&decl.name, func_def, output, ctx);
+                output.push_str(";\n");
                 return Ok(());
             }
         }
@@ -541,7 +673,7 @@ fn is_func_declaration(expr: &Expr) -> bool {
 }
 
 // Emit a function declaration as a C function
-fn emit_func_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
@@ -550,35 +682,27 @@ fn emit_func_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
                     return Ok(());
                 }
 
-                // Return type
-                if func_def.return_types.is_empty() {
-                    output.push_str("void ");
-                } else {
-                    let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
-                    output.push_str(&ret_type);
-                    output.push_str(" ");
+                // Set current function context for return/throw generation
+                ctx.current_throw_types = func_def.throw_types.clone();
+                ctx.current_return_types = func_def.return_types.clone();
+
+                emit_func_signature(&decl.name, func_def, output, ctx);
+                output.push_str(" {\n");
+
+                // Emit function body with catch pattern detection
+                emit_stmts(&func_def.body, output, 1, ctx)?;
+
+                // For throwing void functions, add implicit return 0 at end
+                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                    output.push_str("    return 0;\n");
                 }
 
-                output.push_str(&decl.name);
-                output.push_str("(");
-
-                // Parameters
-                for (i, arg) in func_def.args.iter().enumerate() {
-                    if i > 0 {
-                        output.push_str(", ");
-                    }
-                    let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-                    output.push_str(&arg_type);
-                    output.push_str(" ");
-                    output.push_str(&arg.name);
-                }
-                output.push_str(") {\n");
-
-                // Emit function body
-                for stmt in &func_def.body {
-                    emit_expr(stmt, output, 1)?;
-                }
                 output.push_str("}\n\n");
+
+                // Clear current function context
+                ctx.current_throw_types.clear();
+                ctx.current_return_types.clear();
+
                 return Ok(());
             }
         }
@@ -586,12 +710,12 @@ fn emit_func_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
     Err("emit_func_declaration: not a function declaration".to_string())
 }
 
-fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     match &expr.node_type {
-        NodeType::Body => emit_body(expr, output, indent),
-        NodeType::FCall => emit_fcall(expr, output, indent),
+        NodeType::Body => emit_body(expr, output, indent, ctx),
+        NodeType::FCall => emit_fcall(expr, output, indent, ctx),
         NodeType::LLiteral(lit) => emit_literal(lit, output),
-        NodeType::Declaration(decl) => emit_declaration(&decl.name, decl.is_mut, expr, output, indent),
+        NodeType::Declaration(decl) => emit_declaration(&decl.name, decl.is_mut, expr, output, indent, ctx),
         NodeType::Identifier(name) => {
             // Check for type-qualified access (Type.field)
             if !expr.params.is_empty() {
@@ -626,30 +750,261 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Stri
             }
             Ok(())
         },
-        NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent),
-        NodeType::Assignment(name) => emit_assignment(name, expr, output, indent),
-        NodeType::Return => emit_return(expr, output, indent),
-        NodeType::If => emit_if(expr, output, indent),
-        NodeType::While => emit_while(expr, output, indent),
-        NodeType::Catch => Ok(()), // Skip catch blocks in C (no exception support)
-        NodeType::Throw => Ok(()), // Skip throw in C
+        NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent, ctx),
+        NodeType::Assignment(name) => emit_assignment(name, expr, output, indent, ctx),
+        NodeType::Return => emit_return(expr, output, indent, ctx),
+        NodeType::If => emit_if(expr, output, indent, ctx),
+        NodeType::While => emit_while(expr, output, indent, ctx),
+        NodeType::Catch => Ok(()), // Catch blocks handled at call site
+        NodeType::Throw => emit_throw(expr, output, indent, ctx),
         NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("codegen_c: EnumDef not yet supported".to_string()),
-        NodeType::Switch => emit_switch(expr, output, indent),
+        NodeType::Switch => emit_switch(expr, output, indent, ctx),
         NodeType::DefaultCase => Err("codegen_c: DefaultCase not yet supported".to_string()),
         NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err("codegen_c: Pattern not yet supported".to_string()),
     }
 }
 
-fn emit_body(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
-    for child in &expr.params {
-        emit_expr(child, output, indent)?;
+fn emit_body(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+    emit_stmts(&expr.params, output, indent, ctx)
+}
+
+/// Emit a sequence of statements with catch pattern detection
+/// This is the core logic shared between emit_body and emit_func_declaration
+fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+    let mut i = 0;
+
+    while i < stmts.len() {
+        let stmt = &stmts[i];
+
+        // Check if this statement is followed by catch blocks
+        // And if it's a call to a throwing function (FCall or Declaration with FCall)
+        let (maybe_fcall, maybe_decl_name) = match &stmt.node_type {
+            NodeType::FCall => (Some(stmt), None),
+            NodeType::Declaration(decl) => {
+                // Check if declaration has an FCall as initializer
+                if !stmt.params.is_empty() {
+                    if let NodeType::FCall = stmt.params[0].node_type {
+                        (Some(&stmt.params[0]), Some(decl.name.clone()))
+                    } else {
+                        (None, None)
+                    }
+                } else {
+                    (None, None)
+                }
+            }
+            _ => (None, None),
+        };
+
+        if let Some(fcall) = maybe_fcall {
+            // Get function name from the FCall
+            let func_name = get_fcall_func_name(fcall);
+
+            // Check if this function is a throwing function
+            if let Some(func_name) = func_name {
+                if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
+                    // Collect subsequent catch blocks
+                    let mut catch_blocks = Vec::new();
+                    let mut j = i + 1;
+                    while j < stmts.len() {
+                        if let NodeType::Catch = stmts[j].node_type {
+                            catch_blocks.push(&stmts[j]);
+                            j += 1;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if !catch_blocks.is_empty() {
+                        // Emit throwing call with catch handling
+                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), output, indent, ctx)?;
+                        i = j; // Skip past catch blocks
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Regular statement handling
+        emit_expr(stmt, output, indent, ctx)?;
+        i += 1;
     }
     Ok(())
 }
 
-fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+/// Get the function name from an FCall expression
+fn get_fcall_func_name(expr: &Expr) -> Option<String> {
+    if expr.params.is_empty() {
+        return None;
+    }
+
+    match &expr.params[0].node_type {
+        NodeType::Identifier(name) => {
+            if expr.params[0].params.is_empty() {
+                // Regular function call
+                Some(name.clone())
+            } else {
+                // UFCS: receiver.method() - need to determine mangled name
+                // For now, return just the method name (TODO: proper mangling)
+                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
+                    Some(method_name.clone())
+                } else {
+                    None
+                }
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Emit a call to a throwing function with catch handling
+fn emit_throwing_call(
+    fcall: &Expr,
+    throw_types: &[crate::rs::parser::ValueType],
+    catch_blocks: &[&Expr],
+    decl_name: Option<&str>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function name
+    let func_name = get_fcall_func_name(fcall)
+        .ok_or_else(|| "emit_throwing_call: could not get function name".to_string())?;
+
+    // Generate unique temp names for this call
+    let temp_suffix = ctx.next_temp();
+
+    // Declare local variables for return value and errors
+    // For now, assume int return type (TODO: get actual return type)
+    if decl_name.is_some() {
+        output.push_str(&indent_str);
+        output.push_str("int _ret_");
+        output.push_str(&temp_suffix.to_string());
+        output.push_str(";\n");
+    }
+
+    // Declare error structs for each throw type
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
+            output.push_str(&indent_str);
+            output.push_str(type_name);
+            output.push_str(" _err");
+            output.push_str(&idx.to_string());
+            output.push_str("_");
+            output.push_str(&temp_suffix.to_string());
+            output.push_str(" = {0};\n");
+        }
+    }
+
+    // Generate the function call with output parameters
+    output.push_str(&indent_str);
+    output.push_str("int _status_");
+    output.push_str(&temp_suffix.to_string());
+    output.push_str(" = ");
+    output.push_str(&func_name);
+    output.push_str("(");
+
+    // First: return value pointer (if function returns something)
+    if decl_name.is_some() {
+        output.push_str("&_ret_");
+        output.push_str(&temp_suffix.to_string());
+    }
+
+    // Then: error pointers
+    for idx in 0..throw_types.len() {
+        if decl_name.is_some() || idx > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&_err");
+        output.push_str(&idx.to_string());
+        output.push_str("_");
+        output.push_str(&temp_suffix.to_string());
+    }
+
+    // Then: actual arguments
+    for arg in fcall.params.iter().skip(1) {
+        if decl_name.is_some() || !throw_types.is_empty() {
+            output.push_str(", ");
+        }
+        emit_expr(arg, output, 0, ctx)?;
+    }
+
+    output.push_str(");\n");
+
+    // Generate if/else chain for error handling
+    output.push_str(&indent_str);
+    output.push_str("if (_status_");
+    output.push_str(&temp_suffix.to_string());
+    output.push_str(" == 0) {\n");
+
+    // Success case: assign return value to declared variable
+    if let Some(var_name) = decl_name {
+        let inner_indent = "    ".repeat(indent + 1);
+        output.push_str(&inner_indent);
+        output.push_str("int ");
+        output.push_str(var_name);
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix.to_string());
+        output.push_str(";\n");
+        // Note: var_name goes out of scope at end of if block - may need adjustment
+    }
+
+    output.push_str(&indent_str);
+    output.push_str("}");
+
+    // Generate else-if branches for each catch block
+    for catch_block in catch_blocks {
+        if catch_block.params.len() >= 3 {
+            // Get error type name from catch block
+            if let NodeType::Identifier(err_type_name) = &catch_block.params[1].node_type {
+                // Find index of this error type
+                let err_idx = throw_types.iter().position(|vt| {
+                    if let crate::rs::parser::ValueType::TCustom(name) = vt {
+                        name == err_type_name
+                    } else {
+                        false
+                    }
+                });
+
+                if let Some(idx) = err_idx {
+                    output.push_str(" else if (_status_");
+                    output.push_str(&temp_suffix.to_string());
+                    output.push_str(" == ");
+                    output.push_str(&(idx + 1).to_string());
+                    output.push_str(") {\n");
+
+                    // Bind error variable
+                    if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
+                        let inner_indent = "    ".repeat(indent + 1);
+                        output.push_str(&inner_indent);
+                        output.push_str(err_type_name);
+                        output.push_str(" ");
+                        output.push_str(err_var_name);
+                        output.push_str(" = _err");
+                        output.push_str(&idx.to_string());
+                        output.push_str("_");
+                        output.push_str(&temp_suffix.to_string());
+                        output.push_str(";\n");
+                    }
+
+                    // Emit catch body
+                    emit_expr(&catch_block.params[2], output, indent + 1, ctx)?;
+
+                    output.push_str(&indent_str);
+                    output.push_str("}");
+                }
+            }
+        }
+    }
+
+    output.push_str("\n");
+    Ok(())
+}
+
+fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
 
     // Check if this is a struct construction (TypeName())
@@ -680,7 +1035,7 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
         output.push_str(" ");
         output.push_str(name);
         output.push_str(" = ");
-        emit_expr(&expr.params[0], output, 0)?;
+        emit_expr(&expr.params[0], output, 0, ctx)?;
         output.push_str(";\n");
     } else if is_mut {
         output.push_str(&indent_str);
@@ -688,7 +1043,7 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
         output.push_str(name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0)?;
+            emit_expr(&expr.params[0], output, 0, ctx)?;
         }
         output.push_str(";\n");
     } else {
@@ -698,7 +1053,7 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
         output.push_str(name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0)?;
+            emit_expr(&expr.params[0], output, 0, ctx)?;
         }
         output.push_str(";\n");
     }
@@ -763,45 +1118,116 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
     None
 }
 
-fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     // For now, just inline the function body (we're inside main anyway)
     // TODO: proper function generation with prototypes
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("{\n");
     for stmt in &expr.params {
-        emit_expr(stmt, output, indent + 1)?;
+        emit_expr(stmt, output, indent + 1, ctx)?;
     }
     output.push_str(&indent_str);
     output.push_str("}\n");
     Ok(())
 }
 
-fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str(name);
     output.push_str(" = ");
     if !expr.params.is_empty() {
-        emit_expr(&expr.params[0], output, 0)?;
+        emit_expr(&expr.params[0], output, 0, ctx)?;
     }
     output.push_str(";\n");
     Ok(())
 }
 
-fn emit_return(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
-    output.push_str(&indent_str);
-    output.push_str("return");
-    if !expr.params.is_empty() {
-        output.push_str(" ");
-        emit_expr(&expr.params[0], output, 0)?;
+    let is_throwing = !ctx.current_throw_types.is_empty();
+
+    if is_throwing {
+        // Throwing function: store value through _ret pointer and return 0 (success)
+        if !expr.params.is_empty() {
+            output.push_str(&indent_str);
+            output.push_str("*_ret = ");
+            emit_expr(&expr.params[0], output, 0, ctx)?;
+            output.push_str(";\n");
+        }
+        output.push_str(&indent_str);
+        output.push_str("return 0;\n");
+    } else {
+        // Non-throwing function: normal return
+        output.push_str(&indent_str);
+        output.push_str("return");
+        if !expr.params.is_empty() {
+            output.push_str(" ");
+            emit_expr(&expr.params[0], output, 0, ctx)?;
+        }
+        output.push_str(";\n");
     }
-    output.push_str(";\n");
     Ok(())
 }
 
-fn emit_if(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+    // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
+    if expr.params.is_empty() {
+        return Err("codegen_c: throw requires a value".to_string());
+    }
+
+    let indent_str = "    ".repeat(indent);
+    let thrown_expr = &expr.params[0];
+
+    // Get the thrown type name from the expression
+    // For FCall like DivideByZero(), params[0] is the Identifier with the name
+    let thrown_type_name = match &thrown_expr.node_type {
+        NodeType::FCall => {
+            if !thrown_expr.params.is_empty() {
+                if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
+                    name.clone()
+                } else {
+                    return Err("codegen_c: throw FCall must have identifier as first param".to_string());
+                }
+            } else {
+                return Err("codegen_c: throw FCall has no params".to_string());
+            }
+        }
+        NodeType::Identifier(name) => name.clone(),
+        _ => return Err(format!("codegen_c: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
+    };
+
+    // Find the index of this type in current_throw_types
+    let error_index = ctx.current_throw_types.iter().position(|vt| {
+        match vt {
+            crate::rs::parser::ValueType::TCustom(name) => name == &thrown_type_name,
+            _ => false,
+        }
+    });
+
+    match error_index {
+        Some(idx) => {
+            // Store the error value in the appropriate error pointer
+            // Note: error params are 1-based (_err1, _err2, etc.)
+            output.push_str(&indent_str);
+            output.push_str(&format!("*_err{} = ", idx + 1));
+            emit_expr(thrown_expr, output, 0, ctx)?;
+            output.push_str(";\n");
+
+            // Return the error index (1-based, since 0 = success)
+            output.push_str(&indent_str);
+            output.push_str(&format!("return {};\n", idx + 1));
+            Ok(())
+        }
+        None => Err(format!(
+            "codegen_c: thrown type '{}' not found in function's throw types: {:?}",
+            thrown_type_name, ctx.current_throw_types
+        )),
+    }
+}
+
+fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if expr.params.len() < 2 {
         return Err("codegen_c: If requires condition and body".to_string());
@@ -810,11 +1236,11 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("if (");
-    emit_expr(&expr.params[0], output, 0)?;
+    emit_expr(&expr.params[0], output, 0, ctx)?;
     output.push_str(") {\n");
 
     // Then body
-    emit_body(&expr.params[1], output, indent + 1)?;
+    emit_body(&expr.params[1], output, indent + 1, ctx)?;
 
     output.push_str(&indent_str);
     output.push_str("}");
@@ -825,10 +1251,10 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String
         if let NodeType::If = &expr.params[2].node_type {
             output.push_str(" else ");
             // Emit nested if without extra indentation (it handles its own)
-            emit_if(&expr.params[2], output, indent)?;
+            emit_if(&expr.params[2], output, indent, ctx)?;
         } else {
             output.push_str(" else {\n");
-            emit_body(&expr.params[2], output, indent + 1)?;
+            emit_body(&expr.params[2], output, indent + 1, ctx)?;
             output.push_str(&indent_str);
             output.push_str("}\n");
         }
@@ -839,7 +1265,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String
     Ok(())
 }
 
-fn emit_while(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     // While: params[0] = condition, params[1] = body
     if expr.params.len() < 2 {
         return Err("codegen_c: While requires condition and body".to_string());
@@ -848,10 +1274,10 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("while (");
-    emit_expr(&expr.params[0], output, 0)?;
+    emit_expr(&expr.params[0], output, 0, ctx)?;
     output.push_str(") {\n");
 
-    emit_body(&expr.params[1], output, indent + 1)?;
+    emit_body(&expr.params[1], output, indent + 1, ctx)?;
 
     output.push_str(&indent_str);
     output.push_str("}\n");
@@ -913,7 +1339,7 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
     }
 }
 
-fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if expr.params.is_empty() {
@@ -930,7 +1356,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
     // Emit: switch (expr.tag) {
     output.push_str(&indent_str);
     output.push_str("switch (");
-    emit_expr(switch_expr, output, 0)?;
+    emit_expr(switch_expr, output, 0, ctx)?;
     output.push_str(".tag) {\n");
 
     // Process case patterns and bodies in pairs
@@ -949,7 +1375,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
                 output.push_str(&case_indent);
                 output.push_str("default: {\n");
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2)?;
+                    emit_body(body, output, indent + 2, ctx)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -974,13 +1400,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
                 output.push_str("__auto_type ");
                 output.push_str(&pattern_info.binding_var);
                 output.push_str(" = ");
-                emit_expr(switch_expr, output, 0)?;
+                emit_expr(switch_expr, output, 0, ctx)?;
                 output.push_str(".payload.");
                 output.push_str(&info.variant_name);
                 output.push_str(";\n");
 
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2)?;
+                    emit_body(body, output, indent + 2, ctx)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -1001,7 +1427,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
                 output.push_str(": {\n");
 
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2)?;
+                    emit_body(body, output, indent + 2, ctx)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -1019,7 +1445,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize) -> Result<(), St
     Ok(())
 }
 
-fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), String> {
+fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
     // First param is the function name (or UFCS receiver.method)
     if expr.params.is_empty() {
         return Err("codegen_c: FCall with no params".to_string());
@@ -1055,7 +1481,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0)?;
+                emit_expr(arg, output, 0, ctx)?;
             }
             output.push_str("\"\\n\");\n");
             Ok(())
@@ -1067,23 +1493,23 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0)?;
+                emit_expr(arg, output, 0, ctx)?;
             }
             output.push_str(");\n");
             Ok(())
         },
         // Arithmetic operations - emit as C expressions
-        "add" => emit_binop(expr, output, "+", ufcs_receiver),
-        "sub" => emit_binop(expr, output, "-", ufcs_receiver),
-        "mul" => emit_binop(expr, output, "*", ufcs_receiver),
-        "div" => emit_binop(expr, output, "/", ufcs_receiver),
-        "mod" => emit_binop(expr, output, "%", ufcs_receiver),
+        "add" => emit_binop(expr, output, "+", ufcs_receiver, ctx),
+        "sub" => emit_binop(expr, output, "-", ufcs_receiver, ctx),
+        "mul" => emit_binop(expr, output, "*", ufcs_receiver, ctx),
+        "div" => emit_binop(expr, output, "/", ufcs_receiver, ctx),
+        "mod" => emit_binop(expr, output, "%", ufcs_receiver, ctx),
         // Comparison
-        "eq" => emit_binop(expr, output, "==", ufcs_receiver),
-        "lt" => emit_binop(expr, output, "<", ufcs_receiver),
-        "gt" => emit_binop(expr, output, ">", ufcs_receiver),
-        "lteq" => emit_binop(expr, output, "<=", ufcs_receiver),
-        "gteq" => emit_binop(expr, output, ">=", ufcs_receiver),
+        "eq" => emit_binop(expr, output, "==", ufcs_receiver, ctx),
+        "lt" => emit_binop(expr, output, "<", ufcs_receiver, ctx),
+        "gt" => emit_binop(expr, output, ">", ufcs_receiver, ctx),
+        "lteq" => emit_binop(expr, output, "<=", ufcs_receiver, ctx),
+        "gteq" => emit_binop(expr, output, ">=", ufcs_receiver, ctx),
         // test(loc, cond, msg) - emit as assertion
         "test" => {
             // For C codegen, we just emit the test as an if statement
@@ -1093,9 +1519,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
             }
             output.push_str(&indent_str);
             output.push_str("if (!(");
-            emit_expr(&expr.params[2], output, 0)?;
+            emit_expr(&expr.params[2], output, 0, ctx)?;
             output.push_str(")) { printf(\"FAIL: %s\\n\", ");
-            emit_expr(&expr.params[3], output, 0)?;
+            emit_expr(&expr.params[3], output, 0, ctx)?;
             output.push_str("); }\n");
             Ok(())
         },
@@ -1106,9 +1532,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
             }
             output.push_str(&indent_str);
             output.push_str("if ((");
-            emit_expr(&expr.params[2], output, 0)?;
+            emit_expr(&expr.params[2], output, 0, ctx)?;
             output.push_str(") != (");
-            emit_expr(&expr.params[3], output, 0)?;
+            emit_expr(&expr.params[3], output, 0, ctx)?;
             output.push_str(")) { printf(\"FAIL: assert_eq\\n\"); }\n");
             Ok(())
         },
@@ -1158,7 +1584,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                             if i > 0 {
                                 output.push_str(", ");
                             }
-                            emit_expr(arg, output, 0)?;
+                            emit_expr(arg, output, 0, ctx)?;
                         }
                         output.push_str(")");
                         if indent > 0 {
@@ -1175,7 +1601,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                         // Then emit remaining arguments
                         for arg in expr.params.iter().skip(1) {
                             output.push_str(", ");
-                            emit_expr(arg, output, 0)?;
+                            emit_expr(arg, output, 0, ctx)?;
                         }
                         output.push_str(")");
                         if indent > 0 {
@@ -1186,6 +1612,21 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 }
             }
 
+            // Check for struct construction: TypeName() -> (TypeName){}
+            // Struct names are PascalCase, no nested identifiers, no args
+            if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+                && expr.params[0].params.is_empty()  // No nested params (not Type.Variant)
+                && expr.params.len() == 1            // No constructor args
+            {
+                output.push_str("(");
+                output.push_str(&func_name);
+                output.push_str("){}");
+                if indent > 0 {
+                    output.push_str(";\n");
+                }
+                return Ok(());
+            }
+
             // Regular function call
             output.push_str(&func_name);
             output.push_str("(");
@@ -1194,7 +1635,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0)?;
+                emit_expr(arg, output, 0, ctx)?;
             }
             output.push_str(")");
             // Only add statement terminator if this is a statement (indent > 0)
@@ -1206,7 +1647,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
     }
 }
 
-fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<&Expr>) -> Result<(), String> {
+fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<&Expr>, ctx: &mut CodegenContext) -> Result<(), String> {
     output.push('(');
 
     // For UFCS: receiver.op(arg) -> (receiver op arg)
@@ -1217,18 +1658,18 @@ fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<
         // Type-qualified calls have 2+ args after the function name
         if expr.params.len() >= 3 {
             // Type-qualified: Type.op(a, b) -> (a op b)
-            emit_expr(&expr.params[1], output, 0)?;
+            emit_expr(&expr.params[1], output, 0, ctx)?;
             output.push(' ');
             output.push_str(op);
             output.push(' ');
-            emit_expr(&expr.params[2], output, 0)?;
+            emit_expr(&expr.params[2], output, 0, ctx)?;
         } else if expr.params.len() >= 2 {
             // Instance UFCS: x.op(y) -> (x op y)
             emit_identifier_without_nested(receiver, output)?;
             output.push(' ');
             output.push_str(op);
             output.push(' ');
-            emit_expr(&expr.params[1], output, 0)?;
+            emit_expr(&expr.params[1], output, 0, ctx)?;
         } else {
             return Err("codegen_c: UFCS binary op requires 1 argument".to_string());
         }
@@ -1237,11 +1678,11 @@ fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<
         if expr.params.len() < 3 {
             return Err("codegen_c: binary op requires 2 arguments".to_string());
         }
-        emit_expr(&expr.params[1], output, 0)?;
+        emit_expr(&expr.params[1], output, 0, ctx)?;
         output.push(' ');
         output.push_str(op);
         output.push(' ');
-        emit_expr(&expr.params[2], output, 0)?;
+        emit_expr(&expr.params[2], output, 0, ctx)?;
     }
 
     output.push(')');

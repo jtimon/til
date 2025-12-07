@@ -5,18 +5,226 @@ mode lib
 
 import("src.core.self.parser")  // Expr, NodeType, Literal
 
+// Codegen context for tracking function info during code generation
+CodegenContext := struct {
+    // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
+    mut func_throw_types: Map = Map.new(Str, Vec)
+    // Currently generating function's throw types (if any)
+    mut current_throw_types: Vec = Vec.new(ValueType)
+    // Currently generating function's return types (if any)
+    mut current_return_types: Vec = Vec.new(ValueType)
+    // Counter for generating unique temporary variable names
+    mut temp_counter: I64 = 0
+
+    next_temp := proc(mut self: CodegenContext) returns Str {
+        mut name := concat("_tmp", self.temp_counter.to_str())
+        self.temp_counter = add(self.temp_counter, 1)
+        return name
+    }
+}
+
 // Convert TIL type to C type
 til_type_to_c := func(til_type: ValueType) returns Str {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq("I64") { return "long long" }
-        else if name.eq("I32") { return "int" }
         else if name.eq("Bool") { return "unsigned char" }
         else if name.eq("U8") { return "unsigned char" }
         else if name.eq("Str") { return "const char*" }
         else { return name }  // Assume struct type
     case:
         return "int"  // Default
+    }
+}
+
+// Helper to get C type name for a ValueType (same as til_type_to_c but for error struct definitions)
+value_type_to_c_name := func(vt: ValueType) returns Str {
+    switch vt {
+    case ValueType.TCustom(name):
+        if name.eq("I64") { return "long long" }
+        else if name.eq("Bool") { return "unsigned char" }
+        else if name.eq("U8") { return "unsigned char" }
+        else if name.eq("Str") { return "const char*" }
+        else { return name }  // struct/error types
+    case:
+        return "int"
+    }
+}
+
+// Collect function throw types from AST into context
+// Handles both top-level functions and struct methods
+collect_func_throw_types := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.FuncDef(func_def):
+                // Top-level function
+                if gt(func_def.throw_types.len(), 0) {
+                    ctx.func_throw_types.insert(decl.name, func_def.throw_types)
+                }
+            case NodeType.StructDef(struct_def):
+                // Struct methods - use mangled names (StructName_methodName)
+                mut struct_name := decl.name
+                mut keys := struct_def.default_values.keys
+                mut i := 0
+                while lt(i, keys.len()) {
+                    mut member_name := ""
+                    keys.get(i, member_name)
+                    mut default_expr := Expr()
+                    struct_def.default_values.get(member_name, default_expr)
+                    switch default_expr.node_type {
+                    case NodeType.FuncDef(func_def):
+                        if gt(func_def.throw_types.len(), 0) {
+                            mut mangled_name := concat(struct_name, "_")
+                            mangled_name = concat(mangled_name, member_name)
+                            ctx.func_throw_types.insert(mangled_name, func_def.throw_types)
+                        }
+                    case:
+                        // Not a function, skip
+                    }
+                    catch (err: KeyNotFoundError) { /* skip */ }
+                    catch (err: AllocError) { throw err.msg }
+                    catch (err: DuplicatedKeyError) { /* skip duplicates */ }
+                    i = add(i, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            case:
+                // Not a function or struct, skip
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
+            catch (err: DuplicatedKeyError) { /* skip duplicates */ }
+        }
+    case:
+        // Not a declaration, skip
+    }
+}
+
+// Emit function signature (used by both prototype and definition)
+// For throwing functions:
+//   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
+// For non-throwing:
+//   RetType func_name(args...)
+emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx: CodegenContext) returns Str throws Str {
+    mut result := output
+    mut is_throwing := gt(func_def.throw_types.len(), 0)
+
+    if is_throwing {
+        // Throwing function returns int status code
+        result = concat(result, "int ")
+    } else {
+        // Non-throwing function returns its actual type
+        if eq(func_def.return_types.len(), 0) {
+            result = concat(result, "void ")
+        } else {
+            mut ret_type := ValueType.TCustom("")
+            func_def.return_types.get(0, ret_type)
+            result = concat(result, til_type_to_c(ret_type))
+            result = concat(result, " ")
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+    }
+
+    result = concat(result, func_name)
+    result = concat(result, "(")
+
+    mut param_count := 0
+
+    if is_throwing {
+        // Output params first: return value pointer, then error pointers
+        if gt(func_def.return_types.len(), 0) {
+            mut ret_type := ValueType.TCustom("")
+            func_def.return_types.get(0, ret_type)
+            result = concat(result, til_type_to_c(ret_type))
+            result = concat(result, "* _ret")
+            param_count = add(param_count, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+
+        // Error output parameters
+        mut i := 0
+        while lt(i, func_def.throw_types.len()) {
+            if gt(param_count, 0) {
+                result = concat(result, ", ")
+            }
+            mut throw_type := ValueType.TCustom("")
+            func_def.throw_types.get(i, throw_type)
+            mut err_type := value_type_to_c_name(throw_type)
+            result = concat(result, err_type)
+            result = concat(result, "* _err")
+            result = concat(result, add(i, 1).to_str())
+            param_count = add(param_count, 1)
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
+
+    // Input parameters
+    mut j := 0
+    while lt(j, func_def.args.len()) {
+        if gt(param_count, 0) {
+            result = concat(result, ", ")
+        }
+        mut arg := Declaration()
+        func_def.args.get(j, arg)
+        result = concat(result, til_type_to_c(arg.value_type))
+        result = concat(result, " ")
+        result = concat(result, arg.name)
+        param_count = add(param_count, 1)
+        j = add(j, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    if eq(param_count, 0) {
+        result = concat(result, "void")
+    }
+
+    result = concat(result, ")")
+    return result
+}
+
+// Get the function name from an FCall expression
+get_fcall_func_name := func(expr: Expr) returns Str {
+    if eq(expr.params.len(), 0) {
+        return ""
+    }
+
+    mut first := Expr()
+    expr.params.get(0, first)
+    catch (err: IndexOutOfBoundsError) { return "" }
+
+    switch first.node_type {
+    case NodeType.Identifier(name):
+        if eq(first.params.len(), 0) {
+            // Regular function call
+            return name
+        } else {
+            // UFCS: receiver.method() - check for type-qualified call
+            mut nested := Expr()
+            first.params.get(0, nested)
+            catch (err: IndexOutOfBoundsError) { return "" }
+            switch nested.node_type {
+            case NodeType.Identifier(method_name):
+                // Check if receiver is PascalCase (type-qualified)
+                mut first_char := name.get_substr(0, 1)
+                if first_char.is_uppercase() {
+                    // Type-qualified: Type.method -> Type_method
+                    mut mangled := concat(name, "_")
+                    mangled = concat(mangled, method_name)
+                    return mangled
+                }
+                catch (err: IndexOutOfBoundsError) { return method_name }
+                catch (err: AllocError) { return method_name }
+                return method_name
+            case:
+                return ""
+            }
+        }
+    case:
+        return ""
     }
 }
 
@@ -103,7 +311,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
-emit_struct_constants := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -136,7 +344,7 @@ emit_struct_constants := proc(expr: Expr, output: Str) returns Str throws Str {
                             result = concat(result, "_")
                             result = concat(result, member.name)
                             result = concat(result, " = ")
-                            result = emit_expr(default_val, result, 0)
+                            result = emit_expr(default_val, result, 0, ctx)
                             result = concat(result, ";\n")
                         }
                         catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
@@ -401,7 +609,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
 }
 
 // Emit struct function prototypes with mangled names: StructName_funcname
-emit_struct_func_prototypes := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -424,34 +632,11 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str) returns Str throws 
                         if func_def.is_ext {
                             // do nothing
                         } else {
-                            // Return type
-                            if eq(func_def.return_types.len(), 0) {
-                                result = concat(result, "void ")
-                            } else {
-                                mut ret_type := ValueType.TCustom("")
-                                func_def.return_types.get(0, ret_type)
-                                result = concat(result, til_type_to_c(ret_type))
-                                result = concat(result, " ")
-                            }
-                            // Mangled name
-                            result = concat(result, struct_name)
-                            result = concat(result, "_")
-                            result = concat(result, member.name)
-                            result = concat(result, "(")
-                            // Parameters
-                            mut j := 0
-                            while lt(j, func_def.args.len()) {
-                                if gt(j, 0) {
-                                    result = concat(result, ", ")
-                                }
-                                mut arg := Declaration()
-                                func_def.args.get(j, arg)
-                                result = concat(result, til_type_to_c(arg.value_type))
-                                result = concat(result, " ")
-                                result = concat(result, arg.name)
-                                j = add(j, 1)
-                            }
-                            result = concat(result, ");\n")
+                            // Use emit_func_signature with mangled name
+                            mut mangled_name := concat(struct_name, "_")
+                            mangled_name = concat(mangled_name, member.name)
+                            result = emit_func_signature(mangled_name, func_def, result, ctx)
+                            result = concat(result, ";\n")
                         }
                     case:
                         // Not a function
@@ -472,7 +657,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str) returns Str throws 
 }
 
 // Emit struct function bodies with mangled names: StructName_funcname
-emit_struct_func_bodies := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -495,43 +680,32 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str) returns Str throws Str 
                         if func_def.is_ext {
                             // do nothing
                         } else {
-                            // Return type
-                            if eq(func_def.return_types.len(), 0) {
-                                result = concat(result, "void ")
-                            } else {
-                                mut ret_type := ValueType.TCustom("")
-                                func_def.return_types.get(0, ret_type)
-                                result = concat(result, til_type_to_c(ret_type))
-                                result = concat(result, " ")
-                            }
-                            // Mangled name
-                            result = concat(result, struct_name)
-                            result = concat(result, "_")
-                            result = concat(result, member.name)
-                            result = concat(result, "(")
-                            // Parameters
-                            mut j := 0
-                            while lt(j, func_def.args.len()) {
-                                if gt(j, 0) {
-                                    result = concat(result, ", ")
+                            // Set current function context
+                            ctx.current_throw_types = func_def.throw_types
+                            ctx.current_return_types = func_def.return_types
+
+                            // Use emit_func_signature with mangled name
+                            mut mangled_name := concat(struct_name, "_")
+                            mangled_name = concat(mangled_name, member.name)
+                            result = emit_func_signature(mangled_name, func_def, result, ctx)
+                            result = concat(result, " {\n")
+
+                            // Emit function body with catch pattern detection
+                            result = emit_stmts(func_def.body, result, 1, ctx)
+
+                            // For throwing void functions, add implicit return 0
+                            if gt(func_def.throw_types.len(), 0) {
+                                if eq(func_def.return_types.len(), 0) {
+                                    result = concat(result, "    return 0;\n")
                                 }
-                                mut arg := Declaration()
-                                func_def.args.get(j, arg)
-                                result = concat(result, til_type_to_c(arg.value_type))
-                                result = concat(result, " ")
-                                result = concat(result, arg.name)
-                                j = add(j, 1)
                             }
-                            result = concat(result, ") {\n")
-                            // Emit function body
-                            mut k := 0
-                            while lt(k, func_def.body.len()) {
-                                mut stmt := Expr()
-                                func_def.body.get(k, stmt)
-                                result = emit_expr(stmt, result, 1)
-                                k = add(k, 1)
-                            }
+
                             result = concat(result, "}\n\n")
+
+                            // Clear current function context
+                            ctx.current_throw_types = Vec.new(ValueType)
+                            ctx.current_return_types = Vec.new(ValueType)
+                            catch (err: AllocError) { throw err.msg }
                         }
                     case:
                         // Not a function
@@ -554,12 +728,29 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str) returns Str throws Str 
 // Emit C code from AST (multi-pass architecture)
 emit := proc(ast: Expr) returns Str throws Str {
     mut output := ""
+    mut ctx := CodegenContext()
 
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n")
     output = concat(output, "#include <stdlib.h>\n")
     output = concat(output, "#include <string.h>\n")
     output = concat(output, "#include <stdbool.h>\n\n")
+
+    // Pass 0: collect function throw types for call-site generation
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            collect_func_throw_types(child, ctx)
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip collect pass
+    }
 
     // Pass 1: emit struct definitions (only mut fields become struct members)
     switch ast.node_type {
@@ -606,7 +797,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_constants(child, output)
+                output = emit_struct_constants(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -626,7 +817,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_func_declaration(child) {
-                output = emit_func_prototype(child, output)
+                output = emit_func_prototype(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -643,7 +834,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_func_prototypes(child, output)
+                output = emit_struct_func_prototypes(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -663,7 +854,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_func_declaration(child) {
-                output = emit_func_declaration(child, output)
+                output = emit_func_declaration(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -680,7 +871,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_func_bodies(child, output)
+                output = emit_struct_func_bodies(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -703,7 +894,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             if not(is_func_declaration(child)) {
                 if not(is_struct_declaration(child)) {
                     if not(is_enum_declaration(child)) {
-                        output = emit_expr(child, output, 1)
+                        output = emit_expr(child, output, 1, ctx)
                     }
                 }
             }
@@ -712,7 +903,7 @@ emit := proc(ast: Expr) returns Str throws Str {
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, emit directly
-        output = emit_expr(ast, output, 1)
+        output = emit_expr(ast, output, 1, ctx)
     }
 
     output = concat(output, "    return 0;\n")
@@ -743,7 +934,7 @@ is_func_declaration := func(expr: Expr) returns Bool {
 }
 
 // Emit a function prototype (forward declaration)
-emit_func_prototype := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -758,35 +949,9 @@ emit_func_prototype := proc(expr: Expr, output: Str) returns Str throws Str {
                     return output
                 }
 
-                // Return type
-                if eq(func_def.return_types.len(), 0) {
-                    result = concat(result, "void ")
-                } else {
-                    mut ret_type := ValueType.TCustom("")
-                    func_def.return_types.get(0, ret_type)
-                    result = concat(result, til_type_to_c(ret_type))
-                    result = concat(result, " ")
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                }
-
-                result = concat(result, decl.name)
-                result = concat(result, "(")
-
-                // Parameters
-                mut i := 0
-                while lt(i, func_def.args.len()) {
-                    if gt(i, 0) {
-                        result = concat(result, ", ")
-                    }
-                    mut arg := Declaration()
-                    func_def.args.get(i, arg)
-                    result = concat(result, til_type_to_c(arg.value_type))
-                    result = concat(result, " ")
-                    result = concat(result, arg.name)
-                    i = add(i, 1)
-                }
-                result = concat(result, ");\n")
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                // Use emit_func_signature for both throwing and non-throwing functions
+                result = emit_func_signature(decl.name, func_def, result, ctx)
+                result = concat(result, ";\n")
                 return result
             case:
                 throw "emit_func_prototype: not a function"
@@ -799,7 +964,7 @@ emit_func_prototype := proc(expr: Expr, output: Str) returns Str throws Str {
 }
 
 // Emit a function declaration as a C function
-emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -814,46 +979,31 @@ emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                     return output
                 }
 
-                // Return type
-                if eq(func_def.return_types.len(), 0) {
-                    result = concat(result, "void ")
-                } else {
-                    mut ret_type := ValueType.TCustom("")
-                    func_def.return_types.get(0, ret_type)
-                    result = concat(result, til_type_to_c(ret_type))
-                    result = concat(result, " ")
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                }
+                // Set current function context for return/throw generation
+                ctx.current_throw_types = func_def.throw_types
+                ctx.current_return_types = func_def.return_types
 
-                result = concat(result, decl.name)
-                result = concat(result, "(")
+                // Use emit_func_signature for both throwing and non-throwing functions
+                result = emit_func_signature(decl.name, func_def, result, ctx)
+                result = concat(result, " {\n")
 
-                // Parameters
-                mut i := 0
-                while lt(i, func_def.args.len()) {
-                    if gt(i, 0) {
-                        result = concat(result, ", ")
+                // Emit function body with catch pattern detection
+                result = emit_stmts(func_def.body, result, 1, ctx)
+
+                // For throwing void functions, add implicit return 0
+                if gt(func_def.throw_types.len(), 0) {
+                    if eq(func_def.return_types.len(), 0) {
+                        result = concat(result, "    return 0;\n")
                     }
-                    mut arg := Declaration()
-                    func_def.args.get(i, arg)
-                    result = concat(result, til_type_to_c(arg.value_type))
-                    result = concat(result, " ")
-                    result = concat(result, arg.name)
-                    i = add(i, 1)
                 }
-                result = concat(result, ") {\n")
 
-                // Emit function body
-                mut j := 0
-                mut body_len := func_def.body.len()
-                while lt(j, body_len) {
-                    mut stmt := Expr()
-                    func_def.body.get(j, stmt)
-                    result = emit_expr(stmt, result, 1)
-                    j = add(j, 1)
-                }
-                catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = concat(result, "}\n\n")
+
+                // Clear current function context
+                ctx.current_throw_types = Vec.new(ValueType)
+                ctx.current_return_types = Vec.new(ValueType)
+                catch (err: AllocError) { throw err.msg }
+
                 return result
             case:
                 throw "emit_func_declaration: not a function"
@@ -865,7 +1015,7 @@ emit_func_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     }
 }
 
-emit_if := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if lt(expr.params.len(), 2) {
         throw "codegen_c: If requires condition and body"
@@ -881,13 +1031,13 @@ emit_if := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
 
     mut cond := Expr()
     expr.params.get(0, cond)
-    result = emit_expr(cond, result, 0)
+    result = emit_expr(cond, result, 0, ctx)
     result = concat(result, ") {\n")
 
     // Then body
     mut then_body := Expr()
     expr.params.get(1, then_body)
-    result = emit_body(then_body, result, add(indent, 1))
+    result = emit_body(then_body, result, add(indent, 1), ctx)
 
     i = 0
     while lt(i, indent) {
@@ -904,11 +1054,11 @@ emit_if := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
         case NodeType.If:
             // else-if: emit inline
             result = concat(result, " else ")
-            result = emit_if(else_part, result, indent)
+            result = emit_if(else_part, result, indent, ctx)
         case:
             // else block
             result = concat(result, " else {\n")
-            result = emit_body(else_part, result, add(indent, 1))
+            result = emit_body(else_part, result, add(indent, 1), ctx)
             i = 0
             while lt(i, indent) {
                 result = concat(result, "    ")
@@ -924,7 +1074,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     return result
 }
 
-emit_while := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     // While: params[0] = condition, params[1] = body
     if lt(expr.params.len(), 2) {
         throw "codegen_c: While requires condition and body"
@@ -940,13 +1090,13 @@ emit_while := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
 
     mut cond := Expr()
     expr.params.get(0, cond)
-    result = emit_expr(cond, result, 0)
+    result = emit_expr(cond, result, 0, ctx)
     result = concat(result, ") {\n")
 
     // Body
     mut body := Expr()
     expr.params.get(1, body)
-    result = emit_body(body, result, add(indent, 1))
+    result = emit_body(body, result, add(indent, 1), ctx)
 
     i = 0
     while lt(i, indent) {
@@ -1043,7 +1193,7 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
     return result
 }
 
-emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if eq(expr.params.len(), 0) {
@@ -1082,7 +1232,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
     // Emit: switch (expr.tag) {
     result = concat(result, indent_str)
     result = concat(result, "switch (")
-    result = emit_expr(switch_expr, result, 0)
+    result = emit_expr(switch_expr, result, 0, ctx)
     result = concat(result, ".tag) {\n")
 
     // Process case patterns and bodies in pairs
@@ -1103,7 +1253,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2))
+                result = emit_body(case_body, result, add(indent, 2), ctx)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -1121,13 +1271,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
             result = concat(result, ": {\n")
 
             // Emit payload extraction: PayloadType binding_var = expr.payload.VariantName;
-            // TODO: Replace __auto_type with actual type by looking up enum definition
-            // This would require passing a CodegenContext with enum defs through emit functions
             result = concat(result, body_indent)
             result = concat(result, "__auto_type ")
             result = concat(result, pattern_info.binding_var)
             result = concat(result, " = ")
-            result = emit_expr(switch_expr, result, 0)
+            result = emit_expr(switch_expr, result, 0, ctx)
             result = concat(result, ".payload.")
             result = concat(result, info.variant_name)
             result = concat(result, ";\n")
@@ -1136,7 +1284,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2))
+                result = emit_body(case_body, result, add(indent, 2), ctx)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -1159,7 +1307,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2))
+                result = emit_body(case_body, result, add(indent, 2), ctx)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -1176,16 +1324,16 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str
     return result
 }
 
-emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     switch expr.node_type {
     case NodeType.Body:
-        return emit_body(expr, output, indent)
+        return emit_body(expr, output, indent, ctx)
     case NodeType.FCall:
-        return emit_fcall(expr, output, indent)
+        return emit_fcall(expr, output, indent, ctx)
     case NodeType.LLiteral(lit):
         return emit_literal(lit, output)
     case NodeType.Declaration(decl):
-        return emit_declaration(decl.name, decl.is_mut, expr, output, indent)
+        return emit_declaration(decl.name, decl.is_mut, expr, output, indent, ctx)
     case NodeType.Identifier(name):
         // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
@@ -1237,27 +1385,26 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
     case NodeType.FuncDef(func_def):
-        return emit_funcdef(func_def, expr, output, indent)
+        return emit_funcdef(func_def, expr, output, indent, ctx)
     case NodeType.Assignment(name):
-        return emit_assignment(name, expr, output, indent)
+        return emit_assignment(name, expr, output, indent, ctx)
     case NodeType.Return:
-        return emit_return(expr, output, indent)
+        return emit_return(expr, output, indent, ctx)
     case NodeType.If:
-        return emit_if(expr, output, indent)
+        return emit_if(expr, output, indent, ctx)
     case NodeType.While:
-        return emit_while(expr, output, indent)
+        return emit_while(expr, output, indent, ctx)
     case NodeType.Catch:
-        // Skip catch blocks in C codegen (no exception support yet)
+        // Catch blocks handled at call site in emit_stmts
         return output
     case NodeType.Throw:
-        // Skip throw in C codegen (no exception support yet)
-        return output
+        return emit_throw(expr, output, indent, ctx)
     case NodeType.StructDef(s):
         throw "codegen_c: StructDef should be handled at top level, not in emit_expr"
     case NodeType.EnumDef(e):
         throw "codegen_c: EnumDef not yet supported"
     case NodeType.Switch:
-        return emit_switch(expr, output, indent)
+        return emit_switch(expr, output, indent, ctx)
     case NodeType.DefaultCase:
         throw "codegen_c: DefaultCase not yet supported"
     case NodeType.Range:
@@ -1267,17 +1414,322 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
     }
 }
 
-emit_body := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+    return emit_stmts(expr.params, output, indent, ctx)
+}
+
+// Emit a sequence of statements with catch pattern detection
+// This is the core logic for handling throw/catch at call sites
+emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     mut i := 0
-    mut params_len := expr.params.len()
-    while lt(i, params_len) {
-        mut child := Expr()
-        expr.params.get(i, child)
-        result = emit_expr(child, result, indent)
+
+    while lt(i, stmts.len()) {
+        mut stmt := Expr()
+        stmts.get(i, stmt)
+
+        // Check if this statement is followed by catch blocks
+        // And if it's a call to a throwing function (FCall or Declaration with FCall)
+        mut maybe_fcall := Expr()
+        mut has_fcall := false
+        mut maybe_decl_name := ""
+        mut has_decl := false
+
+        switch stmt.node_type {
+        case NodeType.FCall:
+            maybe_fcall = stmt
+            has_fcall = true
+        case NodeType.Declaration(decl):
+            // Check if declaration has an FCall as initializer
+            if gt(stmt.params.len(), 0) {
+                mut first := Expr()
+                stmt.params.get(0, first)
+                switch first.node_type {
+                case NodeType.FCall:
+                    maybe_fcall = first
+                    has_fcall = true
+                    maybe_decl_name = decl.name
+                    has_decl = true
+                case:
+                    // Not an FCall
+                }
+                catch (err: IndexOutOfBoundsError) { /* no initializer */ }
+            }
+        case:
+            // Not FCall or Declaration
+        }
+
+        if has_fcall {
+            // Get function name from the FCall
+            mut func_name := get_fcall_func_name(maybe_fcall)
+
+            // Check if this function is a throwing function
+            if gt(func_name.len(), 0) {
+                mut throw_types := Vec.new(ValueType)
+                catch (err: AllocError) { throw err.msg }
+                mut is_throwing := false
+                ctx.func_throw_types.get(func_name, throw_types)
+                is_throwing = gt(throw_types.len(), 0)
+                catch (err: KeyNotFoundError) { is_throwing = false }
+
+                if is_throwing {
+                    // Collect subsequent catch blocks
+                    mut catch_blocks := Vec.new(Expr)
+                    catch (err: AllocError) { throw err.msg }
+                    mut j := add(i, 1)
+                    while lt(j, stmts.len()) {
+                        mut next_stmt := Expr()
+                        stmts.get(j, next_stmt)
+                        switch next_stmt.node_type {
+                        case NodeType.Catch:
+                            catch_blocks.push(next_stmt)
+                            catch (err: AllocError) { throw err.msg }
+                            j = add(j, 1)
+                        case:
+                            // Not a catch block, stop
+                            j = stmts.len()  // break out of loop
+                        }
+                        catch (err: IndexOutOfBoundsError) { j = stmts.len() }
+                    }
+
+                    if gt(catch_blocks.len(), 0) {
+                        // Emit throwing call with catch handling
+                        if has_decl {
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, result, indent, ctx)
+                        } else {
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", result, indent, ctx)
+                        }
+                        i = add(i, add(1, catch_blocks.len()))  // Skip past catch blocks
+                    } else {
+                        // No catch blocks, emit regular statement
+                        result = emit_expr(stmt, result, indent, ctx)
+                        i = add(i, 1)
+                    }
+                } else {
+                    // Not a throwing function, emit regular statement
+                    result = emit_expr(stmt, result, indent, ctx)
+                    i = add(i, 1)
+                }
+            } else {
+                // Couldn't get function name, emit regular statement
+                result = emit_expr(stmt, result, indent, ctx)
+                i = add(i, 1)
+            }
+        } else {
+            // Regular statement handling
+            result = emit_expr(stmt, result, indent, ctx)
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    }
+    return result
+}
+
+// Emit a call to a throwing function with catch handling
+// Generates: declare temps, call func, if/else chain for error handling
+emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+    mut result := output
+
+    // Generate indentation string
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = concat(indent_str, "    ")
+        ind = add(ind, 1)
+    }
+
+    // Get function name
+    mut func_name := get_fcall_func_name(fcall)
+    if eq(func_name.len(), 0) {
+        throw "emit_throwing_call: could not get function name"
+    }
+
+    // Generate unique temp name for this call
+    mut temp_suffix := ctx.next_temp()
+
+    // Declare local variables for return value and errors
+    // For now, assume int return type (TODO: get actual return type from context)
+    if gt(decl_name.len(), 0) {
+        result = concat(result, indent_str)
+        result = concat(result, "int _ret_")
+        result = concat(result, temp_suffix)
+        result = concat(result, ";\n")
+    }
+
+    // Declare error structs for each throw type
+    mut i := 0
+    while lt(i, throw_types.len()) {
+        mut throw_type := ValueType.TCustom("")
+        throw_types.get(i, throw_type)
+        switch throw_type {
+        case ValueType.TCustom(type_name):
+            result = concat(result, indent_str)
+            result = concat(result, type_name)
+            result = concat(result, " _err")
+            result = concat(result, i.to_str())
+            result = concat(result, "_")
+            result = concat(result, temp_suffix)
+            result = concat(result, " = {0};\n")
+        case:
+            // Non-custom type, use int
+            result = concat(result, indent_str)
+            result = concat(result, "int _err")
+            result = concat(result, i.to_str())
+            result = concat(result, "_")
+            result = concat(result, temp_suffix)
+            result = concat(result, " = 0;\n")
+        }
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Generate the function call with output parameters
+    result = concat(result, indent_str)
+    result = concat(result, "int _status_")
+    result = concat(result, temp_suffix)
+    result = concat(result, " = ")
+    result = concat(result, func_name)
+    result = concat(result, "(")
+
+    // First: return value pointer (if function returns something)
+    mut param_count := 0
+    if gt(decl_name.len(), 0) {
+        result = concat(result, "&_ret_")
+        result = concat(result, temp_suffix)
+        param_count = add(param_count, 1)
+    }
+
+    // Then: error pointers
+    i = 0
+    while lt(i, throw_types.len()) {
+        if gt(param_count, 0) {
+            result = concat(result, ", ")
+        }
+        result = concat(result, "&_err")
+        result = concat(result, i.to_str())
+        result = concat(result, "_")
+        result = concat(result, temp_suffix)
+        param_count = add(param_count, 1)
+        i = add(i, 1)
+    }
+
+    // Then: actual arguments (skip the function name which is params[0])
+    i = 1
+    while lt(i, fcall.params.len()) {
+        if gt(param_count, 0) {
+            result = concat(result, ", ")
+        }
+        mut arg := Expr()
+        fcall.params.get(i, arg)
+        result = emit_expr(arg, result, 0, ctx)
+        param_count = add(param_count, 1)
+        i = add(i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    result = concat(result, ");\n")
+
+    // Generate if/else chain for error handling
+    result = concat(result, indent_str)
+    result = concat(result, "if (_status_")
+    result = concat(result, temp_suffix)
+    result = concat(result, " == 0) {\n")
+
+    // Success case: assign return value to declared variable
+    if gt(decl_name.len(), 0) {
+        mut inner_indent := ""
+        ind = 0
+        while lt(ind, add(indent, 1)) {
+            inner_indent = concat(inner_indent, "    ")
+            ind = add(ind, 1)
+        }
+        result = concat(result, inner_indent)
+        result = concat(result, "int ")
+        result = concat(result, decl_name)
+        result = concat(result, " = _ret_")
+        result = concat(result, temp_suffix)
+        result = concat(result, ";\n")
+        // Note: var_name goes out of scope at end of if block
+        // This is a limitation - complex code might need refactoring
+    }
+
+    result = concat(result, indent_str)
+    result = concat(result, "}")
+
+    // Generate else-if branches for each catch block
+    i = 0
+    while lt(i, catch_blocks.len()) {
+        mut catch_block := Expr()
+        catch_blocks.get(i, catch_block)
+
+        // Get the error type index from status code (i+1)
+        result = concat(result, " else if (_status_")
+        result = concat(result, temp_suffix)
+        result = concat(result, " == ")
+        result = concat(result, add(i, 1).to_str())
+        result = concat(result, ") {\n")
+
+        // Emit catch block body
+        // The catch block params should have the binding variable and body
+        if gt(catch_block.params.len(), 0) {
+            // Get binding info - catch params[0] is the error binding expr, params[1..] is the body
+            mut k := 1
+            while lt(k, catch_block.params.len()) {
+                mut body_stmt := Expr()
+                catch_block.params.get(k, body_stmt)
+                result = emit_expr(body_stmt, result, add(indent, 1), ctx)
+                k = add(k, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+
+        result = concat(result, indent_str)
+        result = concat(result, "}")
+
+        i = add(i, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    result = concat(result, "\n")
+    return result
+}
+
+// Emit a throw statement
+// For throwing functions: *_errN = value; return N;
+emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+    mut result := output
+
+    // Generate indentation
+    mut ind := 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
+    }
+
+    // Get throw value if present
+    if gt(expr.params.len(), 0) {
+        mut throw_value := Expr()
+        expr.params.get(0, throw_value)
+
+        // Find which error type this throw corresponds to
+        // For now, assume it's the first error type (index 1)
+        // TODO: Match throw type to the correct error index
+        result = concat(result, "*_err1 = ")
+        result = emit_expr(throw_value, result, 0, ctx)
+        result = concat(result, ";\n")
+
+        ind = 0
+        while lt(ind, indent) {
+            result = concat(result, "    ")
+            ind = add(ind, 1)
+        }
+        result = concat(result, "return 1;\n")
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    } else {
+        // Throw with no value - just return error status
+        result = concat(result, "return 1;\n")
+    }
+
     return result
 }
 
@@ -1399,7 +1851,7 @@ get_enum_construction_type := func(expr: Expr) returns Str {
     }
 }
 
-emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
 
     // Add indentation
@@ -1459,7 +1911,7 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = emit_expr(first, result, 0)
+        result = emit_expr(first, result, 0, ctx)
         result = concat(result, ";\n")
     } else if is_mut {
         result = concat(result, "int ")
@@ -1469,7 +1921,7 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0)
+            result = emit_expr(first, result, 0, ctx)
         }
         result = concat(result, ";\n")
     } else {
@@ -1480,14 +1932,14 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0)
+            result = emit_expr(first, result, 0, ctx)
         }
         result = concat(result, ";\n")
     }
     return result
 }
 
-emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     // Inline function body (shouldn't be called for top-level funcs)
     mut result := output
     mut ind := 0
@@ -1501,7 +1953,7 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64) r
     while lt(i, params_len) {
         mut stmt := Expr()
         expr.params.get(i, stmt)
-        result = emit_expr(stmt, result, add(indent, 1))
+        result = emit_expr(stmt, result, add(indent, 1), ctx)
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1514,7 +1966,7 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64) r
     return result
 }
 
-emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     mut ind := 0
     while lt(ind, indent) {
@@ -1527,32 +1979,53 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64) returns
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = emit_expr(first, result, 0)
+        result = emit_expr(first, result, 0, ctx)
     }
     result = concat(result, ";\n")
     return result
 }
 
-emit_return := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     mut ind := 0
     while lt(ind, indent) {
         result = concat(result, "    ")
         ind = add(ind, 1)
     }
-    result = concat(result, "return")
-    if gt(expr.params.len(), 0) {
-        result = concat(result, " ")
-        mut first := Expr()
-        expr.params.get(0, first)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = emit_expr(first, result, 0)
+
+    // Check if we're in a throwing function
+    if gt(ctx.current_throw_types.len(), 0) {
+        // Throwing function: *_ret = value; return 0;
+        if gt(expr.params.len(), 0) {
+            result = concat(result, "*_ret = ")
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = emit_expr(first, result, 0, ctx)
+            result = concat(result, ";\n")
+            ind = 0
+            while lt(ind, indent) {
+                result = concat(result, "    ")
+                ind = add(ind, 1)
+            }
+        }
+        result = concat(result, "return 0;\n")
+    } else {
+        // Non-throwing function: regular return
+        result = concat(result, "return")
+        if gt(expr.params.len(), 0) {
+            result = concat(result, " ")
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            result = emit_expr(first, result, 0, ctx)
+        }
+        result = concat(result, ";\n")
     }
-    result = concat(result, ";\n")
     return result
 }
 
-emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str {
+emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     // First param is the function name (or UFCS receiver.method)
     mut params_len := expr.params.len()
     if lt(params_len, 1) {
@@ -1606,7 +2079,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             }
             mut arg := Expr()
             expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0)
+            result = emit_expr(arg, result, 0, ctx)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1621,32 +2094,32 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             }
             mut arg := Expr()
             expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0)
+            result = emit_expr(arg, result, 0, ctx)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = concat(result, ");\n")
         return result
     } else if func_name.eq("add") {
-        return emit_binop(expr, output, "+", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "+", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("sub") {
-        return emit_binop(expr, output, "-", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "-", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("mul") {
-        return emit_binop(expr, output, "*", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "*", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("div") {
-        return emit_binop(expr, output, "/", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "/", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("mod") {
-        return emit_binop(expr, output, "%", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "%", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("eq") {
-        return emit_binop(expr, output, "==", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "==", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("lt") {
-        return emit_binop(expr, output, "<", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "<", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("gt") {
-        return emit_binop(expr, output, ">", has_ufcs_receiver, first)
+        return emit_binop(expr, output, ">", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("lteq") {
-        return emit_binop(expr, output, "<=", has_ufcs_receiver, first)
+        return emit_binop(expr, output, "<=", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("gteq") {
-        return emit_binop(expr, output, ">=", has_ufcs_receiver, first)
+        return emit_binop(expr, output, ">=", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("test") {
         // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
         if lt(params_len, 4) {
@@ -1655,11 +2128,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
         result = concat(result, "if (!(")
         mut cond := Expr()
         expr.params.get(2, cond)
-        result = emit_expr(cond, result, 0)
+        result = emit_expr(cond, result, 0, ctx)
         result = concat(result, ")) { printf(\"FAIL: %s\\n\", ")
         mut msg := Expr()
         expr.params.get(3, msg)
-        result = emit_expr(msg, result, 0)
+        result = emit_expr(msg, result, 0, ctx)
         result = concat(result, "); }\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -1671,11 +2144,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
         result = concat(result, "if ((")
         mut expected := Expr()
         expr.params.get(2, expected)
-        result = emit_expr(expected, result, 0)
+        result = emit_expr(expected, result, 0, ctx)
         result = concat(result, ") != (")
         mut actual := Expr()
         expr.params.get(3, actual)
-        result = emit_expr(actual, result, 0)
+        result = emit_expr(actual, result, 0, ctx)
         result = concat(result, ")) { printf(\"FAIL: assert_eq\\n\"); }\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -1722,7 +2195,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
                         }
                         mut arg := Expr()
                         expr.params.get(i, arg)
-                        result = emit_expr(arg, result, 0)
+                        result = emit_expr(arg, result, 0, ctx)
                         i = add(i, 1)
                     }
                     result = concat(result, ")")
@@ -1740,7 +2213,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
                         result = concat(result, ", ")
                         mut arg := Expr()
                         expr.params.get(i, arg)
-                        result = emit_expr(arg, result, 0)
+                        result = emit_expr(arg, result, 0, ctx)
                         i = add(i, 1)
                     }
                     result = concat(result, ")")
@@ -1765,7 +2238,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             }
             mut arg := Expr()
             expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0)
+            result = emit_expr(arg, result, 0, ctx)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1778,7 +2251,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
     }
 }
 
-emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr) returns Str throws Str {
+emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr, mut ctx: CodegenContext) returns Str throws Str {
     mut result := concat(output, "(")
 
     // For UFCS: receiver.op(arg) -> (receiver op arg)
@@ -1793,11 +2266,11 @@ emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, fi
             mut arg2 := Expr()
             expr.params.get(1, arg1)
             expr.params.get(2, arg2)
-            result = emit_expr(arg1, result, 0)
+            result = emit_expr(arg1, result, 0, ctx)
             result = concat(result, " ")
             result = concat(result, op)
             result = concat(result, " ")
-            result = emit_expr(arg2, result, 0)
+            result = emit_expr(arg2, result, 0, ctx)
         } else if gteq(expr.params.len(), 2) {
             // Instance UFCS: x.op(y) -> (x op y)
             switch first.node_type {
@@ -1811,7 +2284,7 @@ emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, fi
             result = concat(result, " ")
             mut arg := Expr()
             expr.params.get(1, arg)
-            result = emit_expr(arg, result, 0)
+            result = emit_expr(arg, result, 0, ctx)
         } else {
             throw "codegen_c: UFCS binary op requires 1 argument"
         }
@@ -1825,11 +2298,11 @@ emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, fi
         mut arg2 := Expr()
         expr.params.get(1, arg1)
         expr.params.get(2, arg2)
-        result = emit_expr(arg1, result, 0)
+        result = emit_expr(arg1, result, 0, ctx)
         result = concat(result, " ")
         result = concat(result, op)
         result = concat(result, " ")
-        result = emit_expr(arg2, result, 0)
+        result = emit_expr(arg2, result, 0, ctx)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 

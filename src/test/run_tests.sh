@@ -31,4 +31,8 @@ echo "Testing switch_simple.til..."
 $RSTIL run src/test/switch_simple.til
 echo "[PASS] switch_simple.til"
 
+echo "Testing throw_simple.til..."
+$RSTIL run src/test/throw_simple.til
+echo "[PASS] throw_simple.til"
+
 echo "=== All Compiled Run Tests Passed! ==="
