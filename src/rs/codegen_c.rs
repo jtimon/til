@@ -392,6 +392,14 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
     output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n");
 
+    // Core runtime functions (ext_proc/ext_func implementations)
+    output.push_str("// single_print: print a string without newline\n");
+    output.push_str("static inline void single_print(const char* s) { printf(\"%s\", s); }\n");
+    output.push_str("// print_flush: flush stdout\n");
+    output.push_str("static inline void print_flush(void) { fflush(stdout); }\n");
+    output.push_str("// to_ptr: get pointer address as integer\n");
+    output.push_str("static inline long long to_ptr(long long* p) { return (long long)p; }\n\n");
+
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
