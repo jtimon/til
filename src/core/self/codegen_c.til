@@ -9,6 +9,8 @@ import("src.core.self.parser")  // Expr, NodeType, Literal
 CodegenContext := struct {
     // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
     mut func_throw_types: Map = Map.new(Str, Vec)
+    // Map variable name -> its type (for UFCS mangling)
+    mut var_types: Map = Map.new(Str, ValueType)
     // Currently generating function's throw types (if any)
     mut current_throw_types: Vec = Vec.new(ValueType)
     // Currently generating function's return types (if any)
@@ -187,14 +189,13 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 }
 
 // Get the function name from an FCall expression
-get_fcall_func_name := func(expr: Expr) returns Str {
+get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
     if eq(expr.params.len(), 0) {
         return ""
     }
 
     mut first := Expr()
     expr.params.get(0, first)
-    catch (err: IndexOutOfBoundsError) { return "" }
 
     switch first.node_type {
     case NodeType.Identifier(name):
@@ -202,10 +203,9 @@ get_fcall_func_name := func(expr: Expr) returns Str {
             // Regular function call
             return name
         } else {
-            // UFCS: receiver.method() - check for type-qualified call
+            // UFCS: receiver.method() - determine mangled name
             mut nested := Expr()
             first.params.get(0, nested)
-            catch (err: IndexOutOfBoundsError) { return "" }
             switch nested.node_type {
             case NodeType.Identifier(method_name):
                 // Check if receiver is PascalCase (type-qualified)
@@ -215,10 +215,23 @@ get_fcall_func_name := func(expr: Expr) returns Str {
                     mut mangled := concat(name, "_")
                     mangled = concat(mangled, method_name)
                     return mangled
+                } else {
+                    // instance.method -> look up instance type for mangling
+                    mut receiver_type := ValueType.TCustom("")
+                    ctx.var_types.get(name, receiver_type)
+                    switch receiver_type {
+                    case ValueType.TCustom(type_name):
+                        if gt(type_name.len(), 0) {
+                            mut mangled := concat(type_name, "_")
+                            mangled = concat(mangled, method_name)
+                            return mangled
+                        }
+                    case:
+                        // Fallback to just method name
+                    }
+                    catch (err: KeyNotFoundError) { /* type not found, fallback */ }
+                    return method_name
                 }
-                catch (err: IndexOutOfBoundsError) { return method_name }
-                catch (err: AllocError) { return method_name }
-                return method_name
             case:
                 return ""
             }
@@ -226,6 +239,9 @@ get_fcall_func_name := func(expr: Expr) returns Str {
     case:
         return ""
     }
+
+    catch (err: IndexOutOfBoundsError) { return "" }
+    catch (err: AllocError) { return "" }
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
@@ -684,6 +700,19 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_throw_types = func_def.throw_types
                             ctx.current_return_types = func_def.return_types
 
+                            // Clear var_types for new function scope and add function arguments
+                            ctx.var_types = Map.new(Str, ValueType)
+                            mut arg_idx := 0
+                            while lt(arg_idx, func_def.args.len()) {
+                                mut arg := Declaration()
+                                func_def.args.get(arg_idx, arg)
+                                ctx.var_types.insert(arg.name, arg.value_type)
+                                arg_idx = add(arg_idx, 1)
+                            }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            catch (err: AllocError) { throw err.msg }
+                            catch (err: DuplicatedKeyError) { /* ignore */ }
+
                             // Use emit_func_signature with mangled name
                             mut mangled_name := concat(struct_name, "_")
                             mangled_name = concat(mangled_name, member.name)
@@ -982,6 +1011,19 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
+
+                // Clear var_types for new function scope and add function arguments
+                ctx.var_types = Map.new(Str, ValueType)
+                mut arg_idx := 0
+                while lt(arg_idx, func_def.args.len()) {
+                    mut arg := Declaration()
+                    func_def.args.get(arg_idx, arg)
+                    ctx.var_types.insert(arg.name, arg.value_type)
+                    arg_idx = add(arg_idx, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+                catch (err: DuplicatedKeyError) { /* ignore */ }
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
@@ -1333,7 +1375,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     case NodeType.LLiteral(lit):
         return emit_literal(lit, output)
     case NodeType.Declaration(decl):
-        return emit_declaration(decl.name, decl.is_mut, expr, output, indent, ctx)
+        return emit_declaration(decl, expr, output, indent, ctx)
     case NodeType.Identifier(name):
         // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
@@ -1461,7 +1503,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
         if has_fcall {
             // Get function name from the FCall
-            mut func_name := get_fcall_func_name(maybe_fcall)
+            mut func_name := get_fcall_func_name(maybe_fcall, ctx)
 
             // Check if this function is a throwing function
             if gt(func_name.len(), 0) {
@@ -1539,7 +1581,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall)
+    mut func_name := get_fcall_func_name(fcall, ctx)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call: could not get function name"
     }
@@ -1851,8 +1893,10 @@ get_enum_construction_type := func(expr: Expr) returns Str {
     }
 }
 
-emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
+    name := decl.name
+    is_mut := decl.is_mut
 
     // Add indentation
     mut ind := 0
@@ -1895,6 +1939,18 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         enum_type = get_enum_construction_type(first)
     }
+
+    // Track variable type for UFCS mangling
+    // Use the inferred type from struct/enum construction if available
+    if gt(struct_type.len(), 0) {
+        ctx.var_types.insert(name, ValueType.TCustom(struct_type))
+    } else if gt(enum_type.len(), 0) {
+        ctx.var_types.insert(name, ValueType.TCustom(enum_type))
+    } else {
+        ctx.var_types.insert(name, decl.value_type)
+    }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { /* ignore, update is fine */ }
 
     if gt(struct_type.len(), 0) {
         // Struct variable declaration
@@ -2204,7 +2260,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     }
                     return result
                 } else {
-                    // Instance UFCS: instance.func(args...) -> func(instance, args...)
+                    // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
+                    // Look up the receiver's type for proper mangling
+                    mut receiver_type := ValueType.TCustom("")
+                    ctx.var_types.get(receiver_name, receiver_type)
+                    switch receiver_type {
+                    case ValueType.TCustom(type_name):
+                        if gt(type_name.len(), 0) {
+                            result = concat(result, type_name)
+                            result = concat(result, "_")
+                        }
+                    case:
+                        // No type found, emit without prefix
+                    }
+                    catch (err: KeyNotFoundError) { /* type not found, no prefix */ }
                     result = concat(result, func_name)
                     result = concat(result, "(")
                     result = concat(result, receiver_name)
