@@ -843,6 +843,6 @@ fn emit_literal(lit: &Literal, output: &mut String) -> Result<(), String> {
             output.push_str(n);
             Ok(())
         },
-        _ => Err("codegen_c: unsupported literal type".to_string()),
+        Literal::List(_) => Err("codegen_c: List literals not yet supported".to_string()),
     }
 }

@@ -1216,8 +1216,8 @@ emit_literal := proc(lit: Literal, output: Str) returns Str throws Str {
         result = format(output, "\"", s, "\"")
     case Literal.Number(n):
         result = concat(output, n)
-    case:
-        throw "codegen_c: unsupported literal type"
+    case Literal.List(l):
+        throw "codegen_c: List literals not yet supported"
     }
     catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
