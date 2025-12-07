@@ -1,0 +1,23 @@
+mode test
+
+// Enum with payloads (tagged union)
+Color := enum {
+    Unknown,
+    Red: I64,
+    Green: Bool,
+}
+
+test_enum_payload := proc() {
+    // Test variant without payload
+    u := Color.Unknown
+
+    // Test variant with I64 payload
+    r := Color.Red(42)
+
+    // Test variant with Bool payload
+    g := Color.Green(true)
+
+    println("Enum payload test passed")
+}
+
+test_enum_payload()

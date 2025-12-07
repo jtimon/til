@@ -190,6 +190,112 @@ fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
     false
 }
 
+// Emit an enum with payloads as a tagged union
+fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String) -> Result<(), String> {
+    // Sort variants by name for deterministic output
+    let mut variants: Vec<_> = enum_def.enum_map.iter().collect();
+    variants.sort_by_key(|(name, _)| *name);
+
+    // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
+    output.push_str("typedef enum {\n");
+    for (index, (variant_name, _)) in variants.iter().enumerate() {
+        output.push_str("    ");
+        output.push_str(enum_name);
+        output.push_str("_");
+        output.push_str(variant_name);
+        output.push_str(" = ");
+        output.push_str(&index.to_string());
+        output.push_str(",\n");
+    }
+    output.push_str("} ");
+    output.push_str(enum_name);
+    output.push_str("_Tag;\n\n");
+
+    // 2. Emit payload union (only for variants that have payloads)
+    // typedef union { unsigned char Green; long long Number; } Color_Payload;
+    let has_any_payload = variants.iter().any(|(_, payload)| payload.is_some());
+    if has_any_payload {
+        output.push_str("typedef union {\n");
+        for (variant_name, payload_type) in &variants {
+            if let Some(pt) = payload_type {
+                if let Some(c_type) = til_type_to_c(pt) {
+                    output.push_str("    ");
+                    output.push_str(&c_type);
+                    output.push_str(" ");
+                    output.push_str(variant_name);
+                    output.push_str(";\n");
+                }
+            }
+        }
+        output.push_str("} ");
+        output.push_str(enum_name);
+        output.push_str("_Payload;\n\n");
+    }
+
+    // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
+    output.push_str("typedef struct {\n");
+    output.push_str("    ");
+    output.push_str(enum_name);
+    output.push_str("_Tag tag;\n");
+    if has_any_payload {
+        output.push_str("    ");
+        output.push_str(enum_name);
+        output.push_str("_Payload payload;\n");
+    }
+    output.push_str("} ");
+    output.push_str(enum_name);
+    output.push_str(";\n\n");
+
+    // 4. Emit constructor functions: Color_Green(value) for variants with payloads
+    for (variant_name, payload_type) in &variants {
+        // Only emit constructors for variants with payloads
+        // (variants without payloads are just enum constants, no function needed)
+        if payload_type.is_none() {
+            continue;
+        }
+
+        output.push_str("static inline ");
+        output.push_str(enum_name);
+        output.push_str(" ");
+        output.push_str(enum_name);
+        output.push_str("_make_");
+        output.push_str(variant_name);
+        output.push_str("(");
+
+        // Parameter for payload (if any)
+        if let Some(pt) = payload_type {
+            if let Some(c_type) = til_type_to_c(pt) {
+                output.push_str(&c_type);
+                output.push_str(" value");
+            }
+        } else {
+            output.push_str("void");
+        }
+        output.push_str(") {\n");
+
+        // Constructor body
+        output.push_str("    ");
+        output.push_str(enum_name);
+        output.push_str(" result = { .tag = ");
+        output.push_str(enum_name);
+        output.push_str("_");
+        output.push_str(variant_name);
+        output.push_str(" };\n");
+
+        // Set payload if present
+        if payload_type.is_some() {
+            output.push_str("    result.payload.");
+            output.push_str(variant_name);
+            output.push_str(" = value;\n");
+        }
+
+        output.push_str("    return result;\n");
+        output.push_str("}\n\n");
+    }
+
+    Ok(())
+}
+
 // Emit an enum declaration as a C typedef enum (for simple enums without payloads)
 // or as a tagged union struct (for enums with payloads)
 fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
@@ -200,7 +306,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 
                 if enum_has_payloads(enum_def) {
                     // Phase 2: Enums with payloads - tagged union
-                    return Err(format!("codegen_c: Enum {} has payloads, not yet supported", enum_name));
+                    return emit_enum_with_payloads(enum_name, enum_def, output);
                 }
 
                 // Phase 1: Simple enum without payloads
@@ -531,6 +637,13 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
         None
     };
 
+    // Check if this is an enum construction (Type.Variant or Type.Variant(value))
+    let enum_type = if !expr.params.is_empty() {
+        get_enum_construction_type(&expr.params[0])
+    } else {
+        None
+    };
+
     if let Some(type_name) = struct_type {
         // Struct variable declaration
         output.push_str(&indent_str);
@@ -538,6 +651,15 @@ fn emit_declaration(name: &str, is_mut: bool, expr: &Expr, output: &mut String, 
         output.push_str(" ");
         output.push_str(name);
         output.push_str(" = {0};\n");
+    } else if let Some(type_name) = enum_type {
+        // Enum variable declaration
+        output.push_str(&indent_str);
+        output.push_str(&type_name);
+        output.push_str(" ");
+        output.push_str(name);
+        output.push_str(" = ");
+        emit_expr(&expr.params[0], output, 0)?;
+        output.push_str(";\n");
     } else if is_mut {
         output.push_str(&indent_str);
         output.push_str("int ");
@@ -572,6 +694,30 @@ fn get_struct_construction_type(expr: &Expr) -> Option<String> {
                     && expr.params.len() == 1
                     && expr.params[0].params.is_empty() {
                     return Some(name.clone());
+                }
+            }
+        }
+    }
+    None
+}
+
+// Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
+// Returns the type name if it is, None otherwise
+// AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
+fn get_enum_construction_type(expr: &Expr) -> Option<String> {
+    if let NodeType::FCall = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
+                // Check if the type name is PascalCase
+                if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    // Check if there's a nested identifier (the variant) that's also PascalCase
+                    if !expr.params[0].params.is_empty() {
+                        if let NodeType::Identifier(variant_name) = &expr.params[0].params[0].node_type {
+                            if variant_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                                return Some(type_name.clone());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -798,9 +944,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                         }
 
                         // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
-                        // For enum constructors with payloads (Phase 2): Type.Variant(val) -> Type_make_Variant(val)
+                        // For enum constructors with payloads: Type.Variant(val) -> Type_make_Variant(val)
+                        // Enum variants are capitalized, function names are lowercase
                         output.push_str(receiver_name);
                         output.push_str("_");
+                        let func_first_char = func_name.chars().next().unwrap_or('a');
+                        if func_first_char.is_uppercase() {
+                            // Enum constructor with payload
+                            output.push_str("make_");
+                        }
                         output.push_str(&func_name);
                         output.push_str("(");
                         // Emit all arguments after the function name

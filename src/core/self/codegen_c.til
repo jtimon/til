@@ -180,7 +180,142 @@ enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
     return false
 }
 
+// Check if a variant has a payload (non-empty type)
+variant_has_payload := func(payload_type: ValueType) returns Bool {
+    switch payload_type {
+    case ValueType.TCustom(name):
+        return gt(name.len(), 0)
+    case:
+        return true  // Any non-TCustom type means it has a payload
+    }
+}
+
+// Emit an enum with payloads as a tagged union
+emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str) returns Str throws Str {
+    mut result := output
+    mut variants := enum_def.enum_map.keys
+
+    // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
+    result = concat(result, "typedef enum {\n")
+    mut i := 0
+    while lt(i, variants.len()) {
+        mut variant_name := ""
+        variants.get(i, variant_name)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = concat(result, "    ")
+        result = concat(result, enum_name)
+        result = concat(result, "_")
+        result = concat(result, variant_name)
+        result = concat(result, " = ")
+        result = concat(result, i.to_str())
+        result = concat(result, ",\n")
+        i = add(i, 1)
+    }
+    result = concat(result, "} ")
+    result = concat(result, enum_name)
+    result = concat(result, "_Tag;\n\n")
+
+    // 2. Emit payload union (only for variants that have payloads)
+    // typedef union { unsigned char Green; long long Number; } Color_Payload;
+    mut has_any_payload := false
+    i = 0
+    while lt(i, variants.len()) {
+        mut variant_name := ""
+        variants.get(i, variant_name)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        mut payload_type := ValueType.TCustom("")
+        enum_def.enum_map.get(variant_name, payload_type)
+        catch (err: KeyNotFoundError) { /* no payload */ }
+        if variant_has_payload(payload_type) {
+            has_any_payload = true
+        }
+        i = add(i, 1)
+    }
+
+    if has_any_payload {
+        result = concat(result, "typedef union {\n")
+        i = 0
+        while lt(i, variants.len()) {
+            mut variant_name := ""
+            variants.get(i, variant_name)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            mut payload_type := ValueType.TCustom("")
+            enum_def.enum_map.get(variant_name, payload_type)
+            catch (err: KeyNotFoundError) { /* no payload */ }
+            if variant_has_payload(payload_type) {
+                result = concat(result, "    ")
+                result = concat(result, til_type_to_c(payload_type))
+                result = concat(result, " ")
+                result = concat(result, variant_name)
+                result = concat(result, ";\n")
+            }
+            i = add(i, 1)
+        }
+        result = concat(result, "} ")
+        result = concat(result, enum_name)
+        result = concat(result, "_Payload;\n\n")
+    }
+
+    // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
+    result = concat(result, "typedef struct {\n")
+    result = concat(result, "    ")
+    result = concat(result, enum_name)
+    result = concat(result, "_Tag tag;\n")
+    if has_any_payload {
+        result = concat(result, "    ")
+        result = concat(result, enum_name)
+        result = concat(result, "_Payload payload;\n")
+    }
+    result = concat(result, "} ")
+    result = concat(result, enum_name)
+    result = concat(result, ";\n\n")
+
+    // 4. Emit constructor functions for variants with payloads: Color_make_Green(value)
+    i = 0
+    while lt(i, variants.len()) {
+        mut variant_name := ""
+        variants.get(i, variant_name)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        mut payload_type := ValueType.TCustom("")
+        enum_def.enum_map.get(variant_name, payload_type)
+        catch (err: KeyNotFoundError) { /* no payload */ }
+
+        // Only emit constructors for variants with payloads
+        if variant_has_payload(payload_type) {
+            result = concat(result, "static inline ")
+            result = concat(result, enum_name)
+            result = concat(result, " ")
+            result = concat(result, enum_name)
+            result = concat(result, "_make_")
+            result = concat(result, variant_name)
+            result = concat(result, "(")
+            result = concat(result, til_type_to_c(payload_type))
+            result = concat(result, " value) {\n")
+
+            // Constructor body
+            result = concat(result, "    ")
+            result = concat(result, enum_name)
+            result = concat(result, " result = { .tag = ")
+            result = concat(result, enum_name)
+            result = concat(result, "_")
+            result = concat(result, variant_name)
+            result = concat(result, " };\n")
+
+            result = concat(result, "    result.payload.")
+            result = concat(result, variant_name)
+            result = concat(result, " = value;\n")
+
+            result = concat(result, "    return result;\n")
+            result = concat(result, "}\n\n")
+        }
+        i = add(i, 1)
+    }
+
+    return result
+}
+
 // Emit an enum declaration as a C typedef enum (for simple enums without payloads)
+// or as a tagged union struct (for enums with payloads)
 emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
     switch expr.node_type {
@@ -194,7 +329,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
 
                 if enum_has_payloads(enum_def) {
                     // Phase 2: Enums with payloads - tagged union
-                    throw format("codegen_c: Enum ", enum_name, " has payloads, not yet supported")
+                    return emit_enum_with_payloads(enum_name, enum_def, result)
                 }
 
                 // Phase 1: Simple enum without payloads
@@ -922,6 +1057,57 @@ get_struct_construction_type := func(expr: Expr) returns Str {
     }
 }
 
+// Check if an expression is an enum construction (Type.Variant or Type.Variant(value))
+// Returns the type name if it is, empty string otherwise
+// AST structure for Color.Red(42): FCall -> [Identifier("Color") -> [Identifier("Red")], Literal(42)]
+get_enum_construction_type := func(expr: Expr) returns Str {
+    switch expr.node_type {
+    case NodeType.FCall:
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return "" }
+            switch first.node_type {
+            case NodeType.Identifier(type_name):
+                // Check if the type name is PascalCase
+                if gt(type_name.len(), 0) {
+                    mut type_first_char := type_name.get_substr(0, 1)
+                    if type_first_char.is_uppercase() {
+                        // Check if there's a nested identifier (the variant) that's also PascalCase
+                        if gt(first.params.len(), 0) {
+                            mut nested := Expr()
+                            first.params.get(0, nested)
+                            catch (err: IndexOutOfBoundsError) { return "" }
+                            switch nested.node_type {
+                            case NodeType.Identifier(variant_name):
+                                if gt(variant_name.len(), 0) {
+                                    mut variant_first_char := variant_name.get_substr(0, 1)
+                                    if variant_first_char.is_uppercase() {
+                                        return type_name
+                                    }
+                                    catch (err: IndexOutOfBoundsError) { return "" }
+                                    catch (err: AllocError) { return "" }
+                                }
+                                return ""
+                            case:
+                                return ""
+                            }
+                        }
+                    }
+                    catch (err: IndexOutOfBoundsError) { return "" }
+                    catch (err: AllocError) { return "" }
+                }
+                return ""
+            case:
+                return ""
+            }
+        }
+        return ""
+    case:
+        return ""
+    }
+}
+
 emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, indent: I64) returns Str throws Str {
     mut result := output
 
@@ -958,12 +1144,32 @@ emit_declaration := proc(name: Str, is_mut: Bool, expr: Expr, output: Str, inden
         struct_type = get_struct_construction_type(first)
     }
 
+    // Check if this is an enum construction (Type.Variant or Type.Variant(value))
+    mut enum_type := ""
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        enum_type = get_enum_construction_type(first)
+    }
+
     if gt(struct_type.len(), 0) {
         // Struct variable declaration
         result = concat(result, struct_type)
         result = concat(result, " ")
         result = concat(result, name)
         result = concat(result, " = {0};\n")
+    } else if gt(enum_type.len(), 0) {
+        // Enum variable declaration
+        result = concat(result, enum_type)
+        result = concat(result, " ")
+        result = concat(result, name)
+        result = concat(result, " = ")
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        result = emit_expr(first, result, 0)
+        result = concat(result, ";\n")
     } else if is_mut {
         result = concat(result, "int ")
         result = concat(result, name)
@@ -1207,9 +1413,15 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
                     }
 
                     // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
-                    // For enum constructors with payloads (Phase 2): Type.Variant(val) -> Type_make_Variant(val)
+                    // For enum constructors with payloads: Type.Variant(val) -> Type_make_Variant(val)
+                    // Enum variants are capitalized, function names are lowercase
                     result = concat(result, receiver_name)
                     result = concat(result, "_")
+                    mut func_first_char := func_name.get_substr(0, 1)
+                    if func_first_char.is_uppercase() {
+                        // Enum constructor with payload
+                        result = concat(result, "make_")
+                    }
                     result = concat(result, func_name)
                     result = concat(result, "(")
                     mut i := 1
