@@ -1538,11 +1538,23 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     };
 
     // Track variable type for UFCS mangling
-    // Use the inferred type from struct/enum construction if available
+    // Use the inferred type from struct/enum construction if available,
+    // or infer from literal if type is "auto"
     if let Some(ref type_name) = struct_type {
         ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
     } else if let Some(ref type_name) = enum_type {
         ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
+    } else if let ValueType::TCustom(type_name) = &decl.value_type {
+        if type_name == "auto" && !expr.params.is_empty() {
+            // Try to infer type from initializer literal
+            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
+                ctx.var_types.insert(name.clone(), inferred);
+            } else {
+                ctx.var_types.insert(name.clone(), decl.value_type.clone());
+            }
+        } else {
+            ctx.var_types.insert(name.clone(), decl.value_type.clone());
+        }
     } else {
         ctx.var_types.insert(name.clone(), decl.value_type.clone());
     }
@@ -1565,7 +1577,18 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(";\n");
     } else if is_mut {
         output.push_str(&indent_str);
-        output.push_str("int ");
+        // Determine C type from inferred type or fall back to int
+        let c_type = if !expr.params.is_empty() {
+            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
+                til_type_to_c(&inferred).unwrap_or("int".to_string())
+            } else {
+                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+            }
+        } else {
+            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+        };
+        output.push_str(&c_type);
+        output.push_str(" ");
         output.push_str(name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
@@ -1575,7 +1598,19 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else {
         // const declaration
         output.push_str(&indent_str);
-        output.push_str("const int ");
+        // Determine C type from inferred type or fall back to int
+        let c_type = if !expr.params.is_empty() {
+            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
+                til_type_to_c(&inferred).unwrap_or("int".to_string())
+            } else {
+                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+            }
+        } else {
+            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+        };
+        output.push_str("const ");
+        output.push_str(&c_type);
+        output.push_str(" ");
         output.push_str(name);
         if !expr.params.is_empty() {
             output.push_str(" = ");
@@ -1642,6 +1677,34 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
     }
 
     None
+}
+
+// Infer type from a literal expression
+// Returns Some(ValueType) if type can be inferred, None otherwise
+fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext) -> Option<ValueType> {
+    match &expr.node_type {
+        NodeType::LLiteral(lit) => {
+            match lit {
+                Literal::Number(_) => Some(ValueType::TCustom("I64".to_string())),
+                Literal::Str(_) => Some(ValueType::TCustom("Str".to_string())),
+                Literal::List(_) => None, // Can't infer list element type from literal
+            }
+        },
+        NodeType::FCall => {
+            // Look up function return type
+            if let Some(func_name) = get_fcall_func_name(expr, ctx) {
+                if let Some(return_types) = ctx.func_return_types.get(&func_name) {
+                    return return_types.first().cloned();
+                }
+            }
+            None
+        },
+        NodeType::Identifier(name) => {
+            // Look up variable type
+            ctx.var_types.get(name).cloned()
+        },
+        _ => None
+    }
 }
 
 fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
@@ -2322,9 +2385,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         // Look up the receiver's type for proper mangling
                         if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                             if let ValueType::TCustom(type_name) = receiver_type {
-                                // Mangle as Type_func
-                                output.push_str(type_name);
-                                output.push_str("_");
+                                // Skip "auto" type - it's an inferred type placeholder
+                                if type_name != "auto" {
+                                    // Mangle as Type_func
+                                    output.push_str(type_name);
+                                    output.push_str("_");
+                                }
                             }
                         }
                         output.push_str(&func_name);

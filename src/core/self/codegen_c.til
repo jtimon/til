@@ -2353,6 +2353,46 @@ get_enum_construction_type := func(expr: Expr) returns Str {
     }
 }
 
+// Infer type from an expression (literal, function call, or identifier)
+// Returns the inferred ValueType, or ValueType.TCustom("") if unknown
+infer_type_from_expr := func(expr: Expr, ctx: CodegenContext) returns ValueType {
+    switch expr.node_type {
+    case NodeType.LLiteral(lit):
+        switch lit {
+        case Literal.Number(n):
+            return ValueType.TCustom("I64")
+        case Literal.Str(s):
+            return ValueType.TCustom("Str")
+        case Literal.List(l):
+            return ValueType.TCustom("")  // Can't infer list element type
+        }
+    case NodeType.FCall:
+        // Look up function return type
+        mut func_name := get_fcall_func_name(expr, ctx)
+        if gt(func_name.len(), 0) {
+            mut ret_types := Vec()
+            ctx.func_return_types.get(func_name, ret_types)
+            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
+            if gt(ret_types.len(), 0) {
+                mut first_ret := ValueType.TCustom("")
+                ret_types.get(0, first_ret)
+                catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
+                return first_ret
+            }
+        }
+        return ValueType.TCustom("")
+    case NodeType.Identifier(name):
+        // Look up variable type
+        mut var_type := ValueType.TCustom("")
+        ctx.var_types.get(name, var_type)
+        catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
+        return var_type
+    case:
+        return ValueType.TCustom("")
+    }
+    return ValueType.TCustom("")
+}
+
 emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     name := decl.name
@@ -2422,12 +2462,27 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     // Track variable type for UFCS mangling
     // Use the inferred type from struct/enum construction if available
+    // or infer from initializer if type is "auto"
     if gt(struct_type.len(), 0) {
         ctx.var_types.insert(name, ValueType.TCustom(struct_type))
     } else if gt(enum_type.len(), 0) {
         ctx.var_types.insert(name, ValueType.TCustom(enum_type))
     } else {
-        ctx.var_types.insert(name, decl.value_type)
+        switch decl.value_type {
+        case ValueType.TCustom(type_name):
+            if Str.eq(type_name, "auto").and(gt(expr.params.len(), 0)) {
+                // Try to infer type from initializer
+                mut first := Expr()
+                expr.params.get(0, first)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                inferred := infer_type_from_expr(first, ctx)
+                ctx.var_types.insert(name, inferred)
+            } else {
+                ctx.var_types.insert(name, decl.value_type)
+            }
+        case:
+            ctx.var_types.insert(name, decl.value_type)
+        }
     }
     catch (err: AllocError) { throw err.msg }
     catch (err: DuplicatedKeyError) { /* ignore, update is fine */ }
@@ -2450,7 +2505,28 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         result = emit_expr(first, result, 0, ctx)
         result = concat(result, ";\n")
     } else if is_mut {
-        result = concat(result, "int ")
+        // Determine C type from inferred type or fall back to int
+        mut c_type := "int"
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            inferred := infer_type_from_expr(first, ctx)
+            switch inferred {
+            case ValueType.TCustom(inf_type):
+                if Str.eq(inf_type, "I64") {
+                    c_type = "long long"
+                } else if Str.eq(inf_type, "Str") {
+                    c_type = "const char*"
+                } else if gt(inf_type.len(), 0) {
+                    c_type = inf_type
+                }
+            case:
+                // Keep default "int"
+            }
+        }
+        result = concat(result, c_type)
+        result = concat(result, " ")
         result = concat(result, name)
         if gt(expr.params.len(), 0) {
             result = concat(result, " = ")
@@ -2461,7 +2537,29 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
         result = concat(result, ";\n")
     } else {
-        result = concat(result, "const int ")
+        // Determine C type from inferred type or fall back to int
+        mut c_type := "int"
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            inferred := infer_type_from_expr(first, ctx)
+            switch inferred {
+            case ValueType.TCustom(inf_type):
+                if Str.eq(inf_type, "I64") {
+                    c_type = "long long"
+                } else if Str.eq(inf_type, "Str") {
+                    c_type = "const char*"
+                } else if gt(inf_type.len(), 0) {
+                    c_type = inf_type
+                }
+            case:
+                // Keep default "int"
+            }
+        }
+        result = concat(result, "const ")
+        result = concat(result, c_type)
+        result = concat(result, " ")
         result = concat(result, name)
         if gt(expr.params.len(), 0) {
             result = concat(result, " = ")
@@ -3044,7 +3142,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     ctx.var_types.get(receiver_name, receiver_type)
                     switch receiver_type {
                     case ValueType.TCustom(type_name):
-                        if gt(type_name.len(), 0) {
+                        // Skip "auto" type - it's an inferred type placeholder
+                        if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
                             result = concat(result, type_name)
                             result = concat(result, "_")
                         }
@@ -3087,7 +3186,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 ctx.var_types.get(first_arg_name, receiver_type)
                 switch receiver_type {
                 case ValueType.TCustom(type_name):
-                    if gt(type_name.len(), 0) {
+                    // Skip "auto" type - it's an inferred type placeholder
+                    if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
                         // Check if mangled function exists in our known functions
                         mut candidate := concat(type_name, "_")
                         candidate = concat(candidate, func_name)
