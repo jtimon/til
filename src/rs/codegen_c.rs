@@ -1411,11 +1411,45 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     // Get the switch expression - we need to reference it for payload extraction
     let switch_expr = &expr.params[0];
 
-    // Emit: switch (expr.tag) {
+    // Determine if this is an enum switch or a primitive switch
+    // by scanning case patterns for Range or Pattern types
+    let mut is_enum_switch = false;
+    let mut has_ranges = false;
+    let mut i = 1;
+    while i < expr.params.len() {
+        let case_pattern = &expr.params[i];
+        match &case_pattern.node_type {
+            NodeType::Range => {
+                has_ranges = true;
+            },
+            NodeType::Pattern(_) => {
+                is_enum_switch = true;
+            },
+            NodeType::Identifier(name) => {
+                // Check if it has nested params (Type.Variant pattern like Color.Unknown)
+                if !case_pattern.params.is_empty() {
+                    is_enum_switch = true;
+                }
+                // Or check if it looks like an enum variant (contains a dot)
+                else if name.contains('.') {
+                    is_enum_switch = true;
+                }
+            },
+            _ => {
+                // DefaultCase and other patterns (literals) don't change detection
+            }
+        }
+        i += 2;
+    }
+
+    // Emit: switch (expr) { or switch (expr.tag) {
     output.push_str(&indent_str);
     output.push_str("switch (");
     emit_expr(switch_expr, output, 0, ctx)?;
-    output.push_str(".tag) {\n");
+    if is_enum_switch && !has_ranges {
+        output.push_str(".tag");
+    }
+    output.push_str(") {\n");
 
     // Process case patterns and bodies in pairs
     let mut i = 1;
@@ -1462,6 +1496,28 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str(".payload.");
                 output.push_str(&info.variant_name);
                 output.push_str(";\n");
+
+                if let Some(body) = case_body {
+                    emit_body(body, output, indent + 2, ctx)?;
+                }
+                output.push_str(&body_indent);
+                output.push_str("break;\n");
+                output.push_str(&case_indent);
+                output.push_str("}\n");
+            },
+            NodeType::Range => {
+                // Range case: case low ... high: { ... break; }
+                // Uses GCC extension for case ranges
+                if case_pattern.params.len() < 2 {
+                    return Err("codegen_c: Range requires start and end values".to_string());
+                }
+
+                output.push_str(&case_indent);
+                output.push_str("case ");
+                emit_expr(&case_pattern.params[0], output, 0, ctx)?;
+                output.push_str(" ... ");
+                emit_expr(&case_pattern.params[1], output, 0, ctx)?;
+                output.push_str(": {\n");
 
                 if let Some(body) = case_body {
                     emit_body(body, output, indent + 2, ctx)?;

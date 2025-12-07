@@ -1279,11 +1279,46 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     expr.params.get(0, switch_expr)
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    // Emit: switch (expr.tag) {
+    // Determine if this is an enum switch or a primitive switch
+    // by scanning case patterns for Range or Pattern types
+    mut is_enum_switch := false
+    mut has_ranges := false
+    mut scan_i := 1
+    while lt(scan_i, expr.params.len()) {
+        mut case_pattern := Expr()
+        expr.params.get(scan_i, case_pattern)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        switch case_pattern.node_type {
+        case NodeType.Range:
+            has_ranges = true
+        case NodeType.Pattern(pattern_info):
+            is_enum_switch = true
+        case NodeType.Identifier(name):
+            // Check if it has nested params (Type.Variant pattern like Color.Unknown)
+            if gt(case_pattern.params.len(), 0) {
+                is_enum_switch = true
+            } else if name.contains(".") {
+                // Or check if it looks like an enum variant (contains a dot)
+                is_enum_switch = true
+            }
+        case:
+            // DefaultCase and other patterns (literals) don't change detection
+            is_enum_switch = is_enum_switch
+        }
+        scan_i = add(scan_i, 2)
+    }
+
+    // Emit: switch (expr) { or switch (expr.tag) {
     result = concat(result, indent_str)
     result = concat(result, "switch (")
     result = emit_expr(switch_expr, result, 0, ctx)
-    result = concat(result, ".tag) {\n")
+    if is_enum_switch {
+        if not(has_ranges) {
+            result = concat(result, ".tag")
+        }
+    }
+    result = concat(result, ") {\n")
 
     // Process case patterns and bodies in pairs
     mut i := 1
@@ -1329,6 +1364,38 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = concat(result, ".payload.")
             result = concat(result, info.variant_name)
             result = concat(result, ";\n")
+
+            if has_body {
+                mut case_body := Expr()
+                expr.params.get(add(i, 1), case_body)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                result = emit_body(case_body, result, add(indent, 2), ctx)
+            }
+            result = concat(result, body_indent)
+            result = concat(result, "break;\n")
+            result = concat(result, case_indent)
+            result = concat(result, "}\n")
+        case NodeType.Range:
+            // Range case: case low ... high: { ... break; }
+            // Uses GCC extension for case ranges
+            if lt(case_pattern.params.len(), 2) {
+                throw "codegen_c: Range requires start and end values"
+            }
+
+            mut range_start := Expr()
+            case_pattern.params.get(0, range_start)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+            mut range_end := Expr()
+            case_pattern.params.get(1, range_end)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+            result = concat(result, case_indent)
+            result = concat(result, "case ")
+            result = emit_expr(range_start, result, 0, ctx)
+            result = concat(result, " ... ")
+            result = emit_expr(range_end, result, 0, ctx)
+            result = concat(result, ": {\n")
 
             if has_body {
                 mut case_body := Expr()
