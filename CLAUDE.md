@@ -123,6 +123,7 @@ Don't ask permission for:
 - `doc/bot/` - Your workspace (full freedom to create/edit)
 - `doc/human/` - Human reference docs (read-only)
 - `doc/todo/` - Shared workspace (can edit)
+- `doc/human/translate_rs2til.org` - Rust to TIL translation guide
 
 ## Task Naming Convention
 **NEVER use "Phase 1", "Phase 2", etc.** - This conflicts with compiler/interpreter phases.
