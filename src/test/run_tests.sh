@@ -15,4 +15,8 @@ echo "Testing comparisons.til..."
 $RSTIL run src/test/comparisons.til
 echo "[PASS] comparisons.til"
 
+echo "Testing circular_test.til..."
+$RSTIL run src/test/circular_test.til
+echo "[PASS] circular_test.til"
+
 echo "=== All Compiled Run Tests Passed! ==="
