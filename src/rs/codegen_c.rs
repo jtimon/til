@@ -2,10 +2,12 @@
 // Translates TIL AST to C source code
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // Codegen context for tracking function info
 struct CodegenContext {
+    // Set of all known function names (for UFCS mangling)
+    known_functions: HashSet<String>,
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> list of return types
@@ -23,6 +25,7 @@ struct CodegenContext {
 impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
+            known_functions: HashSet::new(),
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
             var_types: HashMap::new(),
@@ -216,7 +219,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), Str
     Ok(())
 }
 
-// Collect function info (throw types and return types) from AST into context
+// Collect function info (throw types, return types, names) from AST into context
 // Handles both top-level functions and struct methods
 fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
     match &expr.node_type {
@@ -224,7 +227,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
             if !expr.params.is_empty() {
                 match &expr.params[0].node_type {
                     NodeType::FuncDef(func_def) => {
-                        // Top-level function
+                        // Top-level function - track name and types
+                        ctx.known_functions.insert(decl.name.clone());
                         if !func_def.throw_types.is_empty() {
                             ctx.func_throw_types.insert(
                                 decl.name.clone(),
@@ -244,6 +248,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
+                                // Track all struct methods
+                                ctx.known_functions.insert(mangled_name.clone());
                                 if !func_def.throw_types.is_empty() {
                                     ctx.func_throw_types.insert(
                                         mangled_name.clone(),
@@ -1735,24 +1741,29 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                         // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
                         // For enum constructors with payloads: Type.Variant(val) -> Type_make_Variant(val)
+                        // For struct constants: Type.CONSTANT -> Type_CONSTANT (no parens)
                         // Enum variants are capitalized, function names are lowercase
                         output.push_str(receiver_name);
                         output.push_str("_");
                         let func_first_char = func_name.chars().next().unwrap_or('a');
-                        if func_first_char.is_uppercase() {
-                            // Enum constructor with payload
+                        let has_args = expr.params.len() > 1;
+                        if func_first_char.is_uppercase() && has_args {
+                            // Enum constructor with payload (has arguments)
                             output.push_str("make_");
                         }
                         output.push_str(&func_name);
-                        output.push_str("(");
-                        // Emit all arguments after the function name
-                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                            if i > 0 {
-                                output.push_str(", ");
+                        // Only add parens if it's a function call (has args or is lowercase)
+                        if has_args || !func_first_char.is_uppercase() {
+                            output.push_str("(");
+                            // Emit all arguments after the function name
+                            for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                                if i > 0 {
+                                    output.push_str(", ");
+                                }
+                                emit_expr(arg, output, 0, ctx)?;
                             }
-                            emit_expr(arg, output, 0, ctx)?;
+                            output.push_str(")");
                         }
-                        output.push_str(")");
                         if indent > 0 {
                             output.push_str(";\n");
                         }
@@ -1800,8 +1811,23 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Ok(());
             }
 
-            // Regular function call
-            output.push_str(&func_name);
+            // Regular function call - check for UFCS: func(instance, ...) -> Type_func(instance, ...)
+            // If first argument is a variable with known type, try mangled name
+            let mut mangled_name = func_name.clone();
+            if expr.params.len() > 1 {
+                if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
+                    if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
+                        if let ValueType::TCustom(type_name) = receiver_type {
+                            // Check if mangled function exists in our known functions
+                            let candidate = format!("{}_{}", type_name, func_name);
+                            if ctx.known_functions.contains(&candidate) {
+                                mangled_name = candidate;
+                            }
+                        }
+                    }
+                }
+            }
+            output.push_str(&mangled_name);
             output.push_str("(");
             // Emit arguments (skip first param which is function name)
             for (i, arg) in expr.params.iter().skip(1).enumerate() {
