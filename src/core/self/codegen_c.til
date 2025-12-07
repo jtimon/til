@@ -41,6 +41,27 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     }
 }
 
+// Check if an expression is an enum declaration (Name := enum {...})
+is_enum_declaration := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                return true
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 // Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
 emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
     mut result := output
@@ -130,6 +151,85 @@ emit_struct_constants := proc(expr: Expr, output: Str) returns Str throws Str {
         return result
     case:
         return result
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+}
+
+// Check if an enum has any payloads
+enum_has_payloads := func(enum_def: SEnumDef) returns Bool {
+    mut keys := enum_def.enum_map.keys
+    mut i := 0
+    while lt(i, keys.len()) {
+        mut key := ""
+        keys.get(i, key)
+        catch (err: IndexOutOfBoundsError) { return false }
+        mut payload_type := ValueType.TCustom("")
+        enum_def.enum_map.get(key, payload_type)
+        catch (err: KeyNotFoundError) { /* no payload */ }
+        // Check if payload_type is not the default empty value
+        switch payload_type {
+        case ValueType.TCustom(name):
+            if gt(name.len(), 0) {
+                return true
+            }
+        case:
+            return true  // Any non-TCustom type means it has a payload
+        }
+        i = add(i, 1)
+    }
+    return false
+}
+
+// Emit an enum declaration as a C typedef enum (for simple enums without payloads)
+emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                mut enum_name := decl.name
+
+                if enum_has_payloads(enum_def) {
+                    // Phase 2: Enums with payloads - tagged union
+                    throw format("codegen_c: Enum ", enum_name, " has payloads, not yet supported")
+                }
+
+                // Phase 1: Simple enum without payloads
+                // typedef enum { EnumName_Variant1 = 0, ... } EnumName;
+                result = concat(result, "typedef enum {\n")
+
+                // Get variant names (order matches insertion order from parser)
+                mut variants := enum_def.enum_map.keys
+
+                mut i := 0
+                while lt(i, variants.len()) {
+                    mut variant_name := ""
+                    variants.get(i, variant_name)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    result = concat(result, "    ")
+                    result = concat(result, enum_name)
+                    result = concat(result, "_")
+                    result = concat(result, variant_name)
+                    result = concat(result, " = ")
+                    result = concat(result, i.to_str())
+                    result = concat(result, ",\n")
+                    i = add(i, 1)
+                }
+
+                result = concat(result, "} ")
+                result = concat(result, enum_name)
+                result = concat(result, ";\n\n")
+                return result
+            case:
+                throw "emit_enum_declaration: not an enum"
+            }
+        }
+        throw "emit_enum_declaration: empty params"
+    case:
+        throw "emit_enum_declaration: not a declaration"
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 }
@@ -313,6 +413,24 @@ emit := proc(ast: Expr) returns Str throws Str {
         // Not a body, skip struct pass
     }
 
+    // Pass 1b: emit enum definitions
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_enum_declaration(child) {
+                output = emit_enum_declaration(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip enum pass
+    }
+
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
     case NodeType.Body:
@@ -408,7 +526,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     // Main function
     output = concat(output, "int main() {\n")
 
-    // Pass 5: emit non-struct, non-function statements
+    // Pass 5: emit non-struct, non-function, non-enum statements
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -418,7 +536,9 @@ emit := proc(ast: Expr) returns Str throws Str {
             ast.params.get(i, child)
             if not(is_func_declaration(child)) {
                 if not(is_struct_declaration(child)) {
-                    output = emit_expr(child, output, 1)
+                    if not(is_enum_declaration(child)) {
+                        output = emit_expr(child, output, 1)
+                    }
                 }
             }
             i = add(i, 1)
@@ -1072,7 +1192,22 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64) returns Str throws Str 
             case NodeType.Identifier(receiver_name):
                 mut first_char := receiver_name.get_substr(0, 1)
                 if first_char.is_uppercase() {
-                    // Type-qualified call: Type.func(args...) -> Type_func(args...)
+                    // Check if this is an enum value (no arguments) vs function/constructor call
+                    mut has_args := gt(params_len, 1)
+
+                    if not(has_args) {
+                        // Simple enum value: Type.Variant -> Type_Variant
+                        result = concat(result, receiver_name)
+                        result = concat(result, "_")
+                        result = concat(result, func_name)
+                        if gt(indent, 0) {
+                            result = concat(result, ";\n")
+                        }
+                        return result
+                    }
+
+                    // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
+                    // For enum constructors with payloads (Phase 2): Type.Variant(val) -> Type_make_Variant(val)
                     result = concat(result, receiver_name)
                     result = concat(result, "_")
                     result = concat(result, func_name)

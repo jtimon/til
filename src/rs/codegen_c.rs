@@ -1,7 +1,7 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef};
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef};
 
 // Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr) -> Result<String, String> {
@@ -18,6 +18,15 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_declaration(child, &mut output)?;
+            }
+        }
+    }
+
+    // Pass 1b: emit enum definitions
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_declaration(child, &mut output)?;
             }
         }
     }
@@ -72,10 +81,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     // Main function
     output.push_str("int main() {\n");
 
-    // Pass 5: emit non-struct, non-function statements
+    // Pass 5: emit non-struct, non-function, non-enum statements
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if !is_func_declaration(child) && !is_struct_declaration(child) {
+            if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) {
                 emit_expr(child, &mut output, 1)?;
             }
         }
@@ -92,6 +101,18 @@ fn is_struct_declaration(expr: &Expr) -> bool {
     if let NodeType::Declaration(_) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(_) = &expr.params[0].node_type {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+// Check if an expression is an enum declaration (Name := enum {...})
+fn is_enum_declaration(expr: &Expr) -> bool {
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
                 return true;
             }
         }
@@ -157,6 +178,58 @@ fn emit_struct_constants(expr: &Expr, output: &mut String) -> Result<(), String>
         }
     }
     Ok(()) // Not a struct, nothing to emit
+}
+
+// Check if an enum has any payloads
+fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
+    for (_variant_name, payload_type) in &enum_def.enum_map {
+        if payload_type.is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+// Emit an enum declaration as a C typedef enum (for simple enums without payloads)
+// or as a tagged union struct (for enums with payloads)
+fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                let enum_name = &decl.name;
+
+                if enum_has_payloads(enum_def) {
+                    // Phase 2: Enums with payloads - tagged union
+                    return Err(format!("codegen_c: Enum {} has payloads, not yet supported", enum_name));
+                }
+
+                // Phase 1: Simple enum without payloads
+                // typedef enum { EnumName_Variant1 = 0, ... } EnumName;
+                output.push_str("typedef enum {\n");
+
+                // Sort variants by name for deterministic output
+                let mut variants: Vec<_> = enum_def.enum_map.keys().collect();
+                variants.sort();
+
+                for (index, variant_name) in variants.iter().enumerate() {
+                    output.push_str("    ");
+                    output.push_str(enum_name);
+                    output.push_str("_");
+                    output.push_str(variant_name);
+                    output.push_str(" = ");
+                    output.push_str(&index.to_string());
+                    output.push_str(",\n");
+                }
+
+                output.push_str("} ");
+                output.push_str(enum_name);
+                output.push_str(";\n\n");
+
+                return Ok(());
+            }
+        }
+    }
+    Err("emit_enum_declaration: not an enum declaration".to_string())
 }
 
 // Emit a struct function prototype with mangled name: StructName_funcname
@@ -710,7 +783,22 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize) -> Result<(), Str
                 if let NodeType::Identifier(receiver_name) = &receiver.node_type {
                     let first_char = receiver_name.chars().next().unwrap_or('a');
                     if first_char.is_uppercase() {
-                        // Type-qualified call: Type.func(args...) -> Type_func(args...)
+                        // Check if this is an enum value (no arguments) vs function/constructor call
+                        let has_args = expr.params.len() > 1;
+
+                        if !has_args {
+                            // Simple enum value: Type.Variant -> Type_Variant
+                            output.push_str(receiver_name);
+                            output.push_str("_");
+                            output.push_str(&func_name);
+                            if indent > 0 {
+                                output.push_str(";\n");
+                            }
+                            return Ok(());
+                        }
+
+                        // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
+                        // For enum constructors with payloads (Phase 2): Type.Variant(val) -> Type_make_Variant(val)
                         output.push_str(receiver_name);
                         output.push_str("_");
                         output.push_str(&func_name);
