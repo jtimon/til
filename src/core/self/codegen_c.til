@@ -1406,7 +1406,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     case NodeType.Switch:
         return emit_switch(expr, output, indent, ctx)
     case NodeType.DefaultCase:
-        throw "codegen_c: DefaultCase not yet supported"
+        throw "codegen_c: DefaultCase should be handled inside emit_switch"
     case NodeType.Range:
         throw "codegen_c: Range not yet supported"
     case NodeType.Pattern(p):
