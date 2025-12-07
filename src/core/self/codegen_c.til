@@ -5,6 +5,13 @@ mode lib
 
 import("src.core.self.parser")  // Expr, NodeType, Literal
 
+// Info about a variadic parameter
+VariadicParamInfo := struct {
+    mut arg_name: Str = ""
+    mut elem_type: Str = ""
+    mut regular_count: I64 = 0
+}
+
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
     // Set of all known function names (for UFCS mangling) - Vec<Str>
@@ -13,12 +20,17 @@ CodegenContext := struct {
     mut func_throw_types: Map = Map.new(Str, Vec)
     // Map function name -> list of return types (Map<Str, Vec<ValueType>>)
     mut func_return_types: Map = Map.new(Str, Vec)
+    // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
+    mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
     // Map variable name -> its type (for UFCS mangling)
     mut var_types: Map = Map.new(Str, ValueType)
     // Currently generating function's throw types (if any)
     mut current_throw_types: Vec = Vec.new(ValueType)
     // Currently generating function's return types (if any)
     mut current_return_types: Vec = Vec.new(ValueType)
+    // Current function's variadic param (if any)
+    mut current_variadic_param: VariadicParamInfo = VariadicParamInfo()
+    mut has_variadic_param: Bool = false
     // Counter for generating unique temporary variable names
     mut temp_counter: I64 = 0
 
@@ -167,6 +179,24 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                 if gt(func_def.return_types.len(), 0) {
                     ctx.func_return_types.insert(decl.name, func_def.return_types)
                 }
+                // Check for variadic args
+                mut ai := 0
+                while lt(ai, func_def.args.len()) {
+                    mut arg := Declaration()
+                    func_def.args.get(ai, arg)
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem_type_name):
+                        mut info := VariadicParamInfo()
+                        info.arg_name = arg.name
+                        info.elem_type = elem_type_name
+                        info.regular_count = ai  // number of args before variadic
+                        ctx.func_variadic_args.insert(decl.name, info)
+                    case:
+                        // Not variadic, continue
+                    }
+                    ai = add(ai, 1)
+                }
+                catch (err: IndexOutOfBoundsError) { /* ignore */ }
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 mut struct_name := decl.name
@@ -189,6 +219,24 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         if gt(func_def.return_types.len(), 0) {
                             ctx.func_return_types.insert(mangled_name, func_def.return_types)
                         }
+                        // Check for variadic args
+                        mut ai := 0
+                        while lt(ai, func_def.args.len()) {
+                            mut arg := Declaration()
+                            func_def.args.get(ai, arg)
+                            switch arg.value_type {
+                            case ValueType.TMulti(elem_type_name):
+                                mut info := VariadicParamInfo()
+                                info.arg_name = arg.name
+                                info.elem_type = elem_type_name
+                                info.regular_count = ai
+                                ctx.func_variadic_args.insert(mangled_name, info)
+                            case:
+                                // Not variadic, continue
+                            }
+                            ai = add(ai, 1)
+                        }
+                        catch (err: IndexOutOfBoundsError) { /* ignore */ }
                     case:
                         // Not a function, skip
                     }
@@ -277,11 +325,25 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
         }
         mut arg := Declaration()
         func_def.args.get(j, arg)
-        result = concat(result, til_type_to_c(arg.value_type))
-        result = concat(result, " ")
-        result = concat(result, arg.name)
-        param_count = add(param_count, 1)
-        j = add(j, 1)
+
+        // Check for variadic arg (TMulti)
+        switch arg.value_type {
+        case ValueType.TMulti(elem_type_name):
+            // Variadic: emit count param and ...
+            result = concat(result, "int ")
+            result = concat(result, arg.name)
+            result = concat(result, "_len, ...")
+            param_count = add(param_count, 1)
+            // Variadic must be last, so break
+            j = func_def.args.len()
+        case:
+            // Regular arg
+            result = concat(result, til_type_to_c(arg.value_type))
+            result = concat(result, " ")
+            result = concat(result, arg.name)
+            param_count = add(param_count, 1)
+            j = add(j, 1)
+        }
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -428,6 +490,10 @@ emit_constant_declaration := proc(expr: Expr, output: Str) returns Str throws St
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
+        // Skip C reserved words/macros
+        if Str.eq(decl.name, "NULL") { return result }
+        if Str.eq(decl.name, "true") { return result }
+        if Str.eq(decl.name, "false") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -938,7 +1004,11 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <stdio.h>\n")
     output = concat(output, "#include <stdlib.h>\n")
     output = concat(output, "#include <string.h>\n")
-    output = concat(output, "#include <stdbool.h>\n\n")
+    output = concat(output, "#include <stdbool.h>\n")
+    output = concat(output, "#include <stdarg.h>\n\n")
+    // Primitive type conversion functions (used by ext_func declarations in TIL)
+    output = concat(output, "static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n")
+    output = concat(output, "static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n")
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -1209,11 +1279,23 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
 
                 // Clear var_types for new function scope and add function arguments
                 ctx.var_types = Map.new(Str, ValueType)
+                // Reset variadic param context
+                ctx.has_variadic_param = false
+                ctx.current_variadic_param = VariadicParamInfo()
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
                     ctx.var_types.insert(arg.name, arg.value_type)
+                    // Check for variadic parameter
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem_type_name):
+                        ctx.has_variadic_param = true
+                        ctx.current_variadic_param.arg_name = arg.name
+                        ctx.current_variadic_param.elem_type = elem_type_name
+                    case:
+                        // Not variadic, continue
+                    }
                     arg_idx = add(arg_idx, 1)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1223,6 +1305,60 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
                 result = concat(result, " {\n")
+
+                // If function has variadic param, emit va_list setup to copy args to local array
+                if ctx.has_variadic_param {
+                    mut param_name := ctx.current_variadic_param.arg_name
+                    mut elem_type := ctx.current_variadic_param.elem_type
+                    // Get C element type
+                    mut c_elem_type := elem_type
+                    if elem_type.eq("Str") {
+                        c_elem_type = "const char*"
+                    } else if elem_type.eq("I64") {
+                        c_elem_type = "long long"
+                    } else if elem_type.eq("Bool") {
+                        c_elem_type = "unsigned char"
+                    } else if elem_type.eq("U8") {
+                        c_elem_type = "unsigned char"
+                    }
+                    // Emit: elem_type* param_name = NULL;
+                    result = concat(result, "    ")
+                    result = concat(result, c_elem_type)
+                    result = concat(result, "* ")
+                    result = concat(result, param_name)
+                    result = concat(result, " = NULL;\n")
+                    // Emit: if (param_name_len > 0) { ... va_list setup ... }
+                    result = concat(result, "    if (")
+                    result = concat(result, param_name)
+                    result = concat(result, "_len > 0) {\n")
+                    // malloc the array
+                    result = concat(result, "        ")
+                    result = concat(result, param_name)
+                    result = concat(result, " = (")
+                    result = concat(result, c_elem_type)
+                    result = concat(result, "*)malloc(")
+                    result = concat(result, param_name)
+                    result = concat(result, "_len * sizeof(")
+                    result = concat(result, c_elem_type)
+                    result = concat(result, "));\n")
+                    // va_list setup
+                    result = concat(result, "        va_list _va;\n")
+                    result = concat(result, "        va_start(_va, ")
+                    result = concat(result, param_name)
+                    result = concat(result, "_len);\n")
+                    // for loop to copy args
+                    result = concat(result, "        for (int _i = 0; _i < ")
+                    result = concat(result, param_name)
+                    result = concat(result, "_len; _i++) {\n")
+                    result = concat(result, "            ")
+                    result = concat(result, param_name)
+                    result = concat(result, "[_i] = va_arg(_va, ")
+                    result = concat(result, c_elem_type)
+                    result = concat(result, ");\n")
+                    result = concat(result, "        }\n")
+                    result = concat(result, "        va_end(_va);\n")
+                    result = concat(result, "    }\n")
+                }
 
                 // Emit function body with catch pattern detection
                 result = emit_stmts(func_def.body, result, 1, ctx)
@@ -2172,6 +2308,26 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     name := decl.name
     is_mut := decl.is_mut
 
+    // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
+    if gt(expr.params.len(), 0) {
+        mut first := Expr()
+        expr.params.get(0, first)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        switch first.node_type {
+        case NodeType.FuncDef(func_def):
+            if func_def.is_ext {
+                return output
+            }
+        case:
+            // Continue
+        }
+    }
+
+    // Skip C reserved words/macros
+    if Str.eq(name, "NULL") { return output }
+    if Str.eq(name, "true") { return output }
+    if Str.eq(name, "false") { return output }
+
     // Add indentation
     mut ind := 0
     while lt(ind, indent) {
@@ -2623,6 +2779,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     mut func_name := ""
     mut has_ufcs_receiver := false
+    mut ufcs_receiver_name := ""
 
     switch first.node_type {
     case NodeType.Identifier(name):
@@ -2635,6 +2792,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             case NodeType.Identifier(method_name):
                 func_name = method_name
                 has_ufcs_receiver = true
+                ufcs_receiver_name = name
             case:
                 throw "codegen_c: UFCS method name not Identifier"
             }
@@ -2643,6 +2801,47 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
     case:
         throw "codegen_c: FCall first param not Identifier"
+    }
+
+    // Handle variadic parameter methods: args.len() and args.get(i, val)
+    if has_ufcs_receiver {
+        if ctx.has_variadic_param {
+            if ufcs_receiver_name.eq(ctx.current_variadic_param.arg_name) {
+                if func_name.eq("len") {
+                    // args.len() -> args_len
+                    return concat(output, concat(ctx.current_variadic_param.arg_name, "_len"))
+                } else if func_name.eq("get") {
+                    // args.get(i, val) -> val = args[i];
+                    // params[1] is index, params[2] is output variable
+                    if gt(params_len, 2) {
+                        mut out_var_expr := Expr()
+                        expr.params.get(2, out_var_expr)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        switch out_var_expr.node_type {
+                        case NodeType.Identifier(out_var):
+                            mut ind := 0
+                            mut result := output
+                            while lt(ind, indent) {
+                                result = concat(result, "    ")
+                                ind = add(ind, 1)
+                            }
+                            result = concat(result, out_var)
+                            result = concat(result, " = ")
+                            result = concat(result, ctx.current_variadic_param.arg_name)
+                            result = concat(result, "[")
+                            mut idx_expr := Expr()
+                            expr.params.get(1, idx_expr)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            result = emit_expr(idx_expr, result, 0, ctx)
+                            result = concat(result, "];\n")
+                            return result
+                        case:
+                            // Not an identifier, fall through
+                        }
+                    }
+                }
+            }
+        }
     }
 
     mut result := output
@@ -2858,17 +3057,63 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         result = concat(result, mangled_name)
         result = concat(result, "(")
-        mut i := 1
-        while lt(i, params_len) {
-            if gt(i, 1) {
+
+        // Check if this is a variadic function
+        mut variadic_info := VariadicParamInfo()
+        mut is_variadic := false
+        ctx.func_variadic_args.get(mangled_name, variadic_info)
+        is_variadic = true
+        catch (err: KeyNotFoundError) {
+            is_variadic = false
+        }
+
+        if is_variadic {
+            // Emit regular args first
+            mut i := 1
+            mut regular_end := add(variadic_info.regular_count, 1)  // +1 to skip func name
+            while lt(i, regular_end) {
+                if gt(i, 1) {
+                    result = concat(result, ", ")
+                }
+                mut arg := Expr()
+                expr.params.get(i, arg)
+                result = emit_expr(arg, result, 0, ctx)
+                i = add(i, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+            // Emit count of variadic args
+            mut variadic_count := sub(params_len, regular_end)
+            if gt(regular_end, 1) {
                 result = concat(result, ", ")
             }
-            mut arg := Expr()
-            expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0, ctx)
-            i = add(i, 1)
+            result = concat(result, variadic_count.to_str())
+
+            // Emit variadic args
+            mut vi := regular_end
+            while lt(vi, params_len) {
+                result = concat(result, ", ")
+                mut arg := Expr()
+                expr.params.get(vi, arg)
+                result = emit_expr(arg, result, 0, ctx)
+                vi = add(vi, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        } else {
+            // Non-variadic: emit args normally
+            mut i := 1
+            while lt(i, params_len) {
+                if gt(i, 1) {
+                    result = concat(result, ", ")
+                }
+                mut arg := Expr()
+                expr.params.get(i, arg)
+                result = emit_expr(arg, result, 0, ctx)
+                i = add(i, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
         result = concat(result, ")")
         // Only add statement terminator if this is a statement (indent > 0)
         if gt(indent, 0) {

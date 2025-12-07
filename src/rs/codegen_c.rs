@@ -12,12 +12,16 @@ struct CodegenContext {
     func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> list of return types
     func_return_types: HashMap<String, Vec<ValueType>>,
+    // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
+    func_variadic_args: HashMap<String, (String, String, usize)>,
     // Map variable name -> its type (for UFCS mangling)
     var_types: HashMap<String, ValueType>,
     // Currently generating function's throw types (if any)
     current_throw_types: Vec<ValueType>,
     // Currently generating function's return types (if any)
     current_return_types: Vec<ValueType>,
+    // Current function's variadic param name (if any) - for translating args.len()/args.get()
+    current_variadic_param: Option<(String, String)>, // (name, element_type)
     // Counter for generating unique temporary variable names
     temp_counter: usize,
 }
@@ -28,9 +32,11 @@ impl CodegenContext {
             known_functions: HashSet::new(),
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
+            func_variadic_args: HashMap::new(),
             var_types: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
+            current_variadic_param: None,
             temp_counter: 0,
         }
     }
@@ -257,14 +263,97 @@ fn emit_fcall_name_and_args_for_throwing(
         }
     }
 
-    // Emit remaining arguments (using hoisted temps where available)
-    for (arg_idx, arg) in expr.params.iter().skip(1).enumerate() {
+    // Build mangled function name for variadic lookup
+    let mangled_name = {
+        let mut name = String::new();
+        if let Some(receiver) = ufcs_receiver {
+            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+                let first_char = receiver_name.chars().next().unwrap_or('a');
+                if first_char.is_uppercase() {
+                    name.push_str(receiver_name);
+                    name.push('_');
+                } else if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
+                    if let ValueType::TCustom(type_name) = receiver_type {
+                        name.push_str(type_name);
+                        name.push('_');
+                    }
+                }
+            }
+        } else if expr.params.len() > 1 {
+            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
+                if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
+                    if let ValueType::TCustom(type_name) = receiver_type {
+                        let candidate = format!("{}_{}", type_name, func_name);
+                        if ctx.known_functions.contains(&candidate) {
+                            name.push_str(type_name);
+                            name.push('_');
+                        }
+                    }
+                }
+            }
+        }
+        name.push_str(&func_name);
+        name
+    };
+
+    // Check if this is a variadic function call
+    if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
+        // Emit regular args first (skip first param which is function name)
+        let args: Vec<_> = expr.params.iter().skip(1).collect();
+        for (arg_idx, arg) in args.iter().take(regular_count).enumerate() {
+            output.push_str(", ");
+            if let Some(temp) = nested_hoisted.get(&arg_idx) {
+                output.push_str(temp);
+            } else {
+                emit_expr(arg, output, 0, ctx)?;
+            }
+        }
+        // Emit count of variadic args
+        let variadic_count = args.len().saturating_sub(regular_count);
         output.push_str(", ");
-        // Use hoisted temp if this arg was hoisted, otherwise emit directly
-        if let Some(temp) = nested_hoisted.get(&arg_idx) {
-            output.push_str(temp);
+        output.push_str(&variadic_count.to_string());
+
+        // Emit variadic args as compound literal array (C99)
+        // Get C element type for the array
+        let c_elem_type = match elem_type.as_str() {
+            "Str" => "const char*",
+            "I64" => "long long",
+            "Bool" => "unsigned char",
+            "U8" => "unsigned char",
+            _ => elem_type.as_str(),
+        };
+
+        if variadic_count == 0 {
+            // Empty variadic: pass NULL
+            output.push_str(", NULL");
         } else {
-            emit_expr(arg, output, 0, ctx)?;
+            // Build compound literal: (type[]){arg1, arg2, ...}
+            output.push_str(", (");
+            output.push_str(c_elem_type);
+            output.push_str("[]){");
+            for (i, arg) in args.iter().skip(regular_count).enumerate() {
+                if i > 0 {
+                    output.push_str(", ");
+                }
+                let hoisted_idx = regular_count + i;
+                if let Some(temp) = nested_hoisted.get(&hoisted_idx) {
+                    output.push_str(temp);
+                } else {
+                    emit_expr(arg, output, 0, ctx)?;
+                }
+            }
+            output.push_str("}");
+        }
+    } else {
+        // Emit remaining arguments (using hoisted temps where available)
+        for (arg_idx, arg) in expr.params.iter().skip(1).enumerate() {
+            output.push_str(", ");
+            // Use hoisted temp if this arg was hoisted, otherwise emit directly
+            if let Some(temp) = nested_hoisted.get(&arg_idx) {
+                output.push_str(temp);
+            } else {
+                emit_expr(arg, output, 0, ctx)?;
+            }
         }
     }
 
@@ -297,7 +386,11 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <stdio.h>\n");
     output.push_str("#include <stdlib.h>\n");
     output.push_str("#include <string.h>\n");
-    output.push_str("#include <stdbool.h>\n\n");
+    output.push_str("#include <stdbool.h>\n");
+    output.push_str("#include <stdarg.h>\n\n");
+    // Primitive type conversion functions (used by ext_func declarations in TIL)
+    output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
+    output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n");
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -446,6 +539,11 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Emit a top-level constant declaration at file scope
 fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
+        // Skip C reserved words/macros
+        match decl.name.as_str() {
+            "NULL" | "true" | "false" => return Ok(()),
+            _ => {}
+        }
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let c_type = match lit {
@@ -487,6 +585,17 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                 func_def.return_types.clone()
                             );
                         }
+                        // Check for variadic args (TMulti)
+                        for (idx, arg) in func_def.args.iter().enumerate() {
+                            if let ValueType::TMulti(elem_type) = &arg.value_type {
+                                // Track: (arg_name, element_type, count of regular args before variadic)
+                                ctx.func_variadic_args.insert(
+                                    decl.name.clone(),
+                                    (arg.name.clone(), elem_type.clone(), idx)
+                                );
+                                break; // Only one variadic arg per function
+                            }
+                        }
                     },
                     NodeType::StructDef(struct_def) => {
                         // Struct methods - use mangled names (StructName_methodName)
@@ -504,9 +613,19 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                 }
                                 if !func_def.return_types.is_empty() {
                                     ctx.func_return_types.insert(
-                                        mangled_name,
+                                        mangled_name.clone(),
                                         func_def.return_types.clone()
                                     );
+                                }
+                                // Check for variadic args (TMulti) in struct methods
+                                for (idx, arg) in func_def.args.iter().enumerate() {
+                                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                                        ctx.func_variadic_args.insert(
+                                            mangled_name.clone(),
+                                            (arg.name.clone(), elem_type.clone(), idx)
+                                        );
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -748,43 +867,6 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
     }
     Err("emit_enum_declaration: not an enum declaration".to_string())
 }
-
-// Emit a struct function prototype with mangled name: StructName_funcname
-fn emit_struct_func_prototype(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String) -> Result<(), String> {
-    // Skip external functions
-    if func_def.is_ext() {
-        return Ok(());
-    }
-
-    // Return type
-    if func_def.return_types.is_empty() {
-        output.push_str("void ");
-    } else {
-        let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
-        output.push_str(&ret_type);
-        output.push_str(" ");
-    }
-
-    // Mangled name: StructName_funcname
-    output.push_str(struct_name);
-    output.push_str("_");
-    output.push_str(&member.name);
-    output.push_str("(");
-
-    // Parameters
-    for (i, arg) in func_def.args.iter().enumerate() {
-        if i > 0 {
-            output.push_str(", ");
-        }
-        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-        output.push_str(&arg_type);
-        output.push_str(" ");
-        output.push_str(&arg.name);
-    }
-    output.push_str(");\n");
-    Ok(())
-}
-
 // Emit struct function prototypes for all functions in a struct
 fn emit_struct_func_prototypes(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
@@ -953,11 +1035,31 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         if param_count > 0 {
             output.push_str(", ");
         }
-        let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-        output.push_str(&arg_type);
-        output.push_str(" ");
-        output.push_str(&arg.name);
-        param_count += 1;
+        // Check for variadic arg (TMulti)
+        if let ValueType::TMulti(elem_type) = &arg.value_type {
+            // Emit count parameter and array pointer: int args_len, element_type* args
+            let c_elem_type = match elem_type.as_str() {
+                "Str" => "const char*",
+                "I64" => "long long",
+                "Bool" => "unsigned char",
+                "U8" => "unsigned char",
+                _ => elem_type.as_str(),
+            };
+            output.push_str("int _");
+            output.push_str(&arg.name);
+            output.push_str("_len, ");
+            output.push_str(c_elem_type);
+            output.push_str("* ");
+            output.push_str(&arg.name);
+            param_count += 1;
+            break; // Variadic must be last
+        } else {
+            let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+            output.push_str(&arg_type);
+            output.push_str(" ");
+            output.push_str(&arg.name);
+            param_count += 1;
+        }
     }
 
     if param_count == 0 {
@@ -1014,12 +1116,20 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 
                 // Clear var_types for new function scope and add function arguments
                 ctx.var_types.clear();
+                // Check for variadic parameter and set context
+                ctx.current_variadic_param = None;
                 for arg in &func_def.args {
                     ctx.var_types.insert(arg.name.clone(), arg.value_type.clone());
+                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                        ctx.current_variadic_param = Some((arg.name.clone(), elem_type.clone()));
+                    }
                 }
 
                 emit_func_signature(&decl.name, func_def, output, ctx);
                 output.push_str(" {\n");
+
+                // With Array approach, variadic args are passed directly as array pointer
+                // No va_list setup needed - the array is built by caller
 
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx)?;
@@ -1355,6 +1465,21 @@ fn emit_throwing_call(
 }
 
 fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+    // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
+    if !expr.params.is_empty() {
+        if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+            if func_def.is_ext() {
+                return Ok(());
+            }
+        }
+    }
+
+    // Skip C reserved words/macros
+    match decl.name.as_str() {
+        "NULL" | "true" | "false" => return Ok(()),
+        _ => {}
+    }
+
     let indent_str = "    ".repeat(indent);
     let name = &decl.name;
     let is_mut = decl.is_mut;
@@ -1982,6 +2107,42 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     let indent_str = "    ".repeat(indent);
 
+    // Handle variadic parameter methods: args.len() and args.get(i, val)
+    if let Some(receiver) = &ufcs_receiver {
+        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+            if let Some((param_name, _elem_type)) = &ctx.current_variadic_param {
+                if receiver_name == param_name {
+                    match func_name.as_str() {
+                        "len" => {
+                            // args.len() -> _args_len
+                            output.push_str("_");
+                            output.push_str(param_name);
+                            output.push_str("_len");
+                            return Ok(());
+                        },
+                        "get" => {
+                            // args.get(i, val) -> val = args[i]
+                            // params[1] is index, params[2] is output variable
+                            if expr.params.len() >= 3 {
+                                if let NodeType::Identifier(out_var) = &expr.params[2].node_type {
+                                    output.push_str(&indent_str);
+                                    output.push_str(out_var);
+                                    output.push_str(" = ");
+                                    output.push_str(param_name);
+                                    output.push_str("[");
+                                    emit_expr(&expr.params[1], output, 0, ctx)?;
+                                    output.push_str("];\n");
+                                    return Ok(());
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
     // Hoist throwing function calls from arguments (only at statement level)
     // When indent > 0, we're at statement level and can emit hoisted calls
     let hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
@@ -2178,13 +2339,61 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(&mangled_name);
             output.push_str("(");
-            // Emit arguments (skip first param which is function name)
-            for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                if i > 0 {
+
+            // Check if this is a variadic function call
+            if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
+                // Emit regular args first (skip first param which is function name)
+                let args: Vec<_> = expr.params.iter().skip(1).collect();
+                for (i, arg) in args.iter().take(regular_count).enumerate() {
+                    if i > 0 {
+                        output.push_str(", ");
+                    }
+                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                }
+                // Emit count of variadic args
+                let variadic_count = args.len().saturating_sub(regular_count);
+                if regular_count > 0 {
                     output.push_str(", ");
                 }
-                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                output.push_str(&variadic_count.to_string());
+
+                // Emit variadic args as compound literal array (C99)
+                // Get C element type for the array
+                let c_elem_type = match elem_type.as_str() {
+                    "Str" => "const char*",
+                    "I64" => "long long",
+                    "Bool" => "unsigned char",
+                    "U8" => "unsigned char",
+                    _ => elem_type.as_str(),
+                };
+
+                if variadic_count == 0 {
+                    // Empty variadic: pass NULL
+                    output.push_str(", NULL");
+                } else {
+                    // Build compound literal: (type[]){arg1, arg2, ...}
+                    output.push_str(", (");
+                    output.push_str(c_elem_type);
+                    output.push_str("[]){");
+                    for (i, arg) in args.iter().skip(regular_count).enumerate() {
+                        if i > 0 {
+                            output.push_str(", ");
+                        }
+                        emit_arg_or_hoisted(arg, regular_count + i, &hoisted, output, ctx)?;
+                    }
+                    output.push_str("}");
+                }
+            } else {
+                // Regular non-variadic function call
+                // Emit arguments (skip first param which is function name)
+                for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                    if i > 0 {
+                        output.push_str(", ");
+                    }
+                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                }
             }
+
             output.push_str(")");
             // Only add statement terminator if this is a statement (indent > 0)
             if indent > 0 {
