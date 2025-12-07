@@ -5,25 +5,30 @@ import("src.core.self.codegen_c")
 
 // Note: import_path_to_file_path is available from init.til (via interpreter.til)
 
-// Parse a single file and return its AST
-parse_file := proc(path: Str) returns Expr throws Str {
+// Result type for parse_file (AST + mode)
+ParseResult := struct {
+    mut ast: Expr = Expr()
+    mut file_mode: ModeDef = ModeDef()
+}
+
+// Parse a single file and return its AST and mode
+parse_file := proc(path: Str) returns ParseResult throws Str {
     // Create lexer (reads file internally)
     mut lexer := Lexer.new(path)
 
-    // Parse mode (skip it for codegen)
-    mut first_token := lexer.peek()
-    mut first_token_str := first_token.token_str
-    if first_token_str.eq("mode") {
-        lexer.advance(1) // skip 'mode'
-        lexer.advance(1) // skip mode name
-    }
+    // Parse mode
+    mut file_mode := parse_mode(path, lexer)
 
     // Parse body
     mut ast := parse_body(lexer, TokenType.Eof)
 
+    mut result := ParseResult()
+    result.ast = ast
+    result.file_mode = file_mode
+
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    return ast
+    return result
 }
 
 // Check if an expression is an import call
@@ -115,10 +120,10 @@ collect_imports_single := proc(ast: Expr, mut imported: Vec, mut dep_asts: Vec) 
                 mut file_path := import_path_to_file_path(import_path)
                 if not(is_already_imported(imported, file_path)) {
                     imported.push(file_path)
-                    mut dep_ast := parse_file(file_path)
+                    mut parse_result := parse_file(file_path)
                     // Recursively collect imports from this dependency first
-                    collect_imports_single(dep_ast, imported, dep_asts)
-                    dep_asts.push(dep_ast)
+                    collect_imports_single(parse_result.ast, imported, dep_asts)
+                    dep_asts.push(parse_result.ast)
                 }
             }
             i = add(i, 1)
@@ -156,7 +161,9 @@ build := proc(path: Str) returns Str throws Str {
     println("Building file '", path, "'")
 
     // Parse main file
-    mut main_ast := parse_file(path)
+    mut main_result := parse_file(path)
+    mut main_ast := main_result.ast
+    mut main_mode := main_result.file_mode
 
     // Collect all imports recursively using Vec
     mut imported := Vec.new(Str)
@@ -169,10 +176,10 @@ build := proc(path: Str) returns Str throws Str {
     // if not(path.eq(core_path)) {
     //     if not(is_already_imported(imported, core_path)) {
     //         imported.push(core_path)
-    //         mut core_ast := parse_file(core_path)
+    //         mut core_result := parse_file(core_path)
     //         // Collect core.til's imports first
-    //         collect_imports_single(core_ast, imported, dep_asts)
-    //         dep_asts.push(core_ast)
+    //         collect_imports_single(core_result.ast, imported, dep_asts)
+    //         dep_asts.push(core_result.ast)
     //     }
     // }
 
@@ -194,6 +201,33 @@ build := proc(path: Str) returns Str throws Str {
     merge_dep_params(main_ast, all_params)
 
     mut merged_ast := Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
+
+    // Run init phase (register declarations in context)
+    // Use the mode from the main file
+    mut context := Context.new(path, main_mode.name)
+    mut errors := init_context(context, merged_ast)
+
+    // Run typer phase (type checking)
+    mut mode_errors := basic_mode_checks(context, merged_ast)
+    errors.extend(mode_errors)
+    mut type_errors := check_types(context, merged_ast)
+    errors.extend(type_errors)
+
+    // Report errors but continue to codegen (for now, until core.til can be compiled)
+    // TODO: Make this fatal once core.til compiles
+    if gt(errors.len(), 0) {
+        mut err_count := I64.to_str(errors.len())
+        println("Warning: ", err_count, " init/type errors (continuing to codegen):")
+        mut err_i := 0
+        while lt(err_i, errors.len()) {
+            mut err := ""
+            errors.get(err_i, err)
+            println(path, ":", err)
+            err_i = add(err_i, 1)
+        }
+    }
+
+    catch (err: AllocError) { throw err.msg }
 
     // Generate C code
     mut c_code := emit(merged_ast)

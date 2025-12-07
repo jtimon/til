@@ -3,6 +3,8 @@ mode lib
 import("src.core.std.vec")
 import("src.core.self.lexer")
 
+DEFAULT_MODE := "lib"
+
 ModeDef := struct {
     mut name: Str = ""
     mut allows_procs: Bool = false

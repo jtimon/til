@@ -1,5 +1,7 @@
 use rs::lexer::{LANG_NAME, TokenType, Lexer, Token};
 
+pub const DEFAULT_MODE: &str = "lib";
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModeDef {
     pub name: String,

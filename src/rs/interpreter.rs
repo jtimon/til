@@ -9,7 +9,7 @@ use crate::rs::parser::{
 };
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType};
 use crate::rs::lexer::lexer_from_source;
-use crate::rs::mode::{can_be_imported, parse_mode};
+use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
 use crate::rs::ext;
 
 // Interpreter/Eval phase: Runtime evaluation and execution
@@ -2491,8 +2491,6 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
 }
 
 // ---------- main_run, run_file_with_context, run_file (like rstil.rs/til.til)
-
-const DEFAULT_MODE: &str = "lib";
 
 pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
