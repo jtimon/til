@@ -9,6 +9,8 @@ import("src.core.self.parser")  // Expr, NodeType, Literal
 CodegenContext := struct {
     // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
     mut func_throw_types: Map = Map.new(Str, Vec)
+    // Map function name -> list of return types (Map<Str, Vec<ValueType>>)
+    mut func_return_types: Map = Map.new(Str, Vec)
     // Map variable name -> its type (for UFCS mangling)
     mut var_types: Map = Map.new(Str, ValueType)
     // Currently generating function's throw types (if any)
@@ -53,9 +55,9 @@ value_type_to_c_name := func(vt: ValueType) returns Str {
     }
 }
 
-// Collect function throw types from AST into context
+// Collect function info (throw types and return types) from AST into context
 // Handles both top-level functions and struct methods
-collect_func_throw_types := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
+collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     switch expr.node_type {
     case NodeType.Declaration(decl):
         if gt(expr.params.len(), 0) {
@@ -66,6 +68,9 @@ collect_func_throw_types := proc(expr: Expr, mut ctx: CodegenContext) throws Str
                 // Top-level function
                 if gt(func_def.throw_types.len(), 0) {
                     ctx.func_throw_types.insert(decl.name, func_def.throw_types)
+                }
+                if gt(func_def.return_types.len(), 0) {
+                    ctx.func_return_types.insert(decl.name, func_def.return_types)
                 }
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
@@ -79,10 +84,13 @@ collect_func_throw_types := proc(expr: Expr, mut ctx: CodegenContext) throws Str
                     struct_def.default_values.get(member_name, default_expr)
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
+                        mut mangled_name := concat(struct_name, "_")
+                        mangled_name = concat(mangled_name, member_name)
                         if gt(func_def.throw_types.len(), 0) {
-                            mut mangled_name := concat(struct_name, "_")
-                            mangled_name = concat(mangled_name, member_name)
                             ctx.func_throw_types.insert(mangled_name, func_def.throw_types)
+                        }
+                        if gt(func_def.return_types.len(), 0) {
+                            ctx.func_return_types.insert(mangled_name, func_def.return_types)
                         }
                     case:
                         // Not a function, skip
@@ -765,7 +773,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <string.h>\n")
     output = concat(output, "#include <stdbool.h>\n\n")
 
-    // Pass 0: collect function throw types for call-site generation
+    // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -773,7 +781,7 @@ emit := proc(ast: Expr) returns Str throws Str {
         while lt(i, params_len) {
             mut child := Expr()
             ast.params.get(i, child)
-            collect_func_throw_types(child, ctx)
+            collect_func_info(child, ctx)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1590,10 +1598,22 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut temp_suffix := ctx.next_temp()
 
     // Declare local variables for return value and errors
-    // For now, assume int return type (TODO: get actual return type from context)
+    // Look up the actual return type from collected function info
     if gt(decl_name.len(), 0) {
+        mut ret_type := "int"
+        mut return_types := Vec.new(ValueType)
+        ctx.func_return_types.get(func_name, return_types)
+        if gt(return_types.len(), 0) {
+            mut first_ret := ValueType.TCustom("")
+            return_types.get(0, first_ret)
+            ret_type = til_type_to_c(first_ret)
+        }
+        catch (err: KeyNotFoundError) { /* use default int */ }
+        catch (err: IndexOutOfBoundsError) { /* use default int */ }
+        catch (err: AllocError) { throw err.msg }
         result = concat(result, indent_str)
-        result = concat(result, "int _ret_")
+        result = concat(result, ret_type)
+        result = concat(result, " _ret_")
         result = concat(result, temp_suffix)
         result = concat(result, ";\n")
     }

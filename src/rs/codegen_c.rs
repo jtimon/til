@@ -8,6 +8,8 @@ use std::collections::HashMap;
 struct CodegenContext {
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
+    // Map function name -> list of return types
+    func_return_types: HashMap<String, Vec<ValueType>>,
     // Map variable name -> its type (for UFCS mangling)
     var_types: HashMap<String, ValueType>,
     // Currently generating function's throw types (if any)
@@ -22,6 +24,7 @@ impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
             func_throw_types: HashMap::new(),
+            func_return_types: HashMap::new(),
             var_types: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
@@ -47,10 +50,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <string.h>\n");
     output.push_str("#include <stdbool.h>\n\n");
 
-    // Pass 0: collect function throw types for call-site generation
+    // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            collect_func_throw_types(child, &mut ctx);
+            collect_func_info(child, &mut ctx);
         }
     }
 
@@ -161,9 +164,9 @@ fn is_enum_declaration(expr: &Expr) -> bool {
     false
 }
 
-// Collect function throw types from AST into context
+// Collect function info (throw types and return types) from AST into context
 // Handles both top-level functions and struct methods
-fn collect_func_throw_types(expr: &Expr, ctx: &mut CodegenContext) {
+fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
     match &expr.node_type {
         NodeType::Declaration(decl) => {
             if !expr.params.is_empty() {
@@ -176,17 +179,29 @@ fn collect_func_throw_types(expr: &Expr, ctx: &mut CodegenContext) {
                                 func_def.throw_types.clone()
                             );
                         }
+                        if !func_def.return_types.is_empty() {
+                            ctx.func_return_types.insert(
+                                decl.name.clone(),
+                                func_def.return_types.clone()
+                            );
+                        }
                     },
                     NodeType::StructDef(struct_def) => {
                         // Struct methods - use mangled names (StructName_methodName)
                         let struct_name = &decl.name;
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
+                                let mangled_name = format!("{}_{}", struct_name, member_name);
                                 if !func_def.throw_types.is_empty() {
-                                    let mangled_name = format!("{}_{}", struct_name, member_name);
                                     ctx.func_throw_types.insert(
-                                        mangled_name,
+                                        mangled_name.clone(),
                                         func_def.throw_types.clone()
+                                    );
+                                }
+                                if !func_def.return_types.is_empty() {
+                                    ctx.func_return_types.insert(
+                                        mangled_name,
+                                        func_def.return_types.clone()
                                     );
                                 }
                             }
@@ -904,10 +919,15 @@ fn emit_throwing_call(
     let temp_suffix = ctx.next_temp();
 
     // Declare local variables for return value and errors
-    // For now, assume int return type (TODO: get actual return type)
+    // Look up the actual return type from collected function info
     if decl_name.is_some() {
+        let ret_type = ctx.func_return_types.get(&func_name)
+            .and_then(|types| types.first())
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+            .unwrap_or("int".to_string());
         output.push_str(&indent_str);
-        output.push_str("int _ret_");
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
         output.push_str(&temp_suffix.to_string());
         output.push_str(";\n");
     }
