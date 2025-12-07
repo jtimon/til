@@ -72,6 +72,83 @@ value_type_to_c_name := func(vt: ValueType) returns Str {
     }
 }
 
+// Result type for check_throwing_fcall
+ThrowingFCallInfo := struct {
+    mut is_throwing: Bool = false
+    mut func_name: Str = ""
+    mut throw_types: Vec = Vec.new(ValueType)
+    mut return_type: ValueType = ValueType.TCustom("")
+    mut has_return_type: Bool = false
+}
+
+// Result type for hoisted arguments
+HoistedArg := struct {
+    mut index: I64 = 0
+    mut temp_var: Str = ""
+}
+
+// Forward declaration - get_fcall_func_name is defined later in the file
+// We'll use a simplified version here that just gets the basic name
+
+// Check if an expression is a throwing function call
+// Returns info about the throwing call if it is one
+check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext) returns ThrowingFCallInfo throws AllocError {
+    mut result := ThrowingFCallInfo()
+    switch expr.node_type {
+    case NodeType.FCall:
+        // Get function name (simplified - just basic name extraction)
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            mut func_name := ""
+            switch first.node_type {
+            case NodeType.Identifier(name):
+                if gt(first.params.len(), 0) {
+                    // UFCS: receiver.method
+                    mut method_expr := Expr()
+                    first.params.get(0, method_expr)
+                    switch method_expr.node_type {
+                    case NodeType.Identifier(method_name):
+                        func_name = method_name
+                    case:
+                        // Not identifier
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                } else {
+                    func_name = name
+                }
+            case:
+                // Not identifier
+            }
+            catch (err: IndexOutOfBoundsError) { }
+
+            if gt(func_name.len(), 0) {
+                mut throw_types := Vec.new(ValueType)
+                ctx.func_throw_types.get(func_name, throw_types)
+                if gt(throw_types.len(), 0) {
+                    result.is_throwing = true
+                    result.func_name = func_name
+                    result.throw_types = throw_types
+                    mut return_types := Vec.new(ValueType)
+                    ctx.func_return_types.get(func_name, return_types)
+                    if gt(return_types.len(), 0) {
+                        mut first_ret := ValueType.TCustom("")
+                        return_types.get(0, first_ret)
+                        result.return_type = first_ret
+                        result.has_return_type = true
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                    catch (err: KeyNotFoundError) { }
+                }
+                catch (err: KeyNotFoundError) { }
+            }
+        }
+    case:
+        // Not an FCall
+    }
+    return result
+}
+
 // Collect function info (throw types and return types) from AST into context
 // Handles both top-level functions and struct methods
 collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
@@ -2276,6 +2353,261 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         result = concat(result, ";\n")
     }
     return result
+}
+
+// Emit a throwing function call's name and arguments for hoisting
+emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, mut output: Str, mut ctx: CodegenContext) returns Str throws Str {
+    if lt(expr.params.len(), 1) {
+        throw "emit_fcall_name_and_args_for_throwing: FCall with no params"
+    }
+
+    mut first := Expr()
+    expr.params.get(0, first)
+
+    mut func_name := ""
+    mut ufcs_receiver_name := ""
+    mut has_ufcs_receiver := false
+
+    switch first.node_type {
+    case NodeType.Identifier(name):
+        if gt(first.params.len(), 0) {
+            // UFCS: receiver.method()
+            mut method_expr := Expr()
+            first.params.get(0, method_expr)
+            switch method_expr.node_type {
+            case NodeType.Identifier(method_name):
+                func_name = method_name
+                ufcs_receiver_name = name
+                has_ufcs_receiver = true
+            case:
+                throw "emit_fcall_name_and_args_for_throwing: UFCS method not Identifier"
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        } else {
+            func_name = name
+        }
+    case:
+        throw "emit_fcall_name_and_args_for_throwing: first param not Identifier"
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Emit function name with potential UFCS mangling
+    if has_ufcs_receiver {
+        mut first_char := ufcs_receiver_name.get_char(0)
+        if first_char.is_uppercase() {
+            // Type-qualified: Type.func -> Type_func
+            output = concat(output, ufcs_receiver_name)
+            output = concat(output, "_")
+        } else {
+            // Instance UFCS: instance.method -> Type_method
+            mut receiver_type := ValueType.TCustom("")
+            ctx.var_types.get(ufcs_receiver_name, receiver_type)
+            switch receiver_type {
+            case ValueType.TCustom(type_name):
+                output = concat(output, type_name)
+                output = concat(output, "_")
+            case:
+                // Skip
+            }
+            catch (err: KeyNotFoundError) { }
+        }
+        catch (err: IndexOutOfBoundsError) { }
+        catch (err: AllocError) { }
+    }
+
+    output = concat(output, func_name)
+    output = concat(output, "(&")
+    output = concat(output, temp_var)
+
+    // Add error output pointers
+    mut err_idx := 0
+    while lt(err_idx, throw_types.len()) {
+        output = concat(output, ", &_err")
+        output = concat(output, I64.to_str(err_idx))
+        output = concat(output, "_")
+        output = concat(output, temp_suffix)
+        err_idx = add(err_idx, 1)
+    }
+
+    // Emit receiver for instance UFCS
+    if has_ufcs_receiver {
+        mut first_char := ufcs_receiver_name.get_char(0)
+        if not(first_char.is_uppercase()) {
+            output = concat(output, ", ")
+            output = concat(output, ufcs_receiver_name)
+        }
+        catch (err: IndexOutOfBoundsError) { }
+        catch (err: AllocError) { }
+    }
+
+    // Emit remaining arguments (using hoisted temps where available)
+    mut arg_idx := 0
+    // Skip first param (function name), start from index 1
+    mut i := 1
+    while lt(i, expr.params.len()) {
+        output = concat(output, ", ")
+        // Check if this arg was hoisted
+        mut found_hoisted := false
+        mut j := 0
+        while lt(j, nested_hoisted.len()) {
+            mut hoisted_arg := HoistedArg()
+            nested_hoisted.get(j, hoisted_arg)
+            if eq(hoisted_arg.index, arg_idx) {
+                output = concat(output, hoisted_arg.temp_var)
+                found_hoisted = true
+            }
+            j = add(j, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+        if not(found_hoisted) {
+            mut arg := Expr()
+            expr.params.get(i, arg)
+            output = emit_expr(arg, output, 0, ctx)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+        }
+        arg_idx = add(arg_idx, 1)
+        i = add(i, 1)
+    }
+
+    output = concat(output, ")")
+    return output
+}
+
+// Hoist throwing function calls from arguments (recursively)
+// Returns a list of hoisted args with their temp var names
+// Also modifies output to include hoisting code
+hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Vec throws Str, AllocError {
+    mut hoisted := Vec.new(HoistedArg)
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = concat(indent_str, "    ")
+        ind = add(ind, 1)
+    }
+
+    mut idx := 0
+    while lt(idx, args.len()) {
+        mut arg := Expr()
+        args.get(idx, arg)
+
+        mut info := check_throwing_fcall(arg, ctx)
+        if info.is_throwing {
+            // RECURSIVELY hoist any throwing calls in this call's arguments first
+            mut nested_hoisted := Vec.new(HoistedArg)
+            if gt(arg.params.len(), 1) {
+                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx)
+            }
+
+            mut temp_var := ctx.next_temp()
+
+            // Determine C type for temp variable
+            mut c_type := "int"
+            if info.has_return_type {
+                c_type = til_type_to_c(info.return_type)
+            }
+
+            // Declare temp variable
+            output = concat(output, indent_str)
+            output = concat(output, c_type)
+            output = concat(output, " ")
+            output = concat(output, temp_var)
+            output = concat(output, ";\n")
+
+            // Declare error variables for each throw type
+            mut temp_suffix := ctx.next_temp()
+            mut err_idx := 0
+            while lt(err_idx, info.throw_types.len()) {
+                mut throw_type := ValueType.TCustom("")
+                info.throw_types.get(err_idx, throw_type)
+                switch throw_type {
+                case ValueType.TCustom(type_name):
+                    output = concat(output, indent_str)
+                    output = concat(output, type_name)
+                    output = concat(output, " _err")
+                    output = concat(output, I64.to_str(err_idx))
+                    output = concat(output, "_")
+                    output = concat(output, temp_suffix)
+                    output = concat(output, ";\n")
+                case:
+                    // Skip non-custom types
+                }
+                err_idx = add(err_idx, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            }
+
+            // Emit the function call with output pointers
+            output = concat(output, indent_str)
+            output = concat(output, "int _status_")
+            output = concat(output, temp_suffix)
+            output = concat(output, " = ")
+            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, info.throw_types, nested_hoisted, output, ctx)
+            output = concat(output, ";\n")
+
+            // Emit error checking - propagate if any error occurred
+            output = concat(output, indent_str)
+            output = concat(output, "if (_status_")
+            output = concat(output, temp_suffix)
+            output = concat(output, " != 0) {\n")
+
+            // Propagate error to current function's error pointers
+            err_idx = 0
+            while lt(err_idx, info.throw_types.len()) {
+                mut throw_type := ValueType.TCustom("")
+                info.throw_types.get(err_idx, throw_type)
+                switch throw_type {
+                case ValueType.TCustom(type_name):
+                    // Find matching throw type in current function
+                    mut curr_idx := 0
+                    while lt(curr_idx, ctx.current_throw_types.len()) {
+                        mut curr_throw := ValueType.TCustom("")
+                        ctx.current_throw_types.get(curr_idx, curr_throw)
+                        switch curr_throw {
+                        case ValueType.TCustom(curr_type_name):
+                            if curr_type_name.eq(type_name) {
+                                output = concat(output, indent_str)
+                                output = concat(output, "    if (_status_")
+                                output = concat(output, temp_suffix)
+                                output = concat(output, " == ")
+                                output = concat(output, I64.to_str(add(err_idx, 1)))
+                                output = concat(output, ") { *_err")
+                                output = concat(output, I64.to_str(add(curr_idx, 1)))
+                                output = concat(output, " = _err")
+                                output = concat(output, I64.to_str(err_idx))
+                                output = concat(output, "_")
+                                output = concat(output, temp_suffix)
+                                output = concat(output, "; return ")
+                                output = concat(output, I64.to_str(add(curr_idx, 1)))
+                                output = concat(output, "; }\n")
+                            }
+                        case:
+                            // Skip
+                        }
+                        curr_idx = add(curr_idx, 1)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    }
+                case:
+                    // Skip
+                }
+                err_idx = add(err_idx, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            }
+
+            output = concat(output, indent_str)
+            output = concat(output, "}\n")
+
+            mut hoisted_arg := HoistedArg()
+            hoisted_arg.index = idx
+            hoisted_arg.temp_var = temp_var
+            hoisted.push(hoisted_arg)
+        }
+        idx = add(idx, 1)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+    }
+
+    return hoisted
 }
 
 emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {

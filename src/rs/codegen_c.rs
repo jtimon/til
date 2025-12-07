@@ -42,6 +42,252 @@ impl CodegenContext {
     }
 }
 
+/// Check if an expression is a throwing function call
+/// Returns Some((func_name, throw_types, return_type)) if it is, None otherwise
+fn check_throwing_fcall(expr: &Expr, ctx: &CodegenContext) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
+    if let NodeType::FCall = &expr.node_type {
+        if let Some(func_name) = get_fcall_func_name(expr, ctx) {
+            if let Some(throw_types) = ctx.func_throw_types.get(&func_name) {
+                if !throw_types.is_empty() {
+                    let return_type = ctx.func_return_types.get(&func_name)
+                        .and_then(|types| types.first().cloned());
+                    return Some((func_name, throw_types.clone(), return_type));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Hoist throwing function calls from arguments (recursively)
+/// Returns a vector of (arg_index, temp_var_name) for arguments that were hoisted
+fn hoist_throwing_args(
+    args: &[Expr],  // The arguments (skip first param which is function name)
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+) -> Result<Vec<(usize, String)>, String> {
+    let mut hoisted = Vec::new();
+    let indent_str = "    ".repeat(indent);
+
+    for (idx, arg) in args.iter().enumerate() {
+        if let Some((_func_name, throw_types, return_type)) = check_throwing_fcall(arg, ctx) {
+            // RECURSIVELY hoist any throwing calls in this call's arguments first
+            let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                let nested_args = &arg.params[1..];
+                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx)?;
+                nested_vec.into_iter().collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+
+            let temp_var = ctx.next_temp();
+
+            // Determine the C type for the temp variable
+            let c_type = if let Some(ret_type) = &return_type {
+                til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+            } else {
+                "int".to_string()
+            };
+
+            // Declare temp variable
+            output.push_str(&indent_str);
+            output.push_str(&c_type);
+            output.push_str(" ");
+            output.push_str(&temp_var);
+            output.push_str(";\n");
+
+            // Declare error variables for each throw type
+            let temp_suffix = ctx.next_temp();
+            for (err_idx, throw_type) in throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = throw_type {
+                    output.push_str(&indent_str);
+                    output.push_str(type_name);
+                    output.push_str(" _err");
+                    output.push_str(&err_idx.to_string());
+                    output.push_str("_");
+                    output.push_str(&temp_suffix);
+                    output.push_str(";\n");
+                }
+            }
+
+            // Emit the function call with output pointers
+            output.push_str(&indent_str);
+            output.push_str("int _status_");
+            output.push_str(&temp_suffix);
+            output.push_str(" = ");
+
+            // Emit the function name and args (using nested hoisted temps)
+            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, output, ctx)?;
+
+            output.push_str(";\n");
+
+            // Emit error checking - propagate if any error occurred
+            output.push_str(&indent_str);
+            output.push_str("if (_status_");
+            output.push_str(&temp_suffix);
+            output.push_str(" != 0) {\n");
+
+            // Propagate error based on status value
+            // For now, propagate to corresponding error pointer in current function
+            for (err_idx, throw_type) in throw_types.iter().enumerate() {
+                if let ValueType::TCustom(type_name) = throw_type {
+                    // Find matching throw type in current function
+                    for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
+                        if let ValueType::TCustom(curr_type_name) = curr_throw {
+                            if curr_type_name == type_name {
+                                output.push_str(&indent_str);
+                                output.push_str("    if (_status_");
+                                output.push_str(&temp_suffix);
+                                output.push_str(" == ");
+                                output.push_str(&(err_idx + 1).to_string());
+                                output.push_str(") { *_err");
+                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str(" = _err");
+                                output.push_str(&err_idx.to_string());
+                                output.push_str("_");
+                                output.push_str(&temp_suffix);
+                                output.push_str("; return ");
+                                output.push_str(&(curr_idx + 1).to_string());
+                                output.push_str("; }\n");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            output.push_str(&indent_str);
+            output.push_str("}\n");
+
+            hoisted.push((idx, temp_var));
+        }
+    }
+
+    Ok(hoisted)
+}
+
+/// Emit a throwing function call's name and arguments for hoisting
+/// Outputs: func_name(&temp_var, &err1, &err2, ..., args...)
+fn emit_fcall_name_and_args_for_throwing(
+    expr: &Expr,
+    temp_var: &str,
+    temp_suffix: &str,
+    throw_types: &[ValueType],
+    nested_hoisted: &std::collections::HashMap<usize, String>,  // Hoisted temps for nested args
+    output: &mut String,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    if expr.params.is_empty() {
+        return Err("emit_fcall_name_and_args_for_throwing: FCall with no params".to_string());
+    }
+
+    // Determine function name and UFCS receiver
+    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
+        NodeType::Identifier(name) => {
+            if expr.params[0].params.is_empty() {
+                (name.clone(), None)
+            } else {
+                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
+                    (method_name.clone(), Some(&expr.params[0]))
+                } else {
+                    return Err("emit_fcall_name_and_args_for_throwing: UFCS method name not Identifier".to_string());
+                }
+            }
+        },
+        _ => return Err("emit_fcall_name_and_args_for_throwing: FCall first param not Identifier".to_string()),
+    };
+
+    // Emit function name with potential UFCS mangling
+    if let Some(receiver) = ufcs_receiver {
+        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+            let first_char = receiver_name.chars().next().unwrap_or('a');
+            if first_char.is_uppercase() {
+                // Type-qualified: Type.func -> Type_func
+                output.push_str(receiver_name);
+                output.push_str("_");
+            } else {
+                // Instance UFCS: instance.method -> Type_method
+                if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
+                    if let ValueType::TCustom(type_name) = receiver_type {
+                        output.push_str(type_name);
+                        output.push_str("_");
+                    }
+                }
+            }
+        }
+    } else {
+        // Check for UFCS via first argument
+        if expr.params.len() > 1 {
+            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
+                if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
+                    if let ValueType::TCustom(type_name) = receiver_type {
+                        let candidate = format!("{}_{}", type_name, func_name);
+                        if ctx.known_functions.contains(&candidate) {
+                            output.push_str(type_name);
+                            output.push_str("_");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    output.push_str(&func_name);
+    output.push_str("(&");
+    output.push_str(temp_var);
+
+    // Add error output pointers
+    for (idx, _) in throw_types.iter().enumerate() {
+        output.push_str(", &_err");
+        output.push_str(&idx.to_string());
+        output.push_str("_");
+        output.push_str(temp_suffix);
+    }
+
+    // Emit receiver for UFCS if any
+    if let Some(receiver) = ufcs_receiver {
+        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+            let first_char = receiver_name.chars().next().unwrap_or('a');
+            if !first_char.is_uppercase() {
+                // Instance UFCS: add receiver as first actual argument
+                output.push_str(", ");
+                output.push_str(receiver_name);
+            }
+        }
+    }
+
+    // Emit remaining arguments (using hoisted temps where available)
+    for (arg_idx, arg) in expr.params.iter().skip(1).enumerate() {
+        output.push_str(", ");
+        // Use hoisted temp if this arg was hoisted, otherwise emit directly
+        if let Some(temp) = nested_hoisted.get(&arg_idx) {
+            output.push_str(temp);
+        } else {
+            emit_expr(arg, output, 0, ctx)?;
+        }
+    }
+
+    output.push_str(")");
+    Ok(())
+}
+
+/// Emit an argument, using hoisted temp var if available
+fn emit_arg_or_hoisted(
+    arg: &Expr,
+    arg_idx: usize,
+    hoisted: &std::collections::HashMap<usize, String>,
+    output: &mut String,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    if let Some(temp_var) = hoisted.get(&arg_idx) {
+        output.push_str(temp_var);
+        Ok(())
+    } else {
+        emit_expr(arg, output, 0, ctx)
+    }
+}
+
 // Emit C code from AST (multi-pass architecture)
 pub fn emit(ast: &Expr) -> Result<String, String> {
     let mut output = String::new();
@@ -1324,11 +1570,31 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     match error_index {
         Some(idx) => {
+            // Hoist throwing function calls from arguments of the thrown expression
+            // E.g., throw Error.new(format(...)) needs to hoist format() first
+            let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
+                if thrown_expr.params.len() > 1 {
+                    let args = &thrown_expr.params[1..];
+                    let hoisted_vec = hoist_throwing_args(args, output, indent, ctx)?;
+                    hoisted_vec.into_iter().collect()
+                } else {
+                    std::collections::HashMap::new()
+                }
+            } else {
+                std::collections::HashMap::new()
+            };
+
             // Store the error value in the appropriate error pointer
             // Note: error params are 1-based (_err1, _err2, etc.)
             output.push_str(&indent_str);
             output.push_str(&format!("*_err{} = ", idx + 1));
-            emit_expr(thrown_expr, output, 0, ctx)?;
+
+            // Emit the thrown expression, using hoisted temp vars for arguments
+            if let NodeType::FCall = &thrown_expr.node_type {
+                emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx)?;
+            } else {
+                emit_expr(thrown_expr, output, 0, ctx)?;
+            }
             output.push_str(";\n");
 
             // Return the error index (1-based, since 0 = success)
@@ -1341,6 +1607,79 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             thrown_type_name, ctx.current_throw_types
         )),
     }
+}
+
+/// Emit an FCall expression using pre-hoisted temp vars for arguments
+fn emit_fcall_with_hoisted(
+    expr: &Expr,
+    hoisted: &std::collections::HashMap<usize, String>,
+    output: &mut String,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    if expr.params.is_empty() {
+        return Err("emit_fcall_with_hoisted: FCall with no params".to_string());
+    }
+
+    // Determine function name and UFCS receiver
+    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
+        NodeType::Identifier(name) => {
+            if expr.params[0].params.is_empty() {
+                (name.clone(), None)
+            } else {
+                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
+                    (method_name.clone(), Some(&expr.params[0]))
+                } else {
+                    return Err("emit_fcall_with_hoisted: UFCS method name not Identifier".to_string());
+                }
+            }
+        },
+        _ => return Err("emit_fcall_with_hoisted: FCall first param not Identifier".to_string()),
+    };
+
+    // Handle UFCS or struct construction
+    if let Some(receiver) = ufcs_receiver {
+        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+            let first_char = receiver_name.chars().next().unwrap_or('a');
+            if first_char.is_uppercase() {
+                // Type-qualified call: Type.func(args...) -> Type_func(args...)
+                output.push_str(receiver_name);
+                output.push_str("_");
+                output.push_str(&func_name);
+                output.push_str("(");
+                for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                    if i > 0 {
+                        output.push_str(", ");
+                    }
+                    emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+                }
+                output.push_str(")");
+                return Ok(());
+            }
+        }
+    }
+
+    // Check for struct construction: TypeName() -> (TypeName){}
+    if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
+        && expr.params[0].params.is_empty()
+        && expr.params.len() == 1
+    {
+        output.push_str("(");
+        output.push_str(&func_name);
+        output.push_str("){}");
+        return Ok(());
+    }
+
+    // Regular function call
+    output.push_str(&func_name);
+    output.push_str("(");
+    for (i, arg) in expr.params.iter().skip(1).enumerate() {
+        if i > 0 {
+            output.push_str(", ");
+        }
+        emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+    }
+    output.push_str(")");
+    Ok(())
 }
 
 fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
@@ -1643,6 +1982,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     let indent_str = "    ".repeat(indent);
 
+    // Hoist throwing function calls from arguments (only at statement level)
+    // When indent > 0, we're at statement level and can emit hoisted calls
+    let hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
+        let args = &expr.params[1..];
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx)?;
+        hoisted_vec.into_iter().collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
     // Hardcoded builtins
     match func_name.as_str() {
         "println" => {
@@ -1653,7 +2002,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0, ctx)?;
+                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
             }
             output.push_str("\"\\n\");\n");
             Ok(())
@@ -1665,23 +2014,23 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0, ctx)?;
+                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
             }
             output.push_str(");\n");
             Ok(())
         },
         // Arithmetic operations - emit as C expressions
-        "add" => emit_binop(expr, output, "+", ufcs_receiver, ctx),
-        "sub" => emit_binop(expr, output, "-", ufcs_receiver, ctx),
-        "mul" => emit_binop(expr, output, "*", ufcs_receiver, ctx),
-        "div" => emit_binop(expr, output, "/", ufcs_receiver, ctx),
-        "mod" => emit_binop(expr, output, "%", ufcs_receiver, ctx),
+        "add" => emit_binop(expr, output, "+", ufcs_receiver, &hoisted, ctx),
+        "sub" => emit_binop(expr, output, "-", ufcs_receiver, &hoisted, ctx),
+        "mul" => emit_binop(expr, output, "*", ufcs_receiver, &hoisted, ctx),
+        "div" => emit_binop(expr, output, "/", ufcs_receiver, &hoisted, ctx),
+        "mod" => emit_binop(expr, output, "%", ufcs_receiver, &hoisted, ctx),
         // Comparison
-        "eq" => emit_binop(expr, output, "==", ufcs_receiver, ctx),
-        "lt" => emit_binop(expr, output, "<", ufcs_receiver, ctx),
-        "gt" => emit_binop(expr, output, ">", ufcs_receiver, ctx),
-        "lteq" => emit_binop(expr, output, "<=", ufcs_receiver, ctx),
-        "gteq" => emit_binop(expr, output, ">=", ufcs_receiver, ctx),
+        "eq" => emit_binop(expr, output, "==", ufcs_receiver, &hoisted, ctx),
+        "lt" => emit_binop(expr, output, "<", ufcs_receiver, &hoisted, ctx),
+        "gt" => emit_binop(expr, output, ">", ufcs_receiver, &hoisted, ctx),
+        "lteq" => emit_binop(expr, output, "<=", ufcs_receiver, &hoisted, ctx),
+        "gteq" => emit_binop(expr, output, ">=", ufcs_receiver, &hoisted, ctx),
         // test(loc, cond, msg) - emit as assertion
         "test" => {
             // For C codegen, we just emit the test as an if statement
@@ -1691,9 +2040,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(&indent_str);
             output.push_str("if (!(");
-            emit_expr(&expr.params[2], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx)?;  // arg index 1 = params[2]
             output.push_str(")) { printf(\"FAIL: %s\\n\", ");
-            emit_expr(&expr.params[3], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx)?;  // arg index 2 = params[3]
             output.push_str("); }\n");
             Ok(())
         },
@@ -1704,9 +2053,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(&indent_str);
             output.push_str("if ((");
-            emit_expr(&expr.params[2], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx)?;  // arg index 1 = params[2]
             output.push_str(") != (");
-            emit_expr(&expr.params[3], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx)?;  // arg index 2 = params[3]
             output.push_str(")) { printf(\"FAIL: assert_eq\\n\"); }\n");
             Ok(())
         },
@@ -1760,7 +2109,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                 if i > 0 {
                                     output.push_str(", ");
                                 }
-                                emit_expr(arg, output, 0, ctx)?;
+                                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
                             }
                             output.push_str(")");
                         }
@@ -1783,9 +2132,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         // First emit the receiver as first argument
                         emit_identifier_without_nested(receiver, output)?;
                         // Then emit remaining arguments
-                        for arg in expr.params.iter().skip(1) {
+                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
                             output.push_str(", ");
-                            emit_expr(arg, output, 0, ctx)?;
+                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
                         }
                         output.push_str(")");
                         if indent > 0 {
@@ -1834,7 +2183,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_expr(arg, output, 0, ctx)?;
+                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
             }
             output.push_str(")");
             // Only add statement terminator if this is a statement (indent > 0)
@@ -1846,7 +2195,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 }
 
-fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<&Expr>, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<&Expr>, hoisted: &std::collections::HashMap<usize, String>, ctx: &mut CodegenContext) -> Result<(), String> {
     output.push('(');
 
     // For UFCS: receiver.op(arg) -> (receiver op arg)
@@ -1857,18 +2206,18 @@ fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<
         // Type-qualified calls have 2+ args after the function name
         if expr.params.len() >= 3 {
             // Type-qualified: Type.op(a, b) -> (a op b)
-            emit_expr(&expr.params[1], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
             output.push(' ');
             output.push_str(op);
             output.push(' ');
-            emit_expr(&expr.params[2], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[2], 1, hoisted, output, ctx)?;
         } else if expr.params.len() >= 2 {
             // Instance UFCS: x.op(y) -> (x op y)
             emit_identifier_without_nested(receiver, output)?;
             output.push(' ');
             output.push_str(op);
             output.push(' ');
-            emit_expr(&expr.params[1], output, 0, ctx)?;
+            emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
         } else {
             return Err("codegen_c: UFCS binary op requires 1 argument".to_string());
         }
@@ -1877,11 +2226,11 @@ fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<
         if expr.params.len() < 3 {
             return Err("codegen_c: binary op requires 2 arguments".to_string());
         }
-        emit_expr(&expr.params[1], output, 0, ctx)?;
+        emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
         output.push(' ');
         output.push_str(op);
         output.push(' ');
-        emit_expr(&expr.params[2], output, 0, ctx)?;
+        emit_arg_or_hoisted(&expr.params[2], 1, hoisted, output, ctx)?;
     }
 
     output.push(')');
