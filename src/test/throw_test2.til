@@ -1,0 +1,61 @@
+mode test
+
+// Test 1: Basic throw/catch works
+DivideByZero := struct {}
+
+safe_div := func(a: I64, b: I64) returns I64 throws DivideByZero {
+    if I64.eq(b, 0) {
+        throw DivideByZero()
+    }
+    return div(a, b)
+}
+
+test_basic_catch := proc() {
+    result := safe_div(10, 0)
+    catch (err: DivideByZero) {
+        println("Caught divide by zero!")
+    }
+    println("Test 1 passed")
+}
+test_basic_catch()
+
+// Test 2: Catch in assignment (not just declaration)
+test_assignment_catch := proc() {
+    mut result := 0
+    result = safe_div(10, 0)
+    catch (err: DivideByZero) {
+        result = 42
+    }
+    assert_eq(loc(), 42, result)
+    println("Test 2 passed")
+}
+test_assignment_catch()
+
+// Test 3: Successful division (no error)
+test_success := proc() {
+    result := safe_div(20, 4)
+    catch (err: DivideByZero) {
+        println("Should not catch!")
+    }
+    assert_eq(loc(), 5, result)
+    println("Test 3 passed")
+}
+test_success()
+
+// Test 4: Wrapper function that catches and returns default
+wrap_div := proc(a: I64, b: I64) returns I64 {
+    result := safe_div(a, b)
+    catch (err: DivideByZero) {
+        return 0
+    }
+    return result
+}
+
+test_wrapper := proc() {
+    result := wrap_div(10, 0)
+    assert_eq(loc(), 0, result)
+    println("Test 4 passed")
+}
+test_wrapper()
+
+println("All tests passed!")

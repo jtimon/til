@@ -1221,22 +1221,34 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         let stmt = &stmts[i];
 
         // Check if this statement is followed by catch blocks
-        // And if it's a call to a throwing function (FCall or Declaration with FCall)
-        let (maybe_fcall, maybe_decl_name) = match &stmt.node_type {
-            NodeType::FCall => (Some(stmt), None),
+        // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
+        let (maybe_fcall, maybe_decl_name, maybe_assign_name) = match &stmt.node_type {
+            NodeType::FCall => (Some(stmt), None, None),
             NodeType::Declaration(decl) => {
                 // Check if declaration has an FCall as initializer
                 if !stmt.params.is_empty() {
                     if let NodeType::FCall = stmt.params[0].node_type {
-                        (Some(&stmt.params[0]), Some(decl.name.clone()))
+                        (Some(&stmt.params[0]), Some(decl.name.clone()), None)
                     } else {
-                        (None, None)
+                        (None, None, None)
                     }
                 } else {
-                    (None, None)
+                    (None, None, None)
                 }
             }
-            _ => (None, None),
+            NodeType::Assignment(name) => {
+                // Check if assignment has an FCall as RHS
+                if !stmt.params.is_empty() {
+                    if let NodeType::FCall = stmt.params[0].node_type {
+                        (Some(&stmt.params[0]), None, Some(name.clone()))
+                    } else {
+                        (None, None, None)
+                    }
+                } else {
+                    (None, None, None)
+                }
+            }
+            _ => (None, None, None),
         };
 
         if let Some(fcall) = maybe_fcall {
@@ -1260,7 +1272,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
                     if !catch_blocks.is_empty() {
                         // Emit throwing call with catch handling
-                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), output, indent, ctx)?;
+                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
                         i = j; // Skip past catch blocks
                         continue;
                     }
@@ -1319,6 +1331,7 @@ fn emit_throwing_call(
     throw_types: &[crate::rs::parser::ValueType],
     catch_blocks: &[&Expr],
     decl_name: Option<&str>,
+    assign_name: Option<&str>,
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
@@ -1332,13 +1345,21 @@ fn emit_throwing_call(
     // Generate unique temp names for this call
     let temp_suffix = ctx.next_temp();
 
+    // Determine if we need a return value temp variable
+    let needs_ret = decl_name.is_some() || assign_name.is_some();
+
     // Declare local variables for return value and errors
     // Look up the actual return type from collected function info
-    if decl_name.is_some() {
-        let ret_type = ctx.func_return_types.get(&func_name)
+    let ret_type = if needs_ret {
+        ctx.func_return_types.get(&func_name)
             .and_then(|types| types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
-            .unwrap_or("int".to_string());
+            .unwrap_or("int".to_string())
+    } else {
+        "int".to_string()
+    };
+
+    if needs_ret {
         output.push_str(&indent_str);
         output.push_str(&ret_type);
         output.push_str(" _ret_");
@@ -1346,7 +1367,17 @@ fn emit_throwing_call(
         output.push_str(";\n");
     }
 
+    // For declarations: declare the variable BEFORE the if block so it's visible after
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" ");
+        output.push_str(var_name);
+        output.push_str(";\n");
+    }
+
     // Declare error structs for each throw type
+    // Check if struct is empty to avoid {0} warning
     for (idx, throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
@@ -1355,7 +1386,8 @@ fn emit_throwing_call(
             output.push_str(&idx.to_string());
             output.push_str("_");
             output.push_str(&temp_suffix.to_string());
-            output.push_str(" = {0};\n");
+            // Use = {} for empty structs to avoid warning
+            output.push_str(" = {};\n");
         }
     }
 
@@ -1368,14 +1400,14 @@ fn emit_throwing_call(
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
-    if decl_name.is_some() {
+    if needs_ret {
         output.push_str("&_ret_");
         output.push_str(&temp_suffix.to_string());
     }
 
     // Then: error pointers
     for idx in 0..throw_types.len() {
-        if decl_name.is_some() || idx > 0 {
+        if needs_ret || idx > 0 {
             output.push_str(", ");
         }
         output.push_str("&_err");
@@ -1386,7 +1418,7 @@ fn emit_throwing_call(
 
     // Then: actual arguments
     for arg in fcall.params.iter().skip(1) {
-        if decl_name.is_some() || !throw_types.is_empty() {
+        if needs_ret || !throw_types.is_empty() {
             output.push_str(", ");
         }
         emit_expr(arg, output, 0, ctx)?;
@@ -1400,16 +1432,23 @@ fn emit_throwing_call(
     output.push_str(&temp_suffix.to_string());
     output.push_str(" == 0) {\n");
 
-    // Success case: assign return value to declared variable
+    // Success case: assign return value to target variable
     if let Some(var_name) = decl_name {
+        // Declaration: assign to newly declared variable (declared before if block)
         let inner_indent = "    ".repeat(indent + 1);
         output.push_str(&inner_indent);
-        output.push_str("int ");
         output.push_str(var_name);
         output.push_str(" = _ret_");
         output.push_str(&temp_suffix.to_string());
         output.push_str(";\n");
-        // Note: var_name goes out of scope at end of if block - may need adjustment
+    } else if let Some(var_name) = assign_name {
+        // Assignment: assign to existing variable
+        let inner_indent = "    ".repeat(indent + 1);
+        output.push_str(&inner_indent);
+        output.push_str(var_name);
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix.to_string());
+        output.push_str(";\n");
     }
 
     output.push_str(&indent_str);

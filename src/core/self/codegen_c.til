@@ -1869,11 +1869,13 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
         stmts.get(i, stmt)
 
         // Check if this statement is followed by catch blocks
-        // And if it's a call to a throwing function (FCall or Declaration with FCall)
+        // And if it's a call to a throwing function (FCall, Declaration with FCall, or Assignment with FCall)
         mut maybe_fcall := Expr()
         mut has_fcall := false
         mut maybe_decl_name := ""
         mut has_decl := false
+        mut maybe_assign_name := ""
+        mut has_assign := false
 
         switch stmt.node_type {
         case NodeType.FCall:
@@ -1895,8 +1897,24 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 }
                 catch (err: IndexOutOfBoundsError) { /* no initializer */ }
             }
+        case NodeType.Assignment(name):
+            // Check if assignment has an FCall as RHS
+            if gt(stmt.params.len(), 0) {
+                mut first := Expr()
+                stmt.params.get(0, first)
+                switch first.node_type {
+                case NodeType.FCall:
+                    maybe_fcall = first
+                    has_fcall = true
+                    maybe_assign_name = name
+                    has_assign = true
+                case:
+                    // Not an FCall
+                }
+                catch (err: IndexOutOfBoundsError) { /* no RHS */ }
+            }
         case:
-            // Not FCall or Declaration
+            // Not FCall, Declaration, or Assignment
         }
 
         if has_fcall {
@@ -1935,9 +1953,13 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     if gt(catch_blocks.len(), 0) {
                         // Emit throwing call with catch handling
                         if has_decl {
-                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, result, indent, ctx)
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx)
                         } else {
-                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", result, indent, ctx)
+                            if has_assign {
+                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", maybe_assign_name, result, indent, ctx)
+                            } else {
+                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", "", result, indent, ctx)
+                            }
                         }
                         i = add(i, add(1, catch_blocks.len()))  // Skip past catch blocks
                     } else {
@@ -1967,7 +1989,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
 // Emit a call to a throwing function with catch handling
 // Generates: declare temps, call func, if/else chain for error handling
-emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
 
     // Generate indentation string
@@ -1987,10 +2009,15 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     // Generate unique temp name for this call
     mut temp_suffix := ctx.next_temp()
 
+    // Determine if we need a return value temp variable
+    mut needs_ret := false
+    if gt(decl_name.len(), 0) { needs_ret = true }
+    if gt(assign_name.len(), 0) { needs_ret = true }
+
     // Declare local variables for return value and errors
     // Look up the actual return type from collected function info
-    if gt(decl_name.len(), 0) {
-        mut ret_type := "int"
+    mut ret_type := "int"
+    if needs_ret {
         mut return_types := Vec.new(ValueType)
         ctx.func_return_types.get(func_name, return_types)
         if gt(return_types.len(), 0) {
@@ -2008,7 +2035,17 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         result = concat(result, ";\n")
     }
 
+    // For declarations: declare the variable BEFORE the if block so it's visible after
+    if gt(decl_name.len(), 0) {
+        result = concat(result, indent_str)
+        result = concat(result, ret_type)
+        result = concat(result, " ")
+        result = concat(result, decl_name)
+        result = concat(result, ";\n")
+    }
+
     // Declare error structs for each throw type
+    // Use = {} to avoid warning for empty structs
     mut i := 0
     while lt(i, throw_types.len()) {
         mut throw_type := ValueType.TCustom("")
@@ -2021,7 +2058,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             result = concat(result, i.to_str())
             result = concat(result, "_")
             result = concat(result, temp_suffix)
-            result = concat(result, " = {0};\n")
+            result = concat(result, " = {};\n")
         case:
             // Non-custom type, use int
             result = concat(result, indent_str)
@@ -2045,7 +2082,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
     // First: return value pointer (if function returns something)
     mut param_count := 0
-    if gt(decl_name.len(), 0) {
+    if needs_ret {
         result = concat(result, "&_ret_")
         result = concat(result, temp_suffix)
         param_count = add(param_count, 1)
@@ -2087,8 +2124,9 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     result = concat(result, temp_suffix)
     result = concat(result, " == 0) {\n")
 
-    // Success case: assign return value to declared variable
+    // Success case: assign return value to target variable
     if gt(decl_name.len(), 0) {
+        // Declaration: assign to newly declared variable (declared before if block)
         mut inner_indent := ""
         ind = 0
         while lt(ind, add(indent, 1)) {
@@ -2096,13 +2134,25 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             ind = add(ind, 1)
         }
         result = concat(result, inner_indent)
-        result = concat(result, "int ")
         result = concat(result, decl_name)
         result = concat(result, " = _ret_")
         result = concat(result, temp_suffix)
         result = concat(result, ";\n")
-        // Note: var_name goes out of scope at end of if block
-        // This is a limitation - complex code might need refactoring
+    } else {
+        if gt(assign_name.len(), 0) {
+            // Assignment: assign to existing variable
+            mut inner_indent := ""
+            ind = 0
+            while lt(ind, add(indent, 1)) {
+                inner_indent = concat(inner_indent, "    ")
+                ind = add(ind, 1)
+            }
+            result = concat(result, inner_indent)
+            result = concat(result, assign_name)
+            result = concat(result, " = _ret_")
+            result = concat(result, temp_suffix)
+            result = concat(result, ";\n")
+        }
     }
 
     result = concat(result, indent_str)
