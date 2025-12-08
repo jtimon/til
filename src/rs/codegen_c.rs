@@ -340,11 +340,14 @@ fn emit_fcall_name_and_args_for_throwing(
                 output.push_str(receiver_name);
                 output.push_str("_");
             } else {
-                // Instance UFCS: instance.method -> Type_method
+                // Instance UFCS: instance.method -> Type_method (only if mangled name exists)
                 if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                     if let ValueType::TCustom(type_name) = receiver_type {
-                        output.push_str(type_name);
-                        output.push_str("_");
+                        let candidate = format!("{}_{}", type_name, func_name);
+                        if ctx.known_functions.contains(&candidate) {
+                            output.push_str(type_name);
+                            output.push_str("_");
+                        }
                     }
                 }
             }
@@ -401,8 +404,11 @@ fn emit_fcall_name_and_args_for_throwing(
                     name.push('_');
                 } else if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                     if let ValueType::TCustom(type_name) = receiver_type {
-                        name.push_str(type_name);
-                        name.push('_');
+                        let candidate = format!("{}_{}", type_name, func_name);
+                        if ctx.known_functions.contains(&candidate) {
+                            name.push_str(type_name);
+                            name.push('_');
+                        }
                     }
                 }
             }
@@ -2553,14 +2559,17 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         return Ok(());
                     } else {
                         // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
-                        // Look up the receiver's type for proper mangling
+                        // Look up the receiver's type for proper mangling (only if mangled name exists)
                         if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                             if let ValueType::TCustom(type_name) = receiver_type {
                                 // Skip "auto" type - it's an inferred type placeholder
                                 if type_name != "auto" {
-                                    // Mangle as Type_func
-                                    output.push_str(type_name);
-                                    output.push_str("_");
+                                    // Only mangle if Type_func exists in known_functions
+                                    let candidate = format!("{}_{}", type_name, func_name);
+                                    if ctx.known_functions.contains(&candidate) {
+                                        output.push_str(type_name);
+                                        output.push_str("_");
+                                    }
                                 }
                             }
                         }

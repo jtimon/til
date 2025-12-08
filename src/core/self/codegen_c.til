@@ -395,15 +395,17 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
                     mangled = concat(mangled, method_name)
                     return mangled
                 } else {
-                    // instance.method -> look up instance type for mangling
+                    // instance.method -> look up instance type for mangling (only if mangled name exists)
                     mut receiver_type := ValueType.TCustom("")
                     ctx.var_types.get(name, receiver_type)
                     switch receiver_type {
                     case ValueType.TCustom(type_name):
                         if gt(type_name.len(), 0) {
-                            mut mangled := concat(type_name, "_")
-                            mangled = concat(mangled, method_name)
-                            return mangled
+                            mut candidate := concat(type_name, "_")
+                            candidate = concat(candidate, method_name)
+                            if is_known_function(ctx, candidate) {
+                                return candidate
+                            }
                         }
                     case:
                         // Fallback to just method name
@@ -2992,13 +2994,17 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             output = concat(output, ufcs_receiver_name)
             output = concat(output, "_")
         } else {
-            // Instance UFCS: instance.method -> Type_method
+            // Instance UFCS: instance.method -> Type_method (only if mangled name exists)
             mut receiver_type := ValueType.TCustom("")
             ctx.var_types.get(ufcs_receiver_name, receiver_type)
             switch receiver_type {
             case ValueType.TCustom(type_name):
-                output = concat(output, type_name)
-                output = concat(output, "_")
+                mut candidate := concat(type_name, "_")
+                candidate = concat(candidate, func_name)
+                if is_known_function(ctx, candidate) {
+                    output = concat(output, type_name)
+                    output = concat(output, "_")
+                }
             case:
                 // Skip
             }
@@ -3429,15 +3435,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     return result
                 } else {
                     // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
-                    // Look up the receiver's type for proper mangling
+                    // Look up the receiver's type for proper mangling (only if mangled name exists)
                     mut receiver_type := ValueType.TCustom("")
                     ctx.var_types.get(receiver_name, receiver_type)
                     switch receiver_type {
                     case ValueType.TCustom(type_name):
                         // Skip "auto" type - it's an inferred type placeholder
                         if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
-                            result = concat(result, type_name)
-                            result = concat(result, "_")
+                            // Only mangle if Type_func exists in known_functions
+                            mut candidate := concat(type_name, "_")
+                            candidate = concat(candidate, func_name)
+                            if is_known_function(ctx, candidate) {
+                                result = concat(result, type_name)
+                                result = concat(result, "_")
+                            }
                         }
                     case:
                         // No type found, emit without prefix
