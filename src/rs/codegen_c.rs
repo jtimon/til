@@ -81,7 +81,8 @@ fn get_field_type_dependency(value_type: &ValueType) -> Option<String> {
         ValueType::TCustom(name) => {
             // I64 and U8 are primitives, not struct dependencies
             match name.as_str() {
-                "I64" | "U8" | "auto" => None,
+                "I64" | "U8" => None,
+                s if s == INFER_TYPE => None,
                 _ => Some(name.clone()),
             }
         },
@@ -1195,7 +1196,7 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
-            if name == "auto" {
+            if name == INFER_TYPE {
                 None // Skip inferred types
             } else {
                 // All types get TIL_PREFIX
@@ -1421,8 +1422,14 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                 let first_char = name.chars().next().unwrap_or('a');
                 if first_char.is_uppercase() {
                     if let NodeType::Identifier(field) = &expr.params[0].node_type {
-                        let field_first_char = field.chars().next().unwrap_or('a');
-                        if field_first_char.is_uppercase() {
+                        // Check if this is an enum variant by looking up in context
+                        let is_enum_variant = if let Some(enum_def) = ctx.init_context.scope_stack.lookup_enum(name) {
+                            enum_def.enum_map.contains_key(field)
+                        } else {
+                            false
+                        };
+
+                        if is_enum_variant {
                             // Enum variant: Type.Variant -> til_Type_make_Variant()
                             output.push_str(TIL_PREFIX);
                             output.push_str(name);
@@ -1431,7 +1438,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                             output.push_str("()");
                             return Ok(());
                         } else {
-                            // Type-qualified constant: Type.constant -> til_Type_constant
+                            // Struct constant: Type.constant -> til_Type_constant
                             output.push_str(&til_name(name));
                             output.push_str("_");
                             output.push_str(field);
@@ -1688,6 +1695,16 @@ fn emit_throwing_call(
         output.push_str(&til_name(var_name));
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
+        // Also add to scope_stack for UFCS type resolution
+        if let Some(return_types) = ctx.func_return_types.get(&func_name) {
+            if let Some(first_type) = return_types.first() {
+                ctx.var_types.insert(var_name.to_string(), first_type.clone());
+                ctx.init_context.scope_stack.declare_symbol(
+                    var_name.to_string(),
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                );
+            }
+        }
     }
 
     // Declare error structs for each throw type
@@ -1886,6 +1903,16 @@ fn emit_throwing_call_propagate(
         output.push_str(&til_name(var_name));
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
+        // Also add to scope_stack for UFCS type resolution
+        if let Some(return_types) = ctx.func_return_types.get(&func_name) {
+            if let Some(first_type) = return_types.first() {
+                ctx.var_types.insert(var_name.to_string(), first_type.clone());
+                ctx.init_context.scope_stack.declare_symbol(
+                    var_name.to_string(),
+                    SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
+                );
+            }
+        }
     }
 
     // Declare error structs for each throw type of the called function
@@ -2035,25 +2062,30 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
 
     // Track variable type for UFCS mangling
     // Use the inferred type from struct/enum construction if available,
-    // or infer from literal if type is "auto"
-    if let Some(ref type_name) = struct_type {
-        ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
+    // or use get_value_type to get return type of function calls like Vec.new(Str)
+    let var_type = if let Some(ref type_name) = struct_type {
+        ValueType::TCustom(type_name.clone())
     } else if let Some(ref type_name) = enum_type {
-        ctx.var_types.insert(name.clone(), ValueType::TCustom(type_name.clone()));
+        ValueType::TCustom(type_name.clone())
     } else if let ValueType::TCustom(type_name) = &decl.value_type {
-        if type_name == "auto" && !expr.params.is_empty() {
-            // Try to infer type from initializer literal
-            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
-                ctx.var_types.insert(name.clone(), inferred);
-            } else {
-                ctx.var_types.insert(name.clone(), decl.value_type.clone());
-            }
+        if type_name == INFER_TYPE && !expr.params.is_empty() {
+            // Try get_value_type first (handles function calls like Vec.new)
+            // then fall back to literal inference
+            get_value_type(&ctx.init_context, &expr.params[0]).ok()
+                .or_else(|| infer_type_from_expr(&expr.params[0], ctx))
+                .unwrap_or_else(|| decl.value_type.clone())
         } else {
-            ctx.var_types.insert(name.clone(), decl.value_type.clone());
+            decl.value_type.clone()
         }
     } else {
-        ctx.var_types.insert(name.clone(), decl.value_type.clone());
-    }
+        decl.value_type.clone()
+    };
+    ctx.var_types.insert(name.clone(), var_type.clone());
+    // Also add to scope_stack so get_value_type can find it
+    ctx.init_context.scope_stack.declare_symbol(
+        name.clone(),
+        SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false }
+    );
 
     // Check if variable already declared in this function (avoid C redefinition errors)
     let already_declared = ctx.declared_vars.contains(name);
@@ -2960,6 +2992,40 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         _ => {
             output.push_str(&indent_str);
 
+            // Check for UFCS on FCall result: func_name(fcall_result, args...)
+            // This happens for chained method calls like delimiter.len().eq(0)
+            // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
+            if ufcs_receiver.is_none() && expr.params.len() >= 2 {
+                if let NodeType::FCall = &expr.params[1].node_type {
+                    // The second param is an FCall result - use get_value_type to get its return type
+                    if let Ok(fcall_ret_type) = get_value_type(&ctx.init_context, &expr.params[1]) {
+                        if let ValueType::TCustom(type_name) = &fcall_ret_type {
+                            let candidate = format!("{}.{}", type_name, func_name);
+                            if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                                // Emit as Type_method(fcall_result, args...)
+                                output.push_str(TIL_PREFIX);
+                                output.push_str(type_name);
+                                output.push_str("_");
+                                output.push_str(&func_name);
+                                output.push_str("(");
+                                // First arg is the fcall result
+                                emit_expr(&expr.params[1], output, 0, ctx)?;
+                                // Remaining args
+                                for arg in expr.params.iter().skip(2) {
+                                    output.push_str(", ");
+                                    emit_expr(arg, output, 0, ctx)?;
+                                }
+                                output.push_str(")");
+                                if indent > 0 {
+                                    output.push_str(";\n");
+                                }
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+
             // Check if this is a UFCS call (receiver.func(...))
             if let Some(receiver) = ufcs_receiver {
                 if let NodeType::Identifier(receiver_name) = &receiver.node_type {
@@ -2968,7 +3034,36 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
 
                     // Use get_value_type to resolve the full receiver chain type
-                    let receiver_type: Option<ValueType> = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+                    // Fall back to var_types for local variables not in scope_stack
+                    let mut receiver_type: Option<ValueType> = get_value_type(&ctx.init_context, &receiver_without_method).ok()
+                        .or_else(|| ctx.var_types.get(receiver_name).cloned());
+
+                    // If receiver_type is TFunction, the receiver_without_method ends in a method call
+                    // (e.g., delimiter.len() where len is a method). We need the RETURN TYPE of that method.
+                    // Check if the last element of receiver_without_method is a method and get its return type.
+                    if matches!(&receiver_type, Some(ValueType::TFunction(_))) {
+                        // Get the base type (without the last method) and the method name
+                        if ufcs_depth >= 2 {
+                            // We have base.method1.method2, receiver_without_method is base.method1
+                            // Get the type of base, then look up method1's return type
+                            let base_expr = clone_without_deepest_method(&receiver_without_method, ufcs_depth - 1);
+                            if let Some(base_type) = get_value_type(&ctx.init_context, &base_expr).ok() {
+                                if let ValueType::TCustom(type_name) = &base_type {
+                                    // Get the intermediate method name (the one before our target method)
+                                    if let Some(method_expr) = receiver_without_method.params.last() {
+                                        if let NodeType::Identifier(method_name) = &method_expr.node_type {
+                                            let full_method_name = format!("{}.{}", type_name, method_name);
+                                            if let Some(func_def) = ctx.init_context.scope_stack.lookup_func(&full_method_name) {
+                                                if let Some(ret_type) = func_def.return_types.first() {
+                                                    receiver_type = Some(ret_type.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     // Check if this is instance UFCS or type-qualified call
                     let mut is_struct_method = false;

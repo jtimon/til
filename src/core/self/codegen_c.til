@@ -2180,8 +2180,13 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
                 expr.params.get(0, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
-                    mut field_first_char := field.get_substr(0, 1)
-                    if field_first_char.is_uppercase() {
+                    // Check if this is an enum variant by looking up in context
+                    mut is_enum_variant := false
+                    mut enum_def := ctx.init_context.scope_stack.lookup_enum(name)
+                    is_enum_variant = enum_def.enum_map.contains_key(field)
+                    catch (err: KeyNotFoundError) { /* not an enum */ }
+
+                    if is_enum_variant {
                         // Enum variant: Type.Variant -> til_Type_make_Variant()
                         mut result := concat(output, TIL_PREFIX)
                         result = concat(result, name)
@@ -2190,15 +2195,13 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
                         result = concat(result, "()")
                         return result
                     } else {
-                        // Type-qualified constant: Type.constant -> til_Type_constant
+                        // Struct constant: Type.constant -> til_Type_constant
                         mut result := concat(output, TIL_PREFIX)
                         result = concat(result, name)
                         result = concat(result, "_")
                         result = concat(result, field)
                         return result
                     }
-                    catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    catch (err: AllocError) { throw err.msg }
                 case:
                     // Fall through to regular handling
                 }
@@ -2510,6 +2513,18 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         result = concat(result, " ")
         result = concat(result, decl_name)
         result = concat(result, ";\n")
+        // Also add to scope_stack for UFCS type resolution
+        mut return_types_for_scope := Vec.new(ValueType)
+        ctx.func_return_types.get(func_name, return_types_for_scope)
+        if gt(return_types_for_scope.len(), 0) {
+            mut first_type := ValueType.TCustom("")
+            return_types_for_scope.get(0, first_type)
+            ctx.var_types.set(decl_name, first_type)
+            ctx.init_context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        }
+        catch (err: KeyNotFoundError) { }
+        catch (err: IndexOutOfBoundsError) { }
+        catch (err: AllocError) { }
     }
 
     // Declare error structs for each throw type
@@ -2722,6 +2737,18 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         result = concat(result, " ")
         result = concat(result, decl_name)
         result = concat(result, ";\n")
+        // Also add to scope_stack for UFCS type resolution
+        mut return_types_for_scope := Vec.new(ValueType)
+        ctx.func_return_types.get(func_name, return_types_for_scope)
+        if gt(return_types_for_scope.len(), 0) {
+            mut first_type := ValueType.TCustom("")
+            return_types_for_scope.get(0, first_type)
+            ctx.var_types.set(decl_name, first_type)
+            ctx.init_context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+        }
+        catch (err: KeyNotFoundError) { }
+        catch (err: IndexOutOfBoundsError) { }
+        catch (err: AllocError) { }
     }
 
     // Declare error structs for each throw type of the called function
@@ -3128,29 +3155,39 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     }
 
     // Track variable type for UFCS mangling
-    // Use the inferred type from struct/enum construction if available
-    // or infer from initializer if type is "auto"
+    // Use the inferred type from struct/enum construction if available,
+    // or use get_value_type to get return type of function calls like Vec.new(Str)
+    mut var_type := decl.value_type
     if gt(struct_type.len(), 0) {
-        ctx.var_types.insert(name, ValueType.TCustom(struct_type))
+        var_type = ValueType.TCustom(struct_type)
     } else if gt(enum_type.len(), 0) {
-        ctx.var_types.insert(name, ValueType.TCustom(enum_type))
+        var_type = ValueType.TCustom(enum_type)
     } else {
         switch decl.value_type {
         case ValueType.TCustom(type_name):
             if Str.eq(type_name, "auto").and(gt(expr.params.len(), 0)) {
-                // Try to infer type from initializer
+                // Try get_value_type first (handles function calls like Vec.new)
+                // then fall back to literal inference
                 mut first := Expr()
                 expr.params.get(0, first)
+                mut got_type := false
+                mut inferred_type := get_value_type(ctx.init_context, first)
+                got_type = true
+                var_type = inferred_type
+                catch (err: Str) {
+                    // get_value_type failed, try literal inference
+                    var_type = infer_type_from_expr(first, ctx)
+                }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                inferred := infer_type_from_expr(first, ctx)
-                ctx.var_types.insert(name, inferred)
-            } else {
-                ctx.var_types.insert(name, decl.value_type)
             }
         case:
-            ctx.var_types.insert(name, decl.value_type)
+            // Keep default decl.value_type
         }
     }
+    ctx.var_types.insert(name, var_type)
+    // Also add to scope_stack so get_value_type can find it
+    ctx.init_context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
+
     catch (err: AllocError) { throw err.msg }
     catch (err: DuplicatedKeyError) { /* ignore, update is fine */ }
 
@@ -3716,6 +3753,55 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     while lt(ind, indent) {
         result = concat(result, "    ")
         ind = add(ind, 1)
+    }
+
+    // Check for UFCS on FCall result: func_name(fcall_result, args...)
+    // This happens for chained method calls like delimiter.len().eq(0)
+    // Parser produces: FCall { params: [Identifier("eq"), FCall { ... }, LLiteral(0)] }
+    if not(has_ufcs_receiver).and(gteq(params_len, 2)) {
+        mut second_param := Expr()
+        expr.params.get(1, second_param)
+        switch second_param.node_type {
+        case NodeType.FCall:
+            // The second param is an FCall result - use get_value_type to get its return type
+            mut fcall_ret_type := get_value_type(ctx.init_context, second_param)
+            switch fcall_ret_type {
+            case ValueType.TCustom(type_name):
+                mut candidate := format(type_name, ".", func_name)
+                // Try to lookup the function - if found, emit as Type_method
+                mut func_info := ctx.init_context.scope_stack.lookup_func(candidate)
+                // If we get here, the function was found (otherwise KeyNotFoundError)
+                // Emit as Type_method(fcall_result, args...)
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, type_name)
+                result = concat(result, "_")
+                result = concat(result, func_name)
+                result = concat(result, "(")
+                // First arg is the fcall result
+                result = emit_expr(second_param, result, 0, ctx)
+                // Remaining args
+                mut arg_i := 2
+                while lt(arg_i, params_len) {
+                    result = concat(result, ", ")
+                    mut arg := Expr()
+                    expr.params.get(arg_i, arg)
+                    result = emit_expr(arg, result, 0, ctx)
+                    arg_i = add(arg_i, 1)
+                }
+                result = concat(result, ")")
+                if gt(indent, 0) {
+                    result = concat(result, ";\n")
+                }
+                return result
+            case:
+                // Not a custom type, skip
+            }
+            catch (err: Str) { /* get_value_type failed, fall through */ }
+            catch (err: KeyNotFoundError) { /* function not found, fall through */ }
+        case:
+            // Not an FCall, skip
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     // Hardcoded builtins
