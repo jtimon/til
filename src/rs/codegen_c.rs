@@ -1449,6 +1449,12 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
                         emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
                         i = j; // Skip past catch blocks
                         continue;
+                    } else if !ctx.current_throw_types.is_empty() {
+                        // No catch blocks, but we're inside a throwing function
+                        // Emit error propagation pattern
+                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
+                        i += 1;
+                        continue;
                     }
                 }
             }
@@ -1484,10 +1490,16 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
                         // instance.method -> look up instance type for mangling
                         if let Some(receiver_type) = ctx.var_types.get(name) {
                             if let ValueType::TCustom(type_name) = receiver_type {
-                                return Some(format!("{}_{}", type_name, method_name));
+                                let mangled_name = format!("{}_{}", type_name, method_name);
+                                // Only use mangled name if it's a known struct method
+                                if ctx.known_functions.contains(&mangled_name) {
+                                    return Some(mangled_name);
+                                }
+                                // Otherwise it's a top-level function, use plain method name
+                                return Some(method_name.clone());
                             }
                         }
-                        // Fallback: just the method name (may not find throw info)
+                        // Fallback: just the method name
                         Some(method_name.clone())
                     }
                 } else {
@@ -1674,6 +1686,155 @@ fn emit_throwing_call(
     }
 
     output.push_str("\n");
+    Ok(())
+}
+
+/// Emit a throwing function call that propagates errors to the caller (no catch blocks)
+/// This is used when a throwing function calls another throwing function without catching
+fn emit_throwing_call_propagate(
+    fcall: &Expr,
+    throw_types: &[crate::rs::parser::ValueType],
+    decl_name: Option<&str>,
+    assign_name: Option<&str>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+) -> Result<(), String> {
+    let indent_str = "    ".repeat(indent);
+
+    // Get function name
+    let func_name = get_fcall_func_name(fcall, ctx)
+        .ok_or_else(|| "emit_throwing_call_propagate: could not get function name".to_string())?;
+
+    // Generate unique temp names for this call
+    let temp_suffix = ctx.next_temp();
+
+    // Determine if we need a return value temp variable
+    let needs_ret = decl_name.is_some() || assign_name.is_some();
+
+    // Look up the actual return type from collected function info
+    let ret_type = if needs_ret {
+        ctx.func_return_types.get(&func_name)
+            .and_then(|types| types.first())
+            .map(|t| til_type_to_c(t, &ctx.user_structs).unwrap_or("int".to_string()))
+            .unwrap_or("int".to_string())
+    } else {
+        "int".to_string()
+    };
+
+    // Declare temp for return value if needed
+    if needs_ret {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    }
+
+    // For declarations: declare the variable BEFORE the if block so it's visible after
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(&ret_type);
+        output.push_str(" ");
+        output.push_str(var_name);
+        output.push_str(";\n");
+    }
+
+    // Declare error structs for each throw type of the called function
+    for (idx, throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
+            output.push_str(&indent_str);
+            output.push_str(type_name);
+            output.push_str(" _err");
+            output.push_str(&idx.to_string());
+            output.push_str("_");
+            output.push_str(&temp_suffix);
+            output.push_str(" = {};\n");
+        }
+    }
+
+    // Generate the function call with output parameters
+    output.push_str(&indent_str);
+    output.push_str("int _status_");
+    output.push_str(&temp_suffix);
+    output.push_str(" = ");
+    output.push_str(&func_name);
+    output.push_str("(");
+
+    // First: return value pointer (if function returns something)
+    if needs_ret {
+        output.push_str("&_ret_");
+        output.push_str(&temp_suffix);
+    }
+
+    // Then: error pointers
+    for idx in 0..throw_types.len() {
+        if needs_ret || idx > 0 {
+            output.push_str(", ");
+        }
+        output.push_str("&_err");
+        output.push_str(&idx.to_string());
+        output.push_str("_");
+        output.push_str(&temp_suffix);
+    }
+
+    // Then: actual arguments
+    for arg in fcall.params.iter().skip(1) {
+        if needs_ret || !throw_types.is_empty() {
+            output.push_str(", ");
+        }
+        emit_expr(arg, output, 0, ctx)?;
+    }
+
+    output.push_str(");\n");
+
+    // Generate error propagation: if status != 0, copy error to caller's error param and return
+    // Map error types from called function to current function's error params
+    for (called_idx, called_throw_type) in throw_types.iter().enumerate() {
+        if let crate::rs::parser::ValueType::TCustom(called_type_name) = called_throw_type {
+            // Find matching error type in current function's throw types
+            let current_idx = ctx.current_throw_types.iter().position(|vt| {
+                if let crate::rs::parser::ValueType::TCustom(name) = vt {
+                    name == called_type_name
+                } else {
+                    false
+                }
+            });
+
+            if let Some(cur_idx) = current_idx {
+                output.push_str(&indent_str);
+                output.push_str("if (_status_");
+                output.push_str(&temp_suffix);
+                output.push_str(" == ");
+                output.push_str(&(called_idx + 1).to_string());
+                output.push_str(") { *_err");
+                output.push_str(&(cur_idx + 1).to_string());
+                output.push_str(" = _err");
+                output.push_str(&called_idx.to_string());
+                output.push_str("_");
+                output.push_str(&temp_suffix);
+                output.push_str("; return ");
+                output.push_str(&(cur_idx + 1).to_string());
+                output.push_str("; }\n");
+            }
+        }
+    }
+
+    // Success case: assign return value to target variable if needed
+    if let Some(var_name) = decl_name {
+        output.push_str(&indent_str);
+        output.push_str(var_name);
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    } else if let Some(var_name) = assign_name {
+        output.push_str(&indent_str);
+        output.push_str(var_name);
+        output.push_str(" = _ret_");
+        output.push_str(&temp_suffix);
+        output.push_str(";\n");
+    }
+
     Ok(())
 }
 
@@ -1913,6 +2074,23 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     if is_throwing {
         // Throwing function: store value through _ret pointer and return 0 (success)
         if !expr.params.is_empty() {
+            let return_expr = &expr.params[0];
+
+            // Check if return expression is a call to a throwing function
+            if let NodeType::FCall = return_expr.node_type {
+                if let Some(func_name) = get_fcall_func_name(return_expr, ctx) {
+                    if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
+                        // Return expression is a throwing function call - emit with error propagation
+                        // The result will be stored via the assign_name "*_ret"
+                        emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx)?;
+                        output.push_str(&indent_str);
+                        output.push_str("return 0;\n");
+                        return Ok(());
+                    }
+                }
+            }
+
+            // Regular return value - just emit it
             output.push_str(&indent_str);
             output.push_str("*_ret = ");
             emit_expr(&expr.params[0], output, 0, ctx)?;
