@@ -401,7 +401,10 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
             // Variadic must be last, so break
             j = func_def.args.len()
         case:
-            // Regular arg
+            // Regular arg - add const for non-mut
+            if not(arg.is_mut) {
+                result = concat(result, "const ")
+            }
             result = concat(result, til_type_to_c(arg.value_type))
             result = concat(result, " ")
             result = concat(result, arg.name)
@@ -756,8 +759,6 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip NULL - it's a C macro for 0
-        if Str.eq(decl.name, "NULL") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -766,6 +767,10 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
             case NodeType.LLiteral(lit):
                 switch lit {
                 case Literal.Number(n):
+                    // Non-mut declarations are constants
+                    if not(decl.is_mut) {
+                        result = concat(result, "const ")
+                    }
                     result = concat(result, "I64 ")
                     result = concat(result, decl.name)
                     result = concat(result, " = ")
@@ -773,6 +778,9 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
                     result = concat(result, ";\n")
                 case Literal.Str(s):
                     if ctx.has_str() {
+                        if not(decl.is_mut) {
+                            result = concat(result, "const ")
+                        }
                         result = format(result, TIL_PREFIX, "Str ")
                         result = concat(result, decl.name)
                         result = format(result, " = ", TIL_PREFIX, "Str_from_literal(\"")
@@ -880,6 +888,7 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                             is_func = false
                         }
                         if not(is_func) {
+                            result = concat(result, "const ")
                             result = concat(result, til_type_to_c(member.value_type))
                             result = concat(result, " ")
                             result = concat(result, struct_name)
