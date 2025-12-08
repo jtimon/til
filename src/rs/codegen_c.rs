@@ -445,7 +445,6 @@ fn emit_fcall_name_and_args_for_throwing(
         let c_elem_type = match elem_type.as_str() {
             "Str" => "const char*",
             "I64" => "long long",
-            "Bool" => "unsigned char",
             "U8" => "unsigned char",
             _ => elem_type.as_str(),
         };
@@ -1112,6 +1111,7 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType, user_structs: &HashSet
             match name.as_str() {
                 "I64" => return Some("long long".to_string()),
                 "U8" => return Some("unsigned char".to_string()),
+                "Str" => return Some("const char*".to_string()),
                 "auto" => return None, // Skip inferred types
                 _ => {}
             }
@@ -1137,6 +1137,7 @@ fn value_type_to_c_name(vt: &ValueType, _user_structs: &HashSet<String>) -> Stri
                 // I64 and U8 are always C primitives
                 "I64" => "long long".to_string(),
                 "U8" => "unsigned char".to_string(),
+                "Str" => "const char*".to_string(),
                 // Everything else uses the type name directly
                 _ => name.clone(),
             }
@@ -1204,7 +1205,6 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             let c_elem_type = match elem_type.as_str() {
                 "Str" => "const char*",
                 "I64" => "long long",
-                "Bool" => "unsigned char",
                 "U8" => "unsigned char",
                 _ => elem_type.as_str(),
             };
@@ -2629,7 +2629,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 let c_elem_type = match elem_type.as_str() {
                     "Str" => "const char*",
                     "I64" => "long long",
-                    "Bool" => "unsigned char",
                     "U8" => "unsigned char",
                     _ => elem_type.as_str(),
                 };

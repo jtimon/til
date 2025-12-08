@@ -61,10 +61,9 @@ til_type_to_c := func(til_type: ValueType) returns Str {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq("I64") { return "long long" }
-        else if name.eq("Bool") { return "unsigned char" }
         else if name.eq("U8") { return "unsigned char" }
         else if name.eq("Str") { return "const char*" }
-        else { return name }  // Assume struct type
+        else { return name }  // Assume struct type (Bool, etc.)
     case:
         return "int"  // Default
     }
@@ -75,10 +74,9 @@ value_type_to_c_name := func(vt: ValueType) returns Str {
     switch vt {
     case ValueType.TCustom(name):
         if name.eq("I64") { return "long long" }
-        else if name.eq("Bool") { return "unsigned char" }
         else if name.eq("U8") { return "unsigned char" }
         else if name.eq("Str") { return "const char*" }
-        else { return name }  // struct/error types
+        else { return name }  // struct/error types (Bool, etc.)
     case:
         return "int"
     }
@@ -1382,8 +1380,6 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                         c_elem_type = "const char*"
                     } else if elem_type.eq("I64") {
                         c_elem_type = "long long"
-                    } else if elem_type.eq("Bool") {
-                        c_elem_type = "unsigned char"
                     } else if elem_type.eq("U8") {
                         c_elem_type = "unsigned char"
                     }
