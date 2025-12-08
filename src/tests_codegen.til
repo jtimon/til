@@ -6,13 +6,13 @@ import("src.core.self.builder")
 
 // Test 1: Rust codegen via rstil command
 test_rs_ccodegen := proc() {
-    _ := run_cmd("./bin/rstil", "build", "src/test/comparisons.til")
+    _ := run_cmd("./bin/rstil", "build", "src/core/core.til")
 }
 test_rs_ccodegen()
 
 // Test 2: TIL codegen via self-hosted builder
 test_til_ccodegen := proc() {
-    _ := build("src/test/comparisons.til")
+    _ := build("src/core/core.til")
 
     catch (err: Str) {
         panic(loc(), format("TIL C codegen test failed: ", err))
