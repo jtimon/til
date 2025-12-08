@@ -637,7 +637,7 @@ pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
     output.push_str("\n");
 
     // Pass 3: include external C interface (after structs and forward decls)
-    output.push_str("#include \"ext_c.h\"\n\n");
+    output.push_str("#include \"ext.c\"\n\n");
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     if let NodeType::Body = &ast.node_type {
