@@ -747,9 +747,10 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64 and U8 - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool - these are primitive typedefs, not structs
         if decl.name.eq("I64") { return result }
         if decl.name.eq("U8") { return result }
+        if decl.name.eq("Bool") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -790,9 +791,10 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64 and U8 - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool - these are primitive typedefs, not structs
         if decl.name.eq("I64") { return result }
         if decl.name.eq("U8") { return result }
+        if decl.name.eq("Bool") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1226,7 +1228,10 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <stdlib.h>\n")
     output = concat(output, "#include <string.h>\n\n")
     output = concat(output, "typedef unsigned char U8;\n")
-    output = concat(output, "typedef long long I64;\n\n")
+    output = concat(output, "typedef long long I64;\n")
+    output = concat(output, "typedef U8 Bool;\n")
+    output = concat(output, "#define true 1\n")
+    output = concat(output, "#define false 0\n\n")
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -1245,7 +1250,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     }
 
     // Pass 0b: emit forward declarations for all structs (for pointer cycles/self-references)
-    // Skip I64 and U8 - these are primitive typedefs, not structs
+    // Skip I64, U8, Bool - these are primitive typedefs, not structs
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -1258,6 +1263,7 @@ emit := proc(ast: Expr) returns Str throws Str {
                 case NodeType.Declaration(decl):
                     if decl.name.eq("I64") { }
                     else if decl.name.eq("U8") { }
+                    else if decl.name.eq("Bool") { }
                     else {
                         output = concat(output, "typedef struct ")
                         output = concat(output, decl.name)
@@ -1472,11 +1478,21 @@ emit := proc(ast: Expr) returns Str throws Str {
         while lt(i, params_len) {
             mut child := Expr()
             ast.params.get(i, child)
-            if not(is_func_declaration(child)) {
-                if not(is_struct_declaration(child)) {
-                    if not(is_enum_declaration(child)) {
-                        if not(is_constant_declaration(child)) {
-                            output = emit_expr(child, output, 1, ctx)
+            // Skip true/false declarations - they're now #defines
+            mut skip_true_false := false
+            switch child.node_type {
+            case NodeType.Declaration(decl):
+                if decl.name.eq("true") { skip_true_false = true }
+                if decl.name.eq("false") { skip_true_false = true }
+            case:
+            }
+            if not(skip_true_false) {
+                if not(is_func_declaration(child)) {
+                    if not(is_struct_declaration(child)) {
+                        if not(is_enum_declaration(child)) {
+                            if not(is_constant_declaration(child)) {
+                                output = emit_expr(child, output, 1, ctx)
+                            }
                         }
                     }
                 }

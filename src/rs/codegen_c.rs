@@ -508,7 +508,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <stdlib.h>\n");
     output.push_str("#include <string.h>\n\n");
     output.push_str("typedef unsigned char U8;\n");
-    output.push_str("typedef long long I64;\n\n");
+    output.push_str("typedef long long I64;\n");
+    output.push_str("typedef U8 Bool;\n");
+    output.push_str("#define true 1\n");
+    output.push_str("#define false 0\n\n");
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -518,12 +521,12 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     }
 
     // Pass 0b: emit forward declarations for all structs (to handle circular/forward references)
-    // Skip I64 and U8 - these are primitive typedefs, not structs
+    // Skip I64, U8, Bool - these are primitive typedefs, not structs
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 if let NodeType::Declaration(decl) = &child.node_type {
-                    if decl.name == "I64" || decl.name == "U8" {
+                    if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
                         continue; // Skip - these are primitive typedefs
                     }
                     output.push_str("typedef struct ");
@@ -644,6 +647,12 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
+            // Skip true/false declarations - they're now #defines
+            if let NodeType::Declaration(decl) = &child.node_type {
+                if decl.name == "true" || decl.name == "false" {
+                    continue;
+                }
+            }
             if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) {
                 emit_expr(child, &mut output, 1, &mut ctx)?;
             }
@@ -809,8 +818,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
 fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64 and U8 - these are primitive typedefs, not structs
-        if decl.name == "I64" || decl.name == "U8" {
+        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
             return Ok(());
         }
         if !expr.params.is_empty() {
@@ -842,8 +851,8 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContex
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64 and U8 - these are primitive typedefs, not structs
-        if decl.name == "I64" || decl.name == "U8" {
+        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
             return Ok(());
         }
         if !expr.params.is_empty() {
