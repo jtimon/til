@@ -528,3 +528,45 @@ test_vec_remove_out_of_bounds := proc() {
     }
 }
 test_vec_remove_out_of_bounds()
+
+test_vec_contains := proc() {
+    // Test with I64
+    mut nums := Vec.new(I64)
+    nums.push(10)
+    nums.push(20)
+    nums.push(30)
+
+    test(loc(), nums.contains(10), "contains should find 10")
+    test(loc(), nums.contains(20), "contains should find 20")
+    test(loc(), nums.contains(30), "contains should find 30")
+    test(loc(), not(nums.contains(15)), "contains should not find 15")
+    test(loc(), not(nums.contains(0)), "contains should not find 0")
+
+    nums.delete()
+
+    // Test with Str
+    mut strs := Vec.new(Str)
+    strs.push("foo")
+    strs.push("bar")
+    strs.push("baz")
+
+    test(loc(), strs.contains("foo"), "contains should find foo")
+    test(loc(), strs.contains("bar"), "contains should find bar")
+    test(loc(), strs.contains("baz"), "contains should find baz")
+    test(loc(), not(strs.contains("qux")), "contains should not find qux")
+    test(loc(), not(strs.contains("")), "contains should not find empty string")
+
+    strs.delete()
+
+    // Test empty vec
+    mut empty := Vec.new(I64)
+    test(loc(), not(empty.contains(42)), "contains on empty vec should return false")
+    empty.delete()
+
+    catch (err: AllocError) {
+        println("ERROR:", loc(), "Unexpected AllocError")
+        println(err.msg)
+        exit(1)
+    }
+}
+test_vec_contains()

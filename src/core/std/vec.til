@@ -171,6 +171,31 @@ Vec := struct {
         }
     }
 
+    /** Check if vec contains element.
+     *  Uses Str.eq() for Str elements, memcmp for others. */
+    contains := func(self: Vec, value: Dynamic) returns Bool {
+        mut i := 0
+        while lt(i, self._len) {
+            src := add(self.ptr, mul(i, self.type_size))
+            // Special case for Str: compare content, not struct bytes
+            if Str.eq(self.type_name, "Str") {
+                mut existing := ""
+                memcpy(to_ptr(existing), src, self.type_size)
+                mut val_str := ""
+                memcpy(to_ptr(val_str), to_ptr(value), self.type_size)
+                if val_str.eq(existing) {
+                    return true
+                }
+            } else {
+                if memcmp(to_ptr(value), src, self.type_size).eq(0) {
+                    return true
+                }
+            }
+            i = add(i, 1)
+        }
+        return false
+    }
+
     /** Remove element at index, shifting remaining elements left. */
     remove := proc(mut self: Vec, index: I64) throws IndexOutOfBoundsError {
         if gteq(index, self._len) {
