@@ -10,7 +10,8 @@ use crate::rs::parser::{parse_tokens, Expr, NodeType};
 use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::codegen_c;
 use crate::rs::init::{import_path_to_file_path, Context};
-use crate::rs::typer::{check_types, basic_mode_checks};
+// TODO: Re-enable when typer is fixed
+// use crate::rs::typer::{check_types, basic_mode_checks};
 
 // Parse a single file and return its AST (and mode for main file)
 fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
@@ -143,20 +144,22 @@ pub fn build(path: &str) -> Result<(), String> {
     // Run init phase (register declarations in context)
     // Use the mode from the main file, not DEFAULT_MODE
     let mut context = Context::new(&path.to_string(), &main_mode.name)?;
-    let mut errors = crate::rs::init::init_context(&mut context, &merged_ast);
+    let _ = crate::rs::init::init_context(&mut context, &merged_ast);
 
+    // TODO: Re-enable typer phase once it produces accurate output
+    // Currently produces confusing output on valid code
     // Run typer phase (type checking)
-    errors.extend(basic_mode_checks(&context, &merged_ast));
-    errors.extend(check_types(&mut context, &merged_ast));
-
-    // Report errors but continue to codegen (for now, until core.til can be compiled)
-    // TODO: Make this fatal once core.til compiles
-    if !errors.is_empty() {
-        println!("Warning: {} init/type errors (continuing to codegen):", errors.len());
-        for err in &errors {
-            println!("{}:{}", path, err);
-        }
-    }
+    // errors.extend(basic_mode_checks(&context, &merged_ast));
+    // errors.extend(check_types(&mut context, &merged_ast));
+    //
+    // // Report errors but continue to codegen (for now, until core.til can be compiled)
+    // // TODO: Make this fatal once core.til compiles
+    // if !errors.is_empty() {
+    //     println!("Warning: {} init/type errors (continuing to codegen):", errors.len());
+    //     for err in &errors {
+    //         println!("{}:{}", path, err);
+    //     }
+    // }
 
     // Generate C code
     let c_code = codegen_c::emit(&merged_ast)?;

@@ -5,6 +5,9 @@ mode lib
 
 import("src.core.self.parser")  // Expr, NodeType, Literal
 
+// Prefix for all TIL-generated C names (structs, functions, etc.)
+TIL_PREFIX := "til_"
+
 // Info about a variadic parameter
 VariadicParamInfo := struct {
     mut arg_name: Str = ""
@@ -77,7 +80,7 @@ til_type_to_c := func(til_type: ValueType) returns Str {
     switch til_type {
     case ValueType.TCustom(name):
         if name.eq("Str") { return "const char*" }
-        else { return name }  // I64, U8, Bool, structs all pass through
+        else { return concat(TIL_PREFIX, name) }  // All types get til_ prefix
     case:
         return "int"  // Default
     }
@@ -88,7 +91,7 @@ value_type_to_c_name := func(vt: ValueType) returns Str {
     switch vt {
     case ValueType.TCustom(name):
         if name.eq("Str") { return "const char*" }
-        else { return name }  // I64, U8, Bool, structs all pass through
+        else { return concat(TIL_PREFIX, name) }  // All types get til_ prefix
     case:
         return "int"
     }
@@ -718,9 +721,9 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
                     result = concat(result, ";\n")
                 case Literal.Str(s):
                     if ctx.has_str() {
-                        result = concat(result, "Str ")
+                        result = format(result, TIL_PREFIX, "Str ")
                         result = concat(result, decl.name)
-                        result = concat(result, " = Str_from_literal(\"")
+                        result = format(result, " = ", TIL_PREFIX, "Str_from_literal(\"")
                         result = concat(result, s)
                         result = concat(result, "\");\n")
                     } else {
@@ -741,6 +744,11 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
     case:
         result = result
     }
+
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
     return result
 }
 
@@ -1229,9 +1237,9 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <stdio.h>\n")
     output = concat(output, "#include <stdlib.h>\n")
     output = concat(output, "#include <string.h>\n\n")
-    output = concat(output, "typedef unsigned char U8;\n")
-    output = concat(output, "typedef long long I64;\n")
-    output = concat(output, "typedef U8 Bool;\n")
+    output = format(output, "typedef unsigned char ", TIL_PREFIX, "U8;\n")
+    output = format(output, "typedef long long ", TIL_PREFIX, "I64;\n")
+    output = format(output, "typedef ", TIL_PREFIX, "U8 ", TIL_PREFIX, "Bool;\n")
     output = concat(output, "#define true 1\n")
     output = concat(output, "#define false 0\n\n")
 
@@ -1338,18 +1346,18 @@ emit := proc(ast: Expr) returns Str throws Str {
 
     // Pass 1c: emit helper functions (after structs are defined)
     output = concat(output, "\n// Type conversion helpers\n")
-    output = concat(output, "static inline I64 u8_to_i64(U8 v) { return (I64)v; }\n")
-    output = concat(output, "static inline U8 i64_to_u8(I64 v) { return (U8)v; }\n")
+    output = format(output, "static inline ", TIL_PREFIX, "I64 u8_to_i64(", TIL_PREFIX, "U8 v) { return (", TIL_PREFIX, "I64)v; }\n")
+    output = format(output, "static inline ", TIL_PREFIX, "U8 i64_to_u8(", TIL_PREFIX, "I64 v) { return (", TIL_PREFIX, "U8)v; }\n")
     if ctx.has_str() {
         output = concat(output, "// Str helper: create Str from C string literal\n")
-        output = concat(output, "static inline Str Str_from_literal(const char* lit) {\n")
-        output = concat(output, "    Str s;\n")
-        output = concat(output, "    s.c_string = (I64)lit;\n")
+        output = format(output, "static inline ", TIL_PREFIX, "Str ", TIL_PREFIX, "Str_from_literal(const char* lit) {\n")
+        output = format(output, "    ", TIL_PREFIX, "Str s;\n")
+        output = format(output, "    s.c_string = (", TIL_PREFIX, "I64)lit;\n")
         output = concat(output, "    s.cap = strlen(lit);\n")
         output = concat(output, "    return s;\n")
         output = concat(output, "}\n")
         output = concat(output, "// single_print: print a string without newline\n")
-        output = concat(output, "static inline void single_print(Str s) { printf(\"%s\", (char*)s.c_string); }\n")
+        output = format(output, "static inline void single_print(", TIL_PREFIX, "Str s) { printf(\"%s\", (char*)s.c_string); }\n")
     } else {
         output = concat(output, "\n// single_print: print a string without newline (no Str defined)\n")
         output = concat(output, "static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
@@ -1357,7 +1365,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "// print_flush: flush stdout\n")
     output = concat(output, "static inline void print_flush(void) { fflush(stdout); }\n")
     output = concat(output, "// to_ptr: get pointer address as integer\n")
-    output = concat(output, "static inline I64 to_ptr(I64* p) { return (I64)p; }\n\n")
+    output = format(output, "static inline ", TIL_PREFIX, "I64 to_ptr(", TIL_PREFIX, "I64* p) { return (", TIL_PREFIX, "I64)p; }\n\n")
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
@@ -1509,6 +1517,10 @@ emit := proc(ast: Expr) returns Str throws Str {
 
     output = concat(output, "    return 0;\n")
     output = concat(output, "}\n")
+
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return output
 }
@@ -2081,15 +2093,17 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
                 case NodeType.Identifier(field):
                     mut field_first_char := field.get_substr(0, 1)
                     if field_first_char.is_uppercase() {
-                        // Enum variant: Type.Variant -> Type_make_Variant()
-                        mut result := concat(output, name)
+                        // Enum variant: Type.Variant -> til_Type_make_Variant()
+                        mut result := concat(output, TIL_PREFIX)
+                        result = concat(result, name)
                         result = concat(result, "_make_")
                         result = concat(result, field)
                         result = concat(result, "()")
                         return result
                     } else {
-                        // Type-qualified constant: Type.constant -> Type_constant
-                        mut result := concat(output, name)
+                        // Type-qualified constant: Type.constant -> til_Type_constant
+                        mut result := concat(output, TIL_PREFIX)
+                        result = concat(result, name)
                         result = concat(result, "_")
                         result = concat(result, field)
                         return result
@@ -3623,7 +3637,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     } else if func_name.eq("loc") {
         if ctx.has_str() {
-            return concat(output, "Str_from_literal(\"\")")
+            return format(output, TIL_PREFIX, "Str_from_literal(\"\")")
         } else {
             return concat(output, "\"\"")
         }
@@ -3817,6 +3831,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
         return result
     }
+
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 }
 
 emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr, mut ctx: CodegenContext) returns Str throws Str {
@@ -3893,7 +3911,7 @@ emit_literal := proc(lit: Literal, output: Str, ctx: CodegenContext) returns Str
     switch lit {
     case Literal.Str(s):
         if ctx.has_str() {
-            result = format(output, "Str_from_literal(\"", s, "\")")
+            result = format(output, TIL_PREFIX, "Str_from_literal(\"", s, "\")")
         } else {
             result = format(output, "\"", s, "\"")
         }

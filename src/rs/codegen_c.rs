@@ -4,10 +4,15 @@
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType};
 use std::collections::{HashMap, HashSet};
 
+// Prefix for all TIL-generated names in C code (structs, functions, types)
+const TIL_PREFIX: &str = "til_";
+
 // Codegen context for tracking function info
 struct CodegenContext {
     // Set of all known function names (for UFCS mangling)
     known_functions: HashSet<String>,
+    // Set of external function names (declared with ext_func, call C directly)
+    ext_funcs: HashSet<String>,
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> list of return types
@@ -32,6 +37,7 @@ impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
             known_functions: HashSet::new(),
+            ext_funcs: HashSet::new(),
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
@@ -41,6 +47,20 @@ impl CodegenContext {
             current_variadic_param: None,
             temp_counter: 0,
             user_structs: HashSet::new(),
+        }
+    }
+
+    // Returns the C name for a TIL identifier (struct, function, type) - adds TIL_PREFIX
+    fn til_name(&self, name: &str) -> String {
+        format!("{}{}", TIL_PREFIX, name)
+    }
+
+    // Returns the C name for a TIL function - external functions keep their original name
+    fn til_func_name(&self, name: &str) -> String {
+        if self.ext_funcs.contains(name) {
+            name.to_string()
+        } else {
+            self.til_name(name)
         }
     }
 
@@ -218,7 +238,7 @@ fn hoist_throwing_args(
 
             // Determine the C type for the temp variable
             let c_type = if let Some(ret_type) = &return_type {
-                til_type_to_c(ret_type, &ctx.user_structs).unwrap_or_else(|| "int".to_string())
+                til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
             } else {
                 "int".to_string()
             };
@@ -235,7 +255,7 @@ fn hoist_throwing_args(
             for (err_idx, throw_type) in throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     output.push_str(&indent_str);
-                    output.push_str(type_name);
+                    output.push_str(&ctx.til_name(type_name));
                     output.push_str(" _err");
                     output.push_str(&err_idx.to_string());
                     output.push_str("_");
@@ -336,16 +356,16 @@ fn emit_fcall_name_and_args_for_throwing(
         if let NodeType::Identifier(receiver_name) = &receiver.node_type {
             let first_char = receiver_name.chars().next().unwrap_or('a');
             if first_char.is_uppercase() {
-                // Type-qualified: Type.func -> Type_func
-                output.push_str(receiver_name);
+                // Type-qualified: Type.func -> til_Type_func
+                output.push_str(&ctx.til_name(receiver_name));
                 output.push_str("_");
             } else {
-                // Instance UFCS: instance.method -> Type_method (only if mangled name exists)
+                // Instance UFCS: instance.method -> til_Type_method (only if mangled name exists)
                 if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                     if let ValueType::TCustom(type_name) = receiver_type {
                         let candidate = format!("{}_{}", type_name, func_name);
                         if ctx.known_functions.contains(&candidate) {
-                            output.push_str(type_name);
+                            output.push_str(&ctx.til_name(type_name));
                             output.push_str("_");
                         }
                     }
@@ -360,7 +380,7 @@ fn emit_fcall_name_and_args_for_throwing(
                     if let ValueType::TCustom(type_name) = receiver_type {
                         let candidate = format!("{}_{}", type_name, func_name);
                         if ctx.known_functions.contains(&candidate) {
-                            output.push_str(type_name);
+                            output.push_str(&ctx.til_name(type_name));
                             output.push_str("_");
                         }
                     }
@@ -369,7 +389,7 @@ fn emit_fcall_name_and_args_for_throwing(
         }
     }
 
-    output.push_str(&func_name);
+    output.push_str(&ctx.til_func_name(&func_name));
     output.push_str("(&");
     output.push_str(temp_var);
 
@@ -447,8 +467,8 @@ fn emit_fcall_name_and_args_for_throwing(
         output.push_str(&variadic_count.to_string());
 
         // Emit variadic args as compound literal array (C99)
-        // Get C element type for the array
-        let c_elem_type = elem_type.as_str();
+        // Get C element type for the array (all TIL types get til_ prefix)
+        let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
 
         if variadic_count == 0 {
             // Empty variadic: pass NULL
@@ -456,7 +476,7 @@ fn emit_fcall_name_and_args_for_throwing(
         } else {
             // Build compound literal: (type[]){arg1, arg2, ...}
             output.push_str(", (");
-            output.push_str(c_elem_type);
+            output.push_str(&c_elem_type);
             output.push_str("[]){");
             for (i, arg) in args.iter().skip(regular_count).enumerate() {
                 if i > 0 {
@@ -513,9 +533,9 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <stdio.h>\n");
     output.push_str("#include <stdlib.h>\n");
     output.push_str("#include <string.h>\n\n");
-    output.push_str("typedef unsigned char U8;\n");
-    output.push_str("typedef long long I64;\n");
-    output.push_str("typedef U8 Bool;\n");
+    output.push_str(&format!("typedef unsigned char {}U8;\n", TIL_PREFIX));
+    output.push_str(&format!("typedef long long {}I64;\n", TIL_PREFIX));
+    output.push_str(&format!("typedef {}U8 {}Bool;\n", TIL_PREFIX, TIL_PREFIX));
     output.push_str("#define true 1\n");
     output.push_str("#define false 0\n\n");
 
@@ -535,10 +555,11 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
                     if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
                         continue; // Skip - these are primitive typedefs
                     }
+                    let struct_name = ctx.til_name(&decl.name);
                     output.push_str("typedef struct ");
-                    output.push_str(&decl.name);
+                    output.push_str(&struct_name);
                     output.push_str(" ");
-                    output.push_str(&decl.name);
+                    output.push_str(&struct_name);
                     output.push_str(";\n");
                 }
             }
@@ -571,14 +592,14 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     let has_str = ctx.user_structs.contains("Str");
     if has_str {
         output.push_str("\n// Str helper: create Str from C string literal\n");
-        output.push_str("static inline Str Str_from_literal(const char* lit) {\n");
-        output.push_str("    Str s;\n");
-        output.push_str("    s.c_string = (I64)lit;\n");
+        output.push_str(&format!("static inline {}Str {}Str_from_literal(const char* lit) {{\n", TIL_PREFIX, TIL_PREFIX));
+        output.push_str(&format!("    {}Str s;\n", TIL_PREFIX));
+        output.push_str(&format!("    s.c_string = ({}I64)lit;\n", TIL_PREFIX));
         output.push_str("    s.cap = strlen(lit);\n");
         output.push_str("    return s;\n");
         output.push_str("}\n");
         output.push_str("// single_print: print a string without newline\n");
-        output.push_str("static inline void single_print(Str s) { printf(\"%s\", (char*)s.c_string); }\n");
+        output.push_str(&format!("static inline void single_print({}Str s) {{ printf(\"%s\", (char*)s.c_string); }}\n", TIL_PREFIX));
     } else {
         output.push_str("\n// single_print: print a string without newline (no Str defined)\n");
         output.push_str("static inline void single_print(const char* s) { printf(\"%s\", s); }\n");
@@ -586,10 +607,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("// print_flush: flush stdout\n");
     output.push_str("static inline void print_flush(void) { fflush(stdout); }\n");
     output.push_str("// to_ptr: get pointer address as integer\n");
-    output.push_str("static inline I64 to_ptr(I64* p) { return (I64)p; }\n");
+    output.push_str(&format!("static inline {}I64 to_ptr({}I64* p) {{ return ({}I64)p; }}\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
     output.push_str("// Type conversion helpers\n");
-    output.push_str("static inline I64 u8_to_i64(U8 v) { return (I64)v; }\n");
-    output.push_str("static inline U8 i64_to_u8(I64 v) { return (U8)v; }\n\n");
+    output.push_str(&format!("static inline {}I64 u8_to_i64({}U8 v) {{ return ({}I64)v; }}\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
+    output.push_str(&format!("static inline {}U8 i64_to_u8({}I64 v) {{ return ({}U8)v; }}\n\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     if let NodeType::Body = &ast.node_type {
@@ -753,6 +774,10 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                     NodeType::FuncDef(func_def) => {
                         // Top-level function - track name and types
                         ctx.known_functions.insert(decl.name.clone());
+                        // Track external functions separately (they use plain C names)
+                        if func_def.is_ext() {
+                            ctx.ext_funcs.insert(decl.name.clone());
+                        }
                         if !func_def.throw_types.is_empty() {
                             ctx.func_throw_types.insert(
                                 decl.name.clone(),
@@ -831,13 +856,13 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContex
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 output.push_str("struct ");
-                output.push_str(&decl.name);
+                output.push_str(&ctx.til_name(&decl.name));
                 output.push_str(" {\n");
                 for member in &struct_def.members {
                     // Only emit mut fields as struct members
                     // Skip functions and non-mut fields (constants)
                     if member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type, &ctx.user_structs) {
+                        if let Some(c_type) = til_type_to_c(&member.value_type) {
                             output.push_str("    ");
                             output.push_str(&c_type);
                             output.push_str(" ");
@@ -863,16 +888,16 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
         }
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                let struct_name = &decl.name;
+                let struct_name = ctx.til_name(&decl.name);
                 for member in &struct_def.members {
                     // Only emit non-mut, non-function fields as constants
                     if !member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type, &ctx.user_structs) {
+                        if let Some(c_type) = til_type_to_c(&member.value_type) {
                             // Get the default value
                             if let Some(default_val) = struct_def.default_values.get(&member.name) {
                                 output.push_str(&c_type);
                                 output.push_str(" ");
-                                output.push_str(struct_name);
+                                output.push_str(&struct_name);
                                 output.push_str("_");
                                 output.push_str(&member.name);
                                 output.push_str(" = ");
@@ -927,7 +952,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str("typedef union {\n");
         for (variant_name, payload_type) in &variants {
             if let Some(pt) = payload_type {
-                if let Some(c_type) = til_type_to_c(pt, &ctx.user_structs) {
+                if let Some(c_type) = til_type_to_c(pt) {
                     output.push_str("    ");
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -968,7 +993,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
         // Parameter for payload (if any)
         if let Some(pt) = payload_type {
-            if let Some(c_type) = til_type_to_c(pt, &ctx.user_structs) {
+            if let Some(c_type) = til_type_to_c(pt) {
                 output.push_str(&c_type);
                 output.push_str(" value");
             }
@@ -1006,11 +1031,11 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext)
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
-                let enum_name = &decl.name;
+                let enum_name = ctx.til_name(&decl.name);
 
                 if enum_has_payloads(enum_def) {
                     // Phase 2: Enums with payloads - tagged union
-                    return emit_enum_with_payloads(enum_name, enum_def, output, ctx);
+                    return emit_enum_with_payloads(&enum_name, enum_def, output, ctx);
                 }
 
                 // Phase 1: Simple enum without payloads
@@ -1023,7 +1048,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext)
 
                 for (index, variant_name) in variants.iter().enumerate() {
                     output.push_str("    ");
-                    output.push_str(enum_name);
+                    output.push_str(&enum_name);
                     output.push_str("_");
                     output.push_str(variant_name);
                     output.push_str(" = ");
@@ -1032,20 +1057,20 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext)
                 }
 
                 output.push_str("} ");
-                output.push_str(enum_name);
+                output.push_str(&enum_name);
                 output.push_str(";\n\n");
 
                 // Generate constructor functions for consistency with payload enums
                 // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
                 for variant_name in &variants {
                     output.push_str("static inline ");
-                    output.push_str(enum_name);
+                    output.push_str(&enum_name);
                     output.push_str(" ");
-                    output.push_str(enum_name);
+                    output.push_str(&enum_name);
                     output.push_str("_make_");
                     output.push_str(variant_name);
                     output.push_str("(void) { return ");
-                    output.push_str(enum_name);
+                    output.push_str(&enum_name);
                     output.push_str("_");
                     output.push_str(variant_name);
                     output.push_str("; }\n");
@@ -1063,7 +1088,7 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String, ctx: &CodegenCo
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                let struct_name = &decl.name;
+                let struct_name = ctx.til_name(&decl.name);
                 for member in &struct_def.members {
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
@@ -1123,12 +1148,12 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                let struct_name = &decl.name;
+                let struct_name = ctx.til_name(&decl.name);
                 for member in &struct_def.members {
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_body(struct_name, member, func_def, output, ctx)?;
+                            emit_struct_func_body(&struct_name, member, func_def, output, ctx)?;
                         }
                     }
                 }
@@ -1139,14 +1164,14 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 }
 
 // Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
-// user_structs: set of struct names defined in the code (Str, Bool, etc. are structs when defined)
-fn til_type_to_c(til_type: &crate::rs::parser::ValueType, _user_structs: &HashSet<String>) -> Option<String> {
+fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
             if name == "auto" {
                 None // Skip inferred types
             } else {
-                Some(name.clone())
+                // All types get TIL_PREFIX
+                Some(format!("{}{}", TIL_PREFIX, name))
             }
         },
         crate::rs::parser::ValueType::TFunction(_) => None,
@@ -1156,9 +1181,12 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType, _user_structs: &HashSe
 }
 
 // Helper to get C type name for a ValueType (for error struct definitions)
-fn value_type_to_c_name(vt: &ValueType, _user_structs: &HashSet<String>) -> String {
+fn value_type_to_c_name(vt: &ValueType) -> String {
     match vt {
-        ValueType::TCustom(name) => name.clone(),
+        ValueType::TCustom(name) => {
+            // All types get TIL_PREFIX
+            format!("{}{}", TIL_PREFIX, name)
+        },
         _ => "int".to_string(),
     }
 }
@@ -1179,7 +1207,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         if func_def.return_types.is_empty() {
             output.push_str("void ");
         } else {
-            let ret_type = til_type_to_c(&func_def.return_types[0], &ctx.user_structs).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
             output.push_str(&ret_type);
             output.push_str(" ");
         }
@@ -1193,7 +1221,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
     if is_throwing {
         // Output params first: return value pointer, then error pointers
         if !func_def.return_types.is_empty() {
-            let ret_type = til_type_to_c(&func_def.return_types[0], &ctx.user_structs).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
             output.push_str(&ret_type);
             output.push_str("* _ret");
             param_count += 1;
@@ -1203,7 +1231,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             if param_count > 0 {
                 output.push_str(", ");
             }
-            let err_type = value_type_to_c_name(throw_type, &ctx.user_structs);
+            let err_type = value_type_to_c_name(throw_type);
             output.push_str(&err_type);
             output.push_str("* _err");
             output.push_str(&(i + 1).to_string());
@@ -1222,13 +1250,16 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             output.push_str("int _");
             output.push_str(&arg.name);
             output.push_str("_len, ");
-            output.push_str(elem_type.as_str());
+            // Apply TIL_PREFIX for all types
+            let elem_type_str = elem_type.as_str();
+            output.push_str(TIL_PREFIX);
+            output.push_str(elem_type_str);
             output.push_str("* ");
             output.push_str(&arg.name);
             param_count += 1;
             break; // Variadic must be last
         } else {
-            let arg_type = til_type_to_c(&arg.value_type, &ctx.user_structs).unwrap_or("int".to_string());
+            let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
             output.push_str(&arg_type);
             output.push_str(" ");
             output.push_str(&arg.name);
@@ -1253,7 +1284,8 @@ fn emit_func_prototype(expr: &Expr, output: &mut String, ctx: &CodegenContext) -
                     return Ok(());
                 }
 
-                emit_func_signature(&decl.name, func_def, output, ctx);
+                let func_name = ctx.til_func_name(&decl.name);
+                emit_func_signature(&func_name, func_def, output, ctx);
                 output.push_str(";\n");
                 return Ok(());
             }
@@ -1299,7 +1331,8 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                     }
                 }
 
-                emit_func_signature(&decl.name, func_def, output, ctx);
+                let func_name = ctx.til_func_name(&decl.name);
+                emit_func_signature(&func_name, func_def, output, ctx);
                 output.push_str(" {\n");
 
                 // With Array approach, variadic args are passed directly as array pointer
@@ -1340,7 +1373,8 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                     if let NodeType::Identifier(field) = &expr.params[0].node_type {
                         let field_first_char = field.chars().next().unwrap_or('a');
                         if field_first_char.is_uppercase() {
-                            // Enum variant: Type.Variant -> Type_make_Variant()
+                            // Enum variant: Type.Variant -> til_Type_make_Variant()
+                            output.push_str(TIL_PREFIX);
                             output.push_str(name);
                             output.push_str("_make_");
                             output.push_str(field);
@@ -1467,7 +1501,9 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     Ok(())
 }
 
-/// Get the function name from an FCall expression
+/// Get the function name from an FCall expression (returns ORIGINAL name for lookup)
+/// This returns the name as stored in func_throw_types/known_functions, WITHOUT til_ prefix.
+/// For C output, use ctx.til_func_name() on the result.
 fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
     if expr.params.is_empty() {
         return None;
@@ -1476,7 +1512,7 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
     match &expr.params[0].node_type {
         NodeType::Identifier(name) => {
             if expr.params[0].params.is_empty() {
-                // Regular function call
+                // Regular function call - return original name
                 Some(name.clone())
             } else {
                 // UFCS: receiver.method() - determine mangled name
@@ -1484,7 +1520,7 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
                     // Check if receiver is PascalCase (type-qualified call)
                     let first_char = name.chars().next().unwrap_or('a');
                     if first_char.is_uppercase() {
-                        // Type.method -> Type_method
+                        // Type.method -> Type_method (original name)
                         Some(format!("{}_{}", name, method_name))
                     } else {
                         // instance.method -> look up instance type for mangling
@@ -1539,7 +1575,7 @@ fn emit_throwing_call(
     let ret_type = if needs_ret {
         ctx.func_return_types.get(&func_name)
             .and_then(|types| types.first())
-            .map(|t| til_type_to_c(t, &ctx.user_structs).unwrap_or("int".to_string()))
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
         "int".to_string()
@@ -1567,7 +1603,7 @@ fn emit_throwing_call(
     for (idx, throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
-            output.push_str(type_name);
+            output.push_str(&ctx.til_name(type_name));
             output.push_str(" _err");
             output.push_str(&idx.to_string());
             output.push_str("_");
@@ -1582,7 +1618,7 @@ fn emit_throwing_call(
     output.push_str("int _status_");
     output.push_str(&temp_suffix.to_string());
     output.push_str(" = ");
-    output.push_str(&func_name);
+    output.push_str(&ctx.til_func_name(&func_name));
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
@@ -1665,7 +1701,7 @@ fn emit_throwing_call(
                     if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
                         let inner_indent = "    ".repeat(indent + 1);
                         output.push_str(&inner_indent);
-                        output.push_str(err_type_name);
+                        output.push_str(&ctx.til_name(err_type_name));
                         output.push_str(" ");
                         output.push_str(err_var_name);
                         output.push_str(" = _err");
@@ -1716,7 +1752,7 @@ fn emit_throwing_call_propagate(
     let ret_type = if needs_ret {
         ctx.func_return_types.get(&func_name)
             .and_then(|types| types.first())
-            .map(|t| til_type_to_c(t, &ctx.user_structs).unwrap_or("int".to_string()))
+            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
         "int".to_string()
@@ -1744,7 +1780,7 @@ fn emit_throwing_call_propagate(
     for (idx, throw_type) in throw_types.iter().enumerate() {
         if let crate::rs::parser::ValueType::TCustom(type_name) = throw_type {
             output.push_str(&indent_str);
-            output.push_str(type_name);
+            output.push_str(&ctx.til_name(type_name));
             output.push_str(" _err");
             output.push_str(&idx.to_string());
             output.push_str("_");
@@ -1758,7 +1794,7 @@ fn emit_throwing_call_propagate(
     output.push_str("int _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
-    output.push_str(&func_name);
+    output.push_str(&ctx.til_func_name(&func_name));
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
@@ -1896,14 +1932,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     if let Some(type_name) = struct_type {
         // Struct variable declaration
         output.push_str(&indent_str);
-        output.push_str(&type_name);
+        output.push_str(&ctx.til_name(&type_name));
         output.push_str(" ");
         output.push_str(name);
         output.push_str(" = {0};\n");
     } else if let Some(type_name) = enum_type {
         // Enum variable declaration
         output.push_str(&indent_str);
-        output.push_str(&type_name);
+        output.push_str(&ctx.til_name(&type_name));
         output.push_str(" ");
         output.push_str(name);
         output.push_str(" = ");
@@ -1914,12 +1950,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
             if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
-                til_type_to_c(&inferred, &ctx.user_structs).unwrap_or("int".to_string())
+                til_type_to_c(&inferred).unwrap_or("int".to_string())
             } else {
-                til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
             }
         } else {
-            til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
+            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
         };
         output.push_str(&c_type);
         output.push_str(" ");
@@ -1935,12 +1971,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
             if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
-                til_type_to_c(&inferred, &ctx.user_structs).unwrap_or("int".to_string())
+                til_type_to_c(&inferred).unwrap_or("int".to_string())
             } else {
-                til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
             }
         } else {
-            til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
+            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
         };
         output.push_str("const ");
         output.push_str(&c_type);
@@ -2236,13 +2272,13 @@ fn emit_fcall_with_hoisted(
         }
     }
 
-    // Check for struct construction: TypeName() -> (TypeName){}
+    // Check for struct construction: TypeName() -> (til_TypeName){}
     if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
         && expr.params[0].params.is_empty()
         && expr.params.len() == 1
     {
         output.push_str("(");
-        output.push_str(&func_name);
+        output.push_str(&ctx.til_name(&func_name));
         output.push_str("){}");
         return Ok(());
     }
@@ -2676,6 +2712,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // loc() - just emit empty string for now
         "loc" => {
             if ctx.user_structs.contains("Str") {
+                output.push_str(TIL_PREFIX);
                 output.push_str("Str_from_literal(\"\")");
             } else {
                 output.push_str("\"\"");
@@ -2696,7 +2733,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         let has_args = expr.params.len() > 1;
 
                         if !has_args {
-                            // Simple enum value: Type.Variant -> Type_Variant
+                            // Simple enum value: Type.Variant -> til_Type_Variant
+                            output.push_str(TIL_PREFIX);
                             output.push_str(receiver_name);
                             output.push_str("_");
                             output.push_str(&func_name);
@@ -2706,10 +2744,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             return Ok(());
                         }
 
-                        // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
-                        // For enum constructors with payloads: Type.Variant(val) -> Type_make_Variant(val)
-                        // For struct constants: Type.CONSTANT -> Type_CONSTANT (no parens)
+                        // Type-qualified call with args: Type.func(args...) -> til_Type_func(args...)
+                        // For enum constructors with payloads: Type.Variant(val) -> til_Type_make_Variant(val)
+                        // For struct constants: Type.CONSTANT -> til_Type_CONSTANT (no parens)
                         // Enum variants are capitalized, function names are lowercase
+                        output.push_str(TIL_PREFIX);
                         output.push_str(receiver_name);
                         output.push_str("_");
                         let func_first_char = func_name.chars().next().unwrap_or('a');
@@ -2736,8 +2775,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         }
                         return Ok(());
                     } else {
-                        // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
+                        // Instance UFCS: instance.func(args...) -> til_Type_func(instance, args...)
                         // Look up the receiver's type for proper mangling (only if mangled name exists)
+                        let mut is_struct_method = false;
                         if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
                             if let ValueType::TCustom(type_name) = receiver_type {
                                 // Skip "auto" type - it's an inferred type placeholder
@@ -2745,13 +2785,20 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                     // Only mangle if Type_func exists in known_functions
                                     let candidate = format!("{}_{}", type_name, func_name);
                                     if ctx.known_functions.contains(&candidate) {
+                                        output.push_str(TIL_PREFIX);
                                         output.push_str(type_name);
                                         output.push_str("_");
+                                        is_struct_method = true;
                                     }
                                 }
                             }
                         }
-                        output.push_str(&func_name);
+                        // If not a struct method, it's a top-level function - add TIL_PREFIX unless ext_func
+                        if is_struct_method {
+                            output.push_str(&func_name);
+                        } else {
+                            output.push_str(&ctx.til_func_name(&func_name));
+                        }
                         output.push_str("(");
                         // First emit the receiver as first argument
                         emit_identifier_without_nested(receiver, output)?;
@@ -2769,14 +2816,14 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             }
 
-            // Check for struct construction: TypeName() -> (TypeName){}
+            // Check for struct construction: TypeName() -> (til_TypeName){}
             // Struct names are PascalCase, no nested identifiers, no args
             if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                 && expr.params[0].params.is_empty()  // No nested params (not Type.Variant)
                 && expr.params.len() == 1            // No constructor args
             {
                 output.push_str("(");
-                output.push_str(&func_name);
+                output.push_str(&ctx.til_name(&func_name));
                 output.push_str("){}");
                 if indent > 0 {
                     output.push_str(";\n");
@@ -2784,9 +2831,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Ok(());
             }
 
-            // Regular function call - check for UFCS: func(instance, ...) -> Type_func(instance, ...)
+            // Regular function call - check for UFCS: func(instance, ...) -> til_Type_func(instance, ...)
             // If first argument is a variable with known type, try mangled name
-            let mut mangled_name = func_name.clone();
+            // Track both original name (for lookups) and output name (with til_ prefix)
+            let mut lookup_name = func_name.clone();
+            let mut output_name = ctx.til_func_name(&func_name);
             if expr.params.len() > 1 {
                 if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
                     if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
@@ -2794,17 +2843,19 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             // Check if mangled function exists in our known functions
                             let candidate = format!("{}_{}", type_name, func_name);
                             if ctx.known_functions.contains(&candidate) {
-                                mangled_name = candidate;
+                                // Use TIL_PREFIX for struct methods
+                                lookup_name = candidate.clone();
+                                output_name = format!("{}{}", TIL_PREFIX, candidate);
                             }
                         }
                     }
                 }
             }
-            output.push_str(&mangled_name);
+            output.push_str(&output_name);
             output.push_str("(");
 
-            // Check if this is a variadic function call
-            if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
+            // Check if this is a variadic function call (use original name for lookup)
+            if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).cloned() {
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
@@ -2916,6 +2967,7 @@ fn emit_literal(lit: &Literal, output: &mut String, ctx: &CodegenContext) -> Res
         Literal::Str(s) => {
             let has_str = ctx.user_structs.contains("Str");
             if has_str {
+                output.push_str(TIL_PREFIX);
                 output.push_str("Str_from_literal(\"");
             } else {
                 output.push('"');

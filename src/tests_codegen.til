@@ -4,28 +4,18 @@ mode test
 
 import("src.core.self.builder")
 
-println("\n=== C Codegen Tests ===\n")
-
 // Test 1: Rust codegen via rstil command
-test_rs_codegen := proc() {
-    println("Testing Rust C codegen with comparisons.til...")
+test_rs_ccodegen := proc() {
     _ := run_cmd("./bin/rstil", "build", "src/test/comparisons.til")
-    println("[PASS] Rust codegen: comparisons.til succeeded")
 }
-
-test_rs_codegen()
+test_rs_ccodegen()
 
 // Test 2: TIL codegen via self-hosted builder
-test_til_codegen := proc() {
-    println("Testing TIL C codegen with comparisons.til...")
+test_til_ccodegen := proc() {
     _ := build("src/test/comparisons.til")
-    println("[PASS] TIL codegen: comparisons.til succeeded")
 
     catch (err: Str) {
         panic(loc(), format("TIL C codegen test failed: ", err))
     }
 }
-
-test_til_codegen()
-
-println("=== All C Codegen Tests Passed! ===\n")
+test_til_ccodegen()
