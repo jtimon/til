@@ -27,8 +27,6 @@ CodegenContext := struct {
     mut func_return_types: Map = Map.new(Str, Vec)
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
     mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
-    // Map variable name -> its type (for UFCS mangling)
-    mut var_types: Map = Map.new(Str, ValueType)
     // Currently generating function's throw types (if any)
     mut current_throw_types: Vec = Vec.new(ValueType)
     // Currently generating function's return types (if any)
@@ -100,25 +98,13 @@ ReceiverTypeResult := struct {
     mut value_type: ValueType = ValueType.TCustom("")
 }
 
-// Look up receiver type: first context (globals), then var_types (locals)
+// Look up receiver type from scope_stack
 lookup_receiver_type := func(ctx: CodegenContext, context: Context, name: Str) returns ReceiverTypeResult {
     mut result := ReceiverTypeResult()
-    // Try context first (globals)
     mut symbol := context.scope_stack.lookup_symbol(name)
     result.found = true
     result.value_type = symbol.value_type
-
-    catch (err: KeyNotFoundError) {
-        // Not in context, try var_types (locals)
-        if ctx.var_types.contains_key(name) {
-            mut var_type := ValueType.TCustom("")
-            ctx.var_types.get(name, var_type)
-            result.found = true
-            result.value_type = var_type
-            catch (err2: KeyNotFoundError) { }
-        }
-    }
-
+    catch (err: KeyNotFoundError) { }
     return result
 }
 
@@ -442,7 +428,7 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext, context: Context) r
             first.params.get(method_idx, nested)
             switch nested.node_type {
             case NodeType.Identifier(method_name):
-                // Try to look up receiver type from context (globals) or var_types (locals)
+                // Look up receiver type from scope_stack
                 mut receiver_result := lookup_receiver_type(ctx, context, name)
                 if receiver_result.found {
                     switch receiver_result.value_type {
@@ -1235,19 +1221,9 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_throw_types = func_def.throw_types
                             ctx.current_return_types = func_def.return_types
 
-                            // Clear var_types and declared_vars for new function scope
-                            ctx.var_types = Map.new(Str, ValueType)
+                            // Clear declared_vars for new function scope
                             ctx.declared_vars = Vec.new(Str)
-                            mut arg_idx := 0
-                            while lt(arg_idx, func_def.args.len()) {
-                                mut arg := Declaration()
-                                func_def.args.get(arg_idx, arg)
-                                ctx.var_types.insert(arg.name, arg.value_type)
-                                arg_idx = add(arg_idx, 1)
-                            }
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
                             catch (err: AllocError) { throw err.msg }
-                            catch (err: DuplicatedKeyError) { /* ignore */ }
 
                             // Use emit_func_signature with mangled name
                             mut mangled_name := concat(struct_name, "_")
@@ -1658,18 +1634,16 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
 
-                // Clear var_types and declared_vars for new function scope
-                ctx.var_types = Map.new(Str, ValueType)
+                // Clear declared_vars for new function scope
                 ctx.declared_vars = Vec.new(Str)
                 // Reset variadic param context
                 ctx.has_variadic_param = false
                 ctx.current_variadic_param = VariadicParamInfo()
+                // Check for variadic parameter
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
-                    ctx.var_types.insert(arg.name, arg.value_type)
-                    // Check for variadic parameter
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
                         ctx.has_variadic_param = true
@@ -1682,7 +1656,6 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
-                catch (err: DuplicatedKeyError) { /* ignore */ }
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
@@ -2510,13 +2483,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         result = concat(result, " ")
         result = concat(result, decl_name)
         result = concat(result, ";\n")
-        // Also add to scope_stack for UFCS type resolution
+        // Add to scope_stack for UFCS type resolution
         mut return_types_for_scope := Vec.new(ValueType)
         ctx.func_return_types.get(func_name, return_types_for_scope)
         if gt(return_types_for_scope.len(), 0) {
             mut first_type := ValueType.TCustom("")
             return_types_for_scope.get(0, first_type)
-            ctx.var_types.set(decl_name, first_type)
             context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
@@ -2734,13 +2706,12 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         result = concat(result, " ")
         result = concat(result, decl_name)
         result = concat(result, ";\n")
-        // Also add to scope_stack for UFCS type resolution
+        // Add to scope_stack for UFCS type resolution
         mut return_types_for_scope := Vec.new(ValueType)
         ctx.func_return_types.get(func_name, return_types_for_scope)
         if gt(return_types_for_scope.len(), 0) {
             mut first_type := ValueType.TCustom("")
             return_types_for_scope.get(0, first_type)
-            ctx.var_types.set(decl_name, first_type)
             context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
@@ -3075,10 +3046,11 @@ infer_type_from_expr := func(expr: Expr, ctx: CodegenContext, context: Context) 
         }
         return ValueType.TCustom("")
     case NodeType.Identifier(name):
-        // Look up variable type
+        // Look up variable type from scope_stack
         mut var_type := ValueType.TCustom("")
-        ctx.var_types.get(name, var_type)
-        catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
+        mut symbol := context.scope_stack.lookup_symbol(name)
+        var_type = symbol.value_type
+        catch (err: KeyNotFoundError) { }
         return var_type
     case:
         return ValueType.TCustom("")
@@ -3181,12 +3153,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             // Keep default decl.value_type
         }
     }
-    ctx.var_types.insert(name, var_type)
-    // Also add to scope_stack so get_value_type can find it
+    // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
-
-    catch (err: AllocError) { throw err.msg }
-    catch (err: DuplicatedKeyError) { /* ignore, update is fine */ }
 
     if gt(struct_type.len(), 0) {
         // Struct variable declaration
@@ -3436,7 +3404,8 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         } else {
             // Instance UFCS: instance.method -> Type_method (only if mangled name exists)
             mut receiver_type := ValueType.TCustom("")
-            ctx.var_types.get(ufcs_receiver_name, receiver_type)
+            mut symbol := context.scope_stack.lookup_symbol(ufcs_receiver_name)
+            receiver_type = symbol.value_type
             switch receiver_type {
             case ValueType.TCustom(type_name):
                 mut candidate := concat(type_name, "_")
@@ -3923,7 +3892,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
                     // Look up the receiver's type for proper mangling (only if mangled name exists)
                     mut receiver_type := ValueType.TCustom("")
-                    ctx.var_types.get(receiver_name, receiver_type)
+                    mut symbol := context.scope_stack.lookup_symbol(receiver_name)
+                    receiver_type = symbol.value_type
                     switch receiver_type {
                     case ValueType.TCustom(type_name):
                         // Skip "auto" type - it's an inferred type placeholder
@@ -3986,7 +3956,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             switch first_arg.node_type {
             case NodeType.Identifier(first_arg_name):
                 mut receiver_type := ValueType.TCustom("")
-                ctx.var_types.get(first_arg_name, receiver_type)
+                mut symbol := context.scope_stack.lookup_symbol(first_arg_name)
+                receiver_type = symbol.value_type
                 switch receiver_type {
                 case ValueType.TCustom(type_name):
                     // Skip "auto" type - it's an inferred type placeholder

@@ -155,7 +155,7 @@ til_Bool til_not(const til_Bool til_b) {
 til_Bool til_or(int _til_args_len, til_Bool* til_args) {
     til_I64 til_i = 0;
     while (til_lt(til_i, _til_args_len)) {
-        int til_val = false;
+        til_Bool til_val = false;
         til_val = til_args[til_i];
         if (til_val) {
             return true;
@@ -168,7 +168,7 @@ til_Bool til_or(int _til_args_len, til_Bool* til_args) {
 til_Bool til_and(int _til_args_len, til_Bool* til_args) {
     til_I64 til_i = 0;
     while (til_lt(til_i, _til_args_len)) {
-        int til_val = false;
+        til_Bool til_val = false;
         til_val = til_args[til_i];
         if (til_not(til_val)) {
             return false;
@@ -879,7 +879,7 @@ int til_Vec_remove(til_IndexOutOfBoundsError* _err1, til_Vec til_self, const til
         *_err1 = til_IndexOutOfBoundsError_new(_tmp45);
         return 1;
     }
-    int til_i = til_index;
+    til_I64 til_i = til_index;
     while (til_lt(til_i, til_sub(til_self._len, 1))) {
         const til_I64 til_src = til_add(til_self.ptr, til_mul(til_add(til_i, 1), til_self.type_size));
         til_I64 til_dest = til_add(til_self.ptr, til_mul(til_i, til_self.type_size));
@@ -976,7 +976,7 @@ til_Bool til_Str_contains(const til_Str til_self, const til_Str til_needle) {
     til_I64 til_max_start = til_sub(til_Str_len(til_self), til_Str_len(til_needle));
     til_I64 til_start_idx = 0;
     while (til_lt(til_start_idx, til_add(til_max_start, 1))) {
-        int til_matches = true;
+        til_Bool til_matches = true;
         til_I64 til_needle_idx = 0;
         while (til_lt(til_needle_idx, til_Str_len(til_needle))) {
             til_I64 til_self_byte = 0;
@@ -1007,7 +1007,7 @@ til_I64 til_Str_rfind(const til_Str til_self, const til_Str til_needle) {
     til_I64 til_max_start = til_sub(til_Str_len(til_self), til_Str_len(til_needle));
     til_I64 til_start_idx = 0;
     while (til_lt(til_start_idx, til_add(til_max_start, 1))) {
-        int til_matches = true;
+        til_Bool til_matches = true;
         til_I64 til_needle_idx = 0;
         while (til_lt(til_needle_idx, til_Str_len(til_needle))) {
             til_I64 til_self_byte = 0;
@@ -1039,7 +1039,7 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
     til_I64 til_count = 0;
     til_I64 til_search_start = 0;
     while (til_lteq(til_search_start, til_sub(til_Str_len(til_self), til_Str_len(til_from)))) {
-        int til_matches = true;
+        til_Bool til_matches = true;
         til_I64 til_i = 0;
         while (til_lt(til_i, til_Str_len(til_from))) {
             til_I64 til_self_byte = 0;
@@ -1089,7 +1089,7 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
     til_I64 til_src_idx = 0;
     til_I64 til_dst_idx = 0;
     while (til_lt(til_src_idx, til_Str_len(til_self))) {
-        int til_matches = true;
+        til_Bool til_matches = true;
         if (til_lteq(til_src_idx, til_sub(til_Str_len(til_self), til_Str_len(til_from)))) {
             til_I64 til_i = 0;
             while (til_lt(til_i, til_Str_len(til_from))) {
@@ -1136,7 +1136,7 @@ int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsErro
     til_I64 til_start = 0;
     til_I64 til_pos = 0;
     while (til_lteq(til_pos, til_sub(til_Str_len(til_self), til_Str_len(til_delimiter)))) {
-        int til_matches = true;
+        til_Bool til_matches = true;
         til_I64 til_i = 0;
         while (til_lt(til_i, til_Str_len(til_delimiter))) {
             til_I64 til_self_byte = 0;

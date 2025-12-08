@@ -20,8 +20,6 @@ struct CodegenContext {
     func_return_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
     func_variadic_args: HashMap<String, (String, String, usize)>,
-    // Map variable name -> its type (for UFCS mangling)
-    var_types: HashMap<String, ValueType>,
     // Currently generating function's throw types (if any)
     current_throw_types: Vec<ValueType>,
     // Currently generating function's return types (if any)
@@ -44,7 +42,6 @@ impl CodegenContext {
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
-            var_types: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
             current_variadic_param: None,
@@ -394,10 +391,8 @@ fn emit_fcall_name_and_args_for_throwing(
         // Check for UFCS via first argument
         if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                // Try init_context (globals) then var_types (locals)
                 let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                    .map(|s| s.value_type.clone())
-                    .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                    .map(|s| s.value_type.clone());
                 if let Some(ValueType::TCustom(type_name)) = arg_type {
                     let mangled_name = format!("{}.{}", type_name, func_name);
                     if context.scope_stack.lookup_func(&mangled_name).is_some() {
@@ -442,10 +437,8 @@ fn emit_fcall_name_and_args_for_throwing(
         let mut name = String::new();
         if let Some(receiver) = ufcs_receiver {
             if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                // Try init_context (globals) then var_types (locals)
                 let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
-                    .map(|s| s.value_type.clone())
-                    .or_else(|| ctx.var_types.get(receiver_name).cloned());
+                    .map(|s| s.value_type.clone());
                 if let Some(ValueType::TCustom(type_name)) = receiver_type {
                     let candidate = format!("{}.{}", type_name, func_name);
                     if context.scope_stack.lookup_func(&candidate).is_some() {
@@ -460,10 +453,8 @@ fn emit_fcall_name_and_args_for_throwing(
             }
         } else if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                // Try init_context (globals) then var_types (locals)
                 let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                    .map(|s| s.value_type.clone())
-                    .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                    .map(|s| s.value_type.clone());
                 if let Some(ValueType::TCustom(type_name)) = arg_type {
                     let candidate = format!("{}.{}", type_name, func_name);
                     if context.scope_stack.lookup_func(&candidate).is_some() {
@@ -1696,10 +1687,9 @@ fn emit_throwing_call(
         output.push_str(&til_name(var_name));
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
-        // Also add to scope_stack for UFCS type resolution
+        // Add to scope_stack for UFCS type resolution
         if let Some(return_types) = ctx.func_return_types.get(&func_name) {
             if let Some(first_type) = return_types.first() {
-                ctx.var_types.insert(var_name.to_string(), first_type.clone());
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
@@ -1905,10 +1895,9 @@ fn emit_throwing_call_propagate(
         output.push_str(&til_name(var_name));
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
-        // Also add to scope_stack for UFCS type resolution
+        // Add to scope_stack for UFCS type resolution
         if let Some(return_types) = ctx.func_return_types.get(&func_name) {
             if let Some(first_type) = return_types.first() {
-                ctx.var_types.insert(var_name.to_string(), first_type.clone());
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
@@ -2082,8 +2071,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     } else {
         decl.value_type.clone()
     };
-    ctx.var_types.insert(name.clone(), var_type.clone());
-    // Also add to scope_stack so get_value_type can find it
+    // Add to scope_stack so get_value_type can find it
     context.scope_stack.declare_symbol(
         name.clone(),
         SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false }
@@ -2248,8 +2236,8 @@ fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext, context: &Context) ->
             None
         },
         NodeType::Identifier(name) => {
-            // Look up variable type
-            ctx.var_types.get(name).cloned()
+            // Look up variable type from scope_stack
+            context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
         },
         _ => None
     }
@@ -3037,9 +3025,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
 
                     // Use get_value_type to resolve the full receiver chain type
-                    // Fall back to var_types for local variables not in scope_stack
-                    let mut receiver_type: Option<ValueType> = get_value_type(context, &receiver_without_method).ok()
-                        .or_else(|| ctx.var_types.get(receiver_name).cloned());
+                    let mut receiver_type: Option<ValueType> = get_value_type(context, &receiver_without_method).ok();
 
                     // If receiver_type is TFunction, the receiver_without_method ends in a method call
                     // (e.g., delimiter.len() where len is a method). We need the RETURN TYPE of that method.
@@ -3147,10 +3133,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             let mut output_name = til_name(&func_name);
             if expr.params.len() > 1 {
                 if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                    // Try init_context (globals) then var_types (locals)
                     let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                        .map(|s| s.value_type.clone())
-                        .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                        .map(|s| s.value_type.clone());
                     if let Some(ValueType::TCustom(type_name)) = arg_type {
                         // Check if mangled function exists
                         let candidate = format!("{}.{}", type_name, func_name);
