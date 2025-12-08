@@ -745,6 +745,10 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenCont
                     Literal::Str(_) => if has_str { format!("{}Str", TIL_PREFIX) } else { "const char*".to_string() },
                     Literal::List(_) => return Ok(()), // Skip list literals for now
                 };
+                // Non-mut declarations are constants
+                if !decl.is_mut {
+                    output.push_str("const ");
+                }
                 output.push_str(&c_type);
                 output.push_str(" ");
                 output.push_str(&til_name(&decl.name));
@@ -888,6 +892,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                         if let Some(c_type) = til_type_to_c(&member.value_type) {
                             // Get the default value
                             if let Some(default_val) = struct_def.default_values.get(&member.name) {
+                                output.push_str("const ");
                                 output.push_str(&c_type);
                                 output.push_str(" ");
                                 output.push_str(&struct_name);
@@ -1256,6 +1261,9 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             break; // Variadic must be last
         } else {
             let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+            if !arg.is_mut {
+                output.push_str("const ");
+            }
             output.push_str(&arg_type);
             output.push_str(" ");
             output.push_str(TIL_PREFIX);
@@ -2002,6 +2010,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Struct variable declaration
         output.push_str(&indent_str);
         if !already_declared {
+            if !is_mut {
+                output.push_str("const ");
+            }
             output.push_str(&til_name(&type_name));
             output.push_str(" ");
             ctx.declared_vars.insert(name.clone());
@@ -2012,6 +2023,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Enum variable declaration
         output.push_str(&indent_str);
         if !already_declared {
+            if !is_mut {
+                output.push_str("const ");
+            }
             output.push_str(&til_name(&type_name));
             output.push_str(" ");
             ctx.declared_vars.insert(name.clone());
