@@ -1222,12 +1222,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n")
     output = concat(output, "#include <stdlib.h>\n")
-    output = concat(output, "#include <string.h>\n")
-    output = concat(output, "#include <stdbool.h>\n")
-    output = concat(output, "#include <stdarg.h>\n\n")
-    // Primitive type conversion functions (used by ext_func declarations in TIL)
-    output = concat(output, "static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n")
-    output = concat(output, "static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n")
+    output = concat(output, "#include <string.h>\n\n")
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -1324,9 +1319,12 @@ emit := proc(ast: Expr) returns Str throws Str {
         // Not a body, skip enum pass
     }
 
-    // Pass 1c: emit ext function implementations (after structs are defined)
+    // Pass 1c: emit helper functions (after structs are defined)
+    output = concat(output, "\n// Type conversion helpers\n")
+    output = concat(output, "static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n")
+    output = concat(output, "static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n")
     if ctx.has_str() {
-        output = concat(output, "\n// Str helper: create Str from C string literal\n")
+        output = concat(output, "// Str helper: create Str from C string literal\n")
         output = concat(output, "static inline Str Str_from_literal(const char* lit) {\n")
         output = concat(output, "    Str s;\n")
         output = concat(output, "    s.c_string = (long long)lit;\n")

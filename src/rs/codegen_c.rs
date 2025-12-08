@@ -510,12 +510,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     // C boilerplate
     output.push_str("#include <stdio.h>\n");
     output.push_str("#include <stdlib.h>\n");
-    output.push_str("#include <string.h>\n");
-    output.push_str("#include <stdbool.h>\n");
-    output.push_str("#include <stdarg.h>\n\n");
-    // Primitive type conversion functions (used by ext_func declarations in TIL)
-    output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
-    output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n");
+    output.push_str("#include <string.h>\n\n");
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -561,10 +556,13 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         }
     }
 
-    // Pass 1c: emit ext function implementations (after structs are defined)
+    // Pass 1c: emit helper functions (after structs are defined)
+    output.push_str("\n// Type conversion helpers\n");
+    output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
+    output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n");
     let has_str = ctx.user_structs.contains("Str");
     if has_str {
-        output.push_str("\n// Str helper: create Str from C string literal\n");
+        output.push_str("// Str helper: create Str from C string literal\n");
         output.push_str("static inline Str Str_from_literal(const char* lit) {\n");
         output.push_str("    Str s;\n");
         output.push_str("    s.c_string = (long long)lit;\n");
