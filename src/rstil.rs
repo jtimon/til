@@ -64,8 +64,13 @@ fn run_file_or_exit(path: &String) {
         },
     };
 
-    // Run the compiled binary
-    let exe_path = path.replace(".til", "");
+    // Run the compiled binary from bin/ subdirectory
+    let source_dir = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new("."));
+    let exe_name = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("out");
+    let exe_path = source_dir.join("bin").join(exe_name);
     let status = std::process::Command::new(&exe_path)
         .status();
 
@@ -76,7 +81,7 @@ fn run_file_or_exit(path: &String) {
             }
         },
         Err(e) => {
-            println!("Failed to run '{}': {}", exe_path, e);
+            println!("Failed to run '{}': {}", exe_path.display(), e);
             std::process::exit(1);
         },
     }

@@ -166,16 +166,25 @@ pub fn build(path: &str) -> Result<(), String> {
         Err(e) => return Err(format!("Failed to write '{}': {}", output_path, e)),
     }
 
-    // Compile with gcc
-    let exe_path = path.replace(".til", "");
+    // Compile with gcc - output to bin/ subdirectory
+    let source_dir = std::path::Path::new(path).parent().unwrap_or(std::path::Path::new("."));
+    let bin_dir = source_dir.join("bin");
+    // Create bin directory if it doesn't exist
+    let _ = fs::create_dir_all(&bin_dir);
+    let exe_name = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("out");
+    let exe_path = bin_dir.join(exe_name);
+    let exe_path_str = exe_path.to_string_lossy().to_string();
     let output = Command::new("gcc")
-        .args(["-I", "src", &output_path, "-o", &exe_path])
+        .args(["-I", "src", &output_path, "-o", &exe_path_str])
         .output();
 
     match output {
         Ok(out) => {
             if out.status.success() {
-                println!("Compiled executable to '{}'", exe_path);
+                println!("Compiled executable to '{}'", exe_path_str);
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&out.stderr);
