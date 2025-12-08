@@ -178,9 +178,10 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext) returns ThrowingFC
             switch first.node_type {
             case NodeType.Identifier(name):
                 if gt(first.params.len(), 0) {
-                    // UFCS: receiver.method
+                    // UFCS: receiver.method - method is the LAST param (AST is flat)
+                    mut method_idx := sub(first.params.len(), 1)
                     mut method_expr := Expr()
-                    first.params.get(0, method_expr)
+                    first.params.get(method_idx, method_expr)
                     switch method_expr.node_type {
                     case NodeType.Identifier(method_name):
                         func_name = method_name
@@ -437,9 +438,10 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
             // Regular function call
             return name
         } else {
-            // UFCS: receiver.method() - determine mangled name
+            // UFCS: receiver.method() - method is the LAST param (AST is flat)
+            mut method_idx := sub(first.params.len(), 1)
             mut nested := Expr()
-            first.params.get(0, nested)
+            first.params.get(method_idx, nested)
             switch nested.node_type {
             case NodeType.Identifier(method_name):
                 // Try to look up receiver type from init_context (globals) or var_types (locals)
@@ -3360,13 +3362,18 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     mut func_name := ""
     mut ufcs_receiver_name := ""
     mut has_ufcs_receiver := false
+    mut ufcs_depth := 0  // Number of params (for chained access like self._len.eq)
 
     switch first.node_type {
     case NodeType.Identifier(name):
         if gt(first.params.len(), 0) {
             // UFCS: receiver.method()
+            // AST is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+            // Method is the LAST param, not the first
+            ufcs_depth = first.params.len()
+            mut method_idx := sub(ufcs_depth, 1)
             mut method_expr := Expr()
-            first.params.get(0, method_expr)
+            first.params.get(method_idx, method_expr)
             switch method_expr.node_type {
             case NodeType.Identifier(method_name):
                 func_name = method_name
@@ -3432,7 +3439,21 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         mut first_char := ufcs_receiver_name.get_char(0)
         if not(first_char.is_uppercase()) {
             output = concat(output, ", ")
-            output = concat(output, ufcs_receiver_name)
+            output = concat(output, til_name(ufcs_receiver_name))
+            // Emit intermediate field accesses (all except the last which is the method)
+            mut field_idx := 0
+            while lt(field_idx, sub(ufcs_depth, 1)) {
+                mut field_expr := Expr()
+                first.params.get(field_idx, field_expr)
+                switch field_expr.node_type {
+                case NodeType.Identifier(field_name):
+                    output = concat(output, ".")
+                    output = concat(output, field_name)
+                case:
+                    // skip
+                }
+                field_idx = add(field_idx, 1)
+            }
         }
         catch (err: IndexOutOfBoundsError) { }
         catch (err: AllocError) { }
@@ -3621,13 +3642,16 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut func_name := ""
     mut has_ufcs_receiver := false
     mut ufcs_receiver_name := ""
+    mut ufcs_depth := 0  // Number of params (for chained access like self._len.eq)
 
     switch first.node_type {
     case NodeType.Identifier(name):
         if gt(first.params.len(), 0) {
-            // UFCS: receiver.method() - method name is in nested params
+            // UFCS: receiver.method() - method is the LAST param (AST is flat)
+            ufcs_depth = first.params.len()
+            mut method_idx := sub(ufcs_depth, 1)
             mut method_expr := Expr()
-            first.params.get(0, method_expr)
+            first.params.get(method_idx, method_expr)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             switch method_expr.node_type {
             case NodeType.Identifier(method_name):
@@ -3835,7 +3859,21 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     catch (err: KeyNotFoundError) { /* type not found, no prefix */ }
                     result = concat(result, func_name)
                     result = concat(result, "(")
-                    result = concat(result, receiver_name)
+                    result = concat(result, til_name(receiver_name))
+                    // Emit intermediate field accesses (all except the last which is the method)
+                    mut field_idx := 0
+                    while lt(field_idx, sub(ufcs_depth, 1)) {
+                        mut field_expr := Expr()
+                        first.params.get(field_idx, field_expr)
+                        switch field_expr.node_type {
+                        case NodeType.Identifier(field_name):
+                            result = concat(result, ".")
+                            result = concat(result, field_name)
+                        case:
+                            // skip
+                        }
+                        field_idx = add(field_idx, 1)
+                    }
                     mut i := 1
                     while lt(i, params_len) {
                         result = concat(result, ", ")

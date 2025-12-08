@@ -1,8 +1,8 @@
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType};
-use crate::rs::init::Context;
+use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
+use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
 use std::collections::{HashMap, HashSet};
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
@@ -338,14 +338,14 @@ fn emit_fcall_name_and_args_for_throwing(
         return Err("emit_fcall_name_and_args_for_throwing: FCall with no params".to_string());
     }
 
-    // Determine function name and UFCS receiver
-    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
+    // Determine function name and UFCS receiver (using extract helper for chained access)
+    let (func_name, ufcs_receiver, ufcs_depth) = match &expr.params[0].node_type {
         NodeType::Identifier(name) => {
             if expr.params[0].params.is_empty() {
-                (name.clone(), None)
+                (name.clone(), None, 0)
             } else {
-                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    (method_name.clone(), Some(&expr.params[0]))
+                if let Some((method_name, depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
+                    (method_name, Some(&expr.params[0]), depth)
                 } else {
                     return Err("emit_fcall_name_and_args_for_throwing: UFCS method name not Identifier".to_string());
                 }
@@ -360,17 +360,28 @@ fn emit_fcall_name_and_args_for_throwing(
     let mut is_instance_call = false;  // true if receiver is a variable/constant, not a type name
     if let Some(receiver) = ufcs_receiver {
         if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            // Try init_context (globals) then var_types (locals)
-            let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
-                .map(|s| s.value_type.clone())
-                .or_else(|| ctx.var_types.get(receiver_name).cloned());
-            if let Some(ValueType::TCustom(type_name)) = receiver_type {
+            // Create receiver expression without method to get its type
+            let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
+
+            // Use get_value_type to resolve the full receiver chain type
+            let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+
+            // Determine type name from receiver type
+            let type_name_opt: Option<String> = match &receiver_type {
+                Some(ValueType::TCustom(name)) if name != INFER_TYPE => Some(name.clone()),
+                // Type-qualified call: receiver IS a type name (struct/enum)
+                Some(ValueType::TType(_)) => Some(receiver_name.to_string()),
+                _ => None,
+            };
+
+            if let Some(type_name) = type_name_opt {
                 let mangled_name = format!("{}.{}", type_name, func_name);
                 if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
                     output.push_str(&til_name(&type_name));
                     output.push_str("_");
                     is_struct_method = true;
-                    is_instance_call = true;
+                    // It's an instance call if depth > 1 (has intermediate fields) or receiver_name differs from type_name
+                    is_instance_call = ufcs_depth > 1 || receiver_name != &type_name;
                 }
             } else if receiver_type.is_none() {
                 // Not a known symbol - treat as Type.func (type-qualified call)
@@ -420,10 +431,9 @@ fn emit_fcall_name_and_args_for_throwing(
     // Emit receiver for UFCS if any (only for instance calls, not type-qualified)
     if is_instance_call {
         if let Some(receiver) = ufcs_receiver {
-            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                output.push_str(", ");
-                output.push_str(&til_name(receiver_name));
-            }
+            output.push_str(", ");
+            // Emit full receiver chain (e.g., til_self._len for self._len.eq(...))
+            emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
         }
     }
 
@@ -1114,12 +1124,28 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_throw_types = func_def.throw_types.clone();
     ctx.current_return_types = func_def.return_types.clone();
 
-    // Clear var_types and declared_vars for new function scope
-    ctx.var_types.clear();
-    ctx.declared_vars.clear();
+    // Push a new scope frame for this function (like interpreter does)
+    let mut function_frame = ScopeFrame {
+        arena_index: HashMap::new(),
+        symbols: HashMap::new(),
+        funcs: HashMap::new(),
+        enums: HashMap::new(),
+        structs: HashMap::new(),
+        scope_type: ScopeType::Function,
+    };
+    // Register function parameters in the frame
     for arg in &func_def.args {
-        ctx.var_types.insert(arg.name.clone(), arg.value_type.clone());
+        function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+            value_type: arg.value_type.clone(),
+            is_mut: arg.is_mut,
+            is_copy: arg.is_copy,
+            is_own: arg.is_own,
+        });
     }
+    ctx.init_context.scope_stack.frames.push(function_frame);
+
+    // Clear declared_vars for new function scope
+    ctx.declared_vars.clear();
 
     let mangled_name = format!("{}_{}", struct_name, member.name);
     emit_func_signature(&mangled_name, func_def, output);
@@ -1134,6 +1160,9 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     }
 
     output.push_str("}\n\n");
+
+    // Pop the function scope frame
+    ctx.init_context.scope_stack.frames.pop();
 
     // Clear current function context
     ctx.current_throw_types.clear();
@@ -1325,24 +1354,36 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
 
-                // Clear var_types and declared_vars for new function scope
-                ctx.var_types.clear();
-                ctx.declared_vars.clear();
-                // Check for variadic parameter and set context
+                // Push a new scope frame for this function (like interpreter does)
+                let mut function_frame = ScopeFrame {
+                    arena_index: HashMap::new(),
+                    symbols: HashMap::new(),
+                    funcs: HashMap::new(),
+                    enums: HashMap::new(),
+                    structs: HashMap::new(),
+                    scope_type: ScopeType::Function,
+                };
+                // Register function parameters in the frame
                 ctx.current_variadic_param = None;
                 for arg in &func_def.args {
-                    ctx.var_types.insert(arg.name.clone(), arg.value_type.clone());
+                    function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+                        value_type: arg.value_type.clone(),
+                        is_mut: arg.is_mut,
+                        is_copy: arg.is_copy,
+                        is_own: arg.is_own,
+                    });
                     if let ValueType::TMulti(elem_type) = &arg.value_type {
                         ctx.current_variadic_param = Some((arg.name.clone(), elem_type.clone()));
                     }
                 }
+                ctx.init_context.scope_stack.frames.push(function_frame);
+
+                // Clear declared_vars for new function scope
+                ctx.declared_vars.clear();
 
                 let func_name = til_name(&decl.name);
                 emit_func_signature(&func_name, func_def, output);
                 output.push_str(" {\n");
-
-                // With Array approach, variadic args are passed directly as array pointer
-                // No va_list setup needed - the array is built by caller
 
                 // Emit function body with catch pattern detection
                 emit_stmts(&func_def.body, output, 1, ctx)?;
@@ -1353,6 +1394,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 }
 
                 output.push_str("}\n\n");
+
+                // Pop the function scope frame
+                ctx.init_context.scope_stack.frames.pop();
 
                 // Clear current function context
                 ctx.current_throw_types.clear();
@@ -1536,26 +1580,34 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
                 // Regular function call - return original name
                 Some(name.clone())
             } else {
-                // UFCS: receiver.method() - determine mangled name
-                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    // Try init_context (globals) then var_types (locals)
-                    let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(name)
-                        .map(|s| s.value_type.clone())
-                        .or_else(|| ctx.var_types.get(name).cloned());
-                    if let Some(ValueType::TCustom(type_name)) = receiver_type {
-                        let mangled_name = format!("{}.{}", type_name, method_name);
-                        // Check if it's a known struct method
-                        if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
-                            return Some(format!("{}_{}", type_name, method_name));
-                        }
-                        // Otherwise it's a top-level function, use plain method name
-                        return Some(method_name.clone());
+                // UFCS: receiver.method() - use extract helper to get deepest method name
+                let (method_name, depth) = extract_ufcs_method_and_depth(&expr.params[0])?;
+
+                // Create receiver expression without method to get its type
+                let receiver_without_method = clone_without_deepest_method(&expr.params[0], depth);
+
+                // Use get_value_type to resolve the full receiver chain type
+                let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+
+                // Determine type name from receiver type
+                let type_name_opt: Option<String> = match &receiver_type {
+                    Some(ValueType::TCustom(type_name)) if type_name != INFER_TYPE => Some(type_name.clone()),
+                    // Type-qualified call: receiver IS a type name (struct/enum)
+                    Some(ValueType::TType(_)) => Some(name.to_string()),
+                    _ => None,
+                };
+
+                if let Some(type_name) = type_name_opt {
+                    let mangled_name = format!("{}.{}", type_name, method_name);
+                    // Check if it's a known struct method
+                    if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                        return Some(format!("{}_{}", type_name, method_name));
                     }
-                    // Not found in scope - treat as Type.method (type-qualified call)
-                    Some(format!("{}_{}", name, method_name))
-                } else {
-                    None
+                    // Otherwise it's a top-level function, use plain method name
+                    return Some(method_name.clone());
                 }
+                // Not found in scope - treat as Type.method (type-qualified call)
+                Some(format!("{}_{}", name, method_name))
             }
         }
         _ => None,
@@ -2344,14 +2396,14 @@ fn emit_fcall_with_hoisted(
         return Err("emit_fcall_with_hoisted: FCall with no params".to_string());
     }
 
-    // Determine function name and UFCS receiver
-    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
+    // Determine function name and UFCS receiver (using extract helper for chained access)
+    let (func_name, ufcs_receiver, ufcs_depth) = match &expr.params[0].node_type {
         NodeType::Identifier(name) => {
             if expr.params[0].params.is_empty() {
-                (name.clone(), None)
+                (name.clone(), None, 0)
             } else {
-                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    (method_name.clone(), Some(&expr.params[0]))
+                if let Some((method_name, depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
+                    (method_name, Some(&expr.params[0]), depth)
                 } else {
                     return Err("emit_fcall_with_hoisted: UFCS method name not Identifier".to_string());
                 }
@@ -2363,22 +2415,46 @@ fn emit_fcall_with_hoisted(
     // Handle UFCS or struct construction
     if let Some(receiver) = ufcs_receiver {
         if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            let first_char = receiver_name.chars().next().unwrap_or('a');
-            if first_char.is_uppercase() {
-                // Type-qualified call: Type.func(args...) -> til_Type_func(args...)
-                output.push_str(&til_name(receiver_name));
-                output.push_str("_");
-                output.push_str(&func_name);
-                output.push_str("(");
-                for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                    if i > 0 {
-                        output.push_str(", ");
+            // Create receiver expression without method to get its type
+            let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
+
+            // Use get_value_type to resolve the full receiver chain type
+            let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+
+            // Determine type name from receiver type
+            let type_name_opt: Option<String> = match &receiver_type {
+                Some(ValueType::TCustom(name)) if name != INFER_TYPE => Some(name.clone()),
+                Some(ValueType::TType(_)) => Some(receiver_name.to_string()),
+                _ => None,
+            };
+
+            if let Some(type_name) = type_name_opt {
+                let mangled_name = format!("{}.{}", type_name, func_name);
+                if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                    // Known struct method: til_Type_method(receiver, args...)
+                    output.push_str(&til_name(&type_name));
+                    output.push_str("_");
+                    output.push_str(&func_name);
+                    output.push_str("(");
+                    // Emit receiver chain as first argument (unless type-qualified)
+                    let is_type_qualified = ufcs_depth == 1 && receiver_name == &type_name;
+                    let mut first_arg = true;
+                    if !is_type_qualified {
+                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
+                        first_arg = false;
                     }
-                    emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+                    for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                        if !first_arg {
+                            output.push_str(", ");
+                        }
+                        first_arg = false;
+                        emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+                    }
+                    output.push_str(")");
+                    return Ok(());
                 }
-                output.push_str(")");
-                return Ok(());
             }
+            // Fall through to regular function call handling below
         }
     }
 
@@ -2694,15 +2770,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     // Check for UFCS: first param is Identifier with nested params (method name)
-    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
+    // For chained access like self._len.eq(...), we need to find the deepest method name
+    let (func_name, ufcs_receiver, ufcs_depth) = match &expr.params[0].node_type {
         NodeType::Identifier(name) => {
             if expr.params[0].params.is_empty() {
                 // Regular function call
-                (name.clone(), None)
+                (name.clone(), None, 0)
             } else {
-                // UFCS: receiver.method() - method name is in nested params
-                if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    (method_name.clone(), Some(&expr.params[0]))
+                // UFCS: use helper to extract method from potentially chained access
+                if let Some((method_name, depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
+                    (method_name, Some(&expr.params[0]), depth)
                 } else {
                     return Err("codegen_c: UFCS method name not Identifier".to_string());
                 }
@@ -2886,89 +2963,67 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // Check if this is a UFCS call (receiver.func(...))
             if let Some(receiver) = ufcs_receiver {
                 if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                    // Try to look up receiver type: first init_context (globals), then var_types (locals)
-                    let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
-                        .map(|s| s.value_type.clone())
-                        .or_else(|| ctx.var_types.get(receiver_name).cloned());
+                    // For chained access like self._len.eq(...), we need to get the type of self._len
+                    // Create a receiver expression without the method name to get its type
+                    let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
+
+                    // Use get_value_type to resolve the full receiver chain type
+                    let receiver_type: Option<ValueType> = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+
+                    // Check if this is instance UFCS or type-qualified call
+                    let mut is_struct_method = false;
+                    let mut is_type_qualified = false;
 
                     if let Some(value_type) = receiver_type {
-                        // Instance UFCS: instance.func(args...) -> til_Type_func(instance, args...)
-                        let mut is_struct_method = false;
-                        if let ValueType::TCustom(type_name) = &value_type {
-                            // Skip "auto" type - it's an inferred type placeholder
-                            if type_name != "auto" {
-                                let candidate = format!("{}.{}", type_name, func_name);
-                                if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
-                                    output.push_str(TIL_PREFIX);
-                                    output.push_str(type_name);
-                                    output.push_str("_");
-                                    is_struct_method = true;
-                                }
-                            }
-                        }
-                        // If not a struct method, it's a top-level function
-                        if is_struct_method {
-                            output.push_str(&func_name);
-                        } else {
-                            output.push_str(&til_name(&func_name));
-                        }
-                        output.push_str("(");
-                        // First emit the receiver as first argument
-                        emit_identifier_without_nested(receiver, output)?;
-                        // Then emit remaining arguments
-                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                            output.push_str(", ");
-                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
-                        }
-                        output.push_str(")");
-                        if indent > 0 {
-                            output.push_str(";\n");
-                        }
-                        return Ok(());
-                    } else {
-                        // Not found in scope - treat as type-qualified call (Type.func)
-                        let has_args = expr.params.len() > 1;
+                        // Determine the type name based on value_type
+                        let type_name_opt: Option<String> = match &value_type {
+                            ValueType::TCustom(name) if name != INFER_TYPE => Some(name.clone()),
+                            // Type-qualified call: receiver IS a type name (struct/enum)
+                            ValueType::TType(_) => Some(receiver_name.to_string()),
+                            _ => None,
+                        };
 
-                        if !has_args {
-                            // Simple enum value: Type.Variant -> til_Type_Variant
-                            output.push_str(TIL_PREFIX);
-                            output.push_str(receiver_name);
-                            output.push_str("_");
-                            output.push_str(&func_name);
-                            if indent > 0 {
-                                output.push_str(";\n");
+                        if let Some(type_name) = type_name_opt {
+                            let candidate = format!("{}.{}", type_name, func_name);
+                            if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                                output.push_str(TIL_PREFIX);
+                                output.push_str(&type_name);
+                                output.push_str("_");
+                                is_struct_method = true;
+                                // Type-qualified if receiver has no intermediate fields (depth == 1)
+                                // and receiver_name equals type_name (e.g., Bool.to_i64)
+                                is_type_qualified = ufcs_depth == 1 && receiver_name == &type_name;
                             }
-                            return Ok(());
                         }
-
-                        // Type-qualified call with args: Type.func(args...) -> til_Type_func(args...)
-                        // For enum constructors with payloads: Type.Variant(val) -> til_Type_make_Variant(val)
-                        output.push_str(TIL_PREFIX);
-                        output.push_str(receiver_name);
-                        output.push_str("_");
-                        let func_first_char = func_name.chars().next().unwrap_or('a');
-                        if func_first_char.is_uppercase() && has_args {
-                            // Enum constructor with payload (has arguments)
-                            output.push_str("make_");
-                        }
-                        output.push_str(&func_name);
-                        // Only add parens if it's a function call (has args or is lowercase)
-                        if has_args || !func_first_char.is_uppercase() {
-                            output.push_str("(");
-                            // Emit all arguments after the function name
-                            for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                                if i > 0 {
-                                    output.push_str(", ");
-                                }
-                                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
-                            }
-                            output.push_str(")");
-                        }
-                        if indent > 0 {
-                            output.push_str(";\n");
-                        }
-                        return Ok(());
                     }
+                    // If not a struct method, it's a top-level function
+                    if is_struct_method {
+                        output.push_str(&func_name);
+                    } else {
+                        output.push_str(&til_name(&func_name));
+                    }
+                    output.push_str("(");
+                    // For type-qualified calls (Type.func), don't pass the type as argument
+                    // For instance calls (var.func), pass the instance as first argument
+                    let mut first_arg = true;
+                    if !is_type_qualified {
+                        // Emit full receiver chain (e.g., til_self._len for self._len.eq(...))
+                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
+                        first_arg = false;
+                    }
+                    // Emit remaining arguments
+                    for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                        if !first_arg {
+                            output.push_str(", ");
+                        }
+                        first_arg = false;
+                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                    }
+                    output.push_str(")");
+                    if indent > 0 {
+                        output.push_str(";\n");
+                    }
+                    return Ok(());
                 }
             }
 
@@ -3069,15 +3124,55 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 }
 
-// Emit identifier without its nested params (for UFCS receiver)
-fn emit_identifier_without_nested(expr: &Expr, output: &mut String) -> Result<(), String> {
-    match &expr.node_type {
-        NodeType::Identifier(name) => {
-            output.push_str(&til_name(name));
-            Ok(())
-        },
-        _ => Err("codegen_c: expected identifier".to_string()),
+/// Extract method name and receiver depth from a chained UFCS expression.
+/// For `self._len.eq(...)`, returns ("eq", 2) meaning method is "eq" and receiver has 2 levels.
+/// For `self.method(...)`, returns ("method", 1).
+fn extract_ufcs_method_and_depth(first_param: &Expr) -> Option<(String, usize)> {
+    if let NodeType::Identifier(_) = &first_param.node_type {
+        // AST structure for chained access is FLAT: a.b.c becomes
+        // Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+        // The method is the LAST param in the list
+        let depth = first_param.params.len();
+        if depth > 0 {
+            if let NodeType::Identifier(method_name) = &first_param.params[depth - 1].node_type {
+                return Some((method_name.clone(), depth));
+            }
+        }
     }
+    None
+}
+
+/// Emit the receiver part of a chained UFCS call (everything except the last method name).
+/// For `self._len.eq(...)`, emits `til_self._len`.
+fn emit_ufcs_receiver_chain(first_param: &Expr, depth: usize, output: &mut String) -> Result<(), String> {
+    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+    // We need to emit "a.b" (all except the last which is the method)
+    if let NodeType::Identifier(name) = &first_param.node_type {
+        output.push_str(&til_name(name));
+
+        // Emit all params except the last one (which is the method)
+        for i in 0..(depth - 1) {
+            if let NodeType::Identifier(field_name) = &first_param.params[i].node_type {
+                output.push_str(".");
+                output.push_str(field_name);
+            }
+        }
+        Ok(())
+    } else {
+        Err("codegen_c: expected identifier for UFCS receiver".to_string())
+    }
+}
+
+/// Create a clone of an expression with the deepest nested identifier removed.
+/// For `self._len.eq`, returns `self._len` (with eq removed from the chain).
+fn clone_without_deepest_method(expr: &Expr, depth: usize) -> Expr {
+    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+    // To remove the method (last param), we just pop the last element from params
+    let mut result = expr.clone();
+    if depth > 0 && !result.params.is_empty() {
+        result.params.pop();  // Remove the last (method) identifier
+    }
+    result
 }
 
 fn emit_literal(lit: &Literal, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
