@@ -38,6 +38,8 @@ CodegenContext := struct {
     mut has_variadic_param: Bool = false
     // Counter for generating unique temporary variable names
     mut temp_counter: I64 = 0
+    // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
+    mut declared_vars: Vec = Vec.new(Str)
 
     next_temp := proc(mut self: CodegenContext) returns Str {
         mut name := concat("_tmp", self.temp_counter.to_str())
@@ -57,6 +59,24 @@ CodegenContext := struct {
             i = add(i, 1)
         }
         return false
+    }
+}
+
+// Returns the C name for a TIL identifier - adds TIL_PREFIX
+// Exceptions: C keywords/macros (true, false, NULL) and generated names (* or _ prefix)
+til_name := func(name: Str) returns Str {
+    if name.eq("true") { return "true" }
+    if name.eq("false") { return "false" }
+    if name.eq("NULL") { return "NULL" }
+    if name.starts_with("*") { return name }
+    if name.starts_with("_") { return name }
+    return concat(TIL_PREFIX, name)
+}
+
+// Add a variable to declared_vars (if not already present)
+add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
+    if not(ctx.declared_vars.contains(name)) {
+        ctx.declared_vars.push(name)
     }
 }
 
@@ -1174,8 +1194,9 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_throw_types = func_def.throw_types
                             ctx.current_return_types = func_def.return_types
 
-                            // Clear var_types for new function scope and add function arguments
+                            // Clear var_types and declared_vars for new function scope
                             ctx.var_types = Map.new(Str, ValueType)
+                            ctx.declared_vars = Vec.new(Str)
                             mut arg_idx := 0
                             while lt(arg_idx, func_def.args.len()) {
                                 mut arg := Declaration()
@@ -1596,8 +1617,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
 
-                // Clear var_types for new function scope and add function arguments
+                // Clear var_types and declared_vars for new function scope
                 ctx.var_types = Map.new(Str, ValueType)
+                ctx.declared_vars = Vec.new(Str)
                 // Reset variadic param context
                 ctx.has_variadic_param = false
                 ctx.current_variadic_param = VariadicParamInfo()
@@ -1715,10 +1737,17 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
     result = emit_expr(cond, result, 0, ctx)
     result = concat(result, ") {\n")
 
+    // Save declared_vars before entering new scope
+    mut saved_declared_vars := ctx.declared_vars.clone()
+    catch (err: AllocError) { throw err.msg }
+
     // Then body
     mut then_body := Expr()
     expr.params.get(1, then_body)
     result = emit_body(then_body, result, add(indent, 1), ctx)
+
+    // Restore declared_vars after exiting then scope
+    ctx.declared_vars = saved_declared_vars
 
     i = 0
     while lt(i, indent) {
@@ -1739,7 +1768,16 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
         case:
             // else block
             result = concat(result, " else {\n")
+
+            // Save declared_vars for else scope
+            saved_declared_vars = ctx.declared_vars.clone()
+            catch (err: AllocError) { throw err.msg }
+
             result = emit_body(else_part, result, add(indent, 1), ctx)
+
+            // Restore declared_vars after exiting else scope
+            ctx.declared_vars = saved_declared_vars
+
             i = 0
             while lt(i, indent) {
                 result = concat(result, "    ")
@@ -1774,10 +1812,17 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     result = emit_expr(cond, result, 0, ctx)
     result = concat(result, ") {\n")
 
+    // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
+    mut saved_declared_vars := ctx.declared_vars.clone()
+    catch (err: AllocError) { throw err.msg }
+
     // Body
     mut body := Expr()
     expr.params.get(1, body)
     result = emit_body(body, result, add(indent, 1), ctx)
+
+    // Restore declared_vars after exiting scope
+    ctx.declared_vars = saved_declared_vars
 
     i = 0
     while lt(i, indent) {
@@ -2168,11 +2213,43 @@ emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     return emit_stmts(expr.params, output, indent, ctx)
 }
 
+// Pre-scan function body to collect function-level catch blocks
+// These are catch blocks at the end of the function (after all regular statements)
+// Returns a Vec<Expr> of catch blocks
+prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
+    mut catches := Vec.new(Expr)
+    mut i := stmts.len()
+
+    // Scan backwards from end to find catch blocks at function level
+    while gt(i, 0) {
+        i = sub(i, 1)
+        mut stmt := Expr()
+        stmts.get(i, stmt)
+        catch (err: IndexOutOfBoundsError) { return catches }
+
+        switch stmt.node_type {
+        case NodeType.Catch:
+            catches.push(stmt)
+        case NodeType.Return:
+            // Return statements can be interleaved with catches at function end
+        case:
+            // Stop scanning when we hit a non-catch, non-return statement
+            return catches
+        }
+    }
+
+    return catches
+}
+
 // Emit a sequence of statements with catch pattern detection
 // This is the core logic for handling throw/catch at call sites
 emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
     mut result := output
     mut i := 0
+
+    // Pre-scan for function-level catches (at the end of the block)
+    mut func_level_catches := prescan_func_level_catches(stmts)
+    catch (err: AllocError) { throw err.msg }
 
     while lt(i, stmts.len()) {
         mut stmt := Expr()
@@ -2286,8 +2363,31 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                 }
                             }
                         } else {
-                            // Not in a throwing function, emit regular statement
-                            result = emit_expr(stmt, result, indent, ctx)
+                            if gt(func_level_catches.len(), 0) {
+                                // No immediate catch, not a throwing function, but has function-level catches
+                                // Use those catches for error handling
+                                if has_decl {
+                                    result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, maybe_decl_name, "", result, indent, ctx)
+                                } else {
+                                    if has_assign {
+                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", maybe_assign_name, result, indent, ctx)
+                                    } else {
+                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", "", result, indent, ctx)
+                                    }
+                                }
+                            } else {
+                                // No catches - typer should have caught this if we're in non-throwing context
+                                // Just use propagate (will silently succeed on error if we're not throwing)
+                                if has_decl {
+                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx)
+                                } else {
+                                    if has_assign {
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx)
+                                    } else {
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx)
+                                    }
+                                }
+                            }
                         }
                         i = add(i, 1)
                     }
