@@ -442,11 +442,7 @@ fn emit_fcall_name_and_args_for_throwing(
 
         // Emit variadic args as compound literal array (C99)
         // Get C element type for the array
-        let c_elem_type = match elem_type.as_str() {
-            "I64" => "long long",
-            "U8" => "unsigned char",
-            _ => elem_type.as_str(),
-        };
+        let c_elem_type = elem_type.as_str();
 
         if variadic_count == 0 {
             // Empty variadic: pass NULL
@@ -511,6 +507,8 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("#include <stdio.h>\n");
     output.push_str("#include <stdlib.h>\n");
     output.push_str("#include <string.h>\n\n");
+    output.push_str("typedef unsigned char U8;\n");
+    output.push_str("typedef long long I64;\n\n");
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -520,10 +518,14 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     }
 
     // Pass 0b: emit forward declarations for all structs (to handle circular/forward references)
+    // Skip I64 and U8 - these are primitive typedefs, not structs
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 if let NodeType::Declaration(decl) = &child.node_type {
+                    if decl.name == "I64" || decl.name == "U8" {
+                        continue; // Skip - these are primitive typedefs
+                    }
                     output.push_str("typedef struct ");
                     output.push_str(&decl.name);
                     output.push_str(" ");
@@ -557,15 +559,12 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     }
 
     // Pass 1c: emit helper functions (after structs are defined)
-    output.push_str("\n// Type conversion helpers\n");
-    output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
-    output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n");
     let has_str = ctx.user_structs.contains("Str");
     if has_str {
-        output.push_str("// Str helper: create Str from C string literal\n");
+        output.push_str("\n// Str helper: create Str from C string literal\n");
         output.push_str("static inline Str Str_from_literal(const char* lit) {\n");
         output.push_str("    Str s;\n");
-        output.push_str("    s.c_string = (long long)lit;\n");
+        output.push_str("    s.c_string = (I64)lit;\n");
         output.push_str("    s.cap = strlen(lit);\n");
         output.push_str("    return s;\n");
         output.push_str("}\n");
@@ -578,7 +577,10 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("// print_flush: flush stdout\n");
     output.push_str("static inline void print_flush(void) { fflush(stdout); }\n");
     output.push_str("// to_ptr: get pointer address as integer\n");
-    output.push_str("static inline long long to_ptr(long long* p) { return (long long)p; }\n\n");
+    output.push_str("static inline I64 to_ptr(I64* p) { return (I64)p; }\n");
+    output.push_str("// Type conversion helpers\n");
+    output.push_str("static inline I64 u8_to_i64(U8 v) { return (I64)v; }\n");
+    output.push_str("static inline U8 i64_to_u8(I64 v) { return (U8)v; }\n\n");
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     if let NodeType::Body = &ast.node_type {
@@ -710,7 +712,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenCont
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let has_str = ctx.user_structs.contains("Str");
                 let c_type = match lit {
-                    Literal::Number(_) => "long long",
+                    Literal::Number(_) => "I64",
                     Literal::Str(_) => if has_str { "Str" } else { "const char*" },
                     Literal::List(_) => return Ok(()), // Skip list literals for now
                 };
@@ -807,6 +809,10 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
 fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
+        // Skip I64 and U8 - these are primitive typedefs, not structs
+        if decl.name == "I64" || decl.name == "U8" {
+            return Ok(());
+        }
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 output.push_str("struct ");
@@ -836,6 +842,10 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContex
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
+        // Skip I64 and U8 - these are primitive typedefs, not structs
+        if decl.name == "I64" || decl.name == "U8" {
+            return Ok(());
+        }
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 let struct_name = &decl.name;
@@ -1115,21 +1125,12 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 
 // Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
 // user_structs: set of struct names defined in the code (Str, Bool, etc. are structs when defined)
-fn til_type_to_c(til_type: &crate::rs::parser::ValueType, user_structs: &HashSet<String>) -> Option<String> {
+fn til_type_to_c(til_type: &crate::rs::parser::ValueType, _user_structs: &HashSet<String>) -> Option<String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
-            // I64 and U8 are always C primitives
-            match name.as_str() {
-                "I64" => return Some("long long".to_string()),
-                "U8" => return Some("unsigned char".to_string()),
-                "auto" => return None, // Skip inferred types
-                _ => {}
-            }
-            // Everything else: if it's a user-defined struct, use the struct name
-            if user_structs.contains(name) {
-                Some(name.clone())
+            if name == "auto" {
+                None // Skip inferred types
             } else {
-                // Fallback for non-struct types (shouldn't happen often)
                 Some(name.clone())
             }
         },
@@ -1142,15 +1143,7 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType, user_structs: &HashSet
 // Helper to get C type name for a ValueType (for error struct definitions)
 fn value_type_to_c_name(vt: &ValueType, _user_structs: &HashSet<String>) -> String {
     match vt {
-        ValueType::TCustom(name) => {
-            match name.as_str() {
-                // I64 and U8 are always C primitives
-                "I64" => "long long".to_string(),
-                "U8" => "unsigned char".to_string(),
-                // Everything else uses the type name directly
-                _ => name.clone(),
-            }
-        },
+        ValueType::TCustom(name) => name.clone(),
         _ => "int".to_string(),
     }
 }
@@ -1211,15 +1204,10 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         // Check for variadic arg (TMulti)
         if let ValueType::TMulti(elem_type) = &arg.value_type {
             // Emit count parameter and array pointer: int args_len, element_type* args
-            let c_elem_type = match elem_type.as_str() {
-                "I64" => "long long",
-                "U8" => "unsigned char",
-                _ => elem_type.as_str(),
-            };
             output.push_str("int _");
             output.push_str(&arg.name);
             output.push_str("_len, ");
-            output.push_str(c_elem_type);
+            output.push_str(elem_type.as_str());
             output.push_str("* ");
             output.push_str(&arg.name);
             param_count += 1;
@@ -2637,20 +2625,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str(&variadic_count.to_string());
 
                 // Emit variadic args as compound literal array (C99)
-                // Get C element type for the array
-                let c_elem_type = match elem_type.as_str() {
-                    "I64" => "long long",
-                    "U8" => "unsigned char",
-                    _ => elem_type.as_str(),
-                };
-
                 if variadic_count == 0 {
                     // Empty variadic: pass NULL
                     output.push_str(", NULL");
                 } else {
                     // Build compound literal: (type[]){arg1, arg2, ...}
                     output.push_str(", (");
-                    output.push_str(c_elem_type);
+                    output.push_str(elem_type.as_str());
                     output.push_str("[]){");
                     for (i, arg) in args.iter().skip(regular_count).enumerate() {
                         if i > 0 {

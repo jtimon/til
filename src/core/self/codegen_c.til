@@ -76,10 +76,8 @@ is_known_function := func(ctx: CodegenContext, name: Str) returns Bool {
 til_type_to_c := func(til_type: ValueType) returns Str {
     switch til_type {
     case ValueType.TCustom(name):
-        if name.eq("I64") { return "long long" }
-        else if name.eq("U8") { return "unsigned char" }
-        else if name.eq("Str") { return "const char*" }
-        else { return name }  // Assume struct type (Bool, etc.)
+        if name.eq("Str") { return "const char*" }
+        else { return name }  // I64, U8, Bool, structs all pass through
     case:
         return "int"  // Default
     }
@@ -89,10 +87,8 @@ til_type_to_c := func(til_type: ValueType) returns Str {
 value_type_to_c_name := func(vt: ValueType) returns Str {
     switch vt {
     case ValueType.TCustom(name):
-        if name.eq("I64") { return "long long" }
-        else if name.eq("U8") { return "unsigned char" }
-        else if name.eq("Str") { return "const char*" }
-        else { return name }  // struct/error types (Bool, etc.)
+        if name.eq("Str") { return "const char*" }
+        else { return name }  // I64, U8, Bool, structs all pass through
     case:
         return "int"
     }
@@ -713,7 +709,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
             case NodeType.LLiteral(lit):
                 switch lit {
                 case Literal.Number(n):
-                    result = concat(result, "long long ")
+                    result = concat(result, "I64 ")
                     result = concat(result, decl.name)
                     result = concat(result, " = ")
                     result = concat(result, n)
@@ -751,6 +747,9 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
+        // Skip I64 and U8 - these are primitive typedefs, not structs
+        if decl.name.eq("I64") { return result }
+        if decl.name.eq("U8") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -791,6 +790,9 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
+        // Skip I64 and U8 - these are primitive typedefs, not structs
+        if decl.name.eq("I64") { return result }
+        if decl.name.eq("U8") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1223,6 +1225,8 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "#include <stdio.h>\n")
     output = concat(output, "#include <stdlib.h>\n")
     output = concat(output, "#include <string.h>\n\n")
+    output = concat(output, "typedef unsigned char U8;\n")
+    output = concat(output, "typedef long long I64;\n\n")
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -1241,6 +1245,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     }
 
     // Pass 0b: emit forward declarations for all structs (for pointer cycles/self-references)
+    // Skip I64 and U8 - these are primitive typedefs, not structs
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -1251,11 +1256,15 @@ emit := proc(ast: Expr) returns Str throws Str {
             if is_struct_declaration(child) {
                 switch child.node_type {
                 case NodeType.Declaration(decl):
-                    output = concat(output, "typedef struct ")
-                    output = concat(output, decl.name)
-                    output = concat(output, " ")
-                    output = concat(output, decl.name)
-                    output = concat(output, ";\n")
+                    if decl.name.eq("I64") { }
+                    else if decl.name.eq("U8") { }
+                    else {
+                        output = concat(output, "typedef struct ")
+                        output = concat(output, decl.name)
+                        output = concat(output, " ")
+                        output = concat(output, decl.name)
+                        output = concat(output, ";\n")
+                    }
                 case:
                 }
             }
@@ -1321,13 +1330,13 @@ emit := proc(ast: Expr) returns Str throws Str {
 
     // Pass 1c: emit helper functions (after structs are defined)
     output = concat(output, "\n// Type conversion helpers\n")
-    output = concat(output, "static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n")
-    output = concat(output, "static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n")
+    output = concat(output, "static inline I64 u8_to_i64(U8 v) { return (I64)v; }\n")
+    output = concat(output, "static inline U8 i64_to_u8(I64 v) { return (U8)v; }\n")
     if ctx.has_str() {
         output = concat(output, "// Str helper: create Str from C string literal\n")
         output = concat(output, "static inline Str Str_from_literal(const char* lit) {\n")
         output = concat(output, "    Str s;\n")
-        output = concat(output, "    s.c_string = (long long)lit;\n")
+        output = concat(output, "    s.c_string = (I64)lit;\n")
         output = concat(output, "    s.cap = strlen(lit);\n")
         output = concat(output, "    return s;\n")
         output = concat(output, "}\n")
@@ -1340,7 +1349,7 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "// print_flush: flush stdout\n")
     output = concat(output, "static inline void print_flush(void) { fflush(stdout); }\n")
     output = concat(output, "// to_ptr: get pointer address as integer\n")
-    output = concat(output, "static inline long long to_ptr(long long* p) { return (long long)p; }\n\n")
+    output = concat(output, "static inline I64 to_ptr(I64* p) { return (I64)p; }\n\n")
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
@@ -1590,16 +1599,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                 if ctx.has_variadic_param {
                     mut param_name := ctx.current_variadic_param.arg_name
                     mut elem_type := ctx.current_variadic_param.elem_type
-                    // Get C element type
-                    mut c_elem_type := elem_type
-                    if elem_type.eq("I64") {
-                        c_elem_type = "long long"
-                    } else if elem_type.eq("U8") {
-                        c_elem_type = "unsigned char"
-                    }
                     // Emit: elem_type* param_name = NULL;
                     result = concat(result, "    ")
-                    result = concat(result, c_elem_type)
+                    result = concat(result, elem_type)
                     result = concat(result, "* ")
                     result = concat(result, param_name)
                     result = concat(result, " = NULL;\n")
@@ -1611,11 +1613,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                     result = concat(result, "        ")
                     result = concat(result, param_name)
                     result = concat(result, " = (")
-                    result = concat(result, c_elem_type)
+                    result = concat(result, elem_type)
                     result = concat(result, "*)malloc(")
                     result = concat(result, param_name)
                     result = concat(result, "_len * sizeof(")
-                    result = concat(result, c_elem_type)
+                    result = concat(result, elem_type)
                     result = concat(result, "));\n")
                     // va_list setup
                     result = concat(result, "        va_list _va;\n")
@@ -1629,7 +1631,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                     result = concat(result, "            ")
                     result = concat(result, param_name)
                     result = concat(result, "[_i] = va_arg(_va, ")
-                    result = concat(result, c_elem_type)
+                    result = concat(result, elem_type)
                     result = concat(result, ");\n")
                     result = concat(result, "        }\n")
                     result = concat(result, "        va_end(_va);\n")
@@ -2788,12 +2790,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             inferred := infer_type_from_expr(first, ctx)
             switch inferred {
             case ValueType.TCustom(inf_type):
-                if Str.eq(inf_type, "I64") {
-                    c_type = "long long"
-                } else if Str.eq(inf_type, "Str") {
+                if Str.eq(inf_type, "Str") {
                     c_type = "const char*"
                 } else if gt(inf_type.len(), 0) {
-                    c_type = inf_type
+                    c_type = inf_type  // I64, U8, etc. pass through
                 }
             case:
                 // Keep default "int"
@@ -2820,12 +2820,10 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             inferred := infer_type_from_expr(first, ctx)
             switch inferred {
             case ValueType.TCustom(inf_type):
-                if Str.eq(inf_type, "I64") {
-                    c_type = "long long"
-                } else if Str.eq(inf_type, "Str") {
+                if Str.eq(inf_type, "Str") {
                     c_type = "const char*"
                 } else if gt(inf_type.len(), 0) {
-                    c_type = inf_type
+                    c_type = inf_type  // I64, U8, etc. pass through
                 }
             case:
                 // Keep default "int"
