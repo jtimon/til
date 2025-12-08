@@ -7,4 +7,24 @@ tmp/*
 *~
 \#*\#
 .\#*
+
+# Codegen outputs - ignore compiled test files
 src/test/**/*.c
+
+# Compiled test binaries (executables without extensions)
+src/test/circular_test
+src/test/comparisons
+src/test/enums_payload
+src/test/enums_simple
+src/test/errors
+src/test/fibonacci
+src/test/flow
+src/test/scope_isolation
+src/test/strings
+src/test/switch_simple
+src/test/throw_simple
+src/test/throw_test2
+src/test/hello/hello_script
+
+# Ignore core binary but track core.c for progress
+src/core/core
