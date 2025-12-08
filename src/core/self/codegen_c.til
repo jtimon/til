@@ -3725,26 +3725,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = concat(result, ");\n")
         return result
-    } else if func_name.eq("add") {
-        return emit_binop(expr, output, "+", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("sub") {
-        return emit_binop(expr, output, "-", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("mul") {
-        return emit_binop(expr, output, "*", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("div") {
-        return emit_binop(expr, output, "/", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("mod") {
-        return emit_binop(expr, output, "%", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("eq") {
-        return emit_binop(expr, output, "==", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("lt") {
-        return emit_binop(expr, output, "<", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("gt") {
-        return emit_binop(expr, output, ">", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("lteq") {
-        return emit_binop(expr, output, "<=", has_ufcs_receiver, first, ctx)
-    } else if func_name.eq("gteq") {
-        return emit_binop(expr, output, ">=", has_ufcs_receiver, first, ctx)
     } else if func_name.eq("test") {
         // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
         if lt(params_len, 4) {
@@ -3977,65 +3957,6 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     catch (err: AllocError) { throw err.msg }
-}
-
-emit_binop := proc(expr: Expr, output: Str, op: Str, has_ufcs_receiver: Bool, first: Expr, mut ctx: CodegenContext) returns Str throws Str {
-    mut result := concat(output, "(")
-
-    // For UFCS: receiver.op(arg) -> (receiver op arg)
-    // For type-qualified: Type.op(a, b) -> (a op b) - ignore type prefix
-    // For regular: op(a, b) -> (a op b)
-    if has_ufcs_receiver {
-        // Check if this is a type-qualified call (Type.op(a, b)) vs instance call (x.op(y))
-        // Type-qualified calls have 2+ args after the function name
-        if gteq(expr.params.len(), 3) {
-            // Type-qualified: Type.op(a, b) -> (a op b)
-            mut arg1 := Expr()
-            mut arg2 := Expr()
-            expr.params.get(1, arg1)
-            expr.params.get(2, arg2)
-            result = emit_expr(arg1, result, 0, ctx)
-            result = concat(result, " ")
-            result = concat(result, op)
-            result = concat(result, " ")
-            result = emit_expr(arg2, result, 0, ctx)
-        } else if gteq(expr.params.len(), 2) {
-            // Instance UFCS: x.op(y) -> (x op y)
-            switch first.node_type {
-            case NodeType.Identifier(name):
-                result = concat(result, name)
-            case:
-                throw "codegen_c: expected identifier"
-            }
-            result = concat(result, " ")
-            result = concat(result, op)
-            result = concat(result, " ")
-            mut arg := Expr()
-            expr.params.get(1, arg)
-            result = emit_expr(arg, result, 0, ctx)
-        } else {
-            throw "codegen_c: UFCS binary op requires 1 argument"
-        }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-    } else {
-        // Regular call: op(a, b) -> (a op b)
-        if lt(expr.params.len(), 3) {
-            throw "codegen_c: binary op requires 2 arguments"
-        }
-        mut arg1 := Expr()
-        mut arg2 := Expr()
-        expr.params.get(1, arg1)
-        expr.params.get(2, arg2)
-        result = emit_expr(arg1, result, 0, ctx)
-        result = concat(result, " ")
-        result = concat(result, op)
-        result = concat(result, " ")
-        result = emit_expr(arg2, result, 0, ctx)
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-    }
-
-    result = concat(result, ")")
-    return result
 }
 
 // Emit identifier without its nested params (for UFCS receiver)

@@ -2788,17 +2788,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str(");\n");
             Ok(())
         },
-        // Arithmetic operations - emit as C expressions
-        "add" => emit_binop(expr, output, "+", ufcs_receiver, &hoisted, ctx),
-        "sub" => emit_binop(expr, output, "-", ufcs_receiver, &hoisted, ctx),
-        "mul" => emit_binop(expr, output, "*", ufcs_receiver, &hoisted, ctx),
-        "div" => emit_binop(expr, output, "/", ufcs_receiver, &hoisted, ctx),
-        "mod" => emit_binop(expr, output, "%", ufcs_receiver, &hoisted, ctx),
-        // Comparison (eq removed - types have their own .eq() methods)
-        "lt" => emit_binop(expr, output, "<", ufcs_receiver, &hoisted, ctx),
-        "gt" => emit_binop(expr, output, ">", ufcs_receiver, &hoisted, ctx),
-        "lteq" => emit_binop(expr, output, "<=", ufcs_receiver, &hoisted, ctx),
-        "gteq" => emit_binop(expr, output, ">=", ufcs_receiver, &hoisted, ctx),
         // test(loc, cond, msg) - emit as assertion
         "test" => {
             // For C codegen, we just emit the test as an if statement
@@ -3078,48 +3067,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
     }
-}
-
-fn emit_binop(expr: &Expr, output: &mut String, op: &str, ufcs_receiver: Option<&Expr>, hoisted: &std::collections::HashMap<usize, String>, ctx: &mut CodegenContext) -> Result<(), String> {
-    output.push('(');
-
-    // For UFCS: receiver.op(arg) -> (receiver op arg)
-    // For type-qualified: Type.op(a, b) -> (a op b) - ignore type prefix
-    // For regular: op(a, b) -> (a op b)
-    if let Some(receiver) = ufcs_receiver {
-        // Check if this is a type-qualified call (Type.op(a, b)) vs instance call (x.op(y))
-        // Type-qualified calls have 2+ args after the function name
-        if expr.params.len() >= 3 {
-            // Type-qualified: Type.op(a, b) -> (a op b)
-            emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
-            output.push(' ');
-            output.push_str(op);
-            output.push(' ');
-            emit_arg_or_hoisted(&expr.params[2], 1, hoisted, output, ctx)?;
-        } else if expr.params.len() >= 2 {
-            // Instance UFCS: x.op(y) -> (x op y)
-            emit_identifier_without_nested(receiver, output)?;
-            output.push(' ');
-            output.push_str(op);
-            output.push(' ');
-            emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
-        } else {
-            return Err("codegen_c: UFCS binary op requires 1 argument".to_string());
-        }
-    } else {
-        // Regular call: emit params[1] and params[2]
-        if expr.params.len() < 3 {
-            return Err("codegen_c: binary op requires 2 arguments".to_string());
-        }
-        emit_arg_or_hoisted(&expr.params[1], 0, hoisted, output, ctx)?;
-        output.push(' ');
-        output.push_str(op);
-        output.push(' ');
-        emit_arg_or_hoisted(&expr.params[2], 1, hoisted, output, ctx)?;
-    }
-
-    output.push(')');
-    Ok(())
 }
 
 // Emit identifier without its nested params (for UFCS receiver)
