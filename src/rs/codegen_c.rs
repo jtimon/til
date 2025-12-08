@@ -24,6 +24,8 @@ struct CodegenContext {
     current_variadic_param: Option<(String, String)>, // (name, element_type)
     // Counter for generating unique temporary variable names
     temp_counter: usize,
+    // Set of user-defined struct names (to distinguish from built-in types like Str)
+    user_structs: HashSet<String>,
 }
 
 impl CodegenContext {
@@ -38,6 +40,7 @@ impl CodegenContext {
             current_return_types: Vec::new(),
             current_variadic_param: None,
             temp_counter: 0,
+            user_structs: HashSet::new(),
         }
     }
 
@@ -46,6 +49,130 @@ impl CodegenContext {
         self.temp_counter += 1;
         name
     }
+}
+
+/// Extract struct field type dependencies for topological sorting
+/// Returns the type name if it's a custom type that needs to be defined first
+fn get_field_type_dependency(value_type: &ValueType) -> Option<String> {
+    match value_type {
+        ValueType::TCustom(name) => {
+            // I64 and U8 are primitives, not struct dependencies
+            match name.as_str() {
+                "I64" | "U8" | "auto" => None,
+                _ => Some(name.clone()),
+            }
+        },
+        _ => None,
+    }
+}
+
+/// Get struct dependencies (other struct types used as fields)
+fn get_struct_dependencies(expr: &Expr) -> Vec<String> {
+    let mut deps = Vec::new();
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
+                for member in &struct_def.members {
+                    if member.is_mut {
+                        if let Some(dep) = get_field_type_dependency(&member.value_type) {
+                            deps.push(dep);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    deps
+}
+
+/// Get struct name from a struct declaration expression
+fn get_struct_name(expr: &Expr) -> Option<String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::StructDef(_) = &expr.params[0].node_type {
+                return Some(decl.name.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Topologically sort struct declarations by their field dependencies
+/// Returns indices into the original vector in sorted order
+fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
+    // Build name -> index map
+    let mut name_to_idx: HashMap<String, usize> = HashMap::new();
+    for (idx, expr) in structs.iter().enumerate() {
+        if let Some(name) = get_struct_name(expr) {
+            name_to_idx.insert(name, idx);
+        }
+    }
+
+    // Build adjacency list (dependencies)
+    let mut deps: Vec<Vec<usize>> = vec![Vec::new(); structs.len()];
+    for (idx, expr) in structs.iter().enumerate() {
+        for dep_name in get_struct_dependencies(expr) {
+            if let Some(&dep_idx) = name_to_idx.get(&dep_name) {
+                if dep_idx != idx {
+                    deps[idx].push(dep_idx);
+                }
+            }
+        }
+    }
+
+    // Kahn's algorithm for topological sort
+    let mut in_degree: Vec<usize> = vec![0; structs.len()];
+    for dep_list in &deps {
+        for &dep in dep_list {
+            in_degree[dep] += 1;
+        }
+    }
+
+    // Actually we need reverse - if A depends on B, B must come first
+    // So reverse the edges
+    let mut reverse_deps: Vec<Vec<usize>> = vec![Vec::new(); structs.len()];
+    for (idx, dep_list) in deps.iter().enumerate() {
+        for &dep in dep_list {
+            reverse_deps[dep].push(idx);
+        }
+    }
+
+    // Recalculate in-degree for reversed graph
+    let mut in_degree: Vec<usize> = vec![0; structs.len()];
+    for dep_list in &reverse_deps {
+        for &dep in dep_list {
+            in_degree[dep] += 1;
+        }
+    }
+
+    let mut queue: Vec<usize> = Vec::new();
+    for (idx, &degree) in in_degree.iter().enumerate() {
+        if degree == 0 {
+            queue.push(idx);
+        }
+    }
+
+    let mut result = Vec::new();
+    while let Some(idx) = queue.pop() {
+        result.push(idx);
+        for &next in &reverse_deps[idx] {
+            in_degree[next] -= 1;
+            if in_degree[next] == 0 {
+                queue.push(next);
+            }
+        }
+    }
+
+    // If we couldn't sort all (cycle), just append remaining in original order
+    if result.len() < structs.len() {
+        for idx in 0..structs.len() {
+            if !result.contains(&idx) {
+                result.push(idx);
+            }
+        }
+    }
+
+    result
 }
 
 /// Check if an expression is a throwing function call
@@ -91,7 +218,7 @@ fn hoist_throwing_args(
 
             // Determine the C type for the temp variable
             let c_type = if let Some(ret_type) = &return_type {
-                til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+                til_type_to_c(ret_type, &ctx.user_structs).unwrap_or_else(|| "int".to_string())
             } else {
                 "int".to_string()
             };
@@ -407,12 +534,31 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         }
     }
 
-    // Pass 1: emit struct definitions (only mut fields become struct members)
+    // Pass 0b: emit forward declarations for all structs (to handle circular/forward references)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_declaration(child, &mut output)?;
+                if let NodeType::Declaration(decl) = &child.node_type {
+                    output.push_str("typedef struct ");
+                    output.push_str(&decl.name);
+                    output.push_str(" ");
+                    output.push_str(&decl.name);
+                    output.push_str(";\n");
+                }
             }
+        }
+        output.push_str("\n");
+    }
+
+    // Pass 1: emit struct definitions (only mut fields become struct members)
+    // Sort structs topologically so dependencies are defined first
+    if let NodeType::Body = &ast.node_type {
+        let struct_decls: Vec<&Expr> = ast.params.iter()
+            .filter(|child| is_struct_declaration(child))
+            .collect();
+        let sorted_indices = topological_sort_structs(&struct_decls);
+        for idx in sorted_indices {
+            emit_struct_declaration(struct_decls[idx], &mut output, &ctx)?;
         }
     }
 
@@ -420,7 +566,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_enum_declaration(child) {
-                emit_enum_declaration(child, &mut output)?;
+                emit_enum_declaration(child, &mut output, &ctx)?;
             }
         }
     }
@@ -547,10 +693,9 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Emit a top-level constant declaration at file scope
 fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip C reserved words/macros
-        match decl.name.as_str() {
-            "NULL" | "true" | "false" => return Ok(()),
-            _ => {}
+        // Skip NULL - it's a C macro for 0
+        if decl.name == "NULL" {
+            return Ok(());
         }
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
@@ -608,6 +753,8 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                     NodeType::StructDef(struct_def) => {
                         // Struct methods - use mangled names (StructName_methodName)
                         let struct_name = &decl.name;
+                        // Track this as a user-defined struct
+                        ctx.user_structs.insert(struct_name.clone());
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
@@ -646,17 +793,20 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
     }
 }
 
-// Emit a struct declaration as a C typedef struct (only mut fields become struct fields)
-fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+// Emit a struct declaration as a C struct (only mut fields become struct fields)
+// Forward declarations are emitted separately, so we use "struct Name { ... };" here
+fn emit_struct_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
-                output.push_str("typedef struct {\n");
+                output.push_str("struct ");
+                output.push_str(&decl.name);
+                output.push_str(" {\n");
                 for member in &struct_def.members {
                     // Only emit mut fields as struct members
                     // Skip functions and non-mut fields (constants)
                     if member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                        if let Some(c_type) = til_type_to_c(&member.value_type, &ctx.user_structs) {
                             output.push_str("    ");
                             output.push_str(&c_type);
                             output.push_str(" ");
@@ -665,9 +815,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
                         }
                     }
                 }
-                output.push_str("} ");
-                output.push_str(&decl.name);
-                output.push_str(";\n\n");
+                output.push_str("};\n\n");
                 return Ok(());
             }
         }
@@ -684,7 +832,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 for member in &struct_def.members {
                     // Only emit non-mut, non-function fields as constants
                     if !member.is_mut {
-                        if let Some(c_type) = til_type_to_c(&member.value_type) {
+                        if let Some(c_type) = til_type_to_c(&member.value_type, &ctx.user_structs) {
                             // Get the default value
                             if let Some(default_val) = struct_def.default_values.get(&member.name) {
                                 output.push_str(&c_type);
@@ -717,7 +865,7 @@ fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
 }
 
 // Emit an enum with payloads as a tagged union
-fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String) -> Result<(), String> {
+fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     // Sort variants by name for deterministic output
     let mut variants: Vec<_> = enum_def.enum_map.iter().collect();
     variants.sort_by_key(|(name, _)| *name);
@@ -744,7 +892,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str("typedef union {\n");
         for (variant_name, payload_type) in &variants {
             if let Some(pt) = payload_type {
-                if let Some(c_type) = til_type_to_c(pt) {
+                if let Some(c_type) = til_type_to_c(pt, &ctx.user_structs) {
                     output.push_str("    ");
                     output.push_str(&c_type);
                     output.push_str(" ");
@@ -785,7 +933,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
         // Parameter for payload (if any)
         if let Some(pt) = payload_type {
-            if let Some(c_type) = til_type_to_c(pt) {
+            if let Some(c_type) = til_type_to_c(pt, &ctx.user_structs) {
                 output.push_str(&c_type);
                 output.push_str(" value");
             }
@@ -819,7 +967,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
 
 // Emit an enum declaration as a C typedef enum (for simple enums without payloads)
 // or as a tagged union struct (for enums with payloads)
-fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_enum_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
@@ -827,7 +975,7 @@ fn emit_enum_declaration(expr: &Expr, output: &mut String) -> Result<(), String>
 
                 if enum_has_payloads(enum_def) {
                     // Phase 2: Enums with payloads - tagged union
-                    return emit_enum_with_payloads(enum_name, enum_def, output);
+                    return emit_enum_with_payloads(enum_name, enum_def, output, ctx);
                 }
 
                 // Phase 1: Simple enum without payloads
@@ -956,34 +1104,41 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
 }
 
 // Convert TIL type to C type. Returns None if the type can't be represented in C (e.g., functions)
-fn til_type_to_c(til_type: &crate::rs::parser::ValueType) -> Option<String> {
+// user_structs: set of struct names defined in the code (Str, Bool, etc. are structs when defined)
+fn til_type_to_c(til_type: &crate::rs::parser::ValueType, user_structs: &HashSet<String>) -> Option<String> {
     match til_type {
         crate::rs::parser::ValueType::TCustom(name) => {
+            // I64 and U8 are always C primitives
             match name.as_str() {
-                "I64" => Some("long long".to_string()),
-                "Bool" => Some("unsigned char".to_string()),
-                "U8" => Some("unsigned char".to_string()),
-                "Str" => Some("const char*".to_string()),
-                "auto" => None, // Skip inferred types (usually methods)
-                _ => Some(name.clone()), // Assume it's a struct type
+                "I64" => return Some("long long".to_string()),
+                "U8" => return Some("unsigned char".to_string()),
+                "auto" => return None, // Skip inferred types
+                _ => {}
+            }
+            // Everything else: if it's a user-defined struct, use the struct name
+            if user_structs.contains(name) {
+                Some(name.clone())
+            } else {
+                // Fallback for non-struct types (shouldn't happen often)
+                Some(name.clone())
             }
         },
-        crate::rs::parser::ValueType::TFunction(_) => None, // Skip function types
-        crate::rs::parser::ValueType::TType(_) => None, // Skip type types
-        crate::rs::parser::ValueType::TMulti(_) => None, // Skip variadic types
+        crate::rs::parser::ValueType::TFunction(_) => None,
+        crate::rs::parser::ValueType::TType(_) => None,
+        crate::rs::parser::ValueType::TMulti(_) => None,
     }
 }
 
 // Helper to get C type name for a ValueType (for error struct definitions)
-fn value_type_to_c_name(vt: &ValueType) -> String {
+fn value_type_to_c_name(vt: &ValueType, _user_structs: &HashSet<String>) -> String {
     match vt {
         ValueType::TCustom(name) => {
             match name.as_str() {
+                // I64 and U8 are always C primitives
                 "I64" => "long long".to_string(),
-                "Bool" => "unsigned char".to_string(),
                 "U8" => "unsigned char".to_string(),
-                "Str" => "const char*".to_string(),
-                _ => name.clone(), // struct/error types
+                // Everything else uses the type name directly
+                _ => name.clone(),
             }
         },
         _ => "int".to_string(),
@@ -995,7 +1150,7 @@ fn value_type_to_c_name(vt: &ValueType) -> String {
 //   int func_name(RetType* _ret, Error1* _err1, Error2* _err2, args...)
 // For non-throwing:
 //   RetType func_name(args...)
-fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String, _ctx: &CodegenContext) {
+fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String, ctx: &CodegenContext) {
     let is_throwing = !func_def.throw_types.is_empty();
 
     if is_throwing {
@@ -1006,7 +1161,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         if func_def.return_types.is_empty() {
             output.push_str("void ");
         } else {
-            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0], &ctx.user_structs).unwrap_or("int".to_string());
             output.push_str(&ret_type);
             output.push_str(" ");
         }
@@ -1020,7 +1175,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
     if is_throwing {
         // Output params first: return value pointer, then error pointers
         if !func_def.return_types.is_empty() {
-            let ret_type = til_type_to_c(&func_def.return_types[0]).unwrap_or("int".to_string());
+            let ret_type = til_type_to_c(&func_def.return_types[0], &ctx.user_structs).unwrap_or("int".to_string());
             output.push_str(&ret_type);
             output.push_str("* _ret");
             param_count += 1;
@@ -1030,7 +1185,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             if param_count > 0 {
                 output.push_str(", ");
             }
-            let err_type = value_type_to_c_name(throw_type);
+            let err_type = value_type_to_c_name(throw_type, &ctx.user_structs);
             output.push_str(&err_type);
             output.push_str("* _err");
             output.push_str(&(i + 1).to_string());
@@ -1062,7 +1217,7 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             param_count += 1;
             break; // Variadic must be last
         } else {
-            let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
+            let arg_type = til_type_to_c(&arg.value_type, &ctx.user_structs).unwrap_or("int".to_string());
             output.push_str(&arg_type);
             output.push_str(" ");
             output.push_str(&arg.name);
@@ -1361,7 +1516,7 @@ fn emit_throwing_call(
     let ret_type = if needs_ret {
         ctx.func_return_types.get(&func_name)
             .and_then(|types| types.first())
-            .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
+            .map(|t| til_type_to_c(t, &ctx.user_structs).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
         "int".to_string()
@@ -1521,10 +1676,9 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
     }
 
-    // Skip C reserved words/macros
-    match decl.name.as_str() {
-        "NULL" | "true" | "false" => return Ok(()),
-        _ => {}
+    // Skip NULL - it's a C macro for 0, no need to redefine
+    if decl.name == "NULL" {
+        return Ok(());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -1588,12 +1742,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
             if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
-                til_type_to_c(&inferred).unwrap_or("int".to_string())
+                til_type_to_c(&inferred, &ctx.user_structs).unwrap_or("int".to_string())
             } else {
-                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
             }
         } else {
-            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+            til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
         };
         output.push_str(&c_type);
         output.push_str(" ");
@@ -1609,12 +1763,12 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
             if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
-                til_type_to_c(&inferred).unwrap_or("int".to_string())
+                til_type_to_c(&inferred, &ctx.user_structs).unwrap_or("int".to_string())
             } else {
-                til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+                til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
             }
         } else {
-            til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
+            til_type_to_c(&decl.value_type, &ctx.user_structs).unwrap_or("int".to_string())
         };
         output.push_str("const ");
         output.push_str(&c_type);

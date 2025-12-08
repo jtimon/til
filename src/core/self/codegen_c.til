@@ -432,6 +432,50 @@ is_struct_declaration := func(expr: Expr) returns Bool {
     }
 }
 
+// Check if a struct declaration has any struct type field dependencies
+// Returns true if any mut field is a custom type other than I64/U8
+struct_has_struct_deps := func(expr: Expr) returns Bool {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            catch (err: IndexOutOfBoundsError) { return false }
+            switch first.node_type {
+            case NodeType.StructDef(struct_def):
+                mut i := 0
+                while lt(i, struct_def.members.len()) {
+                    mut member := Declaration()
+                    struct_def.members.get(i, member)
+                    catch (err: IndexOutOfBoundsError) { return false }
+                    if member.is_mut {
+                        switch member.value_type {
+                        case ValueType.TCustom(type_name):
+                            // I64 and U8 are primitives, not struct deps
+                            if not(Str.eq(type_name, "I64")) {
+                                if not(Str.eq(type_name, "U8")) {
+                                    if not(Str.eq(type_name, "auto")) {
+                                        return true
+                                    }
+                                }
+                            }
+                        case:
+                            // Other types are not struct deps
+                        }
+                    }
+                    i = add(i, 1)
+                }
+                return false
+            case:
+                return false
+            }
+        }
+        return false
+    case:
+        return false
+    }
+}
+
 // Check if an expression is an enum declaration (Name := enum {...})
 is_enum_declaration := func(expr: Expr) returns Bool {
     switch expr.node_type {
@@ -490,10 +534,8 @@ emit_constant_declaration := proc(expr: Expr, output: Str) returns Str throws St
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip C reserved words/macros
+        // Skip NULL - it's a C macro for 0
         if Str.eq(decl.name, "NULL") { return result }
-        if Str.eq(decl.name, "true") { return result }
-        if Str.eq(decl.name, "false") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1035,15 +1077,31 @@ emit := proc(ast: Expr) returns Str throws Str {
     }
 
     // Pass 1: emit struct definitions (only mut fields become struct members)
+    // Two-pass approach: first emit structs with no struct dependencies, then the rest
     switch ast.node_type {
     case NodeType.Body:
+        // First pass: emit structs with no struct field dependencies
         mut i := 0
         mut params_len := ast.params.len()
         while lt(i, params_len) {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_declaration(child, output)
+                if not(struct_has_struct_deps(child)) {
+                    output = emit_struct_declaration(child, output)
+                }
+            }
+            i = add(i, 1)
+        }
+        // Second pass: emit structs with struct field dependencies
+        i = 0
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_struct_declaration(child) {
+                if struct_has_struct_deps(child) {
+                    output = emit_struct_declaration(child, output)
+                }
             }
             i = add(i, 1)
         }
@@ -2421,10 +2479,8 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         }
     }
 
-    // Skip C reserved words/macros
+    // Skip NULL - it's a C macro for 0
     if Str.eq(name, "NULL") { return output }
-    if Str.eq(name, "true") { return output }
-    if Str.eq(name, "false") { return output }
 
     // Add indentation
     mut ind := 0
