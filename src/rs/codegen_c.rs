@@ -443,7 +443,6 @@ fn emit_fcall_name_and_args_for_throwing(
         // Emit variadic args as compound literal array (C99)
         // Get C element type for the array
         let c_elem_type = match elem_type.as_str() {
-            "Str" => "const char*",
             "I64" => "long long",
             "U8" => "unsigned char",
             _ => elem_type.as_str(),
@@ -518,14 +517,6 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n");
     output.push_str("static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n");
 
-    // Core runtime functions (ext_proc/ext_func implementations)
-    output.push_str("// single_print: print a string without newline\n");
-    output.push_str("static inline void single_print(const char* s) { printf(\"%s\", s); }\n");
-    output.push_str("// print_flush: flush stdout\n");
-    output.push_str("static inline void print_flush(void) { fflush(stdout); }\n");
-    output.push_str("// to_ptr: get pointer address as integer\n");
-    output.push_str("static inline long long to_ptr(long long* p) { return (long long)p; }\n\n");
-
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -570,6 +561,27 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
         }
     }
 
+    // Pass 1c: emit ext function implementations (after structs are defined)
+    let has_str = ctx.user_structs.contains("Str");
+    if has_str {
+        output.push_str("\n// Str helper: create Str from C string literal\n");
+        output.push_str("static inline Str Str_from_literal(const char* lit) {\n");
+        output.push_str("    Str s;\n");
+        output.push_str("    s.c_string = (long long)lit;\n");
+        output.push_str("    s.cap = strlen(lit);\n");
+        output.push_str("    return s;\n");
+        output.push_str("}\n");
+        output.push_str("// single_print: print a string without newline\n");
+        output.push_str("static inline void single_print(Str s) { printf(\"%s\", (char*)s.c_string); }\n");
+    } else {
+        output.push_str("\n// single_print: print a string without newline (no Str defined)\n");
+        output.push_str("static inline void single_print(const char* s) { printf(\"%s\", s); }\n");
+    }
+    output.push_str("// print_flush: flush stdout\n");
+    output.push_str("static inline void print_flush(void) { fflush(stdout); }\n");
+    output.push_str("// to_ptr: get pointer address as integer\n");
+    output.push_str("static inline long long to_ptr(long long* p) { return (long long)p; }\n\n");
+
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
@@ -583,7 +595,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_constant_declaration(child) {
-                emit_constant_declaration(child, &mut output)?;
+                emit_constant_declaration(child, &mut output, &ctx)?;
             }
         }
     }
@@ -690,7 +702,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 }
 
 // Emit a top-level constant declaration at file scope
-fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
+fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         // Skip NULL - it's a C macro for 0
         if decl.name == "NULL" {
@@ -698,16 +710,17 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String) -> Result<(), Str
         }
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
+                let has_str = ctx.user_structs.contains("Str");
                 let c_type = match lit {
                     Literal::Number(_) => "long long",
-                    Literal::Str(_) => "const char*",
+                    Literal::Str(_) => if has_str { "Str" } else { "const char*" },
                     Literal::List(_) => return Ok(()), // Skip list literals for now
                 };
                 output.push_str(c_type);
                 output.push_str(" ");
                 output.push_str(&decl.name);
                 output.push_str(" = ");
-                emit_literal(lit, output)?;
+                emit_literal(lit, output, ctx)?;
                 output.push_str(";\n");
             }
         }
@@ -1111,7 +1124,6 @@ fn til_type_to_c(til_type: &crate::rs::parser::ValueType, user_structs: &HashSet
             match name.as_str() {
                 "I64" => return Some("long long".to_string()),
                 "U8" => return Some("unsigned char".to_string()),
-                "Str" => return Some("const char*".to_string()),
                 "auto" => return None, // Skip inferred types
                 _ => {}
             }
@@ -1137,7 +1149,6 @@ fn value_type_to_c_name(vt: &ValueType, _user_structs: &HashSet<String>) -> Stri
                 // I64 and U8 are always C primitives
                 "I64" => "long long".to_string(),
                 "U8" => "unsigned char".to_string(),
-                "Str" => "const char*".to_string(),
                 // Everything else uses the type name directly
                 _ => name.clone(),
             }
@@ -1203,7 +1214,6 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
         if let ValueType::TMulti(elem_type) = &arg.value_type {
             // Emit count parameter and array pointer: int args_len, element_type* args
             let c_elem_type = match elem_type.as_str() {
-                "Str" => "const char*",
                 "I64" => "long long",
                 "U8" => "unsigned char",
                 _ => elem_type.as_str(),
@@ -1319,7 +1329,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx),
         NodeType::FCall => emit_fcall(expr, output, indent, ctx),
-        NodeType::LLiteral(lit) => emit_literal(lit, output),
+        NodeType::LLiteral(lit) => emit_literal(lit, output, ctx),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx),
         NodeType::Identifier(name) => {
             // Check for type-qualified access (Type.field)
@@ -2486,7 +2496,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         },
         // loc() - just emit empty string for now
         "loc" => {
-            output.push_str("\"\"");
+            if ctx.user_structs.contains("Str") {
+                output.push_str("Str_from_literal(\"\")");
+            } else {
+                output.push_str("\"\"");
+            }
             Ok(())
         },
         // User-defined function call
@@ -2627,7 +2641,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Emit variadic args as compound literal array (C99)
                 // Get C element type for the array
                 let c_elem_type = match elem_type.as_str() {
-                    "Str" => "const char*",
                     "I64" => "long long",
                     "U8" => "unsigned char",
                     _ => elem_type.as_str(),
@@ -2723,10 +2736,15 @@ fn emit_identifier_without_nested(expr: &Expr, output: &mut String) -> Result<()
     }
 }
 
-fn emit_literal(lit: &Literal, output: &mut String) -> Result<(), String> {
+fn emit_literal(lit: &Literal, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     match lit {
         Literal::Str(s) => {
-            output.push('"');
+            let has_str = ctx.user_structs.contains("Str");
+            if has_str {
+                output.push_str("Str_from_literal(\"");
+            } else {
+                output.push('"');
+            }
             // Escape special characters for C string literals
             for c in s.chars() {
                 match c {
@@ -2738,7 +2756,11 @@ fn emit_literal(lit: &Literal, output: &mut String) -> Result<(), String> {
                     _ => output.push(c),
                 }
             }
-            output.push('"');
+            if has_str {
+                output.push_str("\")");
+            } else {
+                output.push('"');
+            }
             Ok(())
         },
         Literal::Number(n) => {

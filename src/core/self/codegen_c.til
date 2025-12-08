@@ -16,6 +16,8 @@ VariadicParamInfo := struct {
 CodegenContext := struct {
     // Set of all known function names (for UFCS mangling) - Vec<Str>
     mut known_functions: Vec = Vec.new(Str)
+    // Set of all user-defined struct names - Vec<Str>
+    mut user_structs: Vec = Vec.new(Str)
     // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
     mut func_throw_types: Map = Map.new(Str, Vec)
     // Map function name -> list of return types (Map<Str, Vec<ValueType>>)
@@ -38,6 +40,20 @@ CodegenContext := struct {
         mut name := concat("_tmp", self.temp_counter.to_str())
         self.temp_counter = add(self.temp_counter, 1)
         return name
+    }
+
+    has_str := func(self: CodegenContext) returns Bool {
+        mut i := 0
+        while lt(i, self.user_structs.len()) {
+            mut name := ""
+            self.user_structs.get(i, name)
+            catch (err: IndexOutOfBoundsError) { return false }
+            if name.eq("Str") {
+                return true
+            }
+            i = add(i, 1)
+        }
+        return false
     }
 }
 
@@ -198,6 +214,8 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 mut struct_name := decl.name
+                // Track this as a user-defined struct
+                ctx.user_structs.push(struct_name)
                 mut keys := struct_def.default_values.keys
                 mut i := 0
                 while lt(i, keys.len()) {
@@ -681,7 +699,7 @@ is_constant_declaration := func(expr: Expr) returns Bool {
 }
 
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
+emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -701,11 +719,19 @@ emit_constant_declaration := proc(expr: Expr, output: Str) returns Str throws St
                     result = concat(result, n)
                     result = concat(result, ";\n")
                 case Literal.Str(s):
-                    result = concat(result, "const char* ")
-                    result = concat(result, decl.name)
-                    result = concat(result, " = \"")
-                    result = concat(result, s)
-                    result = concat(result, "\";\n")
+                    if ctx.has_str() {
+                        result = concat(result, "Str ")
+                        result = concat(result, decl.name)
+                        result = concat(result, " = Str_from_literal(\"")
+                        result = concat(result, s)
+                        result = concat(result, "\");\n")
+                    } else {
+                        result = concat(result, "const char* ")
+                        result = concat(result, decl.name)
+                        result = concat(result, " = \"")
+                        result = concat(result, s)
+                        result = concat(result, "\";\n")
+                    }
                 case:
                     // Skip list literals for now
                     result = result
@@ -1203,14 +1229,6 @@ emit := proc(ast: Expr) returns Str throws Str {
     output = concat(output, "static inline long long u8_to_i64(unsigned char v) { return (long long)v; }\n")
     output = concat(output, "static inline unsigned char i64_to_u8(long long v) { return (unsigned char)v; }\n\n")
 
-    // Core runtime functions (ext_proc/ext_func implementations)
-    output = concat(output, "// single_print: print a string without newline\n")
-    output = concat(output, "static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
-    output = concat(output, "// print_flush: flush stdout\n")
-    output = concat(output, "static inline void print_flush(void) { fflush(stdout); }\n")
-    output = concat(output, "// to_ptr: get pointer address as integer\n")
-    output = concat(output, "static inline long long to_ptr(long long* p) { return (long long)p; }\n\n")
-
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
     case NodeType.Body:
@@ -1306,6 +1324,26 @@ emit := proc(ast: Expr) returns Str throws Str {
         // Not a body, skip enum pass
     }
 
+    // Pass 1c: emit ext function implementations (after structs are defined)
+    if ctx.has_str() {
+        output = concat(output, "\n// Str helper: create Str from C string literal\n")
+        output = concat(output, "static inline Str Str_from_literal(const char* lit) {\n")
+        output = concat(output, "    Str s;\n")
+        output = concat(output, "    s.c_string = (long long)lit;\n")
+        output = concat(output, "    s.cap = strlen(lit);\n")
+        output = concat(output, "    return s;\n")
+        output = concat(output, "}\n")
+        output = concat(output, "// single_print: print a string without newline\n")
+        output = concat(output, "static inline void single_print(Str s) { printf(\"%s\", (char*)s.c_string); }\n")
+    } else {
+        output = concat(output, "\n// single_print: print a string without newline (no Str defined)\n")
+        output = concat(output, "static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
+    }
+    output = concat(output, "// print_flush: flush stdout\n")
+    output = concat(output, "static inline void print_flush(void) { fflush(stdout); }\n")
+    output = concat(output, "// to_ptr: get pointer address as integer\n")
+    output = concat(output, "static inline long long to_ptr(long long* p) { return (long long)p; }\n\n")
+
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
     switch ast.node_type {
     case NodeType.Body:
@@ -1333,7 +1371,7 @@ emit := proc(ast: Expr) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_constant_declaration(child) {
-                output = emit_constant_declaration(child, output)
+                output = emit_constant_declaration(child, output, ctx)
             }
             i = add(i, 1)
         }
@@ -1556,9 +1594,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                     mut elem_type := ctx.current_variadic_param.elem_type
                     // Get C element type
                     mut c_elem_type := elem_type
-                    if elem_type.eq("Str") {
-                        c_elem_type = "const char*"
-                    } else if elem_type.eq("I64") {
+                    if elem_type.eq("I64") {
                         c_elem_type = "long long"
                     } else if elem_type.eq("U8") {
                         c_elem_type = "unsigned char"
@@ -2013,7 +2049,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     case NodeType.FCall:
         return emit_fcall(expr, output, indent, ctx)
     case NodeType.LLiteral(lit):
-        return emit_literal(lit, output)
+        return emit_literal(lit, output, ctx)
     case NodeType.Declaration(decl):
         return emit_declaration(decl, expr, output, indent, ctx)
     case NodeType.Identifier(name):
@@ -3325,7 +3361,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
     } else if func_name.eq("loc") {
-        return concat(output, "\"\"")
+        if ctx.has_str() {
+            return concat(output, "Str_from_literal(\"\")")
+        } else {
+            return concat(output, "\"\"")
+        }
     } else {
         // User-defined function call
         // Check if this is a type-qualified call (Type.func(...))
@@ -3582,11 +3622,15 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     }
 }
 
-emit_literal := proc(lit: Literal, output: Str) returns Str throws Str {
+emit_literal := proc(lit: Literal, output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := ""
     switch lit {
     case Literal.Str(s):
-        result = format(output, "\"", s, "\"")
+        if ctx.has_str() {
+            result = format(output, "Str_from_literal(\"", s, "\")")
+        } else {
+            result = format(output, "\"", s, "\"")
+        }
     case Literal.Number(n):
         result = concat(output, n)
     case Literal.List(l):
