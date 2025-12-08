@@ -34,12 +34,10 @@ struct CodegenContext {
     user_structs: HashSet<String>,
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
-    // Init context for type lookups (UFCS resolution, etc.)
-    init_context: Context,
 }
 
 impl CodegenContext {
-    fn new(init_context: Context) -> Self {
+    fn new() -> Self {
         CodegenContext {
             known_functions: HashSet::new(),
             ext_funcs: HashSet::new(),
@@ -53,7 +51,6 @@ impl CodegenContext {
             temp_counter: 0,
             user_structs: HashSet::new(),
             declared_vars: HashSet::new(),
-            init_context,
         }
     }
 
@@ -201,9 +198,9 @@ fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
 
 /// Check if an expression is a throwing function call
 /// Returns Some((func_name, throw_types, return_type)) if it is, None otherwise
-fn check_throwing_fcall(expr: &Expr, ctx: &CodegenContext) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
+fn check_throwing_fcall(expr: &Expr, ctx: &CodegenContext, context: &Context) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
     if let NodeType::FCall = &expr.node_type {
-        if let Some(func_name) = get_fcall_func_name(expr, ctx) {
+        if let Some(func_name) = get_fcall_func_name(expr, context) {
             if let Some(throw_types) = ctx.func_throw_types.get(&func_name) {
                 if !throw_types.is_empty() {
                     let return_type = ctx.func_return_types.get(&func_name)
@@ -223,16 +220,17 @@ fn hoist_throwing_args(
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<Vec<(usize, String)>, String> {
     let mut hoisted = Vec::new();
     let indent_str = "    ".repeat(indent);
 
     for (idx, arg) in args.iter().enumerate() {
-        if let Some((_func_name, throw_types, return_type)) = check_throwing_fcall(arg, ctx) {
+        if let Some((_func_name, throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
-                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx)?;
+                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
                 nested_vec.into_iter().collect()
             } else {
                 std::collections::HashMap::new()
@@ -275,7 +273,7 @@ fn hoist_throwing_args(
             output.push_str(" = ");
 
             // Emit the function name and args (using nested hoisted temps)
-            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, output, ctx)?;
+            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, output, ctx, context)?;
 
             output.push_str(";\n");
 
@@ -334,6 +332,7 @@ fn emit_fcall_name_and_args_for_throwing(
     nested_hoisted: &std::collections::HashMap<usize, String>,  // Hoisted temps for nested args
     output: &mut String,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<(), String> {
     if expr.params.is_empty() {
         return Err("emit_fcall_name_and_args_for_throwing: FCall with no params".to_string());
@@ -365,7 +364,7 @@ fn emit_fcall_name_and_args_for_throwing(
             let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
 
             // Use get_value_type to resolve the full receiver chain type
-            let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+            let receiver_type = get_value_type(context, &receiver_without_method).ok();
 
             // Determine type name from receiver type
             let type_name_opt: Option<String> = match &receiver_type {
@@ -377,7 +376,7 @@ fn emit_fcall_name_and_args_for_throwing(
 
             if let Some(type_name) = type_name_opt {
                 let mangled_name = format!("{}.{}", type_name, func_name);
-                if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                if context.scope_stack.lookup_func(&mangled_name).is_some() {
                     output.push_str(&til_name(&type_name));
                     output.push_str("_");
                     is_struct_method = true;
@@ -396,12 +395,12 @@ fn emit_fcall_name_and_args_for_throwing(
         if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
                 // Try init_context (globals) then var_types (locals)
-                let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
                     .map(|s| s.value_type.clone())
                     .or_else(|| ctx.var_types.get(first_arg_name).cloned());
                 if let Some(ValueType::TCustom(type_name)) = arg_type {
                     let mangled_name = format!("{}.{}", type_name, func_name);
-                    if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                    if context.scope_stack.lookup_func(&mangled_name).is_some() {
                         output.push_str(&til_name(&type_name));
                         output.push_str("_");
                         is_struct_method = true;
@@ -444,12 +443,12 @@ fn emit_fcall_name_and_args_for_throwing(
         if let Some(receiver) = ufcs_receiver {
             if let NodeType::Identifier(receiver_name) = &receiver.node_type {
                 // Try init_context (globals) then var_types (locals)
-                let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
+                let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
                     .map(|s| s.value_type.clone())
                     .or_else(|| ctx.var_types.get(receiver_name).cloned());
                 if let Some(ValueType::TCustom(type_name)) = receiver_type {
                     let candidate = format!("{}.{}", type_name, func_name);
-                    if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                    if context.scope_stack.lookup_func(&candidate).is_some() {
                         name.push_str(&type_name);
                         name.push('_');
                     }
@@ -462,12 +461,12 @@ fn emit_fcall_name_and_args_for_throwing(
         } else if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
                 // Try init_context (globals) then var_types (locals)
-                let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
                     .map(|s| s.value_type.clone())
                     .or_else(|| ctx.var_types.get(first_arg_name).cloned());
                 if let Some(ValueType::TCustom(type_name)) = arg_type {
                     let candidate = format!("{}.{}", type_name, func_name);
-                    if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                    if context.scope_stack.lookup_func(&candidate).is_some() {
                         name.push_str(&type_name);
                         name.push('_');
                     }
@@ -487,7 +486,7 @@ fn emit_fcall_name_and_args_for_throwing(
             if let Some(temp) = nested_hoisted.get(&arg_idx) {
                 output.push_str(temp);
             } else {
-                emit_expr(arg, output, 0, ctx)?;
+                emit_expr(arg, output, 0, ctx, context)?;
             }
         }
         // Emit count of variadic args
@@ -515,7 +514,7 @@ fn emit_fcall_name_and_args_for_throwing(
                 if let Some(temp) = nested_hoisted.get(&hoisted_idx) {
                     output.push_str(temp);
                 } else {
-                    emit_expr(arg, output, 0, ctx)?;
+                    emit_expr(arg, output, 0, ctx, context)?;
                 }
             }
             output.push_str("}");
@@ -528,7 +527,7 @@ fn emit_fcall_name_and_args_for_throwing(
             if let Some(temp) = nested_hoisted.get(&arg_idx) {
                 output.push_str(temp);
             } else {
-                emit_expr(arg, output, 0, ctx)?;
+                emit_expr(arg, output, 0, ctx, context)?;
             }
         }
     }
@@ -544,19 +543,20 @@ fn emit_arg_or_hoisted(
     hoisted: &std::collections::HashMap<usize, String>,
     output: &mut String,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&arg_idx) {
         output.push_str(temp_var);
         Ok(())
     } else {
-        emit_expr(arg, output, 0, ctx)
+        emit_expr(arg, output, 0, ctx, context)
     }
 }
 
 // Emit C code from AST (multi-pass architecture)
-pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
+pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     let mut output = String::new();
-    let mut ctx = CodegenContext::new(init_ctx);
+    let mut ctx = CodegenContext::new();
 
     // C boilerplate
     output.push_str("#include <stdio.h>\n");
@@ -643,7 +643,7 @@ pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_constants(child, &mut output, &mut ctx)?;
+                emit_struct_constants(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -663,7 +663,7 @@ pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_func_declaration(child) {
-                emit_func_declaration(child, &mut output, &mut ctx)?;
+                emit_func_declaration(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -671,7 +671,7 @@ pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
-                emit_struct_func_bodies(child, &mut output, &mut ctx)?;
+                emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
             }
         }
     }
@@ -689,7 +689,7 @@ pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
                 }
             }
             if !is_func_declaration(child) && !is_struct_declaration(child) && !is_enum_declaration(child) && !is_constant_declaration(child) {
-                emit_expr(child, &mut output, 1, &mut ctx)?;
+                emit_expr(child, &mut output, 1, &mut ctx, context)?;
             }
         }
     }
@@ -888,7 +888,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
-fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         // Skip I64, U8, Bool - these are primitive typedefs, not structs
         if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
@@ -910,7 +910,7 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                                 output.push_str("_");
                                 output.push_str(&member.name);
                                 output.push_str(" = ");
-                                emit_expr(default_val, output, 0, ctx)?;
+                                emit_expr(default_val, output, 0, ctx, context)?;
                                 output.push_str(";\n");
                             }
                         }
@@ -1115,7 +1115,7 @@ fn emit_struct_func_prototypes(expr: &Expr, output: &mut String) -> Result<(), S
 }
 
 // Emit a struct function body with mangled name: StructName_funcname
-fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declaration, func_def: &SFuncDef, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip external functions
     if func_def.is_ext() {
         return Ok(());
@@ -1143,7 +1143,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
             is_own: arg.is_own,
         });
     }
-    ctx.init_context.scope_stack.frames.push(function_frame);
+    context.scope_stack.frames.push(function_frame);
 
     // Clear declared_vars for new function scope
     ctx.declared_vars.clear();
@@ -1153,7 +1153,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     output.push_str(" {\n");
 
     // Emit function body with catch pattern detection
-    emit_stmts(&func_def.body, output, 1, ctx)?;
+    emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
     // For throwing void functions, add implicit return 0 at end
     if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
@@ -1163,7 +1163,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     output.push_str("}\n\n");
 
     // Pop the function scope frame
-    ctx.init_context.scope_stack.frames.pop();
+    context.scope_stack.frames.pop();
 
     // Clear current function context
     ctx.current_throw_types.clear();
@@ -1173,7 +1173,7 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
 }
 
 // Emit struct function bodies for all functions in a struct
-fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
@@ -1182,7 +1182,7 @@ fn emit_struct_func_bodies(expr: &Expr, output: &mut String, ctx: &mut CodegenCo
                     // Check if default_value is a function definition
                     if let Some(func_expr) = struct_def.default_values.get(&member.name) {
                         if let NodeType::FuncDef(func_def) = &func_expr.node_type {
-                            emit_struct_func_body(&struct_name, member, func_def, output, ctx)?;
+                            emit_struct_func_body(&struct_name, member, func_def, output, ctx, context)?;
                         }
                     }
                 }
@@ -1342,7 +1342,7 @@ fn is_func_declaration(expr: &Expr) -> bool {
 }
 
 // Emit a function declaration as a C function
-fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
@@ -1377,7 +1377,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                         ctx.current_variadic_param = Some((arg.name.clone(), elem_type.clone()));
                     }
                 }
-                ctx.init_context.scope_stack.frames.push(function_frame);
+                context.scope_stack.frames.push(function_frame);
 
                 // Clear declared_vars for new function scope
                 ctx.declared_vars.clear();
@@ -1387,7 +1387,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 output.push_str(" {\n");
 
                 // Emit function body with catch pattern detection
-                emit_stmts(&func_def.body, output, 1, ctx)?;
+                emit_stmts(&func_def.body, output, 1, ctx, context)?;
 
                 // For throwing void functions, add implicit return 0 at end
                 if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
@@ -1397,7 +1397,7 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 output.push_str("}\n\n");
 
                 // Pop the function scope frame
-                ctx.init_context.scope_stack.frames.pop();
+                context.scope_stack.frames.pop();
 
                 // Clear current function context
                 ctx.current_throw_types.clear();
@@ -1410,12 +1410,12 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
     Err("emit_func_declaration: not a function declaration".to_string())
 }
 
-fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     match &expr.node_type {
-        NodeType::Body => emit_body(expr, output, indent, ctx),
-        NodeType::FCall => emit_fcall(expr, output, indent, ctx),
+        NodeType::Body => emit_body(expr, output, indent, ctx, context),
+        NodeType::FCall => emit_fcall(expr, output, indent, ctx, context),
         NodeType::LLiteral(lit) => emit_literal(lit, output, ctx),
-        NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx),
+        NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
             // Check for type-qualified access (Type.field)
             if !expr.params.is_empty() {
@@ -1423,7 +1423,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                 if first_char.is_uppercase() {
                     if let NodeType::Identifier(field) = &expr.params[0].node_type {
                         // Check if this is an enum variant by looking up in context
-                        let is_enum_variant = if let Some(enum_def) = ctx.init_context.scope_stack.lookup_enum(name) {
+                        let is_enum_variant = if let Some(enum_def) = context.scope_stack.lookup_enum(name) {
                             enum_def.enum_map.contains_key(field)
                         } else {
                             false
@@ -1457,29 +1457,29 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             }
             Ok(())
         },
-        NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent, ctx),
-        NodeType::Assignment(name) => emit_assignment(name, expr, output, indent, ctx),
-        NodeType::Return => emit_return(expr, output, indent, ctx),
-        NodeType::If => emit_if(expr, output, indent, ctx),
-        NodeType::While => emit_while(expr, output, indent, ctx),
+        NodeType::FuncDef(func_def) => emit_funcdef(func_def, expr, output, indent, ctx, context),
+        NodeType::Assignment(name) => emit_assignment(name, expr, output, indent, ctx, context),
+        NodeType::Return => emit_return(expr, output, indent, ctx, context),
+        NodeType::If => emit_if(expr, output, indent, ctx, context),
+        NodeType::While => emit_while(expr, output, indent, ctx, context),
         NodeType::Catch => Ok(()), // Catch blocks handled at call site
-        NodeType::Throw => emit_throw(expr, output, indent, ctx),
+        NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
         NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::EnumDef(_) => Err("codegen_c: EnumDef should be handled at top level, not in emit_expr".to_string()),
-        NodeType::Switch => emit_switch(expr, output, indent, ctx),
+        NodeType::Switch => emit_switch(expr, output, indent, ctx, context),
         NodeType::DefaultCase => Err("codegen_c: DefaultCase should be handled inside emit_switch".to_string()),
         NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
         NodeType::Pattern(_) => Err("codegen_c: Pattern should be handled inside emit_switch".to_string()),
     }
 }
 
-fn emit_body(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
-    emit_stmts(&expr.params, output, indent, ctx)
+fn emit_body(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    emit_stmts(&expr.params, output, indent, ctx, context)
 }
 
 /// Emit a sequence of statements with catch pattern detection
 /// This is the core logic shared between emit_body and emit_func_declaration
-fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let mut i = 0;
 
     // Pre-scan for function-level catches (at the end of the block)
@@ -1521,7 +1521,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
         if let Some(fcall) = maybe_fcall {
             // Get function name from the FCall
-            let func_name = get_fcall_func_name(fcall, ctx);
+            let func_name = get_fcall_func_name(fcall, context);
 
             // Check if this function is a throwing function
             if let Some(func_name) = func_name {
@@ -1540,25 +1540,25 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
                     if !catch_blocks.is_empty() {
                         // Emit throwing call with catch handling
-                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
+                        emit_throwing_call(fcall, &throw_types, &catch_blocks, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i = j; // Skip past catch blocks
                         continue;
                     } else if !ctx.current_throw_types.is_empty() {
                         // No catch blocks, but we're inside a throwing function
                         // Emit error propagation pattern
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
+                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i += 1;
                         continue;
                     } else if !func_level_catches.is_empty() {
                         // No immediate catch, not a throwing function, but has function-level catches
                         // Use those catches for error handling
-                        emit_throwing_call(fcall, &throw_types, &func_level_catches, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
+                        emit_throwing_call(fcall, &throw_types, &func_level_catches, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i += 1;
                         continue;
                     } else {
                         // No catches - typer should have caught this if we're in non-throwing context
                         // Just use propagate (will silently succeed on error if we're not throwing)
-                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx)?;
+                        emit_throwing_call_propagate(fcall, &throw_types, maybe_decl_name.as_deref(), maybe_assign_name.as_deref(), output, indent, ctx, context)?;
                         i += 1;
                         continue;
                     }
@@ -1567,7 +1567,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
         }
 
         // Regular statement handling
-        emit_expr(stmt, output, indent, ctx)?;
+        emit_expr(stmt, output, indent, ctx, context)?;
         i += 1;
     }
     Ok(())
@@ -1576,7 +1576,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 /// Get the function name from an FCall expression (returns ORIGINAL name for lookup)
 /// This returns the name as stored in func_throw_types/known_functions, WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
+fn get_fcall_func_name(expr: &Expr, context: &Context) -> Option<String> {
     if expr.params.is_empty() {
         return None;
     }
@@ -1594,7 +1594,7 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
                 let receiver_without_method = clone_without_deepest_method(&expr.params[0], depth);
 
                 // Use get_value_type to resolve the full receiver chain type
-                let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+                let receiver_type = get_value_type(context, &receiver_without_method).ok();
 
                 // Determine type name from receiver type
                 let type_name_opt: Option<String> = match &receiver_type {
@@ -1607,7 +1607,7 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
                 if let Some(type_name) = type_name_opt {
                     let mangled_name = format!("{}.{}", type_name, method_name);
                     // Check if it's a known struct method
-                    if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                    if context.scope_stack.lookup_func(&mangled_name).is_some() {
                         return Some(format!("{}_{}", type_name, method_name));
                     }
                     // Otherwise it's a top-level function, use plain method name
@@ -1655,11 +1655,12 @@ fn emit_throwing_call(
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
 
     // Get function name
-    let func_name = get_fcall_func_name(fcall, ctx)
+    let func_name = get_fcall_func_name(fcall, context)
         .ok_or_else(|| "emit_throwing_call: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
@@ -1699,7 +1700,7 @@ fn emit_throwing_call(
         if let Some(return_types) = ctx.func_return_types.get(&func_name) {
             if let Some(first_type) = return_types.first() {
                 ctx.var_types.insert(var_name.to_string(), first_type.clone());
-                ctx.init_context.scope_stack.declare_symbol(
+                context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
                 );
@@ -1770,7 +1771,7 @@ fn emit_throwing_call(
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        emit_expr(arg, output, 0, ctx)?;
+        emit_expr(arg, output, 0, ctx, context)?;
         args_started = true;
     }
 
@@ -1840,7 +1841,7 @@ fn emit_throwing_call(
                     }
 
                     // Emit catch body
-                    emit_expr(&catch_block.params[2], output, indent + 1, ctx)?;
+                    emit_expr(&catch_block.params[2], output, indent + 1, ctx, context)?;
 
                     output.push_str(&indent_str);
                     output.push_str("}");
@@ -1863,11 +1864,12 @@ fn emit_throwing_call_propagate(
     output: &mut String,
     indent: usize,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
 
     // Get function name
-    let func_name = get_fcall_func_name(fcall, ctx)
+    let func_name = get_fcall_func_name(fcall, context)
         .ok_or_else(|| "emit_throwing_call_propagate: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
@@ -1907,7 +1909,7 @@ fn emit_throwing_call_propagate(
         if let Some(return_types) = ctx.func_return_types.get(&func_name) {
             if let Some(first_type) = return_types.first() {
                 ctx.var_types.insert(var_name.to_string(), first_type.clone());
-                ctx.init_context.scope_stack.declare_symbol(
+                context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
                 );
@@ -1976,7 +1978,7 @@ fn emit_throwing_call_propagate(
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        emit_expr(arg, output, 0, ctx)?;
+        emit_expr(arg, output, 0, ctx, context)?;
         args_started = true;
     }
 
@@ -2032,7 +2034,7 @@ fn emit_throwing_call_propagate(
     Ok(())
 }
 
-fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Skip inline ext_func/ext_proc declarations - they're just declaring external functions exist
     if !expr.params.is_empty() {
         if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
@@ -2071,8 +2073,8 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if type_name == INFER_TYPE && !expr.params.is_empty() {
             // Try get_value_type first (handles function calls like Vec.new)
             // then fall back to literal inference
-            get_value_type(&ctx.init_context, &expr.params[0]).ok()
-                .or_else(|| infer_type_from_expr(&expr.params[0], ctx))
+            get_value_type(context, &expr.params[0]).ok()
+                .or_else(|| infer_type_from_expr(&expr.params[0], ctx, context))
                 .unwrap_or_else(|| decl.value_type.clone())
         } else {
             decl.value_type.clone()
@@ -2082,7 +2084,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     };
     ctx.var_types.insert(name.clone(), var_type.clone());
     // Also add to scope_stack so get_value_type can find it
-    ctx.init_context.scope_stack.declare_symbol(
+    context.scope_stack.declare_symbol(
         name.clone(),
         SymbolInfo { value_type: var_type, is_mut: decl.is_mut, is_copy: false, is_own: false }
     );
@@ -2116,14 +2118,14 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         }
         output.push_str(&til_name(name));
         output.push_str(" = ");
-        emit_expr(&expr.params[0], output, 0, ctx)?;
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
         output.push_str(";\n");
     } else if is_mut {
         output.push_str(&indent_str);
         if !already_declared {
             // Determine C type from inferred type or fall back to int
             let c_type = if !expr.params.is_empty() {
-                if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
+                if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx, context) {
                     til_type_to_c(&inferred).unwrap_or("int".to_string())
                 } else {
                     til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
@@ -2138,7 +2140,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0, ctx)?;
+            emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");
     } else {
@@ -2146,7 +2148,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&indent_str);
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
-            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx) {
+            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx, context) {
                 til_type_to_c(&inferred).unwrap_or("int".to_string())
             } else {
                 til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
@@ -2160,7 +2162,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&til_name(name));
         if !expr.params.is_empty() {
             output.push_str(" = ");
-            emit_expr(&expr.params[0], output, 0, ctx)?;
+            emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");
     }
@@ -2227,7 +2229,7 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
 
 // Infer type from a literal expression
 // Returns Some(ValueType) if type can be inferred, None otherwise
-fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext) -> Option<ValueType> {
+fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext, context: &Context) -> Option<ValueType> {
     match &expr.node_type {
         NodeType::LLiteral(lit) => {
             match lit {
@@ -2238,7 +2240,7 @@ fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext) -> Option<ValueType> 
         },
         NodeType::FCall => {
             // Look up function return type
-            if let Some(func_name) = get_fcall_func_name(expr, ctx) {
+            if let Some(func_name) = get_fcall_func_name(expr, context) {
                 if let Some(return_types) = ctx.func_return_types.get(&func_name) {
                     return return_types.first().cloned();
                 }
@@ -2253,21 +2255,21 @@ fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext) -> Option<ValueType> 
     }
 }
 
-fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_funcdef(_func_def: &SFuncDef, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // For now, just inline the function body (we're inside main anyway)
     // TODO: proper function generation with prototypes
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("{\n");
     for stmt in &expr.params {
-        emit_expr(stmt, output, indent + 1, ctx)?;
+        emit_expr(stmt, output, indent + 1, ctx, context)?;
     }
     output.push_str(&indent_str);
     output.push_str("}\n");
     Ok(())
 }
 
-fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
 
     if !expr.params.is_empty() {
@@ -2275,11 +2277,11 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 
         // Check if RHS is a call to a throwing function
         if let NodeType::FCall = rhs_expr.node_type {
-            if let Some(func_name) = get_fcall_func_name(rhs_expr, ctx) {
+            if let Some(func_name) = get_fcall_func_name(rhs_expr, context) {
                 if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
                     // RHS is a throwing function call - emit with error propagation
                     // (typer should ensure non-throwing context doesn't call throwing functions without catch)
-                    emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(&til_name(name)), output, indent, ctx)?;
+                    emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(&til_name(name)), output, indent, ctx, context)?;
                     return Ok(());
                 }
             }
@@ -2291,13 +2293,13 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
     output.push_str(&til_name(name));
     output.push_str(" = ");
     if !expr.params.is_empty() {
-        emit_expr(&expr.params[0], output, 0, ctx)?;
+        emit_expr(&expr.params[0], output, 0, ctx, context)?;
     }
     output.push_str(";\n");
     Ok(())
 }
 
-fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     let indent_str = "    ".repeat(indent);
     let is_throwing = !ctx.current_throw_types.is_empty();
 
@@ -2308,11 +2310,11 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
             // Check if return expression is a call to a throwing function
             if let NodeType::FCall = return_expr.node_type {
-                if let Some(func_name) = get_fcall_func_name(return_expr, ctx) {
+                if let Some(func_name) = get_fcall_func_name(return_expr, context) {
                     if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
-                        emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx)?;
+                        emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx, context)?;
                         output.push_str(&indent_str);
                         output.push_str("return 0;\n");
                         return Ok(());
@@ -2323,7 +2325,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             // Regular return value - just emit it
             output.push_str(&indent_str);
             output.push_str("*_ret = ");
-            emit_expr(&expr.params[0], output, 0, ctx)?;
+            emit_expr(&expr.params[0], output, 0, ctx, context)?;
             output.push_str(";\n");
         }
         output.push_str(&indent_str);
@@ -2334,14 +2336,14 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         output.push_str("return");
         if !expr.params.is_empty() {
             output.push_str(" ");
-            emit_expr(&expr.params[0], output, 0, ctx)?;
+            emit_expr(&expr.params[0], output, 0, ctx, context)?;
         }
         output.push_str(";\n");
     }
     Ok(())
 }
 
-fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
     if expr.params.is_empty() {
         return Err("codegen_c: throw requires a value".to_string());
@@ -2383,7 +2385,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             let hoisted: std::collections::HashMap<usize, String> = if let NodeType::FCall = &thrown_expr.node_type {
                 if thrown_expr.params.len() > 1 {
                     let args = &thrown_expr.params[1..];
-                    let hoisted_vec = hoist_throwing_args(args, output, indent, ctx)?;
+                    let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
                     hoisted_vec.into_iter().collect()
                 } else {
                     std::collections::HashMap::new()
@@ -2399,9 +2401,9 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
             // Emit the thrown expression, using hoisted temp vars for arguments
             if let NodeType::FCall = &thrown_expr.node_type {
-                emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx)?;
+                emit_fcall_with_hoisted(thrown_expr, &hoisted, output, ctx, context)?;
             } else {
-                emit_expr(thrown_expr, output, 0, ctx)?;
+                emit_expr(thrown_expr, output, 0, ctx, context)?;
             }
             output.push_str(";\n");
 
@@ -2423,6 +2425,7 @@ fn emit_fcall_with_hoisted(
     hoisted: &std::collections::HashMap<usize, String>,
     output: &mut String,
     ctx: &mut CodegenContext,
+    context: &mut Context,
 ) -> Result<(), String> {
     if expr.params.is_empty() {
         return Err("emit_fcall_with_hoisted: FCall with no params".to_string());
@@ -2451,7 +2454,7 @@ fn emit_fcall_with_hoisted(
             let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
 
             // Use get_value_type to resolve the full receiver chain type
-            let receiver_type = get_value_type(&ctx.init_context, &receiver_without_method).ok();
+            let receiver_type = get_value_type(context, &receiver_without_method).ok();
 
             // Determine type name from receiver type
             let type_name_opt: Option<String> = match &receiver_type {
@@ -2462,7 +2465,7 @@ fn emit_fcall_with_hoisted(
 
             if let Some(type_name) = type_name_opt {
                 let mangled_name = format!("{}.{}", type_name, func_name);
-                if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                if context.scope_stack.lookup_func(&mangled_name).is_some() {
                     // Known struct method: til_Type_method(receiver, args...)
                     output.push_str(&til_name(&type_name));
                     output.push_str("_");
@@ -2480,7 +2483,7 @@ fn emit_fcall_with_hoisted(
                             output.push_str(", ");
                         }
                         first_arg = false;
-                        emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+                        emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
                     }
                     output.push_str(")");
                     return Ok(());
@@ -2508,13 +2511,13 @@ fn emit_fcall_with_hoisted(
         if i > 0 {
             output.push_str(", ");
         }
-        emit_arg_or_hoisted(arg, i, hoisted, output, ctx)?;
+        emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
     }
     output.push_str(")");
     Ok(())
 }
 
-fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if expr.params.len() < 2 {
         return Err("codegen_c: If requires condition and body".to_string());
@@ -2523,12 +2526,12 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("if (");
-    emit_expr(&expr.params[0], output, 0, ctx)?;
+    emit_expr(&expr.params[0], output, 0, ctx, context)?;
     output.push_str(") {\n");
 
     // Then body - save/restore declared_vars for proper C scope handling
     let saved_declared_vars = ctx.declared_vars.clone();
-    emit_body(&expr.params[1], output, indent + 1, ctx)?;
+    emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
     ctx.declared_vars = saved_declared_vars.clone();
 
     output.push_str(&indent_str);
@@ -2540,10 +2543,10 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
         if let NodeType::If = &expr.params[2].node_type {
             output.push_str(" else ");
             // Emit nested if without extra indentation (it handles its own)
-            emit_if(&expr.params[2], output, indent, ctx)?;
+            emit_if(&expr.params[2], output, indent, ctx, context)?;
         } else {
             output.push_str(" else {\n");
-            emit_body(&expr.params[2], output, indent + 1, ctx)?;
+            emit_body(&expr.params[2], output, indent + 1, ctx, context)?;
             ctx.declared_vars = saved_declared_vars;
             output.push_str(&indent_str);
             output.push_str("}\n");
@@ -2555,7 +2558,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     Ok(())
 }
 
-fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // While: params[0] = condition, params[1] = body
     if expr.params.len() < 2 {
         return Err("codegen_c: While requires condition and body".to_string());
@@ -2564,12 +2567,12 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let indent_str = "    ".repeat(indent);
     output.push_str(&indent_str);
     output.push_str("while (");
-    emit_expr(&expr.params[0], output, 0, ctx)?;
+    emit_expr(&expr.params[0], output, 0, ctx, context)?;
     output.push_str(") {\n");
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
     let saved_declared_vars = ctx.declared_vars.clone();
-    emit_body(&expr.params[1], output, indent + 1, ctx)?;
+    emit_body(&expr.params[1], output, indent + 1, ctx, context)?;
     // Restore declared_vars after exiting scope
     ctx.declared_vars = saved_declared_vars;
 
@@ -2633,7 +2636,7 @@ fn parse_pattern_variant_name(variant_name: &str) -> VariantInfo {
     }
 }
 
-fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if expr.params.is_empty() {
@@ -2681,7 +2684,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     // Emit: switch (expr) { or switch (expr.tag) {
     output.push_str(&indent_str);
     output.push_str("switch (");
-    emit_expr(switch_expr, output, 0, ctx)?;
+    emit_expr(switch_expr, output, 0, ctx, context)?;
     if is_enum_switch && !has_ranges {
         output.push_str(".tag");
     }
@@ -2703,7 +2706,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str(&case_indent);
                 output.push_str("default: {\n");
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2, ctx)?;
+                    emit_body(body, output, indent + 2, ctx, context)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -2728,13 +2731,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str("__auto_type ");
                 output.push_str(&pattern_info.binding_var);
                 output.push_str(" = ");
-                emit_expr(switch_expr, output, 0, ctx)?;
+                emit_expr(switch_expr, output, 0, ctx, context)?;
                 output.push_str(".payload.");
                 output.push_str(&info.variant_name);
                 output.push_str(";\n");
 
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2, ctx)?;
+                    emit_body(body, output, indent + 2, ctx, context)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -2750,13 +2753,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
                 output.push_str(&case_indent);
                 output.push_str("case ");
-                emit_expr(&case_pattern.params[0], output, 0, ctx)?;
+                emit_expr(&case_pattern.params[0], output, 0, ctx, context)?;
                 output.push_str(" ... ");
-                emit_expr(&case_pattern.params[1], output, 0, ctx)?;
+                emit_expr(&case_pattern.params[1], output, 0, ctx, context)?;
                 output.push_str(": {\n");
 
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2, ctx)?;
+                    emit_body(body, output, indent + 2, ctx, context)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -2777,7 +2780,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str(": {\n");
 
                 if let Some(body) = case_body {
-                    emit_body(body, output, indent + 2, ctx)?;
+                    emit_body(body, output, indent + 2, ctx, context)?;
                 }
                 output.push_str(&body_indent);
                 output.push_str("break;\n");
@@ -2795,7 +2798,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     Ok(())
 }
 
-fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext) -> Result<(), String> {
+fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // First param is the function name (or UFCS receiver.method)
     if expr.params.is_empty() {
         return Err("codegen_c: FCall with no params".to_string());
@@ -2847,7 +2850,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                     output.push_str(TIL_PREFIX);
                                     output.push_str(param_name);
                                     output.push_str("[");
-                                    emit_expr(&expr.params[1], output, 0, ctx)?;
+                                    emit_expr(&expr.params[1], output, 0, ctx, context)?;
                                     output.push_str("];\n");
                                     return Ok(());
                                 }
@@ -2864,7 +2867,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     // When indent > 0, we're at statement level and can emit hoisted calls
     let hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
         let args = &expr.params[1..];
-        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx)?;
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
         hoisted_vec.into_iter().collect()
     } else {
         std::collections::HashMap::new()
@@ -2880,7 +2883,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
             }
             output.push_str("\"\\n\");\n");
             Ok(())
@@ -2892,7 +2895,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if i > 0 {
                     output.push_str(", ");
                 }
-                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
             }
             output.push_str(");\n");
             Ok(())
@@ -2906,9 +2909,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(&indent_str);
             output.push_str("if (!(");
-            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx)?;  // arg index 1 = params[2]
+            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx, context)?;  // arg index 1 = params[2]
             output.push_str(")) { printf(\"FAIL: %s\\n\", ");
-            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx)?;  // arg index 2 = params[3]
+            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx, context)?;  // arg index 2 = params[3]
             output.push_str("); }\n");
             Ok(())
         },
@@ -2919,9 +2922,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             output.push_str(&indent_str);
             output.push_str("if ((");
-            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx)?;  // arg index 1 = params[2]
+            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx, context)?;  // arg index 1 = params[2]
             output.push_str(") != (");
-            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx)?;  // arg index 2 = params[3]
+            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx, context)?;  // arg index 2 = params[3]
             output.push_str(")) { printf(\"FAIL: assert_eq\\n\"); }\n");
             Ok(())
         },
@@ -2985,7 +2988,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str("(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)&");
-            emit_arg_or_hoisted(&expr.params[1], 0, &hoisted, output, ctx)?;
+            emit_arg_or_hoisted(&expr.params[1], 0, &hoisted, output, ctx, context)?;
             Ok(())
         },
         // User-defined function call
@@ -2998,10 +3001,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if ufcs_receiver.is_none() && expr.params.len() >= 2 {
                 if let NodeType::FCall = &expr.params[1].node_type {
                     // The second param is an FCall result - use get_value_type to get its return type
-                    if let Ok(fcall_ret_type) = get_value_type(&ctx.init_context, &expr.params[1]) {
+                    if let Ok(fcall_ret_type) = get_value_type(context, &expr.params[1]) {
                         if let ValueType::TCustom(type_name) = &fcall_ret_type {
                             let candidate = format!("{}.{}", type_name, func_name);
-                            if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                            if context.scope_stack.lookup_func(&candidate).is_some() {
                                 // Emit as Type_method(fcall_result, args...)
                                 output.push_str(TIL_PREFIX);
                                 output.push_str(type_name);
@@ -3009,11 +3012,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                 output.push_str(&func_name);
                                 output.push_str("(");
                                 // First arg is the fcall result
-                                emit_expr(&expr.params[1], output, 0, ctx)?;
+                                emit_expr(&expr.params[1], output, 0, ctx, context)?;
                                 // Remaining args
                                 for arg in expr.params.iter().skip(2) {
                                     output.push_str(", ");
-                                    emit_expr(arg, output, 0, ctx)?;
+                                    emit_expr(arg, output, 0, ctx, context)?;
                                 }
                                 output.push_str(")");
                                 if indent > 0 {
@@ -3035,7 +3038,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                     // Use get_value_type to resolve the full receiver chain type
                     // Fall back to var_types for local variables not in scope_stack
-                    let mut receiver_type: Option<ValueType> = get_value_type(&ctx.init_context, &receiver_without_method).ok()
+                    let mut receiver_type: Option<ValueType> = get_value_type(context, &receiver_without_method).ok()
                         .or_else(|| ctx.var_types.get(receiver_name).cloned());
 
                     // If receiver_type is TFunction, the receiver_without_method ends in a method call
@@ -3047,13 +3050,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             // We have base.method1.method2, receiver_without_method is base.method1
                             // Get the type of base, then look up method1's return type
                             let base_expr = clone_without_deepest_method(&receiver_without_method, ufcs_depth - 1);
-                            if let Some(base_type) = get_value_type(&ctx.init_context, &base_expr).ok() {
+                            if let Some(base_type) = get_value_type(context, &base_expr).ok() {
                                 if let ValueType::TCustom(type_name) = &base_type {
                                     // Get the intermediate method name (the one before our target method)
                                     if let Some(method_expr) = receiver_without_method.params.last() {
                                         if let NodeType::Identifier(method_name) = &method_expr.node_type {
                                             let full_method_name = format!("{}.{}", type_name, method_name);
-                                            if let Some(func_def) = ctx.init_context.scope_stack.lookup_func(&full_method_name) {
+                                            if let Some(func_def) = context.scope_stack.lookup_func(&full_method_name) {
                                                 if let Some(ret_type) = func_def.return_types.first() {
                                                     receiver_type = Some(ret_type.clone());
                                                 }
@@ -3080,7 +3083,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                         if let Some(type_name) = type_name_opt {
                             let candidate = format!("{}.{}", type_name, func_name);
-                            if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                            if context.scope_stack.lookup_func(&candidate).is_some() {
                                 output.push_str(TIL_PREFIX);
                                 output.push_str(&type_name);
                                 output.push_str("_");
@@ -3112,7 +3115,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             output.push_str(", ");
                         }
                         first_arg = false;
-                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                     }
                     output.push_str(")");
                     if indent > 0 {
@@ -3145,13 +3148,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if expr.params.len() > 1 {
                 if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
                     // Try init_context (globals) then var_types (locals)
-                    let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                    let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
                         .map(|s| s.value_type.clone())
                         .or_else(|| ctx.var_types.get(first_arg_name).cloned());
                     if let Some(ValueType::TCustom(type_name)) = arg_type {
                         // Check if mangled function exists
                         let candidate = format!("{}.{}", type_name, func_name);
-                        if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                        if context.scope_stack.lookup_func(&candidate).is_some() {
                             // Use TIL_PREFIX for struct methods
                             lookup_name = format!("{}_{}", type_name, func_name);
                             output_name = format!("{}{}_{}", TIL_PREFIX, type_name, func_name);
@@ -3170,7 +3173,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     if i > 0 {
                         output.push_str(", ");
                     }
-                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                 }
                 // Emit count of variadic args
                 let variadic_count = args.len().saturating_sub(regular_count);
@@ -3194,7 +3197,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         if i > 0 {
                             output.push_str(", ");
                         }
-                        emit_arg_or_hoisted(arg, regular_count + i, &hoisted, output, ctx)?;
+                        emit_arg_or_hoisted(arg, regular_count + i, &hoisted, output, ctx, context)?;
                     }
                     output.push_str("}");
                 }
@@ -3205,7 +3208,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     if i > 0 {
                         output.push_str(", ");
                     }
-                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                 }
             }
 

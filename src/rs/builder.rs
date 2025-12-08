@@ -157,7 +157,7 @@ pub fn build(path: &str) -> Result<(), String> {
     }
 
     // Generate C code
-    let c_code = codegen_c::emit(&merged_ast, context)?;
+    let c_code = codegen_c::emit(&merged_ast, &mut context)?;
 
     // Write output file
     let output_path = path.replace(".til", ".c");

@@ -40,8 +40,6 @@ CodegenContext := struct {
     mut temp_counter: I64 = 0
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
-    // Init context for type lookups (UFCS resolution, etc.)
-    mut init_context: Context = Context.new("", "script")
 
     next_temp := proc(mut self: CodegenContext) returns Str {
         mut name := concat("_tmp", self.temp_counter.to_str())
@@ -102,16 +100,16 @@ ReceiverTypeResult := struct {
     mut value_type: ValueType = ValueType.TCustom("")
 }
 
-// Look up receiver type: first init_context (globals), then var_types (locals)
-lookup_receiver_type := func(ctx: CodegenContext, name: Str) returns ReceiverTypeResult {
+// Look up receiver type: first context (globals), then var_types (locals)
+lookup_receiver_type := func(ctx: CodegenContext, context: Context, name: Str) returns ReceiverTypeResult {
     mut result := ReceiverTypeResult()
-    // Try init_context first (globals)
-    mut symbol := ctx.init_context.scope_stack.lookup_symbol(name)
+    // Try context first (globals)
+    mut symbol := context.scope_stack.lookup_symbol(name)
     result.found = true
     result.value_type = symbol.value_type
 
     catch (err: KeyNotFoundError) {
-        // Not in init_context, try var_types (locals)
+        // Not in context, try var_types (locals)
         if ctx.var_types.contains_key(name) {
             mut var_type := ValueType.TCustom("")
             ctx.var_types.get(name, var_type)
@@ -424,7 +422,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 }
 
 // Get the function name from an FCall expression
-get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
+get_fcall_func_name := func(expr: Expr, ctx: CodegenContext, context: Context) returns Str {
     if eq(expr.params.len(), 0) {
         return ""
     }
@@ -444,8 +442,8 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
             first.params.get(method_idx, nested)
             switch nested.node_type {
             case NodeType.Identifier(method_name):
-                // Try to look up receiver type from init_context (globals) or var_types (locals)
-                mut receiver_result := lookup_receiver_type(ctx, name)
+                // Try to look up receiver type from context (globals) or var_types (locals)
+                mut receiver_result := lookup_receiver_type(ctx, context, name)
                 if receiver_result.found {
                     switch receiver_result.value_type {
                     case ValueType.TCustom(type_name):
@@ -454,7 +452,7 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
                             mut is_struct_method := false
                             mut candidate := concat(type_name, ".")
                             candidate = concat(candidate, method_name)
-                            mut func_def := ctx.init_context.scope_stack.lookup_func(candidate)
+                            mut func_def := context.scope_stack.lookup_func(candidate)
                             is_struct_method = true
                             catch (err: KeyNotFoundError) { }
 
@@ -859,7 +857,7 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
-emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
+emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -897,7 +895,7 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                             result = concat(result, "_")
                             result = concat(result, member.name)
                             result = concat(result, " = ")
-                            result = emit_expr(default_val, result, 0, ctx)
+                            result = emit_expr(default_val, result, 0, ctx, context)
                             result = concat(result, ";\n")
                         }
                         catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
@@ -1210,7 +1208,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
 }
 
 // Emit struct function bodies with mangled names: StructName_funcname
-emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
+emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -1258,7 +1256,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             result = concat(result, " {\n")
 
                             // Emit function body with catch pattern detection
-                            result = emit_stmts(func_def.body, result, 1, ctx)
+                            result = emit_stmts(func_def.body, result, 1, ctx, context)
 
                             // For throwing void functions, add implicit return 0
                             if gt(func_def.throw_types.len(), 0) {
@@ -1293,10 +1291,9 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
 }
 
 // Emit C code from AST (multi-pass architecture)
-emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
+emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     mut output := ""
     mut ctx := CodegenContext()
-    ctx.init_context = init_ctx
 
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n")
@@ -1441,7 +1438,7 @@ emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_constants(child, output, ctx)
+                output = emit_struct_constants(child, output, ctx, context)
             }
             i = add(i, 1)
         }
@@ -1516,7 +1513,7 @@ emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_func_declaration(child) {
-                output = emit_func_declaration(child, output, ctx)
+                output = emit_func_declaration(child, output, ctx, context)
             }
             i = add(i, 1)
         }
@@ -1533,7 +1530,7 @@ emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_struct_declaration(child) {
-                output = emit_struct_func_bodies(child, output, ctx)
+                output = emit_struct_func_bodies(child, output, ctx, context)
             }
             i = add(i, 1)
         }
@@ -1566,7 +1563,7 @@ emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
                     if not(is_struct_declaration(child)) {
                         if not(is_enum_declaration(child)) {
                             if not(is_constant_declaration(child)) {
-                                output = emit_expr(child, output, 1, ctx)
+                                output = emit_expr(child, output, 1, ctx, context)
                             }
                         }
                     }
@@ -1577,7 +1574,7 @@ emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, emit directly
-        output = emit_expr(ast, output, 1, ctx)
+        output = emit_expr(ast, output, 1, ctx, context)
     }
 
     output = concat(output, "    return 0;\n")
@@ -1642,7 +1639,7 @@ emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) return
 }
 
 // Emit a function declaration as a C function
-emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
+emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -1735,7 +1732,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
                 }
 
                 // Emit function body with catch pattern detection
-                result = emit_stmts(func_def.body, result, 1, ctx)
+                result = emit_stmts(func_def.body, result, 1, ctx, context)
 
                 // For throwing void functions, add implicit return 0
                 if gt(func_def.throw_types.len(), 0) {
@@ -1762,7 +1759,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext) 
     }
 }
 
-emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if lt(expr.params.len(), 2) {
         throw "codegen_c: If requires condition and body"
@@ -1778,7 +1775,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
 
     mut cond := Expr()
     expr.params.get(0, cond)
-    result = emit_expr(cond, result, 0, ctx)
+    result = emit_expr(cond, result, 0, ctx, context)
     result = concat(result, ") {\n")
 
     // Save declared_vars before entering new scope
@@ -1788,7 +1785,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
     // Then body
     mut then_body := Expr()
     expr.params.get(1, then_body)
-    result = emit_body(then_body, result, add(indent, 1), ctx)
+    result = emit_body(then_body, result, add(indent, 1), ctx, context)
 
     // Restore declared_vars after exiting then scope
     ctx.declared_vars = saved_declared_vars
@@ -1808,7 +1805,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
         case NodeType.If:
             // else-if: emit inline
             result = concat(result, " else ")
-            result = emit_if(else_part, result, indent, ctx)
+            result = emit_if(else_part, result, indent, ctx, context)
         case:
             // else block
             result = concat(result, " else {\n")
@@ -1817,7 +1814,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
             saved_declared_vars = ctx.declared_vars.clone()
             catch (err: AllocError) { throw err.msg }
 
-            result = emit_body(else_part, result, add(indent, 1), ctx)
+            result = emit_body(else_part, result, add(indent, 1), ctx, context)
 
             // Restore declared_vars after exiting else scope
             ctx.declared_vars = saved_declared_vars
@@ -1837,7 +1834,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) r
     return result
 }
 
-emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // While: params[0] = condition, params[1] = body
     if lt(expr.params.len(), 2) {
         throw "codegen_c: While requires condition and body"
@@ -1853,7 +1850,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     mut cond := Expr()
     expr.params.get(0, cond)
-    result = emit_expr(cond, result, 0, ctx)
+    result = emit_expr(cond, result, 0, ctx, context)
     result = concat(result, ") {\n")
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
@@ -1863,7 +1860,7 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Body
     mut body := Expr()
     expr.params.get(1, body)
-    result = emit_body(body, result, add(indent, 1), ctx)
+    result = emit_body(body, result, add(indent, 1), ctx, context)
 
     // Restore declared_vars after exiting scope
     ctx.declared_vars = saved_declared_vars
@@ -1963,7 +1960,7 @@ parse_pattern_variant_name := func(variant_name: Str) returns VariantInfo {
     return result
 }
 
-emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if eq(expr.params.len(), 0) {
@@ -2032,7 +2029,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // Emit: switch (expr) { or switch (expr.tag) {
     result = concat(result, indent_str)
     result = concat(result, "switch (")
-    result = emit_expr(switch_expr, result, 0, ctx)
+    result = emit_expr(switch_expr, result, 0, ctx, context)
     if is_enum_switch {
         if not(has_ranges) {
             result = concat(result, ".tag")
@@ -2058,7 +2055,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx)
+                result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -2080,7 +2077,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = concat(result, "__auto_type ")
             result = concat(result, pattern_info.binding_var)
             result = concat(result, " = ")
-            result = emit_expr(switch_expr, result, 0, ctx)
+            result = emit_expr(switch_expr, result, 0, ctx, context)
             result = concat(result, ".payload.")
             result = concat(result, info.variant_name)
             result = concat(result, ";\n")
@@ -2089,7 +2086,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx)
+                result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -2112,16 +2109,16 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
             result = concat(result, case_indent)
             result = concat(result, "case ")
-            result = emit_expr(range_start, result, 0, ctx)
+            result = emit_expr(range_start, result, 0, ctx, context)
             result = concat(result, " ... ")
-            result = emit_expr(range_end, result, 0, ctx)
+            result = emit_expr(range_end, result, 0, ctx, context)
             result = concat(result, ": {\n")
 
             if has_body {
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx)
+                result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -2144,7 +2141,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
-                result = emit_body(case_body, result, add(indent, 2), ctx)
+                result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
             result = concat(result, body_indent)
             result = concat(result, "break;\n")
@@ -2161,16 +2158,16 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     return result
 }
 
-emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     switch expr.node_type {
     case NodeType.Body:
-        return emit_body(expr, output, indent, ctx)
+        return emit_body(expr, output, indent, ctx, context)
     case NodeType.FCall:
-        return emit_fcall(expr, output, indent, ctx)
+        return emit_fcall(expr, output, indent, ctx, context)
     case NodeType.LLiteral(lit):
         return emit_literal(lit, output, ctx)
     case NodeType.Declaration(decl):
-        return emit_declaration(decl, expr, output, indent, ctx)
+        return emit_declaration(decl, expr, output, indent, ctx, context)
     case NodeType.Identifier(name):
         // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
@@ -2182,7 +2179,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
                 case NodeType.Identifier(field):
                     // Check if this is an enum variant by looking up in context
                     mut is_enum_variant := false
-                    mut enum_def := ctx.init_context.scope_stack.lookup_enum(name)
+                    mut enum_def := context.scope_stack.lookup_enum(name)
                     is_enum_variant = enum_def.enum_map.contains_key(field)
                     catch (err: KeyNotFoundError) { /* not an enum */ }
 
@@ -2227,26 +2224,26 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
     case NodeType.FuncDef(func_def):
-        return emit_funcdef(func_def, expr, output, indent, ctx)
+        return emit_funcdef(func_def, expr, output, indent, ctx, context)
     case NodeType.Assignment(name):
-        return emit_assignment(name, expr, output, indent, ctx)
+        return emit_assignment(name, expr, output, indent, ctx, context)
     case NodeType.Return:
-        return emit_return(expr, output, indent, ctx)
+        return emit_return(expr, output, indent, ctx, context)
     case NodeType.If:
-        return emit_if(expr, output, indent, ctx)
+        return emit_if(expr, output, indent, ctx, context)
     case NodeType.While:
-        return emit_while(expr, output, indent, ctx)
+        return emit_while(expr, output, indent, ctx, context)
     case NodeType.Catch:
         // Catch blocks handled at call site in emit_stmts
         return output
     case NodeType.Throw:
-        return emit_throw(expr, output, indent, ctx)
+        return emit_throw(expr, output, indent, ctx, context)
     case NodeType.StructDef(s):
         throw "codegen_c: StructDef should be handled at top level, not in emit_expr"
     case NodeType.EnumDef(e):
         throw "codegen_c: EnumDef should be handled at top level, not in emit_expr"
     case NodeType.Switch:
-        return emit_switch(expr, output, indent, ctx)
+        return emit_switch(expr, output, indent, ctx, context)
     case NodeType.DefaultCase:
         throw "codegen_c: DefaultCase should be handled inside emit_switch"
     case NodeType.Range:
@@ -2256,8 +2253,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext)
     }
 }
 
-emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
-    return emit_stmts(expr.params, output, indent, ctx)
+emit_body := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    return emit_stmts(expr.params, output, indent, ctx, context)
 }
 
 // Pre-scan function body to collect function-level catch blocks
@@ -2290,7 +2287,7 @@ prescan_func_level_catches := proc(stmts: Vec) returns Vec throws AllocError {
 
 // Emit a sequence of statements with catch pattern detection
 // This is the core logic for handling throw/catch at call sites
-emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     mut i := 0
 
@@ -2353,7 +2350,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
         if has_fcall {
             // Get function name from the FCall
-            mut func_name := get_fcall_func_name(maybe_fcall, ctx)
+            mut func_name := get_fcall_func_name(maybe_fcall, ctx, context)
 
             // Check if this function is a throwing function
             if gt(func_name.len(), 0) {
@@ -2387,12 +2384,12 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     if gt(catch_blocks.len(), 0) {
                         // Emit throwing call with catch handling
                         if has_decl {
-                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx)
+                            result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, maybe_decl_name, "", result, indent, ctx, context)
                         } else {
                             if has_assign {
-                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", maybe_assign_name, result, indent, ctx)
+                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", maybe_assign_name, result, indent, ctx, context)
                             } else {
-                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", "", result, indent, ctx)
+                                result = emit_throwing_call(maybe_fcall, throw_types, catch_blocks, "", "", result, indent, ctx, context)
                             }
                         }
                         i = add(i, add(1, catch_blocks.len()))  // Skip past catch blocks
@@ -2401,12 +2398,12 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                         if gt(ctx.current_throw_types.len(), 0) {
                             // We're in a throwing function, propagate errors to caller
                             if has_decl {
-                                result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx)
+                                result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                             } else {
                                 if has_assign {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx)
+                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
                                 } else {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx)
+                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                 }
                             }
                         } else {
@@ -2414,24 +2411,24 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                                 // No immediate catch, not a throwing function, but has function-level catches
                                 // Use those catches for error handling
                                 if has_decl {
-                                    result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, maybe_decl_name, "", result, indent, ctx)
+                                    result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, maybe_decl_name, "", result, indent, ctx, context)
                                 } else {
                                     if has_assign {
-                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", maybe_assign_name, result, indent, ctx)
+                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", maybe_assign_name, result, indent, ctx, context)
                                     } else {
-                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", "", result, indent, ctx)
+                                        result = emit_throwing_call(maybe_fcall, throw_types, func_level_catches, "", "", result, indent, ctx, context)
                                     }
                                 }
                             } else {
                                 // No catches - typer should have caught this if we're in non-throwing context
                                 // Just use propagate (will silently succeed on error if we're not throwing)
                                 if has_decl {
-                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx)
+                                    result = emit_throwing_call_propagate(maybe_fcall, throw_types, maybe_decl_name, "", result, indent, ctx, context)
                                 } else {
                                     if has_assign {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx)
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", maybe_assign_name, result, indent, ctx, context)
                                     } else {
-                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx)
+                                        result = emit_throwing_call_propagate(maybe_fcall, throw_types, "", "", result, indent, ctx, context)
                                     }
                                 }
                             }
@@ -2440,17 +2437,17 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                     }
                 } else {
                     // Not a throwing function, emit regular statement
-                    result = emit_expr(stmt, result, indent, ctx)
+                    result = emit_expr(stmt, result, indent, ctx, context)
                     i = add(i, 1)
                 }
             } else {
                 // Couldn't get function name, emit regular statement
-                result = emit_expr(stmt, result, indent, ctx)
+                result = emit_expr(stmt, result, indent, ctx, context)
                 i = add(i, 1)
             }
         } else {
             // Regular statement handling
-            result = emit_expr(stmt, result, indent, ctx)
+            result = emit_expr(stmt, result, indent, ctx, context)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -2460,7 +2457,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
 // Emit a call to a throwing function with catch handling
 // Generates: declare temps, call func, if/else chain for error handling
-emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
 
     // Generate indentation string
@@ -2472,7 +2469,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, ctx)
+    mut func_name := get_fcall_func_name(fcall, ctx, context)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call: could not get function name"
     }
@@ -2520,7 +2517,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             mut first_type := ValueType.TCustom("")
             return_types_for_scope.get(0, first_type)
             ctx.var_types.set(decl_name, first_type)
-            ctx.init_context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -2593,7 +2590,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
         mut arg := Expr()
         fcall.params.get(i, arg)
-        result = emit_expr(arg, result, 0, ctx)
+        result = emit_expr(arg, result, 0, ctx, context)
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -2662,7 +2659,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             while lt(k, catch_block.params.len()) {
                 mut body_stmt := Expr()
                 catch_block.params.get(k, body_stmt)
-                result = emit_expr(body_stmt, result, add(indent, 1), ctx)
+                result = emit_expr(body_stmt, result, add(indent, 1), ctx, context)
                 k = add(k, 1)
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -2681,7 +2678,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
 
 // Emit a call to a throwing function WITHOUT catch blocks - propagate errors to caller
 // Used when inside a throwing function that can forward the same error types
-emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: Str, assign_name: Str, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
 
     // Generate indentation string
@@ -2693,7 +2690,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, ctx)
+    mut func_name := get_fcall_func_name(fcall, ctx, context)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call_propagate: could not get function name"
     }
@@ -2744,7 +2741,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             mut first_type := ValueType.TCustom("")
             return_types_for_scope.get(0, first_type)
             ctx.var_types.set(decl_name, first_type)
-            ctx.init_context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
+            context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
@@ -2816,7 +2813,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         }
         mut arg := Expr()
         fcall.params.get(i, arg)
-        result = emit_expr(arg, result, 0, ctx)
+        result = emit_expr(arg, result, 0, ctx, context)
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -2894,7 +2891,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
 // Emit a throw statement
 // For throwing functions: *_errN = value; return N;
-emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
 
     // Generate indentation
@@ -2913,7 +2910,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         // For now, assume it's the first error type (index 1)
         // TODO: Match throw type to the correct error index
         result = concat(result, "*_err1 = ")
-        result = emit_expr(throw_value, result, 0, ctx)
+        result = emit_expr(throw_value, result, 0, ctx, context)
         result = concat(result, ";\n")
 
         ind = 0
@@ -3051,7 +3048,7 @@ get_enum_construction_type := func(expr: Expr) returns Str {
 
 // Infer type from an expression (literal, function call, or identifier)
 // Returns the inferred ValueType, or ValueType.TCustom("") if unknown
-infer_type_from_expr := func(expr: Expr, ctx: CodegenContext) returns ValueType {
+infer_type_from_expr := func(expr: Expr, ctx: CodegenContext, context: Context) returns ValueType {
     switch expr.node_type {
     case NodeType.LLiteral(lit):
         switch lit {
@@ -3064,7 +3061,7 @@ infer_type_from_expr := func(expr: Expr, ctx: CodegenContext) returns ValueType 
         }
     case NodeType.FCall:
         // Look up function return type
-        mut func_name := get_fcall_func_name(expr, ctx)
+        mut func_name := get_fcall_func_name(expr, ctx, context)
         if gt(func_name.len(), 0) {
             mut ret_types := Vec()
             ctx.func_return_types.get(func_name, ret_types)
@@ -3089,7 +3086,7 @@ infer_type_from_expr := func(expr: Expr, ctx: CodegenContext) returns ValueType 
     return ValueType.TCustom("")
 }
 
-emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     name := decl.name
     is_mut := decl.is_mut
@@ -3171,12 +3168,12 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 mut first := Expr()
                 expr.params.get(0, first)
                 mut got_type := false
-                mut inferred_type := get_value_type(ctx.init_context, first)
+                mut inferred_type := get_value_type(context, first)
                 got_type = true
                 var_type = inferred_type
                 catch (err: Str) {
                     // get_value_type failed, try literal inference
-                    var_type = infer_type_from_expr(first, ctx)
+                    var_type = infer_type_from_expr(first, ctx, context)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
@@ -3186,7 +3183,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     }
     ctx.var_types.insert(name, var_type)
     // Also add to scope_stack so get_value_type can find it
-    ctx.init_context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
+    context.scope_stack.declare_symbol(name, SymbolInfo.new(var_type, decl.is_mut, false, false))
 
     catch (err: AllocError) { throw err.msg }
     catch (err: DuplicatedKeyError) { /* ignore, update is fine */ }
@@ -3206,7 +3203,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = emit_expr(first, result, 0, ctx)
+        result = emit_expr(first, result, 0, ctx, context)
         result = concat(result, ";\n")
     } else if is_mut {
         // Determine C type from inferred type or fall back to int
@@ -3215,7 +3212,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, ctx)
+            inferred := infer_type_from_expr(first, ctx, context)
             switch inferred {
             case ValueType.TCustom(inf_type):
                 if Str.eq(inf_type, "Str") {
@@ -3235,7 +3232,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0, ctx)
+            result = emit_expr(first, result, 0, ctx, context)
         }
         result = concat(result, ";\n")
     } else {
@@ -3245,7 +3242,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, ctx)
+            inferred := infer_type_from_expr(first, ctx, context)
             switch inferred {
             case ValueType.TCustom(inf_type):
                 if Str.eq(inf_type, "Str") {
@@ -3266,14 +3263,14 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0, ctx)
+            result = emit_expr(first, result, 0, ctx, context)
         }
         result = concat(result, ";\n")
     }
     return result
 }
 
-emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // Inline function body (shouldn't be called for top-level funcs)
     mut result := output
     mut ind := 0
@@ -3287,7 +3284,7 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, m
     while lt(i, params_len) {
         mut stmt := Expr()
         expr.params.get(i, stmt)
-        result = emit_expr(stmt, result, add(indent, 1), ctx)
+        result = emit_expr(stmt, result, add(indent, 1), ctx, context)
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3300,7 +3297,7 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, m
     return result
 }
 
-emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     mut ind := 0
     while lt(ind, indent) {
@@ -3313,13 +3310,13 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = emit_expr(first, result, 0, ctx)
+        result = emit_expr(first, result, 0, ctx, context)
     }
     result = concat(result, ";\n")
     return result
 }
 
-emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     mut ind := 0
     mut indent_str := ""
@@ -3341,14 +3338,14 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             mut handled_throw := false
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut func_name := get_fcall_func_name(return_expr, ctx)
+                mut func_name := get_fcall_func_name(return_expr, ctx, context)
                 if gt(func_name.len(), 0) {
                     mut throw_types := Vec.new(ValueType)
                     ctx.func_throw_types.get(func_name, throw_types)
                     if gt(throw_types.len(), 0) {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
-                        result = emit_throwing_call_propagate(return_expr, throw_types, "", "*_ret", result, indent, ctx)
+                        result = emit_throwing_call_propagate(return_expr, throw_types, "", "*_ret", result, indent, ctx, context)
                         result = concat(result, indent_str)
                         result = concat(result, "return 0;\n")
                         handled_throw = true
@@ -3362,7 +3359,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             if not(handled_throw) {
                 // Regular return value - just emit it
                 result = concat(result, "*_ret = ")
-                result = emit_expr(return_expr, result, 0, ctx)
+                result = emit_expr(return_expr, result, 0, ctx, context)
                 result = concat(result, ";\n")
                 result = concat(result, indent_str)
                 result = concat(result, "return 0;\n")
@@ -3378,7 +3375,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0, ctx)
+            result = emit_expr(first, result, 0, ctx, context)
         }
         result = concat(result, ";\n")
     }
@@ -3388,7 +3385,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 }
 
 // Emit a throwing function call's name and arguments for hoisting
-emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, mut output: Str, mut ctx: CodegenContext) returns Str throws Str {
+emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, mut output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     if lt(expr.params.len(), 1) {
         throw "emit_fcall_name_and_args_for_throwing: FCall with no params"
     }
@@ -3518,7 +3515,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         if not(found_hoisted) {
             mut arg := Expr()
             expr.params.get(i, arg)
-            output = emit_expr(arg, output, 0, ctx)
+            output = emit_expr(arg, output, 0, ctx, context)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
         arg_idx = add(arg_idx, 1)
@@ -3532,7 +3529,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
 // Hoist throwing function calls from arguments (recursively)
 // Returns a list of hoisted args with their temp var names
 // Also modifies output to include hoisting code
-hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext) returns Vec throws Str, AllocError {
+hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
     mut hoisted := Vec.new(HoistedArg)
     mut indent_str := ""
     mut ind := 0
@@ -3551,7 +3548,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             mut nested_hoisted := Vec.new(HoistedArg)
             if gt(arg.params.len(), 1) {
-                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx)
+                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx, context)
             }
 
             mut temp_var := ctx.next_temp()
@@ -3596,7 +3593,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = concat(output, "int _status_")
             output = concat(output, temp_suffix)
             output = concat(output, " = ")
-            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, info.throw_types, nested_hoisted, output, ctx)
+            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, info.throw_types, nested_hoisted, output, ctx, context)
             output = concat(output, ";\n")
 
             // Emit error checking - propagate if any error occurred
@@ -3665,7 +3662,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
     return hoisted
 }
 
-emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext) returns Str throws Str {
+emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // First param is the function name (or UFCS receiver.method)
     mut params_len := expr.params.len()
     if lt(params_len, 1) {
@@ -3734,7 +3731,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                             mut idx_expr := Expr()
                             expr.params.get(1, idx_expr)
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
-                            result = emit_expr(idx_expr, result, 0, ctx)
+                            result = emit_expr(idx_expr, result, 0, ctx, context)
                             result = concat(result, "];\n")
                             return result
                         case:
@@ -3764,12 +3761,12 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         switch second_param.node_type {
         case NodeType.FCall:
             // The second param is an FCall result - use get_value_type to get its return type
-            mut fcall_ret_type := get_value_type(ctx.init_context, second_param)
+            mut fcall_ret_type := get_value_type(context, second_param)
             switch fcall_ret_type {
             case ValueType.TCustom(type_name):
                 mut candidate := format(type_name, ".", func_name)
                 // Try to lookup the function - if found, emit as Type_method
-                mut func_info := ctx.init_context.scope_stack.lookup_func(candidate)
+                mut func_info := context.scope_stack.lookup_func(candidate)
                 // If we get here, the function was found (otherwise KeyNotFoundError)
                 // Emit as Type_method(fcall_result, args...)
                 result = concat(result, TIL_PREFIX)
@@ -3778,14 +3775,14 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = concat(result, func_name)
                 result = concat(result, "(")
                 // First arg is the fcall result
-                result = emit_expr(second_param, result, 0, ctx)
+                result = emit_expr(second_param, result, 0, ctx, context)
                 // Remaining args
                 mut arg_i := 2
                 while lt(arg_i, params_len) {
                     result = concat(result, ", ")
                     mut arg := Expr()
                     expr.params.get(arg_i, arg)
-                    result = emit_expr(arg, result, 0, ctx)
+                    result = emit_expr(arg, result, 0, ctx, context)
                     arg_i = add(arg_i, 1)
                 }
                 result = concat(result, ")")
@@ -3814,7 +3811,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             mut arg := Expr()
             expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0, ctx)
+            result = emit_expr(arg, result, 0, ctx, context)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3829,7 +3826,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             mut arg := Expr()
             expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0, ctx)
+            result = emit_expr(arg, result, 0, ctx, context)
             i = add(i, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -3843,11 +3840,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = concat(result, "if (!(")
         mut cond := Expr()
         expr.params.get(2, cond)
-        result = emit_expr(cond, result, 0, ctx)
+        result = emit_expr(cond, result, 0, ctx, context)
         result = concat(result, ")) { printf(\"FAIL: %s\\n\", ")
         mut msg := Expr()
         expr.params.get(3, msg)
-        result = emit_expr(msg, result, 0, ctx)
+        result = emit_expr(msg, result, 0, ctx, context)
         result = concat(result, "); }\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -3859,11 +3856,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         result = concat(result, "if ((")
         mut expected := Expr()
         expr.params.get(2, expected)
-        result = emit_expr(expected, result, 0, ctx)
+        result = emit_expr(expected, result, 0, ctx, context)
         result = concat(result, ") != (")
         mut actual := Expr()
         expr.params.get(3, actual)
-        result = emit_expr(actual, result, 0, ctx)
+        result = emit_expr(actual, result, 0, ctx, context)
         result = concat(result, ")) { printf(\"FAIL: assert_eq\\n\"); }\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -3914,7 +3911,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         }
                         mut arg := Expr()
                         expr.params.get(i, arg)
-                        result = emit_expr(arg, result, 0, ctx)
+                        result = emit_expr(arg, result, 0, ctx, context)
                         i = add(i, 1)
                     }
                     result = concat(result, ")")
@@ -3965,7 +3962,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         result = concat(result, ", ")
                         mut arg := Expr()
                         expr.params.get(i, arg)
-                        result = emit_expr(arg, result, 0, ctx)
+                        result = emit_expr(arg, result, 0, ctx, context)
                         i = add(i, 1)
                     }
                     result = concat(result, ")")
@@ -4033,7 +4030,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 }
                 mut arg := Expr()
                 expr.params.get(i, arg)
-                result = emit_expr(arg, result, 0, ctx)
+                result = emit_expr(arg, result, 0, ctx, context)
                 i = add(i, 1)
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -4051,7 +4048,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 result = concat(result, ", ")
                 mut arg := Expr()
                 expr.params.get(vi, arg)
-                result = emit_expr(arg, result, 0, ctx)
+                result = emit_expr(arg, result, 0, ctx, context)
                 vi = add(vi, 1)
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -4064,7 +4061,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 }
                 mut arg := Expr()
                 expr.params.get(i, arg)
-                result = emit_expr(arg, result, 0, ctx)
+                result = emit_expr(arg, result, 0, ctx, context)
                 i = add(i, 1)
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
