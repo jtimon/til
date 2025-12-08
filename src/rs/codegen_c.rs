@@ -2,6 +2,7 @@
 // Translates TIL AST to C source code
 
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType};
+use crate::rs::init::Context;
 use std::collections::{HashMap, HashSet};
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
@@ -33,10 +34,12 @@ struct CodegenContext {
     user_structs: HashSet<String>,
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
+    // Init context for type lookups (UFCS resolution, etc.)
+    init_context: Context,
 }
 
 impl CodegenContext {
-    fn new() -> Self {
+    fn new(init_context: Context) -> Self {
         CodegenContext {
             known_functions: HashSet::new(),
             ext_funcs: HashSet::new(),
@@ -50,6 +53,7 @@ impl CodegenContext {
             temp_counter: 0,
             user_structs: HashSet::new(),
             declared_vars: HashSet::new(),
+            init_context,
         }
     }
 
@@ -61,10 +65,10 @@ impl CodegenContext {
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
-// Exceptions: C keywords/macros (true, false, NULL) and generated names (* or _ prefix)
+// Exceptions: C keywords (true, false) and generated names (* or _ prefix)
 fn til_name(name: &str) -> String {
     match name {
-        "true" | "false" | "NULL" => name.to_string(),
+        "true" | "false" => name.to_string(),
         _ if name.starts_with('*') || name.starts_with('_') => name.to_string(),
         _ => format!("{}{}", TIL_PREFIX, name),
     }
@@ -353,40 +357,42 @@ fn emit_fcall_name_and_args_for_throwing(
     // Emit function name with potential UFCS mangling
     // Track if we emitted a struct prefix (to avoid double til_ on method name)
     let mut is_struct_method = false;
+    let mut is_instance_call = false;  // true if receiver is a variable/constant, not a type name
     if let Some(receiver) = ufcs_receiver {
         if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            let first_char = receiver_name.chars().next().unwrap_or('a');
-            if first_char.is_uppercase() {
-                // Type-qualified: Type.func -> til_Type_func
+            // Try init_context (globals) then var_types (locals)
+            let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
+                .map(|s| s.value_type.clone())
+                .or_else(|| ctx.var_types.get(receiver_name).cloned());
+            if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                let mangled_name = format!("{}.{}", type_name, func_name);
+                if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                    output.push_str(&til_name(&type_name));
+                    output.push_str("_");
+                    is_struct_method = true;
+                    is_instance_call = true;
+                }
+            } else if receiver_type.is_none() {
+                // Not a known symbol - treat as Type.func (type-qualified call)
                 output.push_str(&til_name(receiver_name));
                 output.push_str("_");
                 is_struct_method = true;
-            } else {
-                // Instance UFCS: instance.method -> til_Type_method (only if mangled name exists)
-                if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
-                    if let ValueType::TCustom(type_name) = receiver_type {
-                        let candidate = format!("{}_{}", type_name, func_name);
-                        if ctx.known_functions.contains(&candidate) {
-                            output.push_str(&til_name(type_name));
-                            output.push_str("_");
-                            is_struct_method = true;
-                        }
-                    }
-                }
             }
         }
     } else {
         // Check for UFCS via first argument
         if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
-                    if let ValueType::TCustom(type_name) = receiver_type {
-                        let candidate = format!("{}_{}", type_name, func_name);
-                        if ctx.known_functions.contains(&candidate) {
-                            output.push_str(&til_name(type_name));
-                            output.push_str("_");
-                            is_struct_method = true;
-                        }
+                // Try init_context (globals) then var_types (locals)
+                let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                    .map(|s| s.value_type.clone())
+                    .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                if let Some(ValueType::TCustom(type_name)) = arg_type {
+                    let mangled_name = format!("{}.{}", type_name, func_name);
+                    if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                        output.push_str(&til_name(&type_name));
+                        output.push_str("_");
+                        is_struct_method = true;
                     }
                 }
             }
@@ -411,12 +417,10 @@ fn emit_fcall_name_and_args_for_throwing(
         output.push_str(temp_suffix);
     }
 
-    // Emit receiver for UFCS if any
-    if let Some(receiver) = ufcs_receiver {
-        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            let first_char = receiver_name.chars().next().unwrap_or('a');
-            if !first_char.is_uppercase() {
-                // Instance UFCS: add receiver as first actual argument
+    // Emit receiver for UFCS if any (only for instance calls, not type-qualified)
+    if is_instance_call {
+        if let Some(receiver) = ufcs_receiver {
+            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
                 output.push_str(", ");
                 output.push_str(&til_name(receiver_name));
             }
@@ -428,29 +432,33 @@ fn emit_fcall_name_and_args_for_throwing(
         let mut name = String::new();
         if let Some(receiver) = ufcs_receiver {
             if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                let first_char = receiver_name.chars().next().unwrap_or('a');
-                if first_char.is_uppercase() {
+                // Try init_context (globals) then var_types (locals)
+                let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
+                    .map(|s| s.value_type.clone())
+                    .or_else(|| ctx.var_types.get(receiver_name).cloned());
+                if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                    let candidate = format!("{}.{}", type_name, func_name);
+                    if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                        name.push_str(&type_name);
+                        name.push('_');
+                    }
+                } else if receiver_type.is_none() {
+                    // Type-qualified call
                     name.push_str(receiver_name);
                     name.push('_');
-                } else if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
-                    if let ValueType::TCustom(type_name) = receiver_type {
-                        let candidate = format!("{}_{}", type_name, func_name);
-                        if ctx.known_functions.contains(&candidate) {
-                            name.push_str(type_name);
-                            name.push('_');
-                        }
-                    }
                 }
             }
         } else if expr.params.len() > 1 {
             if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
-                    if let ValueType::TCustom(type_name) = receiver_type {
-                        let candidate = format!("{}_{}", type_name, func_name);
-                        if ctx.known_functions.contains(&candidate) {
-                            name.push_str(type_name);
-                            name.push('_');
-                        }
+                // Try init_context (globals) then var_types (locals)
+                let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                    .map(|s| s.value_type.clone())
+                    .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                if let Some(ValueType::TCustom(type_name)) = arg_type {
+                    let candidate = format!("{}.{}", type_name, func_name);
+                    if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                        name.push_str(&type_name);
+                        name.push('_');
                     }
                 }
             }
@@ -481,8 +489,8 @@ fn emit_fcall_name_and_args_for_throwing(
         let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
 
         if variadic_count == 0 {
-            // Empty variadic: pass NULL
-            output.push_str(", NULL");
+            // Empty variadic: pass til_NULL
+            output.push_str(", til_NULL");
         } else {
             // Build compound literal: (type[]){arg1, arg2, ...}
             output.push_str(", (");
@@ -535,9 +543,9 @@ fn emit_arg_or_hoisted(
 }
 
 // Emit C code from AST (multi-pass architecture)
-pub fn emit(ast: &Expr) -> Result<String, String> {
+pub fn emit(ast: &Expr, init_ctx: Context) -> Result<String, String> {
     let mut output = String::new();
-    let mut ctx = CodegenContext::new();
+    let mut ctx = CodegenContext::new(init_ctx);
 
     // C boilerplate
     output.push_str("#include <stdio.h>\n");
@@ -618,7 +626,7 @@ pub fn emit(ast: &Expr) -> Result<String, String> {
     output.push_str("\n");
 
     // Pass 3: include external C interface (after structs and forward decls)
-    output.push_str("#include \"../ext_c.h\"\n\n");
+    output.push_str("#include \"ext_c.h\"\n\n");
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
     if let NodeType::Body = &ast.node_type {
@@ -729,10 +737,6 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 // Emit a top-level constant declaration at file scope
 fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip NULL - it's a C macro for 0
-        if decl.name == "NULL" {
-            return Ok(());
-        }
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
                 let has_str = ctx.user_structs.contains("Str");
@@ -1526,27 +1530,21 @@ fn get_fcall_func_name(expr: &Expr, ctx: &CodegenContext) -> Option<String> {
             } else {
                 // UFCS: receiver.method() - determine mangled name
                 if let NodeType::Identifier(method_name) = &expr.params[0].params[0].node_type {
-                    // Check if receiver is PascalCase (type-qualified call)
-                    let first_char = name.chars().next().unwrap_or('a');
-                    if first_char.is_uppercase() {
-                        // Type.method -> Type_method (original name)
-                        Some(format!("{}_{}", name, method_name))
-                    } else {
-                        // instance.method -> look up instance type for mangling
-                        if let Some(receiver_type) = ctx.var_types.get(name) {
-                            if let ValueType::TCustom(type_name) = receiver_type {
-                                let mangled_name = format!("{}_{}", type_name, method_name);
-                                // Only use mangled name if it's a known struct method
-                                if ctx.known_functions.contains(&mangled_name) {
-                                    return Some(mangled_name);
-                                }
-                                // Otherwise it's a top-level function, use plain method name
-                                return Some(method_name.clone());
-                            }
+                    // Try init_context (globals) then var_types (locals)
+                    let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(name)
+                        .map(|s| s.value_type.clone())
+                        .or_else(|| ctx.var_types.get(name).cloned());
+                    if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                        let mangled_name = format!("{}.{}", type_name, method_name);
+                        // Check if it's a known struct method
+                        if ctx.init_context.scope_stack.lookup_func(&mangled_name).is_some() {
+                            return Some(format!("{}_{}", type_name, method_name));
                         }
-                        // Fallback: just the method name
-                        Some(method_name.clone())
+                        // Otherwise it's a top-level function, use plain method name
+                        return Some(method_name.clone());
                     }
+                    // Not found in scope - treat as Type.method (type-qualified call)
+                    Some(format!("{}_{}", name, method_name))
                 } else {
                     None
                 }
@@ -1955,11 +1953,6 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
                 return Ok(());
             }
         }
-    }
-
-    // Skip NULL - it's a C macro for 0, no need to redefine
-    if decl.name == "NULL" {
-        return Ok(());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -2787,8 +2780,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         "mul" => emit_binop(expr, output, "*", ufcs_receiver, &hoisted, ctx),
         "div" => emit_binop(expr, output, "/", ufcs_receiver, &hoisted, ctx),
         "mod" => emit_binop(expr, output, "%", ufcs_receiver, &hoisted, ctx),
-        // Comparison
-        "eq" => emit_binop(expr, output, "==", ufcs_receiver, &hoisted, ctx),
+        // Comparison (eq removed - types have their own .eq() methods)
         "lt" => emit_binop(expr, output, "<", ufcs_receiver, &hoisted, ctx),
         "gt" => emit_binop(expr, output, ">", ufcs_receiver, &hoisted, ctx),
         "lteq" => emit_binop(expr, output, "<=", ufcs_receiver, &hoisted, ctx),
@@ -2888,13 +2880,50 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         _ => {
             output.push_str(&indent_str);
 
-            // Check if this is a type-qualified call (Type.func(...))
-            // Type names start with uppercase
+            // Check if this is a UFCS call (receiver.func(...))
             if let Some(receiver) = ufcs_receiver {
                 if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                    let first_char = receiver_name.chars().next().unwrap_or('a');
-                    if first_char.is_uppercase() {
-                        // Check if this is an enum value (no arguments) vs function/constructor call
+                    // Try to look up receiver type: first init_context (globals), then var_types (locals)
+                    let receiver_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(receiver_name)
+                        .map(|s| s.value_type.clone())
+                        .or_else(|| ctx.var_types.get(receiver_name).cloned());
+
+                    if let Some(value_type) = receiver_type {
+                        // Instance UFCS: instance.func(args...) -> til_Type_func(instance, args...)
+                        let mut is_struct_method = false;
+                        if let ValueType::TCustom(type_name) = &value_type {
+                            // Skip "auto" type - it's an inferred type placeholder
+                            if type_name != "auto" {
+                                let candidate = format!("{}.{}", type_name, func_name);
+                                if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                                    output.push_str(TIL_PREFIX);
+                                    output.push_str(type_name);
+                                    output.push_str("_");
+                                    is_struct_method = true;
+                                }
+                            }
+                        }
+                        // If not a struct method, it's a top-level function
+                        if is_struct_method {
+                            output.push_str(&func_name);
+                        } else {
+                            output.push_str(&til_name(&func_name));
+                        }
+                        output.push_str("(");
+                        // First emit the receiver as first argument
+                        emit_identifier_without_nested(receiver, output)?;
+                        // Then emit remaining arguments
+                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                            output.push_str(", ");
+                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
+                        }
+                        output.push_str(")");
+                        if indent > 0 {
+                            output.push_str(";\n");
+                        }
+                        return Ok(());
+                    } else {
+                        // Not found in scope - treat as type-qualified call (Type.func)
                         let has_args = expr.params.len() > 1;
 
                         if !has_args {
@@ -2911,13 +2940,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
                         // Type-qualified call with args: Type.func(args...) -> til_Type_func(args...)
                         // For enum constructors with payloads: Type.Variant(val) -> til_Type_make_Variant(val)
-                        // For struct constants: Type.CONSTANT -> til_Type_CONSTANT (no parens)
-                        // Enum variants are capitalized, function names are lowercase
                         output.push_str(TIL_PREFIX);
                         output.push_str(receiver_name);
                         output.push_str("_");
                         let func_first_char = func_name.chars().next().unwrap_or('a');
-                        let has_args = expr.params.len() > 1;
                         if func_first_char.is_uppercase() && has_args {
                             // Enum constructor with payload (has arguments)
                             output.push_str("make_");
@@ -2935,44 +2961,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                             }
                             output.push_str(")");
                         }
-                        if indent > 0 {
-                            output.push_str(";\n");
-                        }
-                        return Ok(());
-                    } else {
-                        // Instance UFCS: instance.func(args...) -> til_Type_func(instance, args...)
-                        // Look up the receiver's type for proper mangling (only if mangled name exists)
-                        let mut is_struct_method = false;
-                        if let Some(receiver_type) = ctx.var_types.get(receiver_name) {
-                            if let ValueType::TCustom(type_name) = receiver_type {
-                                // Skip "auto" type - it's an inferred type placeholder
-                                if type_name != "auto" {
-                                    // Only mangle if Type_func exists in known_functions
-                                    let candidate = format!("{}_{}", type_name, func_name);
-                                    if ctx.known_functions.contains(&candidate) {
-                                        output.push_str(TIL_PREFIX);
-                                        output.push_str(type_name);
-                                        output.push_str("_");
-                                        is_struct_method = true;
-                                    }
-                                }
-                            }
-                        }
-                        // If not a struct method, it's a top-level function - add TIL_PREFIX unless ext_func
-                        if is_struct_method {
-                            output.push_str(&func_name);
-                        } else {
-                            output.push_str(&til_name(&func_name));
-                        }
-                        output.push_str("(");
-                        // First emit the receiver as first argument
-                        emit_identifier_without_nested(receiver, output)?;
-                        // Then emit remaining arguments
-                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                            output.push_str(", ");
-                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx)?;
-                        }
-                        output.push_str(")");
                         if indent > 0 {
                             output.push_str(";\n");
                         }
@@ -3003,15 +2991,17 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             let mut output_name = til_name(&func_name);
             if expr.params.len() > 1 {
                 if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                    if let Some(receiver_type) = ctx.var_types.get(first_arg_name) {
-                        if let ValueType::TCustom(type_name) = receiver_type {
-                            // Check if mangled function exists in our known functions
-                            let candidate = format!("{}_{}", type_name, func_name);
-                            if ctx.known_functions.contains(&candidate) {
-                                // Use TIL_PREFIX for struct methods
-                                lookup_name = candidate.clone();
-                                output_name = format!("{}{}", TIL_PREFIX, candidate);
-                            }
+                    // Try init_context (globals) then var_types (locals)
+                    let arg_type: Option<ValueType> = ctx.init_context.scope_stack.lookup_symbol(first_arg_name)
+                        .map(|s| s.value_type.clone())
+                        .or_else(|| ctx.var_types.get(first_arg_name).cloned());
+                    if let Some(ValueType::TCustom(type_name)) = arg_type {
+                        // Check if mangled function exists
+                        let candidate = format!("{}.{}", type_name, func_name);
+                        if ctx.init_context.scope_stack.lookup_func(&candidate).is_some() {
+                            // Use TIL_PREFIX for struct methods
+                            lookup_name = format!("{}_{}", type_name, func_name);
+                            output_name = format!("{}{}_{}", TIL_PREFIX, type_name, func_name);
                         }
                     }
                 }
@@ -3040,8 +3030,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Get C element type for the array (all TIL types get til_ prefix)
                 let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
                 if variadic_count == 0 {
-                    // Empty variadic: pass NULL
-                    output.push_str(", NULL");
+                    // Empty variadic: pass til_NULL
+                    output.push_str(", til_NULL");
                 } else {
                     // Build compound literal: (type[]){arg1, arg2, ...}
                     output.push_str(", (");
