@@ -171,17 +171,16 @@ build := proc(path: Str) returns Str throws Str {
     mut dep_asts := Vec.new(Expr)
 
     // Auto-import core.til first (like the interpreter does)
-    // TODO: Re-enable once codegen supports core.til's complexity
-    // mut core_path := "src/core/core.til"
-    // if not(path.eq(core_path)) {
-    //     if not(is_already_imported(imported, core_path)) {
-    //         imported.push(core_path)
-    //         mut core_result := parse_file(core_path)
-    //         // Collect core.til's imports first
-    //         collect_imports_single(core_result.ast, imported, dep_asts)
-    //         dep_asts.push(core_result.ast)
-    //     }
-    // }
+    mut core_path := "src/core/core.til"
+    if not(path.eq(core_path)) {
+        if not(is_already_imported(imported, core_path)) {
+            imported.push(core_path)
+            mut core_result := parse_file(core_path)
+            // Collect core.til's imports first
+            collect_imports_single(core_result.ast, imported, dep_asts)
+            dep_asts.push(core_result.ast)
+        }
+    }
 
     collect_imports_single(main_ast, imported, dep_asts)
 
@@ -213,11 +212,8 @@ build := proc(path: Str) returns Str throws Str {
     mut type_errors := check_types(context, merged_ast)
     errors.extend(type_errors)
 
-    // Report errors but continue to codegen (for now, until core.til can be compiled)
-    // TODO: Make this fatal once core.til compiles
+    // Type checking - fail if there are errors (like the interpreter does)
     if gt(errors.len(), 0) {
-        mut err_count := I64.to_str(errors.len())
-        println("Warning: ", err_count, " init/type errors (continuing to codegen):")
         mut err_i := 0
         while lt(err_i, errors.len()) {
             mut err := ""
@@ -225,12 +221,14 @@ build := proc(path: Str) returns Str throws Str {
             println(path, ":", err)
             err_i = add(err_i, 1)
         }
+        mut err_count := I64.to_str(errors.len())
+        throw format("Compiler errors: ", err_count, " type errors found")
     }
 
     catch (err: AllocError) { throw err.msg }
 
     // Generate C code
-    mut c_code := emit(merged_ast)
+    mut c_code := emit(merged_ast, context)
 
     // Write output file
     mut output_path := path.replace(".til", ".c")

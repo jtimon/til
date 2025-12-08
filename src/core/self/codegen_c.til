@@ -40,6 +40,8 @@ CodegenContext := struct {
     mut temp_counter: I64 = 0
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
+    // Init context for type lookups (UFCS resolution, etc.)
+    mut init_context: Context = Context.new("", "script")
 
     next_temp := proc(mut self: CodegenContext) returns Str {
         mut name := concat("_tmp", self.temp_counter.to_str())
@@ -63,11 +65,10 @@ CodegenContext := struct {
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
-// Exceptions: C keywords/macros (true, false, NULL) and generated names (* or _ prefix)
+// Exceptions: C keywords/macros (true, false) and generated names (* or _ prefix)
 til_name := func(name: Str) returns Str {
     if name.eq("true") { return "true" }
     if name.eq("false") { return "false" }
-    if name.eq("NULL") { return "NULL" }
     if name.starts_with("*") { return name }
     if name.starts_with("_") { return name }
     return concat(TIL_PREFIX, name)
@@ -93,6 +94,34 @@ is_known_function := func(ctx: CodegenContext, name: Str) returns Bool {
         i = add(i, 1)
     }
     return false
+}
+
+// Result type for receiver type lookup
+ReceiverTypeResult := struct {
+    mut found: Bool = false
+    mut value_type: ValueType = ValueType.TCustom("")
+}
+
+// Look up receiver type: first init_context (globals), then var_types (locals)
+lookup_receiver_type := func(ctx: CodegenContext, name: Str) returns ReceiverTypeResult {
+    mut result := ReceiverTypeResult()
+    // Try init_context first (globals)
+    mut symbol := ctx.init_context.scope_stack.lookup_symbol(name)
+    result.found = true
+    result.value_type = symbol.value_type
+
+    catch (err: KeyNotFoundError) {
+        // Not in init_context, try var_types (locals)
+        if ctx.var_types.contains_key(name) {
+            mut var_type := ValueType.TCustom("")
+            ctx.var_types.get(name, var_type)
+            result.found = true
+            result.value_type = var_type
+            catch (err2: KeyNotFoundError) { }
+        }
+    }
+
+    return result
 }
 
 // Convert TIL type to C type
@@ -410,32 +439,36 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
             first.params.get(0, nested)
             switch nested.node_type {
             case NodeType.Identifier(method_name):
-                // Check if receiver is PascalCase (type-qualified)
-                mut first_char := name.get_substr(0, 1)
-                if first_char.is_uppercase() {
-                    // Type-qualified: Type.method -> Type_method
-                    mut mangled := concat(name, "_")
-                    mangled = concat(mangled, method_name)
-                    return mangled
-                } else {
-                    // instance.method -> look up instance type for mangling (only if mangled name exists)
-                    mut receiver_type := ValueType.TCustom("")
-                    ctx.var_types.get(name, receiver_type)
-                    switch receiver_type {
+                // Try to look up receiver type from init_context (globals) or var_types (locals)
+                mut receiver_result := lookup_receiver_type(ctx, name)
+                if receiver_result.found {
+                    switch receiver_result.value_type {
                     case ValueType.TCustom(type_name):
                         if gt(type_name.len(), 0) {
-                            mut candidate := concat(type_name, "_")
+                            // Check if it's a known struct method
+                            mut is_struct_method := false
+                            mut candidate := concat(type_name, ".")
                             candidate = concat(candidate, method_name)
-                            if is_known_function(ctx, candidate) {
-                                return candidate
+                            mut func_def := ctx.init_context.scope_stack.lookup_func(candidate)
+                            is_struct_method = true
+                            catch (err: KeyNotFoundError) { }
+
+                            if is_struct_method {
+                                mut mangled := concat(type_name, "_")
+                                mangled = concat(mangled, method_name)
+                                return mangled
                             }
                         }
                     case:
-                        // Fallback to just method name
+                        // Not a custom type, fallback
                     }
-                    catch (err: KeyNotFoundError) { /* type not found, fallback */ }
+                    // Not a struct method, use plain method name
                     return method_name
                 }
+                // Not found in scope - treat as Type.method (type-qualified call)
+                mut result := concat(name, "_")
+                result = concat(result, method_name)
+                return result
             case:
                 return ""
             }
@@ -445,7 +478,6 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext) returns Str {
     }
 
     catch (err: IndexOutOfBoundsError) { return "" }
-    catch (err: AllocError) { return "" }
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
@@ -1250,9 +1282,10 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
 }
 
 // Emit C code from AST (multi-pass architecture)
-emit := proc(ast: Expr) returns Str throws Str {
+emit := proc(ast: Expr, init_ctx: Context) returns Str throws Str {
     mut output := ""
     mut ctx := CodegenContext()
+    ctx.init_context = init_ctx
 
     // C boilerplate
     output = concat(output, "#include <stdio.h>\n")
