@@ -111,6 +111,14 @@ Don't ask permission for:
 6) Use heredoc for commit messages
 7) Always include co-author footer
 
+## Rust to TIL Porting Rules
+When porting code from Rust (`src/rs/`) to TIL (`src/core/self/`):
+- **Use the SAME names** - Rust names take priority over perceived TIL naming conventions
+- **Use the SAME comments** - copy comments verbatim
+- **Don't assume TIL lacks features** - if unsure, ask
+- **Don't add workarounds** - TIL has the same capabilities as Rust for this codebase
+- The goal is that both versions should be as close as possible, differing only in syntax
+
 ## File Organization
 - `doc/bot.org` - READ THIS for full guidelines (human-maintained, don't edit)
 - `doc/bot/` - Your workspace (full freedom to create/edit)
