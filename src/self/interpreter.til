@@ -1,12 +1,12 @@
 mode lib
 
-import("src.core.self.init")
-import("src.core.self.parser")
-import("src.core.self.typer")
-import("src.core.self.ext")
-import("src.core.self.arena")
-import("src.core.self.mode")         // parse_mode, can_be_imported
-import("src.core.self.lexer")        // lexer_from_source, parse_tokens
+import("src.self.init")
+import("src.self.parser")
+import("src.self.typer")
+import("src.self.ext")
+import("src.self.arena")
+import("src.self.mode")         // parse_mode, can_be_imported
+import("src.self.lexer")        // lexer_from_source, parse_tokens
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.

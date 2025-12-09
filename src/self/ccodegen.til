@@ -3,7 +3,7 @@ mode lib
 // C code generator for TIL
 // Translates TIL AST to C source code
 
-import("src.core.self.parser")  // Expr, NodeType, Literal
+import("src.self.parser")  // Expr, NodeType, Literal
 
 // Prefix for all TIL-generated C names (structs, functions, etc.)
 TIL_PREFIX := "til_"

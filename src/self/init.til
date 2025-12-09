@@ -2,7 +2,7 @@ mode lib
 
 import("src.core.array")
 import("src.core.ptr")
-import("src.core.self.parser")
+import("src.self.parser")
 import("src.core.set")
 
 // Unix path separator (Windows not supported in TIL)

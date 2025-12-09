@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.self.mode")
+import("src.self.mode")
 
 // Create a dummy token for testing mode_from_name (which requires a Token for error reporting)
 make_dummy_token := func() returns Token {

@@ -1,7 +1,7 @@
 mode lib
 
 import("src.core.std.vec")
-import("src.core.self.lexer")
+import("src.self.lexer")
 
 DEFAULT_MODE := "lib"
 

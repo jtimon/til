@@ -3,10 +3,10 @@ mode lib
 // External/Core functions for TIL interpreter
 // This module contains all built-in core functions and procedures.
 
-import("src.core.self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
-import("src.core.self.init")         // Context
-import("src.core.self.interpreter")  // EvalResult, eval_expr, string_from_context
-import("src.core.self.arena")        // arena (global)
+import("src.self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_name
+import("src.self.init")         // Context
+import("src.self.interpreter")  // EvalResult, eval_expr, string_from_context
+import("src.self.arena")        // arena (global)
 import("src.core.modes.safe_script") // run_cmd
 
 // ---------- Helper functions

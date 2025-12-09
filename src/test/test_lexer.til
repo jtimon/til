@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.self.lexer")
+import("src.self.lexer")
 
 // ===== scan_tokens tests =====
 // Test that escape sequences are properly processed by the lexer

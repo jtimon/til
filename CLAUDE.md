@@ -112,7 +112,7 @@ Don't ask permission for:
 7) Always include co-author footer
 
 ## Rust to TIL Porting Rules
-When porting code from Rust (`src/rs/`) to TIL (`src/core/self/`):
+When porting code from Rust (`src/rs/`) to TIL (`src/self/`):
 - **Use the SAME names** - Rust names take priority over perceived TIL naming conventions
 - **Use the SAME comments** - copy comments verbatim
 - **Don't assume TIL lacks features** - if unsure, ask

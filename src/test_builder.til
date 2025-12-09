@@ -2,7 +2,7 @@ mode test
 
 // C codegen tests
 
-import("src.core.self.builder")
+import("src.self.builder")
 
 // Test 1: Rust codegen via rstil command
 test_rs_ccodegen := proc() {

@@ -3,8 +3,8 @@ mode lib
 import("src.core.std.vec")
 import("src.core.std.list")
 import("src.core.std.map")
-import("src.core.self.lexer")
-import("src.core.self.mode")
+import("src.self.lexer")
+import("src.self.mode")
 
 INFER_TYPE := "auto"
 

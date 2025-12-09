@@ -1,5 +1,5 @@
 // Builder module - orchestrates compilation to target languages
-// Mirrors src/core/self/builder.til
+// Mirrors src/self/builder.til
 
 use std::fs;
 use std::io::ErrorKind;
