@@ -9,7 +9,7 @@ mod rs {
     pub mod arena;
     pub mod interpreter;
     pub mod ext;
-    pub mod codegen_c;
+    pub mod ccodegen;
     pub mod builder;
 }
 use rs::lexer::LANG_NAME;

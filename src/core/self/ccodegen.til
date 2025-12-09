@@ -1744,7 +1744,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if lt(expr.params.len(), 2) {
-        throw "codegen_c: If requires condition and body"
+        throw "ccodegen: If requires condition and body"
     }
 
     mut result := output
@@ -1819,7 +1819,7 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // While: params[0] = condition, params[1] = body
     if lt(expr.params.len(), 2) {
-        throw "codegen_c: While requires condition and body"
+        throw "ccodegen: While requires condition and body"
     }
 
     mut result := output
@@ -1946,7 +1946,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if eq(expr.params.len(), 0) {
-        throw "codegen_c: Switch requires expression"
+        throw "ccodegen: Switch requires expression"
     }
 
     mut result := output
@@ -2078,7 +2078,7 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             // Range case: case low ... high: { ... break; }
             // Uses GCC extension for case ranges
             if lt(case_pattern.params.len(), 2) {
-                throw "codegen_c: Range requires start and end values"
+                throw "ccodegen: Range requires start and end values"
             }
 
             mut range_start := Expr()
@@ -2221,17 +2221,17 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     case NodeType.Throw:
         return emit_throw(expr, output, indent, ctx, context)
     case NodeType.StructDef(s):
-        throw "codegen_c: StructDef should be handled at top level, not in emit_expr"
+        throw "ccodegen: StructDef should be handled at top level, not in emit_expr"
     case NodeType.EnumDef(e):
-        throw "codegen_c: EnumDef should be handled at top level, not in emit_expr"
+        throw "ccodegen: EnumDef should be handled at top level, not in emit_expr"
     case NodeType.Switch:
         return emit_switch(expr, output, indent, ctx, context)
     case NodeType.DefaultCase:
-        throw "codegen_c: DefaultCase should be handled inside emit_switch"
+        throw "ccodegen: DefaultCase should be handled inside emit_switch"
     case NodeType.Range:
-        throw "codegen_c: Range not yet supported"
+        throw "ccodegen: Range not yet supported"
     case NodeType.Pattern(p):
-        throw "codegen_c: Pattern should be handled inside emit_switch"
+        throw "ccodegen: Pattern should be handled inside emit_switch"
     }
 }
 
@@ -3635,7 +3635,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // First param is the function name (or UFCS receiver.method)
     mut params_len := expr.params.len()
     if lt(params_len, 1) {
-        throw "codegen_c: FCall with no params"
+        throw "ccodegen: FCall with no params"
     }
 
     mut first := Expr()
@@ -3662,13 +3662,13 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 has_ufcs_receiver = true
                 ufcs_receiver_name = name
             case:
-                throw "codegen_c: UFCS method name not Identifier"
+                throw "ccodegen: UFCS method name not Identifier"
             }
         } else {
             func_name = name
         }
     case:
-        throw "codegen_c: FCall first param not Identifier"
+        throw "ccodegen: FCall first param not Identifier"
     }
 
     // Handle variadic parameter methods: args.len() and args.get(i, val)
@@ -3804,7 +3804,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     } else if func_name.eq("test") {
         // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
         if lt(params_len, 4) {
-            throw "codegen_c: test requires 3 arguments"
+            throw "ccodegen: test requires 3 arguments"
         }
         result = concat(result, "if (!(")
         mut cond := Expr()
@@ -3820,7 +3820,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     } else if func_name.eq("assert_eq") {
         // assert_eq(loc, expected, actual) -> if ((expected) != (actual)) { printf("FAIL: assert_eq\n"); }
         if lt(params_len, 4) {
-            throw "codegen_c: assert_eq requires 3 arguments"
+            throw "ccodegen: assert_eq requires 3 arguments"
         }
         result = concat(result, "if ((")
         mut expected := Expr()
@@ -3945,7 +3945,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
             case:
-                throw "codegen_c: expected identifier for UFCS receiver"
+                throw "ccodegen: expected identifier for UFCS receiver"
             }
         }
         // Regular function call - check for UFCS: func(instance, ...) -> Type_func(instance, ...)
@@ -4059,7 +4059,7 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     case NodeType.Identifier(name):
         return concat(output, name)
     case:
-        throw "codegen_c: expected identifier"
+        throw "ccodegen: expected identifier"
     }
 }
 
@@ -4075,7 +4075,7 @@ emit_literal := proc(lit: Literal, output: Str, ctx: CodegenContext) returns Str
     case Literal.Number(n):
         result = concat(output, n)
     case Literal.List(l):
-        throw "codegen_c: List literals not yet supported"
+        throw "ccodegen: List literals not yet supported"
     }
     catch (err: AllocError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }

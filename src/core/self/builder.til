@@ -1,7 +1,7 @@
 mode lib
 
 import("src.core.self.interpreter")
-import("src.core.self.codegen_c")
+import("src.core.self.ccodegen")
 
 // Note: import_path_to_file_path is available from init.til (via interpreter.til)
 

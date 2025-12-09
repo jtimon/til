@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::parser::{parse_tokens, Expr, NodeType};
 use crate::rs::mode::{parse_mode, ModeDef};
-use crate::rs::codegen_c;
+use crate::rs::ccodegen;
 use crate::rs::init::{import_path_to_file_path, Context};
 use crate::rs::typer::{check_types, basic_mode_checks};
 
@@ -157,7 +157,7 @@ pub fn build(path: &str) -> Result<(), String> {
     }
 
     // Generate C code
-    let c_code = codegen_c::emit(&merged_ast, &mut context)?;
+    let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 
     // Write output file
     let output_path = path.replace(".til", ".c");

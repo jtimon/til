@@ -1446,12 +1446,12 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
         NodeType::While => emit_while(expr, output, indent, ctx, context),
         NodeType::Catch => Ok(()), // Catch blocks handled at call site
         NodeType::Throw => emit_throw(expr, output, indent, ctx, context),
-        NodeType::StructDef(_) => Err("codegen_c: StructDef should be handled at top level, not in emit_expr".to_string()),
-        NodeType::EnumDef(_) => Err("codegen_c: EnumDef should be handled at top level, not in emit_expr".to_string()),
+        NodeType::StructDef(_) => Err("ccodegen: StructDef should be handled at top level, not in emit_expr".to_string()),
+        NodeType::EnumDef(_) => Err("ccodegen: EnumDef should be handled at top level, not in emit_expr".to_string()),
         NodeType::Switch => emit_switch(expr, output, indent, ctx, context),
-        NodeType::DefaultCase => Err("codegen_c: DefaultCase should be handled inside emit_switch".to_string()),
-        NodeType::Range => Err("codegen_c: Range not yet supported".to_string()),
-        NodeType::Pattern(_) => Err("codegen_c: Pattern should be handled inside emit_switch".to_string()),
+        NodeType::DefaultCase => Err("ccodegen: DefaultCase should be handled inside emit_switch".to_string()),
+        NodeType::Range => Err("ccodegen: Range not yet supported".to_string()),
+        NodeType::Pattern(_) => Err("ccodegen: Pattern should be handled inside emit_switch".to_string()),
     }
 }
 
@@ -2325,7 +2325,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
     if expr.params.is_empty() {
-        return Err("codegen_c: throw requires a value".to_string());
+        return Err("ccodegen: throw requires a value".to_string());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -2339,14 +2339,14 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     name.clone()
                 } else {
-                    return Err("codegen_c: throw FCall must have identifier as first param".to_string());
+                    return Err("ccodegen: throw FCall must have identifier as first param".to_string());
                 }
             } else {
-                return Err("codegen_c: throw FCall has no params".to_string());
+                return Err("ccodegen: throw FCall has no params".to_string());
             }
         }
         NodeType::Identifier(name) => name.clone(),
-        _ => return Err(format!("codegen_c: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
+        _ => return Err(format!("ccodegen: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
     };
 
     // Find the index of this type in current_throw_types
@@ -2392,7 +2392,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         }
         None => Err(format!(
-            "codegen_c: thrown type '{}' not found in function's throw types: {:?}",
+            "ccodegen: thrown type '{}' not found in function's throw types: {:?}",
             thrown_type_name, ctx.current_throw_types
         )),
     }
@@ -2499,7 +2499,7 @@ fn emit_fcall_with_hoisted(
 fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // If: params[0] = condition, params[1] = then-body, params[2] = else-body (optional)
     if expr.params.len() < 2 {
-        return Err("codegen_c: If requires condition and body".to_string());
+        return Err("ccodegen: If requires condition and body".to_string());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -2540,7 +2540,7 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
 fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // While: params[0] = condition, params[1] = body
     if expr.params.len() < 2 {
-        return Err("codegen_c: While requires condition and body".to_string());
+        return Err("ccodegen: While requires condition and body".to_string());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -2619,7 +2619,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
     // Switch: params[0] = switch expression
     // params[1..] = alternating (case_pattern, body) pairs
     if expr.params.is_empty() {
-        return Err("codegen_c: Switch requires expression".to_string());
+        return Err("ccodegen: Switch requires expression".to_string());
     }
 
     let indent_str = "    ".repeat(indent);
@@ -2727,7 +2727,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 // Range case: case low ... high: { ... break; }
                 // Uses GCC extension for case ranges
                 if case_pattern.params.len() < 2 {
-                    return Err("codegen_c: Range requires start and end values".to_string());
+                    return Err("ccodegen: Range requires start and end values".to_string());
                 }
 
                 output.push_str(&case_indent);
@@ -2780,7 +2780,7 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     // First param is the function name (or UFCS receiver.method)
     if expr.params.is_empty() {
-        return Err("codegen_c: FCall with no params".to_string());
+        return Err("ccodegen: FCall with no params".to_string());
     }
 
     // Check for UFCS: first param is Identifier with nested params (method name)
@@ -2795,11 +2795,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let Some((method_name, depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
                     (method_name, Some(&expr.params[0]), depth)
                 } else {
-                    return Err("codegen_c: UFCS method name not Identifier".to_string());
+                    return Err("ccodegen: UFCS method name not Identifier".to_string());
                 }
             }
         },
-        _ => return Err("codegen_c: FCall first param not Identifier".to_string()),
+        _ => return Err("ccodegen: FCall first param not Identifier".to_string()),
     };
 
     let indent_str = "    ".repeat(indent);
@@ -2884,7 +2884,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // For C codegen, we just emit the test as an if statement
             // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
             if expr.params.len() < 4 {
-                return Err("codegen_c: test requires 3 arguments".to_string());
+                return Err("ccodegen: test requires 3 arguments".to_string());
             }
             output.push_str(&indent_str);
             output.push_str("if (!(");
@@ -2897,7 +2897,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // assert_eq(loc, expected, actual) - emit as equality check
         "assert_eq" => {
             if expr.params.len() < 4 {
-                return Err("codegen_c: assert_eq requires 3 arguments".to_string());
+                return Err("ccodegen: assert_eq requires 3 arguments".to_string());
             }
             output.push_str(&indent_str);
             output.push_str("if ((");
@@ -2920,7 +2920,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // type_as_str(T) - compile-time intrinsic to get type name as string
         "type_as_str" => {
             if expr.params.len() < 2 {
-                return Err("codegen_c: type_as_str requires 1 argument".to_string());
+                return Err("ccodegen: type_as_str requires 1 argument".to_string());
             }
             // Get the type name from the argument
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
@@ -2943,7 +2943,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // size_of(T) - compile-time intrinsic to get type size
         "size_of" => {
             if expr.params.len() < 2 {
-                return Err("codegen_c: size_of requires 1 argument".to_string());
+                return Err("ccodegen: size_of requires 1 argument".to_string());
             }
             // Get the type name from the argument and emit sizeof
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
@@ -2962,7 +2962,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         // to_ptr(var) - get address of variable
         "to_ptr" => {
             if expr.params.len() < 2 {
-                return Err("codegen_c: to_ptr requires 1 argument".to_string());
+                return Err("ccodegen: to_ptr requires 1 argument".to_string());
             }
             output.push_str("(");
             output.push_str(TIL_PREFIX);
@@ -3232,7 +3232,7 @@ fn emit_ufcs_receiver_chain(first_param: &Expr, depth: usize, output: &mut Strin
         }
         Ok(())
     } else {
-        Err("codegen_c: expected identifier for UFCS receiver".to_string())
+        Err("ccodegen: expected identifier for UFCS receiver".to_string())
     }
 }
 
@@ -3280,6 +3280,6 @@ fn emit_literal(lit: &Literal, output: &mut String, ctx: &CodegenContext) -> Res
             output.push_str(n);
             Ok(())
         },
-        Literal::List(_) => Err("codegen_c: List literals not yet supported".to_string()),
+        Literal::List(_) => Err("ccodegen: List literals not yet supported".to_string()),
     }
 }
