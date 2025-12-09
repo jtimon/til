@@ -160,10 +160,10 @@ test_mode_test := proc() {
     assert(loc(), not(m.needs_main_proc))
     assert_eq(loc(), 1, m.imports.len())
 
-    // Test that imports contains "src/core/modes/test"
+    // Test that imports contains "src/modes/test"
     mut import_str := Str()
     m.imports.get(0, import_str)
-    assert_eq_str(loc(), "src/core/modes/test", import_str)
+    assert_eq_str(loc(), "src/modes/test", import_str)
 
     catch (err: Str) {
         println("ERROR:", loc(), "Unexpected Str error")

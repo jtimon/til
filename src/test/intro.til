@@ -1,6 +1,6 @@
 mode script
 
-import("src.core.modes.test")
+import("src.modes.test")
 
 assert_eq_str(loc(), loc(), "src/test/intro.til:5:22:") // TODO fix, the col should be one less
 

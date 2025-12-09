@@ -82,7 +82,7 @@ mode_from_name := func(mode_name: Str, path: Str, t: Token) returns ModeDef thro
         m.allows_base_anything = false
         m.needs_main_proc = false
         mut test_imports := Vec.new(Str)
-        test_imports.push("src/core/modes/test")
+        test_imports.push("src/modes/test")
         m.imports = test_imports
         return m
     }
