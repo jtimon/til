@@ -14,8 +14,6 @@ const TIL_PREFIX: &str = "til_";
 
 // Codegen context for tracking function info
 struct CodegenContext {
-    // Set of all known function names (for UFCS mangling)
-    known_functions: HashSet<String>,
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> list of return types
@@ -37,7 +35,6 @@ struct CodegenContext {
 impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
-            known_functions: HashSet::new(),
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
@@ -770,8 +767,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
             if !expr.params.is_empty() {
                 match &expr.params[0].node_type {
                     NodeType::FuncDef(func_def) => {
-                        // Top-level function - track name and types
-                        ctx.known_functions.insert(decl.name.clone());
+                        // Top-level function - track types
                         if !func_def.throw_types.is_empty() {
                             ctx.func_throw_types.insert(
                                 decl.name.clone(),
@@ -804,8 +800,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
-                                // Track all struct methods
-                                ctx.known_functions.insert(mangled_name.clone());
                                 if !func_def.throw_types.is_empty() {
                                     ctx.func_throw_types.insert(
                                         mangled_name.clone(),
@@ -1560,7 +1554,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 }
 
 /// Get the function name from an FCall expression (returns ORIGINAL name for lookup)
-/// This returns the name as stored in func_throw_types/known_functions, WITHOUT til_ prefix.
+/// This returns the name as stored in func_throw_types, WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
 fn get_fcall_func_name(expr: &Expr, context: &Context) -> Option<String> {
     if expr.params.is_empty() {

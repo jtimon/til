@@ -20,8 +20,6 @@ VariadicParamInfo := struct {
 
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
-    // Set of all known function names (for UFCS mangling) - Vec<Str>
-    mut known_functions: Vec = Vec.new(Str)
     // Set of all user-defined struct names - Vec<Str>
     mut user_structs: Vec = Vec.new(Str)
     // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
@@ -77,21 +75,6 @@ add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
     if not(ctx.declared_vars.contains(name)) {
         ctx.declared_vars.push(name)
     }
-}
-
-// Check if a function name exists in known_functions
-is_known_function := func(ctx: CodegenContext, name: Str) returns Bool {
-    mut i := 0
-    while lt(i, ctx.known_functions.len()) {
-        mut existing := ""
-        ctx.known_functions.get(i, existing)
-        catch (err: IndexOutOfBoundsError) { return false }
-        if existing.eq(name) {
-            return true
-        }
-        i = add(i, 1)
-    }
-    return false
 }
 
 // Result type for receiver type lookup
@@ -220,8 +203,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                // Top-level function - track name and types
-                ctx.known_functions.push(decl.name)
+                // Top-level function - track types
                 if gt(func_def.throw_types.len(), 0) {
                     ctx.func_throw_types.insert(decl.name, func_def.throw_types)
                 }
@@ -262,8 +244,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     case NodeType.FuncDef(func_def):
                         mut mangled_name := concat(struct_name, "_")
                         mangled_name = concat(mangled_name, member_name)
-                        // Track all struct methods
-                        ctx.known_functions.push(mangled_name)
                         if gt(func_def.throw_types.len(), 0) {
                             ctx.func_throw_types.insert(mangled_name, func_def.throw_types)
                         }
@@ -3412,10 +3392,10 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             case ValueType.TCustom(type_name):
                 mut candidate := concat(type_name, "_")
                 candidate = concat(candidate, func_name)
-                if is_known_function(ctx, candidate) {
-                    output = concat(output, type_name)
-                    output = concat(output, "_")
-                }
+                _ := context.scope_stack.lookup_func(candidate)
+                // If lookup succeeded, use mangled name
+                output = concat(output, type_name)
+                output = concat(output, "_")
             case:
                 // Skip
             }
@@ -3900,13 +3880,14 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     case ValueType.TCustom(type_name):
                         // Skip "auto" type - it's an inferred type placeholder
                         if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
-                            // Only mangle if Type_func exists in known_functions
+                            // Only mangle if Type_func exists in scope_stack
                             mut candidate := concat(type_name, "_")
                             candidate = concat(candidate, func_name)
-                            if is_known_function(ctx, candidate) {
-                                result = concat(result, type_name)
-                                result = concat(result, "_")
-                            }
+                            _ := context.scope_stack.lookup_func(candidate)
+                            // If lookup succeeded, use mangled name
+                            result = concat(result, type_name)
+                            result = concat(result, "_")
+                            catch (err: KeyNotFoundError) { /* func not found, no prefix */ }
                         }
                     case:
                         // No type found, emit without prefix
@@ -3964,12 +3945,13 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 case ValueType.TCustom(type_name):
                     // Skip "auto" type - it's an inferred type placeholder
                     if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
-                        // Check if mangled function exists in our known functions
+                        // Check if mangled function exists in scope_stack
                         mut candidate := concat(type_name, "_")
                         candidate = concat(candidate, func_name)
-                        if is_known_function(ctx, candidate) {
-                            mangled_name = candidate
-                        }
+                        _ := context.scope_stack.lookup_func(candidate)
+                        // If lookup succeeded, use mangled name
+                        mangled_name = candidate
+                        catch (err: KeyNotFoundError) { /* func not found, no mangling */ }
                     }
                 case:
                     // Not a custom type, no mangling
