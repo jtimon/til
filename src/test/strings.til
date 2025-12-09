@@ -45,6 +45,20 @@ test_strings := proc() {
     test(loc(), empty_str.starts_with(""), "starts_with: ''.starts_with('') = true")
     test(loc(), not(empty_str.starts_with("a")), "starts_with: ''.starts_with('a') = false")
 
+    // find tests
+    find_str := "hello"
+    assert_eq(loc(), 0, find_str.find("h"))
+    assert_eq(loc(), 0, find_str.find("he"))
+    assert_eq(loc(), 2, find_str.find("ll"))
+    assert_eq(loc(), 4, find_str.find("o"))
+    assert_eq(loc(), sub(0, 1), find_str.find("x"))
+    assert_eq(loc(), sub(0, 1), find_str.find(""))
+    assert_eq(loc(), sub(0, 1), empty_str.find("a"))
+    aaa_str := "aaa"
+    assert_eq(loc(), 0, aaa_str.find("a"))  // finds first, not last
+    func_name := "Str_clone"
+    assert_eq(loc(), 3, func_name.find("_"))  // the actual use case
+
     catch(err: I64_OverflowError) {
         panic(loc(), "Unexpected I64_OverflowError")
     }

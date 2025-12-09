@@ -135,6 +135,37 @@ Str := struct {
         return false
     }
 
+    find := func(self: Str, needle: Str) returns I64 {
+        # Returns the first index where needle starts in self, or -1 if not found
+        if needle.len().gt(self.len()) {
+            return sub(0, 1)
+        }
+        if needle.len().eq(0) {
+            return sub(0, 1)
+        }
+
+        mut max_start := self.len().sub(needle.len())
+
+        for start_idx in 0..max_start.add(1) {
+            mut matches := true
+            for needle_idx in 0..needle.len() {
+                mut self_byte : U8 = 0
+                mut needle_byte : U8 = 0
+                memcpy(to_ptr(self_byte), add(self.c_string, start_idx.add(needle_idx)), 1)
+                memcpy(to_ptr(needle_byte), add(needle.c_string, needle_idx), 1)
+
+                if not(U8.eq(self_byte, needle_byte)) {
+                    matches = false
+                }
+            }
+            if matches {
+                return start_idx
+            }
+        }
+
+        return sub(0, 1)
+    }
+
     rfind := func(self: Str, needle: Str) returns I64 {
         # Returns the last index where needle starts in self, or sub(0, 1) if not found
         if needle.len().gt(self.len()) {
