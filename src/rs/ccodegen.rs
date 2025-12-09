@@ -3481,36 +3481,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         std::collections::HashMap::new()
     };
 
-    // Hardcoded builtins
+    // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     match func_name.as_str() {
-        // test(loc, cond, msg) - emit as assertion
-        "test" => {
-            // For C codegen, we just emit the test as an if statement
-            // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
-            if expr.params.len() < 4 {
-                return Err("ccodegen: test requires 3 arguments".to_string());
-            }
-            output.push_str(&indent_str);
-            output.push_str("if (!(");
-            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx, context)?;  // arg index 1 = params[2]
-            output.push_str(")) { printf(\"FAIL: %s\\n\", ");
-            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx, context)?;  // arg index 2 = params[3]
-            output.push_str("); }\n");
-            Ok(())
-        },
-        // assert_eq(loc, expected, actual) - emit as equality check
-        "assert_eq" => {
-            if expr.params.len() < 4 {
-                return Err("ccodegen: assert_eq requires 3 arguments".to_string());
-            }
-            output.push_str(&indent_str);
-            output.push_str("if ((");
-            emit_arg_or_hoisted(&expr.params[2], 1, &hoisted, output, ctx, context)?;  // arg index 1 = params[2]
-            output.push_str(") != (");
-            emit_arg_or_hoisted(&expr.params[3], 2, &hoisted, output, ctx, context)?;  // arg index 2 = params[3]
-            output.push_str(")) { printf(\"FAIL: assert_eq\\n\"); }\n");
-            Ok(())
-        },
         // loc() - just emit empty string for now
         "loc" => {
             if context.scope_stack.lookup_struct("Str").is_some() {

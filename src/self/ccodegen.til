@@ -4551,40 +4551,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
-    // Hardcoded builtins
-    if func_name.eq("test") {
-        // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
-        if lt(params_len, 4) {
-            throw "ccodegen: test requires 3 arguments"
-        }
-        result = concat(result, "if (!(")
-        mut cond := Expr()
-        expr.params.get(2, cond)
-        result = emit_expr(cond, result, 0, ctx, context)
-        result = concat(result, ")) { printf(\"FAIL: %s\\n\", ")
-        mut msg := Expr()
-        expr.params.get(3, msg)
-        result = emit_expr(msg, result, 0, ctx, context)
-        result = concat(result, "); }\n")
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        return result
-    } else if func_name.eq("assert_eq") {
-        // assert_eq(loc, expected, actual) -> if ((expected) != (actual)) { printf("FAIL: assert_eq\n"); }
-        if lt(params_len, 4) {
-            throw "ccodegen: assert_eq requires 3 arguments"
-        }
-        result = concat(result, "if ((")
-        mut expected := Expr()
-        expr.params.get(2, expected)
-        result = emit_expr(expected, result, 0, ctx, context)
-        result = concat(result, ") != (")
-        mut actual := Expr()
-        expr.params.get(3, actual)
-        result = emit_expr(actual, result, 0, ctx, context)
-        result = concat(result, ")) { printf(\"FAIL: assert_eq\\n\"); }\n")
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        return result
-    } else if func_name.eq("loc") {
+    // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
+    if func_name.eq("loc") {
         if has_str(context) {
             return format(output, TIL_PREFIX, "Str_from_literal(\"\")")
         } else {
