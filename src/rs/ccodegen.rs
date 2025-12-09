@@ -14,8 +14,6 @@ const TIL_PREFIX: &str = "til_";
 
 // Codegen context for tracking function info
 struct CodegenContext {
-    // Map function name -> list of throw types
-    func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
     func_variadic_args: HashMap<String, (String, String, usize)>,
     // Currently generating function's throw types (if any)
@@ -33,7 +31,6 @@ struct CodegenContext {
 impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
-            func_throw_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
@@ -205,14 +202,13 @@ fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
 
 /// Check if an expression is a throwing function call
 /// Returns Some((func_name, throw_types, return_type)) if it is, None otherwise
-fn check_throwing_fcall(expr: &Expr, ctx: &CodegenContext, context: &Context) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
+fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
     if let NodeType::FCall = &expr.node_type {
         if let Some(func_name) = get_fcall_func_name(expr, context) {
-            if let Some(throw_types) = ctx.func_throw_types.get(&func_name) {
-                if !throw_types.is_empty() {
-                    let return_type = lookup_func_by_name(context, &func_name)
-                        .and_then(|fd| fd.return_types.first().cloned());
-                    return Some((func_name, throw_types.clone(), return_type));
+            if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                if !fd.throw_types.is_empty() {
+                    let return_type = fd.return_types.first().cloned();
+                    return Some((func_name, fd.throw_types.clone(), return_type));
                 }
             }
         }
@@ -781,14 +777,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
             if !expr.params.is_empty() {
                 match &expr.params[0].node_type {
                     NodeType::FuncDef(func_def) => {
-                        // Top-level function - track types
-                        if !func_def.throw_types.is_empty() {
-                            ctx.func_throw_types.insert(
-                                decl.name.clone(),
-                                func_def.throw_types.clone()
-                            );
-                        }
-                        // Check for variadic args (TMulti)
+                        // Top-level function - check for variadic args (TMulti)
                         for (idx, arg) in func_def.args.iter().enumerate() {
                             if let ValueType::TMulti(elem_type) = &arg.value_type {
                                 // Track: (arg_name, element_type, count of regular args before variadic)
@@ -808,12 +797,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
-                                if !func_def.throw_types.is_empty() {
-                                    ctx.func_throw_types.insert(
-                                        mangled_name.clone(),
-                                        func_def.throw_types.clone()
-                                    );
-                                }
                                 // Check for variadic args (TMulti) in struct methods
                                 for (idx, arg) in func_def.args.iter().enumerate() {
                                     if let ValueType::TMulti(elem_type) = &arg.value_type {
@@ -1507,7 +1490,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
             // Check if this function is a throwing function
             if let Some(func_name) = func_name {
-                if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
+                if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                     // Collect subsequent catch blocks
                     let mut catch_blocks = Vec::new();
                     let mut j = i + 1;
@@ -1556,7 +1539,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 }
 
 /// Get the function name from an FCall expression (returns ORIGINAL name for lookup)
-/// This returns the name as stored in func_throw_types, WITHOUT til_ prefix.
+/// This returns the name for scope_stack lookup, WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
 fn get_fcall_func_name(expr: &Expr, context: &Context) -> Option<String> {
     if expr.params.is_empty() {
@@ -2257,7 +2240,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
         // Check if RHS is a call to a throwing function
         if let NodeType::FCall = rhs_expr.node_type {
             if let Some(func_name) = get_fcall_func_name(rhs_expr, context) {
-                if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
+                if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                     // RHS is a throwing function call - emit with error propagation
                     // (typer should ensure non-throwing context doesn't call throwing functions without catch)
                     emit_throwing_call_propagate(rhs_expr, &throw_types, None, Some(&til_name(name)), output, indent, ctx, context)?;
@@ -2290,7 +2273,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
             // Check if return expression is a call to a throwing function
             if let NodeType::FCall = return_expr.node_type {
                 if let Some(func_name) = get_fcall_func_name(return_expr, context) {
-                    if let Some(throw_types) = ctx.func_throw_types.get(&func_name).cloned() {
+                    if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
                         emit_throwing_call_propagate(return_expr, &throw_types, None, Some("*_ret"), output, indent, ctx, context)?;

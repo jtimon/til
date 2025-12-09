@@ -22,8 +22,6 @@ VariadicParamInfo := struct {
 CodegenContext := struct {
     // Set of all user-defined struct names - Vec<Str>
     mut user_structs: Vec = Vec.new(Str)
-    // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
-    mut func_throw_types: Map = Map.new(Str, Vec)
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
     mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
     // Currently generating function's throw types (if any)
@@ -168,7 +166,7 @@ HoistedArg := struct {
 
 // Check if an expression is a throwing function call
 // Returns info about the throwing call if it is one
-check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo throws AllocError {
+check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo {
     mut result := ThrowingFCallInfo()
     switch expr.node_type {
     case NodeType.FCall:
@@ -200,14 +198,12 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
             catch (err: IndexOutOfBoundsError) { }
 
             if gt(func_name.len(), 0) {
-                mut throw_types := Vec.new(ValueType)
-                ctx.func_throw_types.get(func_name, throw_types)
-                if gt(throw_types.len(), 0) {
-                    result.is_throwing = true
-                    result.func_name = func_name
-                    result.throw_types = throw_types
-                    mut lookup_result := lookup_func_by_name(context, func_name)
-                    if lookup_result.found {
+                mut lookup_result := lookup_func_by_name(context, func_name)
+                if lookup_result.found {
+                    if gt(lookup_result.func_def.throw_types.len(), 0) {
+                        result.is_throwing = true
+                        result.func_name = func_name
+                        result.throw_types = lookup_result.func_def.throw_types
                         if gt(lookup_result.func_def.return_types.len(), 0) {
                             mut first_ret := ValueType.TCustom("")
                             lookup_result.func_def.return_types.get(0, first_ret)
@@ -217,7 +213,6 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) 
                         }
                     }
                 }
-                catch (err: KeyNotFoundError) { }
             }
         }
     case:
@@ -236,11 +231,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.FuncDef(func_def):
-                // Top-level function - track types
-                if gt(func_def.throw_types.len(), 0) {
-                    ctx.func_throw_types.insert(decl.name, func_def.throw_types)
-                }
-                // Check for variadic args
+                // Top-level function - check for variadic args
                 mut ai := 0
                 while lt(ai, func_def.args.len()) {
                     mut arg := Declaration()
@@ -274,9 +265,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     case NodeType.FuncDef(func_def):
                         mut mangled_name := concat(struct_name, "_")
                         mangled_name = concat(mangled_name, member_name)
-                        if gt(func_def.throw_types.len(), 0) {
-                            ctx.func_throw_types.insert(mangled_name, func_def.throw_types)
-                        }
                         // Check for variadic args
                         mut ai := 0
                         while lt(ai, func_def.args.len()) {
@@ -2339,9 +2327,13 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
                 mut throw_types := Vec.new(ValueType)
                 catch (err: AllocError) { throw err.msg }
                 mut is_throwing := false
-                ctx.func_throw_types.get(func_name, throw_types)
-                is_throwing = gt(throw_types.len(), 0)
-                catch (err: KeyNotFoundError) { is_throwing = false }
+                mut lookup_result := lookup_func_by_name(context, func_name)
+                if lookup_result.found {
+                    if gt(lookup_result.func_def.throw_types.len(), 0) {
+                        throw_types = lookup_result.func_def.throw_types
+                        is_throwing = true
+                    }
+                }
 
                 if is_throwing {
                     // Collect subsequent catch blocks
@@ -3308,17 +3300,17 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             case NodeType.FCall:
                 mut func_name := get_fcall_func_name(return_expr, context)
                 if gt(func_name.len(), 0) {
-                    mut throw_types := Vec.new(ValueType)
-                    ctx.func_throw_types.get(func_name, throw_types)
-                    if gt(throw_types.len(), 0) {
-                        // Return expression is a throwing function call - emit with error propagation
-                        // The result will be stored via the assign_name "*_ret"
-                        result = emit_throwing_call_propagate(return_expr, throw_types, "", "*_ret", result, indent, ctx, context)
-                        result = concat(result, indent_str)
-                        result = concat(result, "return 0;\n")
-                        handled_throw = true
+                    mut lookup_result := lookup_func_by_name(context, func_name)
+                    if lookup_result.found {
+                        if gt(lookup_result.func_def.throw_types.len(), 0) {
+                            // Return expression is a throwing function call - emit with error propagation
+                            // The result will be stored via the assign_name "*_ret"
+                            result = emit_throwing_call_propagate(return_expr, lookup_result.func_def.throw_types, "", "*_ret", result, indent, ctx, context)
+                            result = concat(result, indent_str)
+                            result = concat(result, "return 0;\n")
+                            handled_throw = true
+                        }
                     }
-                    catch (err: KeyNotFoundError) { /* Not a throwing function */ }
                 }
             case:
                 // Not an FCall, handle normally
@@ -3348,7 +3340,6 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         result = concat(result, ";\n")
     }
 
-    catch (err: AllocError) { throw err.msg }
     return result
 }
 
