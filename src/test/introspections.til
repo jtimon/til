@@ -3,7 +3,7 @@ mode test
 import("src.std.introspection")
 import("src.std.list")
 import("src.std.map")
-import("src.std.vec")
+import("src.core.vec")
 
 // Test Introspection.has_const() - checking for associated functions (consts that are functions)
 test_has_const_clone := proc() {

@@ -1,6 +1,6 @@
 mode test
 
-import("src.std.vec")
+import("src.core.vec")
 import("src.std.map")
 
 Vec2 := struct {

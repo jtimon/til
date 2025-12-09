@@ -1,6 +1,6 @@
 mode lib
 
-import("src.std.vec")
+import("src.core.vec")
 
 DuplicatedKeyError := struct {
     mut msg: Str = ""

@@ -2,7 +2,7 @@ mode lib
 
 import("src.core.bounds")
 import("src.core.mem")
-import("src.std.vec")
+import("src.core.vec")
 
 print := proc(args: ..Str) {
     for i in 0..args.len() {
