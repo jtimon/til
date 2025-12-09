@@ -1086,7 +1086,7 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 }
 
 # Convert dot-based import path to OS-specific file path
-# Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
+# Example: "src.std" -> "src/std.til" (Unix) or "src\std.til" (Windows)
 import_path_to_file_path := func(import_path: Str) returns Str throws Str {
     mut file_path := import_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
@@ -1776,7 +1776,7 @@ Context := struct {
     mut imports_typer_done: Set = Set.new(Str)
     mut imports_eval_done: Set = Set.new(Str)
     # REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
-    # REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
+    # REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
     # REM: TODO change the cached type to support import as returning a struct_def
     # REM: TODO change the cached type to support import as returning a struct_def
 

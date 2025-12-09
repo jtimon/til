@@ -40,7 +40,7 @@ panic := proc(loc_str: Str, msgs: ..Str) {
 }
 
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
-// Example: import("src.core.std.std") resolves to src/core/std.til (Unix) or src\core\std.til (Windows)
+// Example: import("src.std.std") resolves to src/std/std.til (Unix) or src\std\std.til (Windows)
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
 // example_cil: my_matrix : struct = import(matrix)

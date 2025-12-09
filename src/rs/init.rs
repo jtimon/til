@@ -717,7 +717,7 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
 }
 
 // Convert dot-based import path to OS-specific file path
-// Example: "src.core.std" -> "src/core/std.til" (Unix) or "src\core\std.til" (Windows)
+// Example: "src.std" -> "src/std.til" (Unix) or "src\std.til" (Windows)
 pub fn import_path_to_file_path(import_path: &str) -> String {
     let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
     format!("{}.til", file_path)
@@ -1034,7 +1034,7 @@ pub struct Context {
     pub imports_typer_done: HashSet<String>,
     pub imports_eval_done: HashSet<String>,
     // REM: A hashmap for in the future return a struct (namespace) so that it can be assigned to a constant/var
-    // REM: This would enable: std := import("src/core/std") and then std.panic(), std.format(), etc.
+    // REM: This would enable: std := import("src/std") and then std.panic(), std.format(), etc.
     // REM: TODO change the cached type to support import as returning a struct_def
 }
 

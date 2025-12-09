@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.std.vec")
+import("src.std.vec")
 
 ExampleEnum := enum {
     A,

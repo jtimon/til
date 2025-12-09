@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.std.vec")
+import("src.std.vec")
 
 test_array_static_u8 := proc() {
     mut stat := Array.new(U8, 3)

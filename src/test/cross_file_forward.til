@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.std.vec")
+import("src.std.vec")
 
 // Cross-file forward declaration test
 // Inspired by Jai's approach to circular dependencies

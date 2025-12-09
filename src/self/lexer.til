@@ -1,7 +1,7 @@
 mode lib
 
-import("src.core.std.vec")
-import("src.core.std.std")
+import("src.std.vec")
+import("src.std.std")
 
 LANG_NAME := "til"
 DEBUG_COMPILER := true

@@ -1,8 +1,8 @@
 mode lib
 
-import("src.core.std.vec")
-import("src.core.std.list")
-import("src.core.std.map")
+import("src.std.vec")
+import("src.std.list")
+import("src.std.map")
 import("src.self.lexer")
 import("src.self.mode")
 

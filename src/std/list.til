@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.std.vec")
+import("src.std.vec")
 
 /**
  * List - Dynamic heterogeneous collection (also known as Tuple).

@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.std.std")
+import("src.std.std")
 
 // test := assertm // TODO implement function aliases
 test := proc(loc_str: Str, cond: Bool, msg: Str) {

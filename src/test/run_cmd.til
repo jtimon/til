@@ -1,6 +1,6 @@
 mode safe_script
 
-import("src.core.std.std")  // for assertm
+import("src.std.std")  // for assertm
 
 // Ensure tmp/ exists for tests that need temp files
 _ := run_cmd("mkdir", "-p", "tmp")

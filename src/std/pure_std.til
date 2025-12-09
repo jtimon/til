@@ -1,6 +1,6 @@
 mode pure
 
-// import("src/core/std") // TODO uncomment to test circular dependencies (clearer error message)
+// import("src/std") // TODO uncomment to test circular dependencies (clearer error message)
 
 enum_to_str := ext_func(e: Dynamic) returns Str; // TODO Find a better way than using Dynamic here?
 

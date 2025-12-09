@@ -1,7 +1,7 @@
 mode test
 
-import("src.core.std.vec")
-import("src.core.std.map")
+import("src.std.vec")
+import("src.std.map")
 
 Vec2 := struct {
     mut x : I64 = 0
