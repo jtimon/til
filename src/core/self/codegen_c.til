@@ -24,8 +24,6 @@ CodegenContext := struct {
     mut user_structs: Vec = Vec.new(Str)
     // Map function name -> list of throw types (Map<Str, Vec<ValueType>>)
     mut func_throw_types: Map = Map.new(Str, Vec)
-    // Map function name -> list of return types (Map<Str, Vec<ValueType>>)
-    mut func_return_types: Map = Map.new(Str, Vec)
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
     mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
     // Currently generating function's throw types (if any)
@@ -84,7 +82,7 @@ ReceiverTypeResult := struct {
 }
 
 // Look up receiver type from scope_stack
-lookup_receiver_type := func(ctx: CodegenContext, context: Context, name: Str) returns ReceiverTypeResult {
+lookup_receiver_type := func(context: Context, name: Str) returns ReceiverTypeResult {
     mut result := ReceiverTypeResult()
     mut symbol := context.scope_stack.lookup_symbol(name)
     result.found = true
@@ -102,6 +100,41 @@ til_type_to_c := func(til_type: ValueType) returns Str {
     case:
         return "int"  // Default
     }
+}
+
+// Result type for lookup_func_by_name
+FuncLookupResult := struct {
+    mut found: Bool = false
+    mut func_def: SFuncDef = SFuncDef()
+}
+
+// Lookup function in scope_stack, trying both underscore and dot notation
+// get_fcall_func_name returns underscore format (Str_clone) but scope_stack uses dots (Str.clone)
+lookup_func_by_name := func(context: Context, func_name: Str) returns FuncLookupResult {
+    mut result := FuncLookupResult()
+    // Try exact name first (for regular functions)
+    mut fd := context.scope_stack.lookup_func(func_name)
+    result.found = true
+    result.func_def = fd
+
+    catch (err: KeyNotFoundError) {
+        // First lookup failed, try converting first underscore to dot (for struct methods)
+        mut idx := func_name.find("_")
+        if idx.gteq(0) {
+            mut dot_name := func_name.get_substr(0, idx)
+            dot_name = concat(dot_name, ".")
+            dot_name = concat(dot_name, func_name.get_substr(add(idx, 1), func_name.len()))
+            mut fd2 := context.scope_stack.lookup_func(dot_name)
+            result.found = true
+            result.func_def = fd2
+
+            catch (err2: KeyNotFoundError) { }
+            catch (err2: IndexOutOfBoundsError) { }
+            catch (err2: AllocError) { }
+        }
+    }
+
+    return result
 }
 
 // Helper to get C type name for a ValueType (same as til_type_to_c but for error struct definitions)
@@ -135,7 +168,7 @@ HoistedArg := struct {
 
 // Check if an expression is a throwing function call
 // Returns info about the throwing call if it is one
-check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext) returns ThrowingFCallInfo throws AllocError {
+check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns ThrowingFCallInfo throws AllocError {
     mut result := ThrowingFCallInfo()
     switch expr.node_type {
     case NodeType.FCall:
@@ -173,16 +206,16 @@ check_throwing_fcall := proc(expr: Expr, ctx: CodegenContext) returns ThrowingFC
                     result.is_throwing = true
                     result.func_name = func_name
                     result.throw_types = throw_types
-                    mut return_types := Vec.new(ValueType)
-                    ctx.func_return_types.get(func_name, return_types)
-                    if gt(return_types.len(), 0) {
-                        mut first_ret := ValueType.TCustom("")
-                        return_types.get(0, first_ret)
-                        result.return_type = first_ret
-                        result.has_return_type = true
-                        catch (err: IndexOutOfBoundsError) { }
+                    mut lookup_result := lookup_func_by_name(context, func_name)
+                    if lookup_result.found {
+                        if gt(lookup_result.func_def.return_types.len(), 0) {
+                            mut first_ret := ValueType.TCustom("")
+                            lookup_result.func_def.return_types.get(0, first_ret)
+                            result.return_type = first_ret
+                            result.has_return_type = true
+                            catch (err: IndexOutOfBoundsError) { }
+                        }
                     }
-                    catch (err: KeyNotFoundError) { }
                 }
                 catch (err: KeyNotFoundError) { }
             }
@@ -206,9 +239,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                 // Top-level function - track types
                 if gt(func_def.throw_types.len(), 0) {
                     ctx.func_throw_types.insert(decl.name, func_def.throw_types)
-                }
-                if gt(func_def.return_types.len(), 0) {
-                    ctx.func_return_types.insert(decl.name, func_def.return_types)
                 }
                 // Check for variadic args
                 mut ai := 0
@@ -246,9 +276,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                         mangled_name = concat(mangled_name, member_name)
                         if gt(func_def.throw_types.len(), 0) {
                             ctx.func_throw_types.insert(mangled_name, func_def.throw_types)
-                        }
-                        if gt(func_def.return_types.len(), 0) {
-                            ctx.func_return_types.insert(mangled_name, func_def.return_types)
                         }
                         // Check for variadic args
                         mut ai := 0
@@ -390,7 +417,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 }
 
 // Get the function name from an FCall expression
-get_fcall_func_name := func(expr: Expr, ctx: CodegenContext, context: Context) returns Str {
+get_fcall_func_name := func(expr: Expr, context: Context) returns Str {
     if eq(expr.params.len(), 0) {
         return ""
     }
@@ -411,7 +438,7 @@ get_fcall_func_name := func(expr: Expr, ctx: CodegenContext, context: Context) r
             switch nested.node_type {
             case NodeType.Identifier(method_name):
                 // Look up receiver type from scope_stack
-                mut receiver_result := lookup_receiver_type(ctx, context, name)
+                mut receiver_result := lookup_receiver_type(context, name)
                 if receiver_result.found {
                     switch receiver_result.value_type {
                     case ValueType.TCustom(type_name):
@@ -2305,7 +2332,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
         if has_fcall {
             // Get function name from the FCall
-            mut func_name := get_fcall_func_name(maybe_fcall, ctx, context)
+            mut func_name := get_fcall_func_name(maybe_fcall, context)
 
             // Check if this function is a throwing function
             if gt(func_name.len(), 0) {
@@ -2424,7 +2451,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, ctx, context)
+    mut func_name := get_fcall_func_name(fcall, context)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call: could not get function name"
     }
@@ -2438,19 +2465,17 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if gt(assign_name.len(), 0) { needs_ret = true }
 
     // Declare local variables for return value and errors
-    // Look up the actual return type from collected function info
+    // Look up the actual return type from scope_stack
     mut ret_type := "int"
     if needs_ret {
-        mut return_types := Vec.new(ValueType)
-        ctx.func_return_types.get(func_name, return_types)
-        if gt(return_types.len(), 0) {
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
             mut first_ret := ValueType.TCustom("")
-            return_types.get(0, first_ret)
+            fd.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
         }
         catch (err: KeyNotFoundError) { /* use default int */ }
         catch (err: IndexOutOfBoundsError) { /* use default int */ }
-        catch (err: AllocError) { throw err.msg }
         result = concat(result, indent_str)
         result = concat(result, ret_type)
         result = concat(result, " _ret_")
@@ -2466,16 +2491,14 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         result = concat(result, decl_name)
         result = concat(result, ";\n")
         // Add to scope_stack for UFCS type resolution
-        mut return_types_for_scope := Vec.new(ValueType)
-        ctx.func_return_types.get(func_name, return_types_for_scope)
-        if gt(return_types_for_scope.len(), 0) {
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
             mut first_type := ValueType.TCustom("")
-            return_types_for_scope.get(0, first_type)
+            fd.return_types.get(0, first_type)
             context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
-        catch (err: AllocError) { }
     }
 
     // Declare error structs for each throw type
@@ -2644,7 +2667,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, ctx, context)
+    mut func_name := get_fcall_func_name(fcall, context)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call_propagate: could not get function name"
     }
@@ -2657,19 +2680,17 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if gt(decl_name.len(), 0) { needs_ret = true }
     if gt(assign_name.len(), 0) { needs_ret = true }
 
-    // Look up the actual return type from collected function info
+    // Look up the actual return type from scope_stack
     mut ret_type := "int"
     if needs_ret {
-        mut return_types := Vec.new(ValueType)
-        ctx.func_return_types.get(func_name, return_types)
-        if gt(return_types.len(), 0) {
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
             mut first_ret := ValueType.TCustom("")
-            return_types.get(0, first_ret)
+            fd.return_types.get(0, first_ret)
             ret_type = til_type_to_c(first_ret)
         }
         catch (err: KeyNotFoundError) { /* use default int */ }
         catch (err: IndexOutOfBoundsError) { /* use default int */ }
-        catch (err: AllocError) { throw err.msg }
     }
 
     // Declare temp for return value if needed
@@ -2689,16 +2710,14 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         result = concat(result, decl_name)
         result = concat(result, ";\n")
         // Add to scope_stack for UFCS type resolution
-        mut return_types_for_scope := Vec.new(ValueType)
-        ctx.func_return_types.get(func_name, return_types_for_scope)
-        if gt(return_types_for_scope.len(), 0) {
+        mut fd := context.scope_stack.lookup_func(func_name)
+        if gt(fd.return_types.len(), 0) {
             mut first_type := ValueType.TCustom("")
-            return_types_for_scope.get(0, first_type)
+            fd.return_types.get(0, first_type)
             context.scope_stack.declare_symbol(decl_name, SymbolInfo.new(first_type, true, false, false))
         }
         catch (err: KeyNotFoundError) { }
         catch (err: IndexOutOfBoundsError) { }
-        catch (err: AllocError) { }
     }
 
     // Declare error structs for each throw type of the called function
@@ -3001,7 +3020,7 @@ get_enum_construction_type := func(expr: Expr) returns Str {
 
 // Infer type from an expression (literal, function call, or identifier)
 // Returns the inferred ValueType, or ValueType.TCustom("") if unknown
-infer_type_from_expr := func(expr: Expr, ctx: CodegenContext, context: Context) returns ValueType {
+infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
     switch expr.node_type {
     case NodeType.LLiteral(lit):
         switch lit {
@@ -3013,18 +3032,17 @@ infer_type_from_expr := func(expr: Expr, ctx: CodegenContext, context: Context) 
             return ValueType.TCustom("")  // Can't infer list element type
         }
     case NodeType.FCall:
-        // Look up function return type
-        mut func_name := get_fcall_func_name(expr, ctx, context)
+        // Look up function return type from scope_stack
+        mut func_name := get_fcall_func_name(expr, context)
         if gt(func_name.len(), 0) {
-            mut ret_types := Vec()
-            ctx.func_return_types.get(func_name, ret_types)
-            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
-            if gt(ret_types.len(), 0) {
+            mut fd := context.scope_stack.lookup_func(func_name)
+            if gt(fd.return_types.len(), 0) {
                 mut first_ret := ValueType.TCustom("")
-                ret_types.get(0, first_ret)
+                fd.return_types.get(0, first_ret)
                 catch (err: IndexOutOfBoundsError) { return ValueType.TCustom("") }
                 return first_ret
             }
+            catch (err: KeyNotFoundError) { return ValueType.TCustom("") }
         }
         return ValueType.TCustom("")
     case NodeType.Identifier(name):
@@ -3127,7 +3145,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 var_type = inferred_type
                 catch (err: Str) {
                     // get_value_type failed, try literal inference
-                    var_type = infer_type_from_expr(first, ctx, context)
+                    var_type = infer_type_from_expr(first, context)
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
@@ -3162,7 +3180,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, ctx, context)
+            inferred := infer_type_from_expr(first, context)
             switch inferred {
             case ValueType.TCustom(inf_type):
                 if Str.eq(inf_type, "Str") {
@@ -3192,7 +3210,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            inferred := infer_type_from_expr(first, ctx, context)
+            inferred := infer_type_from_expr(first, context)
             switch inferred {
             case ValueType.TCustom(inf_type):
                 if Str.eq(inf_type, "Str") {
@@ -3288,7 +3306,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             mut handled_throw := false
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut func_name := get_fcall_func_name(return_expr, ctx, context)
+                mut func_name := get_fcall_func_name(return_expr, context)
                 if gt(func_name.len(), 0) {
                     mut throw_types := Vec.new(ValueType)
                     ctx.func_throw_types.get(func_name, throw_types)
@@ -3494,7 +3512,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         mut arg := Expr()
         args.get(idx, arg)
 
-        mut info := check_throwing_fcall(arg, ctx)
+        mut info := check_throwing_fcall(arg, ctx, context)
         if info.is_throwing {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             mut nested_hoisted := Vec.new(HoistedArg)

@@ -16,8 +16,6 @@ const TIL_PREFIX: &str = "til_";
 struct CodegenContext {
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
-    // Map function name -> list of return types
-    func_return_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> variadic arg info (arg_name, element_type, regular_arg_count)
     func_variadic_args: HashMap<String, (String, String, usize)>,
     // Currently generating function's throw types (if any)
@@ -36,7 +34,6 @@ impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
             func_throw_types: HashMap::new(),
-            func_return_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
@@ -62,6 +59,23 @@ fn til_name(name: &str) -> String {
         _ if name.starts_with('*') || name.starts_with('_') => name.to_string(),
         _ => format!("{}{}", TIL_PREFIX, name),
     }
+}
+
+// Lookup function in scope_stack, trying both underscore and dot notation
+// get_fcall_func_name returns underscore format (Str_clone) but scope_stack uses dots (Str.clone)
+fn lookup_func_by_name<'a>(context: &'a Context, func_name: &str) -> Option<&'a SFuncDef> {
+    // Try exact name first (for regular functions)
+    if let Some(fd) = context.scope_stack.lookup_func(func_name) {
+        return Some(fd);
+    }
+    // Try converting first underscore to dot (for struct methods)
+    if let Some(idx) = func_name.find('_') {
+        let dot_name = format!("{}.{}", &func_name[..idx], &func_name[idx+1..]);
+        if let Some(fd) = context.scope_stack.lookup_func(&dot_name) {
+            return Some(fd);
+        }
+    }
+    None
 }
 
 /// Extract struct field type dependencies for topological sorting
@@ -196,8 +210,8 @@ fn check_throwing_fcall(expr: &Expr, ctx: &CodegenContext, context: &Context) ->
         if let Some(func_name) = get_fcall_func_name(expr, context) {
             if let Some(throw_types) = ctx.func_throw_types.get(&func_name) {
                 if !throw_types.is_empty() {
-                    let return_type = ctx.func_return_types.get(&func_name)
-                        .and_then(|types| types.first().cloned());
+                    let return_type = lookup_func_by_name(context, &func_name)
+                        .and_then(|fd| fd.return_types.first().cloned());
                     return Some((func_name, throw_types.clone(), return_type));
                 }
             }
@@ -774,12 +788,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                 func_def.throw_types.clone()
                             );
                         }
-                        if !func_def.return_types.is_empty() {
-                            ctx.func_return_types.insert(
-                                decl.name.clone(),
-                                func_def.return_types.clone()
-                            );
-                        }
                         // Check for variadic args (TMulti)
                         for (idx, arg) in func_def.args.iter().enumerate() {
                             if let ValueType::TMulti(elem_type) = &arg.value_type {
@@ -804,12 +812,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                                     ctx.func_throw_types.insert(
                                         mangled_name.clone(),
                                         func_def.throw_types.clone()
-                                    );
-                                }
-                                if !func_def.return_types.is_empty() {
-                                    ctx.func_return_types.insert(
-                                        mangled_name.clone(),
-                                        func_def.return_types.clone()
                                     );
                                 }
                                 // Check for variadic args (TMulti) in struct methods
@@ -1650,10 +1652,10 @@ fn emit_throwing_call(
     let needs_ret = decl_name.is_some() || assign_name.is_some();
 
     // Declare local variables for return value and errors
-    // Look up the actual return type from collected function info
+    // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
-        ctx.func_return_types.get(&func_name)
-            .and_then(|types| types.first())
+        lookup_func_by_name(context, &func_name)
+            .and_then(|fd| fd.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
@@ -1677,8 +1679,8 @@ fn emit_throwing_call(
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
         // Add to scope_stack for UFCS type resolution
-        if let Some(return_types) = ctx.func_return_types.get(&func_name) {
-            if let Some(first_type) = return_types.first() {
+        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(first_type) = fd.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
@@ -1857,10 +1859,10 @@ fn emit_throwing_call_propagate(
     // Determine if we need a return value temp variable
     let needs_ret = decl_name.is_some() || assign_name.is_some();
 
-    // Look up the actual return type from collected function info
+    // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
-        ctx.func_return_types.get(&func_name)
-            .and_then(|types| types.first())
+        lookup_func_by_name(context, &func_name)
+            .and_then(|fd| fd.return_types.first())
             .map(|t| til_type_to_c(t).unwrap_or("int".to_string()))
             .unwrap_or("int".to_string())
     } else {
@@ -1885,8 +1887,8 @@ fn emit_throwing_call_propagate(
         output.push_str(";\n");
         ctx.declared_vars.insert(til_name(var_name));
         // Add to scope_stack for UFCS type resolution
-        if let Some(return_types) = ctx.func_return_types.get(&func_name) {
-            if let Some(first_type) = return_types.first() {
+        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+            if let Some(first_type) = fd.return_types.first() {
                 context.scope_stack.declare_symbol(
                     var_name.to_string(),
                     SymbolInfo { value_type: first_type.clone(), is_mut: true, is_copy: false, is_own: false }
@@ -2052,7 +2054,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             // Try get_value_type first (handles function calls like Vec.new)
             // then fall back to literal inference
             get_value_type(context, &expr.params[0]).ok()
-                .or_else(|| infer_type_from_expr(&expr.params[0], ctx, context))
+                .or_else(|| infer_type_from_expr(&expr.params[0], context))
                 .unwrap_or_else(|| decl.value_type.clone())
         } else {
             decl.value_type.clone()
@@ -2102,7 +2104,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         if !already_declared {
             // Determine C type from inferred type or fall back to int
             let c_type = if !expr.params.is_empty() {
-                if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx, context) {
+                if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
                     til_type_to_c(&inferred).unwrap_or("int".to_string())
                 } else {
                     til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
@@ -2125,7 +2127,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
         output.push_str(&indent_str);
         // Determine C type from inferred type or fall back to int
         let c_type = if !expr.params.is_empty() {
-            if let Some(inferred) = infer_type_from_expr(&expr.params[0], ctx, context) {
+            if let Some(inferred) = infer_type_from_expr(&expr.params[0], context) {
                 til_type_to_c(&inferred).unwrap_or("int".to_string())
             } else {
                 til_type_to_c(&decl.value_type).unwrap_or("int".to_string())
@@ -2206,7 +2208,7 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
 
 // Infer type from a literal expression
 // Returns Some(ValueType) if type can be inferred, None otherwise
-fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext, context: &Context) -> Option<ValueType> {
+fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
     match &expr.node_type {
         NodeType::LLiteral(lit) => {
             match lit {
@@ -2216,10 +2218,10 @@ fn infer_type_from_expr(expr: &Expr, ctx: &CodegenContext, context: &Context) ->
             }
         },
         NodeType::FCall => {
-            // Look up function return type
+            // Look up function return type from scope_stack
             if let Some(func_name) = get_fcall_func_name(expr, context) {
-                if let Some(return_types) = ctx.func_return_types.get(&func_name) {
-                    return return_types.first().cloned();
+                if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    return fd.return_types.first().cloned();
                 }
             }
             None
