@@ -71,7 +71,7 @@ runfile("src/self/interpreter.til")
 
 runfile("src/tests_self_hosted.til")
 
-// runfile("src/test_builder.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
+// runfile("src/test/builders.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
 
 runfile("src/test/todo.til") // permanent TODO
 
