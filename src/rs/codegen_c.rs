@@ -16,8 +16,6 @@ const TIL_PREFIX: &str = "til_";
 struct CodegenContext {
     // Set of all known function names (for UFCS mangling)
     known_functions: HashSet<String>,
-    // Set of external function names (declared with ext_func, call C directly)
-    ext_funcs: HashSet<String>,
     // Map function name -> list of throw types
     func_throw_types: HashMap<String, Vec<ValueType>>,
     // Map function name -> list of return types
@@ -40,7 +38,6 @@ impl CodegenContext {
     fn new() -> Self {
         CodegenContext {
             known_functions: HashSet::new(),
-            ext_funcs: HashSet::new(),
             func_throw_types: HashMap::new(),
             func_return_types: HashMap::new(),
             func_variadic_args: HashMap::new(),
@@ -775,10 +772,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                     NodeType::FuncDef(func_def) => {
                         // Top-level function - track name and types
                         ctx.known_functions.insert(decl.name.clone());
-                        // Track external functions separately (they use plain C names)
-                        if func_def.is_ext() {
-                            ctx.ext_funcs.insert(decl.name.clone());
-                        }
                         if !func_def.throw_types.is_empty() {
                             ctx.func_throw_types.insert(
                                 decl.name.clone(),
