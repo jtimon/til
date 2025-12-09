@@ -48,12 +48,12 @@ static inline til_U8 til_i64_to_u8(til_I64 v)
 // Arithmetic functions
 static inline til_Bool til_lt(til_I64 a, til_I64 b)
 {
-    return a < b;
+    return (til_Bool){a < b};
 }
 
 static inline til_Bool til_gt(til_I64 a, til_I64 b)
 {
-    return a > b;
+    return (til_Bool){a > b};
 }
 
 static inline til_I64 til_add(til_I64 a, til_I64 b)

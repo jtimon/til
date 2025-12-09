@@ -558,9 +558,9 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str("#include <string.h>\n\n");
     output.push_str(&format!("typedef unsigned char {}U8;\n", TIL_PREFIX));
     output.push_str(&format!("typedef long long {}I64;\n", TIL_PREFIX));
-    output.push_str(&format!("typedef {}U8 {}Bool;\n", TIL_PREFIX, TIL_PREFIX));
-    output.push_str("#define true 1\n");
-    output.push_str("#define false 0\n\n");
+    output.push_str(&format!("typedef struct {}Bool {{ {}U8 data; }} {}Bool;\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
+    output.push_str(&format!("#define true (({}Bool){{1}})\n", TIL_PREFIX));
+    output.push_str(&format!("#define false (({}Bool){{0}})\n\n", TIL_PREFIX));
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -570,7 +570,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     }
 
     // Pass 0b: emit forward declarations for all structs (to handle circular/forward references)
-    // Skip I64, U8, Bool - these are primitive typedefs, not structs
+    // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
@@ -817,7 +817,7 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
 fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
         if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
             return Ok(());
         }
@@ -850,7 +850,7 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
         if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
             return Ok(());
         }
@@ -2484,6 +2484,12 @@ fn emit_if(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenCon
     output.push_str(&indent_str);
     output.push_str("if (");
     emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    // Bool is a struct with .data field - extract for C truthiness
+    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if type_name == "Bool" {
+            output.push_str(".data");
+        }
+    }
     output.push_str(") {\n");
 
     // Then body - save/restore declared_vars for proper C scope handling
@@ -2525,6 +2531,12 @@ fn emit_while(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     output.push_str(&indent_str);
     output.push_str("while (");
     emit_expr(&expr.params[0], output, 0, ctx, context)?;
+    // Bool is a struct with .data field - extract for C truthiness
+    if let Ok(crate::rs::parser::ValueType::TCustom(type_name)) = crate::rs::init::get_value_type(context, &expr.params[0]) {
+        if type_name == "Bool" {
+            output.push_str(".data");
+        }
+    }
     output.push_str(") {\n");
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
