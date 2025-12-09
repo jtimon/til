@@ -24,6 +24,8 @@ struct CodegenContext {
     current_variadic_param: Option<(String, String)>, // (name, element_type)
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
+    // Set of mut param names in current function - for using -> instead of . for field access
+    current_mut_params: HashSet<String>,
 }
 
 impl CodegenContext {
@@ -34,6 +36,7 @@ impl CodegenContext {
             current_return_types: Vec::new(),
             current_variadic_param: None,
             declared_vars: HashSet::new(),
+            current_mut_params: HashSet::new(),
         }
     }
 
@@ -552,8 +555,45 @@ fn emit_fcall_name_and_args_for_throwing(
     if is_instance_call {
         if let Some(receiver) = ufcs_receiver {
             output.push_str(", ");
-            // Emit full receiver chain (e.g., til_self._len for self._len.eq(...))
-            emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
+            // Check if called function's self param is mut and if receiver is a mut param
+            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+                let receiver_type = context.scope_stack.lookup_symbol(receiver_name)
+                    .map(|s| s.value_type.clone());
+                if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                    let mangled = format!("{}.{}", type_name, func_name);
+                    let called_self_is_mut = lookup_func_by_name(context, &mangled)
+                        .and_then(|fd| fd.args.first())
+                        .map(|a| a.is_mut)
+                        .unwrap_or(false);
+                    let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+
+                    if called_self_is_mut && !receiver_is_mut_param {
+                        // Called function takes mut self, receiver is not a pointer - add &
+                        output.push_str("&");
+                    } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                        // Called function takes non-mut self, but receiver is a pointer - dereference
+                        output.push_str("(*");
+                    }
+                }
+            }
+            // Emit full receiver chain (e.g., til_self->_len for self._len.eq(...))
+            emit_ufcs_receiver_chain(receiver, ufcs_depth, output, ctx)?;
+            // Close dereference if needed
+            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
+                let receiver_type = context.scope_stack.lookup_symbol(receiver_name)
+                    .map(|s| s.value_type.clone());
+                if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                    let mangled = format!("{}.{}", type_name, func_name);
+                    let called_self_is_mut = lookup_func_by_name(context, &mangled)
+                        .and_then(|fd| fd.args.first())
+                        .map(|a| a.is_mut)
+                        .unwrap_or(false);
+                    let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+                    if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                        output.push_str(")");
+                    }
+                }
+            }
         }
     }
 
@@ -667,23 +707,26 @@ fn emit_arg_or_hoisted(
     ctx: &mut CodegenContext,
     context: &mut Context,
 ) -> Result<(), String> {
-    emit_arg_with_param_type(arg, arg_idx, hoisted, None, output, ctx, context)
+    emit_arg_with_param_type(arg, arg_idx, hoisted, None, false, output, ctx, context)
 }
 
-/// Emit an argument with knowledge of expected parameter type
-/// Handles: Type args as string literals, Dynamic args with &
+/// Emit an argument with knowledge of expected parameter type and mutability
+/// Handles: Type args as string literals, Dynamic args with &, mut args with &
 fn emit_arg_with_param_type(
     arg: &Expr,
     arg_idx: usize,
     hoisted: &std::collections::HashMap<usize, String>,
     param_type: Option<&ValueType>,
+    param_is_mut: bool,
     output: &mut String,
     ctx: &mut CodegenContext,
     context: &mut Context,
 ) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&arg_idx) {
-        // Hoisted temp var is an lvalue - add & if param is Dynamic
-        if let Some(ValueType::TCustom(param_type_name)) = param_type {
+        // Hoisted temp var is an lvalue - add & if param is Dynamic or mut
+        if param_is_mut {
+            output.push_str("&");
+        } else if let Some(ValueType::TCustom(param_type_name)) = param_type {
             if param_type_name == "Dynamic" {
                 output.push_str("&");
             }
@@ -697,6 +740,21 @@ fn emit_arg_with_param_type(
         output.push_str("\"");
         output.push_str(&type_name);
         output.push_str("\"");
+        return Ok(());
+    }
+
+    // Check if param is mut - emit &arg for pointer
+    if param_is_mut {
+        if let NodeType::Identifier(name) = &arg.node_type {
+            if arg.params.is_empty() {
+                // Simple variable - emit &var
+                output.push_str("&");
+                output.push_str(&til_name(name));
+                return Ok(());
+            }
+        }
+        // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
+        emit_expr(arg, output, 0, ctx, context)?;
         return Ok(());
     }
 
@@ -1398,6 +1456,13 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     // Set current function context
     ctx.current_throw_types = func_def.throw_types.clone();
     ctx.current_return_types = func_def.return_types.clone();
+    // Track mut params for pointer dereference (-> vs .)
+    ctx.current_mut_params.clear();
+    for arg in &func_def.args {
+        if arg.is_mut {
+            ctx.current_mut_params.insert(arg.name.clone());
+        }
+    }
 
     // Push a new scope frame for this function (like interpreter does)
     let mut function_frame = ScopeFrame {
@@ -1565,11 +1630,17 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             break; // Variadic must be last
         } else {
             let arg_type = til_type_to_c(&arg.value_type).unwrap_or("int".to_string());
-            if !arg.is_mut {
+
+            if arg.is_mut {
+                // mut: use pointer so mutations are visible to caller
+                output.push_str(&arg_type);
+                output.push_str("* ");
+            } else {
+                // const or copy: pass by value
                 output.push_str("const ");
+                output.push_str(&arg_type);
+                output.push_str(" ");
             }
-            output.push_str(&arg_type);
-            output.push_str(" ");
             output.push_str(TIL_PREFIX);
             output.push_str(&arg.name);
             param_count += 1;
@@ -1628,6 +1699,13 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types.clone();
                 ctx.current_return_types = func_def.return_types.clone();
+                // Track mut params for pointer dereference (-> vs .)
+                ctx.current_mut_params.clear();
+                for arg in &func_def.args {
+                    if arg.is_mut {
+                        ctx.current_mut_params.insert(arg.name.clone());
+                    }
+                }
 
                 // Push a new scope frame for this function (like interpreter does)
                 let mut function_frame = ScopeFrame {
@@ -1722,11 +1800,30 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
                 }
             }
             // Regular identifier or field access (b.val -> til_b.val)
-            output.push_str(&til_name(name));
-            for param in &expr.params {
-                if let NodeType::Identifier(field) = &param.node_type {
-                    output.push_str(".");
-                    output.push_str(field);  // Field names stay as-is (C struct fields)
+            // For mut params (which are pointers in C), use -> for field access
+            let is_mut_param = ctx.current_mut_params.contains(name);
+            if is_mut_param && !expr.params.is_empty() {
+                // Mut param with field access: (*til_self).field or til_self->field
+                output.push_str(&til_name(name));
+                for param in &expr.params {
+                    if let NodeType::Identifier(field) = &param.node_type {
+                        output.push_str("->");
+                        output.push_str(field);
+                    }
+                }
+            } else if is_mut_param {
+                // Mut param used as value: dereference with *
+                output.push_str("(*");
+                output.push_str(&til_name(name));
+                output.push_str(")");
+            } else {
+                // Regular identifier or field access
+                output.push_str(&til_name(name));
+                for param in &expr.params {
+                    if let NodeType::Identifier(field) = &param.node_type {
+                        output.push_str(".");
+                        output.push_str(field);  // Field names stay as-is (C struct fields)
+                    }
                 }
             }
             Ok(())
@@ -1961,6 +2058,13 @@ fn emit_throwing_call(
             .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
             .collect()
     };
+    // Calculate param_is_mut for pointer passing
+    let param_is_mut: Vec<bool> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.is_mut).unwrap_or(false))
+            .collect()
+    };
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
@@ -2066,7 +2170,25 @@ fn emit_throwing_call(
             if needs_ret || !throw_types.is_empty() {
                 output.push_str(", ");
             }
-            output.push_str(&til_name(receiver_name));
+            // Check if called function's self param is mut and if receiver is a mut param
+            let called_self_is_mut = lookup_func_by_name(context, &func_name)
+                .and_then(|fd| fd.args.first())
+                .map(|a| a.is_mut)
+                .unwrap_or(false);
+            let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+
+            if called_self_is_mut && !receiver_is_mut_param {
+                // Called function takes mut self, receiver is not a pointer - add &
+                output.push_str("&");
+                output.push_str(&til_name(receiver_name));
+            } else if !called_self_is_mut && receiver_is_mut_param {
+                // Called function takes non-mut self, but receiver is a pointer - dereference
+                output.push_str("(*");
+                output.push_str(&til_name(receiver_name));
+                output.push_str(")");
+            } else {
+                output.push_str(&til_name(receiver_name));
+            }
             args_started = true;
         }
     }
@@ -2075,9 +2197,10 @@ fn emit_throwing_call(
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        // Get parameter type for this argument
+        // Get parameter type and mutability for this argument
         let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, output, ctx, context)?;
+        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
         args_started = true;
     }
 
@@ -2213,6 +2336,13 @@ fn emit_throwing_call_propagate(
             .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
             .collect()
     };
+    // Calculate param_is_mut for pointer passing
+    let param_is_mut: Vec<bool> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.is_mut).unwrap_or(false))
+            .collect()
+    };
 
     // Hoist any throwing function calls in arguments BEFORE emitting this call
     let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
@@ -2316,7 +2446,25 @@ fn emit_throwing_call_propagate(
             if needs_ret || !throw_types.is_empty() {
                 output.push_str(", ");
             }
-            output.push_str(&til_name(receiver_name));
+            // Check if called function's self param is mut and if receiver is a mut param
+            let called_self_is_mut = lookup_func_by_name(context, &func_name)
+                .and_then(|fd| fd.args.first())
+                .map(|a| a.is_mut)
+                .unwrap_or(false);
+            let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+
+            if called_self_is_mut && !receiver_is_mut_param {
+                // Called function takes mut self, receiver is not a pointer - add &
+                output.push_str("&");
+                output.push_str(&til_name(receiver_name));
+            } else if !called_self_is_mut && receiver_is_mut_param {
+                // Called function takes non-mut self, but receiver is a pointer - dereference
+                output.push_str("(*");
+                output.push_str(&til_name(receiver_name));
+                output.push_str(")");
+            } else {
+                output.push_str(&til_name(receiver_name));
+            }
             args_started = true;
         }
     }
@@ -2325,9 +2473,10 @@ fn emit_throwing_call_propagate(
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        // Get parameter type for this argument
+        // Get parameter type and mutability for this argument
         let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, output, ctx, context)?;
+        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
         args_started = true;
     }
 
@@ -2638,7 +2787,26 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 
     // Regular assignment
     output.push_str(&indent_str);
-    output.push_str(&til_name(name));
+    // Check if assignment target is a field access on a mut param (self.field)
+    // If so, emit with -> instead of .
+    if let Some(dot_pos) = name.find('.') {
+        let base = &name[..dot_pos];
+        let rest = &name[dot_pos + 1..];
+        if ctx.current_mut_params.contains(base) {
+            // Mut param field access: til_self->field
+            output.push_str(&til_name(base));
+            output.push_str("->");
+            output.push_str(rest);
+        } else {
+            output.push_str(&til_name(name));
+        }
+    } else if ctx.current_mut_params.contains(name) {
+        // Direct assignment to mut param: *til_self = value
+        output.push_str("*");
+        output.push_str(&til_name(name));
+    } else {
+        output.push_str(&til_name(name));
+    }
     output.push_str(" = ");
     if !expr.params.is_empty() {
         emit_expr(&expr.params[0], output, 0, ctx, context)?;
@@ -2868,7 +3036,25 @@ fn emit_fcall_with_hoisted(
                     let is_type_qualified = ufcs_depth == 1 && receiver_name == &type_name;
                     let mut first_arg = true;
                     if !is_type_qualified {
-                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
+                        // Check if called function's self param is mut and if receiver is a mut param
+                        let called_self_is_mut = lookup_func_by_name(context, &mangled_name)
+                            .and_then(|fd| fd.args.first())
+                            .map(|a| a.is_mut)
+                            .unwrap_or(false);
+                        let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+
+                        if called_self_is_mut && !receiver_is_mut_param {
+                            // Called function takes mut self, receiver is not a pointer - add &
+                            output.push_str("&");
+                        } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                            // Called function takes non-mut self, but receiver is a pointer - dereference
+                            output.push_str("(*");
+                        }
+                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output, ctx)?;
+                        // Close dereference if needed
+                        if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                            output.push_str(")");
+                        }
                         first_arg = false;
                     }
                     // Look up param types for Type/Dynamic handling
@@ -2880,13 +3066,20 @@ fn emit_fcall_with_hoisted(
                             .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
                             .collect()
                     };
+                    let param_is_mut: Vec<bool> = {
+                        let func_def = lookup_func_by_name(context, &mangled_name);
+                        expr.params.iter().skip(1).enumerate()
+                            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.is_mut).unwrap_or(false))
+                            .collect()
+                    };
                     for (i, arg) in expr.params.iter().skip(1).enumerate() {
                         if !first_arg {
                             output.push_str(", ");
                         }
                         first_arg = false;
                         let param_type = param_types.get(i).and_then(|p| p.as_ref());
-                        emit_arg_with_param_type(arg, i, hoisted, param_type, output, ctx, context)?;
+                        let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
+                        emit_arg_with_param_type(arg, i, hoisted, param_type, is_mut, output, ctx, context)?;
                     }
                     output.push_str(")");
                     return Ok(());
@@ -3289,30 +3482,35 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     };
 
     // Hardcoded builtins
+    // NOTE: println/print are special-cased because their TIL implementations use
+    // i.inc() which doesn't work in C codegen (mut params need pointer passing)
     match func_name.as_str() {
         "println" => {
+            // println(args..) -> til_single_print each arg, then newline
             output.push_str(&indent_str);
-            output.push_str("printf(");
-            // Emit args
             for (i, arg) in expr.params.iter().skip(1).enumerate() {
                 if i > 0 {
-                    output.push_str(", ");
+                    output.push_str(&indent_str);
                 }
+                output.push_str("til_single_print(");
                 emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                output.push_str(");\n");
             }
-            output.push_str("\"\\n\");\n");
+            output.push_str(&indent_str);
+            output.push_str("printf(\"\\n\");\n");
             Ok(())
         },
         "print" => {
+            // print(args..) -> til_single_print each arg
             output.push_str(&indent_str);
-            output.push_str("printf(");
             for (i, arg) in expr.params.iter().skip(1).enumerate() {
                 if i > 0 {
-                    output.push_str(", ");
+                    output.push_str(&indent_str);
                 }
+                output.push_str("til_single_print(");
                 emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                output.push_str(");\n");
             }
-            output.push_str(");\n");
             Ok(())
         },
         // test(loc, cond, msg) - emit as assertion
@@ -3533,8 +3731,32 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // For instance calls (var.func), pass the instance as first argument
                     let mut first_arg = true;
                     if !is_type_qualified {
-                        // Emit full receiver chain (e.g., til_self._len for self._len.eq(...))
-                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
+                        // Check if called function's self param is mut and if receiver is a mut param
+                        let mut needs_deref_close = false;
+                        if let Some(value_type) = get_value_type(context, &receiver_without_method).ok() {
+                            if let ValueType::TCustom(type_name) = &value_type {
+                                let mangled = format!("{}.{}", type_name, func_name);
+                                let called_self_is_mut = lookup_func_by_name(context, &mangled)
+                                    .and_then(|fd| fd.args.first())
+                                    .map(|a| a.is_mut)
+                                    .unwrap_or(false);
+                                let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+
+                                if called_self_is_mut && !receiver_is_mut_param {
+                                    // Called function takes mut self, receiver is not a pointer - add &
+                                    output.push_str("&");
+                                } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                                    // Called function takes non-mut self, but receiver is a pointer - dereference
+                                    output.push_str("(*");
+                                    needs_deref_close = true;
+                                }
+                            }
+                        }
+                        // Emit full receiver chain (e.g., til_self->_len for self._len.eq(...))
+                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output, ctx)?;
+                        if needs_deref_close {
+                            output.push_str(")");
+                        }
                         first_arg = false;
                     }
                     // Emit remaining arguments (type identifiers as string literals)
@@ -3684,17 +3906,25 @@ fn extract_ufcs_method_and_depth(first_param: &Expr) -> Option<(String, usize)> 
 }
 
 /// Emit the receiver part of a chained UFCS call (everything except the last method name).
-/// For `self._len.eq(...)`, emits `til_self._len`.
-fn emit_ufcs_receiver_chain(first_param: &Expr, depth: usize, output: &mut String) -> Result<(), String> {
+/// For `self._len.eq(...)`, emits `til_self->_len` (using -> if self is mut param).
+fn emit_ufcs_receiver_chain(first_param: &Expr, depth: usize, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
     // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
     // We need to emit "a.b" (all except the last which is the method)
     if let NodeType::Identifier(name) = &first_param.node_type {
         output.push_str(&til_name(name));
 
+        // Check if base identifier is a mut param (use -> for field access)
+        let is_mut_param = ctx.current_mut_params.contains(name);
+
         // Emit all params except the last one (which is the method)
         for i in 0..(depth - 1) {
             if let NodeType::Identifier(field_name) = &first_param.params[i].node_type {
-                output.push_str(".");
+                // Use -> for first field access if base is mut param, . for rest
+                if i == 0 && is_mut_param {
+                    output.push_str("->");
+                } else {
+                    output.push_str(".");
+                }
                 output.push_str(field_name);
             }
         }

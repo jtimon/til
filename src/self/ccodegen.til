@@ -31,6 +31,8 @@ CodegenContext := struct {
     mut has_variadic_param: Bool = false
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
+    // Set of mut param names in current function - for using -> instead of . for field access
+    mut current_mut_params: Vec = Vec.new(Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -408,12 +410,18 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
             // Variadic must be last, so break
             j = func_def.args.len()
         case:
-            // Regular arg - add const for non-mut
-            if not(arg.is_mut) {
+            // Regular arg
+            if arg.is_mut {
+                // mut: use pointer so mutations are visible to caller
+                result = concat(result, til_type_to_c(arg.value_type))
+                result = concat(result, "* ")
+            } else {
+                // const or copy: pass by value
                 result = concat(result, "const ")
+                result = concat(result, til_type_to_c(arg.value_type))
+                result = concat(result, " ")
             }
-            result = concat(result, til_type_to_c(arg.value_type))
-            result = concat(result, " ")
+            result = concat(result, TIL_PREFIX)
             result = concat(result, arg.name)
             param_count = add(param_count, 1)
             j = add(j, 1)
@@ -1246,6 +1254,19 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             // Set current function context
                             ctx.current_throw_types = func_def.throw_types
                             ctx.current_return_types = func_def.return_types
+                            // Track mut params for pointer dereference (-> vs .)
+                            ctx.current_mut_params = Vec.new(Str)
+                            mut arg_idx := 0
+                            while lt(arg_idx, func_def.args.len()) {
+                                mut arg := Declaration()
+                                func_def.args.get(arg_idx, arg)
+                                if arg.is_mut {
+                                    ctx.current_mut_params.push(arg.name)
+                                }
+                                arg_idx = add(arg_idx, 1)
+                            }
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            catch (err: AllocError) { throw err.msg }
 
                             // Clear declared_vars for new function scope
                             ctx.declared_vars = Vec.new(Str)
@@ -1272,6 +1293,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             // Clear current function context
                             ctx.current_throw_types = Vec.new(ValueType)
                             ctx.current_return_types = Vec.new(ValueType)
+                            ctx.current_mut_params = Vec.new(Str)
                             catch (err: AllocError) { throw err.msg }
                         }
                     case:
@@ -1664,17 +1686,23 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
+                // Track mut params for pointer dereference (-> vs .)
+                ctx.current_mut_params = Vec.new(Str)
 
                 // Clear declared_vars for new function scope
                 ctx.declared_vars = Vec.new(Str)
                 // Reset variadic param context
                 ctx.has_variadic_param = false
                 ctx.current_variadic_param = VariadicParamInfo()
-                // Check for variadic parameter
+                // Check for variadic parameter and track mut params
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
                     mut arg := Declaration()
                     func_def.args.get(arg_idx, arg)
+                    // Track mut params
+                    if arg.is_mut {
+                        ctx.current_mut_params.push(arg.name)
+                    }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
                         ctx.has_variadic_param = true
@@ -2230,23 +2258,52 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             catch (err: AllocError) { throw err.msg }
         }
-        // Regular identifier or field access (b.val -> b.val)
-        mut result := concat(output, name)
-        mut i := 0
-        while lt(i, expr.params.len()) {
-            mut param := Expr()
-            expr.params.get(i, param)
-            switch param.node_type {
-            case NodeType.Identifier(field):
-                result = concat(result, ".")
-                result = concat(result, field)
-            case:
-                // Not a field access
+        // Regular identifier or field access (b.val -> til_b.val)
+        // For mut params (which are pointers in C), use -> for field access
+        mut is_mut_param := ctx.current_mut_params.contains(name)
+        if is_mut_param.and(gt(expr.params.len(), 0)) {
+            // Mut param with field access: til_self->field
+            mut result := concat(output, til_name(name))
+            mut i := 0
+            while lt(i, expr.params.len()) {
+                mut param := Expr()
+                expr.params.get(i, param)
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    result = concat(result, "->")
+                    result = concat(result, field)
+                case:
+                    // Not a field access
+                }
+                i = add(i, 1)
             }
-            i = add(i, 1)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            return result
+        } else if is_mut_param {
+            // Mut param used as value: dereference with *
+            mut result := concat(output, "(*")
+            result = concat(result, til_name(name))
+            result = concat(result, ")")
+            return result
+        } else {
+            // Regular identifier or field access
+            mut result := concat(output, til_name(name))
+            mut i := 0
+            while lt(i, expr.params.len()) {
+                mut param := Expr()
+                expr.params.get(i, param)
+                switch param.node_type {
+                case NodeType.Identifier(field):
+                    result = concat(result, ".")
+                    result = concat(result, field)  // Field names stay as-is (C struct fields)
+                case:
+                    // Not a field access
+                }
+                i = add(i, 1)
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            return result
         }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        return result
     case NodeType.FuncDef(func_def):
         return emit_funcdef(func_def, expr, output, indent, ctx, context)
     case NodeType.Assignment(name):
@@ -2682,7 +2739,30 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
             if gt(param_count, 0) {
                 result = concat(result, ", ")
             }
-            result = concat(result, til_name(receiver_name))
+            // Check if called function's self param is mut and if receiver is a mut param
+            mut called_self_is_mut := false
+            mut lookup_result := lookup_func_by_name(context, func_name)
+            if lookup_result.found {
+                if gt(lookup_result.func_def.args.len(), 0) {
+                    mut first_arg := Declaration()
+                    lookup_result.func_def.args.get(0, first_arg)
+                    called_self_is_mut = first_arg.is_mut
+                }
+                catch (err: IndexOutOfBoundsError) { }
+            }
+            mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
+            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+                // Called function takes mut self, receiver is not a pointer - add &
+                result = concat(result, "&")
+                result = concat(result, til_name(receiver_name))
+            } else if not(called_self_is_mut).and(receiver_is_mut_param) {
+                // Called function takes non-mut self, but receiver is a pointer - dereference
+                result = concat(result, "(*")
+                result = concat(result, til_name(receiver_name))
+                result = concat(result, ")")
+            } else {
+                result = concat(result, til_name(receiver_name))
+            }
             args_started = true
             param_count = add(param_count, 1)
         case:
@@ -3107,7 +3187,30 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
             if gt(param_count, 0) {
                 result = concat(result, ", ")
             }
-            result = concat(result, til_name(receiver_name))
+            // Check if called function's self param is mut and if receiver is a mut param
+            mut called_self_is_mut := false
+            mut lookup_result := lookup_func_by_name(context, func_name)
+            if lookup_result.found {
+                if gt(lookup_result.func_def.args.len(), 0) {
+                    mut first_arg := Declaration()
+                    lookup_result.func_def.args.get(0, first_arg)
+                    called_self_is_mut = first_arg.is_mut
+                }
+                catch (err: IndexOutOfBoundsError) { }
+            }
+            mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
+            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+                // Called function takes mut self, receiver is not a pointer - add &
+                result = concat(result, "&")
+                result = concat(result, til_name(receiver_name))
+            } else if not(called_self_is_mut).and(receiver_is_mut_param) {
+                // Called function takes non-mut self, but receiver is a pointer - dereference
+                result = concat(result, "(*")
+                result = concat(result, til_name(receiver_name))
+                result = concat(result, ")")
+            } else {
+                result = concat(result, til_name(receiver_name))
+            }
             args_started = true
             param_count = add(param_count, 1)
         case:
@@ -3772,7 +3875,42 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         result = concat(result, "    ")
         ind = add(ind, 1)
     }
-    result = concat(result, name)
+    // Check if assignment target is a field access on a mut param (self.field)
+    // If so, emit with -> instead of .
+    if name.contains(".") {
+        // Find dot position manually (no index_of in TIL Str)
+        mut dot_pos := 0
+        mut name_idx := 0
+        while lt(name_idx, name.len()) {
+            mut ch := name.get_char(name_idx)
+            if ch.eq(".") {
+                dot_pos = name_idx
+                name_idx = name.len()  // break
+            } else {
+                name_idx = add(name_idx, 1)
+            }
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+        mut base := name.get_substr(0, dot_pos)
+        mut rest := name.get_substr(add(dot_pos, 1), name.len())
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        catch (err: AllocError) { throw err.msg }
+        if ctx.current_mut_params.contains(base) {
+            // Mut param field access: til_self->field
+            result = concat(result, til_name(base))
+            result = concat(result, "->")
+            result = concat(result, rest)
+        } else {
+            result = concat(result, til_name(name))
+        }
+    } else if ctx.current_mut_params.contains(name) {
+        // Direct assignment to mut param: *til_self = value
+        result = concat(result, "*")
+        result = concat(result, til_name(name))
+    } else {
+        result = concat(result, til_name(name))
+    }
     result = concat(result, " = ")
     if gt(expr.params.len(), 0) {
         mut first := Expr()
@@ -3941,6 +4079,38 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         mut first_char := ufcs_receiver_name.get_char(0)
         if not(first_char.is_uppercase()) {
             output = concat(output, ", ")
+            // Check if called function's self param is mut and if receiver is a mut param
+            mut called_self_is_mut := false
+            mut type_name := ""
+            mut symbol := context.scope_stack.lookup_symbol(ufcs_receiver_name)
+            switch symbol.value_type {
+            case ValueType.TCustom(tname):
+                type_name = tname
+                mut mangled := concat(type_name, ".")
+                mangled = concat(mangled, func_name)
+                mut lookup_result := lookup_func_by_name(context, mangled)
+                if lookup_result.found {
+                    if gt(lookup_result.func_def.args.len(), 0) {
+                        mut first_arg := Declaration()
+                        lookup_result.func_def.args.get(0, first_arg)
+                        called_self_is_mut = first_arg.is_mut
+                    }
+                    catch (err: IndexOutOfBoundsError) { }
+                }
+            case:
+                // Not a custom type
+            }
+            catch (err: KeyNotFoundError) { }
+            mut receiver_is_mut_param := ctx.current_mut_params.contains(ufcs_receiver_name)
+            mut needs_deref_close := false
+            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+                // Called function takes mut self, receiver is not a pointer - add &
+                output = concat(output, "&")
+            } else if not(called_self_is_mut).and(receiver_is_mut_param).and(eq(ufcs_depth, 1)) {
+                // Called function takes non-mut self, but receiver is a pointer - dereference
+                output = concat(output, "(*")
+                needs_deref_close = true
+            }
             output = concat(output, til_name(ufcs_receiver_name))
             // Emit intermediate field accesses (all except the last which is the method)
             mut field_idx := 0
@@ -3949,12 +4119,20 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 first.params.get(field_idx, field_expr)
                 switch field_expr.node_type {
                 case NodeType.Identifier(field_name):
-                    output = concat(output, ".")
+                    // Use -> for first field access if base is mut param, . for rest
+                    if eq(field_idx, 0).and(receiver_is_mut_param) {
+                        output = concat(output, "->")
+                    } else {
+                        output = concat(output, ".")
+                    }
                     output = concat(output, field_name)
                 case:
                     // skip
                 }
                 field_idx = add(field_idx, 1)
+            }
+            if needs_deref_close {
+                output = concat(output, ")")
             }
         }
         catch (err: IndexOutOfBoundsError) { }
@@ -4495,10 +4673,12 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
                     // Look up the receiver's type for proper mangling (only if mangled name exists)
                     mut receiver_type := ValueType.TCustom("")
+                    mut type_name := ""
                     mut symbol := context.scope_stack.lookup_symbol(receiver_name)
                     receiver_type = symbol.value_type
                     switch receiver_type {
-                    case ValueType.TCustom(type_name):
+                    case ValueType.TCustom(tname):
+                        type_name = tname
                         // Skip "auto" type - it's an inferred type placeholder
                         if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
                             // Only mangle if Type_func exists in scope_stack
@@ -4516,6 +4696,29 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     catch (err: KeyNotFoundError) { /* type not found, no prefix */ }
                     result = concat(result, func_name)
                     result = concat(result, "(")
+                    // Check if called function's self param is mut and if receiver is a mut param
+                    mut called_self_is_mut := false
+                    mut mangled := concat(type_name, ".")
+                    mangled = concat(mangled, func_name)
+                    mut lookup_result := lookup_func_by_name(context, mangled)
+                    if lookup_result.found {
+                        if gt(lookup_result.func_def.args.len(), 0) {
+                            mut first_arg := Declaration()
+                            lookup_result.func_def.args.get(0, first_arg)
+                            called_self_is_mut = first_arg.is_mut
+                        }
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                    mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
+                    mut needs_deref_close := false
+                    if called_self_is_mut.and(not(receiver_is_mut_param)) {
+                        // Called function takes mut self, receiver is not a pointer - add &
+                        result = concat(result, "&")
+                    } else if not(called_self_is_mut).and(receiver_is_mut_param).and(eq(ufcs_depth, 1)) {
+                        // Called function takes non-mut self, but receiver is a pointer - dereference
+                        result = concat(result, "(*")
+                        needs_deref_close = true
+                    }
                     result = concat(result, til_name(receiver_name))
                     // Emit intermediate field accesses (all except the last which is the method)
                     mut field_idx := 0
@@ -4524,12 +4727,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         first.params.get(field_idx, field_expr)
                         switch field_expr.node_type {
                         case NodeType.Identifier(field_name):
-                            result = concat(result, ".")
+                            // Use -> for first field access if base is mut param, . for rest
+                            if eq(field_idx, 0).and(receiver_is_mut_param) {
+                                result = concat(result, "->")
+                            } else {
+                                result = concat(result, ".")
+                            }
                             result = concat(result, field_name)
                         case:
                             // skip
                         }
                         field_idx = add(field_idx, 1)
+                    }
+                    if needs_deref_close {
+                        result = concat(result, ")")
                     }
                     mut i := 1
                     while lt(i, params_len) {
