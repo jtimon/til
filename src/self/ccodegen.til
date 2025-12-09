@@ -4552,37 +4552,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     }
 
     // Hardcoded builtins
-    if func_name.eq("println") {
-        result = concat(result, "printf(")
-        mut i := 1
-        while lt(i, params_len) {
-            if gt(i, 1) {
-                result = concat(result, ", ")
-            }
-            mut arg := Expr()
-            expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0, ctx, context)
-            i = add(i, 1)
-        }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = concat(result, "\"\\n\");\n")
-        return result
-    } else if func_name.eq("print") {
-        result = concat(result, "printf(")
-        mut i := 1
-        while lt(i, params_len) {
-            if gt(i, 1) {
-                result = concat(result, ", ")
-            }
-            mut arg := Expr()
-            expr.params.get(i, arg)
-            result = emit_expr(arg, result, 0, ctx, context)
-            i = add(i, 1)
-        }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = concat(result, ");\n")
-        return result
-    } else if func_name.eq("test") {
+    if func_name.eq("test") {
         // test(loc, cond, msg) -> if (!(cond)) { printf("FAIL: %s\n", msg); }
         if lt(params_len, 4) {
             throw "ccodegen: test requires 3 arguments"

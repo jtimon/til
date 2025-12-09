@@ -3482,37 +3482,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     };
 
     // Hardcoded builtins
-    // NOTE: println/print are special-cased because their TIL implementations use
-    // i.inc() which doesn't work in C codegen (mut params need pointer passing)
     match func_name.as_str() {
-        "println" => {
-            // println(args..) -> til_single_print each arg, then newline
-            output.push_str(&indent_str);
-            for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                if i > 0 {
-                    output.push_str(&indent_str);
-                }
-                output.push_str("til_single_print(");
-                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
-                output.push_str(");\n");
-            }
-            output.push_str(&indent_str);
-            output.push_str("printf(\"\\n\");\n");
-            Ok(())
-        },
-        "print" => {
-            // print(args..) -> til_single_print each arg
-            output.push_str(&indent_str);
-            for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                if i > 0 {
-                    output.push_str(&indent_str);
-                }
-                output.push_str("til_single_print(");
-                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
-                output.push_str(");\n");
-            }
-            Ok(())
-        },
         // test(loc, cond, msg) - emit as assertion
         "test" => {
             // For C codegen, we just emit the test as an if statement
