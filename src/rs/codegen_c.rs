@@ -4,6 +4,10 @@
 use crate::rs::parser::{Expr, NodeType, Literal, SFuncDef, SEnumDef, ValueType, INFER_TYPE};
 use crate::rs::init::{Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType};
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+// Global counter for generating unique mangled names
+static MANGLING_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 // Prefix for all TIL-generated names in C code (structs, functions, types)
 const TIL_PREFIX: &str = "til_";
@@ -26,8 +30,6 @@ struct CodegenContext {
     current_return_types: Vec<ValueType>,
     // Current function's variadic param name (if any) - for translating args.len()/args.get()
     current_variadic_param: Option<(String, String)>, // (name, element_type)
-    // Counter for generating unique temporary variable names
-    temp_counter: usize,
     // Set of user-defined struct names (to distinguish from built-in types like Str)
     user_structs: HashSet<String>,
     // Set of declared variable names in current function (to avoid redefinition)
@@ -45,17 +47,17 @@ impl CodegenContext {
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
             current_variadic_param: None,
-            temp_counter: 0,
             user_structs: HashSet::new(),
             declared_vars: HashSet::new(),
         }
     }
 
-    fn next_temp(&mut self) -> String {
-        let name = format!("_tmp{}", self.temp_counter);
-        self.temp_counter += 1;
-        name
-    }
+}
+
+// Generate unique mangled name using global counter
+fn next_mangled() -> String {
+    let n = MANGLING_COUNTER.fetch_add(1, Ordering::SeqCst);
+    format!("_tmp{}", n)
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
@@ -233,7 +235,7 @@ fn hoist_throwing_args(
                 std::collections::HashMap::new()
             };
 
-            let temp_var = ctx.next_temp();
+            let temp_var = next_mangled();
 
             // Determine the C type for the temp variable
             let c_type = if let Some(ret_type) = &return_type {
@@ -250,7 +252,7 @@ fn hoist_throwing_args(
             output.push_str(";\n");
 
             // Declare error variables for each throw type
-            let temp_suffix = ctx.next_temp();
+            let temp_suffix = next_mangled();
             for (err_idx, throw_type) in throw_types.iter().enumerate() {
                 if let ValueType::TCustom(type_name) = throw_type {
                     output.push_str(&indent_str);
@@ -1655,7 +1657,7 @@ fn emit_throwing_call(
         .ok_or_else(|| "emit_throwing_call: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
-    let temp_suffix = ctx.next_temp();
+    let temp_suffix = next_mangled();
 
     // Determine if we need a return value temp variable
     let needs_ret = decl_name.is_some() || assign_name.is_some();
@@ -1863,7 +1865,7 @@ fn emit_throwing_call_propagate(
         .ok_or_else(|| "emit_throwing_call_propagate: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
-    let temp_suffix = ctx.next_temp();
+    let temp_suffix = next_mangled();
 
     // Determine if we need a return value temp variable
     let needs_ret = decl_name.is_some() || assign_name.is_some();

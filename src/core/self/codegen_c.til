@@ -8,6 +8,9 @@ import("src.core.self.parser")  // Expr, NodeType, Literal
 // Prefix for all TIL-generated C names (structs, functions, etc.)
 TIL_PREFIX := "til_"
 
+// Global counter for generating unique mangled names
+mut MANGLING_COUNTER: I64 = 0
+
 // Info about a variadic parameter
 VariadicParamInfo := struct {
     mut arg_name: Str = ""
@@ -34,16 +37,8 @@ CodegenContext := struct {
     // Current function's variadic param (if any)
     mut current_variadic_param: VariadicParamInfo = VariadicParamInfo()
     mut has_variadic_param: Bool = false
-    // Counter for generating unique temporary variable names
-    mut temp_counter: I64 = 0
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
-
-    next_temp := proc(mut self: CodegenContext) returns Str {
-        mut name := concat("_tmp", self.temp_counter.to_str())
-        self.temp_counter = add(self.temp_counter, 1)
-        return name
-    }
 
     has_str := func(self: CodegenContext) returns Bool {
         mut i := 0
@@ -58,6 +53,13 @@ CodegenContext := struct {
         }
         return false
     }
+}
+
+// Generate unique mangled name using global counter
+next_mangled := proc() returns Str {
+    mut name := concat("_tmp", MANGLING_COUNTER.to_str())
+    MANGLING_COUNTER = add(MANGLING_COUNTER, 1)
+    return name
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
@@ -2448,7 +2450,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Generate unique temp name for this call
-    mut temp_suffix := ctx.next_temp()
+    mut temp_suffix := next_mangled()
 
     // Determine if we need a return value temp variable
     mut needs_ret := false
@@ -2668,7 +2670,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Generate unique temp name for this call
-    mut temp_suffix := ctx.next_temp()
+    mut temp_suffix := next_mangled()
 
     // Determine if we need a return value temp variable
     mut needs_ret := false
@@ -3520,7 +3522,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx, context)
             }
 
-            mut temp_var := ctx.next_temp()
+            mut temp_var := next_mangled()
 
             // Determine C type for temp variable
             mut c_type := "int"
@@ -3536,7 +3538,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = concat(output, ";\n")
 
             // Declare error variables for each throw type
-            mut temp_suffix := ctx.next_temp()
+            mut temp_suffix := next_mangled()
             mut err_idx := 0
             while lt(err_idx, info.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
