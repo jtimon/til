@@ -59,6 +59,40 @@ til_name := func(name: Str) returns Str {
     return concat(TIL_PREFIX, name)
 }
 
+// Result type for get_type_arg_name
+TypeArgResult := struct {
+    mut found: Bool = false
+    mut type_name: Str = ""
+}
+
+// Check if an expression is a type identifier (a Type parameter at call site)
+// Returns the type name if it is, so it can be emitted as a string literal
+// Matches interpreter.rs behavior (line 1703-1713)
+// Only matches STANDALONE identifiers - not field access like Vec.INIT_CAP
+get_type_arg_name := func(expr: Expr, context: Context) returns TypeArgResult {
+    mut result := TypeArgResult()
+    switch expr.node_type {
+    case NodeType.Identifier(name):
+        // Only match standalone identifiers (no field access)
+        if gt(expr.params.len(), 0) {
+            return result  // This is field access like Vec.INIT_CAP, not a type arg
+        }
+        // Check if this identifier is a type name (struct, enum, or builtin type)
+        mut symbol := context.scope_stack.lookup_symbol(name)
+        switch symbol.value_type {
+        case ValueType.TType(type_name):
+            result.found = true
+            result.type_name = name
+        case:
+            // Not a type
+        }
+        catch (err: KeyNotFoundError) { }
+    case:
+        // Not an identifier
+    }
+    return result
+}
+
 // Add a variable to declared_vars (if not already present)
 add_var_declared := proc(mut ctx: CodegenContext, name: Str) throws AllocError {
     if not(ctx.declared_vars.contains(name)) {
@@ -791,10 +825,12 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs, not structs
         if decl.name.eq("I64") { return result }
         if decl.name.eq("U8") { return result }
         if decl.name.eq("Bool") { return result }
+        if decl.name.eq("Dynamic") { return result }
+        if decl.name.eq("Type") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -835,10 +871,12 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64, U8, Bool - these are primitive typedefs, not structs
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs, not structs
         if decl.name.eq("I64") { return result }
         if decl.name.eq("U8") { return result }
         if decl.name.eq("Bool") { return result }
+        if decl.name.eq("Dynamic") { return result }
+        if decl.name.eq("Type") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
@@ -1267,7 +1305,10 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = format(output, "typedef long long ", TIL_PREFIX, "I64;\n")
     output = format(output, "typedef struct ", TIL_PREFIX, "Bool { ", TIL_PREFIX, "U8 data; } ", TIL_PREFIX, "Bool;\n")
     output = format(output, "#define true ((", TIL_PREFIX, "Bool){1})\n")
-    output = format(output, "#define false ((", TIL_PREFIX, "Bool){0})\n\n")
+    output = format(output, "#define false ((", TIL_PREFIX, "Bool){0})\n")
+    // Dynamic and Type are special placeholder types
+    output = format(output, "typedef void* ", TIL_PREFIX, "Dynamic;\n")
+    output = format(output, "typedef const char* ", TIL_PREFIX, "Type;\n\n")
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     switch ast.node_type {
@@ -1300,6 +1341,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     if decl.name.eq("I64") { }
                     else if decl.name.eq("U8") { }
                     else if decl.name.eq("Bool") { }
+                    else if decl.name.eq("Dynamic") { }
+                    else if decl.name.eq("Type") { }
                     else {
                         output = concat(output, "typedef struct ")
                         output = concat(output, decl.name)
@@ -2467,6 +2510,72 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     if gt(decl_name.len(), 0) { needs_ret = true }
     if gt(assign_name.len(), 0) { needs_ret = true }
 
+    // Check if this is a UFCS call early (needed for param_types calculation)
+    mut is_ufcs := false
+    if gt(fcall.params.len(), 0) {
+        mut first := Expr()
+        fcall.params.get(0, first)
+        switch first.node_type {
+        case NodeType.Identifier(receiver_name):
+            if gt(first.params.len(), 0) {
+                // Check if lowercase (instance UFCS) vs uppercase (type UFCS)
+                mut first_byte : U8 = 0
+                memcpy(to_ptr(first_byte), receiver_name.c_string, 1)
+                mut byte_val := U8.to_i64(first_byte)
+                // a=97, z=122, lowercase = instance UFCS
+                if gteq(byte_val, 97) {
+                    if lteq(byte_val, 122) {
+                        is_ufcs = true
+                    }
+                }
+            }
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
+    // Calculate param_types early for Dynamic hoisting
+    mut arg_offset := 0
+    if is_ufcs { arg_offset = 1 }
+    mut param_types := Vec.new(ValueType)
+    mut func_def_lookup := context.scope_stack.lookup_func(func_name)
+    mut arg_i := 0
+    while lt(arg_i, sub(fcall.params.len(), 1)) {
+        mut param_idx := add(arg_i, arg_offset)
+        if lt(param_idx, func_def_lookup.args.len()) {
+            mut arg_decl := Declaration()
+            func_def_lookup.args.get(param_idx, arg_decl)
+            param_types.push(arg_decl.value_type)
+        } else {
+            param_types.push(ValueType.TCustom(""))
+        }
+        arg_i = add(arg_i, 1)
+    }
+    catch (err: KeyNotFoundError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { throw "emit_throwing_call: AllocError in param_types" }
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    mut hoisted := Vec.new(HoistedArg)
+    if gt(fcall.params.len(), 1) {
+        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+    }
+    catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_throwing_args" }
+
+    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    if gt(fcall.params.len(), 1) {
+        mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
+        // Merge dynamic_hoisted into hoisted
+        mut dh_idx := 0
+        while lt(dh_idx, dynamic_hoisted.len()) {
+            mut dh := HoistedArg()
+            dynamic_hoisted.get(dh_idx, dh)
+            hoisted.push(dh)
+            dh_idx = add(dh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw "emit_throwing_call: AllocError in hoist_for_dynamic_params" }
+
     // Declare local variables for return value and errors
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
@@ -2562,15 +2671,101 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         i = add(i, 1)
     }
 
-    // Then: actual arguments (skip the function name which is params[0])
+    // Then: actual arguments
+    // For UFCS calls (receiver.method), emit receiver first
+    mut args_started := false
+    if is_ufcs {
+        mut first := Expr()
+        fcall.params.get(0, first)
+        switch first.node_type {
+        case NodeType.Identifier(receiver_name):
+            if gt(param_count, 0) {
+                result = concat(result, ", ")
+            }
+            result = concat(result, til_name(receiver_name))
+            args_started = true
+            param_count = add(param_count, 1)
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+    // param_types and hoisted already calculated above
     i = 1
     while lt(i, fcall.params.len()) {
-        if gt(param_count, 0) {
+        if args_started {
             result = concat(result, ", ")
+        } else {
+            if gt(param_count, 0) {
+                result = concat(result, ", ")
+            }
         }
         mut arg := Expr()
         fcall.params.get(i, arg)
-        result = emit_expr(arg, result, 0, ctx, context)
+        mut arg_idx := sub(i, 1)
+
+        // Check if this arg was hoisted
+        mut found_hoisted := false
+        mut hoisted_temp := ""
+        mut h_idx := 0
+        while lt(h_idx, hoisted.len()) {
+            mut h := HoistedArg()
+            hoisted.get(h_idx, h)
+            if eq(h.index, arg_idx) {
+                found_hoisted = true
+                hoisted_temp = h.temp_var
+            }
+            h_idx = add(h_idx, 1)
+        }
+
+        // Get param type for this argument
+        mut is_dynamic_param := false
+        if lt(arg_idx, param_types.len()) {
+            mut pt := ValueType.TCustom("")
+            param_types.get(arg_idx, pt)
+            switch pt {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Dynamic") {
+                    is_dynamic_param = true
+                }
+            case:
+            }
+        }
+
+        if found_hoisted {
+            // Hoisted temp var is an lvalue - add & if param is Dynamic
+            if is_dynamic_param {
+                result = concat(result, "&")
+            }
+            result = concat(result, hoisted_temp)
+        } else {
+            // Check if arg is a type identifier - emit as string literal
+            mut type_arg := get_type_arg_name(arg, context)
+            if type_arg.found {
+                result = concat(result, "\"")
+                result = concat(result, type_arg.type_name)
+                result = concat(result, "\"")
+            } else {
+                // Check if param is Dynamic and arg is simple identifier
+                if is_dynamic_param {
+                    switch arg.node_type {
+                    case NodeType.Identifier(name):
+                        if eq(arg.params.len(), 0) {
+                            // Simple variable - emit &var
+                            result = concat(result, "&")
+                            result = concat(result, til_name(name))
+                        } else {
+                            // Not simple - emit as is
+                            result = emit_expr(arg, result, 0, ctx, context)
+                        }
+                    case:
+                        result = emit_expr(arg, result, 0, ctx, context)
+                    }
+                } else {
+                    result = emit_expr(arg, result, 0, ctx, context)
+                }
+            }
+        }
+        args_started = true
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -2738,6 +2933,72 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     if gt(decl_name.len(), 0) { needs_ret = true }
     if gt(assign_name.len(), 0) { needs_ret = true }
 
+    // Check if this is a UFCS call early (needed for param_types calculation)
+    mut is_ufcs := false
+    if gt(fcall.params.len(), 0) {
+        mut first := Expr()
+        fcall.params.get(0, first)
+        switch first.node_type {
+        case NodeType.Identifier(receiver_name):
+            if gt(first.params.len(), 0) {
+                // Check if lowercase (instance UFCS) vs uppercase (type UFCS)
+                mut first_byte : U8 = 0
+                memcpy(to_ptr(first_byte), receiver_name.c_string, 1)
+                mut byte_val := U8.to_i64(first_byte)
+                // a=97, z=122, lowercase = instance UFCS
+                if gteq(byte_val, 97) {
+                    if lteq(byte_val, 122) {
+                        is_ufcs = true
+                    }
+                }
+            }
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
+    // Calculate param_types early for Dynamic hoisting
+    mut arg_offset := 0
+    if is_ufcs { arg_offset = 1 }
+    mut param_types := Vec.new(ValueType)
+    mut func_def_lookup := context.scope_stack.lookup_func(func_name)
+    mut arg_i := 0
+    while lt(arg_i, sub(fcall.params.len(), 1)) {
+        mut param_idx := add(arg_i, arg_offset)
+        if lt(param_idx, func_def_lookup.args.len()) {
+            mut arg_decl := Declaration()
+            func_def_lookup.args.get(param_idx, arg_decl)
+            param_types.push(arg_decl.value_type)
+        } else {
+            param_types.push(ValueType.TCustom(""))
+        }
+        arg_i = add(arg_i, 1)
+    }
+    catch (err: KeyNotFoundError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in param_types" }
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    mut hoisted := Vec.new(HoistedArg)
+    if gt(fcall.params.len(), 1) {
+        hoisted = hoist_throwing_args(fcall.params, result, indent, ctx, context)
+    }
+    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_throwing_args" }
+
+    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    if gt(fcall.params.len(), 1) {
+        mut dynamic_hoisted := hoist_for_dynamic_params(fcall.params, param_types, hoisted, result, indent, ctx, context)
+        // Merge dynamic_hoisted into hoisted
+        mut dh_idx := 0
+        while lt(dh_idx, dynamic_hoisted.len()) {
+            mut dh := HoistedArg()
+            dynamic_hoisted.get(dh_idx, dh)
+            hoisted.push(dh)
+            dh_idx = add(dh_idx, 1)
+        }
+    }
+    catch (err: AllocError) { throw "emit_throwing_call_propagate: AllocError in hoist_for_dynamic_params" }
+
     // Look up the actual return type from scope_stack
     mut ret_type := "int"
     if needs_ret {
@@ -2835,15 +3096,101 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         i = add(i, 1)
     }
 
-    // Then: actual arguments (skip the function name which is params[0])
+    // Then: actual arguments
+    // For UFCS calls (receiver.method), emit receiver first
+    mut args_started := false
+    if is_ufcs {
+        mut first := Expr()
+        fcall.params.get(0, first)
+        switch first.node_type {
+        case NodeType.Identifier(receiver_name):
+            if gt(param_count, 0) {
+                result = concat(result, ", ")
+            }
+            result = concat(result, til_name(receiver_name))
+            args_started = true
+            param_count = add(param_count, 1)
+        case:
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+    // param_types and hoisted already calculated above
     i = 1
     while lt(i, fcall.params.len()) {
-        if gt(param_count, 0) {
+        if args_started {
             result = concat(result, ", ")
+        } else {
+            if gt(param_count, 0) {
+                result = concat(result, ", ")
+            }
         }
         mut arg := Expr()
         fcall.params.get(i, arg)
-        result = emit_expr(arg, result, 0, ctx, context)
+        mut arg_idx := sub(i, 1)
+
+        // Check if this arg was hoisted
+        mut found_hoisted := false
+        mut hoisted_temp := ""
+        mut h_idx := 0
+        while lt(h_idx, hoisted.len()) {
+            mut h := HoistedArg()
+            hoisted.get(h_idx, h)
+            if eq(h.index, arg_idx) {
+                found_hoisted = true
+                hoisted_temp = h.temp_var
+            }
+            h_idx = add(h_idx, 1)
+        }
+
+        // Get param type for this argument
+        mut is_dynamic_param := false
+        if lt(arg_idx, param_types.len()) {
+            mut pt := ValueType.TCustom("")
+            param_types.get(arg_idx, pt)
+            switch pt {
+            case ValueType.TCustom(type_name):
+                if type_name.eq("Dynamic") {
+                    is_dynamic_param = true
+                }
+            case:
+            }
+        }
+
+        if found_hoisted {
+            // Hoisted temp var is an lvalue - add & if param is Dynamic
+            if is_dynamic_param {
+                result = concat(result, "&")
+            }
+            result = concat(result, hoisted_temp)
+        } else {
+            // Check if arg is a type identifier - emit as string literal
+            mut type_arg := get_type_arg_name(arg, context)
+            if type_arg.found {
+                result = concat(result, "\"")
+                result = concat(result, type_arg.type_name)
+                result = concat(result, "\"")
+            } else {
+                // Check if param is Dynamic and arg is simple identifier
+                if is_dynamic_param {
+                    switch arg.node_type {
+                    case NodeType.Identifier(name):
+                        if eq(arg.params.len(), 0) {
+                            // Simple variable - emit &var
+                            result = concat(result, "&")
+                            result = concat(result, til_name(name))
+                        } else {
+                            // Not simple - emit as is
+                            result = emit_expr(arg, result, 0, ctx, context)
+                        }
+                    case:
+                        result = emit_expr(arg, result, 0, ctx, context)
+                    }
+                } else {
+                    result = emit_expr(arg, result, 0, ctx, context)
+                }
+            }
+        }
+        args_started = true
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -3778,6 +4125,110 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         catch (err: AllocError) { throw err.msg }
+    }
+
+    return hoisted
+}
+
+// Hoist non-lvalue args (string literals, function calls) when the param type is Dynamic
+// Returns additional hoisted args to merge with throwing hoists
+hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: Vec, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Vec throws Str, AllocError {
+    mut hoisted := Vec.new(HoistedArg)
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = concat(indent_str, "    ")
+        ind = add(ind, 1)
+    }
+
+    mut idx := 0
+    while lt(idx, args.len()) {
+        mut arg := Expr()
+        args.get(idx, arg)
+
+        // Skip if already hoisted by throwing args hoister
+        mut already := false
+        mut j := 0
+        while lt(j, already_hoisted.len()) {
+            mut h := HoistedArg()
+            already_hoisted.get(j, h)
+            if eq(h.index, idx) {
+                already = true
+            }
+            j = add(j, 1)
+        }
+
+        if not(already) {
+            // Check if param type is Dynamic
+            mut is_dynamic := false
+            if lt(idx, param_types.len()) {
+                mut pt := ValueType.TCustom("")
+                param_types.get(idx, pt)
+                switch pt {
+                case ValueType.TCustom(type_name):
+                    if type_name.eq("Dynamic") {
+                        is_dynamic = true
+                    }
+                case:
+                }
+            }
+
+            if is_dynamic {
+                // Check if arg needs hoisting (not a simple identifier)
+                mut needs_hoisting := true
+                switch arg.node_type {
+                case NodeType.Identifier(name):
+                    // Simple identifier with no params is an lvalue, doesn't need hoisting
+                    if eq(arg.params.len(), 0) {
+                        needs_hoisting = false
+                    }
+                case NodeType.LLiteral(lit):
+                    // Literals need hoisting
+                    needs_hoisting = true
+                case NodeType.FCall:
+                    // Function calls need hoisting
+                    needs_hoisting = true
+                case:
+                    // Default to hoisting for safety
+                    needs_hoisting = true
+                }
+
+                if needs_hoisting {
+                    // Determine C type - for string literals it's til_Str
+                    mut c_type := concat(TIL_PREFIX, "Str")
+                    switch arg.node_type {
+                    case NodeType.LLiteral(lit):
+                        c_type = concat(TIL_PREFIX, "Str")
+                    case:
+                        // For function calls, try to determine return type
+                        mut info := check_throwing_fcall(arg, ctx, context)
+                        if info.has_return_type {
+                            c_type = til_type_to_c(info.return_type)
+                        }
+                    }
+
+                    mut temp_var := next_mangled()
+
+                    // Emit: til_Str _tmpXX = <expression>;
+                    output = concat(output, indent_str)
+                    output = concat(output, c_type)
+                    output = concat(output, " ")
+                    output = concat(output, temp_var)
+                    output = concat(output, " = ")
+                    output = emit_expr(arg, output, 0, ctx, context)
+                    output = concat(output, ";\n")
+
+                    mut hoisted_arg := HoistedArg()
+                    hoisted_arg.index = idx
+                    hoisted_arg.temp_var = temp_var
+                    hoisted.push(hoisted_arg)
+                }
+            }
+        }
+
+        idx = add(idx, 1)
+
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
     }
 
     return hoisted

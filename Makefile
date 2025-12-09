@@ -7,8 +7,7 @@ rstil: src/rstil.rs
 
 tests: rstil
 	./bin/rstil src/tests.til
-	# TODO: codegen tests disabled while fixing C codegen - run independently with: ./bin/rstil src/test/builders.til
-	# ./bin/rstil src/test/builders.til
+	./bin/rstil src/test/builders.til
 	# TODO: compiled run tests disabled while fixing C codegen - run independently with: ./src/test/run_tests.sh
 	# ./src/test/run_tests.sh
 

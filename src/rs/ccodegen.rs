@@ -55,6 +55,26 @@ fn til_name(name: &str) -> String {
     }
 }
 
+/// Check if an expression is a type identifier (a Type parameter at call site)
+/// Returns the type name if it is, so it can be emitted as a string literal
+/// Matches interpreter.rs behavior (line 1703-1713)
+/// Only matches STANDALONE identifiers - not field access like Vec.INIT_CAP
+fn get_type_arg_name(expr: &Expr, context: &Context) -> Option<String> {
+    if let NodeType::Identifier(name) = &expr.node_type {
+        // Only match standalone identifiers (no field access)
+        if !expr.params.is_empty() {
+            return None; // This is field access like Vec.INIT_CAP, not a type arg
+        }
+        // Check if this identifier is a type name (struct, enum, or builtin type)
+        if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+            if let ValueType::TType(_) = &sym.value_type {
+                return Some(name.clone());
+            }
+        }
+    }
+    None
+}
+
 // Lookup function in scope_stack, trying both underscore and dot notation
 // get_fcall_func_name returns underscore format (Str_clone) but scope_stack uses dots (Str.clone)
 fn lookup_func_by_name<'a>(context: &'a Context, func_name: &str) -> Option<&'a SFuncDef> {
@@ -117,6 +137,27 @@ fn get_struct_name(expr: &Expr) -> Option<String> {
         }
     }
     None
+}
+
+/// Collect type names used in enum payloads
+fn collect_enum_payload_types(expr: &Expr, types: &mut HashSet<String>) {
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                for (_variant_name, payload_type) in &enum_def.enum_map {
+                    if let Some(pt) = payload_type {
+                        if let ValueType::TCustom(type_name) = pt {
+                            // Skip primitives
+                            if type_name != "I64" && type_name != "U8" && type_name != "Bool"
+                                && type_name != "Dynamic" && type_name != "Type" {
+                                types.insert(type_name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Topologically sort struct declarations by their field dependencies
@@ -322,6 +363,87 @@ fn hoist_throwing_args(
     Ok(hoisted)
 }
 
+/// Hoist non-lvalue args (string literals, function calls) when the param type is Dynamic
+/// Returns additional hoisted (arg_idx, temp_var_name) pairs to merge with throwing hoists
+fn hoist_for_dynamic_params(
+    args: &[Expr],
+    param_types: &[Option<ValueType>],
+    already_hoisted: &std::collections::HashMap<usize, String>,
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<Vec<(usize, String)>, String> {
+    let mut hoisted = Vec::new();
+    let indent_str = "    ".repeat(indent);
+
+    for (idx, arg) in args.iter().enumerate() {
+        // Skip if already hoisted by throwing args hoister
+        if already_hoisted.contains_key(&idx) {
+            continue;
+        }
+
+        // Check if param type is Dynamic
+        let is_dynamic = param_types.get(idx)
+            .and_then(|p| p.as_ref())
+            .map(|p| matches!(p, ValueType::TCustom(name) if name == "Dynamic"))
+            .unwrap_or(false);
+
+        if !is_dynamic {
+            continue;
+        }
+
+        // Check if arg is NOT a simple identifier (i.e., needs hoisting)
+        let needs_hoisting = match &arg.node_type {
+            NodeType::Identifier(_) => {
+                // Simple identifier with no params is an lvalue, doesn't need hoisting
+                // But identifier with params (UFCS call) does need hoisting
+                !arg.params.is_empty()
+            },
+            NodeType::LLiteral(Literal::Str(_)) => true,  // String literals need hoisting
+            NodeType::FCall => true,    // Function calls need hoisting
+            _ => true,  // Default to hoisting for safety
+        };
+
+        if !needs_hoisting {
+            continue;
+        }
+
+        // Determine the C type of the arg - for string literals it's til_Str
+        let c_type = match &arg.node_type {
+            NodeType::LLiteral(Literal::Str(_)) => format!("{}Str", TIL_PREFIX),
+            _ => {
+                // For function calls, try to determine return type
+                if let Some((_func_name, _throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
+                    if let Some(ret) = return_type {
+                        til_type_to_c(&ret).unwrap_or_else(|| format!("{}Str", TIL_PREFIX))
+                    } else {
+                        format!("{}Str", TIL_PREFIX)
+                    }
+                } else {
+                    // Non-throwing function call or other expression - assume Str for string literals context
+                    format!("{}Str", TIL_PREFIX)
+                }
+            }
+        };
+
+        let temp_var = next_mangled();
+
+        // Emit: til_Str _tmpXX = <expression>;
+        output.push_str(&indent_str);
+        output.push_str(&c_type);
+        output.push_str(" ");
+        output.push_str(&temp_var);
+        output.push_str(" = ");
+        emit_expr(arg, output, 0, ctx, context)?;
+        output.push_str(";\n");
+
+        hoisted.push((idx, temp_var));
+    }
+
+    Ok(hoisted)
+}
+
 /// Emit a throwing function call's name and arguments for hoisting
 /// Outputs: func_name(&temp_var, &err1, &err2, ..., args...)
 fn emit_fcall_name_and_args_for_throwing(
@@ -520,6 +642,11 @@ fn emit_fcall_name_and_args_for_throwing(
             // Use hoisted temp if this arg was hoisted, otherwise emit directly
             if let Some(temp) = nested_hoisted.get(&arg_idx) {
                 output.push_str(temp);
+            } else if let Some(type_name) = get_type_arg_name(arg, context) {
+                // Type identifier - emit as string literal
+                output.push_str("\"");
+                output.push_str(&type_name);
+                output.push_str("\"");
             } else {
                 emit_expr(arg, output, 0, ctx, context)?;
             }
@@ -531,6 +658,7 @@ fn emit_fcall_name_and_args_for_throwing(
 }
 
 /// Emit an argument, using hoisted temp var if available
+/// Also handles Type arguments by emitting them as string literals
 fn emit_arg_or_hoisted(
     arg: &Expr,
     arg_idx: usize,
@@ -539,12 +667,62 @@ fn emit_arg_or_hoisted(
     ctx: &mut CodegenContext,
     context: &mut Context,
 ) -> Result<(), String> {
+    emit_arg_with_param_type(arg, arg_idx, hoisted, None, output, ctx, context)
+}
+
+/// Emit an argument with knowledge of expected parameter type
+/// Handles: Type args as string literals, Dynamic args with &
+fn emit_arg_with_param_type(
+    arg: &Expr,
+    arg_idx: usize,
+    hoisted: &std::collections::HashMap<usize, String>,
+    param_type: Option<&ValueType>,
+    output: &mut String,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<(), String> {
     if let Some(temp_var) = hoisted.get(&arg_idx) {
+        // Hoisted temp var is an lvalue - add & if param is Dynamic
+        if let Some(ValueType::TCustom(param_type_name)) = param_type {
+            if param_type_name == "Dynamic" {
+                output.push_str("&");
+            }
+        }
         output.push_str(temp_var);
-        Ok(())
-    } else {
-        emit_expr(arg, output, 0, ctx, context)
+        return Ok(());
     }
+
+    // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
+    if let Some(type_name) = get_type_arg_name(arg, context) {
+        output.push_str("\"");
+        output.push_str(&type_name);
+        output.push_str("\"");
+        return Ok(());
+    }
+
+    // Check if parameter type is Dynamic - emit &arg for void*
+    // Only add & for simple identifiers (lvalues). For function calls/literals,
+    // they should be hoisted to temps first by the throwing call handler.
+    if let Some(ValueType::TCustom(param_type_name)) = param_type {
+        if param_type_name == "Dynamic" {
+            // Check if arg is a simple identifier (can take address directly)
+            if let NodeType::Identifier(name) = &arg.node_type {
+                if arg.params.is_empty() {
+                    // Simple variable - emit &var
+                    output.push_str("&");
+                    output.push_str(&til_name(name));
+                    return Ok(());
+                }
+            }
+            // For non-identifier args (function calls, literals), they should have
+            // been hoisted already. If not, just emit without & and let C handle it.
+            // This may cause type warnings but avoids the "lvalue required" error.
+            emit_expr(arg, output, 0, ctx, context)?;
+            return Ok(());
+        }
+    }
+
+    emit_expr(arg, output, 0, ctx, context)
 }
 
 // Emit C code from AST (multi-pass architecture)
@@ -560,7 +738,10 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str(&format!("typedef long long {}I64;\n", TIL_PREFIX));
     output.push_str(&format!("typedef struct {}Bool {{ {}U8 data; }} {}Bool;\n", TIL_PREFIX, TIL_PREFIX, TIL_PREFIX));
     output.push_str(&format!("#define true (({}Bool){{1}})\n", TIL_PREFIX));
-    output.push_str(&format!("#define false (({}Bool){{0}})\n\n", TIL_PREFIX));
+    output.push_str(&format!("#define false (({}Bool){{0}})\n", TIL_PREFIX));
+    // Dynamic and Type are special placeholder types
+    output.push_str(&format!("typedef void* {}Dynamic;\n", TIL_PREFIX));
+    output.push_str(&format!("typedef const char* {}Type;\n\n", TIL_PREFIX));
 
     // Pass 0: collect function info (throw types, return types) for call-site generation
     if let NodeType::Body = &ast.node_type {
@@ -569,13 +750,15 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
-    // Pass 0b: emit forward declarations for all structs (to handle circular/forward references)
-    // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
+    // Pass 0b: emit forward declarations for all structs and enums-with-payloads
+    // (enums with payloads are implemented as structs in C, so they need forward declarations too)
+    // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 if let NodeType::Declaration(decl) = &child.node_type {
-                    if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
+                    if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool"
+                        || decl.name == "Dynamic" || decl.name == "Type" {
                         continue; // Skip - these are primitive typedefs
                     }
                     let struct_name = til_name(&decl.name);
@@ -586,24 +769,140 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
                     output.push_str(";\n");
                 }
             }
+            // Also forward-declare enums with payloads (they're implemented as structs)
+            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+                if let NodeType::Declaration(decl) = &child.node_type {
+                    let enum_name = til_name(&decl.name);
+                    output.push_str("typedef struct ");
+                    output.push_str(&enum_name);
+                    output.push_str(" ");
+                    output.push_str(&enum_name);
+                    output.push_str(";\n");
+                }
+            }
         }
         output.push_str("\n");
     }
 
-    // Pass 1: emit enum definitions FIRST (structs may use enum types as fields)
+    // Pass 1a: emit simple enums (no payloads) - safe to emit early, structs may use them as fields
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
-            if is_enum_declaration(child) {
+            if is_enum_declaration(child) && !is_enum_with_payloads(child) {
                 emit_enum_declaration(child, &mut output)?;
             }
         }
     }
 
-    // Pass 1b: emit struct definitions (only mut fields become struct members)
-    // Sort structs topologically so dependencies are defined first
+    // Build a map of struct name -> struct dependencies for transitive closure
+    let mut struct_deps_map: HashMap<String, Vec<String>> = HashMap::new();
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_struct_declaration(child) {
+                if let Some(name) = get_struct_name(child) {
+                    let deps = get_struct_dependencies(child);
+                    struct_deps_map.insert(name, deps);
+                }
+            }
+        }
+    }
+
+    // Collect types needed by enum payloads (these structs must be emitted before enums)
+    let mut enum_payload_deps: HashSet<String> = HashSet::new();
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+                collect_enum_payload_types(child, &mut enum_payload_deps);
+            }
+        }
+    }
+
+    // Expand to include transitive dependencies
+    let mut to_process: Vec<String> = enum_payload_deps.iter().cloned().collect();
+    while let Some(type_name) = to_process.pop() {
+        if let Some(deps) = struct_deps_map.get(&type_name) {
+            for dep in deps {
+                if !enum_payload_deps.contains(dep) {
+                    enum_payload_deps.insert(dep.clone());
+                    to_process.push(dep.clone());
+                }
+            }
+        }
+    }
+
+    // Collect names of enums with payloads (structs using these must be emitted after)
+    let mut enums_with_payloads_names: HashSet<String> = HashSet::new();
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+                if let NodeType::Declaration(decl) = &child.node_type {
+                    enums_with_payloads_names.insert(decl.name.clone());
+                }
+            }
+        }
+    }
+
+    // Pass 1b: emit struct definitions that are needed by enum payloads
+    // These must be complete before enum unions can use them
+    // BUT: exclude structs that use enums-with-payloads as fields (they go in pass 1d)
     if let NodeType::Body = &ast.node_type {
         let struct_decls: Vec<&Expr> = ast.params.iter()
             .filter(|child| is_struct_declaration(child))
+            .filter(|child| {
+                if let Some(name) = get_struct_name(child) {
+                    if !enum_payload_deps.contains(&name) {
+                        return false;
+                    }
+                    // Check if this struct uses any enums-with-payloads as fields
+                    let deps = get_struct_dependencies(child);
+                    for dep in &deps {
+                        if enums_with_payloads_names.contains(dep) {
+                            return false; // Has dependency on enum-with-payloads, defer to pass 1d
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            })
+            .collect();
+        let sorted_indices = topological_sort_structs(&struct_decls);
+        for idx in sorted_indices {
+            emit_struct_declaration(struct_decls[idx], &mut output)?;
+        }
+    }
+
+    // Pass 1c: emit enums with payloads (after their payload dependencies are defined)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) && is_enum_with_payloads(child) {
+                emit_enum_declaration(child, &mut output)?;
+            }
+        }
+    }
+
+    // Pass 1d: emit remaining struct definitions (those not emitted in 1b)
+    // These may use enums with payloads
+    // This includes: structs NOT in enum_payload_deps, OR structs that use enums-with-payloads as fields
+    if let NodeType::Body = &ast.node_type {
+        let struct_decls: Vec<&Expr> = ast.params.iter()
+            .filter(|child| is_struct_declaration(child))
+            .filter(|child| {
+                if let Some(name) = get_struct_name(child) {
+                    if !enum_payload_deps.contains(&name) {
+                        return true; // Not needed by enum payloads, emit now
+                    }
+                    // Check if this struct uses any enums-with-payloads as fields
+                    let deps = get_struct_dependencies(child);
+                    for dep in &deps {
+                        if enums_with_payloads_names.contains(dep) {
+                            return true; // Has dependency on enum-with-payloads, emit now (after 1c)
+                        }
+                    }
+                    false // Was emitted in pass 1b
+                } else {
+                    true
+                }
+            })
             .collect();
         let sorted_indices = topological_sort_structs(&struct_decls);
         for idx in sorted_indices {
@@ -817,8 +1116,9 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
 // Forward declarations are emitted separately, so we use "struct Name { ... };" here
 fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
-        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
+        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool"
+            || decl.name == "Dynamic" || decl.name == "Type" {
             return Ok(());
         }
         if !expr.params.is_empty() {
@@ -850,8 +1150,9 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64, U8, Bool - these are primitive typedefs defined in boilerplate
-        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool" {
+        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
+        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool"
+            || decl.name == "Dynamic" || decl.name == "Type" {
             return Ok(());
         }
         if !expr.params.is_empty() {
@@ -888,6 +1189,18 @@ fn enum_has_payloads(enum_def: &SEnumDef) -> bool {
     for (_variant_name, payload_type) in &enum_def.enum_map {
         if payload_type.is_some() {
             return true;
+        }
+    }
+    false
+}
+
+// Check if an expression is an enum declaration with payloads
+fn is_enum_with_payloads(expr: &Expr) -> bool {
+    if let NodeType::Declaration(_) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(enum_def) = &expr.params[0].node_type {
+                return enum_has_payloads(enum_def);
+            }
         }
     }
     false
@@ -935,8 +1248,11 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str("_Payload;\n\n");
     }
 
-    // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
-    output.push_str("typedef struct {\n");
+    // 3. Emit wrapper struct: struct Color { Color_Tag tag; Color_Payload payload; };
+    // Note: typedef is already forward-declared, so we just define the struct body
+    output.push_str("struct ");
+    output.push_str(enum_name);
+    output.push_str(" {\n");
     output.push_str("    ");
     output.push_str(enum_name);
     output.push_str("_Tag tag;\n");
@@ -945,9 +1261,7 @@ fn emit_enum_with_payloads(enum_name: &str, enum_def: &SEnumDef, output: &mut St
         output.push_str(enum_name);
         output.push_str("_Payload payload;\n");
     }
-    output.push_str("} ");
-    output.push_str(enum_name);
-    output.push_str(";\n\n");
+    output.push_str("};\n\n");
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
@@ -1629,6 +1943,43 @@ fn emit_throwing_call(
     // Determine if we need a return value temp variable
     let needs_ret = decl_name.is_some() || assign_name.is_some();
 
+    // Check if this is a UFCS call early (needed for param_types calculation)
+    let is_ufcs = if !fcall.params.is_empty() {
+        if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
+            if !fcall.params[0].params.is_empty() {
+                let first_char = receiver_name.chars().next().unwrap_or('a');
+                !first_char.is_uppercase()  // lowercase receiver = instance UFCS
+            } else { false }
+        } else { false }
+    } else { false };
+
+    // Calculate param_types early for Dynamic hoisting
+    let arg_offset = if is_ufcs { 1 } else { 0 };
+    let param_types: Vec<Option<ValueType>> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
+            .collect()
+    };
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
+        hoisted_vec.into_iter().collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
+        for (idx, temp_var) in dynamic_hoisted {
+            hoisted.insert(idx, temp_var);
+        }
+    }
+
     // Declare local variables for return value and errors
     // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
@@ -1708,29 +2059,25 @@ fn emit_throwing_call(
     }
 
     // Then: actual arguments
-    // Check if this is a UFCS call (receiver.method) - if so, emit receiver first
+    // For UFCS calls (receiver.method), emit receiver first
     let mut args_started = false;
-    if !fcall.params.is_empty() {
+    if is_ufcs {
         if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
-            if !fcall.params[0].params.is_empty() {
-                // This is UFCS: receiver.method(args)
-                let first_char = receiver_name.chars().next().unwrap_or('a');
-                if !first_char.is_uppercase() {
-                    // Instance UFCS (lowercase receiver) - emit receiver as first arg
-                    if needs_ret || !throw_types.is_empty() {
-                        output.push_str(", ");
-                    }
-                    output.push_str(&til_name(receiver_name));
-                    args_started = true;
-                }
+            if needs_ret || !throw_types.is_empty() {
+                output.push_str(", ");
             }
+            output.push_str(&til_name(receiver_name));
+            args_started = true;
         }
     }
-    for arg in fcall.params.iter().skip(1) {
+    // param_types and arg_offset already calculated above
+    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        emit_expr(arg, output, 0, ctx, context)?;
+        // Get parameter type for this argument
+        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, output, ctx, context)?;
         args_started = true;
     }
 
@@ -1848,6 +2195,43 @@ fn emit_throwing_call_propagate(
     // Determine if we need a return value temp variable
     let needs_ret = decl_name.is_some() || assign_name.is_some();
 
+    // Check if this is a UFCS call early (needed for param_types calculation)
+    let is_ufcs = if !fcall.params.is_empty() {
+        if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
+            if !fcall.params[0].params.is_empty() {
+                let first_char = receiver_name.chars().next().unwrap_or('a');
+                !first_char.is_uppercase()  // lowercase receiver = instance UFCS
+            } else { false }
+        } else { false }
+    } else { false };
+
+    // Calculate param_types early for Dynamic hoisting
+    let arg_offset = if is_ufcs { 1 } else { 0 };
+    let param_types: Vec<Option<ValueType>> = {
+        let func_def = lookup_func_by_name(context, &func_name);
+        fcall.params.iter().skip(1).enumerate()
+            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
+            .collect()
+    };
+
+    // Hoist any throwing function calls in arguments BEFORE emitting this call
+    let mut hoisted: std::collections::HashMap<usize, String> = if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
+        hoisted_vec.into_iter().collect()
+    } else {
+        std::collections::HashMap::new()
+    };
+
+    // Hoist non-lvalue args (string literals, function calls) when param type is Dynamic
+    if fcall.params.len() > 1 {
+        let args = &fcall.params[1..];
+        let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
+        for (idx, temp_var) in dynamic_hoisted {
+            hoisted.insert(idx, temp_var);
+        }
+    }
+
     // Look up the actual return type from scope_stack
     let ret_type = if needs_ret {
         lookup_func_by_name(context, &func_name)
@@ -1925,29 +2309,25 @@ fn emit_throwing_call_propagate(
     }
 
     // Then: actual arguments
-    // Check if this is a UFCS call (receiver.method) - if so, emit receiver first
+    // For UFCS calls (receiver.method), emit receiver first
     let mut args_started = false;
-    if !fcall.params.is_empty() {
+    if is_ufcs {
         if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
-            if !fcall.params[0].params.is_empty() {
-                // This is UFCS: receiver.method(args)
-                let first_char = receiver_name.chars().next().unwrap_or('a');
-                if !first_char.is_uppercase() {
-                    // Instance UFCS (lowercase receiver) - emit receiver as first arg
-                    if needs_ret || !throw_types.is_empty() {
-                        output.push_str(", ");
-                    }
-                    output.push_str(&til_name(receiver_name));
-                    args_started = true;
-                }
+            if needs_ret || !throw_types.is_empty() {
+                output.push_str(", ");
             }
+            output.push_str(&til_name(receiver_name));
+            args_started = true;
         }
     }
-    for arg in fcall.params.iter().skip(1) {
+    // param_types and arg_offset already calculated above
+    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
         if needs_ret || !throw_types.is_empty() || args_started {
             output.push_str(", ");
         }
-        emit_expr(arg, output, 0, ctx, context)?;
+        // Get parameter type for this argument
+        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, output, ctx, context)?;
         args_started = true;
     }
 
@@ -2491,12 +2871,22 @@ fn emit_fcall_with_hoisted(
                         emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
                         first_arg = false;
                     }
+                    // Look up param types for Type/Dynamic handling
+                    // For UFCS with receiver, args[0] is self, user args start at args[1]
+                    let arg_offset = if is_type_qualified { 0 } else { 1 };
+                    let param_types: Vec<Option<ValueType>> = {
+                        let func_def = lookup_func_by_name(context, &mangled_name);
+                        expr.params.iter().skip(1).enumerate()
+                            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
+                            .collect()
+                    };
                     for (i, arg) in expr.params.iter().skip(1).enumerate() {
                         if !first_arg {
                             output.push_str(", ");
                         }
                         first_arg = false;
-                        emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
+                        let param_type = param_types.get(i).and_then(|p| p.as_ref());
+                        emit_arg_with_param_type(arg, i, hoisted, param_type, output, ctx, context)?;
                     }
                     output.push_str(")");
                     return Ok(());
@@ -3006,14 +3396,29 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
         // to_ptr(var) - get address of variable
+        // For Dynamic params (already void*), just cast without taking address
         "to_ptr" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: to_ptr requires 1 argument".to_string());
             }
+            let arg = &expr.params[1];
+            // Check if arg is a Dynamic parameter (void*) - don't take address
+            let is_dynamic = if let NodeType::Identifier(name) = &arg.node_type {
+                if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+                    matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic")
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
             output.push_str("(");
             output.push_str(TIL_PREFIX);
-            output.push_str("I64)&");
-            emit_arg_or_hoisted(&expr.params[1], 0, &hoisted, output, ctx, context)?;
+            output.push_str("I64)");
+            if !is_dynamic {
+                output.push_str("&");
+            }
+            emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
             Ok(())
         },
         // User-defined function call
@@ -3132,13 +3537,20 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         emit_ufcs_receiver_chain(receiver, ufcs_depth, output)?;
                         first_arg = false;
                     }
-                    // Emit remaining arguments
+                    // Emit remaining arguments (type identifiers as string literals)
                     for (i, arg) in expr.params.iter().skip(1).enumerate() {
                         if !first_arg {
                             output.push_str(", ");
                         }
                         first_arg = false;
-                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                        // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
+                        if let Some(type_name) = get_type_arg_name(arg, context) {
+                            output.push_str("\"");
+                            output.push_str(&type_name);
+                            output.push_str("\"");
+                        } else {
+                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                        }
                     }
                     output.push_str(")");
                     if indent > 0 {
@@ -3225,11 +3637,21 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             } else {
                 // Regular non-variadic function call
                 // Emit arguments (skip first param which is function name)
+                // Type identifiers are emitted as string literals (matches interpreter.rs)
+                let mut first_arg = true;
                 for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                    if i > 0 {
+                    if !first_arg {
                         output.push_str(", ");
                     }
-                    emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                    first_arg = false;
+                    // Check if arg is a type identifier - emit as string literal
+                    if let Some(type_name) = get_type_arg_name(arg, context) {
+                        output.push_str("\"");
+                        output.push_str(&type_name);
+                        output.push_str("\"");
+                    } else {
+                        emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
+                    }
                 }
             }
 
