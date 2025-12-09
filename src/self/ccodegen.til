@@ -4,6 +4,7 @@ mode lib
 // Translates TIL AST to C source code
 
 import("src.self.parser")  // Expr, NodeType, Literal
+import("src.self.init")    // Context, get_value_type, ScopeFrame, SymbolInfo, ScopeType
 
 // Prefix for all TIL-generated C names (structs, functions, etc.)
 TIL_PREFIX := "til_"
@@ -26,13 +27,13 @@ CodegenContext := struct {
     mut current_throw_types: Vec = Vec.new(ValueType)
     // Currently generating function's return types (if any)
     mut current_return_types: Vec = Vec.new(ValueType)
-    // Current function's variadic param (if any)
-    mut current_variadic_param: VariadicParamInfo = VariadicParamInfo()
-    mut has_variadic_param: Bool = false
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
     // Set of mut param names in current function - for using -> instead of . for field access
     mut current_mut_params: Vec = Vec.new(Str)
+    // Map of variadic param names to their element type (e.g., "args" -> "til_Bool")
+    // Passed as til_Array* so need dereference, and need type info for Array.get casting
+    mut current_variadic_params: Map = Map.new(Str, Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -173,6 +174,120 @@ value_type_to_c_name := func(vt: ValueType) returns Str {
     case:
         return "int"
     }
+}
+
+// Result type for detect_variadic_fcall
+VariadicFCallInfo := struct {
+    mut is_variadic: Bool = false
+    mut elem_type: Str = ""
+    mut regular_count: I64 = 0
+}
+
+// Detect if an expression is a variadic function call
+// Returns (elem_type, regular_count) if it's a variadic call
+detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns VariadicFCallInfo {
+    mut result := VariadicFCallInfo()
+    if eq(expr.params.len(), 0) {
+        return result
+    }
+
+    // Get function name
+    mut func_name := ""
+    mut first := Expr()
+    expr.params.get(0, first)
+    switch first.node_type {
+    case NodeType.Identifier(name):
+        if eq(first.params.len(), 0) {
+            func_name = name
+        } else {
+            // UFCS - extract method name
+            mut method_result := extract_ufcs_method_and_depth(first)
+            if method_result.found {
+                func_name = method_result.method_name
+            } else {
+                return result
+            }
+        }
+    case:
+        return result
+    }
+    catch (err: IndexOutOfBoundsError) { return result }
+
+    // Build mangled name for lookup
+    mut mangled_name := ""
+    if gt(first.params.len(), 0) {
+        // UFCS call - get receiver type
+        switch first.node_type {
+        case NodeType.Identifier(receiver_name):
+            mut receiver_type_result := lookup_receiver_type(context, receiver_name)
+            if receiver_type_result.found {
+                switch receiver_type_result.value_type {
+                case ValueType.TCustom(type_name):
+                    mut candidate := format(type_name, ".", func_name)
+                    mut lookup := context.scope_stack.lookup_func(candidate)
+                    // Found - use mangled name
+                    mangled_name = format(type_name, "_", func_name)
+                    catch (err: KeyNotFoundError) { }
+                case ValueType.TMulti(elem):
+                    // Variadic param - treat as Array for UFCS
+                    mut candidate := format("Array", ".", func_name)
+                    mut lookup := context.scope_stack.lookup_func(candidate)
+                    mangled_name = format("Array_", func_name)
+                    catch (err: KeyNotFoundError) { }
+                case:
+                    // Unknown type
+                }
+            } else {
+                // Not found in scope - type-qualified call
+                mangled_name = format(receiver_name, "_", func_name)
+            }
+        case:
+            // Not identifier
+        }
+    } else if gt(expr.params.len(), 1) {
+        // Non-UFCS - check first argument type
+        mut second := Expr()
+        expr.params.get(1, second)
+        switch second.node_type {
+        case NodeType.Identifier(first_arg_name):
+            mut arg_type_result := lookup_receiver_type(context, first_arg_name)
+            if arg_type_result.found {
+                switch arg_type_result.value_type {
+                case ValueType.TCustom(type_name):
+                    mut candidate := format(type_name, ".", func_name)
+                    mut lookup := context.scope_stack.lookup_func(candidate)
+                    mangled_name = format(type_name, "_", func_name)
+                    catch (err: KeyNotFoundError) { }
+                case:
+                    // Not custom type
+                }
+            }
+        case:
+            // Not identifier
+        }
+        catch (err: IndexOutOfBoundsError) { }
+    }
+
+    // If no mangled name built, use plain function name
+    if mangled_name.eq("") {
+        mangled_name = func_name
+    }
+
+    // Look up in func_variadic_args
+    mut variadic_info := VariadicParamInfo()
+    ctx.func_variadic_args.get(mangled_name, variadic_info)
+    result.is_variadic = true
+    result.elem_type = variadic_info.elem_type
+    result.regular_count = variadic_info.regular_count
+
+    catch (err: KeyNotFoundError) {
+        // Not a variadic function
+    }
+    catch (err: I64_OverflowError) { }
+    catch (err: IndexOutOfBoundsError) { }
+    catch (err: AllocError) { }
+
+    return result
 }
 
 // Result type for check_throwing_fcall
@@ -402,10 +517,11 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
         // Check for variadic arg (TMulti)
         switch arg.value_type {
         case ValueType.TMulti(elem_type_name):
-            // Variadic: emit count param and ...
-            result = concat(result, "int ")
+            // Variadic args are passed as til_Array*
+            result = concat(result, TIL_PREFIX)
+            result = concat(result, "Array* ")
+            result = concat(result, TIL_PREFIX)
             result = concat(result, arg.name)
-            result = concat(result, "_len, ...")
             param_count = add(param_count, 1)
             // Variadic must be last, so break
             j = func_def.args.len()
@@ -1256,6 +1372,8 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             ctx.current_return_types = func_def.return_types
                             // Track mut params for pointer dereference (-> vs .)
                             ctx.current_mut_params = Vec.new(Str)
+                            // Track variadic params - they're passed as til_Array* so need dereference
+                            ctx.current_variadic_params = Map.new(Str, Str)
                             mut arg_idx := 0
                             while lt(arg_idx, func_def.args.len()) {
                                 mut arg := Declaration()
@@ -1263,10 +1381,17 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                                 if arg.is_mut {
                                     ctx.current_mut_params.push(arg.name)
                                 }
+                                switch arg.value_type {
+                                case ValueType.TMulti(elem_type_name):
+                                    // elem_type is the type name string like "Bool"
+                                    ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
+                                case:
+                                }
                                 arg_idx = add(arg_idx, 1)
                             }
                             catch (err: IndexOutOfBoundsError) { throw err.msg }
                             catch (err: AllocError) { throw err.msg }
+                            catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
                             // Clear declared_vars for new function scope
                             ctx.declared_vars = Vec.new(Str)
@@ -1688,12 +1813,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 ctx.current_return_types = func_def.return_types
                 // Track mut params for pointer dereference (-> vs .)
                 ctx.current_mut_params = Vec.new(Str)
+                // Track variadic params - they're passed as til_Array* so need dereference
+                ctx.current_variadic_params = Map.new(Str, Str)
 
                 // Clear declared_vars for new function scope
                 ctx.declared_vars = Vec.new(Str)
-                // Reset variadic param context
-                ctx.has_variadic_param = false
-                ctx.current_variadic_param = VariadicParamInfo()
                 // Check for variadic parameter and track mut params
                 mut arg_idx := 0
                 while lt(arg_idx, func_def.args.len()) {
@@ -1705,9 +1829,8 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     }
                     switch arg.value_type {
                     case ValueType.TMulti(elem_type_name):
-                        ctx.has_variadic_param = true
-                        ctx.current_variadic_param.arg_name = arg.name
-                        ctx.current_variadic_param.elem_type = elem_type_name
+                        // elem_type is the type name string like "Bool"
+                        ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
                     case:
                         // Not variadic, continue
                     }
@@ -1715,53 +1838,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 }
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 catch (err: AllocError) { throw err.msg }
+                catch (err: DuplicatedKeyError) { }  // Ignore duplicates
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
                 result = concat(result, " {\n")
-
-                // If function has variadic param, emit va_list setup to copy args to local array
-                if ctx.has_variadic_param {
-                    mut param_name := ctx.current_variadic_param.arg_name
-                    mut elem_type := ctx.current_variadic_param.elem_type
-                    // Emit: elem_type* param_name = NULL;
-                    result = concat(result, "    ")
-                    result = concat(result, elem_type)
-                    result = concat(result, "* ")
-                    result = concat(result, param_name)
-                    result = concat(result, " = NULL;\n")
-                    // Emit: if (param_name_len > 0) { ... va_list setup ... }
-                    result = concat(result, "    if (")
-                    result = concat(result, param_name)
-                    result = concat(result, "_len > 0) {\n")
-                    // malloc the array
-                    result = concat(result, "        ")
-                    result = concat(result, param_name)
-                    result = concat(result, " = (")
-                    result = concat(result, elem_type)
-                    result = concat(result, "*)malloc(")
-                    result = concat(result, param_name)
-                    result = concat(result, "_len * sizeof(")
-                    result = concat(result, elem_type)
-                    result = concat(result, "));\n")
-                    // va_list setup
-                    result = concat(result, "        va_list _va;\n")
-                    result = concat(result, "        va_start(_va, ")
-                    result = concat(result, param_name)
-                    result = concat(result, "_len);\n")
-                    // for loop to copy args
-                    result = concat(result, "        for (int _i = 0; _i < ")
-                    result = concat(result, param_name)
-                    result = concat(result, "_len; _i++) {\n")
-                    result = concat(result, "            ")
-                    result = concat(result, param_name)
-                    result = concat(result, "[_i] = va_arg(_va, ")
-                    result = concat(result, elem_type)
-                    result = concat(result, ");\n")
-                    result = concat(result, "        }\n")
-                    result = concat(result, "        va_end(_va);\n")
-                    result = concat(result, "    }\n")
-                }
 
                 // Emit function body with catch pattern detection
                 result = emit_stmts(func_def.body, result, 1, ctx, context)
@@ -2751,11 +2832,13 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 catch (err: IndexOutOfBoundsError) { }
             }
             mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
-            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+            mut receiver_is_variadic_param := Map.contains_key(ctx.current_variadic_params, receiver_name)
+            mut receiver_is_pointer := receiver_is_mut_param.or(receiver_is_variadic_param)
+            if called_self_is_mut.and(not(receiver_is_pointer)) {
                 // Called function takes mut self, receiver is not a pointer - add &
                 result = concat(result, "&")
                 result = concat(result, til_name(receiver_name))
-            } else if not(called_self_is_mut).and(receiver_is_mut_param) {
+            } else if not(called_self_is_mut).and(receiver_is_pointer) {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
                 result = concat(result, "(*")
                 result = concat(result, til_name(receiver_name))
@@ -3199,11 +3282,13 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 catch (err: IndexOutOfBoundsError) { }
             }
             mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
-            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+            mut receiver_is_variadic_param := Map.contains_key(ctx.current_variadic_params, receiver_name)
+            mut receiver_is_pointer := receiver_is_mut_param.or(receiver_is_variadic_param)
+            if called_self_is_mut.and(not(receiver_is_pointer)) {
                 // Called function takes mut self, receiver is not a pointer - add &
                 result = concat(result, "&")
                 result = concat(result, til_name(receiver_name))
-            } else if not(called_self_is_mut).and(receiver_is_mut_param) {
+            } else if not(called_self_is_mut).and(receiver_is_pointer) {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
                 result = concat(result, "(*")
                 result = concat(result, til_name(receiver_name))
@@ -3974,14 +4059,101 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = concat(result, "return 0;\n")
         }
     } else {
-        // Non-throwing function: regular return
+        // Non-throwing function: normal return
+        // Check if return expression is a variadic function call
+        if gt(expr.params.len(), 0) {
+            mut return_expr := Expr()
+            expr.params.get(0, return_expr)
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+            switch return_expr.node_type {
+            case NodeType.FCall:
+                mut variadic_info := detect_variadic_fcall(return_expr, ctx, context)
+                if variadic_info.is_variadic {
+                    // Variadic call in return - need to hoist it
+                    // First, hoist any nested throwing/variadic calls in the arguments
+                    mut hoisted := hoist_throwing_args(return_expr.params, result, indent, ctx, context)
+                    catch (err: AllocError) { throw "emit_return: AllocError in hoist_throwing_args" }
+
+                    mut variadic_args := Vec.new(Expr)
+                    mut vi := add(1, variadic_info.regular_count)
+                    while lt(vi, return_expr.params.len()) {
+                        mut varg := Expr()
+                        return_expr.params.get(vi, varg)
+                        variadic_args.push(varg)
+                        vi = add(vi, 1)
+                    }
+                    mut arr_var := hoist_variadic_args(variadic_info.elem_type, variadic_args, hoisted, variadic_info.regular_count, result, indent, ctx, context)
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+                    catch (err: AllocError) { throw err.msg }
+
+                    // Emit the function call storing result
+                    mut temp_var := next_mangled()
+                    mut ret_type := "int"
+                    mut ret_vt := get_value_type(context, return_expr)
+                    ret_type = til_type_to_c(ret_vt)
+                    result = concat(result, indent_str)
+                    result = concat(result, ret_type)
+                    result = concat(result, " ")
+                    result = concat(result, temp_var)
+                    result = concat(result, " = ")
+
+                    // Emit the function name
+                    mut func_name := get_fcall_func_name(return_expr, context)
+                    if gt(func_name.len(), 0) {
+                        result = concat(result, til_name(func_name))
+                    }
+                    result = concat(result, "(")
+
+                    // Emit regular args
+                    mut first := true
+                    mut ri := 0
+                    while lt(ri, variadic_info.regular_count) {
+                        if not(first) {
+                            result = concat(result, ", ")
+                        }
+                        first = false
+                        mut arg := Expr()
+                        return_expr.params.get(add(ri, 1), arg)
+                        result = emit_expr(arg, result, 0, ctx, context)
+                        ri = add(ri, 1)
+                    }
+                    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+                    // Emit variadic array pointer
+                    if not(first) {
+                        result = concat(result, ", ")
+                    }
+                    result = concat(result, "&")
+                    result = concat(result, arr_var)
+                    result = concat(result, ");\n")
+
+                    // Delete array
+                    result = concat(result, indent_str)
+                    result = concat(result, TIL_PREFIX)
+                    result = concat(result, "Array_delete(&")
+                    result = concat(result, arr_var)
+                    result = concat(result, ");\n")
+
+                    // Return the result
+                    result = concat(result, indent_str)
+                    result = concat(result, "return ")
+                    result = concat(result, temp_var)
+                    result = concat(result, ";\n")
+                    return result
+                }
+            case:
+            }
+        }
+
+        // Regular non-variadic return
         result = concat(result, "return")
         if gt(expr.params.len(), 0) {
             result = concat(result, " ")
-            mut first := Expr()
-            expr.params.get(0, first)
+            mut first_param := Expr()
+            expr.params.get(0, first_param)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
-            result = emit_expr(first, result, 0, ctx, context)
+            result = emit_expr(first_param, result, 0, ctx, context)
         }
         result = concat(result, ";\n")
     }
@@ -3990,7 +4162,8 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 }
 
 // Emit a throwing function call's name and arguments for hoisting
-emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, mut output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+// If variadic_arr_var is non-empty, use that pre-constructed array instead of building one
+emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_suffix: Str, throw_types: Vec, nested_hoisted: Vec, variadic_arr_var: Str, mut output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     if lt(expr.params.len(), 1) {
         throw "emit_fcall_name_and_args_for_throwing: FCall with no params"
     }
@@ -4102,11 +4275,13 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             }
             catch (err: KeyNotFoundError) { }
             mut receiver_is_mut_param := ctx.current_mut_params.contains(ufcs_receiver_name)
+            mut receiver_is_variadic_param := Map.contains_key(ctx.current_variadic_params, ufcs_receiver_name)
+            mut receiver_is_pointer := receiver_is_mut_param.or(receiver_is_variadic_param)
             mut needs_deref_close := false
-            if called_self_is_mut.and(not(receiver_is_mut_param)) {
+            if called_self_is_mut.and(not(receiver_is_pointer)) {
                 // Called function takes mut self, receiver is not a pointer - add &
                 output = concat(output, "&")
-            } else if not(called_self_is_mut).and(receiver_is_mut_param).and(eq(ufcs_depth, 1)) {
+            } else if not(called_self_is_mut).and(receiver_is_pointer).and(eq(ufcs_depth, 1)) {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
                 output = concat(output, "(*")
                 needs_deref_close = true
@@ -4119,8 +4294,8 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 first.params.get(field_idx, field_expr)
                 switch field_expr.node_type {
                 case NodeType.Identifier(field_name):
-                    // Use -> for first field access if base is mut param, . for rest
-                    if eq(field_idx, 0).and(receiver_is_mut_param) {
+                    // Use -> for first field access if base is pointer (mut param or variadic param), . for rest
+                    if eq(field_idx, 0).and(receiver_is_pointer) {
                         output = concat(output, "->")
                     } else {
                         output = concat(output, ".")
@@ -4139,7 +4314,8 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         catch (err: AllocError) { }
     }
 
-    // Emit remaining arguments (using hoisted temps where available)
+    // TODO: Check if this is a variadic function call and use variadic_arr_var
+    // For now, emit remaining arguments (using hoisted temps where available)
     mut arg_idx := 0
     // Skip first param (function name), start from index 1
     mut i := 1
@@ -4189,8 +4365,13 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         mut arg := Expr()
         args.get(idx, arg)
 
-        mut info := check_throwing_fcall(arg, ctx, context)
-        if info.is_throwing {
+        // Check if it's a throwing call
+        mut throwing_info := check_throwing_fcall(arg, ctx, context)
+        // Check if it's a variadic call (even if not throwing)
+        mut variadic_info := detect_variadic_fcall(arg, ctx, context)
+
+        // Handle throwing calls (may also be variadic)
+        if throwing_info.is_throwing {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             mut nested_hoisted := Vec.new(HoistedArg)
             if gt(arg.params.len(), 1) {
@@ -4201,8 +4382,8 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Determine C type for temp variable
             mut c_type := "int"
-            if info.has_return_type {
-                c_type = til_type_to_c(info.return_type)
+            if throwing_info.has_return_type {
+                c_type = til_type_to_c(throwing_info.return_type)
             }
 
             // Declare temp variable
@@ -4215,9 +4396,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             // Declare error variables for each throw type
             mut temp_suffix := next_mangled()
             mut err_idx := 0
-            while lt(err_idx, info.throw_types.len()) {
+            while lt(err_idx, throwing_info.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                info.throw_types.get(err_idx, throw_type)
+                throwing_info.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     output = concat(output, indent_str)
@@ -4234,12 +4415,29 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
 
+            // Detect and construct variadic array if needed
+            mut variadic_arr_var := ""
+            mut has_variadic_arr := false
+            if variadic_info.is_variadic {
+                mut variadic_args := Vec.new(Expr)
+                mut vi := add(1, variadic_info.regular_count)
+                while lt(vi, arg.params.len()) {
+                    mut varg := Expr()
+                    arg.params.get(vi, varg)
+                    variadic_args.push(varg)
+                    vi = add(vi, 1)
+                }
+                variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, output, indent, ctx, context)
+                has_variadic_arr = true
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            }
+
             // Emit the function call with output pointers
             output = concat(output, indent_str)
             output = concat(output, "int _status_")
             output = concat(output, temp_suffix)
             output = concat(output, " = ")
-            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, info.throw_types, nested_hoisted, output, ctx, context)
+            output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, variadic_arr_var, output, ctx, context)
             output = concat(output, ";\n")
 
             // Emit error checking - propagate if any error occurred
@@ -4250,9 +4448,9 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Propagate error to current function's error pointers
             err_idx = 0
-            while lt(err_idx, info.throw_types.len()) {
+            while lt(err_idx, throwing_info.throw_types.len()) {
                 mut throw_type := ValueType.TCustom("")
-                info.throw_types.get(err_idx, throw_type)
+                throwing_info.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
                     // Find matching throw type in current function
@@ -4293,6 +4491,119 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             output = concat(output, indent_str)
             output = concat(output, "}\n")
+
+            // Emit Array.delete if variadic array was constructed
+            if has_variadic_arr {
+                output = concat(output, indent_str)
+                output = concat(output, TIL_PREFIX)
+                output = concat(output, "Array_delete(&")
+                output = concat(output, variadic_arr_var)
+                output = concat(output, ");\n")
+            }
+
+            mut hoisted_arg := HoistedArg()
+            hoisted_arg.index = idx
+            hoisted_arg.temp_var = temp_var
+            hoisted.push(hoisted_arg)
+        }
+        // Handle non-throwing variadic calls
+        else if variadic_info.is_variadic {
+            // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
+            mut nested_hoisted := Vec.new(HoistedArg)
+            if gt(arg.params.len(), 1) {
+                nested_hoisted = hoist_throwing_args(arg.params, output, indent, ctx, context)
+            }
+
+            mut temp_var := next_mangled()
+
+            // Determine return type from function
+            mut c_type := "int"
+            mut func_name := get_fcall_func_name(arg, context)
+            if gt(func_name.len(), 0) {
+                mut fd_result := lookup_func_by_name(context, func_name)
+                if fd_result.found {
+                    if gt(fd_result.func_def.return_types.len(), 0) {
+                        mut ret_type := ValueType.TCustom("")
+                        fd_result.func_def.return_types.get(0, ret_type)
+                        c_type = til_type_to_c(ret_type)
+                        catch (err: IndexOutOfBoundsError) { }
+                    }
+                }
+            }
+
+            // Declare temp variable
+            output = concat(output, indent_str)
+            output = concat(output, c_type)
+            output = concat(output, " ")
+            output = concat(output, temp_var)
+            output = concat(output, ";\n")
+
+            // Construct variadic array
+            mut variadic_args := Vec.new(Expr)
+            mut vi := add(1, variadic_info.regular_count)
+            while lt(vi, arg.params.len()) {
+                mut varg := Expr()
+                arg.params.get(vi, varg)
+                variadic_args.push(varg)
+                vi = add(vi, 1)
+            }
+            mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, output, indent, ctx, context)
+
+            // Emit the function call (non-throwing, so direct assignment)
+            output = concat(output, indent_str)
+            output = concat(output, temp_var)
+            output = concat(output, " = ")
+
+            // Emit function name
+            if gt(func_name.len(), 0) {
+                output = concat(output, til_name(func_name))
+            }
+            output = concat(output, "(")
+
+            // Emit regular args (using nested hoisted temps)
+            mut first := true
+            mut ri := 0
+            while lt(ri, variadic_info.regular_count) {
+                if not(first) {
+                    output = concat(output, ", ")
+                }
+                first = false
+                // Check if this arg was hoisted
+                mut found_hoisted := false
+                mut hi := 0
+                while lt(hi, nested_hoisted.len()) {
+                    mut h := HoistedArg()
+                    nested_hoisted.get(hi, h)
+                    if eq(h.index, ri) {
+                        output = concat(output, h.temp_var)
+                        found_hoisted = true
+                    }
+                    hi = add(hi, 1)
+                }
+                if not(found_hoisted) {
+                    mut param := Expr()
+                    arg.params.get(add(ri, 1), param)
+                    output = emit_expr(param, output, 0, ctx, context)
+                }
+                ri = add(ri, 1)
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+            }
+
+            // Emit variadic array pointer
+            if not(first) {
+                output = concat(output, ", ")
+            }
+            output = concat(output, "&")
+            output = concat(output, variadic_arr_var)
+
+            output = concat(output, ");\n")
+
+            // Delete the variadic array
+            output = concat(output, indent_str)
+            output = concat(output, TIL_PREFIX)
+            output = concat(output, "Array_delete(&")
+            output = concat(output, variadic_arr_var)
+            output = concat(output, ");\n")
 
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx
@@ -4412,6 +4723,186 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
     return hoisted
 }
 
+// Hoist variadic arguments into a til_Array
+// Returns the array variable name
+hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted: Vec, regular_count: I64, mut output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str, AllocError {
+    mut indent_str := ""
+    mut ind := 0
+    while lt(ind, indent) {
+        indent_str = concat(indent_str, "    ")
+        ind = add(ind, 1)
+    }
+
+    mut arr_var := next_mangled()
+    mut err_suffix := next_mangled()
+    mut variadic_count := variadic_args.len()
+
+    // Declare the array variable
+    output = concat(output, indent_str)
+    output = concat(output, TIL_PREFIX)
+    output = concat(output, "Array ")
+    output = concat(output, arr_var)
+    output = concat(output, ";\n")
+
+    // Declare error vars for Array.new (AllocError) and Array.set (IndexOutOfBoundsError)
+    output = concat(output, indent_str)
+    output = concat(output, TIL_PREFIX)
+    output = concat(output, "AllocError _err_alloc_")
+    output = concat(output, err_suffix)
+    output = concat(output, ";\n")
+
+    output = concat(output, indent_str)
+    output = concat(output, TIL_PREFIX)
+    output = concat(output, "IndexOutOfBoundsError _err_idx_")
+    output = concat(output, err_suffix)
+    output = concat(output, ";\n")
+
+    // Hoist variadic args into temp vars (needed to pass address to Array.set)
+    mut arg_temps := Vec.new(Str)
+    mut c_elem_type := concat(TIL_PREFIX, elem_type)
+    mut i := 0
+    while lt(i, variadic_count) {
+        mut arg := Expr()
+        variadic_args.get(i, arg)
+        mut hoisted_idx := add(regular_count, i)
+
+        // Check if already hoisted
+        mut found_hoisted := false
+        mut temp := ""
+        mut j := 0
+        while lt(j, already_hoisted.len()) {
+            mut h := HoistedArg()
+            already_hoisted.get(j, h)
+            if eq(h.index, hoisted_idx) {
+                found_hoisted = true
+                temp = h.temp_var
+            }
+            j = add(j, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+        if found_hoisted {
+            arg_temps.push(temp)
+        } else {
+            // Need to hoist into a temp
+            mut temp_var := next_mangled()
+            output = concat(output, indent_str)
+            output = concat(output, c_elem_type)
+            output = concat(output, " ")
+            output = concat(output, temp_var)
+            output = concat(output, " = ")
+            output = emit_expr(arg, output, 0, ctx, context)
+            output = concat(output, ";\n")
+            arg_temps.push(temp_var)
+        }
+
+        i = add(i, 1)
+    }
+
+    // Emit Array.new call with error handling
+    output = concat(output, indent_str)
+    output = concat(output, "int _arr_status_")
+    output = concat(output, err_suffix)
+    output = concat(output, " = ")
+    output = concat(output, TIL_PREFIX)
+    output = concat(output, "Array_new(&")
+    output = concat(output, arr_var)
+    output = concat(output, ", &_err_alloc_")
+    output = concat(output, err_suffix)
+    output = concat(output, ", \"")
+    output = concat(output, elem_type)
+    output = concat(output, "\", ")
+    output = concat(output, I64.to_str(variadic_count))
+    output = concat(output, ");\n")
+
+    // Emit error check for Array.new
+    output = concat(output, indent_str)
+    output = concat(output, "if (_arr_status_")
+    output = concat(output, err_suffix)
+    output = concat(output, " != 0) {\n")
+    // Propagate AllocError if current function throws it
+    mut curr_idx := 0
+    while lt(curr_idx, ctx.current_throw_types.len()) {
+        mut curr_throw := ValueType.TCustom("")
+        ctx.current_throw_types.get(curr_idx, curr_throw)
+        switch curr_throw {
+        case ValueType.TCustom(curr_type_name):
+            if curr_type_name.eq("AllocError") {
+                output = concat(output, indent_str)
+                output = concat(output, "    *_err")
+                output = concat(output, I64.to_str(add(curr_idx, 1)))
+                output = concat(output, " = _err_alloc_")
+                output = concat(output, err_suffix)
+                output = concat(output, "; return ")
+                output = concat(output, I64.to_str(add(curr_idx, 1)))
+                output = concat(output, ";\n")
+            }
+        case:
+            // Skip
+        }
+        curr_idx = add(curr_idx, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    output = concat(output, indent_str)
+    output = concat(output, "}\n")
+
+    // Emit Array.set for each variadic arg
+    i = 0
+    while lt(i, arg_temps.len()) {
+        mut temp := ""
+        arg_temps.get(i, temp)
+
+        output = concat(output, indent_str)
+        output = concat(output, "_arr_status_")
+        output = concat(output, err_suffix)
+        output = concat(output, " = ")
+        output = concat(output, TIL_PREFIX)
+        output = concat(output, "Array_set(&_err_idx_")
+        output = concat(output, err_suffix)
+        output = concat(output, ", &")
+        output = concat(output, arr_var)
+        output = concat(output, ", ")
+        output = concat(output, I64.to_str(i))
+        output = concat(output, ", &")
+        output = concat(output, temp)
+        output = concat(output, ");\n")
+
+        // Error check for Array.set
+        output = concat(output, indent_str)
+        output = concat(output, "if (_arr_status_")
+        output = concat(output, err_suffix)
+        output = concat(output, " != 0) {\n")
+        curr_idx = 0
+        while lt(curr_idx, ctx.current_throw_types.len()) {
+            mut curr_throw := ValueType.TCustom("")
+            ctx.current_throw_types.get(curr_idx, curr_throw)
+            switch curr_throw {
+            case ValueType.TCustom(curr_type_name):
+                if curr_type_name.eq("IndexOutOfBoundsError") {
+                    output = concat(output, indent_str)
+                    output = concat(output, "    *_err")
+                    output = concat(output, I64.to_str(add(curr_idx, 1)))
+                    output = concat(output, " = _err_idx_")
+                    output = concat(output, err_suffix)
+                    output = concat(output, "; return ")
+                    output = concat(output, I64.to_str(add(curr_idx, 1)))
+                    output = concat(output, ";\n")
+                }
+            case:
+                // Skip
+            }
+            curr_idx = add(curr_idx, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        output = concat(output, indent_str)
+        output = concat(output, "}\n")
+
+        i = add(i, 1)
+    }
+
+    return arr_var
+}
+
 emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     // First param is the function name (or UFCS receiver.method)
     mut params_len := expr.params.len()
@@ -4452,46 +4943,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         throw "ccodegen: FCall first param not Identifier"
     }
 
-    // Handle variadic parameter methods: args.len() and args.get(i, val)
-    if has_ufcs_receiver {
-        if ctx.has_variadic_param {
-            if ufcs_receiver_name.eq(ctx.current_variadic_param.arg_name) {
-                if func_name.eq("len") {
-                    // args.len() -> args_len
-                    return concat(output, concat(ctx.current_variadic_param.arg_name, "_len"))
-                } else if func_name.eq("get") {
-                    // args.get(i, val) -> val = args[i];
-                    // params[1] is index, params[2] is output variable
-                    if gt(params_len, 2) {
-                        mut out_var_expr := Expr()
-                        expr.params.get(2, out_var_expr)
-                        catch (err: IndexOutOfBoundsError) { throw err.msg }
-                        switch out_var_expr.node_type {
-                        case NodeType.Identifier(out_var):
-                            mut ind := 0
-                            mut result := output
-                            while lt(ind, indent) {
-                                result = concat(result, "    ")
-                                ind = add(ind, 1)
-                            }
-                            result = concat(result, out_var)
-                            result = concat(result, " = ")
-                            result = concat(result, ctx.current_variadic_param.arg_name)
-                            result = concat(result, "[")
-                            mut idx_expr := Expr()
-                            expr.params.get(1, idx_expr)
-                            catch (err: IndexOutOfBoundsError) { throw err.msg }
-                            result = emit_expr(idx_expr, result, 0, ctx, context)
-                            result = concat(result, "];\n")
-                            return result
-                        case:
-                            // Not an identifier, fall through
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // NOTE: Old variadic param method handling (args.len(), args.get()) removed
+    // Variadic params are now til_Array* so standard Array methods work
 
     mut result := output
 
@@ -4648,11 +5101,13 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         catch (err: IndexOutOfBoundsError) { }
                     }
                     mut receiver_is_mut_param := ctx.current_mut_params.contains(receiver_name)
+                    mut receiver_is_variadic_param := Map.contains_key(ctx.current_variadic_params, receiver_name)
+                    mut receiver_is_pointer := receiver_is_mut_param.or(receiver_is_variadic_param)
                     mut needs_deref_close := false
-                    if called_self_is_mut.and(not(receiver_is_mut_param)) {
+                    if called_self_is_mut.and(not(receiver_is_pointer)) {
                         // Called function takes mut self, receiver is not a pointer - add &
                         result = concat(result, "&")
-                    } else if not(called_self_is_mut).and(receiver_is_mut_param).and(eq(ufcs_depth, 1)) {
+                    } else if not(called_self_is_mut).and(receiver_is_pointer).and(eq(ufcs_depth, 1)) {
                         // Called function takes non-mut self, but receiver is a pointer - dereference
                         result = concat(result, "(*")
                         needs_deref_close = true
@@ -4665,8 +5120,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         first.params.get(field_idx, field_expr)
                         switch field_expr.node_type {
                         case NodeType.Identifier(field_name):
-                            // Use -> for first field access if base is mut param, . for rest
-                            if eq(field_idx, 0).and(receiver_is_mut_param) {
+                            // Use -> for first field access if base is pointer (mut param or variadic param), . for rest
+                            if eq(field_idx, 0).and(receiver_is_pointer) {
                                 result = concat(result, "->")
                             } else {
                                 result = concat(result, ".")
@@ -4745,6 +5200,28 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             is_variadic = false
         }
 
+        // Detect and construct variadic array if needed (only at statement level)
+        mut variadic_arr_var := ""
+        mut has_variadic_arr := false
+        if is_variadic.and(gt(indent, 0)) {
+            // Collect variadic args
+            mut variadic_args := Vec.new(Expr)
+            mut regular_end := add(variadic_info.regular_count, 1)  // +1 to skip func name
+            mut vi := regular_end
+            while lt(vi, params_len) {
+                mut varg := Expr()
+                expr.params.get(vi, varg)
+                variadic_args.push(varg)
+                vi = add(vi, 1)
+            }
+            // Use empty hoisted map since we're not hoisting args here
+            mut empty_hoisted := Vec.new(HoistedArg)
+            variadic_arr_var = hoist_variadic_args(variadic_info.elem_type, variadic_args, empty_hoisted, variadic_info.regular_count, result, indent, ctx, context)
+            has_variadic_arr = true
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
+        }
+
         if is_variadic {
             // Emit regular args first
             mut i := 1
@@ -4760,23 +5237,14 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-            // Emit count of variadic args
-            mut variadic_count := sub(params_len, regular_end)
-            if gt(regular_end, 1) {
-                result = concat(result, ", ")
+            // Emit variadic array pointer
+            if has_variadic_arr {
+                if gt(variadic_info.regular_count, 0) {
+                    result = concat(result, ", ")
+                }
+                result = concat(result, "&")
+                result = concat(result, variadic_arr_var)
             }
-            result = concat(result, variadic_count.to_str())
-
-            // Emit variadic args
-            mut vi := regular_end
-            while lt(vi, params_len) {
-                result = concat(result, ", ")
-                mut arg := Expr()
-                expr.params.get(vi, arg)
-                result = emit_expr(arg, result, 0, ctx, context)
-                vi = add(vi, 1)
-            }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
         } else {
             // Non-variadic: emit args normally
             mut i := 1
@@ -4797,6 +5265,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         if gt(indent, 0) {
             result = concat(result, ";\n")
         }
+
+        // Emit Array.delete if variadic array was constructed
+        if has_variadic_arr {
+            mut ind := 0
+            while lt(ind, indent) {
+                result = concat(result, "    ")
+                ind = add(ind, 1)
+            }
+            result = concat(result, TIL_PREFIX)
+            result = concat(result, "Array_delete(&")
+            result = concat(result, variadic_arr_var)
+            result = concat(result, ");\n")
+        }
+
         return result
     }
 
@@ -4813,6 +5295,41 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     case:
         throw "ccodegen: expected identifier"
     }
+}
+
+// Result type for extract_ufcs_method_and_depth
+UfcsMethodResult := struct {
+    mut found: Bool = false
+    mut method_name: Str = ""
+    mut depth: I64 = 0
+}
+
+/// Extract method name and receiver depth from a chained UFCS expression.
+/// For `self._len.eq(...)`, returns ("eq", 2) meaning method is "eq" and receiver has 2 levels.
+/// For `self.method(...)`, returns ("method", 1).
+extract_ufcs_method_and_depth := func(first_param: Expr) returns UfcsMethodResult {
+    mut result := UfcsMethodResult()
+    switch first_param.node_type {
+    case NodeType.Identifier(_):
+        // AST structure for chained access is FLAT: a.b.c becomes
+        // Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+        // The method is the LAST param in the list
+        mut depth := first_param.params.len()
+        if gt(depth, 0) {
+            mut last_param := Expr()
+            first_param.params.get(sub(depth, 1), last_param)
+            switch last_param.node_type {
+            case NodeType.Identifier(method_name):
+                result.found = true
+                result.method_name = method_name
+                result.depth = depth
+            case:
+            }
+            catch (err: IndexOutOfBoundsError) { }
+        }
+    case:
+    }
+    return result
 }
 
 emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {

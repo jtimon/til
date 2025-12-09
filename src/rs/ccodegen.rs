@@ -20,12 +20,13 @@ struct CodegenContext {
     current_throw_types: Vec<ValueType>,
     // Currently generating function's return types (if any)
     current_return_types: Vec<ValueType>,
-    // Current function's variadic param name (if any) - for translating args.len()/args.get()
-    current_variadic_param: Option<(String, String)>, // (name, element_type)
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
     // Set of mut param names in current function - for using -> instead of . for field access
     current_mut_params: HashSet<String>,
+    // Map of variadic param names to their element type (e.g., "args" -> "Bool")
+    // Passed as til_Array* so need dereference, and need type info for Array.get casting
+    current_variadic_params: HashMap<String, String>,
 }
 
 impl CodegenContext {
@@ -34,9 +35,9 @@ impl CodegenContext {
             func_variadic_args: HashMap::new(),
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
-            current_variadic_param: None,
             declared_vars: HashSet::new(),
             current_mut_params: HashSet::new(),
+            current_variadic_params: HashMap::new(),
         }
     }
 
@@ -270,7 +271,13 @@ fn hoist_throwing_args(
     let indent_str = "    ".repeat(indent);
 
     for (idx, arg) in args.iter().enumerate() {
-        if let Some((_func_name, throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
+        // Check if it's a throwing call
+        let throwing_info = check_throwing_fcall(arg, ctx, context);
+        // Check if it's a variadic call (even if not throwing)
+        let variadic_info = detect_variadic_fcall(arg, ctx, context);
+
+        // Handle throwing calls (may also be variadic)
+        if let Some((_func_name, throw_types, return_type)) = throwing_info {
             // RECURSIVELY hoist any throwing calls in this call's arguments first
             let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
                 let nested_args = &arg.params[1..];
@@ -310,6 +317,19 @@ fn hoist_throwing_args(
                 }
             }
 
+            // Detect and construct variadic array if needed
+            let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
+                let variadic_args: Vec<_> = arg.params.iter().skip(1 + regular_count).collect();
+                if !variadic_args.is_empty() {
+                    Some(hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                } else {
+                    // Empty variadic - still need an array (with 0 elements)
+                    Some(hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?)
+                }
+            } else {
+                None
+            };
+
             // Emit the function call with output pointers
             output.push_str(&indent_str);
             output.push_str("int _status_");
@@ -317,7 +337,7 @@ fn hoist_throwing_args(
             output.push_str(" = ");
 
             // Emit the function name and args (using nested hoisted temps)
-            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, output, ctx, context)?;
+            emit_fcall_name_and_args_for_throwing(arg, &temp_var, &temp_suffix, &throw_types, &nested_hoisted, variadic_arr_var.as_deref(), output, ctx, context)?;
 
             output.push_str(";\n");
 
@@ -358,6 +378,101 @@ fn hoist_throwing_args(
 
             output.push_str(&indent_str);
             output.push_str("}\n");
+
+            // Emit Array.delete if variadic array was constructed
+            if let Some(arr_var) = &variadic_arr_var {
+                output.push_str(&indent_str);
+                output.push_str(TIL_PREFIX);
+                output.push_str("Array_delete(&");
+                output.push_str(arr_var);
+                output.push_str(");\n");
+            }
+
+            hoisted.push((idx, temp_var));
+        }
+        // Handle non-throwing variadic calls
+        else if let Some((elem_type, regular_count)) = variadic_info {
+            // RECURSIVELY hoist any throwing/variadic calls in this call's arguments first
+            let nested_hoisted: std::collections::HashMap<usize, String> = if arg.params.len() > 1 {
+                let nested_args = &arg.params[1..];
+                let nested_vec = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
+                nested_vec.into_iter().collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+
+            let temp_var = next_mangled();
+
+            // Determine return type from function
+            let c_type = if let Some(func_name) = get_fcall_func_name(arg, context) {
+                if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    if let Some(ret_type) = fd.return_types.first() {
+                        til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
+                    } else {
+                        "int".to_string()
+                    }
+                } else {
+                    "int".to_string()
+                }
+            } else {
+                "int".to_string()
+            };
+
+            // Declare temp variable
+            output.push_str(&indent_str);
+            output.push_str(&c_type);
+            output.push_str(" ");
+            output.push_str(&temp_var);
+            output.push_str(";\n");
+
+            // Construct variadic array
+            let variadic_args: Vec<_> = arg.params.iter().skip(1 + regular_count).collect();
+            let variadic_arr_var = if !variadic_args.is_empty() {
+                hoist_variadic_args(&elem_type, &variadic_args, &nested_hoisted, regular_count, output, indent, ctx, context)?
+            } else {
+                hoist_variadic_args(&elem_type, &[], &nested_hoisted, regular_count, output, indent, ctx, context)?
+            };
+
+            // Emit the function call (non-throwing, so direct assignment)
+            output.push_str(&indent_str);
+            output.push_str(&temp_var);
+            output.push_str(" = ");
+
+            // Emit function name
+            if let Some(func_name) = get_fcall_func_name(arg, context) {
+                output.push_str(&til_name(&func_name));
+            }
+            output.push('(');
+
+            // Emit regular args (using nested hoisted temps)
+            let mut first = true;
+            for (i, param) in arg.params.iter().skip(1).take(regular_count).enumerate() {
+                if !first {
+                    output.push_str(", ");
+                }
+                first = false;
+                if let Some(temp) = nested_hoisted.get(&i) {
+                    output.push_str(temp);
+                } else {
+                    emit_expr(param, output, 0, ctx, context)?;
+                }
+            }
+
+            // Emit variadic array pointer
+            if !first {
+                output.push_str(", ");
+            }
+            output.push('&');
+            output.push_str(&variadic_arr_var);
+
+            output.push_str(");\n");
+
+            // Delete the variadic array
+            output.push_str(&indent_str);
+            output.push_str(TIL_PREFIX);
+            output.push_str("Array_delete(&");
+            output.push_str(&variadic_arr_var);
+            output.push_str(");\n");
 
             hoisted.push((idx, temp_var));
         }
@@ -447,14 +562,225 @@ fn hoist_for_dynamic_params(
     Ok(hoisted)
 }
 
+/// Hoist variadic arguments into a til_Array
+/// Returns the array variable name, or None if no variadic args
+/// Also returns the element type for use in Array.delete
+fn hoist_variadic_args(
+    elem_type: &str,
+    variadic_args: &[&Expr],
+    already_hoisted: &std::collections::HashMap<usize, String>,
+    regular_count: usize,  // Offset for indexing into already_hoisted
+    output: &mut String,
+    indent: usize,
+    ctx: &mut CodegenContext,
+    context: &mut Context,
+) -> Result<String, String> {
+    let indent_str = "    ".repeat(indent);
+    let arr_var = next_mangled();
+    let err_suffix = next_mangled();
+    let variadic_count = variadic_args.len();
+
+    // Declare the array variable
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("Array ");
+    output.push_str(&arr_var);
+    output.push_str(";\n");
+
+    // Declare error vars for Array.new (AllocError) and Array.set (IndexOutOfBoundsError)
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("AllocError _err_alloc_");
+    output.push_str(&err_suffix);
+    output.push_str(";\n");
+
+    output.push_str(&indent_str);
+    output.push_str(TIL_PREFIX);
+    output.push_str("IndexOutOfBoundsError _err_idx_");
+    output.push_str(&err_suffix);
+    output.push_str(";\n");
+
+    // Hoist variadic args into temp vars (needed to pass address to Array.set)
+    let mut arg_temps: Vec<String> = Vec::new();
+    let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
+    for (i, arg) in variadic_args.iter().enumerate() {
+        let hoisted_idx = regular_count + i;
+        if let Some(temp) = already_hoisted.get(&hoisted_idx) {
+            // Already hoisted, use that temp
+            arg_temps.push(temp.clone());
+        } else {
+            // Need to hoist into a temp
+            let temp_var = next_mangled();
+            output.push_str(&indent_str);
+            output.push_str(&c_elem_type);
+            output.push_str(" ");
+            output.push_str(&temp_var);
+            output.push_str(" = ");
+            emit_expr(arg, output, 0, ctx, context)?;
+            output.push_str(";\n");
+            arg_temps.push(temp_var);
+        }
+    }
+
+    // Emit Array.new call with error handling
+    // int _status = til_Array_new(&arr, &_err_alloc, "ElemType", count);
+    output.push_str(&indent_str);
+    output.push_str("int _arr_status_");
+    output.push_str(&err_suffix);
+    output.push_str(" = ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Array_new(&");
+    output.push_str(&arr_var);
+    output.push_str(", &_err_alloc_");
+    output.push_str(&err_suffix);
+    output.push_str(", \"");
+    output.push_str(elem_type);
+    output.push_str("\", ");
+    output.push_str(&variadic_count.to_string());
+    output.push_str(");\n");
+
+    // Emit error check for Array.new (AllocError -> propagate if current function throws it)
+    output.push_str(&indent_str);
+    output.push_str("if (_arr_status_");
+    output.push_str(&err_suffix);
+    output.push_str(" != 0) {\n");
+    // Propagate AllocError if current function throws it
+    for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
+        if let ValueType::TCustom(curr_type_name) = curr_throw {
+            if curr_type_name == "AllocError" {
+                output.push_str(&indent_str);
+                output.push_str("    *_err");
+                output.push_str(&(curr_idx + 1).to_string());
+                output.push_str(" = _err_alloc_");
+                output.push_str(&err_suffix);
+                output.push_str("; return ");
+                output.push_str(&(curr_idx + 1).to_string());
+                output.push_str(";\n");
+                break;
+            }
+        }
+    }
+    output.push_str(&indent_str);
+    output.push_str("}\n");
+
+    // Emit Array.set for each variadic arg
+    for (i, temp) in arg_temps.iter().enumerate() {
+        // int _status = til_Array_set(&_err_idx, &arr, i, &temp);
+        output.push_str(&indent_str);
+        output.push_str("_arr_status_");
+        output.push_str(&err_suffix);
+        output.push_str(" = ");
+        output.push_str(TIL_PREFIX);
+        output.push_str("Array_set(&_err_idx_");
+        output.push_str(&err_suffix);
+        output.push_str(", &");
+        output.push_str(&arr_var);
+        output.push_str(", ");
+        output.push_str(&i.to_string());
+        output.push_str(", &");
+        output.push_str(temp);
+        output.push_str(");\n");
+
+        // Error check for Array.set (IndexOutOfBoundsError - shouldn't happen but propagate if thrown)
+        output.push_str(&indent_str);
+        output.push_str("if (_arr_status_");
+        output.push_str(&err_suffix);
+        output.push_str(" != 0) {\n");
+        for (curr_idx, curr_throw) in ctx.current_throw_types.iter().enumerate() {
+            if let ValueType::TCustom(curr_type_name) = curr_throw {
+                if curr_type_name == "IndexOutOfBoundsError" {
+                    output.push_str(&indent_str);
+                    output.push_str("    *_err");
+                    output.push_str(&(curr_idx + 1).to_string());
+                    output.push_str(" = _err_idx_");
+                    output.push_str(&err_suffix);
+                    output.push_str("; return ");
+                    output.push_str(&(curr_idx + 1).to_string());
+                    output.push_str(";\n");
+                    break;
+                }
+            }
+        }
+        output.push_str(&indent_str);
+        output.push_str("}\n");
+    }
+
+    Ok(arr_var)
+}
+
+/// Detect if an expression is a variadic function call
+/// Returns (elem_type, regular_count) if it's a variadic call
+fn detect_variadic_fcall(
+    expr: &Expr,
+    ctx: &CodegenContext,
+    context: &Context,
+) -> Option<(String, usize)> {
+    if expr.params.is_empty() {
+        return None;
+    }
+
+    let func_name = match &expr.params[0].node_type {
+        NodeType::Identifier(name) => {
+            if expr.params[0].params.is_empty() {
+                name.clone()
+            } else if let Some((method_name, _)) = extract_ufcs_method_and_depth(&expr.params[0]) {
+                method_name
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+
+    // Build mangled name for lookup
+    let mangled_name = {
+        let mut name = String::new();
+        if !expr.params[0].params.is_empty() {
+            if let NodeType::Identifier(receiver_name) = &expr.params[0].node_type {
+                let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
+                    .map(|s| s.value_type.clone());
+                if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                    let candidate = format!("{}.{}", type_name, func_name);
+                    if context.scope_stack.lookup_func(&candidate).is_some() {
+                        name.push_str(&type_name);
+                        name.push('_');
+                    }
+                } else if receiver_type.is_none() {
+                    name.push_str(receiver_name);
+                    name.push('_');
+                }
+            }
+        } else if expr.params.len() > 1 {
+            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
+                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
+                    .map(|s| s.value_type.clone());
+                if let Some(ValueType::TCustom(type_name)) = arg_type {
+                    let candidate = format!("{}.{}", type_name, func_name);
+                    if context.scope_stack.lookup_func(&candidate).is_some() {
+                        name.push_str(&type_name);
+                        name.push('_');
+                    }
+                }
+            }
+        }
+        name.push_str(&func_name);
+        name
+    };
+
+    ctx.func_variadic_args.get(&mangled_name)
+        .map(|(_, elem_type, regular_count)| (elem_type.clone(), *regular_count))
+}
+
 /// Emit a throwing function call's name and arguments for hoisting
 /// Outputs: func_name(&temp_var, &err1, &err2, ..., args...)
+/// If variadic_arr_var is Some, use that pre-constructed array instead of building one
 fn emit_fcall_name_and_args_for_throwing(
     expr: &Expr,
     temp_var: &str,
     temp_suffix: &str,
     throw_types: &[ValueType],
     nested_hoisted: &std::collections::HashMap<usize, String>,  // Hoisted temps for nested args
+    variadic_arr_var: Option<&str>,  // Pre-constructed variadic array var
     output: &mut String,
     ctx: &mut CodegenContext,
     context: &mut Context,
@@ -566,11 +892,13 @@ fn emit_fcall_name_and_args_for_throwing(
                         .map(|a| a.is_mut)
                         .unwrap_or(false);
                     let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+                    let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+                    let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
 
-                    if called_self_is_mut && !receiver_is_mut_param {
+                    if called_self_is_mut && !receiver_is_pointer {
                         // Called function takes mut self, receiver is not a pointer - add &
                         output.push_str("&");
-                    } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                    } else if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
                         // Called function takes non-mut self, but receiver is a pointer - dereference
                         output.push_str("(*");
                     }
@@ -589,7 +917,9 @@ fn emit_fcall_name_and_args_for_throwing(
                         .map(|a| a.is_mut)
                         .unwrap_or(false);
                     let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
-                    if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                    let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+                    let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
+                    if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
                         output.push_str(")");
                     }
                 }
@@ -604,7 +934,13 @@ fn emit_fcall_name_and_args_for_throwing(
             if let NodeType::Identifier(receiver_name) = &receiver.node_type {
                 let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
                     .map(|s| s.value_type.clone());
-                if let Some(ValueType::TCustom(type_name)) = receiver_type {
+                // Get type name for UFCS mangling - TMulti becomes Array
+                let type_name_opt = match &receiver_type {
+                    Some(ValueType::TCustom(type_name)) => Some(type_name.clone()),
+                    Some(ValueType::TMulti(_)) => Some("Array".to_string()),
+                    _ => None,
+                };
+                if let Some(type_name) = type_name_opt {
                     let candidate = format!("{}.{}", type_name, func_name);
                     if context.scope_stack.lookup_func(&candidate).is_some() {
                         name.push_str(&type_name);
@@ -634,7 +970,7 @@ fn emit_fcall_name_and_args_for_throwing(
     };
 
     // Check if this is a variadic function call
-    if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
+    if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
         // Emit regular args first (skip first param which is function name)
         let args: Vec<_> = expr.params.iter().skip(1).collect();
         for (arg_idx, arg) in args.iter().take(regular_count).enumerate() {
@@ -645,51 +981,38 @@ fn emit_fcall_name_and_args_for_throwing(
                 emit_expr(arg, output, 0, ctx, context)?;
             }
         }
-        // Emit count of variadic args
-        let variadic_count = args.len().saturating_sub(regular_count);
-        output.push_str(", ");
-        output.push_str(&variadic_count.to_string());
 
-        // Emit variadic args as compound literal array (C99)
-        // Get C element type for the array (all TIL types get til_ prefix)
-        let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
-
-        if variadic_count == 0 {
-            // Empty variadic: pass til_NULL
-            output.push_str(", til_NULL");
+        // Emit variadic array pointer
+        if let Some(arr_var) = variadic_arr_var {
+            output.push_str(", &");
+            output.push_str(arr_var);
         } else {
-            // Build compound literal: (type[]){arg1, arg2, ...}
-            output.push_str(", (");
-            output.push_str(&c_elem_type);
-            output.push_str("[]){");
-            for (i, arg) in args.iter().skip(regular_count).enumerate() {
-                if i > 0 {
-                    output.push_str(", ");
-                }
-                let hoisted_idx = regular_count + i;
-                if let Some(temp) = nested_hoisted.get(&hoisted_idx) {
-                    output.push_str(temp);
-                } else {
-                    emit_expr(arg, output, 0, ctx, context)?;
-                }
-            }
-            output.push_str("}");
+            // No pre-constructed array - this shouldn't happen for throwing calls
+            return Err("emit_fcall_name_and_args_for_throwing: variadic call without pre-constructed array".to_string());
         }
     } else {
+        // Get function param info for Dynamic casting, mut handling
+        // Pre-extract param types to avoid borrow issues
+        let ufcs_offset = if is_instance_call { 1 } else { 0 };
+        let param_info: Vec<(Option<ValueType>, bool)> = lookup_func_by_name(context, &mangled_name)
+            .map(|fd| {
+                fd.args.iter()
+                    .skip(ufcs_offset)
+                    .map(|p| (Some(p.value_type.clone()), p.is_mut))
+                    .collect()
+            })
+            .unwrap_or_default();
+
         // Emit remaining arguments (using hoisted temps where available)
         for (arg_idx, arg) in expr.params.iter().skip(1).enumerate() {
             output.push_str(", ");
-            // Use hoisted temp if this arg was hoisted, otherwise emit directly
-            if let Some(temp) = nested_hoisted.get(&arg_idx) {
-                output.push_str(temp);
-            } else if let Some(type_name) = get_type_arg_name(arg, context) {
-                // Type identifier - emit as string literal
-                output.push_str("\"");
-                output.push_str(&type_name);
-                output.push_str("\"");
-            } else {
-                emit_expr(arg, output, 0, ctx, context)?;
-            }
+
+            // Get expected param type and mutability
+            let (param_type, param_is_mut) = param_info.get(arg_idx)
+                .map(|(t, m)| (t.as_ref(), *m))
+                .unwrap_or((None, false));
+
+            emit_arg_with_param_type(arg, arg_idx, nested_hoisted, param_type, param_is_mut, output, ctx, context)?;
         }
     }
 
@@ -743,7 +1066,28 @@ fn emit_arg_with_param_type(
         return Ok(());
     }
 
-    // Check if param is mut - emit &arg for pointer
+    // Check if parameter type is Dynamic (including mut Dynamic)
+    // Must check BEFORE the general mut check since Dynamic needs casting
+    let is_dynamic = matches!(param_type, Some(ValueType::TCustom(name)) if name == "Dynamic");
+    if is_dynamic {
+        // Check if arg is a simple identifier (can take address directly)
+        if let NodeType::Identifier(name) = &arg.node_type {
+            if arg.params.is_empty() {
+                // Simple variable - cast to til_Dynamic* (void**)
+                output.push_str("(");
+                output.push_str(TIL_PREFIX);
+                output.push_str("Dynamic*)&");
+                output.push_str(&til_name(name));
+                return Ok(());
+            }
+        }
+        // For non-identifier args (function calls, literals), they should have
+        // been hoisted already. If not, just emit without & and let C handle it.
+        emit_expr(arg, output, 0, ctx, context)?;
+        return Ok(());
+    }
+
+    // Check if param is mut (but not Dynamic) - emit &arg for pointer
     if param_is_mut {
         if let NodeType::Identifier(name) = &arg.node_type {
             if arg.params.is_empty() {
@@ -756,28 +1100,6 @@ fn emit_arg_with_param_type(
         // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
         emit_expr(arg, output, 0, ctx, context)?;
         return Ok(());
-    }
-
-    // Check if parameter type is Dynamic - emit &arg for void*
-    // Only add & for simple identifiers (lvalues). For function calls/literals,
-    // they should be hoisted to temps first by the throwing call handler.
-    if let Some(ValueType::TCustom(param_type_name)) = param_type {
-        if param_type_name == "Dynamic" {
-            // Check if arg is a simple identifier (can take address directly)
-            if let NodeType::Identifier(name) = &arg.node_type {
-                if arg.params.is_empty() {
-                    // Simple variable - emit &var
-                    output.push_str("&");
-                    output.push_str(&til_name(name));
-                    return Ok(());
-                }
-            }
-            // For non-identifier args (function calls, literals), they should have
-            // been hoisted already. If not, just emit without & and let C handle it.
-            // This may cause type warnings but avoids the "lvalue required" error.
-            emit_expr(arg, output, 0, ctx, context)?;
-            return Ok(());
-        }
     }
 
     emit_expr(arg, output, 0, ctx, context)
@@ -1458,9 +1780,15 @@ fn emit_struct_func_body(struct_name: &str, member: &crate::rs::parser::Declarat
     ctx.current_return_types = func_def.return_types.clone();
     // Track mut params for pointer dereference (-> vs .)
     ctx.current_mut_params.clear();
+    // Track variadic params - they're passed as til_Array* so need dereference
+    ctx.current_variadic_params.clear();
     for arg in &func_def.args {
         if arg.is_mut {
             ctx.current_mut_params.insert(arg.name.clone());
+        }
+        if let ValueType::TMulti(elem_type) = &arg.value_type {
+            // elem_type is the type name string like "Bool"
+            ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
         }
     }
 
@@ -1613,17 +1941,10 @@ fn emit_func_signature(func_name: &str, func_def: &SFuncDef, output: &mut String
             output.push_str(", ");
         }
         // Check for variadic arg (TMulti)
-        if let ValueType::TMulti(elem_type) = &arg.value_type {
-            // Emit count parameter and array pointer: int args_len, element_type* args
-            output.push_str("int _");
+        if let ValueType::TMulti(_elem_type) = &arg.value_type {
+            // Variadic args are passed as til_Array*
             output.push_str(TIL_PREFIX);
-            output.push_str(&arg.name);
-            output.push_str("_len, ");
-            // Apply TIL_PREFIX for all types
-            let elem_type_str = elem_type.as_str();
-            output.push_str(TIL_PREFIX);
-            output.push_str(elem_type_str);
-            output.push_str("* ");
+            output.push_str("Array* ");
             output.push_str(TIL_PREFIX);
             output.push_str(&arg.name);
             param_count += 1;
@@ -1701,9 +2022,15 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.current_return_types = func_def.return_types.clone();
                 // Track mut params for pointer dereference (-> vs .)
                 ctx.current_mut_params.clear();
+                // Track variadic params - they're passed as til_Array* so need dereference
+                ctx.current_variadic_params.clear();
                 for arg in &func_def.args {
                     if arg.is_mut {
                         ctx.current_mut_params.insert(arg.name.clone());
+                    }
+                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                        // elem_type is the type name string like "Bool"
+                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
                     }
                 }
 
@@ -1717,17 +2044,19 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                     scope_type: ScopeType::Function,
                 };
                 // Register function parameters in the frame
-                ctx.current_variadic_param = None;
+                // For variadic params (TMulti), register as Array type
                 for arg in &func_def.args {
+                    let value_type = if let ValueType::TMulti(_) = &arg.value_type {
+                        ValueType::TCustom("Array".to_string())
+                    } else {
+                        arg.value_type.clone()
+                    };
                     function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
-                        value_type: arg.value_type.clone(),
+                        value_type,
                         is_mut: arg.is_mut,
                         is_copy: arg.is_copy,
                         is_own: arg.is_own,
                     });
-                    if let ValueType::TMulti(elem_type) = &arg.value_type {
-                        ctx.current_variadic_param = Some((arg.name.clone(), elem_type.clone()));
-                    }
                 }
                 context.scope_stack.frames.push(function_frame);
 
@@ -2170,18 +2499,20 @@ fn emit_throwing_call(
             if needs_ret || !throw_types.is_empty() {
                 output.push_str(", ");
             }
-            // Check if called function's self param is mut and if receiver is a mut param
+            // Check if called function's self param is mut and if receiver is a mut/variadic param
             let called_self_is_mut = lookup_func_by_name(context, &func_name)
                 .and_then(|fd| fd.args.first())
                 .map(|a| a.is_mut)
                 .unwrap_or(false);
             let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+            let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+            let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
 
-            if called_self_is_mut && !receiver_is_mut_param {
+            if called_self_is_mut && !receiver_is_pointer {
                 // Called function takes mut self, receiver is not a pointer - add &
                 output.push_str("&");
                 output.push_str(&til_name(receiver_name));
-            } else if !called_self_is_mut && receiver_is_mut_param {
+            } else if !called_self_is_mut && receiver_is_pointer {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
                 output.push_str("(*");
                 output.push_str(&til_name(receiver_name));
@@ -2446,18 +2777,20 @@ fn emit_throwing_call_propagate(
             if needs_ret || !throw_types.is_empty() {
                 output.push_str(", ");
             }
-            // Check if called function's self param is mut and if receiver is a mut param
+            // Check if called function's self param is mut and if receiver is a mut/variadic param
             let called_self_is_mut = lookup_func_by_name(context, &func_name)
                 .and_then(|fd| fd.args.first())
                 .map(|a| a.is_mut)
                 .unwrap_or(false);
             let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+            let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+            let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
 
-            if called_self_is_mut && !receiver_is_mut_param {
+            if called_self_is_mut && !receiver_is_pointer {
                 // Called function takes mut self, receiver is not a pointer - add &
                 output.push_str("&");
                 output.push_str(&til_name(receiver_name));
-            } else if !called_self_is_mut && receiver_is_mut_param {
+            } else if !called_self_is_mut && receiver_is_pointer {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
                 output.push_str("(*");
                 output.push_str(&til_name(receiver_name));
@@ -2848,6 +3181,68 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         output.push_str("return 0;\n");
     } else {
         // Non-throwing function: normal return
+        // Check if return expression is a variadic function call
+        if !expr.params.is_empty() {
+            let return_expr = &expr.params[0];
+            if let NodeType::FCall = return_expr.node_type {
+                if let Some((elem_type, regular_count)) = detect_variadic_fcall(return_expr, ctx, context) {
+                    // Variadic call in return - need to hoist it
+                    // First, hoist any nested throwing/variadic calls in the arguments
+                    let all_args: Vec<_> = return_expr.params.iter().skip(1).collect();
+                    let hoisted_vec = hoist_throwing_args(&all_args.iter().map(|a| (*a).clone()).collect::<Vec<_>>(), output, indent, ctx, context)?;
+                    let hoisted: std::collections::HashMap<usize, String> = hoisted_vec.into_iter().collect();
+                    let variadic_args: Vec<_> = return_expr.params.iter().skip(1 + regular_count).collect();
+                    let arr_var = hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?;
+
+                    // Emit the function call storing result
+                    let temp_var = next_mangled();
+                    let ret_type = get_value_type(context, return_expr).ok()
+                        .map(|t| til_type_to_c(&t).unwrap_or_else(|| "int".to_string()))
+                        .unwrap_or_else(|| "int".to_string());
+                    output.push_str(&indent_str);
+                    output.push_str(&ret_type);
+                    output.push_str(" ");
+                    output.push_str(&temp_var);
+                    output.push_str(" = ");
+                    // Emit the function call
+                    if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
+                        output.push_str(&til_name(func_name));
+                    }
+                    output.push_str("(");
+                    // Emit regular args
+                    let args: Vec<_> = return_expr.params.iter().skip(1).collect();
+                    for (i, arg) in args.iter().take(regular_count).enumerate() {
+                        if i > 0 {
+                            output.push_str(", ");
+                        }
+                        emit_expr(arg, output, 0, ctx, context)?;
+                    }
+                    // Emit variadic array pointer
+                    if regular_count > 0 {
+                        output.push_str(", ");
+                    }
+                    output.push_str("&");
+                    output.push_str(&arr_var);
+                    output.push_str(");\n");
+
+                    // Delete array
+                    output.push_str(&indent_str);
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Array_delete(&");
+                    output.push_str(&arr_var);
+                    output.push_str(");\n");
+
+                    // Return the result
+                    output.push_str(&indent_str);
+                    output.push_str("return ");
+                    output.push_str(&temp_var);
+                    output.push_str(";\n");
+                    return Ok(());
+                }
+            }
+        }
+
+        // Regular non-variadic return
         output.push_str(&indent_str);
         output.push_str("return");
         if !expr.params.is_empty() {
@@ -3036,23 +3431,25 @@ fn emit_fcall_with_hoisted(
                     let is_type_qualified = ufcs_depth == 1 && receiver_name == &type_name;
                     let mut first_arg = true;
                     if !is_type_qualified {
-                        // Check if called function's self param is mut and if receiver is a mut param
+                        // Check if called function's self param is mut and if receiver is a mut/variadic param
                         let called_self_is_mut = lookup_func_by_name(context, &mangled_name)
                             .and_then(|fd| fd.args.first())
                             .map(|a| a.is_mut)
                             .unwrap_or(false);
                         let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+                        let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+                        let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
 
-                        if called_self_is_mut && !receiver_is_mut_param {
+                        if called_self_is_mut && !receiver_is_pointer {
                             // Called function takes mut self, receiver is not a pointer - add &
                             output.push_str("&");
-                        } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                        } else if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
                             // Called function takes non-mut self, but receiver is a pointer - dereference
                             output.push_str("(*");
                         }
                         emit_ufcs_receiver_chain(receiver, ufcs_depth, output, ctx)?;
                         // Close dereference if needed
-                        if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                        if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
                             output.push_str(")");
                         }
                         first_arg = false;
@@ -3433,44 +3830,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     let indent_str = "    ".repeat(indent);
 
-    // Handle variadic parameter methods: args.len() and args.get(i, val)
-    if let Some(receiver) = &ufcs_receiver {
-        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            if let Some((param_name, _elem_type)) = &ctx.current_variadic_param {
-                if receiver_name == param_name {
-                    match func_name.as_str() {
-                        "len" => {
-                            // args.len() -> _til_args_len
-                            output.push_str("_");
-                            output.push_str(TIL_PREFIX);
-                            output.push_str(param_name);
-                            output.push_str("_len");
-                            return Ok(());
-                        },
-                        "get" => {
-                            // args.get(i, val) -> val = til_args[i]
-                            // params[1] is index, params[2] is output variable
-                            if expr.params.len() >= 3 {
-                                if let NodeType::Identifier(out_var) = &expr.params[2].node_type {
-                                    output.push_str(&indent_str);
-                                    output.push_str(&til_name(out_var));
-                                    output.push_str(" = ");
-                                    output.push_str(TIL_PREFIX);
-                                    output.push_str(param_name);
-                                    output.push_str("[");
-                                    emit_expr(&expr.params[1], output, 0, ctx, context)?;
-                                    output.push_str("];\n");
-                                    return Ok(());
-                                }
-                            }
-                        },
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
-
     // Hoist throwing function calls from arguments (only at statement level)
     // When indent > 0, we're at statement level and can emit hoisted calls
     let hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
@@ -3673,7 +4032,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     // For instance calls (var.func), pass the instance as first argument
                     let mut first_arg = true;
                     if !is_type_qualified {
-                        // Check if called function's self param is mut and if receiver is a mut param
+                        // Check if called function's self param is mut and if receiver is a mut/variadic param
                         let mut needs_deref_close = false;
                         if let Some(value_type) = get_value_type(context, &receiver_without_method).ok() {
                             if let ValueType::TCustom(type_name) = &value_type {
@@ -3683,11 +4042,13 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                                     .map(|a| a.is_mut)
                                     .unwrap_or(false);
                                 let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
+                                let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
+                                let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
 
-                                if called_self_is_mut && !receiver_is_mut_param {
+                                if called_self_is_mut && !receiver_is_pointer {
                                     // Called function takes mut self, receiver is not a pointer - add &
                                     output.push_str("&");
-                                } else if !called_self_is_mut && receiver_is_mut_param && ufcs_depth == 1 {
+                                } else if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
                                     // Called function takes non-mut self, but receiver is a pointer - dereference
                                     output.push_str("(*");
                                     needs_deref_close = true;
@@ -3759,11 +4120,25 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     }
                 }
             }
+
+            // Detect and construct variadic array if needed (only at statement level)
+            // At expression level (indent == 0), variadic calls are not supported directly
+            let variadic_arr_var: Option<String> = if indent > 0 {
+                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).map(|(_, e, r)| (e.clone(), *r)) {
+                    let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
+                    Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
             output.push_str(&output_name);
             output.push_str("(");
 
             // Check if this is a variadic function call (use original name for lookup)
-            if let Some((_variadic_name, elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).cloned() {
+            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).cloned() {
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
@@ -3772,31 +4147,14 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     }
                     emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                 }
-                // Emit count of variadic args
-                let variadic_count = args.len().saturating_sub(regular_count);
-                if regular_count > 0 {
-                    output.push_str(", ");
-                }
-                output.push_str(&variadic_count.to_string());
 
-                // Emit variadic args as compound literal array (C99)
-                // Get C element type for the array (all TIL types get til_ prefix)
-                let c_elem_type = format!("{}{}", TIL_PREFIX, elem_type);
-                if variadic_count == 0 {
-                    // Empty variadic: pass til_NULL
-                    output.push_str(", til_NULL");
-                } else {
-                    // Build compound literal: (type[]){arg1, arg2, ...}
-                    output.push_str(", (");
-                    output.push_str(&c_elem_type);
-                    output.push_str("[]){");
-                    for (i, arg) in args.iter().skip(regular_count).enumerate() {
-                        if i > 0 {
-                            output.push_str(", ");
-                        }
-                        emit_arg_or_hoisted(arg, regular_count + i, &hoisted, output, ctx, context)?;
+                // Emit variadic array pointer
+                if let Some(ref arr_var) = variadic_arr_var {
+                    if regular_count > 0 {
+                        output.push_str(", ");
                     }
-                    output.push_str("}");
+                    output.push_str("&");
+                    output.push_str(arr_var);
                 }
             } else {
                 // Regular non-variadic function call
@@ -3824,6 +4182,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             if indent > 0 {
                 output.push_str(";\n");
             }
+
+            // Emit Array.delete if variadic array was constructed
+            if let Some(arr_var) = &variadic_arr_var {
+                output.push_str(&indent_str);
+                output.push_str(TIL_PREFIX);
+                output.push_str("Array_delete(&");
+                output.push_str(arr_var);
+                output.push_str(");\n");
+            }
+
             Ok(())
         },
     }
