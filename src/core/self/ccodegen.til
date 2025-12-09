@@ -20,8 +20,6 @@ VariadicParamInfo := struct {
 
 // Codegen context for tracking function info during code generation
 CodegenContext := struct {
-    // Set of all user-defined struct names - Vec<Str>
-    mut user_structs: Vec = Vec.new(Str)
     // Map function name -> variadic arg info (Map<Str, VariadicParamInfo>)
     mut func_variadic_args: Map = Map.new(Str, VariadicParamInfo)
     // Currently generating function's throw types (if any)
@@ -33,20 +31,15 @@ CodegenContext := struct {
     mut has_variadic_param: Bool = false
     // Set of declared variable names in current function (to avoid redefinition) - Vec<Str>
     mut declared_vars: Vec = Vec.new(Str)
+}
 
-    has_str := func(self: CodegenContext) returns Bool {
-        mut i := 0
-        while lt(i, self.user_structs.len()) {
-            mut name := ""
-            self.user_structs.get(i, name)
-            catch (err: IndexOutOfBoundsError) { return false }
-            if name.eq("Str") {
-                return true
-            }
-            i = add(i, 1)
-        }
-        return false
-    }
+// Helper to check if Str struct is defined in context
+has_str := func(context: Context) returns Bool {
+    mut found := false
+    _ := context.scope_stack.lookup_struct("Str")
+    found = true
+    catch (err: KeyNotFoundError) { }
+    return found
 }
 
 // Generate unique mangled name using global counter
@@ -252,8 +245,6 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
             case NodeType.StructDef(struct_def):
                 // Struct methods - use mangled names (StructName_methodName)
                 mut struct_name := decl.name
-                // Track this as a user-defined struct
-                ctx.user_structs.push(struct_name)
                 mut keys := struct_def.default_values.keys
                 mut i := 0
                 while lt(i, keys.len()) {
@@ -738,7 +729,7 @@ is_constant_declaration := func(expr: Expr) returns Bool {
 }
 
 // Emit a top-level constant declaration at file scope
-emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) returns Str throws Str {
+emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
@@ -760,7 +751,7 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext) 
                     result = concat(result, n)
                     result = concat(result, ";\n")
                 case Literal.Str(s):
-                    if ctx.has_str() {
+                    if has_str(context) {
                         if not(decl.is_mut) {
                             result = concat(result, "const ")
                         }
@@ -1383,7 +1374,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     output = concat(output, "\n// Type conversion helpers\n")
     output = format(output, "static inline ", TIL_PREFIX, "I64 u8_to_i64(", TIL_PREFIX, "U8 v) { return (", TIL_PREFIX, "I64)v; }\n")
     output = format(output, "static inline ", TIL_PREFIX, "U8 i64_to_u8(", TIL_PREFIX, "I64 v) { return (", TIL_PREFIX, "U8)v; }\n")
-    if ctx.has_str() {
+    if has_str(context) {
         output = concat(output, "// Str helper: create Str from C string literal\n")
         output = format(output, "static inline ", TIL_PREFIX, "Str ", TIL_PREFIX, "Str_from_literal(const char* lit) {\n")
         output = format(output, "    ", TIL_PREFIX, "Str s;\n")
@@ -1429,7 +1420,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
             mut child := Expr()
             ast.params.get(i, child)
             if is_constant_declaration(child) {
-                output = emit_constant_declaration(child, output, ctx)
+                output = emit_constant_declaration(child, output, ctx, context)
             }
             i = add(i, 1)
         }
@@ -2135,7 +2126,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
     case NodeType.FCall:
         return emit_fcall(expr, output, indent, ctx, context)
     case NodeType.LLiteral(lit):
-        return emit_literal(lit, output, ctx)
+        return emit_literal(lit, output, context)
     case NodeType.Declaration(decl):
         return emit_declaration(decl, expr, output, indent, ctx, context)
     case NodeType.Identifier(name):
@@ -3825,7 +3816,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
     } else if func_name.eq("loc") {
-        if ctx.has_str() {
+        if has_str(context) {
             return format(output, TIL_PREFIX, "Str_from_literal(\"\")")
         } else {
             return concat(output, "\"\"")
@@ -4054,11 +4045,11 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     }
 }
 
-emit_literal := proc(lit: Literal, output: Str, ctx: CodegenContext) returns Str throws Str {
+emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {
     mut result := ""
     switch lit {
     case Literal.Str(s):
-        if ctx.has_str() {
+        if has_str(context) {
             result = format(output, TIL_PREFIX, "Str_from_literal(\"", s, "\")")
         } else {
             result = format(output, "\"", s, "\"")

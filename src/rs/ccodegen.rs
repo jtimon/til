@@ -22,8 +22,6 @@ struct CodegenContext {
     current_return_types: Vec<ValueType>,
     // Current function's variadic param name (if any) - for translating args.len()/args.get()
     current_variadic_param: Option<(String, String)>, // (name, element_type)
-    // Set of user-defined struct names (to distinguish from built-in types like Str)
-    user_structs: HashSet<String>,
     // Set of declared variable names in current function (to avoid redefinition)
     declared_vars: HashSet<String>,
 }
@@ -35,7 +33,6 @@ impl CodegenContext {
             current_throw_types: Vec::new(),
             current_return_types: Vec::new(),
             current_variadic_param: None,
-            user_structs: HashSet::new(),
             declared_vars: HashSet::new(),
         }
     }
@@ -649,7 +646,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_constant_declaration(child) {
-                emit_constant_declaration(child, &mut output, &ctx)?;
+                emit_constant_declaration(child, &mut output, &ctx, context)?;
             }
         }
     }
@@ -743,11 +740,11 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 }
 
 // Emit a top-level constant declaration at file scope
-fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
+fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
-                let has_str = ctx.user_structs.contains("Str");
+                let has_str = context.scope_stack.lookup_struct("Str").is_some();
                 let c_type = match lit {
                     Literal::Number(_) => format!("{}I64", TIL_PREFIX),
                     Literal::Str(_) => if has_str { format!("{}Str", TIL_PREFIX) } else { "const char*".to_string() },
@@ -761,7 +758,7 @@ fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenCont
                 output.push_str(" ");
                 output.push_str(&til_name(&decl.name));
                 output.push_str(" = ");
-                emit_literal(lit, output, ctx)?;
+                emit_literal(lit, output, context)?;
                 output.push_str(";\n");
             }
         }
@@ -792,8 +789,6 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
                     NodeType::StructDef(struct_def) => {
                         // Struct methods - use mangled names (StructName_methodName)
                         let struct_name = &decl.name;
-                        // Track this as a user-defined struct
-                        ctx.user_structs.insert(struct_name.clone());
                         for (member_name, default_expr) in &struct_def.default_values {
                             if let NodeType::FuncDef(func_def) = &default_expr.node_type {
                                 let mangled_name = format!("{}_{}", struct_name, member_name);
@@ -1379,7 +1374,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx, context),
         NodeType::FCall => emit_fcall(expr, output, indent, ctx, context),
-        NodeType::LLiteral(lit) => emit_literal(lit, output, ctx),
+        NodeType::LLiteral(lit) => emit_literal(lit, output, context),
         NodeType::Declaration(decl) => emit_declaration(decl, expr, output, indent, ctx, context),
         NodeType::Identifier(name) => {
             // Check for type-qualified access (Type.field)
@@ -2892,7 +2887,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         },
         // loc() - just emit empty string for now
         "loc" => {
-            if ctx.user_structs.contains("Str") {
+            if context.scope_stack.lookup_struct("Str").is_some() {
                 output.push_str(TIL_PREFIX);
                 output.push_str("Str_from_literal(\"\")");
             } else {
@@ -2907,7 +2902,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             // Get the type name from the argument
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
-                if ctx.user_structs.contains("Str") {
+                if context.scope_stack.lookup_struct("Str").is_some() {
                     output.push_str(TIL_PREFIX);
                     output.push_str("Str_from_literal(\"");
                     output.push_str(type_name);
@@ -3231,10 +3226,10 @@ fn clone_without_deepest_method(expr: &Expr, depth: usize) -> Expr {
     result
 }
 
-fn emit_literal(lit: &Literal, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
+fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result<(), String> {
     match lit {
         Literal::Str(s) => {
-            let has_str = ctx.user_structs.contains("Str");
+            let has_str = context.scope_stack.lookup_struct("Str").is_some();
             if has_str {
                 output.push_str(TIL_PREFIX);
                 output.push_str("Str_from_literal(\"");
