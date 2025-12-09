@@ -1318,7 +1318,25 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip forward declarations
     }
 
-    // Pass 1: emit struct definitions (only mut fields become struct members)
+    // Pass 1: emit enum definitions FIRST (structs may use enum types as fields)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_enum_declaration(child) {
+                output = emit_enum_declaration(child, output)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip enum pass
+    }
+
+    // Pass 1b: emit struct definitions (only mut fields become struct members)
     // Use topological sort to handle embedded struct dependencies
     switch ast.node_type {
     case NodeType.Body:
@@ -1350,24 +1368,6 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         catch (err: AllocError) { throw "AllocError in struct pass" }
     case:
         // Not a body, skip struct pass
-    }
-
-    // Pass 1b: emit enum definitions
-    switch ast.node_type {
-    case NodeType.Body:
-        mut i := 0
-        mut params_len := ast.params.len()
-        while lt(i, params_len) {
-            mut child := Expr()
-            ast.params.get(i, child)
-            if is_enum_declaration(child) {
-                output = emit_enum_declaration(child, output)
-            }
-            i = add(i, 1)
-        }
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-    case:
-        // Not a body, skip enum pass
     }
 
     // Pass 1c: emit helper functions (after structs are defined)
@@ -2624,29 +2624,84 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         mut catch_block := Expr()
         catch_blocks.get(i, catch_block)
 
-        // Get the error type index from status code (i+1)
-        result = concat(result, " else if (_status_")
-        result = concat(result, temp_suffix)
-        result = concat(result, " == ")
-        result = concat(result, add(i, 1).to_str())
-        result = concat(result, ") {\n")
-
-        // Emit catch block body
-        // The catch block params should have the binding variable and body
-        if gt(catch_block.params.len(), 0) {
-            // Get binding info - catch params[0] is the error binding expr, params[1..] is the body
-            mut k := 1
-            while lt(k, catch_block.params.len()) {
-                mut body_stmt := Expr()
-                catch_block.params.get(k, body_stmt)
-                result = emit_expr(body_stmt, result, add(indent, 1), ctx, context)
-                k = add(k, 1)
+        // catch block params: [0]=var_name, [1]=type_name, [2]=body
+        if gteq(catch_block.params.len(), 3) {
+            // Get error type name from catch block
+            mut err_type_name := ""
+            mut err_type_expr := Expr()
+            catch_block.params.get(1, err_type_expr)
+            switch err_type_expr.node_type {
+            case NodeType.Identifier(type_name):
+                err_type_name = type_name
+            case:
+                err_type_name = ""
             }
-            catch (err: IndexOutOfBoundsError) { throw err.msg }
-        }
 
-        result = concat(result, indent_str)
-        result = concat(result, "}")
+            if err_type_name.len().gt(0) {
+                // Find index of this error type in throw_types
+                mut err_idx := sub(0, 1)  // -1 = not found
+                mut j := 0
+                while lt(j, throw_types.len()) {
+                    mut vt := ValueType.TFunction
+                    throw_types.get(j, vt)
+                    switch vt {
+                    case ValueType.TCustom(type_name):
+                        if type_name.eq(err_type_name) {
+                            err_idx = j
+                        }
+                    case:
+                        // Not a custom type
+                    }
+                    j = add(j, 1)
+                }
+
+                if gteq(err_idx, 0) {
+                    result = concat(result, " else if (_status_")
+                    result = concat(result, temp_suffix)
+                    result = concat(result, " == ")
+                    result = concat(result, add(err_idx, 1).to_str())
+                    result = concat(result, ") {\n")
+
+                    // Bind error variable and add to scope for type resolution
+                    mut err_var_name := ""
+                    mut err_var_expr := Expr()
+                    catch_block.params.get(0, err_var_expr)
+                    switch err_var_expr.node_type {
+                    case NodeType.Identifier(var_name):
+                        err_var_name = var_name
+
+                        mut inner_indent := ""
+                        mut ind2 := 0
+                        while lt(ind2, add(indent, 1)) {
+                            inner_indent = concat(inner_indent, "    ")
+                            ind2 = add(ind2, 1)
+                        }
+                        result = concat(result, inner_indent)
+                        result = concat(result, til_name(err_type_name))
+                        result = concat(result, " ")
+                        result = concat(result, til_name(err_var_name))
+                        result = concat(result, " = _err")
+                        result = concat(result, err_idx.to_str())
+                        result = concat(result, "_")
+                        result = concat(result, temp_suffix)
+                        result = concat(result, ";\n")
+
+                        // Add error variable to scope for type resolution in catch body
+                        context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false))
+                    case:
+                        // Not an identifier
+                    }
+
+                    // Emit catch body (params[2])
+                    mut body_expr := Expr()
+                    catch_block.params.get(2, body_expr)
+                    result = emit_expr(body_expr, result, add(indent, 1), ctx, context)
+
+                    result = concat(result, indent_str)
+                    result = concat(result, "}")
+                }
+            }
+        }
 
         i = add(i, 1)
     }
@@ -2867,38 +2922,133 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 // Emit a throw statement
 // For throwing functions: *_errN = value; return N;
 emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    // Throw: params[0] = the value to throw (typically a struct constructor like DivideByZero())
+    if eq(expr.params.len(), 0) {
+        throw "ccodegen: throw requires a value"
+    }
+
+    mut thrown_expr := Expr()
+    expr.params.get(0, thrown_expr)
+
+    // Get the thrown type name from the expression
+    // For FCall, we need to determine if it's:
+    // 1. A constructor like DivideByZero() - use the type name
+    // 2. A function that returns an error type like format() - use the return type
+    mut thrown_type_name := ""
+
+    switch thrown_expr.node_type {
+    case NodeType.FCall:
+        if gt(thrown_expr.params.len(), 0) {
+            mut first_param := Expr()
+            thrown_expr.params.get(0, first_param)
+            switch first_param.node_type {
+            case NodeType.Identifier(name):
+                // Check if this is a constructor (struct/enum) or a function call
+                // If it's a function that returns a type, use the return type
+                mut func_name := get_fcall_func_name(thrown_expr, context)
+                if gt(func_name.len(), 0) {
+                    mut lookup_result := lookup_func_by_name(context, func_name)
+                    if lookup_result.found {
+                        // It's a function - use its return type as the thrown type
+                        if gt(lookup_result.func_def.return_types.len(), 0) {
+                            mut ret_type := ValueType.TFunction
+                            lookup_result.func_def.return_types.get(0, ret_type)
+                            switch ret_type {
+                            case ValueType.TCustom(type_name):
+                                thrown_type_name = type_name
+                            case:
+                                thrown_type_name = value_type_to_str(ret_type)
+                            }
+                        } else {
+                            // No return type, assume it's a constructor
+                            thrown_type_name = name
+                        }
+                    } else {
+                        // Not a function, assume it's a constructor
+                        thrown_type_name = name
+                    }
+                } else {
+                    thrown_type_name = name
+                }
+            case:
+                throw "ccodegen: throw FCall must have identifier as first param"
+            }
+        } else {
+            throw "ccodegen: throw FCall has no params"
+        }
+    case NodeType.Identifier(name):
+        // Look up the type of the identifier (could be a variable or type name)
+        mut value_type := get_value_type(context, thrown_expr)
+        switch value_type {
+        case ValueType.TCustom(type_name):
+            thrown_type_name = type_name
+        case:
+            thrown_type_name = value_type_to_str(value_type)
+        }
+        catch (err: Str) {
+            // Fallback: assume identifier is a type name (for struct constructors without args)
+            thrown_type_name = name
+        }
+    case NodeType.LLiteral(lit):
+        // Literal values - determine their type
+        switch lit {
+        case Literal.Str(s):
+            thrown_type_name = "Str"
+        case Literal.Number(n):
+            thrown_type_name = "I64"
+        case Literal.List(l):
+            throw "ccodegen: cannot throw a list literal"
+        }
+    case:
+        throw "ccodegen: throw expression must be a constructor, function call, identifier, or literal"
+    }
+
+    // Find the index of this type in current_throw_types
+    // Note: Str is represented as TCustom("Str") in the type system
+    mut error_index := sub(0, 1)  // -1 = not found
+    mut i := 0
+    while lt(i, ctx.current_throw_types.len()) {
+        mut vt := ValueType.TFunction
+        ctx.current_throw_types.get(i, vt)
+        switch vt {
+        case ValueType.TCustom(type_name):
+            if type_name.eq(thrown_type_name) {
+                error_index = i
+            }
+        case:
+            // Not a custom type
+        }
+        i = add(i, 1)
+    }
+
+    if lt(error_index, 0) {
+        throw format("ccodegen: thrown type '", thrown_type_name, "' not found in function's throw types")
+    }
+
     mut result := output
 
-    // Generate indentation
+    // Store the error value in the appropriate error pointer
+    // Note: error params are 1-based (_err1, _err2, etc.)
     mut ind := 0
     while lt(ind, indent) {
         result = concat(result, "    ")
         ind = add(ind, 1)
     }
+    result = format(result, "*_err", add(error_index, 1).to_str(), " = ")
+    result = emit_expr(thrown_expr, result, 0, ctx, context)
+    result = concat(result, ";\n")
 
-    // Get throw value if present
-    if gt(expr.params.len(), 0) {
-        mut throw_value := Expr()
-        expr.params.get(0, throw_value)
-
-        // Find which error type this throw corresponds to
-        // For now, assume it's the first error type (index 1)
-        // TODO: Match throw type to the correct error index
-        result = concat(result, "*_err1 = ")
-        result = emit_expr(throw_value, result, 0, ctx, context)
-        result = concat(result, ";\n")
-
-        ind = 0
-        while lt(ind, indent) {
-            result = concat(result, "    ")
-            ind = add(ind, 1)
-        }
-        result = concat(result, "return 1;\n")
-        catch (err: IndexOutOfBoundsError) { throw err.msg }
-    } else {
-        // Throw with no value - just return error status
-        result = concat(result, "return 1;\n")
+    // Return the error index (1-based, since 0 = success)
+    ind = 0
+    while lt(ind, indent) {
+        result = concat(result, "    ")
+        ind = add(ind, 1)
     }
+    result = format(result, "return ", add(error_index, 1).to_str(), ";\n")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: I64_OverflowError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
 
     return result
 }

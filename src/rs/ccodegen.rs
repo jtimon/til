@@ -590,7 +590,16 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         output.push_str("\n");
     }
 
-    // Pass 1: emit struct definitions (only mut fields become struct members)
+    // Pass 1: emit enum definitions FIRST (structs may use enum types as fields)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_declaration(child, &mut output)?;
+            }
+        }
+    }
+
+    // Pass 1b: emit struct definitions (only mut fields become struct members)
     // Sort structs topologically so dependencies are defined first
     if let NodeType::Body = &ast.node_type {
         let struct_decls: Vec<&Expr> = ast.params.iter()
@@ -599,15 +608,6 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         let sorted_indices = topological_sort_structs(&struct_decls);
         for idx in sorted_indices {
             emit_struct_declaration(struct_decls[idx], &mut output)?;
-        }
-    }
-
-    // Pass 1b: emit enum definitions
-    if let NodeType::Body = &ast.node_type {
-        for child in &ast.params {
-            if is_enum_declaration(child) {
-                emit_enum_declaration(child, &mut output)?;
-            }
         }
     }
 
@@ -646,7 +646,7 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_constant_declaration(child) {
-                emit_constant_declaration(child, &mut output, &ctx, context)?;
+                emit_constant_declaration(child, &mut output, context)?;
             }
         }
     }
@@ -740,7 +740,7 @@ fn is_constant_declaration(expr: &Expr) -> bool {
 }
 
 // Emit a top-level constant declaration at file scope
-fn emit_constant_declaration(expr: &Expr, output: &mut String, ctx: &CodegenContext, context: &Context) -> Result<(), String> {
+fn emit_constant_declaration(expr: &Expr, output: &mut String, context: &Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
         if !expr.params.is_empty() {
             if let NodeType::LLiteral(lit) = &expr.params[0].node_type {
@@ -1785,7 +1785,7 @@ fn emit_throwing_call(
                     output.push_str(&(idx + 1).to_string());
                     output.push_str(") {\n");
 
-                    // Bind error variable
+                    // Bind error variable and add to scope for type resolution
                     if let NodeType::Identifier(err_var_name) = &catch_block.params[0].node_type {
                         let inner_indent = "    ".repeat(indent + 1);
                         output.push_str(&inner_indent);
@@ -1797,6 +1797,17 @@ fn emit_throwing_call(
                         output.push_str("_");
                         output.push_str(&temp_suffix.to_string());
                         output.push_str(";\n");
+
+                        // Add error variable to scope for type resolution in catch body
+                        context.scope_stack.declare_symbol(
+                            err_var_name.clone(),
+                            SymbolInfo {
+                                value_type: crate::rs::parser::ValueType::TCustom(err_type_name.clone()),
+                                is_mut: false,
+                                is_copy: false,
+                                is_own: false,
+                            }
+                        );
                     }
 
                     // Emit catch body
@@ -2310,12 +2321,36 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     let thrown_expr = &expr.params[0];
 
     // Get the thrown type name from the expression
-    // For FCall like DivideByZero(), params[0] is the Identifier with the name
+    // For FCall, we need to determine if it's:
+    // 1. A constructor like DivideByZero() - use the type name
+    // 2. A function that returns an error type like format() - use the return type
     let thrown_type_name = match &thrown_expr.node_type {
         NodeType::FCall => {
             if !thrown_expr.params.is_empty() {
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
-                    name.clone()
+                    // Check if this is a constructor (struct/enum) or a function call
+                    // If it's a function that returns a type, use the return type
+                    if let Some(func_name) = get_fcall_func_name(thrown_expr, context) {
+                        if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                            // It's a function - use its return type as the thrown type
+                            if let Some(ret_type) = fd.return_types.first() {
+                                if let crate::rs::parser::ValueType::TCustom(type_name) = ret_type {
+                                    type_name.clone()
+                                } else {
+                                    // Return type is a primitive (like Str) - convert to name
+                                    crate::rs::parser::value_type_to_str(ret_type)
+                                }
+                            } else {
+                                // No return type, assume it's a constructor
+                                name.clone()
+                            }
+                        } else {
+                            // Not a function, assume it's a constructor
+                            name.clone()
+                        }
+                    } else {
+                        name.clone()
+                    }
                 } else {
                     return Err("ccodegen: throw FCall must have identifier as first param".to_string());
                 }
@@ -2323,11 +2358,32 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Err("ccodegen: throw FCall has no params".to_string());
             }
         }
-        NodeType::Identifier(name) => name.clone(),
+        NodeType::Identifier(name) => {
+            // Look up the type of the identifier (could be a variable or type name)
+            if let Ok(value_type) = get_value_type(context, thrown_expr) {
+                if let crate::rs::parser::ValueType::TCustom(type_name) = value_type {
+                    type_name
+                } else {
+                    crate::rs::parser::value_type_to_str(&value_type)
+                }
+            } else {
+                // Fallback: assume identifier is a type name (for struct constructors without args)
+                name.clone()
+            }
+        },
+        NodeType::LLiteral(lit) => {
+            // Literal values - determine their type
+            match lit {
+                Literal::Str(_) => "Str".to_string(),
+                Literal::Number(_) => "I64".to_string(),
+                Literal::List(_) => return Err("ccodegen: cannot throw a list literal".to_string()),
+            }
+        },
         _ => return Err(format!("ccodegen: throw expression must be a constructor, got {:?}", thrown_expr.node_type)),
     };
 
     // Find the index of this type in current_throw_types
+    // Note: Str is represented as TCustom("Str") in the type system
     let error_index = ctx.current_throw_types.iter().position(|vt| {
         match vt {
             crate::rs::parser::ValueType::TCustom(name) => name == &thrown_type_name,
