@@ -117,51 +117,34 @@ pub fn build(path: &str) -> Result<(), String> {
     // Parse main file
     let (main_ast, main_mode) = parse_file(path)?;
 
-    // Collect all imports recursively
-    let mut imported = HashSet::new();
-    imported.insert(path.to_string());
-    let mut dep_asts = Vec::new();
-
-    // Auto-import core.til first (like the interpreter does)
-    let core_path = "src/core/core.til";
-    if path != core_path && !imported.contains(core_path) {
-        imported.insert(core_path.to_string());
-        let (core_ast, _) = parse_file(core_path)?;
-        // Collect core.til's imports first
-        collect_imports(&core_ast, &mut imported, &mut dep_asts)?;
-        dep_asts.push(core_ast);
-    }
-
-    collect_imports(&main_ast, &mut imported, &mut dep_asts)?;
-
-    // Merge all ASTs into one
-    let merged_ast = merge_asts(main_ast, dep_asts);
-
-    // Run init phase (register declarations in context)
-    // Use the mode from the main file, not DEFAULT_MODE
+    // Create context with the mode from the main file
     let mut context = Context::new(&path.to_string(), &main_mode.name)?;
 
-    // Init the merged AST first (includes core.til) so basic types are available
-    let _ = crate::rs::init::init_context(&mut context, &merged_ast);
-
-    // Mark all already-imported files as done so mode imports don't re-import them
-    // Both init and typer phases need to skip these files
-    for file_path in &imported {
-        context.imports_init_done.insert(file_path.clone());
-        context.imports_typer_done.insert(file_path.clone());
+    // Auto-import core.til first (like the interpreter does at interpreter.rs:2610-2614)
+    // This runs init + typer on core.til and all its imports
+    let core_path = "src/core/core.til";
+    if path != core_path {
+        let (core_ast, _) = parse_file(core_path)?;
+        let init_errors = crate::rs::init::init_context(&mut context, &core_ast);
+        if !init_errors.is_empty() {
+            for err in &init_errors {
+                println!("{}:{}", core_path, err);
+            }
+            return Err(format!("Compiler errors: {} init errors in core.til", init_errors.len()));
+        }
+        let typer_errors = check_types(&mut context, &core_ast);
+        if !typer_errors.is_empty() {
+            for err in &typer_errors {
+                println!("{}:{}", core_path, err);
+            }
+            return Err(format!("Compiler errors: {} type errors in core.til", typer_errors.len()));
+        }
+        context.imports_init_done.insert(core_path.to_string());
+        context.imports_typer_done.insert(core_path.to_string());
     }
 
-    // Auto-import mode-specific files (like the interpreter does at interpreter.rs:2518-2544)
-    // This must happen after init_context so basic types (Str, Dynamic, etc.) are available
-    // Skip files already in our imported set to avoid duplicate declarations
-    // Also collect ASTs for codegen
-    let mut mode_import_asts: Vec<Expr> = Vec::new();
+    // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
     for import_str in context.mode_def.imports.clone() {
-        let file_path = import_path_to_file_path(&import_str);
-        if imported.contains(&file_path) {
-            continue;  // Already processed via collect_imports
-        }
-
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
         let import_path_expr = Expr{node_type: NodeType::LLiteral(crate::rs::parser::Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
         let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
@@ -177,26 +160,57 @@ pub fn build(path: &str) -> Result<(), String> {
             }
             return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
         }
-
-        // Parse and collect AST for codegen
-        let (mode_ast, _) = parse_file(&file_path)?;
-        mode_import_asts.push(mode_ast);
     }
 
-    // Merge mode import ASTs into merged_ast
-    let merged_ast = merge_asts(merged_ast, mode_import_asts);
-
-    // Run typer phase (type checking) - like the interpreter does
+    // Run init + typer on the main file (this handles its imports internally)
     let mut errors: Vec<String> = Vec::new();
-    errors.extend(basic_mode_checks(&context, &merged_ast));
-    errors.extend(check_types(&mut context, &merged_ast));
+    errors.extend(crate::rs::init::init_context(&mut context, &main_ast));
+    if !errors.is_empty() {
+        for err in &errors {
+            println!("{}:{}", path, err);
+        }
+        return Err(format!("Compiler errors: {} init errors found", errors.len()));
+    }
 
+    errors.extend(basic_mode_checks(&context, &main_ast));
+    errors.extend(check_types(&mut context, &main_ast));
     if !errors.is_empty() {
         for err in &errors {
             println!("{}:{}", path, err);
         }
         return Err(format!("Compiler errors: {} type errors found", errors.len()));
     }
+
+    // === Post-typer: Collect and merge ASTs for codegen ===
+    // Now that type checking passed, collect all imported files for code generation
+    let mut imported = HashSet::new();
+    imported.insert(path.to_string());
+    let mut dep_asts = Vec::new();
+
+    // Collect core.til and its imports
+    if path != core_path {
+        let (core_ast, _) = parse_file(core_path)?;
+        imported.insert(core_path.to_string());
+        collect_imports(&core_ast, &mut imported, &mut dep_asts)?;
+        dep_asts.push(core_ast);
+    }
+
+    // Collect mode imports
+    for import_str in context.mode_def.imports.clone() {
+        let file_path = import_path_to_file_path(&import_str);
+        if !imported.contains(&file_path) {
+            imported.insert(file_path.clone());
+            let (mode_ast, _) = parse_file(&file_path)?;
+            collect_imports(&mode_ast, &mut imported, &mut dep_asts)?;
+            dep_asts.push(mode_ast);
+        }
+    }
+
+    // Collect main file's imports
+    collect_imports(&main_ast, &mut imported, &mut dep_asts)?;
+
+    // Merge all ASTs for codegen
+    let merged_ast = merge_asts(main_ast, dep_asts);
 
     // Precomputation phase: Transform UFCS calls into regular function calls
     let merged_ast = crate::rs::precomp::precomp_expr(&mut context, &merged_ast)?;

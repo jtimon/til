@@ -252,6 +252,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/temp.til")
     rs_common.push("src/test/u8.til")
     rs_common.push("src/test/eval.til")
+    rs_common.push("src/test/func_purity.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
@@ -269,13 +270,12 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/examples/hello_pure.til") // TODO hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/args.til") // TODO FIX: mut param not passed as pointer, format variadic args
     rs_interpreted.push("src/test/c_mem.til") // TODO FIX: test output mismatch (assert_eq formatting differs)
-    rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: typer errors - field access on wrong type in compiled mode
+    rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init, variadic format call, default case syntax
     rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init
     rs_interpreted.push("src/test/errors.til") // TODO FIX: nested throwing call in non-throwing context (safe_div inside to_str)
     rs_interpreted.push("src/test/fibonacci.til") // TODO FIX: nested functions emitted as local variables
     rs_interpreted.push("src/test/flow.til") // TODO FIX: nested functions emitted as local variables
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls
-    rs_interpreted.push("src/test/func_purity.til") // TODO FIX: typer errors - field access on wrong type in compiled mode
     rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, nested functions, variadic calls without args
     rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructors, field access on non-pointer struct
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param type mismatch (Str passed to Dynamic)

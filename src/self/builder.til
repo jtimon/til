@@ -151,26 +151,135 @@ build := proc(path: Str) returns Str throws Str {
     mut main_ast := main_result.ast
     mut main_mode := main_result.file_mode
 
-    // Collect all imports recursively
+    // Create context with the mode from the main file
+    mut context := Context.new(path, main_mode.name)
+
+    // Auto-import core.til first (like the interpreter does at interpreter.rs:2610-2614)
+    // This runs init + typer on core.til and all its imports
+    mut core_path := "src/core/core.til"
+    if not(path.eq(core_path)) {
+        mut core_result := parse_file(core_path)
+        mut init_errors := init_context(context, core_result.ast)
+        if gt(init_errors.len(), 0) {
+            mut err_i := 0
+            while lt(err_i, init_errors.len()) {
+                mut err := ""
+                init_errors.get(err_i, err)
+                println(core_path, ":", err)
+                err_i = add(err_i, 1)
+            }
+            mut err_count := I64.to_str(init_errors.len())
+            throw format("Compiler errors: ", err_count, " init errors in core.til")
+        }
+        mut typer_errors := check_types(context, core_result.ast)
+        if gt(typer_errors.len(), 0) {
+            mut err_i := 0
+            while lt(err_i, typer_errors.len()) {
+                mut err := ""
+                typer_errors.get(err_i, err)
+                println(core_path, ":", err)
+                err_i = add(err_i, 1)
+            }
+            mut err_count := I64.to_str(typer_errors.len())
+            throw format("Compiler errors: ", err_count, " type errors in core.til")
+        }
+        _ := context.imports_init_done.insert(core_path)
+        _ := context.imports_typer_done.insert(core_path)
+    }
+
+    // Process mode-specific imports (like the interpreter does at interpreter.rs:2515-2541)
+    mut mode_import_idx := 0
+    while lt(mode_import_idx, context.mode_def.imports.len()) {
+        mut import_str := ""
+        context.mode_def.imports.get(mode_import_idx, import_str)
+
+        mut import_func_name_expr := Expr(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
+        mut import_path_expr := Expr(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
+        mut import_params := Vec.new(Expr)
+        import_params.push(import_func_name_expr)
+        import_params.push(import_path_expr)
+        mut import_fcall_expr := Expr(NodeType.FCall, import_params, 0, 0)
+
+        // Mode imports need init and typer phases (no eval for builder)
+        init_import_declarations(context, import_fcall_expr, import_str)
+        mut typer_errs := typer_import_declarations(context, import_str)
+        if gt(typer_errs.len(), 0) {
+            mut typer_err_i := 0
+            while lt(typer_err_i, typer_errs.len()) {
+                mut err := ""
+                typer_errs.get(typer_err_i, err)
+                println(path, ":", err)
+                typer_err_i = add(typer_err_i, 1)
+            }
+            mut err_count := I64.to_str(typer_errs.len())
+            throw format("Compiler errors: ", err_count, " type errors found")
+        }
+        mode_import_idx = add(mode_import_idx, 1)
+    }
+
+    // Run init + typer on the main file (this handles its imports internally)
+    mut errors := init_context(context, main_ast)
+    if gt(errors.len(), 0) {
+        mut err_i := 0
+        while lt(err_i, errors.len()) {
+            mut err := ""
+            errors.get(err_i, err)
+            println(path, ":", err)
+            err_i = add(err_i, 1)
+        }
+        mut err_count := I64.to_str(errors.len())
+        throw format("Compiler errors: ", err_count, " init errors found")
+    }
+
+    mut mode_errors := basic_mode_checks(context, main_ast)
+    errors.extend(mode_errors)
+    mut type_errors := check_types(context, main_ast)
+    errors.extend(type_errors)
+    if gt(errors.len(), 0) {
+        mut err_i := 0
+        while lt(err_i, errors.len()) {
+            mut err := ""
+            errors.get(err_i, err)
+            println(path, ":", err)
+            err_i = add(err_i, 1)
+        }
+        mut err_count := I64.to_str(errors.len())
+        throw format("Compiler errors: ", err_count, " type errors found")
+    }
+
+    // === Post-typer: Collect and merge ASTs for codegen ===
+    // Now that type checking passed, collect all imported files for code generation
     mut imported := Set.new(Str)
     _ := imported.insert(path)
     mut dep_asts := Vec.new(Expr)
 
-    // Auto-import core.til first (like the interpreter does)
-    mut core_path := "src/core/core.til"
+    // Collect core.til and its imports
     if not(path.eq(core_path)) {
-        if not(imported.contains(core_path)) {
-            _ := imported.insert(core_path)
-            mut core_result := parse_file(core_path)
-            // Collect core.til's imports first
-            collect_imports_single(core_result.ast, imported, dep_asts)
-            dep_asts.push(core_result.ast)
-        }
+        mut core_result := parse_file(core_path)
+        _ := imported.insert(core_path)
+        collect_imports_single(core_result.ast, imported, dep_asts)
+        dep_asts.push(core_result.ast)
     }
 
+    // Collect mode imports
+    mut mode_collect_idx := 0
+    while lt(mode_collect_idx, context.mode_def.imports.len()) {
+        mut import_str := ""
+        context.mode_def.imports.get(mode_collect_idx, import_str)
+        mut file_path := import_path_to_file_path(import_str)
+        if not(imported.contains(file_path)) {
+            _ := imported.insert(file_path)
+            mut mode_result := parse_file(file_path)
+            collect_imports_single(mode_result.ast, imported, dep_asts)
+            dep_asts.push(mode_result.ast)
+        }
+        mode_collect_idx = add(mode_collect_idx, 1)
+    }
+
+    // Collect main file's imports
     collect_imports_single(main_ast, imported, dep_asts)
 
-    // Merge all ASTs into one
+    // Merge all ASTs for codegen
     mut all_params := Vec.new(Expr)
 
     // Add dependencies first (in order they were collected)
@@ -186,91 +295,6 @@ build := proc(path: Str) returns Str throws Str {
     merge_dep_params(main_ast, all_params)
 
     mut merged_ast := Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
-
-    // Run init phase (register declarations in context)
-    // Use the mode from the main file
-    mut context := Context.new(path, main_mode.name)
-    mut errors := init_context(context, merged_ast)
-
-    // Mark all already-imported files as done so mode imports don't re-import them
-    // Both init and typer phases need to skip these files
-    mut imported_idx := 0
-    while lt(imported_idx, imported.len()) {
-        mut file_path := ""
-        imported.get(imported_idx, file_path)
-        _ := context.imports_init_done.insert(file_path)
-        _ := context.imports_typer_done.insert(file_path)
-        imported_idx = add(imported_idx, 1)
-    }
-
-    // Auto-import mode-specific files (like the interpreter does at interpreter.rs:2518-2544)
-    // This must happen after init_context so basic types (Str, Dynamic, etc.) are available
-    // Skip files already in our imported set to avoid duplicate declarations
-    // Also collect ASTs for codegen
-    mut mode_import_asts := Vec.new(Expr)
-    mut mode_import_idx := 0
-    while lt(mode_import_idx, context.mode_def.imports.len()) {
-        mut import_str := ""
-        context.mode_def.imports.get(mode_import_idx, import_str)
-        mut file_path := import_path_to_file_path(import_str)
-        if not(imported.contains(file_path)) {
-            // Mode imports need init and typer phases (no eval for builder)
-            mut import_func_name_expr := Expr(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
-            mut import_path_expr := Expr(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
-            mut import_params := Vec.new(Expr)
-            import_params.push(import_func_name_expr)
-            import_params.push(import_path_expr)
-            mut import_fcall_expr := Expr(NodeType.FCall, import_params, 0, 0)
-
-            init_import_declarations(context, import_fcall_expr, import_str)
-            mut typer_errs := typer_import_declarations(context, import_str)
-            if gt(typer_errs.len(), 0) {
-                mut typer_err_i := 0
-                while lt(typer_err_i, typer_errs.len()) {
-                    mut err := ""
-                    typer_errs.get(typer_err_i, err)
-                    println(path, ":", err)
-                    typer_err_i = add(typer_err_i, 1)
-                }
-                mut err_count := I64.to_str(typer_errs.len())
-                throw format("Compiler errors: ", err_count, " type errors found")
-            }
-
-            // Parse and collect AST for codegen
-            mut mode_result := parse_file(file_path)
-            mode_import_asts.push(mode_result.ast)
-        }
-        mode_import_idx = add(mode_import_idx, 1)
-    }
-
-    // Merge mode import ASTs into merged_ast
-    mut mode_ast_idx := 0
-    while lt(mode_ast_idx, mode_import_asts.len()) {
-        mut mode_ast := Expr()
-        mode_import_asts.get(mode_ast_idx, mode_ast)
-        merge_dep_params(mode_ast, all_params)
-        mode_ast_idx = add(mode_ast_idx, 1)
-    }
-    merged_ast = Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
-
-    // Run typer phase (type checking)
-    mut mode_errors := basic_mode_checks(context, merged_ast)
-    errors.extend(mode_errors)
-    mut type_errors := check_types(context, merged_ast)
-    errors.extend(type_errors)
-
-    // Type checking - fail if there are errors (like the interpreter does)
-    if gt(errors.len(), 0) {
-        mut err_i := 0
-        while lt(err_i, errors.len()) {
-            mut err := ""
-            errors.get(err_i, err)
-            println(path, ":", err)
-            err_i = add(err_i, 1)
-        }
-        mut err_count := I64.to_str(errors.len())
-        throw format("Compiler errors: ", err_count, " type errors found")
-    }
 
     // Precomputation phase: Transform UFCS calls into regular function calls
     merged_ast = precomp_expr(context, merged_ast)
