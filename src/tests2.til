@@ -27,6 +27,31 @@ run_all_tests := proc(rs_common: Vec, rs_interpret: Vec) {
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
+regen := proc(files: Vec, rs_common: Vec, rs_interpret: Vec) {
+    if files.len().eq(0) {
+        // regen all
+        for i in 0..rs_common.len() {
+            mut path := ""
+            rs_common.get(i, path)
+            regen_test(path)
+        }
+        for i in 0..rs_interpret.len() {
+            mut path := ""
+            rs_interpret.get(i, path)
+            regen_test(path)
+        }
+    } else {
+        // regen specific files
+        for i in 0..files.len() {
+            mut path := ""
+            files.get(i, path)
+            regen_test(path)
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
 test_interpret := proc(path: Str) {
     out_path := get_out_path(path)
 
@@ -159,24 +184,13 @@ main := proc(args: ..Str) {
         case "test":
             run_all_tests(rs_common, rs_interpret)
         case "regen":
-            if args.len().gt(1) {
-                // regen specific file
+            mut files := Vec.new(Str)
+            for i in 1..args.len() {
                 mut path := ""
-                args.get(1, path)
-                regen_test(path)
-            } else {
-                // regen all
-                for i in 0..rs_common.len() {
-                    mut path := ""
-                    rs_common.get(i, path)
-                    regen_test(path)
-                }
-                for i in 0..rs_interpret.len() {
-                    mut path := ""
-                    rs_interpret.get(i, path)
-                    regen_test(path)
-                }
+                args.get(i, path)
+                files.push(path)
             }
+            regen(files, rs_common, rs_interpret)
         case:
             usage()
         }
