@@ -12,6 +12,39 @@ get_out_path := func(src_path: Str) returns Str throws AllocError {
     return src_path.replace(".til", ".out")
 }
 
+run_all_tests := proc(rs_common: Vec, rs_interpret: Vec) {
+    for i in 0..rs_common.len() {
+        mut path := ""
+        rs_common.get(i, path)
+        run_test(path)
+    }
+    for i in 0..rs_interpret.len() {
+        mut path := ""
+        rs_interpret.get(i, path)
+        run_test_interpret(path)
+    }
+
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+}
+
+test_interpret := proc(path: Str) {
+    out_path := get_out_path(path)
+
+    // Test with interpreter only
+    mut interp_output := ""
+    _ := interp_output.run_cmd("./bin/rstil", "interpret", path)
+    _ := writefile(path.replace(".til", ".interpret.out"), interp_output)
+    mut interp_diff := ""
+    _ := interp_diff.run_cmd("diff", out_path, path.replace(".til", ".interpret.out"))
+    if not(interp_diff.eq("")) {
+        println("FAIL (interpret): ", path)
+        println(interp_diff)
+        panic(loc(), "test failed")
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
 test_rs := proc(path: Str) {
     mut errors_found := false
     out_path := get_out_path(path)
@@ -66,6 +99,25 @@ run_test := proc(path: Str) {
     catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
+run_test_interpret := proc(path: Str) {
+    out_path := get_out_path(path)
+
+    // Check if .out file exists using ls on the .out path directly
+    mut ls_result := ""
+    _ := ls_result.run_cmd("ls", out_path)
+    if not(ls_result.contains(".out")) {
+        // File doesn't exist - create it from interpreter output
+        mut output := ""
+        _ := output.run_cmd("./bin/rstil", "interpret", path)
+        _ := writefile(out_path, output)
+        println("Created: ", out_path)
+    }
+
+    test_interpret(path)
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
 regen_test := proc(path: Str) {
     mut output := ""
     _ := output.run_cmd("./bin/rstil", "interpret", path)
@@ -90,27 +142,22 @@ usage := proc() {
 }
 
 main := proc(args: ..Str) {
-    mut RS_COMMON := Vec.new(Str)
-    RS_COMMON.push("src/examples/hello_script.til")
+    mut rs_common := Vec.new(Str)
+    rs_common.push("src/examples/hello_script.til")
+
+    mut rs_interpret := Vec.new(Str)
+    rs_interpret.push("src/test/comparisons.til")
 
     // Parse args
     if args.len().eq(0) {
         // Default: run tests
-        for i in 0..RS_COMMON.len() {
-            mut path := ""
-            RS_COMMON.get(i, path)
-            run_test(path)
-        }
+        run_all_tests(rs_common, rs_interpret)
     } else {
         mut cmd := ""
         args.get(0, cmd)
         switch cmd {
         case "test":
-            for i in 0..RS_COMMON.len() {
-                mut path := ""
-                RS_COMMON.get(i, path)
-                run_test(path)
-            }
+            run_all_tests(rs_common, rs_interpret)
         case "regen":
             if args.len().gt(1) {
                 // regen specific file
@@ -119,9 +166,14 @@ main := proc(args: ..Str) {
                 regen_test(path)
             } else {
                 // regen all
-                for i in 0..RS_COMMON.len() {
+                for i in 0..rs_common.len() {
                     mut path := ""
-                    RS_COMMON.get(i, path)
+                    rs_common.get(i, path)
+                    regen_test(path)
+                }
+                for i in 0..rs_interpret.len() {
+                    mut path := ""
+                    rs_interpret.get(i, path)
                     regen_test(path)
                 }
             }
