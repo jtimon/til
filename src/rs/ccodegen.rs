@@ -519,11 +519,30 @@ fn hoist_throwing_args(
         }
         // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
         // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
+        // and also to hoist Dynamic params (e.g., Vec.contains(v, "bar"))
         else if matches!(arg.node_type, NodeType::FCall) && arg.params.len() > 1 {
             let nested_args = &arg.params[1..];
             // Recurse to hoist any nested throwing/variadic calls
-            // The hoisted temps will be emitted before this statement, and emit_expr will use them
             let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
+
+            // Also hoist Dynamic params for this nested FCall
+            if let Some(func_name) = get_fcall_func_name(arg) {
+                if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                    let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                        .map(|a| Some(a.value_type.clone()))
+                        .collect();
+                    let empty_hoisted = std::collections::HashMap::new();
+                    let dynamic_hoisted = hoist_for_dynamic_params(nested_args, &param_types, &empty_hoisted, output, indent, ctx, context)?;
+                    // Record hoisted Dynamic params in hoisted_exprs with & prefix
+                    // (needed because emit_expr won't know to add & for Dynamic params)
+                    for (nested_idx, temp_var) in dynamic_hoisted {
+                        if let Some(nested_arg) = nested_args.get(nested_idx) {
+                            let expr_addr = nested_arg as *const Expr as usize;
+                            ctx.hoisted_exprs.insert(expr_addr, format!("&{}", temp_var));
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -2611,6 +2630,15 @@ fn emit_throwing_call_propagate(
         }
     }
 
+    // Check if this is a variadic function call and construct array BEFORE the call
+    let variadic_info = detect_variadic_fcall(fcall, ctx);
+    let variadic_arr_var: Option<String> = if let Some((elem_type, regular_count)) = variadic_info.clone() {
+        let variadic_args: Vec<_> = fcall.params.iter().skip(1 + regular_count).collect();
+        Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
+    } else {
+        None
+    };
+
     // Generate the function call with output parameters
     output.push_str(&indent_str);
     output.push_str("int _status_");
@@ -2636,17 +2664,39 @@ fn emit_throwing_call_propagate(
         output.push_str(&temp_suffix);
     }
 
-    // Emit arguments
-    let mut args_started = false;
-    for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
-        if needs_ret || !throw_types.is_empty() || args_started {
-            output.push_str(", ");
+    // Emit arguments - handle variadic separately from regular args
+    if let Some((_, regular_count)) = variadic_info {
+        // Variadic call: emit regular args first, then variadic array pointer
+        for (arg_idx, arg) in fcall.params.iter().skip(1).take(regular_count).enumerate() {
+            if needs_ret || !throw_types.is_empty() || arg_idx > 0 {
+                output.push_str(", ");
+            }
+            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
         }
-        // Get parameter type and mutability for this argument
-        let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
-        let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
-        emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
-        args_started = true;
+
+        // Emit variadic array pointer
+        if let Some(ref arr_var) = variadic_arr_var {
+            if needs_ret || !throw_types.is_empty() || regular_count > 0 {
+                output.push_str(", ");
+            }
+            output.push_str("&");
+            output.push_str(arr_var);
+        }
+    } else {
+        // Non-variadic: emit all args directly
+        let mut args_started = false;
+        for (arg_idx, arg) in fcall.params.iter().skip(1).enumerate() {
+            if needs_ret || !throw_types.is_empty() || args_started {
+                output.push_str(", ");
+            }
+            // Get parameter type and mutability for this argument
+            let param_type = param_types.get(arg_idx).and_then(|p| p.as_ref());
+            let is_mut = param_is_mut.get(arg_idx).copied().unwrap_or(false);
+            emit_arg_with_param_type(arg, arg_idx, &hoisted, param_type, is_mut, output, ctx, context)?;
+            args_started = true;
+        }
     }
 
     output.push_str(");\n");
@@ -2917,6 +2967,25 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
             None
         },
         NodeType::Identifier(name) => {
+            // Check for field access (var.field)
+            if !expr.params.is_empty() {
+                if let NodeType::Identifier(field_name) = &expr.params[0].node_type {
+                    // Look up the variable type first
+                    if let Some(var_type) = context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone()) {
+                        // Get the struct type name
+                        if let ValueType::TCustom(struct_name) = var_type {
+                            // Look up the field type from the struct definition
+                            if let Some(struct_def) = context.scope_stack.lookup_struct(&struct_name) {
+                                // Use get_member helper to find the field
+                                if let Some(member) = struct_def.get_member(field_name) {
+                                    return Some(member.value_type.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                return None;
+            }
             // Look up variable type from scope_stack
             context.scope_stack.lookup_symbol(name).map(|s| s.value_type.clone())
         },
@@ -3599,13 +3668,29 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Hoist throwing function calls from arguments (only at statement level)
     // When indent > 0, we're at statement level and can emit hoisted calls
-    let hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
+    let mut hoisted: std::collections::HashMap<usize, String> = if indent > 0 && expr.params.len() > 1 {
         let args = &expr.params[1..];
         let hoisted_vec = hoist_throwing_args(args, output, indent, ctx, context)?;
         hoisted_vec.into_iter().collect()
     } else {
         std::collections::HashMap::new()
     };
+
+    // Hoist non-lvalue args when param type is Dynamic (only at statement level)
+    // Need to look up param types first
+    if indent > 0 && expr.params.len() > 1 {
+        let lookup_name = orig_func_name.replace('_', ".");
+        if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+            let param_types: Vec<Option<ValueType>> = fd.args.iter()
+                .map(|a| Some(a.value_type.clone()))
+                .collect();
+            let args = &expr.params[1..];
+            let dynamic_hoisted = hoist_for_dynamic_params(args, &param_types, &hoisted, output, indent, ctx, context)?;
+            for (idx, temp_var) in dynamic_hoisted {
+                hoisted.insert(idx, temp_var);
+            }
+        }
+    }
 
     // Hardcoded builtins (compile-time intrinsics that can't be implemented in TIL)
     match orig_func_name.as_str() {
