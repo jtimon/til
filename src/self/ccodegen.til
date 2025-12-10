@@ -235,97 +235,25 @@ VariadicFCallInfo := struct {
 
 // Detect if an expression is a variadic function call
 // Returns (elem_type, regular_count) if it's a variadic call
-detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context) returns VariadicFCallInfo {
+detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext) returns VariadicFCallInfo {
     mut result := VariadicFCallInfo()
     if eq(expr.params.len(), 0) {
         return result
     }
 
-    // Get function name
-    mut func_name := ""
+    // Get function name with dots (for lookup in variadic map)
     mut first := Expr()
     expr.params.get(0, first)
-    switch first.node_type {
-    case NodeType.Identifier(name):
-        if eq(first.params.len(), 0) {
-            func_name = name
-        } else {
-            // Type-qualified call - extract method name
-            mut method_result := extract_type_method_and_depth(first)
-            if method_result.found {
-                func_name = method_result.method_name
-            } else {
-                return result
-            }
-        }
-    case:
+    mut func_name_result := get_func_name_string(first)
+    if not(func_name_result.found) {
         return result
     }
-    catch (err: IndexOutOfBoundsError) { return result }
-
-    // Build mangled name for lookup
-    mut mangled_name := ""
-    if gt(first.params.len(), 0) {
-        // Type-qualified call - get receiver type
-        switch first.node_type {
-        case NodeType.Identifier(receiver_name):
-            mut receiver_type_result := lookup_receiver_type(context, receiver_name)
-            if receiver_type_result.found {
-                switch receiver_type_result.value_type {
-                case ValueType.TCustom(type_name):
-                    mut candidate := format(type_name, ".", func_name)
-                    mut lookup := context.scope_stack.lookup_func(candidate)
-                    // Found - use mangled name
-                    mangled_name = format(type_name, "_", func_name)
-                    catch (err: KeyNotFoundError) { }
-                case ValueType.TMulti(elem):
-                    // Variadic param - treat as Array for type-qualified call
-                    mut candidate := format("Array", ".", func_name)
-                    mut lookup := context.scope_stack.lookup_func(candidate)
-                    mangled_name = format("Array_", func_name)
-                    catch (err: KeyNotFoundError) { }
-                case:
-                    // Unknown type
-                }
-            } else {
-                // Not found in scope - type-qualified call
-                mangled_name = format(receiver_name, "_", func_name)
-            }
-        case:
-            // Not identifier
-        }
-    } else if gt(expr.params.len(), 1) {
-        // Not type-qualified - check first argument type
-        mut second := Expr()
-        expr.params.get(1, second)
-        switch second.node_type {
-        case NodeType.Identifier(first_arg_name):
-            mut arg_type_result := lookup_receiver_type(context, first_arg_name)
-            if arg_type_result.found {
-                switch arg_type_result.value_type {
-                case ValueType.TCustom(type_name):
-                    mut candidate := format(type_name, ".", func_name)
-                    mut lookup := context.scope_stack.lookup_func(candidate)
-                    mangled_name = format(type_name, "_", func_name)
-                    catch (err: KeyNotFoundError) { }
-                case:
-                    // Not custom type
-                }
-            }
-        case:
-            // Not identifier
-        }
-        catch (err: IndexOutOfBoundsError) { }
-    }
-
-    // If no mangled name built, use plain function name
-    if mangled_name.eq("") {
-        mangled_name = func_name
-    }
+    // Convert underscores back to dots for lookup
+    mut orig_func_name := func_name_result.name.replace("_", ".")
 
     // Look up in func_variadic_args
     mut variadic_info := VariadicParamInfo()
-    ctx.func_variadic_args.get(mangled_name, variadic_info)
+    ctx.func_variadic_args.get(orig_func_name, variadic_info)
     result.is_variadic = true
     result.elem_type = variadic_info.elem_type
     result.regular_count = variadic_info.regular_count
@@ -333,7 +261,6 @@ detect_variadic_fcall := proc(expr: Expr, ctx: CodegenContext, context: Context)
     catch (err: KeyNotFoundError) {
         // Not a variadic function
     }
-    catch (err: I64_OverflowError) { }
     catch (err: IndexOutOfBoundsError) { }
     catch (err: AllocError) { }
 
@@ -603,8 +530,10 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
     return result
 }
 
-// Get the function name from an FCall expression
-get_fcall_func_name := func(expr: Expr, context: Context) returns Str {
+/// Get the function name from an FCall expression (returns underscore format like Type_method)
+/// This returns the name WITHOUT til_ prefix.
+/// For C output, use til_name() on the result.
+get_fcall_func_name := func(expr: Expr) returns Str {
     if eq(expr.params.len(), 0) {
         return ""
     }
@@ -612,57 +541,16 @@ get_fcall_func_name := func(expr: Expr, context: Context) returns Str {
     mut first := Expr()
     expr.params.get(0, first)
 
-    switch first.node_type {
-    case NodeType.Identifier(name):
-        if eq(first.params.len(), 0) {
-            // Regular function call
-            return name
-        } else {
-            // Type-qualified: Type.method() - method is the LAST param (AST is flat)
-            mut method_idx := sub(first.params.len(), 1)
-            mut nested := Expr()
-            first.params.get(method_idx, nested)
-            switch nested.node_type {
-            case NodeType.Identifier(method_name):
-                // Look up receiver type from scope_stack
-                mut receiver_result := lookup_receiver_type(context, name)
-                if receiver_result.found {
-                    switch receiver_result.value_type {
-                    case ValueType.TCustom(type_name):
-                        if gt(type_name.len(), 0) {
-                            // Check if it's a known struct method
-                            mut is_struct_method := false
-                            mut candidate := concat(type_name, ".")
-                            candidate = concat(candidate, method_name)
-                            mut func_def := context.scope_stack.lookup_func(candidate)
-                            is_struct_method = true
-                            catch (err: KeyNotFoundError) { }
-
-                            if is_struct_method {
-                                mut mangled := concat(type_name, "_")
-                                mangled = concat(mangled, method_name)
-                                return mangled
-                            }
-                        }
-                    case:
-                        // Not a custom type, fallback
-                    }
-                    // Not a struct method, use plain method name
-                    return method_name
-                }
-                // Not found in scope - treat as Type.method (type-qualified call)
-                mut result := concat(name, "_")
-                result = concat(result, method_name)
-                return result
-            case:
-                return ""
-            }
-        }
-    case:
-        return ""
+    // get_func_name_string already handles both nested identifiers (Type.method)
+    // and precomp'd strings ("Type.method"), returning "Type_method" format
+    mut func_name_result := get_func_name_string(first)
+    if func_name_result.found {
+        return func_name_result.name
     }
 
-    catch (err: IndexOutOfBoundsError) { return "" }
+    catch (err: IndexOutOfBoundsError) { }
+
+    return ""
 }
 
 // Check if an expression is a struct declaration (Name := struct {...})
@@ -2848,7 +2736,7 @@ emit_stmts := proc(stmts: Vec, output: Str, indent: I64, mut ctx: CodegenContext
 
         if has_fcall {
             // Get function name from the FCall
-            mut func_name := get_fcall_func_name(maybe_fcall, context)
+            mut func_name := get_fcall_func_name(maybe_fcall)
 
             // Check if this function is a throwing function
             if gt(func_name.len(), 0) {
@@ -2971,7 +2859,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, context)
+    mut func_name := get_fcall_func_name(fcall)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call: could not get function name"
     }
@@ -3369,7 +3257,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
 
     // Get function name
-    mut func_name := get_fcall_func_name(fcall, context)
+    mut func_name := get_fcall_func_name(fcall)
     if eq(func_name.len(), 0) {
         throw "emit_throwing_call_propagate: could not get function name"
     }
@@ -3716,7 +3604,7 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             case NodeType.Identifier(name):
                 // Check if this is a constructor (struct/enum) or a function call
                 // If it's a function that returns a type, use the return type
-                mut func_name := get_fcall_func_name(thrown_expr, context)
+                mut func_name := get_fcall_func_name(thrown_expr)
                 if gt(func_name.len(), 0) {
                     mut lookup_result := lookup_func_by_name(context, func_name)
                     if lookup_result.found {
@@ -3960,7 +3848,7 @@ infer_type_from_expr := func(expr: Expr, context: Context) returns ValueType {
         }
     case NodeType.FCall:
         // Look up function return type from scope_stack
-        mut func_name := get_fcall_func_name(expr, context)
+        mut func_name := get_fcall_func_name(expr)
         if gt(func_name.len(), 0) {
             mut fd := context.scope_stack.lookup_func(func_name)
             if gt(fd.return_types.len(), 0) {
@@ -4268,7 +4156,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             mut handled_throw := false
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut func_name := get_fcall_func_name(return_expr, context)
+                mut func_name := get_fcall_func_name(return_expr)
                 if gt(func_name.len(), 0) {
                     mut lookup_result := lookup_func_by_name(context, func_name)
                     if lookup_result.found {
@@ -4307,7 +4195,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
             switch return_expr.node_type {
             case NodeType.FCall:
-                mut variadic_info := detect_variadic_fcall(return_expr, ctx, context)
+                mut variadic_info := detect_variadic_fcall(return_expr, ctx)
                 if variadic_info.is_variadic {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
@@ -4338,7 +4226,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     result = concat(result, " = ")
 
                     // Emit the function name
-                    mut func_name := get_fcall_func_name(return_expr, context)
+                    mut func_name := get_fcall_func_name(return_expr)
                     if gt(func_name.len(), 0) {
                         result = concat(result, til_func_name(func_name))
                     }
@@ -4619,7 +4507,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
         // Check if it's a throwing call
         mut throwing_info := check_throwing_fcall(arg, ctx, context)
         // Check if it's a variadic call (even if not throwing)
-        mut variadic_info := detect_variadic_fcall(arg, ctx, context)
+        mut variadic_info := detect_variadic_fcall(arg, ctx)
 
         // Handle throwing calls (may also be variadic)
         if throwing_info.is_throwing {
@@ -4769,7 +4657,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Determine return type from function
             mut c_type := "int"
-            mut func_name := get_fcall_func_name(arg, context)
+            mut func_name := get_fcall_func_name(arg)
             if gt(func_name.len(), 0) {
                 mut fd_result := lookup_func_by_name(context, func_name)
                 if fd_result.found {
@@ -5514,56 +5402,6 @@ emit_identifier_without_nested := proc(expr: Expr, output: Str) returns Str thro
     case:
         throw "ccodegen: expected identifier"
     }
-}
-
-// Result type for extract_type_method_and_depth
-TypeMethodResult := struct {
-    mut found: Bool = false
-    mut method_name: Str = ""
-    mut depth: I64 = 0
-}
-
-/// Extract method name and receiver depth from a type-qualified expression.
-/// For `self._len.eq(...)`, returns ("eq", 2) meaning method is "eq" and receiver has 2 levels.
-/// For `self.method(...)`, returns ("method", 1).
-extract_type_method_and_depth := func(first_param: Expr) returns TypeMethodResult {
-    mut result := TypeMethodResult()
-    switch first_param.node_type {
-    case NodeType.Identifier(_):
-        // AST structure for chained access is FLAT: a.b.c becomes
-        // Identifier("a") { params: [Identifier("b"), Identifier("c")] }
-        // The method is the LAST param in the list
-        mut depth := first_param.params.len()
-        if gt(depth, 0) {
-            mut last_param := Expr()
-            first_param.params.get(sub(depth, 1), last_param)
-            switch last_param.node_type {
-            case NodeType.Identifier(method_name):
-                result.found = true
-                result.method_name = method_name
-                result.depth = depth
-            case:
-            }
-            catch (err: IndexOutOfBoundsError) { }
-        }
-    case:
-    }
-    return result
-}
-
-/// Create a clone of an expression with the deepest nested identifier removed.
-/// For `self._len.eq`, returns `self._len` (with eq removed from the chain).
-clone_without_deepest_method := func(expr: Expr, depth: I64) returns Expr {
-    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
-    // To remove the method (last param), we just pop the last element from params
-    mut result := expr.clone()
-    if gt(depth, 0).and(gt(result.params.len(), 0)) {
-        mut discarded := Expr()
-        result.params.pop(discarded)  // Remove the last (method) identifier
-    }
-
-    catch (err: IndexOutOfBoundsError) { }
-    return result
 }
 
 emit_literal := proc(lit: Literal, output: Str, context: Context) returns Str throws Str {

@@ -278,7 +278,7 @@ fn topological_sort_structs(structs: &[&Expr]) -> Vec<usize> {
 /// Returns Some((func_name, throw_types, return_type)) if it is, None otherwise
 fn check_throwing_fcall(expr: &Expr, _ctx: &CodegenContext, context: &Context) -> Option<(String, Vec<ValueType>, Option<ValueType>)> {
     if let NodeType::FCall = &expr.node_type {
-        if let Some(func_name) = get_fcall_func_name(expr, context) {
+        if let Some(func_name) = get_fcall_func_name(expr) {
             if let Some(fd) = lookup_func_by_name(context, &func_name) {
                 if !fd.throw_types.is_empty() {
                     let return_type = fd.return_types.first().cloned();
@@ -306,7 +306,7 @@ fn hoist_throwing_args(
         // Check if it's a throwing call
         let throwing_info = check_throwing_fcall(arg, ctx, context);
         // Check if it's a variadic call (even if not throwing)
-        let variadic_info = detect_variadic_fcall(arg, ctx, context);
+        let variadic_info = detect_variadic_fcall(arg, ctx);
 
         // Handle throwing calls (may also be variadic)
         if let Some((_func_name, throw_types, return_type)) = throwing_info {
@@ -436,7 +436,7 @@ fn hoist_throwing_args(
             let temp_var = next_mangled();
 
             // Determine return type from function
-            let c_type = if let Some(func_name) = get_fcall_func_name(arg, context) {
+            let c_type = if let Some(func_name) = get_fcall_func_name(arg) {
                 if let Some(fd) = lookup_func_by_name(context, &func_name) {
                     if let Some(ret_type) = fd.return_types.first() {
                         til_type_to_c(ret_type).unwrap_or_else(|| "int".to_string())
@@ -471,7 +471,7 @@ fn hoist_throwing_args(
             output.push_str(" = ");
 
             // Emit function name
-            if let Some(func_name) = get_fcall_func_name(arg, context) {
+            if let Some(func_name) = get_fcall_func_name(arg) {
                 output.push_str(&til_func_name(&func_name));
             }
             output.push('(');
@@ -745,61 +745,17 @@ fn hoist_variadic_args(
 fn detect_variadic_fcall(
     expr: &Expr,
     ctx: &CodegenContext,
-    context: &Context,
 ) -> Option<(String, usize)> {
     if expr.params.is_empty() {
         return None;
     }
 
-    let func_name = match &expr.params[0].node_type {
-        NodeType::Identifier(name) => {
-            if expr.params[0].params.is_empty() {
-                name.clone()
-            } else if let Some((method_name, _)) = extract_type_method_and_depth(&expr.params[0]) {
-                method_name
-            } else {
-                return None;
-            }
-        }
-        _ => return None,
-    };
+    // Get function name with dots (for lookup in variadic map)
+    let func_name = get_func_name_string(&expr.params[0])?;
+    // Convert underscores back to dots for lookup
+    let orig_func_name = func_name.replace('_', ".");
 
-    // Build mangled name for lookup
-    let mangled_name = {
-        let mut name = String::new();
-        if !expr.params[0].params.is_empty() {
-            if let NodeType::Identifier(receiver_name) = &expr.params[0].node_type {
-                let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
-                    .map(|s| s.value_type.clone());
-                if let Some(ValueType::TCustom(type_name)) = receiver_type {
-                    let candidate = format!("{}.{}", type_name, func_name);
-                    if context.scope_stack.lookup_func(&candidate).is_some() {
-                        name.push_str(&type_name);
-                        name.push('_');
-                    }
-                } else if receiver_type.is_none() {
-                    name.push_str(receiver_name);
-                    name.push('_');
-                }
-            }
-        } else if expr.params.len() > 1 {
-            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                    .map(|s| s.value_type.clone());
-                if let Some(ValueType::TCustom(type_name)) = arg_type {
-                    let candidate = format!("{}.{}", type_name, func_name);
-                    if context.scope_stack.lookup_func(&candidate).is_some() {
-                        name.push_str(&type_name);
-                        name.push('_');
-                    }
-                }
-            }
-        }
-        name.push_str(&func_name);
-        name
-    };
-
-    ctx.func_variadic_args.get(&mangled_name)
+    ctx.func_variadic_args.get(&orig_func_name)
         .map(|(_, elem_type, regular_count)| (elem_type.clone(), *regular_count))
 }
 
@@ -821,80 +777,21 @@ fn emit_fcall_name_and_args_for_throwing(
         return Err("emit_fcall_name_and_args_for_throwing: FCall with no params".to_string());
     }
 
-    // Determine function name and type receiver (for type-qualified calls like I64.to_str)
-    let (func_name, type_receiver, type_depth) = match &expr.params[0].node_type {
-        NodeType::Identifier(name) => {
-            if expr.params[0].params.is_empty() {
-                (name.clone(), None, 0)
-            } else {
-                if let Some((method_name, depth)) = extract_type_method_and_depth(&expr.params[0]) {
-                    (method_name, Some(&expr.params[0]), depth)
-                } else {
-                    return Err("emit_fcall_name_and_args_for_throwing: type-qualified method name not Identifier".to_string());
-                }
-            }
-        },
-        _ => return Err("emit_fcall_name_and_args_for_throwing: FCall first param not Identifier".to_string()),
+    // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
+    let func_name = match get_func_name_string(&expr.params[0]) {
+        Some(name) => name,
+        None => return Err("emit_fcall_name_and_args_for_throwing: FCall first param not Identifier".to_string()),
     };
 
-    // Emit function name with potential type-qualified mangling (e.g., I64.to_str -> til_I64_to_str)
-    // Track if we emitted a struct prefix (to avoid double til_ on method name)
-    let mut is_struct_method = false;
-    if let Some(receiver) = type_receiver {
-        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            // Create receiver expression without method to get its type
-            let receiver_without_method = clone_without_deepest_method(receiver, type_depth);
+    // For lookups, we need the original name with dots
+    let orig_func_name = match &expr.params[0].node_type {
+        NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
+        _ => func_name.replace('_', "."),
+    };
 
-            // Use get_value_type to resolve the full receiver chain type
-            let receiver_type = get_value_type(context, &receiver_without_method).ok();
-
-            // Determine type name from receiver type
-            let type_name_opt: Option<String> = match &receiver_type {
-                Some(ValueType::TCustom(name)) if name != INFER_TYPE => Some(name.clone()),
-                // Type-qualified call: receiver IS a type name (struct/enum)
-                Some(ValueType::TType(_)) => Some(receiver_name.to_string()),
-                _ => None,
-            };
-
-            if let Some(type_name) = type_name_opt {
-                let mangled_name = format!("{}.{}", type_name, func_name);
-                if context.scope_stack.lookup_func(&mangled_name).is_some() {
-                    output.push_str(&til_name(&type_name));
-                    output.push_str("_");
-                    is_struct_method = true;
-                }
-            } else if receiver_type.is_none() {
-                // Not a known symbol - treat as Type.func (type-qualified call)
-                output.push_str(&til_name(receiver_name));
-                output.push_str("_");
-                is_struct_method = true;
-            }
-        }
-    } else {
-        // Check for type-qualified method via first argument type
-        if expr.params.len() > 1 {
-            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                    .map(|s| s.value_type.clone());
-                if let Some(ValueType::TCustom(type_name)) = arg_type {
-                    let mangled_name = format!("{}.{}", type_name, func_name);
-                    if context.scope_stack.lookup_func(&mangled_name).is_some() {
-                        output.push_str(&til_name(&type_name));
-                        output.push_str("_");
-                        is_struct_method = true;
-                    }
-                }
-            }
-        }
-    }
-
-    // For struct methods, we already emitted til_Type_, so just add method name
-    // For top-level functions, add til_ prefix via til_func_name
-    if is_struct_method {
-        output.push_str(&func_name);
-    } else {
-        output.push_str(&til_func_name(&func_name));
-    }
+    // Emit function name (func_name already has underscores for type-qualified calls)
+    output.push_str(TIL_PREFIX);
+    output.push_str(&func_name);
     output.push_str("(&");
     output.push_str(temp_var);
 
@@ -906,50 +803,8 @@ fn emit_fcall_name_and_args_for_throwing(
         output.push_str(temp_suffix);
     }
 
-    // Build mangled function name for variadic lookup
-    let mangled_name = {
-        let mut name = String::new();
-        if let Some(receiver) = type_receiver {
-            if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                let receiver_type: Option<ValueType> = context.scope_stack.lookup_symbol(receiver_name)
-                    .map(|s| s.value_type.clone());
-                // Get type name for mangling - TMulti becomes Array
-                let type_name_opt = match &receiver_type {
-                    Some(ValueType::TCustom(type_name)) => Some(type_name.clone()),
-                    Some(ValueType::TMulti(_)) => Some("Array".to_string()),
-                    _ => None,
-                };
-                if let Some(type_name) = type_name_opt {
-                    let candidate = format!("{}.{}", type_name, func_name);
-                    if context.scope_stack.lookup_func(&candidate).is_some() {
-                        name.push_str(&type_name);
-                        name.push('_');
-                    }
-                } else if receiver_type.is_none() {
-                    // Type-qualified call
-                    name.push_str(receiver_name);
-                    name.push('_');
-                }
-            }
-        } else if expr.params.len() > 1 {
-            if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                    .map(|s| s.value_type.clone());
-                if let Some(ValueType::TCustom(type_name)) = arg_type {
-                    let candidate = format!("{}.{}", type_name, func_name);
-                    if context.scope_stack.lookup_func(&candidate).is_some() {
-                        name.push_str(&type_name);
-                        name.push('_');
-                    }
-                }
-            }
-        }
-        name.push_str(&func_name);
-        name
-    };
-
     // Check if this is a variadic function call
-    if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&mangled_name).cloned() {
+    if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&orig_func_name).cloned() {
         // Emit regular args first (skip first param which is function name)
         let args: Vec<_> = expr.params.iter().skip(1).collect();
         for (arg_idx, arg) in args.iter().take(regular_count).enumerate() {
@@ -971,10 +826,8 @@ fn emit_fcall_name_and_args_for_throwing(
         }
     } else {
         // Get function param info for Dynamic casting, mut handling
-        let found_func = lookup_func_by_name(context, &mangled_name);
-        if found_func.is_none() && !mangled_name.is_empty() {
-            eprintln!("DEBUG emit_fcall: lookup FAILED for mangled_name={}", mangled_name);
-        }
+        // Use orig_func_name (with dots) for lookup
+        let found_func = lookup_func_by_name(context, &orig_func_name);
         let param_info: Vec<(Option<ValueType>, bool)> = found_func
             .map(|fd| {
                 fd.args.iter()
@@ -2285,7 +2138,7 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
 
         if let Some(fcall) = maybe_fcall {
             // Get function name from the FCall
-            let func_name = get_fcall_func_name(fcall, context);
+            let func_name = get_fcall_func_name(fcall);
 
             // Check if this function is a throwing function
             if let Some(func_name) = func_name {
@@ -2337,52 +2190,13 @@ fn emit_stmts(stmts: &[Expr], output: &mut String, indent: usize, ctx: &mut Code
     Ok(())
 }
 
-/// Get the function name from an FCall expression (returns ORIGINAL name for lookup)
-/// This returns the name for scope_stack lookup, WITHOUT til_ prefix.
+/// Get the function name from an FCall expression (returns underscore format like Type_method)
+/// This returns the name WITHOUT til_ prefix.
 /// For C output, use til_name() on the result.
-fn get_fcall_func_name(expr: &Expr, context: &Context) -> Option<String> {
-    if expr.params.is_empty() {
-        return None;
-    }
-
-    match &expr.params[0].node_type {
-        NodeType::Identifier(name) => {
-            if expr.params[0].params.is_empty() {
-                // Regular function call - return original name
-                Some(name.clone())
-            } else {
-                // Type-qualified call: Type.method() - use extract helper to get method name
-                let (method_name, depth) = extract_type_method_and_depth(&expr.params[0])?;
-
-                // Create receiver expression without method to get its type
-                let receiver_without_method = clone_without_deepest_method(&expr.params[0], depth);
-
-                // Use get_value_type to resolve the full receiver chain type
-                let receiver_type = get_value_type(context, &receiver_without_method).ok();
-
-                // Determine type name from receiver type
-                let type_name_opt: Option<String> = match &receiver_type {
-                    Some(ValueType::TCustom(type_name)) if type_name != INFER_TYPE => Some(type_name.clone()),
-                    // Type-qualified call: receiver IS a type name (struct/enum)
-                    Some(ValueType::TType(_)) => Some(name.to_string()),
-                    _ => None,
-                };
-
-                if let Some(type_name) = type_name_opt {
-                    let mangled_name = format!("{}.{}", type_name, method_name);
-                    // Check if it's a known struct method
-                    if context.scope_stack.lookup_func(&mangled_name).is_some() {
-                        return Some(format!("{}_{}", type_name, method_name));
-                    }
-                    // Otherwise it's a top-level function, use plain method name
-                    return Some(method_name.clone());
-                }
-                // Not found in scope - treat as Type.method (type-qualified call)
-                Some(format!("{}_{}", name, method_name))
-            }
-        }
-        _ => None,
-    }
+fn get_fcall_func_name(expr: &Expr) -> Option<String> {
+    // get_func_name_string already handles both nested identifiers (Type.method)
+    // and precomp'd strings ("Type.method"), returning "Type_method" format
+    get_func_name_string(expr.params.first()?)
 }
 
 /// Pre-scan function body to collect function-level catch blocks
@@ -2424,7 +2238,7 @@ fn emit_throwing_call(
     let indent_str = "    ".repeat(indent);
 
     // Get function name
-    let func_name = get_fcall_func_name(fcall, context)
+    let func_name = get_fcall_func_name(fcall)
         .ok_or_else(|| "emit_throwing_call: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
@@ -2662,7 +2476,7 @@ fn emit_throwing_call_propagate(
     let indent_str = "    ".repeat(indent);
 
     // Get function name
-    let func_name = get_fcall_func_name(fcall, context)
+    let func_name = get_fcall_func_name(fcall)
         .ok_or_else(|| "emit_throwing_call_propagate: could not get function name".to_string())?;
 
     // Generate unique temp names for this call
@@ -3053,7 +2867,7 @@ fn infer_type_from_expr(expr: &Expr, context: &Context) -> Option<ValueType> {
         },
         NodeType::FCall => {
             // Look up function return type from scope_stack
-            if let Some(func_name) = get_fcall_func_name(expr, context) {
+            if let Some(func_name) = get_fcall_func_name(expr) {
                 if let Some(fd) = lookup_func_by_name(context, &func_name) {
                     return fd.return_types.first().cloned();
                 }
@@ -3090,7 +2904,7 @@ fn emit_assignment(name: &str, expr: &Expr, output: &mut String, indent: usize, 
 
         // Check if RHS is a call to a throwing function
         if let NodeType::FCall = rhs_expr.node_type {
-            if let Some(func_name) = get_fcall_func_name(rhs_expr, context) {
+            if let Some(func_name) = get_fcall_func_name(rhs_expr) {
                 if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                     // RHS is a throwing function call - emit with error propagation
                     // (typer should ensure non-throwing context doesn't call throwing functions without catch)
@@ -3142,7 +2956,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
 
             // Check if return expression is a call to a throwing function
             if let NodeType::FCall = return_expr.node_type {
-                if let Some(func_name) = get_fcall_func_name(return_expr, context) {
+                if let Some(func_name) = get_fcall_func_name(return_expr) {
                     if let Some(throw_types) = lookup_func_by_name(context, &func_name).map(|fd| fd.throw_types.clone()).filter(|t| !t.is_empty()) {
                         // Return expression is a throwing function call - emit with error propagation
                         // The result will be stored via the assign_name "*_ret"
@@ -3168,7 +2982,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         if !expr.params.is_empty() {
             let return_expr = &expr.params[0];
             if let NodeType::FCall = return_expr.node_type {
-                if let Some((elem_type, regular_count)) = detect_variadic_fcall(return_expr, ctx, context) {
+                if let Some((elem_type, regular_count)) = detect_variadic_fcall(return_expr, ctx) {
                     // Variadic call in return - need to hoist it
                     // First, hoist any nested throwing/variadic calls in the arguments
                     let all_args: Vec<_> = return_expr.params.iter().skip(1).collect();
@@ -3256,7 +3070,7 @@ fn emit_throw(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 if let NodeType::Identifier(name) = &thrown_expr.params[0].node_type {
                     // Check if this is a constructor (struct/enum) or a function call
                     // If it's a function that returns a type, use the return type
-                    if let Some(func_name) = get_fcall_func_name(thrown_expr, context) {
+                    if let Some(func_name) = get_fcall_func_name(thrown_expr) {
                         if let Some(fd) = lookup_func_by_name(context, &func_name) {
                             // It's a function - use its return type as the thrown type
                             if let Some(ret_type) = fd.return_types.first() {
@@ -4015,36 +3829,6 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
     }
-}
-
-/// Extract method name and receiver depth from a type-qualified expression.
-/// For `self._len.eq(...)`, returns ("eq", 2) meaning method is "eq" and receiver has 2 levels.
-/// For `self.method(...)`, returns ("method", 1).
-fn extract_type_method_and_depth(first_param: &Expr) -> Option<(String, usize)> {
-    if let NodeType::Identifier(_) = &first_param.node_type {
-        // AST structure for chained access is FLAT: a.b.c becomes
-        // Identifier("a") { params: [Identifier("b"), Identifier("c")] }
-        // The method is the LAST param in the list
-        let depth = first_param.params.len();
-        if depth > 0 {
-            if let NodeType::Identifier(method_name) = &first_param.params[depth - 1].node_type {
-                return Some((method_name.clone(), depth));
-            }
-        }
-    }
-    None
-}
-
-/// Create a clone of an expression with the deepest nested identifier removed.
-/// For `self._len.eq`, returns `self._len` (with eq removed from the chain).
-fn clone_without_deepest_method(expr: &Expr, depth: usize) -> Expr {
-    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
-    // To remove the method (last param), we just pop the last element from params
-    let mut result = expr.clone();
-    if depth > 0 && !result.params.is_empty() {
-        result.params.pop();  // Remove the last (method) identifier
-    }
-    result
 }
 
 fn emit_literal(lit: &Literal, output: &mut String, context: &Context) -> Result<(), String> {
