@@ -145,7 +145,6 @@ merge_dep_params := proc(dep: Expr, mut all_params: Vec) throws Str {
 // Build a TIL source file to C (default target)
 // Returns the generated C code as a string
 build := proc(path: Str) returns Str throws Str {
-    println("Building file '", path, "'")
 
     // Parse main file
     mut main_result := parse_file(path)
@@ -235,7 +234,6 @@ build := proc(path: Str) returns Str throws Str {
     // Write output file
     mut output_path := path.replace(".til", ".c")
     _ := writefile(output_path, c_code)
-    println("Wrote C output to '", output_path, "'")
 
     // TODO: Compile with gcc (run_cmd not available in lib mode yet)
 

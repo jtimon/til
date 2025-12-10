@@ -16,7 +16,7 @@ use std::process::Command;
 // ---------- Helper functions
 
 // General whitelist for all modes
-const ALLOWED_COMMANDS: [&str; 5] = ["ls", "mkdir", "find", "gcc", "./bin/rstil"];
+const ALLOWED_COMMANDS: [&str; 6] = ["ls", "mkdir", "find", "gcc", "./bin/rstil", "diff"];
 // More restrictive whitelist for safe_script mode
 const SAFE_COMMANDS: [&str; 2] = ["ls", "mkdir"];
 

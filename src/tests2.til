@@ -18,7 +18,13 @@ test_rs := proc(path: Str, expected: Str) {
     assert_eq_str(loc(), expected, interp_output)
     // Test compiled output
     run_output := run_cmd("./bin/rstil", "run", path)
-    // assert_eq_str(loc(), expected, run_output) // TODO: compiled output differs from interpreter
+    _ := writefile(path.replace(".til", ".run.out"), run_output)
+    diff_result := run_cmd("diff", path.replace(".til", ".out"), path.replace(".til", ".run.out"))
+    if not(diff_result.eq("")) {
+        panic(loc(), diff_result)
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
 run_test := proc(path: Str) {

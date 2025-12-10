@@ -3032,7 +3032,7 @@ eval_core_func_proc_call := proc(name: Str, mut context: Context, e: Expr, is_pr
 
 /// Main run function - lexes, parses, inits, typechecks, and evaluates source code
 /// Follows rstil.rs main_run implementation
-main_run := proc(print_extra: Bool, skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
+main_run := proc(skip_init_and_typecheck: Bool, mut context: Context, path: Str, source: Str, main_args: Vec) returns EvalResult throws Str {
     // Mark main file as "done" to prevent re-processing via circular imports
     _ := context.imports_init_done.insert(path.clone())
     _ := context.imports_typer_done.insert(path.clone())
@@ -3054,9 +3054,6 @@ main_run := proc(print_extra: Bool, skip_init_and_typecheck: Bool, mut context: 
         throw format(path, ":", err)
     }
     context.mode_def = parsed_mode
-    if print_extra {
-        println("Mode: ", context.mode_def.name)
-    }
 
     // Process mode imports (e.g., test mode auto-imports test helpers)
     mut import_idx := 0
@@ -3222,14 +3219,11 @@ main_run := proc(print_extra: Bool, skip_init_and_typecheck: Bool, mut context: 
 /// Follows rstil.rs run_file_with_context implementation
 run_file_with_context := proc(is_import: Bool, skip_init: Bool, mut context: Context, path: Str, main_args: Vec) returns EvalResult throws Str {
     mut previous_mode := context.mode_def
-    if not(is_import) {
-        println("Running file '", path, "'")
-    }
 
     source := readfile(path)
     // Note: readfile is ext_proc - if it fails, the error propagates automatically
 
-    run_result := main_run(not(is_import), skip_init, context, path, source, main_args)
+    run_result := main_run(skip_init, context, path, source, main_args)
 
     if is_import {
         if not(can_be_imported(context.mode_def)) {
@@ -3273,7 +3267,7 @@ proc_eval_to_str := proc(mut context: Context, e: Expr) returns EvalResult throw
     catch (err: AllocError) { throw err.msg }
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    return main_run(false, false, context, path, str_source, Vec.new(Str))
+    return main_run(false, context, path, str_source, Vec.new(Str))
 }
 
 proc_runfile := proc(mut context: Context, e: Expr) returns EvalResult throws Str {

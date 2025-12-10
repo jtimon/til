@@ -2495,7 +2495,7 @@ fn eval_core_func_proc_call(name: &str, context: &mut Context, e: &Expr, is_proc
 
 // ---------- main_run, run_file_with_context, run_file (like rstil.rs/til.til)
 
-pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
+pub fn main_run(skip_init_and_typecheck: bool, context: &mut Context, path: &String, source: String, main_args: Vec<String>) -> Result<EvalResult, String> {
 
     // Mark main file as "done" to prevent re-processing via circular imports
     context.imports_init_done.insert(path.clone());
@@ -2511,9 +2511,6 @@ pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut 
 
     let mode = parse_mode(&path, &mut lexer)?;
     context.mode_def = mode;
-    if print_extra {
-        println!("Mode: {}", context.mode_def.name);
-    }
 
     for import_str in context.mode_def.imports.clone() {
         let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
@@ -2620,9 +2617,6 @@ pub fn run_file(path: &String, main_args: Vec<String>) -> Result<EvalResult, Str
 
 pub fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Context, path: &String, main_args: Vec<String>) -> Result<EvalResult, String> {
     let previous_mode = context.mode_def.clone();
-    if !is_import {
-        println!("Running file '{}'", &path);
-    }
     let source: String = match fs::read_to_string(path) {
         Ok(file) => file,
         Err(error) => match error.kind() {
@@ -2634,7 +2628,7 @@ pub fn run_file_with_context(is_import: bool, skip_init: bool, context: &mut Con
             },
         },
     };
-    let run_result = main_run(!is_import, skip_init, context, &path, source, main_args)?;
+    let run_result = main_run(skip_init, context, &path, source, main_args)?;
 
     if is_import && !can_be_imported(&context.mode_def) {
         return Err(format!("file '{path}' of mode '{}' cannot be imported", context.mode_def.name))
@@ -2655,7 +2649,7 @@ pub fn proc_eval_to_str(context: &mut Context, e: &Expr) -> Result<EvalResult, S
     }
 
     let str_source = format!("mode script; {}", source_expr.value);
-    return main_run(false, false, context, &path, str_source, Vec::new())
+    return main_run(false, context, &path, str_source, Vec::new())
 }
 
 pub fn proc_runfile(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {

@@ -114,8 +114,6 @@ fn is_import_call(expr: &Expr) -> bool {
 
 // Build a TIL source file to C (default target)
 pub fn build(path: &str) -> Result<(), String> {
-    println!("Building file '{}'", path);
-
     // Parse main file
     let (main_ast, main_mode) = parse_file(path)?;
 
@@ -200,7 +198,7 @@ pub fn build(path: &str) -> Result<(), String> {
     // Write output file
     let output_path = path.replace(".til", ".c");
     match fs::write(&output_path, &c_code) {
-        Ok(_) => println!("Wrote C output to '{}'", output_path),
+        Ok(_) => {},
         Err(e) => return Err(format!("Failed to write '{}': {}", output_path, e)),
     }
 
@@ -222,7 +220,6 @@ pub fn build(path: &str) -> Result<(), String> {
     match output {
         Ok(out) => {
             if out.status.success() {
-                println!("Compiled executable to '{}'", exe_path_str);
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&out.stderr);
