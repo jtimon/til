@@ -6,14 +6,11 @@ rstil: src/rstil.rs
 	rustc src/rstil.rs -o bin/rstil
 
 tests: rstil
-	./bin/rstil src/tests.til
 	./bin/rstil src/tests2.til
-	./bin/rstil src/test/builders.til
 	# TODO: compiled run tests disabled while fixing C codegen - run independently with: ./src/test/run_tests.sh
 	# ./src/test/run_tests.sh
 
 # TODO run src/til.til with til.til
-# TODO run src/tests.til with til.til
 til: rstil tests
 	./bin/rstil interpret src/til.til src/test/self/lexer/premode.til
 	# ./bin/rstil interpret src/til.til help

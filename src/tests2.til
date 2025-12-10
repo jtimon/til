@@ -303,6 +303,7 @@ main := proc(args: ..Str) {
     // run the self hosting libs just to see they pass typer checks
     rs_interpret.push("src/self/interpreter.til")
     rs_interpret.push("src/tests_self_hosted.til")
+    rs_interpret.push("src/test/builders.til")
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
