@@ -233,16 +233,17 @@ main := proc(args: ..Str) {
     mut rs_common := Vec.new(Str)
     // test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
     // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
-    rs_common.push("src/examples/hello_script.til")
-    rs_common.push("src/examples/hello_test.til")
     rs_common.push("src/examples/hello_cli.til")
     rs_common.push("src/examples/hello_lib.til")
-    rs_common.push("src/test/circular_test.til")
-    rs_common.push("src/test/comparisons.til")
-    rs_common.push("src/test/loops.til")
+    rs_common.push("src/examples/hello_script.til")
+    rs_common.push("src/examples/hello_test.til")
+    rs_common.push("src/test/args.til")
     rs_common.push("src/test/arithmetics.til")
     rs_common.push("src/test/branchless.til")
+    rs_common.push("src/test/circular_test.til")
+    rs_common.push("src/test/comparisons.til")
     rs_common.push("src/test/exit.til")
+    rs_common.push("src/test/loops.til")
     rs_common.push("src/test/pointers.til")
     rs_common.push("src/test/temp.til")
 
@@ -260,11 +261,7 @@ main := proc(args: ..Str) {
 
     mut rs_interpreted := Vec.new(Str)
 
-    // hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
-    rs_interpreted.push("src/examples/hello_pure.til")
-    // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
-
-    rs_interpreted.push("src/test/args.til")
+    rs_interpreted.push("src/examples/hello_pure.til") // TODO hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/arrays.til")
     rs_interpreted.push("src/test/boolean.til")
     rs_interpreted.push("src/test/c_mem.til")
@@ -291,13 +288,15 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/u8.til")
     rs_interpreted.push("src/test/ufcs.til")
     rs_interpreted.push("src/test/variadic.til")
+    rs_interpreted.push("src/test/vecs.til")
+
+    // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")
     // rs_interpreted.push("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
     // rs_interpreted.push("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
     // rs_interpreted.push("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
     // rs_interpreted.push("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
     // rs_interpreted.push("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
-    rs_interpreted.push("src/test/vecs.til")
 
     // next level:
     rs_interpreted.push("src/test/eval.til")
