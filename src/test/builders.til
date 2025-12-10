@@ -6,13 +6,15 @@ import("self.builder")
 
 // Test 1: Rust codegen via rstil command - core.til
 test_rs_ccodegen := proc() {
-    _ := run_cmd("./bin/rstil", "build", "src/core/core.til")
+    mut out := ""
+    _ := out.run_cmd("./bin/rstil", "build", "src/core/core.til")
 }
 test_rs_ccodegen()
 
 // Test 2: Rust codegen via rstil command - hello_script.til
 test_rs_ccodegen_hello := proc() {
-    output := run_cmd("./bin/rstil", "run", "src/examples/hello_script.til")
+    mut output := ""
+    _ := output.run_cmd("./bin/rstil", "run", "src/examples/hello_script.til")
     expected := "Hello World!
 "
     assert_eq_str(loc(), expected, output)

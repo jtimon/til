@@ -587,14 +587,19 @@ pub fn proc_writefile(context: &mut Context, e: &Expr) -> Result<EvalResult, Str
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
+// Returns exit code as I64, output is written to mut output_str arg
 pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, String> {
-    // run_cmd(args...) - runs a command with arguments, returns stdout as string
-    // First arg is the command, remaining args are passed to it
-    if e.params.len() < 2 {
-        return Err(e.error(&context.path, "eval", "run_cmd requires at least 1 argument (the command)"));
+    // run_cmd(mut output_str, args...) - runs a command with arguments
+    // First arg is mut output string, second is command, remaining are args
+    // Returns exit code as I64
+    if e.params.len() < 3 {
+        return Err(e.error(&context.path, "eval", "run_cmd requires at least 2 arguments (mut output_str, command)"));
     }
 
-    let cmd_result = eval_expr(context, e.get(1)?)?;
+    // Get output variable name (must be identifier for mut assignment)
+    let output_var = e.get(1)?;
+
+    let cmd_result = eval_expr(context, e.get(2)?)?;
     if cmd_result.is_throw {
         return Ok(cmd_result);
     }
@@ -612,7 +617,7 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
     }
 
     let mut args: Vec<String> = Vec::new();
-    for i in 2..e.params.len() {
+    for i in 3..e.params.len() {
         let arg_result = eval_expr(context, e.get(i)?)?;
         if arg_result.is_throw {
             return Ok(arg_result);
@@ -626,14 +631,17 @@ pub fn proc_run_cmd(context: &mut Context, e: &Expr) -> Result<EvalResult, Strin
 
     match output {
         Ok(out) => {
-            if out.status.success() {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                Ok(EvalResult::new(&stdout))
-            } else {
-                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                let code = out.status.code().unwrap_or(-1);
-                Err(e.error(&context.path, "eval", &format!("Command '{}' failed with code {}: {}", cmd, code, stderr)))
-            }
+            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+            let code = out.status.code().unwrap_or(-1);
+
+            // Assign stdout to mut output variable
+            let var_name = match &output_var.node_type {
+                NodeType::Identifier(name) => name.clone(),
+                _ => return Err(e.error(&context.path, "eval", "run_cmd first argument must be an identifier")),
+            };
+            Arena::insert_primitive(context, &var_name, &ValueType::TCustom("Str".to_string()), &stdout, e)?;
+
+            Ok(EvalResult::new(&code.to_string()))
         },
         Err(err) => {
             Err(e.error(&context.path, "eval", &format!("Failed to run command '{}': {}", cmd, err)))

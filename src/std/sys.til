@@ -3,4 +3,5 @@ mode lib
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
-run_cmd := ext_proc(args: ..Str) returns Str;
+// Returns exit code, output is written to mut output_str arg.
+run_cmd := ext_proc(mut output_str: Str, args: ..Str) returns I64;

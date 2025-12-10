@@ -530,14 +530,19 @@ proc_readfile := proc(mut context: Context, e: Expr) returns EvalResult throws S
 // WARNING: run_cmd executes shell commands.
 // In mode safe_script, only whitelisted commands are allowed (configurable).
 // In other modes, arbitrary commands can be executed - use with caution.
+// Returns exit code as I64, output is written to mut output_str arg
 proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws Str {
-    // run_cmd(args...) - runs a command with arguments, returns stdout as string
-    // First arg is the command, remaining args are passed to it
-    if e.params.len().lt(2) {
-        throw e.error(context.path, "eval", "run_cmd requires at least 1 argument (the command)")
+    // run_cmd(mut output_str, args...) - runs a command with arguments
+    // First arg is mut output string, second is command, remaining are args
+    // Returns exit code as I64
+    if e.params.len().lt(3) {
+        throw e.error(context.path, "eval", "run_cmd requires at least 2 arguments (mut output_str, command)")
     }
 
-    cmd_result := eval_expr(context, e.get(1))
+    // Get output variable name (must be identifier for mut assignment)
+    output_var := e.get(1)
+
+    cmd_result := eval_expr(context, e.get(2))
     if cmd_result.is_throw {
         return cmd_result
     }
@@ -555,7 +560,7 @@ proc_run_cmd := proc(mut context: Context, e: Expr) returns EvalResult throws St
     }
 
     mut args := Vec.new(Str)
-    for i in 2..e.params.len() {
+    for i in 3..e.params.len() {
         arg_result := eval_expr(context, e.get(i))
         if arg_result.is_throw {
             return arg_result
