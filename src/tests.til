@@ -250,6 +250,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/strings.til")
     rs_common.push("src/test/structs.til")
     rs_common.push("src/test/temp.til")
+    rs_common.push("src/test/u8.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/core/core.til")
@@ -285,7 +286,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/sets.til")
     rs_interpreted.push("src/test/test_lexer.til")
     rs_interpreted.push("src/test/test_parser.til")
-    rs_interpreted.push("src/test/u8.til")
     rs_interpreted.push("src/test/ufcs.til")
     rs_interpreted.push("src/test/variadic.til")
     rs_interpreted.push("src/test/vecs.til")
