@@ -204,6 +204,7 @@ main := proc(args: ..Str) {
     rs_interpret.push("src/test/eval.til")
     rs_interpret.push("src/test/introspections.til")
     rs_interpret.push("src/test/modes.til")
+    rs_interpret.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks

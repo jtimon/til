@@ -29,7 +29,5 @@ println("\nSome basic tests/examples:\n")
 
 // runfile("src/test/builders.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
 
-runfile("src/test/todo.til") // permanent TODO
-
 // REM test exit.til only at the end
 runfile("src/test/exit.til")
