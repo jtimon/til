@@ -202,7 +202,56 @@ build := proc(path: Str) returns Str throws Str {
         _ := context.imports_typer_done.insert(file_path)
         imported_idx = add(imported_idx, 1)
     }
-    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    // Auto-import mode-specific files (like the interpreter does at interpreter.rs:2518-2544)
+    // This must happen after init_context so basic types (Str, Dynamic, etc.) are available
+    // Skip files already in our imported set to avoid duplicate declarations
+    // Also collect ASTs for codegen
+    mut mode_import_asts := Vec.new(Expr)
+    mut mode_import_idx := 0
+    while lt(mode_import_idx, context.mode_def.imports.len()) {
+        mut import_str := ""
+        context.mode_def.imports.get(mode_import_idx, import_str)
+        mut file_path := import_path_to_file_path(import_str)
+        if not(imported.contains(file_path)) {
+            // Mode imports need init and typer phases (no eval for builder)
+            mut import_func_name_expr := Expr(NodeType.Identifier("import"), Vec.new(Expr), 0, 0)
+            mut import_path_expr := Expr(NodeType.LLiteral(Literal.Str(import_str)), Vec.new(Expr), 0, 0)
+            mut import_params := Vec.new(Expr)
+            import_params.push(import_func_name_expr)
+            import_params.push(import_path_expr)
+            mut import_fcall_expr := Expr(NodeType.FCall, import_params, 0, 0)
+
+            init_import_declarations(context, import_fcall_expr, import_str)
+            mut typer_errs := typer_import_declarations(context, import_str)
+            if gt(typer_errs.len(), 0) {
+                mut typer_err_i := 0
+                while lt(typer_err_i, typer_errs.len()) {
+                    mut err := ""
+                    typer_errs.get(typer_err_i, err)
+                    println(path, ":", err)
+                    typer_err_i = add(typer_err_i, 1)
+                }
+                mut err_count := I64.to_str(typer_errs.len())
+                throw format("Compiler errors: ", err_count, " type errors found")
+            }
+
+            // Parse and collect AST for codegen
+            mut mode_result := parse_file(file_path)
+            mode_import_asts.push(mode_result.ast)
+        }
+        mode_import_idx = add(mode_import_idx, 1)
+    }
+
+    // Merge mode import ASTs into merged_ast
+    mut mode_ast_idx := 0
+    while lt(mode_ast_idx, mode_import_asts.len()) {
+        mut mode_ast := Expr()
+        mode_import_asts.get(mode_ast_idx, mode_ast)
+        merge_dep_params(mode_ast, all_params)
+        mode_ast_idx = add(mode_ast_idx, 1)
+    }
+    merged_ast = Expr(NodeType.Body, all_params, main_ast.line, main_ast.col)
 
     // Run typer phase (type checking)
     mut mode_errors := basic_mode_checks(context, merged_ast)
@@ -222,8 +271,6 @@ build := proc(path: Str) returns Str throws Str {
         mut err_count := I64.to_str(errors.len())
         throw format("Compiler errors: ", err_count, " type errors found")
     }
-
-    catch (err: AllocError) { throw err.msg }
 
     // Precomputation phase: Transform UFCS calls into regular function calls
     merged_ast = precomp_expr(context, merged_ast)

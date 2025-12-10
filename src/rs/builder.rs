@@ -154,6 +154,8 @@ pub fn build(path: &str) -> Result<(), String> {
     // Auto-import mode-specific files (like the interpreter does at interpreter.rs:2518-2544)
     // This must happen after init_context so basic types (Str, Dynamic, etc.) are available
     // Skip files already in our imported set to avoid duplicate declarations
+    // Also collect ASTs for codegen
+    let mut mode_import_asts: Vec<Expr> = Vec::new();
     for import_str in context.mode_def.imports.clone() {
         let file_path = import_path_to_file_path(&import_str);
         if imported.contains(&file_path) {
@@ -175,7 +177,14 @@ pub fn build(path: &str) -> Result<(), String> {
             }
             return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
         }
+
+        // Parse and collect AST for codegen
+        let (mode_ast, _) = parse_file(&file_path)?;
+        mode_import_asts.push(mode_ast);
     }
+
+    // Merge mode import ASTs into merged_ast
+    let merged_ast = merge_asts(merged_ast, mode_import_asts);
 
     // Run typer phase (type checking) - like the interpreter does
     let mut errors: Vec<String> = Vec::new();
