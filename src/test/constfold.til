@@ -23,14 +23,16 @@ test_deeply_nested := proc() {
 }
 test_deeply_nested()
 
-// Test 4: String concat - folded at compile time
+// Test 4: String concat - NOT currently folded because concat throws AllocError
+// TODO: Support folding functions that throw but have literal args that won't cause errors
 test_string_concat := proc() {
     result := concat("hello", " world")
-    test(loc(), result.eq("hello world"), "concat should be folded to 'hello world'")
+    test(loc(), result.eq("hello world"), "concat works at runtime")
 }
 test_string_concat()
 
 // Test 5: Mixed - this should NOT be folded because x is a variable
+// TODO: Support folding with const variables (not just literals)
 test_no_fold_variable := proc() {
     x := 5
     result := add(x, 3)  // x is not a literal, so no folding
@@ -38,10 +40,10 @@ test_no_fold_variable := proc() {
 }
 test_no_fold_variable()
 
-// Test 6: loc() should NOT be folded - it returns runtime source location
-test_loc_not_folded := proc() {
+// Test 6: loc() is folded to the correct source location at compile time
+test_loc_folded_correctly := proc() {
     location := loc()
     test(loc(), location.contains("constfold.til"), "loc() should contain filename")
-    test(loc(), location.contains(":43:"), "loc() should contain correct line number")
+    test(loc(), location.contains(":45:"), "loc() should contain correct line number")
 }
-test_loc_not_folded()
+test_loc_folded_correctly()
