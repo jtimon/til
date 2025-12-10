@@ -253,6 +253,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/u8.til")
     rs_common.push("src/test/eval.til")
     rs_common.push("src/test/func_purity.til")
+    rs_common.push("src/test/constfold.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")

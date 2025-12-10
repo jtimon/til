@@ -1,0 +1,39 @@
+mode test
+
+// Test compile-time constant folding for pure functions with literal arguments
+
+// Test 1: Simple arithmetic
+test_simple_add := proc() {
+    result := add(1, 2)
+    test(loc(), result.eq(3), "add(1, 2) should be 3")
+}
+test_simple_add()
+
+// Test 2: Nested arithmetic
+test_nested_arithmetic := proc() {
+    result := mul(add(1, 2), sub(10, 5))
+    test(loc(), result.eq(15), "mul(add(1, 2), sub(10, 5)) should be 15")
+}
+test_nested_arithmetic()
+
+// Test 3: Deeply nested
+test_deeply_nested := proc() {
+    result := add(mul(2, 3), mul(4, 5))
+    test(loc(), result.eq(26), "add(mul(2, 3), mul(4, 5)) should be 26")
+}
+test_deeply_nested()
+
+// Test 4: String concat - skipped for now (requires runtime string infrastructure)
+// test_string_concat := proc() {
+//     result := concat("hello", " world")
+//     test(loc(), result.eq("hello world"), "concat should work")
+// }
+// test_string_concat()
+
+// Test 5: Mixed - this should NOT be folded because x is a variable
+test_no_fold_variable := proc() {
+    x := 5
+    result := add(x, 3)  // x is not a literal, so no folding
+    test(loc(), result.eq(8), "add(x, 3) should still work at runtime")
+}
+test_no_fold_variable()

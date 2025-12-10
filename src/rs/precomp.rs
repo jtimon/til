@@ -1,12 +1,13 @@
 // Precomputation phase: Transforms UFCS calls into regular function calls
+// and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
-// No eval, no arena access - pure AST transformation.
 
-use crate::rs::init::{Context, get_value_type, SymbolInfo, ScopeType};
+use crate::rs::init::{Context, get_value_type, get_func_name_in_call, SymbolInfo, ScopeType};
 use std::collections::HashMap;
 use crate::rs::parser::{
-    Expr, NodeType, ValueType, SStructDef, SFuncDef,
+    Expr, NodeType, ValueType, SStructDef, SFuncDef, Literal,
 };
+use crate::rs::interpreter::eval_expr;
 
 // ---------- Main entry point
 
@@ -38,6 +39,66 @@ pub fn precomp_expr(context: &mut Context, e: &Expr) -> Result<Expr, String> {
         NodeType::Identifier(_) => precomp_params(context, e),
         // Leaf nodes - no transformation needed
         NodeType::LLiteral(_) | NodeType::DefaultCase | NodeType::Pattern(_) => Ok(e.clone()),
+    }
+}
+
+// ---------- Compile-time constant folding
+
+/// Check if an expression can be evaluated at compile time.
+/// Currently only handles literals and pure function calls with literal arguments.
+fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
+    match &e.node_type {
+        NodeType::LLiteral(_) => true,
+        NodeType::FCall => {
+            let f_name = get_func_name_in_call(e);
+            // Special case: these functions are declared as ext_func but cannot be folded:
+            // - loc, _file, _line, _col: depend on runtime source location
+            // - format, concat: require runtime string infrastructure
+            // - exit: terminates the program
+            match f_name.as_str() {
+                "loc" | "_file" | "_line" | "_col" | "format" | "concat" | "exit" => return false,
+                _ => {}
+            }
+            let func_def = match context.scope_stack.lookup_func(&f_name) {
+                Some(f) => f,
+                None => return false, // Unknown function (struct constructor, etc.)
+            };
+            // Must be pure function (not proc)
+            if func_def.is_proc() {
+                return false;
+            }
+            // Functions that can throw cannot be evaluated at compile time
+            if !func_def.throw_types.is_empty() {
+                return false;
+            }
+            // All arguments must be comptime-evaluable
+            for i in 1..e.params.len() {
+                if !is_comptime_evaluable(context, &e.params[i]) {
+                    return false;
+                }
+            }
+            true
+        },
+        // Future: handle constant identifiers (true, false, user constants)
+        _ => false,
+    }
+}
+
+/// Evaluate a comptime-evaluable expression and convert result back to AST literal.
+fn eval_comptime(context: &mut Context, e: &Expr) -> Result<Expr, String> {
+    let result = eval_expr(context, e)?;
+    // EvalResult.value is a String representation of the value
+    // Convert back to LLiteral based on the result type
+    let value_type = get_value_type(context, e)?;
+    match &value_type {
+        ValueType::TCustom(ref t) if t == "I64" => {
+            Ok(Expr::new_clone(NodeType::LLiteral(Literal::Number(result.value.clone())), e, vec![]))
+        },
+        ValueType::TCustom(ref t) if t == "Str" => {
+            Ok(Expr::new_clone(NodeType::LLiteral(Literal::Str(result.value.clone())), e, vec![]))
+        },
+        // For other types, don't fold - return error to fall back
+        _ => Err(format!("Cannot convert comptime result type: {:?}", value_type)),
     }
 }
 
@@ -177,6 +238,13 @@ fn precomp_fcall(context: &mut Context, e: &Expr) -> Result<Expr, String> {
 
         // Case 2: Already a regular function call - check if it exists
         if context.scope_stack.lookup_func(&combined_name).is_some() {
+            // Try compile-time constant folding for pure functions with literal args
+            if is_comptime_evaluable(context, &e) {
+                if let Ok(folded) = eval_comptime(context, &e) {
+                    return Ok(folded);
+                }
+                // If folding fails, fall through to return original expression
+            }
             return Ok(e);
         }
 

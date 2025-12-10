@@ -1,10 +1,11 @@
 mode lib
 
 import("self.init")
+import("self.interpreter")
 
 // Precomputation phase: Transforms UFCS calls into regular function calls
+// and performs compile-time constant folding for pure functions.
 // This phase runs after typer, before interpreter/builder.
-// No eval, no arena access - pure AST transformation.
 
 // ---------- Main entry point
 
@@ -59,6 +60,84 @@ precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
         return e.clone()
     case:
         return e.clone()
+    }
+}
+
+// ---------- Compile-time constant folding
+
+/// Check if an expression can be evaluated at compile time.
+/// Currently only handles literals and pure function calls with literal arguments.
+is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
+    switch e.node_type {
+    case NodeType.LLiteral:
+        return true
+    case NodeType.FCall:
+        f_name := get_func_name_in_call(e)
+        catch (err: Str) {
+            return false  // Can't get function name
+        }
+        // Special case: these functions are declared as ext_func but cannot be folded:
+        // - loc, _file, _line, _col: depend on runtime source location
+        // - format, concat: require runtime string infrastructure
+        // - exit: terminates the program
+        if f_name.eq("loc") { return false }
+        if f_name.eq("_file") { return false }
+        if f_name.eq("_line") { return false }
+        if f_name.eq("_col") { return false }
+        if f_name.eq("format") { return false }
+        if f_name.eq("concat") { return false }
+        if f_name.eq("exit") { return false }
+
+        mut func_def := context.scope_stack.lookup_func(f_name)
+        catch (err: KeyNotFoundError) {
+            return false  // Unknown function (struct constructor, etc.)
+        }
+        // Must be pure function (not proc)
+        if func_def.is_proc() {
+            return false
+        }
+        // Functions that can throw cannot be evaluated at compile time
+        if func_def.throw_types.len().gt(0) {
+            return false
+        }
+        // All arguments must be comptime-evaluable
+        mut i := 1
+        while i.lt(e.params.len()) {
+            mut arg := Expr()
+            e.params.get(i, arg)
+            catch (err: IndexOutOfBoundsError) {
+                return false
+            }
+            if not(is_comptime_evaluable(context, arg)) {
+                return false
+            }
+            i = i.add(1)
+        }
+        return true
+    case:
+        // Future: handle constant identifiers (true, false, user constants)
+        return false
+    }
+}
+
+/// Evaluate a comptime-evaluable expression and convert result back to AST literal.
+eval_comptime := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    result := eval_expr(context, e)
+    // EvalResult.value is a String representation of the value
+    // Convert back to LLiteral based on the result type
+    value_type := get_value_type(context, e)
+    switch value_type {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("I64") {
+            return Expr.new_clone(NodeType.LLiteral(Literal.Number(result.value)), e, Vec.new(Expr))
+        }
+        if type_name.eq("Str") {
+            return Expr.new_clone(NodeType.LLiteral(Literal.Str(result.value)), e, Vec.new(Expr))
+        }
+        // For other types, don't fold - throw error to fall back
+        throw "Cannot convert comptime result type"
+    case:
+        throw "Cannot convert comptime result type"
     }
 }
 
@@ -306,6 +385,15 @@ precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
             // Not found
         }
         if func_found {
+            // Try compile-time constant folding for pure functions with literal args
+            if is_comptime_evaluable(context, e) {
+                mut folded := eval_comptime(context, e)
+                catch (err: Str) {
+                    // If folding fails, fall through to return original expression
+                    return e
+                }
+                return folded
+            }
             return e
         }
 
