@@ -2,9 +2,6 @@ mode test
 
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
-// The closest to a std lib this language has
-// runfile("src/core.til") // you can't run it because it is already imported everywhere
-
 // runfile("src/test/builders.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
 
 // REM test exit.til only at the end
