@@ -87,7 +87,7 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
         for i in 0..rs_compiled.len() {
             mut path := ""
             rs_compiled.get(i, path)
-            regen_test(path)
+            regen_test_compiled(path)
         }
         for i in 0..rs_interpreted.len() {
             mut path := ""
@@ -95,11 +95,15 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec)
             regen_test(path)
         }
     } else {
-        // regen specific files
+        // regen specific files - check which list they're in
         for i in 0..files.len() {
             mut path := ""
             files.get(i, path)
-            regen_test(path)
+            if rs_compiled.contains(path) {
+                regen_test_compiled(path)
+            } else {
+                regen_test(path)
+            }
         }
     }
 
@@ -216,6 +220,17 @@ regen_test := proc(path: Str) {
     catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
+regen_test_compiled := proc(path: Str) {
+    mut output := ""
+    exit_code := output.run_cmd("./bin/rstil", "run", path)
+    out_path := get_out_path(path)
+    formatted := format_expected(exit_code, output)
+    _ := writefile(out_path, formatted)
+    println("Regenerated (compiled): ", out_path)
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
 usage := proc() {
     println("tests2 - TIL test runner")
     println("")
@@ -254,10 +269,12 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/eval.til")
     rs_common.push("src/test/func_purity.til")
     rs_common.push("src/test/constfold.til")
+    rs_common.push("src/test/c_mem.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
+    rs_compiled.push("src/test/memcmp_str_compiled.til")
     // TODO FIX: enum constructors called as functions instead of struct init
     // rs_compiled.push("src/test/enums_payload.til")
     // TODO FIX: switch_simple.til - same issue plus:
@@ -270,7 +287,7 @@ main := proc(args: ..Str) {
 
     rs_interpreted.push("src/examples/hello_pure.til") // TODO hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/args.til") // TODO FIX: mut param not passed as pointer, format variadic args
-    rs_interpreted.push("src/test/c_mem.til") // TODO FIX: test output mismatch (assert_eq formatting differs)
+    rs_interpreted.push("src/test/memcmp_str_interpreted.til")
     rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init, variadic format call, default case syntax
     rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init
     rs_interpreted.push("src/test/errors.til") // TODO FIX: nested throwing call in non-throwing context (safe_div inside to_str)

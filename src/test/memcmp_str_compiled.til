@@ -1,0 +1,20 @@
+mode test
+
+// Test memcmp behavior with string literals in compiled C
+// In compiled C, string literal pooling means identical literals
+// may share the same pointer (compiler optimization).
+
+test_memcmp_str := proc() {
+    mut s1 := "hello"
+    mut s2 := "hello"
+    mut s3 := "world"
+
+    // In compiled C, s1 and s2 may have same pointer due to string pooling
+    mut result := memcmp(to_ptr(s1), to_ptr(s2), size_of(Str))
+    test(loc(), result.eq(0), "memcmp on identical string literals returns 0 (pooled)")
+
+    // Verify content equality works with .eq()
+    test(loc(), s1.eq(s2), "s1.eq(s2) should be true for same content")
+    test(loc(), not(s1.eq(s3)), "s1.eq(s3) should be false for different content")
+}
+test_memcmp_str()
