@@ -200,8 +200,8 @@ lookup_func_by_name := func(context: Context, func_name: Str) returns FuncLookup
         mut idx := func_name.find("_")
         if idx.gteq(0) {
             mut dot_name := func_name.get_substr(0, idx)
-            dot_name = concat(dot_name, ".")
-            dot_name = concat(dot_name, func_name.get_substr(add(idx, 1), func_name.len()))
+            dot_name = dot_name.concat(".")
+            dot_name = dot_name.concat(func_name.get_substr(add(idx, 1), func_name.len()))
             mut fd2 := context.scope_stack.lookup_func(dot_name)
             result.found = true
             result.func_def = fd2
@@ -383,7 +383,7 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
                     switch default_expr.node_type {
                     case NodeType.FuncDef(func_def):
                         mut mangled_name := concat(struct_name, "_")
-                        mangled_name = concat(mangled_name, member_name)
+                        mangled_name = mangled_name.concat(member_name)
                         // Check for variadic args
                         mut ai := 0
                         while lt(ai, func_def.args.len()) {
@@ -434,22 +434,21 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
 
     if is_throwing {
         // Throwing function returns int status code
-        result = concat(result, "int ")
+        result = result.concat("int ")
     } else {
         // Non-throwing function returns its actual type
         if eq(func_def.return_types.len(), 0) {
-            result = concat(result, "void ")
+            result = result.concat("void ")
         } else {
             mut ret_type := ValueType.TCustom("")
             func_def.return_types.get(0, ret_type)
-            result = concat(result, til_type_to_c(ret_type))
-            result = concat(result, " ")
+            result = result.concat(til_type_to_c(ret_type))
+            result = result.concat(" ")
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
     }
 
-    result = concat(result, func_name)
-    result = concat(result, "(")
+    result = result.concat(func_name).concat("(")
 
     mut param_count := 0
 
@@ -458,8 +457,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
         if gt(func_def.return_types.len(), 0) {
             mut ret_type := ValueType.TCustom("")
             func_def.return_types.get(0, ret_type)
-            result = concat(result, til_type_to_c(ret_type))
-            result = concat(result, "* _ret")
+            result = result.concat(til_type_to_c(ret_type)).concat("* _ret")
             param_count = add(param_count, 1)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
@@ -468,14 +466,12 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
         mut i := 0
         while lt(i, func_def.throw_types.len()) {
             if gt(param_count, 0) {
-                result = concat(result, ", ")
+                result = result.concat(", ")
             }
             mut throw_type := ValueType.TCustom("")
             func_def.throw_types.get(i, throw_type)
             mut err_type := value_type_to_c_name(throw_type)
-            result = concat(result, err_type)
-            result = concat(result, "* _err")
-            result = concat(result, add(i, 1).to_str())
+            result = result.concat(err_type).concat("* _err").concat(add(i, 1).to_str())
             param_count = add(param_count, 1)
             i = add(i, 1)
         }
@@ -486,7 +482,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
     mut j := 0
     while lt(j, func_def.args.len()) {
         if gt(param_count, 0) {
-            result = concat(result, ", ")
+            result = result.concat(", ")
         }
         mut arg := Declaration()
         func_def.args.get(j, arg)
@@ -495,10 +491,7 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
         switch arg.value_type {
         case ValueType.TMulti(elem_type_name):
             // Variadic args are passed as til_Array*
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, "Array* ")
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, arg.name)
+            result = result.concat(TIL_PREFIX).concat("Array* ").concat(TIL_PREFIX).concat(arg.name)
             param_count = add(param_count, 1)
             // Variadic must be last, so break
             j = func_def.args.len()
@@ -506,16 +499,12 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
             // Regular arg
             if arg.is_mut {
                 // mut: use pointer so mutations are visible to caller
-                result = concat(result, til_type_to_c(arg.value_type))
-                result = concat(result, "* ")
+                result = result.concat(til_type_to_c(arg.value_type)).concat("* ")
             } else {
                 // const or copy: pass by value
-                result = concat(result, "const ")
-                result = concat(result, til_type_to_c(arg.value_type))
-                result = concat(result, " ")
+                result = result.concat("const ").concat(til_type_to_c(arg.value_type)).concat(" ")
             }
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, arg.name)
+            result = result.concat(TIL_PREFIX).concat(arg.name)
             param_count = add(param_count, 1)
             j = add(j, 1)
         }
@@ -523,10 +512,10 @@ emit_func_signature := proc(func_name: Str, func_def: SFuncDef, output: Str, ctx
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     if eq(param_count, 0) {
-        result = concat(result, "void")
+        result = result.concat("void")
     }
 
-    result = concat(result, ")")
+    result = result.concat(")")
     return result
 }
 
@@ -839,29 +828,18 @@ emit_constant_declaration := proc(expr: Expr, output: Str, ctx: CodegenContext, 
                 case Literal.Number(n):
                     // Non-mut declarations are constants
                     if not(decl.is_mut) {
-                        result = concat(result, "const ")
+                        result = result.concat("const ")
                     }
-                    result = concat(result, "I64 ")
-                    result = concat(result, decl.name)
-                    result = concat(result, " = ")
-                    result = concat(result, n)
-                    result = concat(result, ";\n")
+                    result = result.concat("I64 ").concat(decl.name).concat(" = ").concat(n).concat(";\n")
                 case Literal.Str(s):
                     if has_str(context) {
                         if not(decl.is_mut) {
-                            result = concat(result, "const ")
+                            result = result.concat("const ")
                         }
                         result = format(result, TIL_PREFIX, "Str ")
-                        result = concat(result, decl.name)
-                        result = format(result, " = ", TIL_PREFIX, "Str_from_literal(\"")
-                        result = concat(result, s)
-                        result = concat(result, "\");\n")
+                        result = format(result.concat(decl.name), " = ", TIL_PREFIX, "Str_from_literal(\"", s, "\");\n")
                     } else {
-                        result = concat(result, "const char* ")
-                        result = concat(result, decl.name)
-                        result = concat(result, " = \"")
-                        result = concat(result, s)
-                        result = concat(result, "\";\n")
+                        result = result.concat("const char* ").concat(decl.name).concat(" = \"").concat(s).concat("\";\n")
                     }
                 case:
                     // Skip list literals for now
@@ -898,24 +876,18 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                result = concat(result, "typedef struct {\n")
+                result = result.concat("typedef struct {\n")
                 mut i := 0
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()
                     struct_def.members.get(i, member)
                     // Only emit mut fields as struct members
                     if member.is_mut {
-                        result = concat(result, "    ")
-                        result = concat(result, til_type_to_c(member.value_type))
-                        result = concat(result, " ")
-                        result = concat(result, member.name)
-                        result = concat(result, ";\n")
+                        result = result.concat("    ").concat(til_type_to_c(member.value_type)).concat(" ").concat(member.name).concat(";\n")
                     }
                     i = add(i, 1)
                 }
-                result = concat(result, "} ")
-                result = concat(result, decl.name)
-                result = concat(result, ";\n\n")
+                result = result.concat("} ").concat(decl.name).concat(";\n\n")
                 return result
             case:
                 throw "emit_struct_declaration: not a struct"
@@ -957,30 +929,30 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                             is_func = false
                         }
                         if not(is_func) {
-                            result = concat(result, "const ")
-                            result = concat(result, til_type_to_c(member.value_type))
-                            result = concat(result, " ")
-                            result = concat(result, struct_name)
-                            result = concat(result, "_")
-                            result = concat(result, member.name)
-                            result = concat(result, " = ")
+                            result = result.concat("const ")
+                            result = result.concat(til_type_to_c(member.value_type))
+                            result = result.concat(" ")
+                            result = result.concat(struct_name)
+                            result = result.concat("_")
+                            result = result.concat(member.name)
+                            result = result.concat(" = ")
                             result = emit_expr(default_val, result, 0, ctx, context)
-                            result = concat(result, ";\n")
+                            result = result.concat(";\n")
                         }
                         catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
                     }
                     i = add(i, 1)
                 }
                 // Emit size_of constant for this struct
-                result = concat(result, "const ")
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "I64 ")
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "size_of_")
-                result = concat(result, decl.name)
-                result = concat(result, " = sizeof(")
-                result = concat(result, struct_name)
-                result = concat(result, ");\n")
+                result = result.concat("const ")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("I64 ")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("size_of_")
+                result = result.concat(decl.name)
+                result = result.concat(" = sizeof(")
+                result = result.concat(struct_name)
+                result = result.concat(");\n")
                 // Track this type for til_size_of function generation
                 ctx.known_types.push(decl.name)
                 return result
@@ -1007,15 +979,15 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
             switch first.node_type {
             case NodeType.EnumDef(enum_def):
                 mut enum_name := til_name(decl.name)
-                result = concat(result, "const ")
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "I64 ")
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "size_of_")
-                result = concat(result, decl.name)
-                result = concat(result, " = sizeof(")
-                result = concat(result, enum_name)
-                result = concat(result, ");\n")
+                result = result.concat("const ")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("I64 ")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("size_of_")
+                result = result.concat(decl.name)
+                result = result.concat(" = sizeof(")
+                result = result.concat(enum_name)
+                result = result.concat(");\n")
                 // Track this type for til_size_of function generation
                 ctx.known_types.push(decl.name)
             case:
@@ -1033,33 +1005,33 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
 // Emit til_size_of function for runtime type size lookup
 emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
-    result = concat(result, "\n")
-    result = concat(result, "static inline ")
-    result = concat(result, TIL_PREFIX)
-    result = concat(result, "I64 ")
-    result = concat(result, TIL_PREFIX)
-    result = concat(result, "size_of(")
-    result = concat(result, TIL_PREFIX)
-    result = concat(result, "Str type_name) {\n")
+    result = result.concat("\n")
+    result = result.concat("static inline ")
+    result = result.concat(TIL_PREFIX)
+    result = result.concat("I64 ")
+    result = result.concat(TIL_PREFIX)
+    result = result.concat("size_of(")
+    result = result.concat(TIL_PREFIX)
+    result = result.concat("Str type_name) {\n")
 
     // All known types from structs and enums
     mut i := 0
     while lt(i, ctx.known_types.len()) {
         mut type_name := ""
         ctx.known_types.get(i, type_name)
-        result = concat(result, "    if (strcmp((char*)type_name.c_string, \"")
-        result = concat(result, type_name)
-        result = concat(result, "\") == 0) return ")
-        result = concat(result, TIL_PREFIX)
-        result = concat(result, "size_of_")
-        result = concat(result, type_name)
-        result = concat(result, ";\n")
+        result = result.concat("    if (strcmp((char*)type_name.c_string, \"")
+        result = result.concat(type_name)
+        result = result.concat("\") == 0) return ")
+        result = result.concat(TIL_PREFIX)
+        result = result.concat("size_of_")
+        result = result.concat(type_name)
+        result = result.concat(";\n")
         i = add(i, 1)
     }
 
-    result = concat(result, "    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n")
-    result = concat(result, "    exit(1);\n")
-    result = concat(result, "}\n")
+    result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n")
+    result = result.concat("    exit(1);\n")
+    result = result.concat("}\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -1107,24 +1079,24 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
     mut variants := enum_def.enum_map.keys
 
     // 1. Emit tag enum: typedef enum { Color_Unknown = 0, ... } Color_Tag;
-    result = concat(result, "typedef enum {\n")
+    result = result.concat("typedef enum {\n")
     mut i := 0
     while lt(i, variants.len()) {
         mut variant_name := ""
         variants.get(i, variant_name)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = concat(result, "    ")
-        result = concat(result, enum_name)
-        result = concat(result, "_")
-        result = concat(result, variant_name)
-        result = concat(result, " = ")
-        result = concat(result, i.to_str())
-        result = concat(result, ",\n")
+        result = result.concat("    ")
+        result = result.concat(enum_name)
+        result = result.concat("_")
+        result = result.concat(variant_name)
+        result = result.concat(" = ")
+        result = result.concat(i.to_str())
+        result = result.concat(",\n")
         i = add(i, 1)
     }
-    result = concat(result, "} ")
-    result = concat(result, enum_name)
-    result = concat(result, "_Tag;\n\n")
+    result = result.concat("} ")
+    result = result.concat(enum_name)
+    result = result.concat("_Tag;\n\n")
 
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
@@ -1144,7 +1116,7 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
     }
 
     if has_any_payload {
-        result = concat(result, "typedef union {\n")
+        result = result.concat("typedef union {\n")
         i = 0
         while lt(i, variants.len()) {
             mut variant_name := ""
@@ -1154,32 +1126,32 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
             enum_def.enum_map.get(variant_name, payload_type)
             catch (err: KeyNotFoundError) { /* no payload */ }
             if variant_has_payload(payload_type) {
-                result = concat(result, "    ")
-                result = concat(result, til_type_to_c(payload_type))
-                result = concat(result, " ")
-                result = concat(result, variant_name)
-                result = concat(result, ";\n")
+                result = result.concat("    ")
+                result = result.concat(til_type_to_c(payload_type))
+                result = result.concat(" ")
+                result = result.concat(variant_name)
+                result = result.concat(";\n")
             }
             i = add(i, 1)
         }
-        result = concat(result, "} ")
-        result = concat(result, enum_name)
-        result = concat(result, "_Payload;\n\n")
+        result = result.concat("} ")
+        result = result.concat(enum_name)
+        result = result.concat("_Payload;\n\n")
     }
 
     // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
-    result = concat(result, "typedef struct {\n")
-    result = concat(result, "    ")
-    result = concat(result, enum_name)
-    result = concat(result, "_Tag tag;\n")
+    result = result.concat("typedef struct {\n")
+    result = result.concat("    ")
+    result = result.concat(enum_name)
+    result = result.concat("_Tag tag;\n")
     if has_any_payload {
-        result = concat(result, "    ")
-        result = concat(result, enum_name)
-        result = concat(result, "_Payload payload;\n")
+        result = result.concat("    ")
+        result = result.concat(enum_name)
+        result = result.concat("_Payload payload;\n")
     }
-    result = concat(result, "} ")
-    result = concat(result, enum_name)
-    result = concat(result, ";\n\n")
+    result = result.concat("} ")
+    result = result.concat(enum_name)
+    result = result.concat(";\n\n")
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
@@ -1192,40 +1164,40 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         enum_def.enum_map.get(variant_name, payload_type)
         catch (err: KeyNotFoundError) { /* no payload */ }
 
-        result = concat(result, "static inline ")
-        result = concat(result, enum_name)
-        result = concat(result, " ")
-        result = concat(result, enum_name)
-        result = concat(result, "_make_")
-        result = concat(result, variant_name)
-        result = concat(result, "(")
+        result = result.concat("static inline ")
+        result = result.concat(enum_name)
+        result = result.concat(" ")
+        result = result.concat(enum_name)
+        result = result.concat("_make_")
+        result = result.concat(variant_name)
+        result = result.concat("(")
 
         // Parameter for payload (if any)
         if variant_has_payload(payload_type) {
-            result = concat(result, til_type_to_c(payload_type))
-            result = concat(result, " value) {\n")
+            result = result.concat(til_type_to_c(payload_type))
+            result = result.concat(" value) {\n")
         } else {
-            result = concat(result, "void) {\n")
+            result = result.concat("void) {\n")
         }
 
         // Constructor body
-        result = concat(result, "    ")
-        result = concat(result, enum_name)
-        result = concat(result, " result = { .tag = ")
-        result = concat(result, enum_name)
-        result = concat(result, "_")
-        result = concat(result, variant_name)
-        result = concat(result, " };\n")
+        result = result.concat("    ")
+        result = result.concat(enum_name)
+        result = result.concat(" result = { .tag = ")
+        result = result.concat(enum_name)
+        result = result.concat("_")
+        result = result.concat(variant_name)
+        result = result.concat(" };\n")
 
         // Set payload if present
         if variant_has_payload(payload_type) {
-            result = concat(result, "    result.payload.")
-            result = concat(result, variant_name)
-            result = concat(result, " = value;\n")
+            result = result.concat("    result.payload.")
+            result = result.concat(variant_name)
+            result = result.concat(" = value;\n")
         }
 
-        result = concat(result, "    return result;\n")
-        result = concat(result, "}\n\n")
+        result = result.concat("    return result;\n")
+        result = result.concat("}\n\n")
 
         i = add(i, 1)
     }
@@ -1253,7 +1225,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
 
                 // Phase 1: Simple enum without payloads
                 // typedef enum { EnumName_Variant1 = 0, ... } EnumName;
-                result = concat(result, "typedef enum {\n")
+                result = result.concat("typedef enum {\n")
 
                 // Get variant names (order matches insertion order from parser)
                 mut variants := enum_def.enum_map.keys
@@ -1263,19 +1235,19 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                     mut variant_name := ""
                     variants.get(i, variant_name)
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = concat(result, "    ")
-                    result = concat(result, enum_name)
-                    result = concat(result, "_")
-                    result = concat(result, variant_name)
-                    result = concat(result, " = ")
-                    result = concat(result, i.to_str())
-                    result = concat(result, ",\n")
+                    result = result.concat("    ")
+                    result = result.concat(enum_name)
+                    result = result.concat("_")
+                    result = result.concat(variant_name)
+                    result = result.concat(" = ")
+                    result = result.concat(i.to_str())
+                    result = result.concat(",\n")
                     i = add(i, 1)
                 }
 
-                result = concat(result, "} ")
-                result = concat(result, enum_name)
-                result = concat(result, ";\n\n")
+                result = result.concat("} ")
+                result = result.concat(enum_name)
+                result = result.concat(";\n\n")
 
                 // Generate constructor functions for consistency with payload enums
                 // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
@@ -1284,20 +1256,20 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                     mut variant_name := ""
                     variants.get(i, variant_name)
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = concat(result, "static inline ")
-                    result = concat(result, enum_name)
-                    result = concat(result, " ")
-                    result = concat(result, enum_name)
-                    result = concat(result, "_make_")
-                    result = concat(result, variant_name)
-                    result = concat(result, "(void) { return ")
-                    result = concat(result, enum_name)
-                    result = concat(result, "_")
-                    result = concat(result, variant_name)
-                    result = concat(result, "; }\n")
+                    result = result.concat("static inline ")
+                    result = result.concat(enum_name)
+                    result = result.concat(" ")
+                    result = result.concat(enum_name)
+                    result = result.concat("_make_")
+                    result = result.concat(variant_name)
+                    result = result.concat("(void) { return ")
+                    result = result.concat(enum_name)
+                    result = result.concat("_")
+                    result = result.concat(variant_name)
+                    result = result.concat("; }\n")
                     i = add(i, 1)
                 }
-                result = concat(result, "\n")
+                result = result.concat("\n")
 
                 return result
             case:
@@ -1337,9 +1309,9 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
                         } else {
                             // Use emit_func_signature with mangled name
                             mut mangled_name := concat(struct_name, "_")
-                            mangled_name = concat(mangled_name, member.name)
+                            mangled_name = mangled_name.concat(member.name)
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
-                            result = concat(result, ";\n")
+                            result = result.concat(";\n")
                         }
                     case:
                         // Not a function
@@ -1415,9 +1387,9 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
 
                             // Use emit_func_signature with mangled name
                             mut mangled_name := concat(struct_name, "_")
-                            mangled_name = concat(mangled_name, member.name)
+                            mangled_name = mangled_name.concat(member.name)
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
-                            result = concat(result, " {\n")
+                            result = result.concat(" {\n")
 
                             // Emit function body with catch pattern detection
                             result = emit_stmts(func_def.body, result, 1, ctx, context)
@@ -1425,11 +1397,11 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             // For throwing void functions, add implicit return 0
                             if gt(func_def.throw_types.len(), 0) {
                                 if eq(func_def.return_types.len(), 0) {
-                                    result = concat(result, "    return 0;\n")
+                                    result = result.concat("    return 0;\n")
                                 }
                             }
 
-                            result = concat(result, "}\n\n")
+                            result = result.concat("}\n\n")
 
                             // Clear current function context
                             ctx.current_throw_types = Vec.new(ValueType)
@@ -1461,9 +1433,9 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     mut ctx := CodegenContext()
 
     // C boilerplate
-    output = concat(output, "#include <stdio.h>\n")
-    output = concat(output, "#include <stdlib.h>\n")
-    output = concat(output, "#include <string.h>\n\n")
+    output = output.concat("#include <stdio.h>\n")
+    output = output.concat("#include <stdlib.h>\n")
+    output = output.concat("#include <string.h>\n\n")
     output = format(output, "typedef unsigned char ", TIL_PREFIX, "U8;\n")
     output = format(output, "typedef long long ", TIL_PREFIX, "I64;\n")
     output = format(output, "typedef struct ", TIL_PREFIX, "Bool { ", TIL_PREFIX, "U8 data; } ", TIL_PREFIX, "Bool;\n")
@@ -1507,18 +1479,18 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     else if decl.name.eq("Dynamic") { }
                     else if decl.name.eq("Type") { }
                     else {
-                        output = concat(output, "typedef struct ")
-                        output = concat(output, decl.name)
-                        output = concat(output, " ")
-                        output = concat(output, decl.name)
-                        output = concat(output, ";\n")
+                        output = output.concat("typedef struct ")
+                        output = output.concat(decl.name)
+                        output = output.concat(" ")
+                        output = output.concat(decl.name)
+                        output = output.concat(";\n")
                     }
                 case:
                 }
             }
             i = add(i, 1)
         }
-        output = concat(output, "\n")
+        output = output.concat("\n")
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip forward declarations
@@ -1577,26 +1549,26 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     }
 
     // Pass 1c: emit helper functions (after structs are defined)
-    output = concat(output, "\n// Type conversion helpers\n")
+    output = output.concat("\n// Type conversion helpers\n")
     output = format(output, "static inline ", TIL_PREFIX, "I64 u8_to_i64(", TIL_PREFIX, "U8 v) { return (", TIL_PREFIX, "I64)v; }\n")
     output = format(output, "static inline ", TIL_PREFIX, "U8 i64_to_u8(", TIL_PREFIX, "I64 v) { return (", TIL_PREFIX, "U8)v; }\n")
     if has_str(context) {
-        output = concat(output, "// Str helper: create Str from C string literal\n")
+        output = output.concat("// Str helper: create Str from C string literal\n")
         output = format(output, "static inline ", TIL_PREFIX, "Str ", TIL_PREFIX, "Str_from_literal(const char* lit) {\n")
         output = format(output, "    ", TIL_PREFIX, "Str s;\n")
         output = format(output, "    s.c_string = (", TIL_PREFIX, "I64)lit;\n")
-        output = concat(output, "    s.cap = strlen(lit);\n")
-        output = concat(output, "    return s;\n")
-        output = concat(output, "}\n")
-        output = concat(output, "// single_print: print a string without newline\n")
+        output = output.concat("    s.cap = strlen(lit);\n")
+        output = output.concat("    return s;\n")
+        output = output.concat("}\n")
+        output = output.concat("// single_print: print a string without newline\n")
         output = format(output, "static inline void single_print(", TIL_PREFIX, "Str s) { printf(\"%s\", (char*)s.c_string); }\n")
     } else {
-        output = concat(output, "\n// single_print: print a string without newline (no Str defined)\n")
-        output = concat(output, "static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
+        output = output.concat("\n// single_print: print a string without newline (no Str defined)\n")
+        output = output.concat("static inline void single_print(const char* s) { printf(\"%s\", s); }\n")
     }
-    output = concat(output, "// print_flush: flush stdout\n")
-    output = concat(output, "static inline void print_flush(void) { fflush(stdout); }\n")
-    output = concat(output, "// to_ptr: get pointer address as integer\n")
+    output = output.concat("// print_flush: flush stdout\n")
+    output = output.concat("static inline void print_flush(void) { fflush(stdout); }\n")
+    output = output.concat("// to_ptr: get pointer address as integer\n")
     output = format(output, "static inline ", TIL_PREFIX, "I64 to_ptr(", TIL_PREFIX, "I64* p) { return (", TIL_PREFIX, "I64)p; }\n\n")
 
     // Pass 2: emit struct constants (non-mut, non-function fields with mangled names)
@@ -1656,7 +1628,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     // Pass 2c: emit til_size_of function (runtime type size lookup)
     output = emit_size_of_function(output, ctx)
 
-    output = concat(output, "\n")
+    output = output.concat("\n")
 
     // Pass 3: emit function prototypes (forward declarations)
     // 3a: top-level functions
@@ -1693,7 +1665,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
         // Not a body, skip struct func prototype pass
     }
-    output = concat(output, "\n")
+    output = output.concat("\n")
 
     // Pass 4: emit function definitions
     // 4a: top-level functions
@@ -1732,7 +1704,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     }
 
     // Main function
-    output = concat(output, "int main() {\n")
+    output = output.concat("int main() {\n")
 
     // Pass 5: emit non-struct, non-function, non-enum, non-constant statements
     switch ast.node_type {
@@ -1769,8 +1741,8 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         output = emit_expr(ast, output, 1, ctx, context)
     }
 
-    output = concat(output, "    return 0;\n")
-    output = concat(output, "}\n")
+    output = output.concat("    return 0;\n")
+    output = output.concat("}\n")
 
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -1818,7 +1790,7 @@ emit_func_prototype := proc(expr: Expr, output: Str, ctx: CodegenContext) return
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
-                result = concat(result, ";\n")
+                result = result.concat(";\n")
                 return result
             case:
                 throw "emit_func_prototype: not a function"
@@ -1880,7 +1852,7 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
 
                 // Use emit_func_signature for both throwing and non-throwing functions
                 result = emit_func_signature(decl.name, func_def, result, ctx)
-                result = concat(result, " {\n")
+                result = result.concat(" {\n")
 
                 // Emit function body with catch pattern detection
                 result = emit_stmts(func_def.body, result, 1, ctx, context)
@@ -1888,11 +1860,11 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 // For throwing void functions, add implicit return 0
                 if gt(func_def.throw_types.len(), 0) {
                     if eq(func_def.return_types.len(), 0) {
-                        result = concat(result, "    return 0;\n")
+                        result = result.concat("    return 0;\n")
                     }
                 }
 
-                result = concat(result, "}\n\n")
+                result = result.concat("}\n\n")
 
                 // Clear current function context
                 ctx.current_throw_types = Vec.new(ValueType)
@@ -2104,10 +2076,10 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     mut result := output
     mut i := 0
     while lt(i, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         i = add(i, 1)
     }
-    result = concat(result, "if (")
+    result = result.concat("if (")
 
     mut cond := Expr()
     expr.params.get(0, cond)
@@ -2117,12 +2089,12 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
     switch cond_type {
     case ValueType.TCustom(type_name):
         if type_name.eq("Bool") {
-            result = concat(result, ".data")
+            result = result.concat(".data")
         }
     case:
     }
     catch (err: Str) { /* get_value_type failed, skip */ }
-    result = concat(result, ") {\n")
+    result = result.concat(") {\n")
 
     // Save declared_vars before entering new scope
     mut saved_declared_vars := ctx.declared_vars.clone()
@@ -2138,10 +2110,10 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 
     i = 0
     while lt(i, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         i = add(i, 1)
     }
-    result = concat(result, "}")
+    result = result.concat("}")
 
     // Else branch (optional)
     if gt(expr.params.len(), 2) {
@@ -2150,11 +2122,11 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
         switch else_part.node_type {
         case NodeType.If:
             // else-if: emit inline
-            result = concat(result, " else ")
+            result = result.concat(" else ")
             result = emit_if(else_part, result, indent, ctx, context)
         case:
             // else block
-            result = concat(result, " else {\n")
+            result = result.concat(" else {\n")
 
             // Save declared_vars for else scope
             saved_declared_vars = ctx.declared_vars.clone()
@@ -2167,13 +2139,13 @@ emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, m
 
             i = 0
             while lt(i, indent) {
-                result = concat(result, "    ")
+                result = result.concat("    ")
                 i = add(i, 1)
             }
-            result = concat(result, "}\n")
+            result = result.concat("}\n")
         }
     } else {
-        result = concat(result, "\n")
+        result = result.concat("\n")
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
@@ -2189,10 +2161,10 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     mut result := output
     mut i := 0
     while lt(i, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         i = add(i, 1)
     }
-    result = concat(result, "while (")
+    result = result.concat("while (")
 
     mut cond := Expr()
     expr.params.get(0, cond)
@@ -2202,12 +2174,12 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     switch cond_type {
     case ValueType.TCustom(type_name):
         if type_name.eq("Bool") {
-            result = concat(result, ".data")
+            result = result.concat(".data")
         }
     case:
     }
     catch (err: Str) { /* get_value_type failed, skip */ }
-    result = concat(result, ") {\n")
+    result = result.concat(") {\n")
 
     // Save declared_vars before entering new scope (C allows redeclaration in new blocks)
     mut saved_declared_vars := ctx.declared_vars.clone()
@@ -2223,10 +2195,10 @@ emit_while := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
     i = 0
     while lt(i, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         i = add(i, 1)
     }
-    result = concat(result, "}\n")
+    result = result.concat("}\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     return result
@@ -2329,21 +2301,21 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
     mut case_indent := ""
     ind = 0
     while lt(ind, add(indent, 1)) {
-        case_indent = concat(case_indent, "    ")
+        case_indent = case_indent.concat("    ")
         ind = add(ind, 1)
     }
 
     mut body_indent := ""
     ind = 0
     while lt(ind, add(indent, 2)) {
-        body_indent = concat(body_indent, "    ")
+        body_indent = body_indent.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -2383,15 +2355,15 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Emit: switch (expr) { or switch (expr.tag) {
-    result = concat(result, indent_str)
-    result = concat(result, "switch (")
+    result = result.concat(indent_str)
+    result = result.concat("switch (")
     result = emit_expr(switch_expr, result, 0, ctx, context)
     if is_enum_switch {
         if not(has_ranges) {
-            result = concat(result, ".tag")
+            result = result.concat(".tag")
         }
     }
-    result = concat(result, ") {\n")
+    result = result.concat(") {\n")
 
     // Process case patterns and bodies in pairs
     mut i := 1
@@ -2405,38 +2377,38 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         switch case_pattern.node_type {
         case NodeType.DefaultCase:
             // default: { ... break; }
-            result = concat(result, case_indent)
-            result = concat(result, "default: {\n")
+            result = result.concat(case_indent)
+            result = result.concat("default: {\n")
             if has_body {
                 mut case_body := Expr()
                 expr.params.get(add(i, 1), case_body)
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
-            result = concat(result, body_indent)
-            result = concat(result, "break;\n")
-            result = concat(result, case_indent)
-            result = concat(result, "}\n")
+            result = result.concat(body_indent)
+            result = result.concat("break;\n")
+            result = result.concat(case_indent)
+            result = result.concat("}\n")
         case NodeType.Pattern(pattern_info):
             // case Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
             mut info := parse_pattern_variant_name(pattern_info.variant_name)
 
-            result = concat(result, case_indent)
-            result = concat(result, "case ")
-            result = concat(result, info.type_name)
-            result = concat(result, "_")
-            result = concat(result, info.variant_name)
-            result = concat(result, ": {\n")
+            result = result.concat(case_indent)
+            result = result.concat("case ")
+            result = result.concat(info.type_name)
+            result = result.concat("_")
+            result = result.concat(info.variant_name)
+            result = result.concat(": {\n")
 
             // Emit payload extraction: PayloadType binding_var = expr.payload.VariantName;
-            result = concat(result, body_indent)
-            result = concat(result, "__auto_type ")
-            result = concat(result, pattern_info.binding_var)
-            result = concat(result, " = ")
+            result = result.concat(body_indent)
+            result = result.concat("__auto_type ")
+            result = result.concat(pattern_info.binding_var)
+            result = result.concat(" = ")
             result = emit_expr(switch_expr, result, 0, ctx, context)
-            result = concat(result, ".payload.")
-            result = concat(result, info.variant_name)
-            result = concat(result, ";\n")
+            result = result.concat(".payload.")
+            result = result.concat(info.variant_name)
+            result = result.concat(";\n")
 
             if has_body {
                 mut case_body := Expr()
@@ -2444,10 +2416,10 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
-            result = concat(result, body_indent)
-            result = concat(result, "break;\n")
-            result = concat(result, case_indent)
-            result = concat(result, "}\n")
+            result = result.concat(body_indent)
+            result = result.concat("break;\n")
+            result = result.concat(case_indent)
+            result = result.concat("}\n")
         case NodeType.Range:
             // Range case: case low ... high: { ... break; }
             // Uses GCC extension for case ranges
@@ -2463,12 +2435,12 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             case_pattern.params.get(1, range_end)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-            result = concat(result, case_indent)
-            result = concat(result, "case ")
+            result = result.concat(case_indent)
+            result = result.concat("case ")
             result = emit_expr(range_start, result, 0, ctx, context)
-            result = concat(result, " ... ")
+            result = result.concat(" ... ")
             result = emit_expr(range_end, result, 0, ctx, context)
-            result = concat(result, ": {\n")
+            result = result.concat(": {\n")
 
             if has_body {
                 mut case_body := Expr()
@@ -2476,22 +2448,22 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
-            result = concat(result, body_indent)
-            result = concat(result, "break;\n")
-            result = concat(result, case_indent)
-            result = concat(result, "}\n")
+            result = result.concat(body_indent)
+            result = result.concat("break;\n")
+            result = result.concat(case_indent)
+            result = result.concat("}\n")
         case:
             // Regular case: Type.Variant -> case Type_Variant: { ... break; }
             mut info := get_case_variant_info(case_pattern)
 
-            result = concat(result, case_indent)
-            result = concat(result, "case ")
+            result = result.concat(case_indent)
+            result = result.concat("case ")
             if gt(info.type_name.len(), 0) {
-                result = concat(result, info.type_name)
-                result = concat(result, "_")
+                result = result.concat(info.type_name)
+                result = result.concat("_")
             }
-            result = concat(result, info.variant_name)
-            result = concat(result, ": {\n")
+            result = result.concat(info.variant_name)
+            result = result.concat(": {\n")
 
             if has_body {
                 mut case_body := Expr()
@@ -2499,17 +2471,17 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
                 result = emit_body(case_body, result, add(indent, 2), ctx, context)
             }
-            result = concat(result, body_indent)
-            result = concat(result, "break;\n")
-            result = concat(result, case_indent)
-            result = concat(result, "}\n")
+            result = result.concat(body_indent)
+            result = result.concat("break;\n")
+            result = result.concat(case_indent)
+            result = result.concat("}\n")
         }
 
         i = add(i, 2)  // Move to next case pattern
     }
 
-    result = concat(result, indent_str)
-    result = concat(result, "}\n")
+    result = result.concat(indent_str)
+    result = result.concat("}\n")
 
     return result
 }
@@ -2543,17 +2515,17 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                     if is_enum_variant {
                         // Enum variant: Type.Variant -> til_Type_make_Variant()
                         mut result := concat(output, TIL_PREFIX)
-                        result = concat(result, name)
-                        result = concat(result, "_make_")
-                        result = concat(result, field)
-                        result = concat(result, "()")
+                        result = result.concat(name)
+                        result = result.concat("_make_")
+                        result = result.concat(field)
+                        result = result.concat("()")
                         return result
                     } else {
                         // Struct constant: Type.constant -> til_Type_constant
                         mut result := concat(output, TIL_PREFIX)
-                        result = concat(result, name)
-                        result = concat(result, "_")
-                        result = concat(result, field)
+                        result = result.concat(name)
+                        result = result.concat("_")
+                        result = result.concat(field)
                         return result
                     }
                 case:
@@ -2575,8 +2547,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                 expr.params.get(i, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
-                    result = concat(result, "->")
-                    result = concat(result, field)
+                    result = result.concat("->")
+                    result = result.concat(field)
                 case:
                     // Not a field access
                 }
@@ -2587,8 +2559,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         } else if is_mut_param {
             // Mut param used as value: dereference with *
             mut result := concat(output, "(*")
-            result = concat(result, til_name(name))
-            result = concat(result, ")")
+            result = result.concat(til_name(name))
+            result = result.concat(")")
             return result
         } else {
             // Regular identifier or field access
@@ -2599,8 +2571,8 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
                 expr.params.get(i, param)
                 switch param.node_type {
                 case NodeType.Identifier(field):
-                    result = concat(result, ".")
-                    result = concat(result, field)  // Field names stay as-is (C struct fields)
+                    result = result.concat(".")
+                    result = result.concat(field)  // Field names stay as-is (C struct fields)
                 case:
                     // Not a field access
                 }
@@ -2854,7 +2826,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -2941,20 +2913,20 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         }
         catch (err: KeyNotFoundError) { /* use default int */ }
         catch (err: IndexOutOfBoundsError) { /* use default int */ }
-        result = concat(result, indent_str)
-        result = concat(result, ret_type)
-        result = concat(result, " _ret_")
-        result = concat(result, temp_suffix)
-        result = concat(result, ";\n")
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     if gt(decl_name.len(), 0) {
-        result = concat(result, indent_str)
-        result = concat(result, ret_type)
-        result = concat(result, " ")
-        result = concat(result, decl_name)
-        result = concat(result, ";\n")
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" ")
+        result = result.concat(decl_name)
+        result = result.concat(";\n")
         // Add to scope_stack for type resolution
         mut fd := context.scope_stack.lookup_func(func_name)
         if gt(fd.return_types.len(), 0) {
@@ -2974,39 +2946,39 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         throw_types.get(i, throw_type)
         switch throw_type {
         case ValueType.TCustom(type_name):
-            result = concat(result, indent_str)
-            result = concat(result, type_name)
-            result = concat(result, " _err")
-            result = concat(result, i.to_str())
-            result = concat(result, "_")
-            result = concat(result, temp_suffix)
-            result = concat(result, " = {};\n")
+            result = result.concat(indent_str)
+            result = result.concat(type_name)
+            result = result.concat(" _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = {};\n")
         case:
             // Non-custom type, use int
-            result = concat(result, indent_str)
-            result = concat(result, "int _err")
-            result = concat(result, i.to_str())
-            result = concat(result, "_")
-            result = concat(result, temp_suffix)
-            result = concat(result, " = 0;\n")
+            result = result.concat(indent_str)
+            result = result.concat("int _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = 0;\n")
         }
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Generate the function call with output parameters
-    result = concat(result, indent_str)
-    result = concat(result, "int _status_")
-    result = concat(result, temp_suffix)
-    result = concat(result, " = ")
-    result = concat(result, til_func_name(func_name))
-    result = concat(result, "(")
+    result = result.concat(indent_str)
+    result = result.concat("int _status_")
+    result = result.concat(temp_suffix)
+    result = result.concat(" = ")
+    result = result.concat(til_func_name(func_name))
+    result = result.concat("(")
 
     // First: return value pointer (if function returns something)
     mut param_count := 0
     if needs_ret {
-        result = concat(result, "&_ret_")
-        result = concat(result, temp_suffix)
+        result = result.concat("&_ret_")
+        result = result.concat(temp_suffix)
         param_count = add(param_count, 1)
     }
 
@@ -3014,12 +2986,12 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     i = 0
     while lt(i, throw_types.len()) {
         if gt(param_count, 0) {
-            result = concat(result, ", ")
+            result = result.concat(", ")
         }
-        result = concat(result, "&_err")
-        result = concat(result, i.to_str())
-        result = concat(result, "_")
-        result = concat(result, temp_suffix)
+        result = result.concat("&_err")
+        result = result.concat(i.to_str())
+        result = result.concat("_")
+        result = result.concat(temp_suffix)
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -3030,10 +3002,10 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     i = 1
     while lt(i, fcall.params.len()) {
         if args_started {
-            result = concat(result, ", ")
+            result = result.concat(", ")
         } else {
             if gt(param_count, 0) {
-                result = concat(result, ", ")
+                result = result.concat(", ")
             }
         }
         mut arg := Expr()
@@ -3071,16 +3043,16 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         if found_hoisted {
             // Hoisted temp var is an lvalue - add & if param is Dynamic
             if is_dynamic_param {
-                result = concat(result, "&")
+                result = result.concat("&")
             }
-            result = concat(result, hoisted_temp)
+            result = result.concat(hoisted_temp)
         } else {
             // Check if arg is a type identifier - emit as string literal
             mut type_arg := get_type_arg_name(arg, context)
             if type_arg.found {
-                result = concat(result, "\"")
-                result = concat(result, type_arg.type_name)
-                result = concat(result, "\"")
+                result = result.concat("\"")
+                result = result.concat(type_arg.type_name)
+                result = result.concat("\"")
             } else {
                 // Check if param is Dynamic and arg is simple identifier
                 if is_dynamic_param {
@@ -3088,8 +3060,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     case NodeType.Identifier(name):
                         if eq(arg.params.len(), 0) {
                             // Simple variable - emit &var
-                            result = concat(result, "&")
-                            result = concat(result, til_name(name))
+                            result = result.concat("&")
+                            result = result.concat(til_name(name))
                         } else {
                             // Not simple - emit as is
                             result = emit_expr(arg, result, 0, ctx, context)
@@ -3108,13 +3080,13 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    result = concat(result, ");\n")
+    result = result.concat(");\n")
 
     // Generate if/else chain for error handling
-    result = concat(result, indent_str)
-    result = concat(result, "if (_status_")
-    result = concat(result, temp_suffix)
-    result = concat(result, " == 0) {\n")
+    result = result.concat(indent_str)
+    result = result.concat("if (_status_")
+    result = result.concat(temp_suffix)
+    result = result.concat(" == 0) {\n")
 
     // Success case: assign return value to target variable
     if gt(decl_name.len(), 0) {
@@ -3122,33 +3094,33 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
         mut inner_indent := ""
         ind = 0
         while lt(ind, add(indent, 1)) {
-            inner_indent = concat(inner_indent, "    ")
+            inner_indent = inner_indent.concat("    ")
             ind = add(ind, 1)
         }
-        result = concat(result, inner_indent)
-        result = concat(result, decl_name)
-        result = concat(result, " = _ret_")
-        result = concat(result, temp_suffix)
-        result = concat(result, ";\n")
+        result = result.concat(inner_indent)
+        result = result.concat(decl_name)
+        result = result.concat(" = _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
     } else {
         if gt(assign_name.len(), 0) {
             // Assignment: assign to existing variable
             mut inner_indent := ""
             ind = 0
             while lt(ind, add(indent, 1)) {
-                inner_indent = concat(inner_indent, "    ")
+                inner_indent = inner_indent.concat("    ")
                 ind = add(ind, 1)
             }
-            result = concat(result, inner_indent)
-            result = concat(result, assign_name)
-            result = concat(result, " = _ret_")
-            result = concat(result, temp_suffix)
-            result = concat(result, ";\n")
+            result = result.concat(inner_indent)
+            result = result.concat(assign_name)
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
         }
     }
 
-    result = concat(result, indent_str)
-    result = concat(result, "}")
+    result = result.concat(indent_str)
+    result = result.concat("}")
 
     // Generate else-if branches for each catch block
     i = 0
@@ -3188,11 +3160,11 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                 }
 
                 if gteq(err_idx, 0) {
-                    result = concat(result, " else if (_status_")
-                    result = concat(result, temp_suffix)
-                    result = concat(result, " == ")
-                    result = concat(result, add(err_idx, 1).to_str())
-                    result = concat(result, ") {\n")
+                    result = result.concat(" else if (_status_")
+                    result = result.concat(temp_suffix)
+                    result = result.concat(" == ")
+                    result = result.concat(add(err_idx, 1).to_str())
+                    result = result.concat(") {\n")
 
                     // Bind error variable and add to scope for type resolution
                     mut err_var_name := ""
@@ -3205,18 +3177,18 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                         mut inner_indent := ""
                         mut ind2 := 0
                         while lt(ind2, add(indent, 1)) {
-                            inner_indent = concat(inner_indent, "    ")
+                            inner_indent = inner_indent.concat("    ")
                             ind2 = add(ind2, 1)
                         }
-                        result = concat(result, inner_indent)
-                        result = concat(result, til_name(err_type_name))
-                        result = concat(result, " ")
-                        result = concat(result, til_name(err_var_name))
-                        result = concat(result, " = _err")
-                        result = concat(result, err_idx.to_str())
-                        result = concat(result, "_")
-                        result = concat(result, temp_suffix)
-                        result = concat(result, ";\n")
+                        result = result.concat(inner_indent)
+                        result = result.concat(til_name(err_type_name))
+                        result = result.concat(" ")
+                        result = result.concat(til_name(err_var_name))
+                        result = result.concat(" = _err")
+                        result = result.concat(err_idx.to_str())
+                        result = result.concat("_")
+                        result = result.concat(temp_suffix)
+                        result = result.concat(";\n")
 
                         // Add error variable to scope for type resolution in catch body
                         context.scope_stack.declare_symbol(err_var_name, SymbolInfo.new(ValueType.TCustom(err_type_name), false, false, false))
@@ -3229,8 +3201,8 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
                     catch_block.params.get(2, body_expr)
                     result = emit_expr(body_expr, result, add(indent, 1), ctx, context)
 
-                    result = concat(result, indent_str)
-                    result = concat(result, "}")
+                    result = result.concat(indent_str)
+                    result = result.concat("}")
                 }
             }
         }
@@ -3239,7 +3211,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    result = concat(result, "\n")
+    result = result.concat("\n")
     return result
 }
 
@@ -3252,7 +3224,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -3342,20 +3314,20 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Declare temp for return value if needed
     if needs_ret {
-        result = concat(result, indent_str)
-        result = concat(result, ret_type)
-        result = concat(result, " _ret_")
-        result = concat(result, temp_suffix)
-        result = concat(result, ";\n")
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
     }
 
     // For declarations: declare the variable BEFORE the if block so it's visible after
     if gt(decl_name.len(), 0) {
-        result = concat(result, indent_str)
-        result = concat(result, ret_type)
-        result = concat(result, " ")
-        result = concat(result, decl_name)
-        result = concat(result, ";\n")
+        result = result.concat(indent_str)
+        result = result.concat(ret_type)
+        result = result.concat(" ")
+        result = result.concat(decl_name)
+        result = result.concat(";\n")
         // Add to scope_stack for type resolution
         mut fd := context.scope_stack.lookup_func(func_name)
         if gt(fd.return_types.len(), 0) {
@@ -3374,39 +3346,39 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         throw_types.get(i, throw_type)
         switch throw_type {
         case ValueType.TCustom(type_name):
-            result = concat(result, indent_str)
-            result = concat(result, type_name)
-            result = concat(result, " _err")
-            result = concat(result, i.to_str())
-            result = concat(result, "_")
-            result = concat(result, temp_suffix)
-            result = concat(result, " = {};\n")
+            result = result.concat(indent_str)
+            result = result.concat(type_name)
+            result = result.concat(" _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = {};\n")
         case:
             // Non-custom type, use int
-            result = concat(result, indent_str)
-            result = concat(result, "int _err")
-            result = concat(result, i.to_str())
-            result = concat(result, "_")
-            result = concat(result, temp_suffix)
-            result = concat(result, " = 0;\n")
+            result = result.concat(indent_str)
+            result = result.concat("int _err")
+            result = result.concat(i.to_str())
+            result = result.concat("_")
+            result = result.concat(temp_suffix)
+            result = result.concat(" = 0;\n")
         }
         i = add(i, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Generate the function call with output parameters
-    result = concat(result, indent_str)
-    result = concat(result, "int _status_")
-    result = concat(result, temp_suffix)
-    result = concat(result, " = ")
-    result = concat(result, til_func_name(func_name))
-    result = concat(result, "(")
+    result = result.concat(indent_str)
+    result = result.concat("int _status_")
+    result = result.concat(temp_suffix)
+    result = result.concat(" = ")
+    result = result.concat(til_func_name(func_name))
+    result = result.concat("(")
 
     // First: return value pointer (if function returns something)
     mut param_count := 0
     if needs_ret {
-        result = concat(result, "&_ret_")
-        result = concat(result, temp_suffix)
+        result = result.concat("&_ret_")
+        result = result.concat(temp_suffix)
         param_count = add(param_count, 1)
     }
 
@@ -3414,12 +3386,12 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     i = 0
     while lt(i, throw_types.len()) {
         if gt(param_count, 0) {
-            result = concat(result, ", ")
+            result = result.concat(", ")
         }
-        result = concat(result, "&_err")
-        result = concat(result, i.to_str())
-        result = concat(result, "_")
-        result = concat(result, temp_suffix)
+        result = result.concat("&_err")
+        result = result.concat(i.to_str())
+        result = result.concat("_")
+        result = result.concat(temp_suffix)
         param_count = add(param_count, 1)
         i = add(i, 1)
     }
@@ -3430,10 +3402,10 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     i = 1
     while lt(i, fcall.params.len()) {
         if args_started {
-            result = concat(result, ", ")
+            result = result.concat(", ")
         } else {
             if gt(param_count, 0) {
-                result = concat(result, ", ")
+                result = result.concat(", ")
             }
         }
         mut arg := Expr()
@@ -3471,16 +3443,16 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
         if found_hoisted {
             // Hoisted temp var is an lvalue - add & if param is Dynamic
             if is_dynamic_param {
-                result = concat(result, "&")
+                result = result.concat("&")
             }
-            result = concat(result, hoisted_temp)
+            result = result.concat(hoisted_temp)
         } else {
             // Check if arg is a type identifier - emit as string literal
             mut type_arg := get_type_arg_name(arg, context)
             if type_arg.found {
-                result = concat(result, "\"")
-                result = concat(result, type_arg.type_name)
-                result = concat(result, "\"")
+                result = result.concat("\"")
+                result = result.concat(type_arg.type_name)
+                result = result.concat("\"")
             } else {
                 // Check if param is Dynamic and arg is simple identifier
                 if is_dynamic_param {
@@ -3488,8 +3460,8 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                     case NodeType.Identifier(name):
                         if eq(arg.params.len(), 0) {
                             // Simple variable - emit &var
-                            result = concat(result, "&")
-                            result = concat(result, til_name(name))
+                            result = result.concat("&")
+                            result = result.concat(til_name(name))
                         } else {
                             // Not simple - emit as is
                             result = emit_expr(arg, result, 0, ctx, context)
@@ -3508,7 +3480,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
-    result = concat(result, ");\n")
+    result = result.concat(");\n")
 
     // Generate error propagation: if status != 0, copy error to caller's error param and return
     // Map error types from called function to current function's error params
@@ -3528,20 +3500,20 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
                 case ValueType.TCustom(curr_name):
                     if curr_name.eq(called_type_name) {
                         // Found matching error type, generate propagation
-                        result = concat(result, indent_str)
-                        result = concat(result, "if (_status_")
-                        result = concat(result, temp_suffix)
-                        result = concat(result, " == ")
-                        result = concat(result, add(called_idx, 1).to_str())
-                        result = concat(result, ") { *_err")
-                        result = concat(result, add(curr_idx, 1).to_str())
-                        result = concat(result, " = _err")
-                        result = concat(result, called_idx.to_str())
-                        result = concat(result, "_")
-                        result = concat(result, temp_suffix)
-                        result = concat(result, "; return ")
-                        result = concat(result, add(curr_idx, 1).to_str())
-                        result = concat(result, "; }\n")
+                        result = result.concat(indent_str)
+                        result = result.concat("if (_status_")
+                        result = result.concat(temp_suffix)
+                        result = result.concat(" == ")
+                        result = result.concat(add(called_idx, 1).to_str())
+                        result = result.concat(") { *_err")
+                        result = result.concat(add(curr_idx, 1).to_str())
+                        result = result.concat(" = _err")
+                        result = result.concat(called_idx.to_str())
+                        result = result.concat("_")
+                        result = result.concat(temp_suffix)
+                        result = result.concat("; return ")
+                        result = result.concat(add(curr_idx, 1).to_str())
+                        result = result.concat("; }\n")
                         found = true
                         curr_idx = ctx.current_throw_types.len()  // break
                     }
@@ -3560,18 +3532,18 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
 
     // Success case: assign return value to target variable if needed
     if gt(decl_name.len(), 0) {
-        result = concat(result, indent_str)
-        result = concat(result, decl_name)
-        result = concat(result, " = _ret_")
-        result = concat(result, temp_suffix)
-        result = concat(result, ";\n")
+        result = result.concat(indent_str)
+        result = result.concat(decl_name)
+        result = result.concat(" = _ret_")
+        result = result.concat(temp_suffix)
+        result = result.concat(";\n")
     } else {
         if gt(assign_name.len(), 0) {
-            result = concat(result, indent_str)
-            result = concat(result, assign_name)
-            result = concat(result, " = _ret_")
-            result = concat(result, temp_suffix)
-            result = concat(result, ";\n")
+            result = result.concat(indent_str)
+            result = result.concat(assign_name)
+            result = result.concat(" = _ret_")
+            result = result.concat(temp_suffix)
+            result = result.concat(";\n")
         }
     }
 
@@ -3690,17 +3662,17 @@ emit_throw := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Note: error params are 1-based (_err1, _err2, etc.)
     mut ind := 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
     result = format(result, "*_err", add(error_index, 1).to_str(), " = ")
     result = emit_expr(thrown_expr, result, 0, ctx, context)
-    result = concat(result, ";\n")
+    result = result.concat(";\n")
 
     // Return the error index (1-based, since 0 = success)
     ind = 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
     result = format(result, "return ", add(error_index, 1).to_str(), ";\n")
@@ -3899,7 +3871,7 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
     // Add indentation
     mut ind := 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -3973,21 +3945,21 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
 
     if gt(struct_type.len(), 0) {
         // Struct variable declaration
-        result = concat(result, struct_type)
-        result = concat(result, " ")
-        result = concat(result, name)
-        result = concat(result, " = {0};\n")
+        result = result.concat(struct_type)
+        result = result.concat(" ")
+        result = result.concat(name)
+        result = result.concat(" = {0};\n")
     } else if gt(enum_type.len(), 0) {
         // Enum variable declaration
-        result = concat(result, enum_type)
-        result = concat(result, " ")
-        result = concat(result, name)
-        result = concat(result, " = ")
+        result = result.concat(enum_type)
+        result = result.concat(" ")
+        result = result.concat(name)
+        result = result.concat(" = ")
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = emit_expr(first, result, 0, ctx, context)
-        result = concat(result, ";\n")
+        result = result.concat(";\n")
     } else if is_mut {
         // Determine C type from inferred type or fall back to int
         mut c_type := "int"
@@ -4007,17 +3979,17 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // Keep default "int"
             }
         }
-        result = concat(result, c_type)
-        result = concat(result, " ")
-        result = concat(result, name)
+        result = result.concat(c_type)
+        result = result.concat(" ")
+        result = result.concat(name)
         if gt(expr.params.len(), 0) {
-            result = concat(result, " = ")
+            result = result.concat(" = ")
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = emit_expr(first, result, 0, ctx, context)
         }
-        result = concat(result, ";\n")
+        result = result.concat(";\n")
     } else {
         // Determine C type from inferred type or fall back to int
         mut c_type := "int"
@@ -4037,18 +4009,18 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
                 // Keep default "int"
             }
         }
-        result = concat(result, "const ")
-        result = concat(result, c_type)
-        result = concat(result, " ")
-        result = concat(result, name)
+        result = result.concat("const ")
+        result = result.concat(c_type)
+        result = result.concat(" ")
+        result = result.concat(name)
         if gt(expr.params.len(), 0) {
-            result = concat(result, " = ")
+            result = result.concat(" = ")
             mut first := Expr()
             expr.params.get(0, first)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = emit_expr(first, result, 0, ctx, context)
         }
-        result = concat(result, ";\n")
+        result = result.concat(";\n")
     }
     return result
 }
@@ -4058,10 +4030,10 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, m
     mut result := output
     mut ind := 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
-    result = concat(result, "{\n")
+    result = result.concat("{\n")
     mut i := 0
     mut params_len := expr.params.len()
     while lt(i, params_len) {
@@ -4073,10 +4045,10 @@ emit_funcdef := proc(func_def: SFuncDef, expr: Expr, output: Str, indent: I64, m
     catch (err: IndexOutOfBoundsError) { throw err.msg }
     ind = 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
-    result = concat(result, "}\n")
+    result = result.concat("}\n")
     return result
 }
 
@@ -4084,7 +4056,7 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
     mut result := output
     mut ind := 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
     // Check if assignment target is a field access on a mut param (self.field)
@@ -4110,27 +4082,27 @@ emit_assignment := proc(name: Str, expr: Expr, output: Str, indent: I64, mut ctx
         catch (err: AllocError) { throw err.msg }
         if ctx.current_mut_params.contains(base) {
             // Mut param field access: til_self->field
-            result = concat(result, til_name(base))
-            result = concat(result, "->")
-            result = concat(result, rest)
+            result = result.concat(til_name(base))
+            result = result.concat("->")
+            result = result.concat(rest)
         } else {
-            result = concat(result, til_name(name))
+            result = result.concat(til_name(name))
         }
     } else if ctx.current_mut_params.contains(name) {
         // Direct assignment to mut param: *til_self = value
-        result = concat(result, "*")
-        result = concat(result, til_name(name))
+        result = result.concat("*")
+        result = result.concat(til_name(name))
     } else {
-        result = concat(result, til_name(name))
+        result = result.concat(til_name(name))
     }
-    result = concat(result, " = ")
+    result = result.concat(" = ")
     if gt(expr.params.len(), 0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         result = emit_expr(first, result, 0, ctx, context)
     }
-    result = concat(result, ";\n")
+    result = result.concat(";\n")
     return result
 }
 
@@ -4139,10 +4111,10 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     mut ind := 0
     mut indent_str := ""
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
-    result = concat(result, indent_str)
+    result = result.concat(indent_str)
 
     // Check if we're in a throwing function
     if gt(ctx.current_throw_types.len(), 0) {
@@ -4164,8 +4136,8 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                             // Return expression is a throwing function call - emit with error propagation
                             // The result will be stored via the assign_name "*_ret"
                             result = emit_throwing_call_propagate(return_expr, lookup_result.func_def.throw_types, "", "*_ret", result, indent, ctx, context)
-                            result = concat(result, indent_str)
-                            result = concat(result, "return 0;\n")
+                            result = result.concat(indent_str)
+                            result = result.concat("return 0;\n")
                             handled_throw = true
                         }
                     }
@@ -4176,14 +4148,14 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
             if not(handled_throw) {
                 // Regular return value - just emit it
-                result = concat(result, "*_ret = ")
+                result = result.concat("*_ret = ")
                 result = emit_expr(return_expr, result, 0, ctx, context)
-                result = concat(result, ";\n")
-                result = concat(result, indent_str)
-                result = concat(result, "return 0;\n")
+                result = result.concat(";\n")
+                result = result.concat(indent_str)
+                result = result.concat("return 0;\n")
             }
         } else {
-            result = concat(result, "return 0;\n")
+            result = result.concat("return 0;\n")
         }
     } else {
         // Non-throwing function: normal return
@@ -4219,25 +4191,25 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     mut ret_type := "int"
                     mut ret_vt := get_value_type(context, return_expr)
                     ret_type = til_type_to_c(ret_vt)
-                    result = concat(result, indent_str)
-                    result = concat(result, ret_type)
-                    result = concat(result, " ")
-                    result = concat(result, temp_var)
-                    result = concat(result, " = ")
+                    result = result.concat(indent_str)
+                    result = result.concat(ret_type)
+                    result = result.concat(" ")
+                    result = result.concat(temp_var)
+                    result = result.concat(" = ")
 
                     // Emit the function name
                     mut func_name := get_fcall_func_name(return_expr)
                     if gt(func_name.len(), 0) {
-                        result = concat(result, til_func_name(func_name))
+                        result = result.concat(til_func_name(func_name))
                     }
-                    result = concat(result, "(")
+                    result = result.concat("(")
 
                     // Emit regular args
                     mut first := true
                     mut ri := 0
                     while lt(ri, variadic_info.regular_count) {
                         if not(first) {
-                            result = concat(result, ", ")
+                            result = result.concat(", ")
                         }
                         first = false
                         mut arg := Expr()
@@ -4249,24 +4221,24 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 
                     // Emit variadic array pointer
                     if not(first) {
-                        result = concat(result, ", ")
+                        result = result.concat(", ")
                     }
-                    result = concat(result, "&")
-                    result = concat(result, arr_var)
-                    result = concat(result, ");\n")
+                    result = result.concat("&")
+                    result = result.concat(arr_var)
+                    result = result.concat(");\n")
 
                     // Delete array
-                    result = concat(result, indent_str)
-                    result = concat(result, TIL_PREFIX)
-                    result = concat(result, "Array_delete(&")
-                    result = concat(result, arr_var)
-                    result = concat(result, ");\n")
+                    result = result.concat(indent_str)
+                    result = result.concat(TIL_PREFIX)
+                    result = result.concat("Array_delete(&")
+                    result = result.concat(arr_var)
+                    result = result.concat(");\n")
 
                     // Return the result
-                    result = concat(result, indent_str)
-                    result = concat(result, "return ")
-                    result = concat(result, temp_var)
-                    result = concat(result, ";\n")
+                    result = result.concat(indent_str)
+                    result = result.concat("return ")
+                    result = result.concat(temp_var)
+                    result = result.concat(";\n")
                     return result
                 }
             case:
@@ -4274,15 +4246,15 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
         }
 
         // Regular non-variadic return
-        result = concat(result, "return")
+        result = result.concat("return")
         if gt(expr.params.len(), 0) {
-            result = concat(result, " ")
+            result = result.concat(" ")
             mut first_param := Expr()
             expr.params.get(0, first_param)
             catch (err: IndexOutOfBoundsError) { throw err.msg }
             result = emit_expr(first_param, result, 0, ctx, context)
         }
-        result = concat(result, ";\n")
+        result = result.concat(";\n")
     }
 
     return result
@@ -4340,9 +4312,9 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
         if first_char.is_uppercase() {
             // Type-qualified: Type.func -> til_Type_func
-            output = concat(output, TIL_PREFIX)
-            output = concat(output, type_receiver_name)
-            output = concat(output, "_")
+            output = output.concat(TIL_PREFIX)
+            output = output.concat(type_receiver_name)
+            output = output.concat("_")
             is_struct_method = true
         } else {
             // Instance call: instance.method -> til_Type_method (only if mangled name exists)
@@ -4352,12 +4324,12 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             switch receiver_type {
             case ValueType.TCustom(type_name):
                 mut candidate := concat(type_name, ".")
-                candidate = concat(candidate, func_name)
+                candidate = candidate.concat(func_name)
                 _ := context.scope_stack.lookup_func(candidate)
                 // If lookup succeeded, use mangled name
-                output = concat(output, TIL_PREFIX)
-                output = concat(output, type_name)
-                output = concat(output, "_")
+                output = output.concat(TIL_PREFIX)
+                output = output.concat(type_name)
+                output = output.concat("_")
                 is_struct_method = true
             case:
                 // Skip
@@ -4369,20 +4341,20 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     }
 
     if is_struct_method {
-        output = concat(output, func_name)
+        output = output.concat(func_name)
     } else {
-        output = concat(output, til_func_name(func_name))
+        output = output.concat(til_func_name(func_name))
     }
-    output = concat(output, "(&")
-    output = concat(output, temp_var)
+    output = output.concat("(&")
+    output = output.concat(temp_var)
 
     // Add error output pointers
     mut err_idx := 0
     while lt(err_idx, throw_types.len()) {
-        output = concat(output, ", &_err")
-        output = concat(output, I64.to_str(err_idx))
-        output = concat(output, "_")
-        output = concat(output, temp_suffix)
+        output = output.concat(", &_err")
+        output = output.concat(I64.to_str(err_idx))
+        output = output.concat("_")
+        output = output.concat(temp_suffix)
         err_idx = add(err_idx, 1)
     }
 
@@ -4390,7 +4362,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     if has_type_receiver {
         mut first_char := type_receiver_name.get_char(0)
         if not(first_char.is_uppercase()) {
-            output = concat(output, ", ")
+            output = output.concat(", ")
             // Check if called function's self param is mut and if receiver is a mut param
             mut called_self_is_mut := false
             mut type_name := ""
@@ -4399,7 +4371,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             case ValueType.TCustom(tname):
                 type_name = tname
                 mut mangled := concat(type_name, ".")
-                mangled = concat(mangled, func_name)
+                mangled = mangled.concat(func_name)
                 mut lookup_result := lookup_func_by_name(context, mangled)
                 if lookup_result.found {
                     if gt(lookup_result.func_def.args.len(), 0) {
@@ -4419,13 +4391,13 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             mut needs_deref_close := false
             if called_self_is_mut.and(not(receiver_is_pointer)) {
                 // Called function takes mut self, receiver is not a pointer - add &
-                output = concat(output, "&")
+                output = output.concat("&")
             } else if not(called_self_is_mut).and(receiver_is_pointer).and(eq(type_depth, 1)) {
                 // Called function takes non-mut self, but receiver is a pointer - dereference
-                output = concat(output, "(*")
+                output = output.concat("(*")
                 needs_deref_close = true
             }
-            output = concat(output, til_name(type_receiver_name))
+            output = output.concat(til_name(type_receiver_name))
             // Emit intermediate field accesses (all except the last which is the method)
             mut field_idx := 0
             while lt(field_idx, sub(type_depth, 1)) {
@@ -4435,18 +4407,18 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
                 case NodeType.Identifier(field_name):
                     // Use -> for first field access if base is pointer (mut param or variadic param), . for rest
                     if eq(field_idx, 0).and(receiver_is_pointer) {
-                        output = concat(output, "->")
+                        output = output.concat("->")
                     } else {
-                        output = concat(output, ".")
+                        output = output.concat(".")
                     }
-                    output = concat(output, field_name)
+                    output = output.concat(field_name)
                 case:
                     // skip
                 }
                 field_idx = add(field_idx, 1)
             }
             if needs_deref_close {
-                output = concat(output, ")")
+                output = output.concat(")")
             }
         }
         catch (err: IndexOutOfBoundsError) { }
@@ -4459,7 +4431,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     // Skip first param (function name), start from index 1
     mut i := 1
     while lt(i, expr.params.len()) {
-        output = concat(output, ", ")
+        output = output.concat(", ")
         // Check if this arg was hoisted
         mut found_hoisted := false
         mut j := 0
@@ -4467,7 +4439,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
             mut hoisted_arg := HoistedArg()
             nested_hoisted.get(j, hoisted_arg)
             if eq(hoisted_arg.index, arg_idx) {
-                output = concat(output, hoisted_arg.temp_var)
+                output = output.concat(hoisted_arg.temp_var)
                 found_hoisted = true
             }
             j = add(j, 1)
@@ -4483,7 +4455,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         i = add(i, 1)
     }
 
-    output = concat(output, ")")
+    output = output.concat(")")
     return output
 }
 
@@ -4495,7 +4467,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -4526,11 +4498,11 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             }
 
             // Declare temp variable
-            output = concat(output, indent_str)
-            output = concat(output, c_type)
-            output = concat(output, " ")
-            output = concat(output, temp_var)
-            output = concat(output, ";\n")
+            output = output.concat(indent_str)
+            output = output.concat(c_type)
+            output = output.concat(" ")
+            output = output.concat(temp_var)
+            output = output.concat(";\n")
 
             // Declare error variables for each throw type
             mut temp_suffix := next_mangled()
@@ -4540,13 +4512,13 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 throwing_info.throw_types.get(err_idx, throw_type)
                 switch throw_type {
                 case ValueType.TCustom(type_name):
-                    output = concat(output, indent_str)
-                    output = concat(output, type_name)
-                    output = concat(output, " _err")
-                    output = concat(output, I64.to_str(err_idx))
-                    output = concat(output, "_")
-                    output = concat(output, temp_suffix)
-                    output = concat(output, ";\n")
+                    output = output.concat(indent_str)
+                    output = output.concat(type_name)
+                    output = output.concat(" _err")
+                    output = output.concat(I64.to_str(err_idx))
+                    output = output.concat("_")
+                    output = output.concat(temp_suffix)
+                    output = output.concat(";\n")
                 case:
                     // Skip non-custom types
                 }
@@ -4572,18 +4544,18 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             }
 
             // Emit the function call with output pointers
-            output = concat(output, indent_str)
-            output = concat(output, "int _status_")
-            output = concat(output, temp_suffix)
-            output = concat(output, " = ")
+            output = output.concat(indent_str)
+            output = output.concat("int _status_")
+            output = output.concat(temp_suffix)
+            output = output.concat(" = ")
             output = emit_fcall_name_and_args_for_throwing(arg, temp_var, temp_suffix, throwing_info.throw_types, nested_hoisted, variadic_arr_var, output, ctx, context)
-            output = concat(output, ";\n")
+            output = output.concat(";\n")
 
             // Emit error checking - propagate if any error occurred
-            output = concat(output, indent_str)
-            output = concat(output, "if (_status_")
-            output = concat(output, temp_suffix)
-            output = concat(output, " != 0) {\n")
+            output = output.concat(indent_str)
+            output = output.concat("if (_status_")
+            output = output.concat(temp_suffix)
+            output = output.concat(" != 0) {\n")
 
             // Propagate error to current function's error pointers
             err_idx = 0
@@ -4600,20 +4572,20 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                         switch curr_throw {
                         case ValueType.TCustom(curr_type_name):
                             if curr_type_name.eq(type_name) {
-                                output = concat(output, indent_str)
-                                output = concat(output, "    if (_status_")
-                                output = concat(output, temp_suffix)
-                                output = concat(output, " == ")
-                                output = concat(output, I64.to_str(add(err_idx, 1)))
-                                output = concat(output, ") { *_err")
-                                output = concat(output, I64.to_str(add(curr_idx, 1)))
-                                output = concat(output, " = _err")
-                                output = concat(output, I64.to_str(err_idx))
-                                output = concat(output, "_")
-                                output = concat(output, temp_suffix)
-                                output = concat(output, "; return ")
-                                output = concat(output, I64.to_str(add(curr_idx, 1)))
-                                output = concat(output, "; }\n")
+                                output = output.concat(indent_str)
+                                output = output.concat("    if (_status_")
+                                output = output.concat(temp_suffix)
+                                output = output.concat(" == ")
+                                output = output.concat(I64.to_str(add(err_idx, 1)))
+                                output = output.concat(") { *_err")
+                                output = output.concat(I64.to_str(add(curr_idx, 1)))
+                                output = output.concat(" = _err")
+                                output = output.concat(I64.to_str(err_idx))
+                                output = output.concat("_")
+                                output = output.concat(temp_suffix)
+                                output = output.concat("; return ")
+                                output = output.concat(I64.to_str(add(curr_idx, 1)))
+                                output = output.concat("; }\n")
                             }
                         case:
                             // Skip
@@ -4628,16 +4600,16 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 catch (err: IndexOutOfBoundsError) { throw err.msg }
             }
 
-            output = concat(output, indent_str)
-            output = concat(output, "}\n")
+            output = output.concat(indent_str)
+            output = output.concat("}\n")
 
             // Emit Array.delete if variadic array was constructed
             if has_variadic_arr {
-                output = concat(output, indent_str)
-                output = concat(output, TIL_PREFIX)
-                output = concat(output, "Array_delete(&")
-                output = concat(output, variadic_arr_var)
-                output = concat(output, ");\n")
+                output = output.concat(indent_str)
+                output = output.concat(TIL_PREFIX)
+                output = output.concat("Array_delete(&")
+                output = output.concat(variadic_arr_var)
+                output = output.concat(");\n")
             }
 
             mut hoisted_arg := HoistedArg()
@@ -4671,11 +4643,11 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             }
 
             // Declare temp variable
-            output = concat(output, indent_str)
-            output = concat(output, c_type)
-            output = concat(output, " ")
-            output = concat(output, temp_var)
-            output = concat(output, ";\n")
+            output = output.concat(indent_str)
+            output = output.concat(c_type)
+            output = output.concat(" ")
+            output = output.concat(temp_var)
+            output = output.concat(";\n")
 
             // Construct variadic array
             mut variadic_args := Vec.new(Expr)
@@ -4689,22 +4661,22 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             mut variadic_arr_var := hoist_variadic_args(variadic_info.elem_type, variadic_args, nested_hoisted, variadic_info.regular_count, output, indent, ctx, context)
 
             // Emit the function call (non-throwing, so direct assignment)
-            output = concat(output, indent_str)
-            output = concat(output, temp_var)
-            output = concat(output, " = ")
+            output = output.concat(indent_str)
+            output = output.concat(temp_var)
+            output = output.concat(" = ")
 
             // Emit function name
             if gt(func_name.len(), 0) {
-                output = concat(output, til_func_name(func_name))
+                output = output.concat(til_func_name(func_name))
             }
-            output = concat(output, "(")
+            output = output.concat("(")
 
             // Emit regular args (using nested hoisted temps)
             mut first := true
             mut ri := 0
             while lt(ri, variadic_info.regular_count) {
                 if not(first) {
-                    output = concat(output, ", ")
+                    output = output.concat(", ")
                 }
                 first = false
                 // Check if this arg was hoisted
@@ -4714,7 +4686,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                     mut h := HoistedArg()
                     nested_hoisted.get(hi, h)
                     if eq(h.index, ri) {
-                        output = concat(output, h.temp_var)
+                        output = output.concat(h.temp_var)
                         found_hoisted = true
                     }
                     hi = add(hi, 1)
@@ -4730,19 +4702,19 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Emit variadic array pointer
             if not(first) {
-                output = concat(output, ", ")
+                output = output.concat(", ")
             }
-            output = concat(output, "&")
-            output = concat(output, variadic_arr_var)
+            output = output.concat("&")
+            output = output.concat(variadic_arr_var)
 
-            output = concat(output, ");\n")
+            output = output.concat(");\n")
 
             // Delete the variadic array
-            output = concat(output, indent_str)
-            output = concat(output, TIL_PREFIX)
-            output = concat(output, "Array_delete(&")
-            output = concat(output, variadic_arr_var)
-            output = concat(output, ");\n")
+            output = output.concat(indent_str)
+            output = output.concat(TIL_PREFIX)
+            output = output.concat("Array_delete(&")
+            output = output.concat(variadic_arr_var)
+            output = output.concat(");\n")
 
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx
@@ -4765,7 +4737,7 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -4838,13 +4810,13 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
                     mut temp_var := next_mangled()
 
                     // Emit: til_Str _tmpXX = <expression>;
-                    output = concat(output, indent_str)
-                    output = concat(output, c_type)
-                    output = concat(output, " ")
-                    output = concat(output, temp_var)
-                    output = concat(output, " = ")
+                    output = output.concat(indent_str)
+                    output = output.concat(c_type)
+                    output = output.concat(" ")
+                    output = output.concat(temp_var)
+                    output = output.concat(" = ")
                     output = emit_expr(arg, output, 0, ctx, context)
-                    output = concat(output, ";\n")
+                    output = output.concat(";\n")
 
                     mut hoisted_arg := HoistedArg()
                     hoisted_arg.index = idx
@@ -4868,7 +4840,7 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     mut indent_str := ""
     mut ind := 0
     while lt(ind, indent) {
-        indent_str = concat(indent_str, "    ")
+        indent_str = indent_str.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -4877,24 +4849,24 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     mut variadic_count := variadic_args.len()
 
     // Declare the array variable
-    output = concat(output, indent_str)
-    output = concat(output, TIL_PREFIX)
-    output = concat(output, "Array ")
-    output = concat(output, arr_var)
-    output = concat(output, ";\n")
+    output = output.concat(indent_str)
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("Array ")
+    output = output.concat(arr_var)
+    output = output.concat(";\n")
 
     // Declare error vars for Array.new (AllocError) and Array.set (IndexOutOfBoundsError)
-    output = concat(output, indent_str)
-    output = concat(output, TIL_PREFIX)
-    output = concat(output, "AllocError _err_alloc_")
-    output = concat(output, err_suffix)
-    output = concat(output, ";\n")
+    output = output.concat(indent_str)
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("AllocError _err_alloc_")
+    output = output.concat(err_suffix)
+    output = output.concat(";\n")
 
-    output = concat(output, indent_str)
-    output = concat(output, TIL_PREFIX)
-    output = concat(output, "IndexOutOfBoundsError _err_idx_")
-    output = concat(output, err_suffix)
-    output = concat(output, ";\n")
+    output = output.concat(indent_str)
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("IndexOutOfBoundsError _err_idx_")
+    output = output.concat(err_suffix)
+    output = output.concat(";\n")
 
     // Hoist variadic args into temp vars (needed to pass address to Array.set)
     mut arg_temps := Vec.new(Str)
@@ -4925,13 +4897,13 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         } else {
             // Need to hoist into a temp
             mut temp_var := next_mangled()
-            output = concat(output, indent_str)
-            output = concat(output, c_elem_type)
-            output = concat(output, " ")
-            output = concat(output, temp_var)
-            output = concat(output, " = ")
+            output = output.concat(indent_str)
+            output = output.concat(c_elem_type)
+            output = output.concat(" ")
+            output = output.concat(temp_var)
+            output = output.concat(" = ")
             output = emit_expr(arg, output, 0, ctx, context)
-            output = concat(output, ";\n")
+            output = output.concat(";\n")
             arg_temps.push(temp_var)
         }
 
@@ -4939,26 +4911,26 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
     }
 
     // Emit Array.new call with error handling
-    output = concat(output, indent_str)
-    output = concat(output, "int _arr_status_")
-    output = concat(output, err_suffix)
-    output = concat(output, " = ")
-    output = concat(output, TIL_PREFIX)
-    output = concat(output, "Array_new(&")
-    output = concat(output, arr_var)
-    output = concat(output, ", &_err_alloc_")
-    output = concat(output, err_suffix)
-    output = concat(output, ", \"")
-    output = concat(output, elem_type)
-    output = concat(output, "\", ")
-    output = concat(output, I64.to_str(variadic_count))
-    output = concat(output, ");\n")
+    output = output.concat(indent_str)
+    output = output.concat("int _arr_status_")
+    output = output.concat(err_suffix)
+    output = output.concat(" = ")
+    output = output.concat(TIL_PREFIX)
+    output = output.concat("Array_new(&")
+    output = output.concat(arr_var)
+    output = output.concat(", &_err_alloc_")
+    output = output.concat(err_suffix)
+    output = output.concat(", \"")
+    output = output.concat(elem_type)
+    output = output.concat("\", ")
+    output = output.concat(I64.to_str(variadic_count))
+    output = output.concat(");\n")
 
     // Emit error check for Array.new
-    output = concat(output, indent_str)
-    output = concat(output, "if (_arr_status_")
-    output = concat(output, err_suffix)
-    output = concat(output, " != 0) {\n")
+    output = output.concat(indent_str)
+    output = output.concat("if (_arr_status_")
+    output = output.concat(err_suffix)
+    output = output.concat(" != 0) {\n")
     // Propagate AllocError if current function throws it
     mut curr_idx := 0
     while lt(curr_idx, ctx.current_throw_types.len()) {
@@ -4967,14 +4939,14 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         switch curr_throw {
         case ValueType.TCustom(curr_type_name):
             if curr_type_name.eq("AllocError") {
-                output = concat(output, indent_str)
-                output = concat(output, "    *_err")
-                output = concat(output, I64.to_str(add(curr_idx, 1)))
-                output = concat(output, " = _err_alloc_")
-                output = concat(output, err_suffix)
-                output = concat(output, "; return ")
-                output = concat(output, I64.to_str(add(curr_idx, 1)))
-                output = concat(output, ";\n")
+                output = output.concat(indent_str)
+                output = output.concat("    *_err")
+                output = output.concat(I64.to_str(add(curr_idx, 1)))
+                output = output.concat(" = _err_alloc_")
+                output = output.concat(err_suffix)
+                output = output.concat("; return ")
+                output = output.concat(I64.to_str(add(curr_idx, 1)))
+                output = output.concat(";\n")
             }
         case:
             // Skip
@@ -4982,8 +4954,8 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         curr_idx = add(curr_idx, 1)
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
-    output = concat(output, indent_str)
-    output = concat(output, "}\n")
+    output = output.concat(indent_str)
+    output = output.concat("}\n")
 
     // Emit Array.set for each variadic arg
     i = 0
@@ -4991,26 +4963,26 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
         mut temp := ""
         arg_temps.get(i, temp)
 
-        output = concat(output, indent_str)
-        output = concat(output, "_arr_status_")
-        output = concat(output, err_suffix)
-        output = concat(output, " = ")
-        output = concat(output, TIL_PREFIX)
-        output = concat(output, "Array_set(&_err_idx_")
-        output = concat(output, err_suffix)
-        output = concat(output, ", &")
-        output = concat(output, arr_var)
-        output = concat(output, ", ")
-        output = concat(output, I64.to_str(i))
-        output = concat(output, ", &")
-        output = concat(output, temp)
-        output = concat(output, ");\n")
+        output = output.concat(indent_str)
+        output = output.concat("_arr_status_")
+        output = output.concat(err_suffix)
+        output = output.concat(" = ")
+        output = output.concat(TIL_PREFIX)
+        output = output.concat("Array_set(&_err_idx_")
+        output = output.concat(err_suffix)
+        output = output.concat(", &")
+        output = output.concat(arr_var)
+        output = output.concat(", ")
+        output = output.concat(I64.to_str(i))
+        output = output.concat(", &")
+        output = output.concat(temp)
+        output = output.concat(");\n")
 
         // Error check for Array.set
-        output = concat(output, indent_str)
-        output = concat(output, "if (_arr_status_")
-        output = concat(output, err_suffix)
-        output = concat(output, " != 0) {\n")
+        output = output.concat(indent_str)
+        output = output.concat("if (_arr_status_")
+        output = output.concat(err_suffix)
+        output = output.concat(" != 0) {\n")
         curr_idx = 0
         while lt(curr_idx, ctx.current_throw_types.len()) {
             mut curr_throw := ValueType.TCustom("")
@@ -5018,14 +4990,14 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
             switch curr_throw {
             case ValueType.TCustom(curr_type_name):
                 if curr_type_name.eq("IndexOutOfBoundsError") {
-                    output = concat(output, indent_str)
-                    output = concat(output, "    *_err")
-                    output = concat(output, I64.to_str(add(curr_idx, 1)))
-                    output = concat(output, " = _err_idx_")
-                    output = concat(output, err_suffix)
-                    output = concat(output, "; return ")
-                    output = concat(output, I64.to_str(add(curr_idx, 1)))
-                    output = concat(output, ";\n")
+                    output = output.concat(indent_str)
+                    output = output.concat("    *_err")
+                    output = output.concat(I64.to_str(add(curr_idx, 1)))
+                    output = output.concat(" = _err_idx_")
+                    output = output.concat(err_suffix)
+                    output = output.concat("; return ")
+                    output = output.concat(I64.to_str(add(curr_idx, 1)))
+                    output = output.concat(";\n")
                 }
             case:
                 // Skip
@@ -5033,8 +5005,8 @@ hoist_variadic_args := proc(elem_type: Str, variadic_args: Vec, already_hoisted:
             curr_idx = add(curr_idx, 1)
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        output = concat(output, indent_str)
-        output = concat(output, "}\n")
+        output = output.concat(indent_str)
+        output = output.concat("}\n")
 
         i = add(i, 1)
     }
@@ -5082,7 +5054,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
     // Add indentation
     mut ind := 0
     while lt(ind, indent) {
-        result = concat(result, "    ")
+        result = result.concat("    ")
         ind = add(ind, 1)
     }
 
@@ -5104,25 +5076,25 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 mut func_info := context.scope_stack.lookup_func(candidate)
                 // If we get here, the function was found (otherwise KeyNotFoundError)
                 // Emit as Type_method(fcall_result, args...)
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, type_name)
-                result = concat(result, "_")
-                result = concat(result, orig_func_name)
-                result = concat(result, "(")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat(type_name)
+                result = result.concat("_")
+                result = result.concat(orig_func_name)
+                result = result.concat("(")
                 // First arg is the fcall result
                 result = emit_expr(second_param, result, 0, ctx, context)
                 // Remaining args
                 mut arg_i := 2
                 while lt(arg_i, params_len) {
-                    result = concat(result, ", ")
+                    result = result.concat(", ")
                     mut arg := Expr()
                     expr.params.get(arg_i, arg)
                     result = emit_expr(arg, result, 0, ctx, context)
                     arg_i = add(arg_i, 1)
                 }
-                result = concat(result, ")")
+                result = result.concat(")")
                 if gt(indent, 0) {
-                    result = concat(result, ";\n")
+                    result = result.concat(";\n")
                 }
                 return result
             case:
@@ -5151,8 +5123,8 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
         mut arg := Expr()
         expr.params.get(1, arg)
-        result = concat(result, TIL_PREFIX)
-        result = concat(result, "size_of(")
+        result = result.concat(TIL_PREFIX)
+        result = result.concat("size_of(")
         // If it's a literal type name, wrap it in Str_from_literal
         // If it's a variable, the variable already holds a Type (which is const char*)
         switch arg.node_type {
@@ -5171,28 +5143,28 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: KeyNotFoundError) { }
             if is_type_var {
                 // Type variable - already a const char*, wrap in Str
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "Str_from_literal(")
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, type_name)
-                result = concat(result, ")")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("Str_from_literal(")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat(type_name)
+                result = result.concat(")")
             } else {
                 // Literal type name - create Str from the name
-                result = concat(result, TIL_PREFIX)
-                result = concat(result, "Str_from_literal(\"")
-                result = concat(result, type_name)
-                result = concat(result, "\")")
+                result = result.concat(TIL_PREFIX)
+                result = result.concat("Str_from_literal(\"")
+                result = result.concat(type_name)
+                result = result.concat("\")")
             }
         case:
             // Not an identifier - emit as expression and hope it's a Type
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, "Str_from_literal(")
+            result = result.concat(TIL_PREFIX)
+            result = result.concat("Str_from_literal(")
             result = emit_expr(arg, result, 0, ctx, context)
-            result = concat(result, ")")
+            result = result.concat(")")
         }
-        result = concat(result, ")")
+        result = result.concat(")")
         if gt(indent, 0) {
-            result = concat(result, ";\n")
+            result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -5222,22 +5194,22 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
         case:
         }
-        result = concat(result, "(")
-        result = concat(result, TIL_PREFIX)
-        result = concat(result, "I64)")
+        result = result.concat("(")
+        result = result.concat(TIL_PREFIX)
+        result = result.concat("I64)")
         if is_dynamic_param {
             // Dynamic param: just output the variable name (it's already a pointer)
             switch arg.node_type {
             case NodeType.Identifier(name):
-                result = concat(result, til_name(name))
+                result = result.concat(til_name(name))
             case:
             }
         } else {
-            result = concat(result, "&")
+            result = result.concat("&")
             result = emit_expr(arg, result, 0, ctx, context)
         }
         if gt(indent, 0) {
-            result = concat(result, ";\n")
+            result = result.concat(";\n")
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
@@ -5247,12 +5219,12 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
         mut first_char := func_name.get_substr(0, 1)
         if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
-            result = concat(result, "(")
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, func_name)
-            result = concat(result, "){}")
+            result = result.concat("(")
+            result = result.concat(TIL_PREFIX)
+            result = result.concat(func_name)
+            result = result.concat("){}")
             if gt(indent, 0) {
-                result = concat(result, ";\n")
+                result = result.concat(";\n")
             }
             return result
         }
@@ -5260,9 +5232,9 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
 
         // Regular function call
         // func_name already has underscores from get_func_name_string
-        result = concat(result, TIL_PREFIX)
-        result = concat(result, func_name)
-        result = concat(result, "(")
+        result = result.concat(TIL_PREFIX)
+        result = result.concat(func_name)
+        result = result.concat("(")
 
         // Check if this is a variadic function
         mut variadic_info := VariadicParamInfo()
@@ -5301,7 +5273,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             mut regular_end := add(variadic_info.regular_count, 1)  // +1 to skip func name
             while lt(i, regular_end) {
                 if gt(i, 1) {
-                    result = concat(result, ", ")
+                    result = result.concat(", ")
                 }
                 mut arg := Expr()
                 expr.params.get(i, arg)
@@ -5313,10 +5285,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             // Emit variadic array pointer
             if has_variadic_arr {
                 if gt(variadic_info.regular_count, 0) {
-                    result = concat(result, ", ")
+                    result = result.concat(", ")
                 }
-                result = concat(result, "&")
-                result = concat(result, variadic_arr_var)
+                result = result.concat("&")
+                result = result.concat(variadic_arr_var)
             }
         } else {
             // Non-variadic: emit args normally
@@ -5335,7 +5307,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             mut i := 1
             while lt(i, params_len) {
                 if gt(i, 1) {
-                    result = concat(result, ", ")
+                    result = result.concat(", ")
                 }
                 mut arg := Expr()
                 expr.params.get(i, arg)
@@ -5359,7 +5331,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     }
                 }
                 if should_add_ampersand {
-                    result = concat(result, "&")
+                    result = result.concat("&")
                 }
                 result = emit_expr(arg, result, 0, ctx, context)
                 i = add(i, 1)
@@ -5367,23 +5339,23 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: IndexOutOfBoundsError) { throw err.msg }
         }
 
-        result = concat(result, ")")
+        result = result.concat(")")
         // Only add statement terminator if this is a statement (indent > 0)
         if gt(indent, 0) {
-            result = concat(result, ";\n")
+            result = result.concat(";\n")
         }
 
         // Emit Array.delete if variadic array was constructed
         if has_variadic_arr {
             mut ind := 0
             while lt(ind, indent) {
-                result = concat(result, "    ")
+                result = result.concat("    ")
                 ind = add(ind, 1)
             }
-            result = concat(result, TIL_PREFIX)
-            result = concat(result, "Array_delete(&")
-            result = concat(result, variadic_arr_var)
-            result = concat(result, ");\n")
+            result = result.concat(TIL_PREFIX)
+            result = result.concat("Array_delete(&")
+            result = result.concat(variadic_arr_var)
+            result = result.concat(");\n")
         }
 
         return result
