@@ -55,7 +55,7 @@ next_mangled := proc() returns Str {
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
-// Exceptions: C keywords/macros (true, false) and generated names (* or _ prefix)
+// Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
 til_name := func(name: Str) returns Str {
     if name.eq("true") { return "true" }
     if name.eq("false") { return "false" }

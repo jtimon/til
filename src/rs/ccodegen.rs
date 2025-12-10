@@ -53,7 +53,7 @@ fn next_mangled() -> String {
 }
 
 // Returns the C name for a TIL identifier - adds TIL_PREFIX
-// Exceptions: C keywords (true, false) and generated names (* or _ prefix)
+// Exceptions: C keywords (true, false), pointer deref (*name), and generated names (_ prefix)
 fn til_name(name: &str) -> String {
     match name {
         "true" | "false" => name.to_string(),
