@@ -2,28 +2,6 @@ mode test
 
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
-println("\nSome versions of 'hello world' in different basic modes:\n")
-
-runfile("src/examples/hello_cli.til")
-runfile("src/examples/hello_lib.til")
-runfile("src/examples/hello_pure.til")
-// test a part of posix compatibility, it doesn't require the mode to be script, it can be compiled too, like roc
-// Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
-runfile("src/examples/hello_script_shebang.til")
-// runfile("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
-runfile("src/examples/hello_test.til")
-
-println("\nSome basic tests/examples:\n")
-// runfile("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/enums_simple.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/loops.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/throw_simple.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/throw_test2.til") // TODO Not sure why this one is commented, uncomment
-
 // The closest to a std lib this language has
 // runfile("src/core.til") // you can't run it because it is already imported everywhere
 

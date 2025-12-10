@@ -1,4 +1,0 @@
-#!~/bin/til
-mode script
-
-println("Hello World!")
