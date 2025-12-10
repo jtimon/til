@@ -2,3 +2,5 @@ mode test
 
 // tests2.til - Additional test suite
 // This file runs alongside tests.til for expanded test coverage
+
+runfile("src/test/hello/hello_script.til")
