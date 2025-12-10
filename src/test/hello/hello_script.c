@@ -1806,5 +1806,17 @@ til_I64 til_U8_size(void) {
 
 int main() {
     const til_I64 til_MIN_I64 = til_sub(0, 922337203);
+        til_Array _tmp193;
+    til_AllocError _err_alloc__tmp194;
+    til_IndexOutOfBoundsError _err_idx__tmp194;
+    til_Str _tmp195 = til_Str_from_literal("Hello World!");
+    int _arr_status__tmp194 = til_Array_new(&_tmp193, &_err_alloc__tmp194, "Str", 1);
+    if (_arr_status__tmp194 != 0) {
+    }
+    _arr_status__tmp194 = til_Array_set(&_err_idx__tmp194, &_tmp193, 0, &_tmp195);
+    if (_arr_status__tmp194 != 0) {
+    }
+til_println(&_tmp193);
+    til_Array_delete(&_tmp193);
     return 0;
 }

@@ -8,10 +8,10 @@ tmp/*
 \#*\#
 .\#*
 
-# Codegen outputs - ignore generated .c files in test directories
-src/test/**/*.c
+# Codegen outputs - ignore generated .c files
+src/**/*.c
+# Exception: track hello_script.c for codegen debugging
+!src/test/hello/hello_script.c
 
 # Compiled binaries go to bin/ subdirectories (consistent with top-level bin/)
 src/**/bin/
-
-# Track src/core/core.c for codegen progress (not ignored)
