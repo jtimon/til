@@ -244,6 +244,11 @@ main := proc(args: ..Str) {
     rs_compiled.push("src/core/core.til")
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
+    // TODO FIX: switch_simple.til - C codegen issues with enum switch:
+    // - case labels missing til_ prefix (Color_Red vs til_Color_Red)
+    // - payload extraction variable not declared (til_n)
+    // - enum constructors called as functions instead of struct init
+    // rs_compiled.push("src/test/switch_simple.til")
 
     mut rs_interpret := Vec.new(Str)
 
