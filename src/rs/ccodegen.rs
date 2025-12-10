@@ -1225,6 +1225,11 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
+    // Call til_main() for modes that require a main proc (like cli)
+    if context.mode_def.needs_main_proc {
+        output.push_str("    til_main();\n");
+    }
+
     output.push_str("    return 0;\n");
     output.push_str("}\n");
 

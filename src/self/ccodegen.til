@@ -1648,6 +1648,11 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         output = emit_expr(ast, output, 1, ctx, context)
     }
 
+    // Call til_main() for modes that require a main proc (like cli)
+    if context.mode_def.needs_main_proc {
+        output = output.concat("    til_main();\n")
+    }
+
     output = output.concat("    return 0;\n}\n")
 
     catch (err: I64_OverflowError) { throw err.msg }

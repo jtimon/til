@@ -235,6 +235,7 @@ main := proc(args: ..Str) {
     // Ideally we should benchmark against at least bash, python, roc, Rust, C and HolyC for this kind of mode, both interpreted and compiled
     rs_common.push("src/examples/hello_script.til")
     rs_common.push("src/examples/hello_test.til")
+    rs_common.push("src/examples/hello_cli.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/core/core.til")
@@ -242,7 +243,6 @@ main := proc(args: ..Str) {
     mut rs_interpret := Vec.new(Str)
 
     // Some versions of 'hello world' in different basic modes:
-    rs_interpret.push("src/examples/hello_cli.til")
     rs_interpret.push("src/examples/hello_lib.til")
     rs_interpret.push("src/examples/hello_pure.til")
     // rs_interpret.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
