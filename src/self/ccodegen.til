@@ -2413,6 +2413,7 @@ emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext,
         // Check for type-qualified access (Type.field)
         if gt(expr.params.len(), 0) {
             mut first_char := name.get_substr(0, 1)
+            // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
             if first_char.is_uppercase() {
                 mut param := Expr()
                 expr.params.get(0, param)
@@ -3710,6 +3711,7 @@ get_struct_construction_type := func(expr: Expr) returns Str {
                 // If it's a PascalCase identifier with no nested params and no other args, assume struct
                 if gt(name.len(), 0) {
                     // Check if first character is uppercase
+                    // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
                     mut first_char := name.get_substr(0, 1)
                     if first_char.is_uppercase() {
                         if eq(expr.params.len(), 1) {
@@ -3747,6 +3749,7 @@ get_enum_construction_type := func(expr: Expr) returns Str {
             switch first.node_type {
             case NodeType.Identifier(type_name):
                 // Check if the type name is PascalCase
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
                 if gt(type_name.len(), 0) {
                     mut type_first_char := type_name.get_substr(0, 1)
                     if type_first_char.is_uppercase() {
@@ -3782,6 +3785,7 @@ get_enum_construction_type := func(expr: Expr) returns Str {
         return ""
     case NodeType.Identifier(type_name):
         // Check Identifier case: Type.Variant (no parentheses, no payload)
+        // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
         if gt(type_name.len(), 0) {
             mut type_first_char := type_name.get_substr(0, 1)
             if type_first_char.is_uppercase() {
@@ -4318,6 +4322,7 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     mut is_struct_method := false
     if has_ufcs_receiver {
         mut first_char := ufcs_receiver_name.get_char(0)
+        // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.til)
         if first_char.is_uppercase() {
             // Type-qualified: Type.func -> til_Type_func
             output = concat(output, TIL_PREFIX)

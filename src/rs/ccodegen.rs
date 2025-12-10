@@ -2193,6 +2193,7 @@ fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenC
             // Check for type-qualified access (Type.field)
             if !expr.params.is_empty() {
                 let first_char = name.chars().next().unwrap_or('a');
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
                 if first_char.is_uppercase() {
                     if let NodeType::Identifier(field) = &expr.params[0].node_type {
                         // Check if this is an enum variant by looking up in context
@@ -2466,6 +2467,7 @@ fn emit_throwing_call(
         if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
             if !fcall.params[0].params.is_empty() {
                 let first_char = receiver_name.chars().next().unwrap_or('a');
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
                 !first_char.is_uppercase()  // lowercase receiver = instance UFCS
             } else { false }
         } else { false }
@@ -2746,6 +2748,7 @@ fn emit_throwing_call_propagate(
         if let NodeType::Identifier(receiver_name) = &fcall.params[0].node_type {
             if !fcall.params[0].params.is_empty() {
                 let first_char = receiver_name.chars().next().unwrap_or('a');
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
                 !first_char.is_uppercase()  // lowercase receiver = instance UFCS
             } else { false }
         } else { false }
@@ -3098,6 +3101,7 @@ fn get_struct_construction_type(expr: &Expr) -> Option<String> {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(name) = &expr.params[0].node_type {
                 // If it's a PascalCase identifier with no nested params and no other args, assume struct
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
                 if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                     && expr.params.len() == 1
                     && expr.params[0].params.is_empty() {
@@ -3119,6 +3123,7 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
         if !expr.params.is_empty() {
             if let NodeType::Identifier(type_name) = &expr.params[0].node_type {
                 // Check if the type name is PascalCase
+                // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
                 if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
                     // Check if there's a nested identifier (the variant) that's also PascalCase
                     if !expr.params[0].params.is_empty() {
@@ -3135,6 +3140,7 @@ fn get_enum_construction_type(expr: &Expr) -> Option<String> {
 
     // Check Identifier case: Type.Variant (no parentheses, no payload)
     if let NodeType::Identifier(type_name) = &expr.node_type {
+        // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
         if type_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
             if !expr.params.is_empty() {
                 if let NodeType::Identifier(variant_name) = &expr.params[0].node_type {
@@ -3579,6 +3585,7 @@ fn emit_fcall_with_hoisted(
     }
 
     // Check for struct construction: TypeName() -> (til_TypeName){}
+    // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
     if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
         && expr.params[0].params.is_empty()
         && expr.params.len() == 1
@@ -4205,6 +4212,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
             // Check for struct construction: TypeName() -> (til_TypeName){}
             // Struct names are PascalCase, no nested identifiers, no args
+            // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
             if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                 && expr.params[0].params.is_empty()  // No nested params (not Type.Variant)
                 && expr.params.len() == 1            // No constructor args
