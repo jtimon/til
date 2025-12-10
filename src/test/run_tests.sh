@@ -11,10 +11,6 @@ echo "Testing comparisons.til..."
 $RSTIL run src/test/comparisons.til
 echo "[PASS] comparisons.til"
 
-echo "Testing circular_test.til..."
-$RSTIL run src/test/circular_test.til
-echo "[PASS] circular_test.til"
-
 echo "Testing enums_simple.til..."
 $RSTIL run src/test/enums_simple.til
 echo "[PASS] enums_simple.til"

@@ -237,6 +237,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/examples/hello_test.til")
     rs_common.push("src/examples/hello_cli.til")
     rs_common.push("src/examples/hello_lib.til")
+    rs_common.push("src/test/circular_test.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/core/core.til")
@@ -255,7 +256,6 @@ main := proc(args: ..Str) {
     rs_interpret.push("src/test/boolean.til")
     rs_interpret.push("src/test/branchless.til")
     rs_interpret.push("src/test/c_mem.til")
-    rs_interpret.push("src/test/circular_test.til")
     rs_interpret.push("src/test/comparisons.til")
     rs_interpret.push("src/test/editor_mode_test.til")
     rs_interpret.push("src/test/enums.til")
