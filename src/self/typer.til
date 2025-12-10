@@ -1,6 +1,6 @@
 mode lib
 
-import("src.self.init")
+import("self.init")
 
 // Type checking phase: Validates types, return/throw statements, mode constraints
 // This module handles the type checking phase that runs after init.

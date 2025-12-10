@@ -1,7 +1,7 @@
 mode lib
 
-import("src.core.bounds")
-import("src.core.mem")
+import("core.bounds")
+import("core.mem")
 
 /**
  * Array - Fixed-size array.

@@ -1,10 +1,10 @@
 mode lib
 
-import("src.core.vec")
-import("src.std.list")
-import("src.std.map")
-import("src.self.lexer")
-import("src.self.mode")
+import("core.vec")
+import("std.list")
+import("std.map")
+import("self.lexer")
+import("self.mode")
 
 INFER_TYPE := "auto"
 

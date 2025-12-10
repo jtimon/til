@@ -1,7 +1,7 @@
 mode test
 
-import("src.test.helpers.circular_a")
-import("src.test.helpers.circular_b")
+import("test.helpers.circular_a")
+import("test.helpers.circular_b")
 
 test_circular := proc() {
     mut a := TypeA()

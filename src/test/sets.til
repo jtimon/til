@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.set")
+import("core.set")
 
 // Test Set - Dynamic collection of unique elements
 

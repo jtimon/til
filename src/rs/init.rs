@@ -717,9 +717,11 @@ pub fn get_value_type(context: &Context, e: &Expr) -> Result<ValueType, String> 
 }
 
 // Convert dot-based import path to OS-specific file path
-// Example: "src.std" -> "src/std.til" (Unix) or "src\std.til" (Windows)
+// Example: "std.io" -> "src/std/io.til" (Unix) or "src\std\io.til" (Windows)
+// Auto-prefixes with "src."
 pub fn import_path_to_file_path(import_path: &str) -> String {
-    let file_path = import_path.replace(".", std::path::MAIN_SEPARATOR_STR);
+    let full_path = format!("src.{}", import_path);
+    let file_path = full_path.replace(".", std::path::MAIN_SEPARATOR_STR);
     format!("{}.til", file_path)
 }
 

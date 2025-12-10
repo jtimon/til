@@ -1,6 +1,6 @@
 mode lib
 
-import("src.test.cross_file_forward.component")
+import("test.cross_file_forward.component")
 
 /** Entity that contains Components - but Component also references Entity */
 Entity := struct {

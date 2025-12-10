@@ -1,8 +1,8 @@
 mode lib
 
-import("src.core.bounds")
-import("src.core.mem")
-import("src.core.vec")
+import("core.bounds")
+import("core.mem")
+import("core.vec")
 
 /** Str - String type with c_string pointer and capacity. */
 // TODO get rid of special cases for Str besides literals

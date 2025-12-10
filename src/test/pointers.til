@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.ptr")
+import("core.ptr")
 
 test_pointers := proc() {
     mut got_error := false

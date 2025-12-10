@@ -1,10 +1,10 @@
 mode lib
 
-import("src.core.array")
-import("src.core.ptr")
-import("src.self.parser")
-import("src.core.set")
-import("src.std.io")            // readfile
+import("core.array")
+import("core.ptr")
+import("self.parser")
+import("core.set")
+import("std.io")            // readfile
 
 // Unix path separator (Windows not supported in TIL)
 MAIN_SEPARATOR_STR := "/"
@@ -1087,9 +1087,11 @@ get_value_type := func(context: Context, e: Expr) returns ValueType throws Str {
 }
 
 # Convert dot-based import path to OS-specific file path
-# Example: "src.std" -> "src/std.til" (Unix) or "src\std.til" (Windows)
+# Example: "std.io" -> "src/std/io.til" (Unix) or "src\std\io.til" (Windows)
+# Auto-prefixes with "src."
 import_path_to_file_path := func(import_path: Str) returns Str throws Str {
-    mut file_path := import_path.replace(".", MAIN_SEPARATOR_STR)
+    mut full_path := format("src.", import_path)
+    mut file_path := full_path.replace(".", MAIN_SEPARATOR_STR)
     mut result := format(file_path, ".til")
     catch (err: AllocError) {
         throw err.msg

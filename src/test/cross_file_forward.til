@@ -1,6 +1,6 @@
 mode test
 
-import("src.core.vec")
+import("core.vec")
 
 // Cross-file forward declaration test
 // Inspired by Jai's approach to circular dependencies
@@ -13,8 +13,8 @@ import("src.core.vec")
 // before the typer phase checks them, allowing forward references
 // across file boundaries.
 
-import("src.test.cross_file_forward.entity")
-import("src.test.cross_file_forward.component")
+import("test.cross_file_forward.entity")
+import("test.cross_file_forward.component")
 
 test_cross_file_circular_imports := proc() {
     // Create an entity

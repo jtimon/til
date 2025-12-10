@@ -1,7 +1,7 @@
 mode lib
 
-import("src.self.init")
-import("src.self.parser")
+import("self.init")
+import("self.parser")
 
 // Arena: Memory management for the TIL interpreter
 // Extracted from interpreter.rs to enable incremental translation to TIL.

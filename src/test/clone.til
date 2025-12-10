@@ -1,8 +1,8 @@
 mode test
 
-import("src.core.vec")
-import("src.std.list")
-import("src.std.map")
+import("core.vec")
+import("std.list")
+import("std.map")
 
 // Test Str.clone()
 test_str_clone := proc() {

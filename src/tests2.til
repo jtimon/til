@@ -1,8 +1,8 @@
 mode script
 
-import("src.std.std")
-import("src.std.os")
-import("src.modes.test")
+import("std.std")
+import("std.os")
+import("modes.test")
 
 // tests2.til - New test suite (under development)
 // This will eventually fully replace tests.til

@@ -4,11 +4,11 @@ mode lib
 single_print := ext_proc(s: Str);
 print_flush  := ext_proc();
 
-import("src.core.array")
-import("src.core.bool")
-import("src.core.i64")
-import("src.core.str")
-import("src.core.u8")
+import("core.array")
+import("core.bool")
+import("core.i64")
+import("core.str")
+import("core.u8")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
@@ -23,7 +23,7 @@ _col  := ext_func() returns I64; // Returns current column number
 exit := ext_func(code: I64);
 
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
-// Example: import("src.std.std") resolves to src/std/std.til (Unix) or src\std\std.til (Windows)
+// Example: import("std.std") resolves to src/std/std.til (Unix) or src\std\std.til (Windows)
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
 // example_cil: my_matrix : struct = import(matrix)

@@ -1,14 +1,14 @@
 mode lib
 
-import("src.self.init")
-import("src.self.parser")
-import("src.self.typer")
-import("src.self.precomp")
-import("src.self.ext")
-import("src.self.arena")
-import("src.self.mode")         // parse_mode, can_be_imported
-import("src.self.lexer")        // lexer_from_source, parse_tokens
-import("src.std.io")            // readfile
+import("self.init")
+import("self.parser")
+import("self.typer")
+import("self.precomp")
+import("self.ext")
+import("self.arena")
+import("self.mode")         // parse_mode, can_be_imported
+import("self.lexer")        // lexer_from_source, parse_tokens
+import("std.io")            // readfile
 
 // Interpreter/Eval phase: Runtime evaluation and execution
 // This module handles the eval phase that runs after type checking.

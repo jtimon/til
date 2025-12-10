@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.mem")
+import("core.mem")
 
 /** Ptr - Pointer type wrapping a raw memory address. */
 Ptr := struct {

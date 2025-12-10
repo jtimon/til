@@ -1,6 +1,6 @@
 mode lib
 
-import("src.test.cross_file_forward.entity")
+import("test.cross_file_forward.entity")
 
 /** Component that references its owner Entity - circular with entity.til */
 Component := struct {

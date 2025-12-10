@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.mem")
+import("core.mem")
 
 /**
  * Vec - Dynamic/growable array.

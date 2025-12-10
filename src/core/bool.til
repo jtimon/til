@@ -1,6 +1,6 @@
 mode lib
 
-import("src.core.bounds")
+import("core.bounds")
 
 /** Bool - Boolean type backed by U8. */
 Bool := struct {

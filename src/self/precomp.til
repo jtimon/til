@@ -1,6 +1,6 @@
 mode lib
 
-import("src.self.init")
+import("self.init")
 
 // Precomputation phase: Transforms UFCS calls into regular function calls
 // This phase runs after typer, before interpreter/builder.

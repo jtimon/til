@@ -1,8 +1,8 @@
 mode cli
 
-import("src.self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
-import("src.self.lexer")        // LANG_NAME
-import("src.std.os")            // run_cmd
+import("self.builder")      // interpreter, ext (via chain) - main_run, run_file, run_file_with_context
+import("self.lexer")        // LANG_NAME
+import("std.os")            // run_cmd
 
 CURRENT_VERSION := "til_0.0.1" // REM: No point in advancing versions until it compiles itself
 REPL_PATH       := "src/modes/repl.til"

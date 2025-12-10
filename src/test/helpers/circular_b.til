@@ -1,6 +1,6 @@
 mode lib
 
-import("src.test.helpers.circular_a")
+import("test.helpers.circular_a")
 
 TypeB := struct {
     mut val: I64 = 0
