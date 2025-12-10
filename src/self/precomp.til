@@ -76,16 +76,11 @@ is_comptime_evaluable := proc(context: Context, e: Expr) returns Bool {
         catch (err: Str) {
             return false  // Can't get function name
         }
-        // Special case: these functions are declared as ext_func but cannot be folded:
-        // - loc, _file, _line, _col: depend on runtime source location
-        // - format, concat: require runtime string infrastructure
-        // - exit: terminates the program
+        // Special case: these ext_funcs depend on runtime source location
         if f_name.eq("loc") { return false }
         if f_name.eq("_file") { return false }
         if f_name.eq("_line") { return false }
         if f_name.eq("_col") { return false }
-        if f_name.eq("format") { return false }
-        if f_name.eq("concat") { return false }
         if f_name.eq("exit") { return false }
 
         mut func_def := context.scope_stack.lookup_func(f_name)

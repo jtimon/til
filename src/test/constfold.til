@@ -23,12 +23,12 @@ test_deeply_nested := proc() {
 }
 test_deeply_nested()
 
-// Test 4: String concat - skipped for now (requires runtime string infrastructure)
-// test_string_concat := proc() {
-//     result := concat("hello", " world")
-//     test(loc(), result.eq("hello world"), "concat should work")
-// }
-// test_string_concat()
+// Test 4: String concat - folded at compile time
+test_string_concat := proc() {
+    result := concat("hello", " world")
+    test(loc(), result.eq("hello world"), "concat should be folded to 'hello world'")
+}
+test_string_concat()
 
 // Test 5: Mixed - this should NOT be folded because x is a variable
 test_no_fold_variable := proc() {

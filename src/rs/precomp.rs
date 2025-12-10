@@ -51,12 +51,9 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
         NodeType::LLiteral(_) => true,
         NodeType::FCall => {
             let f_name = get_func_name_in_call(e);
-            // Special case: these functions are declared as ext_func but cannot be folded:
-            // - loc, _file, _line, _col: depend on runtime source location
-            // - format, concat: require runtime string infrastructure
-            // - exit: terminates the program
+            // Special case: these ext_funcs depend on runtime source location
             match f_name.as_str() {
-                "loc" | "_file" | "_line" | "_col" | "format" | "concat" | "exit" => return false,
+                "loc" | "_file" | "_line" | "_col" | "exit" => return false,
                 _ => {}
             }
             let func_def = match context.scope_stack.lookup_func(&f_name) {
