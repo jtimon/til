@@ -2,8 +2,6 @@ mode test
 
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
-runfile("src/test/temporary_tests.til")
-
 println("\nSome versions of 'hello world' in different basic modes:\n")
 
 runfile("src/examples/hello_cli.til")

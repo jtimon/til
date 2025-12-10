@@ -191,6 +191,7 @@ main := proc(args: ..Str) {
     rs_interpret.push("src/test/sets.til")
     rs_interpret.push("src/test/strings.til")
     rs_interpret.push("src/test/structs.til")
+    rs_interpret.push("src/test/temp.til")
     rs_interpret.push("src/test/test_lexer.til")
     rs_interpret.push("src/test/test_parser.til")
     rs_interpret.push("src/test/u8.til")
