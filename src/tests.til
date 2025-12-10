@@ -40,6 +40,7 @@ runfile("src/test/intro.til")
 runfile("src/test/mut_test.til")
 runfile("src/test/namespaces.til")
 runfile("src/test/pointers.til")
+runfile("src/test/run_cmd.til")
 runfile("src/test/strings.til")
 runfile("src/test/test_lexer.til")
 runfile("src/test/test_parser.til")
@@ -57,7 +58,6 @@ runfile("src/test/variadic.til")
 // runfile("src/test/enums_simple.til") // TODO Not sure why this one is commented, uncomment
 // runfile("src/test/loops.til") // TODO Not sure why this one is commented, uncomment
 // runfile("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
-// runfile("src/test/run_cmd.til") // TODO Not sure why this one is commented, uncomment
 // runfile("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
 // runfile("src/test/throw_simple.til") // TODO Not sure why this one is commented, uncomment
 // runfile("src/test/throw_test2.til") // TODO Not sure why this one is commented, uncomment
