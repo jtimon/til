@@ -13,18 +13,27 @@ get_out_path := func(src_path: Str) returns Str throws AllocError {
 }
 
 run_all_tests := proc(rs_common: Vec, rs_interpret: Vec) {
+    mut errors_found := false
     for i in 0..rs_common.len() {
         mut path := ""
         rs_common.get(i, path)
-        run_test(path)
+        if test_rs_common(path) {
+            errors_found = true
+        }
     }
     for i in 0..rs_interpret.len() {
         mut path := ""
         rs_interpret.get(i, path)
-        run_test_interpret(path)
+        if test_rs_interpreted(path) {
+            errors_found = true
+        }
     }
 
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
+
+    if errors_found {
+        panic(loc(), "tests failed")
+    }
 }
 
 regen := proc(files: Vec, rs_common: Vec, rs_interpret: Vec) {
@@ -52,10 +61,21 @@ regen := proc(files: Vec, rs_common: Vec, rs_interpret: Vec) {
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 
-test_interpret := proc(path: Str) {
-    out_path := get_out_path(path)
+ensure_out_file := proc(path: Str, out_path: Str) {
+    mut ls_result := ""
+    _ := ls_result.run_cmd("ls", out_path)
+    if not(ls_result.contains(".out")) {
+        mut output := ""
+        _ := output.run_cmd("./bin/rstil", "interpret", path)
+        _ := writefile(out_path, output)
+        println("Created: ", out_path)
+    }
+}
 
-    // Test with interpreter only
+test_rs_interpreted := proc(path: Str) returns Bool {
+    out_path := get_out_path(path)
+    ensure_out_file(path, out_path)
+
     mut interp_output := ""
     _ := interp_output.run_cmd("./bin/rstil", "interpret", path)
     _ := writefile(path.replace(".til", ".interpret.out"), interp_output)
@@ -64,29 +84,17 @@ test_interpret := proc(path: Str) {
     if not(interp_diff.eq("")) {
         println("FAIL (interpret): ", path)
         println(interp_diff)
-        panic(loc(), "test failed")
+        return true
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
+
+    return false
 }
 
-test_rs := proc(path: Str) {
-    mut errors_found := false
+test_rs_compiled := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
 
-    // Test with interpreter
-    mut interp_output := ""
-    _ := interp_output.run_cmd("./bin/rstil", "interpret", path)
-    _ := writefile(path.replace(".til", ".interpret.out"), interp_output)
-    mut interp_diff := ""
-    _ := interp_diff.run_cmd("diff", out_path, path.replace(".til", ".interpret.out"))
-    if not(interp_diff.eq("")) {
-        println("FAIL (interpret): ", path)
-        println(interp_diff)
-        errors_found = true
-    }
-
-    // Test compiled output
     mut run_output := ""
     _ := run_output.run_cmd("./bin/rstil", "run", path)
     _ := writefile(path.replace(".til", ".run.out"), run_output)
@@ -95,52 +103,21 @@ test_rs := proc(path: Str) {
     if not(run_diff.eq("")) {
         println("FAIL (run): ", path)
         println(run_diff)
+        return true
+    }
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+
+    return false
+}
+
+test_rs_common := proc(path: Str) returns Bool {
+    mut errors_found := test_rs_interpreted(path)
+    if test_rs_compiled(path) {
         errors_found = true
     }
 
-    if errors_found {
-        panic(loc(), "test failed")
-    }
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
-}
-
-run_test := proc(path: Str) {
-    out_path := get_out_path(path)
-
-    // Check if .out file exists using ls on the .out path directly
-    mut ls_result := ""
-    _ := ls_result.run_cmd("ls", out_path)
-    if not(ls_result.contains(".out")) {
-        // File doesn't exist - create it from interpreter output
-        mut output := ""
-        _ := output.run_cmd("./bin/rstil", "interpret", path)
-        _ := writefile(out_path, output)
-        println("Created: ", out_path)
-    }
-
-    test_rs(path)
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
-}
-
-run_test_interpret := proc(path: Str) {
-    out_path := get_out_path(path)
-
-    // Check if .out file exists using ls on the .out path directly
-    mut ls_result := ""
-    _ := ls_result.run_cmd("ls", out_path)
-    if not(ls_result.contains(".out")) {
-        // File doesn't exist - create it from interpreter output
-        mut output := ""
-        _ := output.run_cmd("./bin/rstil", "interpret", path)
-        _ := writefile(out_path, output)
-        println("Created: ", out_path)
-    }
-
-    test_interpret(path)
-
-    catch (err: AllocError) { panic(loc(), err.msg) }
+    return errors_found
 }
 
 regen_test := proc(path: Str) {
