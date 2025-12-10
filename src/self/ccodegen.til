@@ -81,7 +81,6 @@ FuncNameResult := struct {
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-// TODO: remove once used in emit_fcall simplification
 get_func_name_string := func(first_param: Expr) returns FuncNameResult {
     mut result := FuncNameResult()
     switch first_param.node_type {
@@ -2021,6 +2020,191 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
     case:
         throw "emit_func_declaration: not a declaration"
     }
+}
+
+/// Emit an argument, using hoisted temp var if available
+/// Also handles Type arguments by emitting them as string literals
+emit_arg_or_hoisted := proc(arg: Expr, arg_idx: I64, hoisted: Map, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut no_param_type := ValueType.TCustom("")  // Empty TCustom represents None
+    return emit_arg_with_param_type(arg, arg_idx, hoisted, no_param_type, false, false, output, ctx, context)
+}
+
+/// Emit an argument with knowledge of expected parameter type and mutability
+/// Handles: Type args as string literals, Dynamic args with &, mut args with &
+emit_arg_with_param_type := proc(arg: Expr, arg_idx: I64, hoisted: Map, param_type: ValueType, has_param_type: Bool, param_is_mut: Bool, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut result := output
+
+    // Check if hoisted temp var exists for this arg index
+    mut idx_str := I64.to_str(arg_idx)
+    if hoisted.contains_key(idx_str) {
+        // Hoisted temp var is an lvalue - add & if param is Dynamic or mut
+        if param_is_mut {
+            result = result.concat("&")
+        } else if has_param_type {
+            switch param_type {
+            case ValueType.TCustom(param_type_name):
+                if param_type_name.eq("Dynamic") {
+                    result = result.concat("&")
+                }
+            case:
+            }
+        }
+        mut temp_var := ""
+        hoisted.get(idx_str, temp_var)
+        result = result.concat(temp_var)
+        return result
+    }
+
+    // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
+    mut type_arg_result := get_type_arg_name(arg, context)
+    if type_arg_result.found {
+        result = result.concat("\"").concat(type_arg_result.type_name).concat("\"")
+        return result
+    }
+
+    // Check if parameter type is Dynamic (including mut Dynamic)
+    // Must check BEFORE the general mut check since Dynamic needs casting
+    mut is_dynamic := false
+    if has_param_type {
+        switch param_type {
+        case ValueType.TCustom(name):
+            if name.eq("Dynamic") {
+                is_dynamic = true
+            }
+        case:
+        }
+    }
+    if is_dynamic {
+        // Check if arg is a simple identifier (can take address directly)
+        switch arg.node_type {
+        case NodeType.Identifier(name):
+            if arg.params.len().eq(0) {
+                // Simple variable - cast to til_Dynamic* (void**)
+                result = result.concat("(").concat(TIL_PREFIX).concat("Dynamic*)&").concat(til_name(name))
+                return result
+            }
+        case:
+        }
+        // For non-identifier args (function calls, literals), they should have
+        // been hoisted already. If not, just emit without & and let C handle it.
+        result = emit_expr(arg, result, 0, ctx, context)
+        return result
+    }
+
+    // Check if param is mut (but not Dynamic) - emit &arg for pointer
+    if param_is_mut {
+        switch arg.node_type {
+        case NodeType.Identifier(name):
+            if arg.params.len().eq(0) {
+                // Simple variable - emit &var
+                result = result.concat("&").concat(til_name(name))
+                return result
+            }
+        case:
+        }
+        // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
+        result = emit_expr(arg, result, 0, ctx, context)
+        return result
+    }
+
+    // Check if arg is a variadic param (which is til_Array*) but expected param is NOT mut
+    // In this case we need to dereference: (*til_args) to get til_Array by value
+    switch arg.node_type {
+    case NodeType.Identifier(name):
+        if arg.params.len().eq(0) {
+            if ctx.current_variadic_params.contains_key(name) {
+                result = result.concat("(*").concat(til_name(name)).concat(")")
+                return result
+            }
+        }
+    case:
+    }
+
+    result = emit_expr(arg, result, 0, ctx, context)
+
+    catch (err: KeyNotFoundError) { throw err.msg }
+
+    return result
+}
+
+/// Emit an FCall expression using pre-hoisted temp vars for arguments
+emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    mut result := output
+    if expr.params.len().eq(0) {
+        throw "emit_fcall_with_hoisted: FCall with no params"
+    }
+
+    // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
+    mut first := Expr()
+    expr.params.get(0, first)
+    mut func_name_result := get_func_name_string(first)
+    if not(func_name_result.found) {
+        throw "emit_fcall_with_hoisted: FCall first param not Identifier"
+    }
+    mut func_name := func_name_result.name
+
+    // Check for struct construction: TypeName() -> (til_TypeName){}
+    // Struct names are PascalCase, no nested identifiers, no args
+    mut first_char := func_name.char_at(0)
+    // 65 = 'A', 90 = 'Z'
+    mut char_A : U8 = 65
+    mut char_Z : U8 = 90
+    if not(U8.lt(first_char, char_A)).and(not(U8.gt(first_char, char_Z))) {
+        // Uppercase letter
+        if not(func_name.contains("_")) {
+            // Not a Type_method call
+            if expr.params.len().eq(1) {
+                // No constructor args
+                result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
+                return result
+            }
+        }
+    }
+
+    // Function call: til_func_name(args...)
+    // func_name already has underscores (from get_func_name_string), just add prefix
+    result = result.concat(TIL_PREFIX).concat(func_name).concat("(")
+
+    // Look up param types for mut handling
+    // Convert underscore back to dot for lookup (e.g., "I64_inc" -> "I64.inc")
+    mut lookup_name := func_name.replacen("_", ".", 1)
+    mut func_lookup := lookup_func_by_name(context, lookup_name)
+
+    mut i := 0
+    mut params_len := expr.params.len()
+    while lt(i, sub(params_len, 1)) {
+        if gt(i, 0) {
+            result = result.concat(", ")
+        }
+        mut arg := Expr()
+        expr.params.get(add(i, 1), arg)
+
+        // Check if arg is a type identifier - emit as string literal
+        mut type_arg_result := get_type_arg_name(arg, context)
+        if type_arg_result.found {
+            result = result.concat("\"").concat(type_arg_result.type_name).concat("\"")
+        } else if func_lookup.found {
+            mut param_type := ValueType.TCustom("")  // Empty TCustom represents None
+            mut has_param_type := false
+            mut is_mut := false
+            if lt(i, func_lookup.func_def.args.len()) {
+                mut arg_def := Declaration()
+                func_lookup.func_def.args.get(i, arg_def)
+                param_type = arg_def.value_type
+                has_param_type = true
+                is_mut = arg_def.is_mut
+            }
+            result = emit_arg_with_param_type(arg, i, hoisted, param_type, has_param_type, is_mut, result, ctx, context)
+        } else {
+            result = emit_arg_or_hoisted(arg, i, hoisted, result, ctx, context)
+        }
+        i = add(i, 1)
+    }
+    result = result.concat(")")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    return result
 }
 
 emit_if := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
@@ -5441,6 +5625,21 @@ extract_type_method_and_depth := func(first_param: Expr) returns TypeMethodResul
         }
     case:
     }
+    return result
+}
+
+/// Create a clone of an expression with the deepest nested identifier removed.
+/// For `self._len.eq`, returns `self._len` (with eq removed from the chain).
+clone_without_deepest_method := func(expr: Expr, depth: I64) returns Expr {
+    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
+    // To remove the method (last param), we just pop the last element from params
+    mut result := expr.clone()
+    if gt(depth, 0).and(gt(result.params.len(), 0)) {
+        mut discarded := Expr()
+        result.params.pop(discarded)  // Remove the last (method) identifier
+    }
+
+    catch (err: IndexOutOfBoundsError) { }
     return result
 }
 

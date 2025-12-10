@@ -276,6 +276,53 @@ Str := struct {
         return result
     }
 
+    /** Get byte value at index */
+    char_at := func(self: Str, index: I64) returns U8 {
+        if index.lt(0) {
+            mut zero: U8 = 0
+            return zero
+        }
+        if index.gteq(self.len()) {
+            mut zero: U8 = 0
+            return zero
+        }
+        mut byte_val: U8 = 0
+        memcpy(to_ptr(byte_val), add(self.c_string, index), 1)
+        return byte_val
+    }
+
+    /** Replace first n occurrences of 'from' with 'to' */
+    replacen := func(self: Str, from: Str, to: Str, n: I64) returns Str throws AllocError {
+        if from.len().eq(0) {
+            return self.clone()
+        }
+        if n.eq(0) {
+            return self.clone()
+        }
+
+        // Find first occurrence
+        mut idx := self.find(from)
+        if idx.lt(0) {
+            return self.clone()
+        }
+
+        // Build result: prefix + to + suffix
+        mut prefix := self.get_substr(0, idx)
+        mut suffix := self.get_substr(idx.add(from.len()), self.len())
+
+        mut result := prefix.concat(to).concat(suffix)
+
+        if n.gt(1) {
+            // Recursively replace remaining
+            mut rest := suffix.replacen(from, to, n.sub(1))
+            result = prefix.concat(to).concat(rest)
+        }
+
+        catch (err: IndexOutOfBoundsError) { result = self.clone() }
+
+        return result
+    }
+
     split := func(self: Str, delimiter: Str) returns Vec throws AllocError, IndexOutOfBoundsError {
         # Split string by delimiter, return Vec of Str
         mut parts := Vec.new(Str)

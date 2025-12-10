@@ -73,7 +73,6 @@ fn til_func_name(name: &str) -> String {
 // - Identifier("I64.inc") with params = [] -> "I64_inc" (from precomp)
 // - Identifier("Vec") with params = [Identifier("new")] -> "Vec_new" (from parser)
 // Returns the C-ready name with underscores (not dots)
-#[allow(dead_code)] // TODO: remove once used in emit_fcall simplification
 fn get_func_name_string(first_param: &Expr) -> Option<String> {
     if let NodeType::Identifier(name) = &first_param.node_type {
         if first_param.params.is_empty() {
@@ -3371,125 +3370,59 @@ fn emit_fcall_with_hoisted(
         return Err("emit_fcall_with_hoisted: FCall with no params".to_string());
     }
 
-    // Determine function name and type receiver (for type-qualified calls like I64.to_str)
-    let (func_name, type_receiver, type_depth) = match &expr.params[0].node_type {
-        NodeType::Identifier(name) => {
-            if expr.params[0].params.is_empty() {
-                (name.clone(), None, 0)
-            } else {
-                if let Some((method_name, depth)) = extract_type_method_and_depth(&expr.params[0]) {
-                    (method_name, Some(&expr.params[0]), depth)
-                } else {
-                    return Err("emit_fcall_with_hoisted: type-qualified method name not Identifier".to_string());
-                }
-            }
-        },
-        _ => return Err("emit_fcall_with_hoisted: FCall first param not Identifier".to_string()),
+    // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
+    let func_name = match get_func_name_string(&expr.params[0]) {
+        Some(name) => name,
+        None => return Err("emit_fcall_with_hoisted: FCall first param not Identifier".to_string()),
     };
 
-    // Handle type-qualified method call or struct construction
-    if let Some(receiver) = type_receiver {
-        if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-            // Create receiver expression without method to get its type
-            let receiver_without_method = clone_without_deepest_method(receiver, type_depth);
-
-            // Use get_value_type to resolve the full receiver chain type
-            let receiver_type = get_value_type(context, &receiver_without_method).ok();
-
-            // Determine type name from receiver type
-            let type_name_opt: Option<String> = match &receiver_type {
-                Some(ValueType::TCustom(name)) if name != INFER_TYPE => Some(name.clone()),
-                Some(ValueType::TType(_)) => Some(receiver_name.to_string()),
-                _ => None,
-            };
-
-            if let Some(type_name) = type_name_opt {
-                let mangled_name = format!("{}.{}", type_name, func_name);
-                if context.scope_stack.lookup_func(&mangled_name).is_some() {
-                    // Known struct method: til_Type_method(receiver, args...)
-                    output.push_str(&til_name(&type_name));
-                    output.push_str("_");
-                    output.push_str(&func_name);
-                    output.push_str("(");
-                    // Emit receiver chain as first argument (unless type-qualified)
-                    let is_type_qualified = type_depth == 1 && receiver_name == &type_name;
-                    let mut first_arg = true;
-                    if !is_type_qualified {
-                        // Check if called function's self param is mut and if receiver is a mut/variadic param
-                        let called_self_is_mut = lookup_func_by_name(context, &mangled_name)
-                            .and_then(|fd| fd.args.first())
-                            .map(|a| a.is_mut)
-                            .unwrap_or(false);
-                        let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
-                        let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
-                        let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
-
-                        if called_self_is_mut && !receiver_is_pointer {
-                            // Called function takes mut self, receiver is not a pointer - add &
-                            output.push_str("&");
-                        } else if !called_self_is_mut && receiver_is_pointer && type_depth == 1 {
-                            // Called function takes non-mut self, but receiver is a pointer - dereference
-                            output.push_str("(*");
-                        }
-                        emit_type_method_receiver_chain(receiver, type_depth, output, ctx)?;
-                        // Close dereference if needed
-                        if !called_self_is_mut && receiver_is_pointer && type_depth == 1 {
-                            output.push_str(")");
-                        }
-                        first_arg = false;
-                    }
-                    // Look up param types for Type/Dynamic handling
-                    // For type-qualified call with receiver, args[0] is self, user args start at args[1]
-                    let arg_offset = if is_type_qualified { 0 } else { 1 };
-                    let param_types: Vec<Option<ValueType>> = {
-                        let func_def = lookup_func_by_name(context, &mangled_name);
-                        expr.params.iter().skip(1).enumerate()
-                            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.value_type.clone()))
-                            .collect()
-                    };
-                    let param_is_mut: Vec<bool> = {
-                        let func_def = lookup_func_by_name(context, &mangled_name);
-                        expr.params.iter().skip(1).enumerate()
-                            .map(|(i, _)| func_def.and_then(|fd| fd.args.get(i + arg_offset)).map(|a| a.is_mut).unwrap_or(false))
-                            .collect()
-                    };
-                    for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                        if !first_arg {
-                            output.push_str(", ");
-                        }
-                        first_arg = false;
-                        let param_type = param_types.get(i).and_then(|p| p.as_ref());
-                        let is_mut = param_is_mut.get(i).copied().unwrap_or(false);
-                        emit_arg_with_param_type(arg, i, hoisted, param_type, is_mut, output, ctx, context)?;
-                    }
-                    output.push_str(")");
-                    return Ok(());
-                }
-            }
-            // Fall through to regular function call handling below
-        }
-    }
-
     // Check for struct construction: TypeName() -> (til_TypeName){}
-    // TODO: Use proper type info from AST instead of uppercase hack (see interpreter.rs)
+    // Struct names are PascalCase, no nested identifiers, no args
     if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
-        && expr.params[0].params.is_empty()
-        && expr.params.len() == 1
+        && !func_name.contains('_')  // Not a Type_method call
+        && expr.params.len() == 1    // No constructor args
     {
         output.push_str("(");
-        output.push_str(&til_func_name(&func_name));
+        output.push_str(TIL_PREFIX);
+        output.push_str(&func_name);
         output.push_str("){}");
         return Ok(());
     }
 
-    // Regular function call
+    // Function call: til_func_name(args...)
+    // func_name already has underscores (from get_func_name_string), just add prefix
+    output.push_str(TIL_PREFIX);
     output.push_str(&func_name);
     output.push_str("(");
+
+    // Look up param types for mut handling
+    let param_info: Vec<(Option<ValueType>, bool)> = {
+        // Convert underscore back to dot for lookup (e.g., "I64_inc" -> "I64.inc")
+        let lookup_name = func_name.replacen('_', ".", 1);
+        if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+            fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+        } else {
+            Vec::new()
+        }
+    };
+
     for (i, arg) in expr.params.iter().skip(1).enumerate() {
         if i > 0 {
             output.push_str(", ");
         }
-        emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
+        // Check if arg is a type identifier - emit as string literal
+        if let Some(type_name) = get_type_arg_name(arg, context) {
+            output.push_str("\"");
+            output.push_str(&type_name);
+            output.push_str("\"");
+        } else if !param_info.is_empty() {
+            let (param_type, is_mut) = param_info.get(i)
+                .map(|(t, m)| (t.as_ref(), *m))
+                .unwrap_or((None, false));
+            emit_arg_with_param_type(arg, i, hoisted, param_type, is_mut, output, ctx, context)?;
+        } else {
+            emit_arg_or_hoisted(arg, i, hoisted, output, ctx, context)?;
+        }
     }
     output.push_str(")");
     Ok(())
@@ -4162,35 +4095,6 @@ fn extract_type_method_and_depth(first_param: &Expr) -> Option<(String, usize)> 
         }
     }
     None
-}
-
-/// Emit the receiver part of a type-qualified call (everything except the last method name).
-/// For `self._len.eq(...)`, emits `til_self->_len` (using -> if self is mut param).
-fn emit_type_method_receiver_chain(first_param: &Expr, depth: usize, output: &mut String, ctx: &CodegenContext) -> Result<(), String> {
-    // AST structure is FLAT: a.b.c is Identifier("a") { params: [Identifier("b"), Identifier("c")] }
-    // We need to emit "a.b" (all except the last which is the method)
-    if let NodeType::Identifier(name) = &first_param.node_type {
-        output.push_str(&til_name(name));
-
-        // Check if base identifier is a mut param (use -> for field access)
-        let is_mut_param = ctx.current_mut_params.contains(name);
-
-        // Emit all params except the last one (which is the method)
-        for i in 0..(depth - 1) {
-            if let NodeType::Identifier(field_name) = &first_param.params[i].node_type {
-                // Use -> for first field access if base is mut param, . for rest
-                if i == 0 && is_mut_param {
-                    output.push_str("->");
-                } else {
-                    output.push_str(".");
-                }
-                output.push_str(field_name);
-            }
-        }
-        Ok(())
-    } else {
-        Err("ccodegen: expected identifier for type-qualified receiver".to_string())
-    }
 }
 
 /// Create a clone of an expression with the deepest nested identifier removed.

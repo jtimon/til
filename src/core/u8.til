@@ -30,6 +30,14 @@ U8 := struct {
         return U8.to_i64(self).eq(U8.to_i64(other))
     }
 
+    lt := func(self: U8, other: U8) returns Bool {
+        return U8.to_i64(self).lt(U8.to_i64(other))
+    }
+
+    gt := func(self: U8, other: U8) returns Bool {
+        return U8.to_i64(self).gt(U8.to_i64(other))
+    }
+
     to_i64 := func(self: U8) returns I64 {
         // return cast("I64", self) // TODO implement cast, start easy with U8 to I64
         u8_to_i64 := ext_func(u8: U8) returns I64;
