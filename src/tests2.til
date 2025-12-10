@@ -200,6 +200,11 @@ main := proc(args: ..Str) {
     rs_interpret.push("src/test/variadic.til")
     rs_interpret.push("src/test/vecs.til")
 
+    // Self-hosting interpreter tests
+    // run the self hosting libs just to see they pass typer checks
+    rs_interpret.push("src/self/interpreter.til")
+    rs_interpret.push("src/tests_self_hosted.til")
+
     // Parse args
     if args.len().eq(0) {
         // Default: run tests

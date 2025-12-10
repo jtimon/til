@@ -33,17 +33,6 @@ runfile("src/test/modes.til")
 // The closest to a std lib this language has
 // runfile("src/core.til") // you can't run it because it is already imported everywhere
 
-// Self-hosting interpreter tests
-// run the self hosting libs just to see they pass typer checks
-runfile("src/self/lexer.til")
-runfile("src/self/parser.til")
-runfile("src/self/init.til")
-runfile("src/self/typer.til")
-runfile("src/self/arena.til")
-runfile("src/self/interpreter.til")
-
-runfile("src/tests_self_hosted.til")
-
 // runfile("src/test/builders.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
 
 runfile("src/test/todo.til") // permanent TODO
