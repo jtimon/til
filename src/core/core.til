@@ -1,13 +1,13 @@
 mode lib
 
-// Low-level print primitives (before str.til so panic can use them)
+// Low-level print primitives
 single_print := ext_proc(s: Str);
 print_flush  := ext_proc();
 
 import("core.array")
-import("core.assert")
 import("core.bool")
-import("core.ext")
+import("core.comptime")
+import("core.exit")
 import("core.i64")
 import("core.str")
 import("core.u8")
@@ -41,23 +41,5 @@ println := proc(args: ..Str) {
 
     catch(err: IndexOutOfBoundsError) {
         panic(loc(), "println: IndexOutOfBoundsError should never happen")
-    }
-}
-
-panic := proc(loc_str: Str, msgs: ..Str) {
-    single_print(loc_str)
-    for i in 0..msgs.len() {
-        mut val := ""
-        msgs.get(i, val)
-        single_print(val)
-    }
-    single_print("\n")
-    print_flush()
-    exit(1)
-
-    catch(err: IndexOutOfBoundsError) {
-        single_print("panic: IndexOutOfBoundsError should never happen\n")
-        print_flush()
-        exit(1)
     }
 }
