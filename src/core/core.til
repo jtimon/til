@@ -7,29 +7,13 @@ print_flush  := ext_proc();
 import("core.array")
 import("core.assert")
 import("core.bool")
+import("core.ext")
 import("core.i64")
 import("core.str")
 import("core.u8")
 
 Dynamic := struct {} // For dynamic arguments not checked at type checking phase
 Type := struct {} // For type name parameters (like Vec.new(T: Type))
-
-loc := ext_func() returns Str; // Returns the current source location as "<file>:<line>:<col>:" TODO: rename to _loc for consistency
-
-// Individual location components for flexible error formatting
-_file := ext_func() returns Str; // Returns current file path
-_line := ext_func() returns I64; // Returns current line number
-_col  := ext_func() returns I64; // Returns current column number
-
-exit := ext_func(code: I64);
-
-// Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
-// Example: import("std.io") resolves to src/std/io.til (Unix) or src\std\io.til (Windows)
-// TODO use imports in declarations:
-// example_cil: my_matrix_def := import(matrix.matrix_def)
-// example_cil: my_matrix : struct = import(matrix)
-// example_python: from matrix import matrix_def as my_matrix_def
-import := ext_proc(path: Str);
 
 // ---------- Printing
 
