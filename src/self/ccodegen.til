@@ -929,30 +929,15 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                             is_func = false
                         }
                         if not(is_func) {
-                            result = result.concat("const ")
-                            result = result.concat(til_type_to_c(member.value_type))
-                            result = result.concat(" ")
-                            result = result.concat(struct_name)
-                            result = result.concat("_")
-                            result = result.concat(member.name)
-                            result = result.concat(" = ")
-                            result = emit_expr(default_val, result, 0, ctx, context)
-                            result = result.concat(";\n")
+                            result = result.concat("const ").concat(til_type_to_c(member.value_type)).concat(" ").concat(struct_name).concat("_").concat(member.name).concat(" = ")
+                            result = emit_expr(default_val, result, 0, ctx, context).concat(";\n")
                         }
                         catch (err: KeyNotFoundError) { /* member has no default value, skip */ }
                     }
                     i = add(i, 1)
                 }
                 // Emit size_of constant for this struct
-                result = result.concat("const ")
-                result = result.concat(TIL_PREFIX)
-                result = result.concat("I64 ")
-                result = result.concat(TIL_PREFIX)
-                result = result.concat("size_of_")
-                result = result.concat(decl.name)
-                result = result.concat(" = sizeof(")
-                result = result.concat(struct_name)
-                result = result.concat(");\n")
+                result = result.concat("const ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of_").concat(decl.name).concat(" = sizeof(").concat(struct_name).concat(");\n")
                 // Track this type for til_size_of function generation
                 ctx.known_types.push(decl.name)
                 return result
@@ -1005,33 +990,18 @@ emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenCont
 // Emit til_size_of function for runtime type size lookup
 emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str throws Str {
     mut result := output
-    result = result.concat("\n")
-    result = result.concat("static inline ")
-    result = result.concat(TIL_PREFIX)
-    result = result.concat("I64 ")
-    result = result.concat(TIL_PREFIX)
-    result = result.concat("size_of(")
-    result = result.concat(TIL_PREFIX)
-    result = result.concat("Str type_name) {\n")
+    result = result.concat("\nstatic inline ").concat(TIL_PREFIX).concat("I64 ").concat(TIL_PREFIX).concat("size_of(").concat(TIL_PREFIX).concat("Str type_name) {\n")
 
     // All known types from structs and enums
     mut i := 0
     while lt(i, ctx.known_types.len()) {
         mut type_name := ""
         ctx.known_types.get(i, type_name)
-        result = result.concat("    if (strcmp((char*)type_name.c_string, \"")
-        result = result.concat(type_name)
-        result = result.concat("\") == 0) return ")
-        result = result.concat(TIL_PREFIX)
-        result = result.concat("size_of_")
-        result = result.concat(type_name)
-        result = result.concat(";\n")
+        result = result.concat("    if (strcmp((char*)type_name.c_string, \"").concat(type_name).concat("\") == 0) return ").concat(TIL_PREFIX).concat("size_of_").concat(type_name).concat(";\n")
         i = add(i, 1)
     }
 
-    result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n")
-    result = result.concat("    exit(1);\n")
-    result = result.concat("}\n")
+    result = result.concat("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n").concat("    exit(1);\n}\n")
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
@@ -1085,18 +1055,10 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         mut variant_name := ""
         variants.get(i, variant_name)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
-        result = result.concat("    ")
-        result = result.concat(enum_name)
-        result = result.concat("_")
-        result = result.concat(variant_name)
-        result = result.concat(" = ")
-        result = result.concat(i.to_str())
-        result = result.concat(",\n")
+        result = result.concat("    ").concat(enum_name).concat("_").concat(variant_name).concat(" = ").concat(i.to_str()).concat(",\n")
         i = add(i, 1)
     }
-    result = result.concat("} ")
-    result = result.concat(enum_name)
-    result = result.concat("_Tag;\n\n")
+    result = result.concat("} ").concat(enum_name).concat("_Tag;\n\n")
 
     // 2. Emit payload union (only for variants that have payloads)
     // typedef union { unsigned char Green; long long Number; } Color_Payload;
@@ -1126,32 +1088,19 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
             enum_def.enum_map.get(variant_name, payload_type)
             catch (err: KeyNotFoundError) { /* no payload */ }
             if variant_has_payload(payload_type) {
-                result = result.concat("    ")
-                result = result.concat(til_type_to_c(payload_type))
-                result = result.concat(" ")
-                result = result.concat(variant_name)
-                result = result.concat(";\n")
+                result = result.concat("    ").concat(til_type_to_c(payload_type)).concat(" ").concat(variant_name).concat(";\n")
             }
             i = add(i, 1)
         }
-        result = result.concat("} ")
-        result = result.concat(enum_name)
-        result = result.concat("_Payload;\n\n")
+        result = result.concat("} ").concat(enum_name).concat("_Payload;\n\n")
     }
 
     // 3. Emit wrapper struct: typedef struct { Color_Tag tag; Color_Payload payload; } Color;
-    result = result.concat("typedef struct {\n")
-    result = result.concat("    ")
-    result = result.concat(enum_name)
-    result = result.concat("_Tag tag;\n")
+    result = result.concat("typedef struct {\n    ").concat(enum_name).concat("_Tag tag;\n")
     if has_any_payload {
-        result = result.concat("    ")
-        result = result.concat(enum_name)
-        result = result.concat("_Payload payload;\n")
+        result = result.concat("    ").concat(enum_name).concat("_Payload payload;\n")
     }
-    result = result.concat("} ")
-    result = result.concat(enum_name)
-    result = result.concat(";\n\n")
+    result = result.concat("} ").concat(enum_name).concat(";\n\n")
 
     // 4. Emit constructor functions for ALL variants (including no-payload ones)
     // This ensures consistent calling convention: Color_make_Red(42), Color_make_Unknown()
@@ -1164,40 +1113,24 @@ emit_enum_with_payloads := proc(enum_name: Str, enum_def: SEnumDef, output: Str)
         enum_def.enum_map.get(variant_name, payload_type)
         catch (err: KeyNotFoundError) { /* no payload */ }
 
-        result = result.concat("static inline ")
-        result = result.concat(enum_name)
-        result = result.concat(" ")
-        result = result.concat(enum_name)
-        result = result.concat("_make_")
-        result = result.concat(variant_name)
-        result = result.concat("(")
+        result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(variant_name).concat("(")
 
         // Parameter for payload (if any)
         if variant_has_payload(payload_type) {
-            result = result.concat(til_type_to_c(payload_type))
-            result = result.concat(" value) {\n")
+            result = result.concat(til_type_to_c(payload_type)).concat(" value) {\n")
         } else {
             result = result.concat("void) {\n")
         }
 
         // Constructor body
-        result = result.concat("    ")
-        result = result.concat(enum_name)
-        result = result.concat(" result = { .tag = ")
-        result = result.concat(enum_name)
-        result = result.concat("_")
-        result = result.concat(variant_name)
-        result = result.concat(" };\n")
+        result = result.concat("    ").concat(enum_name).concat(" result = { .tag = ").concat(enum_name).concat("_").concat(variant_name).concat(" };\n")
 
         // Set payload if present
         if variant_has_payload(payload_type) {
-            result = result.concat("    result.payload.")
-            result = result.concat(variant_name)
-            result = result.concat(" = value;\n")
+            result = result.concat("    result.payload.").concat(variant_name).concat(" = value;\n")
         }
 
-        result = result.concat("    return result;\n")
-        result = result.concat("}\n\n")
+        result = result.concat("    return result;\n}\n\n")
 
         i = add(i, 1)
     }
@@ -1235,19 +1168,11 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                     mut variant_name := ""
                     variants.get(i, variant_name)
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = result.concat("    ")
-                    result = result.concat(enum_name)
-                    result = result.concat("_")
-                    result = result.concat(variant_name)
-                    result = result.concat(" = ")
-                    result = result.concat(i.to_str())
-                    result = result.concat(",\n")
+                    result = result.concat("    ").concat(enum_name).concat("_").concat(variant_name).concat(" = ").concat(i.to_str()).concat(",\n")
                     i = add(i, 1)
                 }
 
-                result = result.concat("} ")
-                result = result.concat(enum_name)
-                result = result.concat(";\n\n")
+                result = result.concat("} ").concat(enum_name).concat(";\n\n")
 
                 // Generate constructor functions for consistency with payload enums
                 // static inline EnumName EnumName_make_Variant(void) { return EnumName_Variant; }
@@ -1256,17 +1181,7 @@ emit_enum_declaration := proc(expr: Expr, output: Str) returns Str throws Str {
                     mut variant_name := ""
                     variants.get(i, variant_name)
                     catch (err: IndexOutOfBoundsError) { throw err.msg }
-                    result = result.concat("static inline ")
-                    result = result.concat(enum_name)
-                    result = result.concat(" ")
-                    result = result.concat(enum_name)
-                    result = result.concat("_make_")
-                    result = result.concat(variant_name)
-                    result = result.concat("(void) { return ")
-                    result = result.concat(enum_name)
-                    result = result.concat("_")
-                    result = result.concat(variant_name)
-                    result = result.concat("; }\n")
+                    result = result.concat("static inline ").concat(enum_name).concat(" ").concat(enum_name).concat("_make_").concat(variant_name).concat("(void) { return ").concat(enum_name).concat("_").concat(variant_name).concat("; }\n")
                     i = add(i, 1)
                 }
                 result = result.concat("\n")
@@ -1308,8 +1223,7 @@ emit_struct_func_prototypes := proc(expr: Expr, output: Str, ctx: CodegenContext
                             // do nothing
                         } else {
                             // Use emit_func_signature with mangled name
-                            mut mangled_name := concat(struct_name, "_")
-                            mangled_name = mangled_name.concat(member.name)
+                            mut mangled_name := struct_name.concat("_").concat(member.name)
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
                             result = result.concat(";\n")
                         }
@@ -1386,8 +1300,7 @@ emit_struct_func_bodies := proc(expr: Expr, output: Str, mut ctx: CodegenContext
                             catch (err: AllocError) { throw err.msg }
 
                             // Use emit_func_signature with mangled name
-                            mut mangled_name := concat(struct_name, "_")
-                            mangled_name = mangled_name.concat(member.name)
+                            mut mangled_name := struct_name.concat("_").concat(member.name)
                             result = emit_func_signature(mangled_name, func_def, result, ctx)
                             result = result.concat(" {\n")
 
@@ -1433,9 +1346,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     mut ctx := CodegenContext()
 
     // C boilerplate
-    output = output.concat("#include <stdio.h>\n")
-    output = output.concat("#include <stdlib.h>\n")
-    output = output.concat("#include <string.h>\n\n")
+    output = output.concat("#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n")
     output = format(output, "typedef unsigned char ", TIL_PREFIX, "U8;\n")
     output = format(output, "typedef long long ", TIL_PREFIX, "I64;\n")
     output = format(output, "typedef struct ", TIL_PREFIX, "Bool { ", TIL_PREFIX, "U8 data; } ", TIL_PREFIX, "Bool;\n")
@@ -1479,11 +1390,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
                     else if decl.name.eq("Dynamic") { }
                     else if decl.name.eq("Type") { }
                     else {
-                        output = output.concat("typedef struct ")
-                        output = output.concat(decl.name)
-                        output = output.concat(" ")
-                        output = output.concat(decl.name)
-                        output = output.concat(";\n")
+                        output = output.concat("typedef struct ").concat(decl.name).concat(" ").concat(decl.name).concat(";\n")
                     }
                 case:
                 }
@@ -1741,8 +1648,7 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         output = emit_expr(ast, output, 1, ctx, context)
     }
 
-    output = output.concat("    return 0;\n")
-    output = output.concat("}\n")
+    output = output.concat("    return 0;\n}\n")
 
     catch (err: I64_OverflowError) { throw err.msg }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
