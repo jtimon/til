@@ -51,10 +51,9 @@ fn is_comptime_evaluable(context: &Context, e: &Expr) -> bool {
         NodeType::LLiteral(_) => true,
         NodeType::FCall => {
             let f_name = get_func_name_in_call(e);
-            // Special case: these ext_funcs depend on runtime source location
-            match f_name.as_str() {
-                "loc" | "_file" | "_line" | "_col" | "exit" => return false,
-                _ => {}
+            // Special case: exit terminates the program
+            if f_name == "exit" {
+                return false;
             }
             let func_def = match context.scope_stack.lookup_func(&f_name) {
                 Some(f) => f,
