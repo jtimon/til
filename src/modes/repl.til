@@ -2,8 +2,8 @@
 // Suggestion: run 'make repl' from another terminal insted
 mode script
 
-import("std.std")
 import("std.io")            // input_read_line
+import("std.meta")          // eval_to_str
 
 __LANG_NAME := "til(interactive)"
 
