@@ -576,22 +576,35 @@ fn hoist_for_dynamic_params(
             continue;
         }
 
-        // Determine the C type of the arg - for string literals it's til_Str
+        // Determine the C type of the arg based on what it is
         let c_type = match &arg.node_type {
             NodeType::LLiteral(Literal::Str(_)) => format!("{}Str", TIL_PREFIX),
-            _ => {
+            NodeType::LLiteral(Literal::Number(_)) => "int64_t".to_string(),
+            NodeType::LLiteral(Literal::List(_)) => "int64_t".to_string(), // TODO: proper list type
+            NodeType::FCall => {
                 // For function calls, try to determine return type
                 if let Some((_func_name, _throw_types, return_type)) = check_throwing_fcall(arg, ctx, context) {
                     if let Some(ret) = return_type {
-                        til_type_to_c(&ret).unwrap_or_else(|| format!("{}Str", TIL_PREFIX))
+                        til_type_to_c(&ret).unwrap_or_else(|| "int64_t".to_string())
                     } else {
-                        format!("{}Str", TIL_PREFIX)
+                        "int64_t".to_string()
+                    }
+                } else if let Some(func_name) = get_fcall_func_name(arg) {
+                    // Non-throwing function call - look up return type
+                    if let Some(fd) = lookup_func_by_name(context, &func_name) {
+                        if let Some(ret_type) = fd.return_types.first() {
+                            til_type_to_c(ret_type).unwrap_or_else(|| "int64_t".to_string())
+                        } else {
+                            "int64_t".to_string()
+                        }
+                    } else {
+                        "int64_t".to_string()
                     }
                 } else {
-                    // Non-throwing function call or other expression - assume Str for string literals context
-                    format!("{}Str", TIL_PREFIX)
+                    "int64_t".to_string()
                 }
             }
+            _ => "int64_t".to_string(),  // Default to int64_t for unknown types
         };
 
         let temp_var = next_mangled();

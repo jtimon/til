@@ -4740,17 +4740,42 @@ hoist_for_dynamic_params := proc(args: Vec, param_types: Vec, already_hoisted: V
                 }
 
                 if needs_hoisting {
-                    // Determine C type - for string literals it's til_Str
-                    mut c_type := concat(TIL_PREFIX, "Str")
+                    // Determine C type based on what the arg is
+                    mut c_type := "int64_t"
                     switch arg.node_type {
                     case NodeType.LLiteral(lit):
-                        c_type = concat(TIL_PREFIX, "Str")
-                    case:
+                        switch lit {
+                        case Literal.Str(s):
+                            c_type = concat(TIL_PREFIX, "Str")
+                        case Literal.Number(n):
+                            c_type = "int64_t"
+                        case Literal.List(l):
+                            c_type = "int64_t"  // TODO: proper list type
+                        }
+                    case NodeType.FCall:
                         // For function calls, try to determine return type
                         mut info := check_throwing_fcall(arg, ctx, context)
-                        if info.has_return_type {
-                            c_type = til_type_to_c(info.return_type)
+                        if info.is_throwing {
+                            if info.has_return_type {
+                                c_type = til_type_to_c(info.return_type)
+                            }
+                        } else {
+                            // Non-throwing function call - look up return type
+                            mut func_name := get_fcall_func_name(arg)
+                            if gt(func_name.len(), 0) {
+                                mut fd_result := lookup_func_by_name(context, func_name)
+                                if fd_result.found {
+                                    if gt(fd_result.func_def.return_types.len(), 0) {
+                                        mut ret_type := ValueType.TCustom("")
+                                        fd_result.func_def.return_types.get(0, ret_type)
+                                        c_type = til_type_to_c(ret_type)
+                                        catch (err: IndexOutOfBoundsError) { }
+                                    }
+                                }
+                            }
                         }
+                    case:
+                        c_type = "int64_t"  // Default to int64_t for unknown types
                     }
 
                     mut temp_var := next_mangled()
