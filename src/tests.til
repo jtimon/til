@@ -45,7 +45,7 @@ parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws
     }
 }
 
-run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
+run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     mut errors_found := false
     for i in 0..rs_common.len() {
         mut path := ""
@@ -61,9 +61,9 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
             errors_found = true
         }
     }
-    for i in 0..rs_interpret.len() {
+    for i in 0..rs_interpreted.len() {
         mut path := ""
-        rs_interpret.get(i, path)
+        rs_interpreted.get(i, path)
         if test_rs_interpreted(path) {
             errors_found = true
         }
@@ -76,7 +76,7 @@ run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
     }
 }
 
-regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
+regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpreted: Vec) {
     if files.len().eq(0) {
         // regen all
         for i in 0..rs_common.len() {
@@ -89,9 +89,9 @@ regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
             rs_compiled.get(i, path)
             regen_test(path)
         }
-        for i in 0..rs_interpret.len() {
+        for i in 0..rs_interpreted.len() {
             mut path := ""
-            rs_interpret.get(i, path)
+            rs_interpreted.get(i, path)
             regen_test(path)
         }
     } else {
@@ -253,79 +253,79 @@ main := proc(args: ..Str) {
     // - enum constructors called as functions instead of struct init
     // rs_compiled.push("src/test/switch_simple.til")
 
-    mut rs_interpret := Vec.new(Str)
+    mut rs_interpreted := Vec.new(Str)
 
     // hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
-    rs_interpret.push("src/examples/hello_pure.til")
-    // rs_interpret.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
+    rs_interpreted.push("src/examples/hello_pure.til")
+    // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
 
-    rs_interpret.push("src/test/args.til")
-    rs_interpret.push("src/test/arithmetics.til")
-    rs_interpret.push("src/test/arrays.til")
-    rs_interpret.push("src/test/boolean.til")
-    rs_interpret.push("src/test/branchless.til")
-    rs_interpret.push("src/test/c_mem.til")
-    rs_interpret.push("src/test/editor_mode_test.til")
-    rs_interpret.push("src/test/enums.til")
-    rs_interpret.push("src/test/exit.til")
-    rs_interpret.push("src/test/errors.til")
-    rs_interpret.push("src/test/fibonacci.til") // recursive examples
-    rs_interpret.push("src/test/flow.til") // control flow, execution path examples
-    rs_interpret.push("src/test/forward_declarations.til")
-    rs_interpret.push("src/test/func_purity.til")
-    rs_interpret.push("src/test/function_pointers.til")
-    rs_interpret.push("src/test/intro.til")
-    rs_interpret.push("src/test/lists.til")
-    rs_interpret.push("src/test/maps.til")
-    rs_interpret.push("src/test/mut_test.til")
-    rs_interpret.push("src/test/namespaces.til")
-    rs_interpret.push("src/test/pointers.til")
-    rs_interpret.push("src/test/run_cmd.til")
-    rs_interpret.push("src/test/scope_isolation.til") // scope isolation tests
-    rs_interpret.push("src/test/sets.til")
-    rs_interpret.push("src/test/strings.til")
-    rs_interpret.push("src/test/structs.til")
-    rs_interpret.push("src/test/temp.til")
-    rs_interpret.push("src/test/test_lexer.til")
-    rs_interpret.push("src/test/test_parser.til")
-    rs_interpret.push("src/test/u8.til")
-    rs_interpret.push("src/test/ufcs.til")
-    // rs_interpret.push("src/test/undefined.til") // REM Should produce compile-time errors for undefined types
-    rs_interpret.push("src/test/variadic.til")
-    // rs_interpret.push("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpret.push("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpret.push("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpret.push("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
-    // rs_interpret.push("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
-    rs_interpret.push("src/test/vecs.til")
+    rs_interpreted.push("src/test/args.til")
+    rs_interpreted.push("src/test/arithmetics.til")
+    rs_interpreted.push("src/test/arrays.til")
+    rs_interpreted.push("src/test/boolean.til")
+    rs_interpreted.push("src/test/branchless.til")
+    rs_interpreted.push("src/test/c_mem.til")
+    rs_interpreted.push("src/test/editor_mode_test.til")
+    rs_interpreted.push("src/test/enums.til")
+    rs_interpreted.push("src/test/exit.til")
+    rs_interpreted.push("src/test/errors.til")
+    rs_interpreted.push("src/test/fibonacci.til") // recursive examples
+    rs_interpreted.push("src/test/flow.til") // control flow, execution path examples
+    rs_interpreted.push("src/test/forward_declarations.til")
+    rs_interpreted.push("src/test/func_purity.til")
+    rs_interpreted.push("src/test/function_pointers.til")
+    rs_interpreted.push("src/test/intro.til")
+    rs_interpreted.push("src/test/lists.til")
+    rs_interpreted.push("src/test/maps.til")
+    rs_interpreted.push("src/test/mut_test.til")
+    rs_interpreted.push("src/test/namespaces.til")
+    rs_interpreted.push("src/test/pointers.til")
+    rs_interpreted.push("src/test/run_cmd.til")
+    rs_interpreted.push("src/test/scope_isolation.til") // scope isolation tests
+    rs_interpreted.push("src/test/sets.til")
+    rs_interpreted.push("src/test/strings.til")
+    rs_interpreted.push("src/test/structs.til")
+    rs_interpreted.push("src/test/temp.til")
+    rs_interpreted.push("src/test/test_lexer.til")
+    rs_interpreted.push("src/test/test_parser.til")
+    rs_interpreted.push("src/test/u8.til")
+    rs_interpreted.push("src/test/ufcs.til")
+    // rs_interpreted.push("src/test/undefined.til") // REM Should produce compile-time errors for undefined types
+    rs_interpreted.push("src/test/variadic.til")
+    // rs_interpreted.push("src/test/clone.til") // TODO Not sure why this one is commented, uncomment
+    // rs_interpreted.push("src/test/cross_file_forward.til") // TODO Not sure why this one is commented, uncomment
+    // rs_interpreted.push("src/test/enums_payload.til") // TODO Not sure why this one is commented, uncomment
+    // rs_interpreted.push("src/test/return_value_usage.til") // TODO Not sure why this one is commented, uncomment
+    // rs_interpreted.push("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
+    rs_interpreted.push("src/test/vecs.til")
 
     // next level:
-    rs_interpret.push("src/test/eval.til")
-    rs_interpret.push("src/test/introspections.til")
-    rs_interpret.push("src/test/modes.til")
-    rs_interpret.push("src/test/todo.til") // permanent TODO, design notes for future features
+    rs_interpreted.push("src/test/eval.til")
+    rs_interpreted.push("src/test/introspections.til")
+    rs_interpreted.push("src/test/modes.til")
+    rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
-    rs_interpret.push("src/self/interpreter.til")
-    rs_interpret.push("src/tests_self_hosted.til")
-    rs_interpret.push("src/test/builders.til")
+    rs_interpreted.push("src/self/interpreter.til")
+    rs_interpreted.push("src/tests_self_hosted.til")
+    rs_interpreted.push("src/test/builders.til")
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
     // Input must end with exit(0) to break out of the infinite while loop
-    // rs_interpret.push("src/modes/repl.til")
+    // rs_interpreted.push("src/modes/repl.til")
 
     // Parse args
     if args.len().eq(0) {
         // Default: run tests
-        run_all_tests(rs_common, rs_compiled, rs_interpret)
+        run_all_tests(rs_common, rs_compiled, rs_interpreted)
     } else {
         mut cmd := ""
         args.get(0, cmd)
         switch cmd {
         case "test":
-            run_all_tests(rs_common, rs_compiled, rs_interpret)
+            run_all_tests(rs_common, rs_compiled, rs_interpreted)
         case "regen":
             mut files := Vec.new(Str)
             for i in 1..args.len() {
@@ -333,7 +333,7 @@ main := proc(args: ..Str) {
                 args.get(i, path)
                 files.push(path)
             }
-            regen(files, rs_common, rs_compiled, rs_interpret)
+            regen(files, rs_common, rs_compiled, rs_interpreted)
         case:
             usage()
         }
