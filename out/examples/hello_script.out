@@ -1,0 +1,4 @@
+Building file 'src/examples/hello_script.til'
+Wrote C output to 'src/examples/hello_script.c'
+Compiled executable to 'src/examples/bin/hello_script'
+Hello World!

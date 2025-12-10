@@ -1,37 +1,93 @@
 mode cli
 
 import("std.sys")
+import("std.io")
 import("modes.test")
 
-// tests2.til - New test suite (under development)
-// This will eventually fully replace tests.til
+// tests2.til - TIL test runner
+// Runs compiled tests and compares output against .out files
+
+// Path transform: src/examples/foo.til -> out/examples/foo.out
+get_out_path := func(src_path: Str) returns Str throws AllocError {
+    mut result := src_path.replace("src/", "out/")
+    result = result.replace(".til", ".out")
+    return result
+}
 
 test_rs := proc(path: Str, expected: Str) {
     output := run_cmd("./bin/rstil", "run", path)
     assert_eq_str(loc(), expected, output)
 }
 
-usage := proc() {
-    println("tests2 - TIL test suite")
+run_test := proc(path: Str) {
+    out_path := get_out_path(path)
+    expected := readfile(out_path)
+    test_rs(path, expected)
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
 }
 
-main := proc() {
+regen_test := proc(path: Str) {
+    output := run_cmd("./bin/rstil", "run", path)
+    out_path := get_out_path(path)
+    _ := writefile(out_path, output)
+    println("Regenerated: ", out_path)
+
+    catch (err: AllocError) { panic(loc(), err.msg) }
+}
+
+usage := proc() {
+    println("tests2 - TIL test runner")
+    println("")
+    println("Usage:")
+    println("  tests2              Run all tests (default)")
+    println("  tests2 test         Run all tests")
+    println("  tests2 regen        Regenerate all .out files")
+    println("  tests2 regen <path> Regenerate specific .out file")
+    println("")
+    println("Example:")
+    println("  tests2 regen src/examples/hello_script.til")
+}
+
+main := proc(args: ..Str) {
     mut RS_COMMON := Vec.new(Str)
-    mut RS_COMMON_EXPECTED := Vec.new(Str)
-
     RS_COMMON.push("src/examples/hello_script.til")
-    RS_COMMON_EXPECTED.push("Building file 'src/examples/hello_script.til'
-Wrote C output to 'src/examples/hello_script.c'
-Compiled executable to 'src/examples/bin/hello_script'
-Hello World!
-")
 
-    for i in 0..RS_COMMON.len() {
-        mut path := ""
-        mut expected := ""
-        RS_COMMON.get(i, path)
-        RS_COMMON_EXPECTED.get(i, expected)
-        test_rs(path, expected)
+    // Parse args
+    if args.len().eq(0) {
+        // Default: run tests
+        for i in 0..RS_COMMON.len() {
+            mut path := ""
+            RS_COMMON.get(i, path)
+            run_test(path)
+        }
+    } else {
+        mut cmd := ""
+        args.get(0, cmd)
+        switch cmd {
+        case "test":
+            for i in 0..RS_COMMON.len() {
+                mut path := ""
+                RS_COMMON.get(i, path)
+                run_test(path)
+            }
+        case "regen":
+            if args.len().gt(1) {
+                // regen specific file
+                mut path := ""
+                args.get(1, path)
+                regen_test(path)
+            } else {
+                // regen all
+                for i in 0..RS_COMMON.len() {
+                    mut path := ""
+                    RS_COMMON.get(i, path)
+                    regen_test(path)
+                }
+            }
+        case:
+            usage()
+        }
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
