@@ -36,6 +36,10 @@ CodegenContext := struct {
     mut current_variadic_params: Map = Map.new(Str, Str)
     // All known type names for generating til_size_of function
     mut known_types: Vec = Vec.new(Str)
+    // Map of hoisted expression addresses to their temp variable names
+    // Used to track deeply nested variadic/throwing calls that have been hoisted
+    // Key is "line:col" string, value is temp var name (Str)
+    mut hoisted_exprs: Map = Map.new(Str, Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -2398,6 +2402,16 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
 }
 
 emit_expr := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
+    // Check if this expression has been hoisted (for nested variadic/throwing calls)
+    // Use line:col as unique key
+    mut expr_key := expr.line.to_str().concat(":").concat(expr.col.to_str())
+    if ctx.hoisted_exprs.contains_key(expr_key) {
+        mut temp_var := ""
+        ctx.hoisted_exprs.get(expr_key, temp_var)
+        catch (err: KeyNotFoundError) { /* should not happen since we just checked contains_key */ }
+        return output.concat(temp_var)
+    }
+
     switch expr.node_type {
     case NodeType.Body:
         return emit_body(expr, output, indent, ctx, context)
@@ -4523,6 +4537,10 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
                 output = output.concat(");\n")
             }
 
+            // Record in hoisted_exprs map using line:col as key
+            mut arg_key := arg.line.to_str().concat(":").concat(arg.col.to_str())
+            ctx.hoisted_exprs.set(arg_key, temp_var)
+
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx
             hoisted_arg.temp_var = temp_var
@@ -4627,10 +4645,27 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
             output = output.concat(variadic_arr_var)
             output = output.concat(");\n")
 
+            // Record in hoisted_exprs map using line:col as key
+            mut arg_key := arg.line.to_str().concat(":").concat(arg.col.to_str())
+            ctx.hoisted_exprs.set(arg_key, temp_var)
+
             mut hoisted_arg := HoistedArg()
             hoisted_arg.index = idx
             hoisted_arg.temp_var = temp_var
             hoisted.push(hoisted_arg)
+        }
+        // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
+        // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
+        else {
+            switch arg.node_type {
+            case NodeType.FCall:
+                if gt(arg.params.len(), 1) {
+                    // Recurse to hoist any nested throwing/variadic calls
+                    _ := hoist_throwing_args(arg.params, output, indent, ctx, context)
+                }
+            case:
+                // Not an FCall, nothing to do
+            }
         }
         idx = add(idx, 1)
 

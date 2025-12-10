@@ -29,6 +29,9 @@ struct CodegenContext {
     current_variadic_params: HashMap<String, String>,
     // All known type names for generating til_size_of function
     known_types: Vec<String>,
+    // Map of hoisted expression addresses to their temp variable names
+    // Used to track deeply nested variadic/throwing calls that have been hoisted
+    hoisted_exprs: HashMap<usize, String>,
 }
 
 impl CodegenContext {
@@ -41,9 +44,9 @@ impl CodegenContext {
             current_mut_params: HashSet::new(),
             current_variadic_params: HashMap::new(),
             known_types: Vec::new(),
+            hoisted_exprs: HashMap::new(),
         }
     }
-
 }
 
 // Generate unique mangled name using global counter
@@ -420,6 +423,9 @@ fn hoist_throwing_args(
                 output.push_str(");\n");
             }
 
+            // Record in hoisted_exprs map using expression address
+            let expr_addr = arg as *const Expr as usize;
+            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
             hoisted.push((idx, temp_var));
         }
         // Handle non-throwing variadic calls
@@ -506,7 +512,18 @@ fn hoist_throwing_args(
             output.push_str(&variadic_arr_var);
             output.push_str(");\n");
 
+            // Record in hoisted_exprs map using expression address
+            let expr_addr = arg as *const Expr as usize;
+            ctx.hoisted_exprs.insert(expr_addr, temp_var.clone());
             hoisted.push((idx, temp_var));
+        }
+        // Handle non-throwing, non-variadic FCalls - still need to recurse into their arguments
+        // to find deeply nested variadic/throwing calls (e.g., not(or(false)))
+        else if matches!(arg.node_type, NodeType::FCall) && arg.params.len() > 1 {
+            let nested_args = &arg.params[1..];
+            // Recurse to hoist any nested throwing/variadic calls
+            // The hoisted temps will be emitted before this statement, and emit_expr will use them
+            let _ = hoist_throwing_args(nested_args, output, indent, ctx, context)?;
         }
     }
 
@@ -2013,6 +2030,13 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 }
 
 fn emit_expr(expr: &Expr, output: &mut String, indent: usize, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
+    // Check if this expression has been hoisted (for nested variadic/throwing calls)
+    let expr_addr = expr as *const Expr as usize;
+    if let Some(temp_var) = ctx.hoisted_exprs.get(&expr_addr) {
+        output.push_str(temp_var);
+        return Ok(());
+    }
+
     match &expr.node_type {
         NodeType::Body => emit_body(expr, output, indent, ctx, context),
         NodeType::FCall => emit_fcall(expr, output, indent, ctx, context),

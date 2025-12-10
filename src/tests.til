@@ -238,6 +238,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/examples/hello_script.til")
     rs_common.push("src/examples/hello_test.til")
     rs_common.push("src/test/arithmetics.til")
+    rs_common.push("src/test/boolean.til")
     rs_common.push("src/test/branchless.til")
     rs_common.push("src/test/circular_test.til")
     rs_common.push("src/test/comparisons.til")
@@ -264,7 +265,6 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/examples/hello_pure.til") // TODO hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
     rs_interpreted.push("src/test/args.til")
     rs_interpreted.push("src/test/arrays.til")
-    rs_interpreted.push("src/test/boolean.til")
     rs_interpreted.push("src/test/c_mem.til")
     rs_interpreted.push("src/test/editor_mode_test.til")
     rs_interpreted.push("src/test/enums.til")
