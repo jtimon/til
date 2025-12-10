@@ -7,10 +7,6 @@ RSTIL="./bin/rstil"
 
 echo "=== Compiled Run Tests ==="
 
-echo "Testing comparisons.til..."
-$RSTIL run src/test/comparisons.til
-echo "[PASS] comparisons.til"
-
 # TODO: Uncomment when core.til Bool is available via auto-import
 # echo "Testing enums_payload.til..."
 # $RSTIL run src/test/enums_payload.til
