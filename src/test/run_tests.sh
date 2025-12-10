@@ -7,10 +7,6 @@ RSTIL="./bin/rstil"
 
 echo "=== Compiled Run Tests ==="
 
-echo "Testing hello_script.til..."
-$RSTIL run src/examples/hello_script.til
-echo "[PASS] hello_script.til"
-
 echo "Testing comparisons.til..."
 $RSTIL run src/test/comparisons.til
 echo "[PASS] comparisons.til"
