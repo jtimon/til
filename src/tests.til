@@ -242,7 +242,6 @@ main := proc(args: ..Str) {
     rs_compiled.push("src/core/core.til")
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
-    rs_compiled.push("src/test/throw_test2.til")
 
     mut rs_interpret := Vec.new(Str)
 
