@@ -3915,15 +3915,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
 
     // Check for UFCS: first param is Identifier with nested params (method name)
     // For chained access like self._len.eq(...), we need to find the deepest method name
-    let (func_name, ufcs_receiver, ufcs_depth) = match &expr.params[0].node_type {
+    let (func_name, ufcs_receiver) = match &expr.params[0].node_type {
         NodeType::Identifier(name) => {
             if expr.params[0].params.is_empty() {
                 // Regular function call
-                (name.clone(), None, 0)
+                (name.clone(), None)
             } else {
                 // UFCS: use helper to extract method from potentially chained access
-                if let Some((method_name, depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
-                    (method_name, Some(&expr.params[0]), depth)
+                if let Some((method_name, _depth)) = extract_ufcs_method_and_depth(&expr.params[0]) {
+                    (method_name, Some(&expr.params[0]))
                 } else {
                     return Err("ccodegen: UFCS method name not Identifier".to_string());
                 }
@@ -4098,130 +4098,57 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             }
 
-            // Check if this is a UFCS call (receiver.func(...))
+            // Check if this is a type-qualified UFCS call (Type.func(...))
+            // After precomp, instance UFCS like i.inc() is normalized to I64.inc(i) which
+            // goes through PATH C below. This path only handles explicit Type.method() in source.
             if let Some(receiver) = ufcs_receiver {
                 if let NodeType::Identifier(receiver_name) = &receiver.node_type {
-                    // For chained access like self._len.eq(...), we need to get the type of self._len
-                    // Create a receiver expression without the method name to get its type
-                    let receiver_without_method = clone_without_deepest_method(receiver, ufcs_depth);
-
-                    // Use get_value_type to resolve the full receiver chain type
-                    let mut receiver_type: Option<ValueType> = get_value_type(context, &receiver_without_method).ok();
-
-                    // If receiver_type is TFunction, the receiver_without_method ends in a method call
-                    // (e.g., delimiter.len() where len is a method). We need the RETURN TYPE of that method.
-                    // Check if the last element of receiver_without_method is a method and get its return type.
-                    if matches!(&receiver_type, Some(ValueType::TFunction(_))) {
-                        // Get the base type (without the last method) and the method name
-                        if ufcs_depth >= 2 {
-                            // We have base.method1.method2, receiver_without_method is base.method1
-                            // Get the type of base, then look up method1's return type
-                            let base_expr = clone_without_deepest_method(&receiver_without_method, ufcs_depth - 1);
-                            if let Some(base_type) = get_value_type(context, &base_expr).ok() {
-                                if let ValueType::TCustom(type_name) = &base_type {
-                                    // Get the intermediate method name (the one before our target method)
-                                    if let Some(method_expr) = receiver_without_method.params.last() {
-                                        if let NodeType::Identifier(method_name) = &method_expr.node_type {
-                                            let full_method_name = format!("{}.{}", type_name, method_name);
-                                            if let Some(func_def) = context.scope_stack.lookup_func(&full_method_name) {
-                                                if let Some(ret_type) = func_def.return_types.first() {
-                                                    receiver_type = Some(ret_type.clone());
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Check if this is instance UFCS or type-qualified call
-                    let mut is_struct_method = false;
-                    let mut is_type_qualified = false;
-
-                    if let Some(value_type) = receiver_type {
-                        // Determine the type name based on value_type
-                        let type_name_opt: Option<String> = match &value_type {
-                            ValueType::TCustom(name) if name != INFER_TYPE => Some(name.clone()),
-                            // Type-qualified call: receiver IS a type name (struct/enum)
-                            ValueType::TType(_) => Some(receiver_name.to_string()),
-                            _ => None,
-                        };
-
-                        if let Some(type_name) = type_name_opt {
-                            let candidate = format!("{}.{}", type_name, func_name);
-                            if context.scope_stack.lookup_func(&candidate).is_some() {
-                                output.push_str(TIL_PREFIX);
-                                output.push_str(&type_name);
-                                output.push_str("_");
-                                is_struct_method = true;
-                                // Type-qualified if receiver has no intermediate fields (depth == 1)
-                                // and receiver_name equals type_name (e.g., Bool.to_i64)
-                                is_type_qualified = ufcs_depth == 1 && receiver_name == &type_name;
-                            }
-                        }
-                    }
-                    // If not a struct method, it's a top-level function
-                    if is_struct_method {
+                    // For Type.method(), receiver_name is the type name (e.g., "I64")
+                    // Look up the mangled function name
+                    let mangled = format!("{}.{}", receiver_name, func_name);
+                    if context.scope_stack.lookup_func(&mangled).is_some() {
+                        // Emit: til_Type_method(args...)
+                        output.push_str(TIL_PREFIX);
+                        output.push_str(receiver_name);
+                        output.push_str("_");
                         output.push_str(&func_name);
-                    } else {
-                        output.push_str(&til_func_name(&func_name));
-                    }
-                    output.push_str("(");
-                    // For type-qualified calls (Type.func), don't pass the type as argument
-                    // For instance calls (var.func), pass the instance as first argument
-                    let mut first_arg = true;
-                    if !is_type_qualified {
-                        // Check if called function's self param is mut and if receiver is a mut/variadic param
-                        let mut needs_deref_close = false;
-                        if let Some(value_type) = get_value_type(context, &receiver_without_method).ok() {
-                            if let ValueType::TCustom(type_name) = &value_type {
-                                let mangled = format!("{}.{}", type_name, func_name);
-                                let called_self_is_mut = lookup_func_by_name(context, &mangled)
-                                    .and_then(|fd| fd.args.first())
-                                    .map(|a| a.is_mut)
-                                    .unwrap_or(false);
-                                let receiver_is_mut_param = ctx.current_mut_params.contains(receiver_name);
-                                let receiver_is_variadic_param = ctx.current_variadic_params.contains_key(receiver_name);
-                                let receiver_is_pointer = receiver_is_mut_param || receiver_is_variadic_param;
+                        output.push_str("(");
 
-                                if called_self_is_mut && !receiver_is_pointer {
-                                    // Called function takes mut self, receiver is not a pointer - add &
-                                    output.push_str("&");
-                                } else if !called_self_is_mut && receiver_is_pointer && ufcs_depth == 1 {
-                                    // Called function takes non-mut self, but receiver is a pointer - dereference
-                                    output.push_str("(*");
-                                    needs_deref_close = true;
-                                }
+                        // Get param info for mut handling
+                        let param_info: Vec<(Option<ValueType>, bool)> =
+                            if let Some(fd) = lookup_func_by_name(context, &mangled) {
+                                fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+                            } else {
+                                Vec::new()
+                            };
+
+                        // Emit arguments (skip first param which is the Type.method identifier)
+                        let mut first_arg = true;
+                        for (i, arg) in expr.params.iter().skip(1).enumerate() {
+                            if !first_arg {
+                                output.push_str(", ");
+                            }
+                            first_arg = false;
+                            // Check if arg is a type identifier - emit as string literal
+                            if let Some(type_name) = get_type_arg_name(arg, context) {
+                                output.push_str("\"");
+                                output.push_str(&type_name);
+                                output.push_str("\"");
+                            } else if !param_info.is_empty() {
+                                let (param_type, is_mut) = param_info.get(i)
+                                    .map(|(t, m)| (t.as_ref(), *m))
+                                    .unwrap_or((None, false));
+                                emit_arg_with_param_type(arg, i, &hoisted, param_type, is_mut, output, ctx, context)?;
+                            } else {
+                                emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                             }
                         }
-                        // Emit full receiver chain (e.g., til_self->_len for self._len.eq(...))
-                        emit_ufcs_receiver_chain(receiver, ufcs_depth, output, ctx)?;
-                        if needs_deref_close {
-                            output.push_str(")");
+                        output.push_str(")");
+                        if indent > 0 {
+                            output.push_str(";\n");
                         }
-                        first_arg = false;
+                        return Ok(());
                     }
-                    // Emit remaining arguments (type identifiers as string literals)
-                    for (i, arg) in expr.params.iter().skip(1).enumerate() {
-                        if !first_arg {
-                            output.push_str(", ");
-                        }
-                        first_arg = false;
-                        // Check if arg is a type identifier - emit as string literal (matches interpreter.rs)
-                        if let Some(type_name) = get_type_arg_name(arg, context) {
-                            output.push_str("\"");
-                            output.push_str(&type_name);
-                            output.push_str("\"");
-                        } else {
-                            emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
-                        }
-                    }
-                    output.push_str(")");
-                    if indent > 0 {
-                        output.push_str(";\n");
-                    }
-                    return Ok(());
                 }
             }
 
@@ -4241,31 +4168,16 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Ok(());
             }
 
-            // Regular function call - check for UFCS: func(instance, ...) -> til_Type_func(instance, ...)
-            // If first argument is a variable with known type, try mangled name
-            // Track both original name (for lookups) and output name (with til_ prefix)
-            let mut lookup_name = func_name.clone();
-            let mut output_name = til_func_name(&func_name);
-            if expr.params.len() > 1 {
-                if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
-                    let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)
-                        .map(|s| s.value_type.clone());
-                    if let Some(ValueType::TCustom(type_name)) = arg_type {
-                        // Check if mangled function exists
-                        let candidate = format!("{}.{}", type_name, func_name);
-                        if context.scope_stack.lookup_func(&candidate).is_some() {
-                            // Use TIL_PREFIX for struct methods
-                            lookup_name = format!("{}_{}", type_name, func_name);
-                            output_name = format!("{}{}_{}", TIL_PREFIX, type_name, func_name);
-                        }
-                    }
-                }
-            }
+            // Regular function call (non-UFCS)
+            // After precomp, UFCS calls like i.inc() are normalized to I64.inc(i),
+            // which go through the ufcs_receiver path above. This path is only for
+            // truly non-UFCS calls like add(a, b), memcpy(...), etc.
+            let output_name = til_func_name(&func_name);
 
             // Detect and construct variadic array if needed (only at statement level)
             // At expression level (indent == 0), variadic calls are not supported directly
             let variadic_arr_var: Option<String> = if indent > 0 {
-                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).map(|(_, e, r)| (e.clone(), *r)) {
+                if let Some((elem_type, regular_count)) = ctx.func_variadic_args.get(&func_name).map(|(_, e, r)| (e.clone(), *r)) {
                     let variadic_args: Vec<_> = expr.params.iter().skip(1 + regular_count).collect();
                     Some(hoist_variadic_args(&elem_type, &variadic_args, &hoisted, regular_count, output, indent, ctx, context)?)
                 } else {
@@ -4278,8 +4190,8 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str(&output_name);
             output.push_str("(");
 
-            // Check if this is a variadic function call (use original name for lookup)
-            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&lookup_name).cloned() {
+            // Check if this is a variadic function call
+            if let Some((_variadic_name, _elem_type, regular_count)) = ctx.func_variadic_args.get(&func_name).cloned() {
                 // Emit regular args first (skip first param which is function name)
                 let args: Vec<_> = expr.params.iter().skip(1).collect();
                 for (i, arg) in args.iter().take(regular_count).enumerate() {
@@ -4299,14 +4211,10 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             } else {
                 // Regular non-variadic function call
-                // Emit arguments (skip first param which is function name)
-                // Type identifiers are emitted as string literals (matches interpreter.rs)
-
-                // For Type.method calls (uppercase prefix), get param info for mut handling
-                // Don't do this for ext_func like memcpy (lowercase)
-                let is_type_method = lookup_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
-                let param_info: Vec<(Option<ValueType>, bool)> = if is_type_method {
-                    if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+                // After precomp, Type.method(args) calls have func_name containing a dot (e.g., "I64.inc")
+                // We need to handle mut params for these.
+                let param_info: Vec<(Option<ValueType>, bool)> = if func_name.contains('.') {
+                    if let Some(fd) = lookup_func_by_name(context, &func_name) {
                         fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
                     } else {
                         Vec::new()
@@ -4326,7 +4234,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str("\"");
                         output.push_str(&type_name);
                         output.push_str("\"");
-                    } else if is_type_method && !param_info.is_empty() {
+                    } else if !param_info.is_empty() {
                         let (param_type, is_mut) = param_info.get(i)
                             .map(|(t, m)| (t.as_ref(), *m))
                             .unwrap_or((None, false));
