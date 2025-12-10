@@ -4,6 +4,7 @@ import("src.core.array")
 import("src.core.ptr")
 import("src.self.parser")
 import("src.core.set")
+import("src.std.io")            // readfile
 
 // Unix path separator (Windows not supported in TIL)
 MAIN_SEPARATOR_STR := "/"

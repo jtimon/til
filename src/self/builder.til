@@ -3,6 +3,7 @@ mode lib
 import("src.self.interpreter")
 import("src.self.precomp")
 import("src.self.ccodegen")
+import("src.std.io")            // writefile
 
 // Note: import_path_to_file_path is available from init.til (via interpreter.til)
 

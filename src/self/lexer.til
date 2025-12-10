@@ -2,6 +2,7 @@ mode lib
 
 import("src.core.vec")
 import("src.std.std")
+import("src.std.io")            // readfile
 
 LANG_NAME := "til"
 DEBUG_COMPILER := true

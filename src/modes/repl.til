@@ -3,6 +3,7 @@
 mode script
 
 import("src.std.std")
+import("src.std.io")            // input_read_line
 
 __LANG_NAME := "til(interactive)"
 
