@@ -27,6 +27,8 @@ struct CodegenContext {
     // Map of variadic param names to their element type (e.g., "args" -> "Bool")
     // Passed as til_Array* so need dereference, and need type info for Array.get casting
     current_variadic_params: HashMap<String, String>,
+    // All known type names for generating til_size_of function
+    known_types: Vec<String>,
 }
 
 impl CodegenContext {
@@ -38,6 +40,7 @@ impl CodegenContext {
             declared_vars: HashSet::new(),
             current_mut_params: HashSet::new(),
             current_variadic_params: HashMap::new(),
+            known_types: Vec::new(),
         }
     }
 
@@ -1330,10 +1333,20 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
     output.push_str("#include \"ext.c\"\n\n");
 
     // Pass 4: emit struct constants (non-mut, non-function fields with mangled names)
+    // Also emits size_of constants for each struct
     if let NodeType::Body = &ast.node_type {
         for child in &ast.params {
             if is_struct_declaration(child) {
                 emit_struct_constants(child, &mut output, &mut ctx, context)?;
+            }
+        }
+    }
+
+    // Pass 4a: emit size_of constants for enums
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            if is_enum_declaration(child) {
+                emit_enum_size_of_constant(child, &mut output, &mut ctx)?;
             }
         }
     }
@@ -1346,6 +1359,10 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+
+    // Pass 4c: emit til_size_of function (runtime type size lookup)
+    emit_size_of_function(&mut output, &ctx);
+
     output.push_str("\n");
 
     // Pass 5: emit function definitions
@@ -1545,13 +1562,9 @@ fn emit_struct_declaration(expr: &Expr, output: &mut String) -> Result<(), Strin
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
+// Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
 fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenContext, context: &mut Context) -> Result<(), String> {
     if let NodeType::Declaration(decl) = &expr.node_type {
-        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
-        if decl.name == "I64" || decl.name == "U8" || decl.name == "Bool"
-            || decl.name == "Dynamic" || decl.name == "Type" {
-            return Ok(());
-        }
         if !expr.params.is_empty() {
             if let NodeType::StructDef(struct_def) = &expr.params[0].node_type {
                 let struct_name = til_name(&decl.name);
@@ -1574,11 +1587,73 @@ fn emit_struct_constants(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                         }
                     }
                 }
+                // Emit size_of constant for this struct
+                output.push_str("const ");
+                output.push_str(TIL_PREFIX);
+                output.push_str("I64 ");
+                output.push_str(TIL_PREFIX);
+                output.push_str("size_of_");
+                output.push_str(&decl.name);
+                output.push_str(" = sizeof(");
+                output.push_str(&struct_name);
+                output.push_str(");\n");
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name.clone());
                 return Ok(());
             }
         }
     }
     Ok(()) // Not a struct, nothing to emit
+}
+
+// Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
+fn emit_enum_size_of_constant(expr: &Expr, output: &mut String, ctx: &mut CodegenContext) -> Result<(), String> {
+    if let NodeType::Declaration(decl) = &expr.node_type {
+        if !expr.params.is_empty() {
+            if let NodeType::EnumDef(_) = &expr.params[0].node_type {
+                let enum_name = til_name(&decl.name);
+                output.push_str("const ");
+                output.push_str(TIL_PREFIX);
+                output.push_str("I64 ");
+                output.push_str(TIL_PREFIX);
+                output.push_str("size_of_");
+                output.push_str(&decl.name);
+                output.push_str(" = sizeof(");
+                output.push_str(&enum_name);
+                output.push_str(");\n");
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
+// Emit til_size_of function for runtime type size lookup
+fn emit_size_of_function(output: &mut String, ctx: &CodegenContext) {
+    output.push_str("\n");
+    output.push_str("static inline ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("I64 ");
+    output.push_str(TIL_PREFIX);
+    output.push_str("size_of(");
+    output.push_str(TIL_PREFIX);
+    output.push_str("Str type_name) {\n");
+
+    // All known types from structs and enums
+    for type_name in &ctx.known_types {
+        output.push_str("    if (strcmp((char*)type_name.c_string, \"");
+        output.push_str(type_name);
+        output.push_str("\") == 0) return ");
+        output.push_str(TIL_PREFIX);
+        output.push_str("size_of_");
+        output.push_str(type_name);
+        output.push_str(";\n");
+    }
+
+    output.push_str("    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n");
+    output.push_str("    exit(1);\n");
+    output.push_str("}\n");
 }
 
 // Check if an enum has any payloads
@@ -3895,29 +3970,46 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             }
             Ok(())
         },
-        // size_of(T) - compile-time intrinsic to get type size
-        // TODO: This doesn't work correctly for Type parameters (T: Type) because
-        // we emit a single generic function, not monomorphized versions per type.
-        // To fix this properly, we'd need either:
-        // 1. Monomorphization (emit separate functions for each type used)
-        // 2. Runtime type info lookup (add til_size_of to ext.c with all known types)
-        // For now it just emits sizeof(til_T) which is wrong for Type params.
+        // size_of(T) - runtime type size lookup via til_size_of function
+        // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))
         "size_of" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: size_of requires 1 argument".to_string());
             }
-            // Get the type name from the argument and emit sizeof
+            output.push_str(TIL_PREFIX);
+            output.push_str("size_of(");
+            // If it's a literal type name, wrap it in Str_from_literal
+            // If it's a variable, the variable already holds a Type (which is const char*)
             if let NodeType::Identifier(type_name) = &expr.params[1].node_type {
-                output.push_str("sizeof(");
-                output.push_str(TIL_PREFIX);
-                output.push_str(type_name);
-                output.push_str(")");
+                // Check if this is a Type variable or a literal type name
+                // Type variables are declared with value_type TCustom("Type")
+                let is_type_var = if let Some(sym) = context.scope_stack.lookup_symbol(type_name) {
+                    matches!(&sym.value_type, ValueType::TCustom(t) if t == "Type")
+                } else {
+                    false
+                };
+                if is_type_var {
+                    // Type variable - already a const char*, wrap in Str
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Str_from_literal(");
+                    output.push_str(TIL_PREFIX);
+                    output.push_str(type_name);
+                    output.push_str(")");
+                } else {
+                    // Literal type name - create Str from the name
+                    output.push_str(TIL_PREFIX);
+                    output.push_str("Str_from_literal(\"");
+                    output.push_str(type_name);
+                    output.push_str("\")");
+                }
             } else {
-                // Default to I64 size
-                output.push_str("sizeof(");
+                // Not an identifier - emit as expression and hope it's a Type
                 output.push_str(TIL_PREFIX);
-                output.push_str("I64)");
+                output.push_str("Str_from_literal(");
+                emit_expr(&expr.params[1], output, 0, ctx, context)?;
+                output.push_str(")");
             }
+            output.push_str(")");
             Ok(())
         },
         // to_ptr(var) - get address of variable

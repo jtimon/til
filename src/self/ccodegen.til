@@ -34,6 +34,8 @@ CodegenContext := struct {
     // Map of variadic param names to their element type (e.g., "args" -> "til_Bool")
     // Passed as til_Array* so need dereference, and need type info for Array.get casting
     mut current_variadic_params: Map = Map.new(Str, Str)
+    // All known type names for generating til_size_of function
+    mut known_types: Vec = Vec.new(Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -997,22 +999,17 @@ emit_struct_declaration := proc(expr: Expr, output: Str) returns Str throws Str 
 }
 
 // Emit struct constants (non-mut, non-function fields) with mangled names: StructName_constant
+// Also emits size_of constant: til_size_of_StructName = sizeof(til_StructName)
 emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, mut context: Context) returns Str throws Str {
     mut result := output
     switch expr.node_type {
     case NodeType.Declaration(decl):
-        // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs, not structs
-        if decl.name.eq("I64") { return result }
-        if decl.name.eq("U8") { return result }
-        if decl.name.eq("Bool") { return result }
-        if decl.name.eq("Dynamic") { return result }
-        if decl.name.eq("Type") { return result }
         if gt(expr.params.len(), 0) {
             mut first := Expr()
             expr.params.get(0, first)
             switch first.node_type {
             case NodeType.StructDef(struct_def):
-                mut struct_name := decl.name
+                mut struct_name := til_name(decl.name)
                 mut i := 0
                 while lt(i, struct_def.members.len()) {
                     mut member := Declaration()
@@ -1044,6 +1041,18 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     }
                     i = add(i, 1)
                 }
+                // Emit size_of constant for this struct
+                result = concat(result, "const ")
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "I64 ")
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "size_of_")
+                result = concat(result, decl.name)
+                result = concat(result, " = sizeof(")
+                result = concat(result, struct_name)
+                result = concat(result, ");\n")
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name)
                 return result
             case:
                 return result
@@ -1054,6 +1063,77 @@ emit_struct_constants := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
         return result
     }
     catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+}
+
+// Emit size_of constant for an enum: til_size_of_EnumName = sizeof(til_EnumName)
+emit_enum_size_of_constant := proc(expr: Expr, output: Str, mut ctx: CodegenContext) returns Str throws Str {
+    mut result := output
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.EnumDef(enum_def):
+                mut enum_name := til_name(decl.name)
+                result = concat(result, "const ")
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "I64 ")
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "size_of_")
+                result = concat(result, decl.name)
+                result = concat(result, " = sizeof(")
+                result = concat(result, enum_name)
+                result = concat(result, ");\n")
+                // Track this type for til_size_of function generation
+                ctx.known_types.push(decl.name)
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+
+    return result
+}
+
+// Emit til_size_of function for runtime type size lookup
+emit_size_of_function := proc(output: Str, ctx: CodegenContext) returns Str throws Str {
+    mut result := output
+    result = concat(result, "\n")
+    result = concat(result, "static inline ")
+    result = concat(result, TIL_PREFIX)
+    result = concat(result, "I64 ")
+    result = concat(result, TIL_PREFIX)
+    result = concat(result, "size_of(")
+    result = concat(result, TIL_PREFIX)
+    result = concat(result, "Str type_name) {\n")
+
+    // All known types from structs and enums
+    mut i := 0
+    while lt(i, ctx.known_types.len()) {
+        mut type_name := ""
+        ctx.known_types.get(i, type_name)
+        result = concat(result, "    if (strcmp((char*)type_name.c_string, \"")
+        result = concat(result, type_name)
+        result = concat(result, "\") == 0) return ")
+        result = concat(result, TIL_PREFIX)
+        result = concat(result, "size_of_")
+        result = concat(result, type_name)
+        result = concat(result, ";\n")
+        i = add(i, 1)
+    }
+
+    result = concat(result, "    fprintf(stderr, \"size_of: unknown type %s\\n\", (char*)type_name.c_string);\n")
+    result = concat(result, "    exit(1);\n")
+    result = concat(result, "}\n")
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+
+    return result
 }
 
 // Check if an enum has any payloads
@@ -1607,6 +1687,24 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip constants pass
     }
 
+    // Pass 2a: emit size_of constants for enums
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            if is_enum_declaration(child) {
+                output = emit_enum_size_of_constant(child, output, ctx)
+            }
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip enum size_of pass
+    }
+
     // Pass 2b: emit top-level constants (non-mut declarations with literal values)
     switch ast.node_type {
     case NodeType.Body:
@@ -1624,6 +1722,10 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
         // Not a body, skip top-level constants pass
     }
+
+    // Pass 2c: emit til_size_of function (runtime type size lookup)
+    output = emit_size_of_function(output, ctx)
+
     output = concat(output, "\n")
 
     // Pass 3: emit function prototypes (forward declarations)
@@ -5028,6 +5130,59 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         } else {
             return concat(output, "\"\"")
         }
+    } else if func_name.eq("size_of") {
+        // size_of(T) - runtime type size lookup via til_size_of function
+        // Can be called with a literal type name (size_of(Str)) or a Type variable (size_of(T))
+        if lt(params_len, 2) {
+            throw "ccodegen: size_of requires 1 argument"
+        }
+        mut arg := Expr()
+        expr.params.get(1, arg)
+        result = concat(result, TIL_PREFIX)
+        result = concat(result, "size_of(")
+        // If it's a literal type name, wrap it in Str_from_literal
+        // If it's a variable, the variable already holds a Type (which is const char*)
+        switch arg.node_type {
+        case NodeType.Identifier(type_name):
+            // Check if this is a Type variable or a literal type name
+            // Type variables are declared with value_type TCustom("Type")
+            mut is_type_var := false
+            mut sym := context.scope_stack.lookup_symbol(type_name)
+            switch sym.value_type {
+            case ValueType.TCustom(t):
+                if t.eq("Type") {
+                    is_type_var = true
+                }
+            case:
+            }
+            catch (err: KeyNotFoundError) { }
+            if is_type_var {
+                // Type variable - already a const char*, wrap in Str
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "Str_from_literal(")
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, type_name)
+                result = concat(result, ")")
+            } else {
+                // Literal type name - create Str from the name
+                result = concat(result, TIL_PREFIX)
+                result = concat(result, "Str_from_literal(\"")
+                result = concat(result, type_name)
+                result = concat(result, "\")")
+            }
+        case:
+            // Not an identifier - emit as expression and hope it's a Type
+            result = concat(result, TIL_PREFIX)
+            result = concat(result, "Str_from_literal(")
+            result = emit_expr(arg, result, 0, ctx, context)
+            result = concat(result, ")")
+        }
+        result = concat(result, ")")
+        if gt(indent, 0) {
+            result = concat(result, ";\n")
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        return result
     } else {
         // User-defined function call
         // Check if this is a type-qualified call (Type.func(...))

@@ -131,14 +131,43 @@ til_I64 til_U8_size(void);
 
 #include "ext.c"
 
+const til_I64 til_size_of_IndexOutOfBoundsError = sizeof(til_IndexOutOfBoundsError);
+const til_I64 til_size_of_AllocError = sizeof(til_AllocError);
+const til_I64 til_size_of_Array = sizeof(til_Array);
+const til_I64 til_size_of_Bool = sizeof(til_Bool);
+const til_I64 til_size_of_I64_OverflowError = sizeof(til_I64_OverflowError);
+const til_I64 til_size_of_I64 = sizeof(til_I64);
 const til_I64 til_Vec_INIT_CAP = 16;
 const til_I64 til_Vec_MAX_CAP = 1024;
+const til_I64 til_size_of_Vec = sizeof(til_Vec);
+const til_I64 til_size_of_Str = sizeof(til_Str);
+const til_I64 til_size_of_U8_OverflowError = sizeof(til_U8_OverflowError);
+const til_I64 til_size_of_U8 = sizeof(til_U8);
+const til_I64 til_size_of_Dynamic = sizeof(til_Dynamic);
+const til_I64 til_size_of_Type = sizeof(til_Type);
 const til_I64 til_NULL = 0;
 const til_I64 til_I64_SIZE = 8;
 const til_I64 til_MAX_I64 = 9223372036854775807;
 const til_I64 til_U8_SIZE = 1;
 const til_I64 til_MIN_U8 = 0;
 const til_I64 til_MAX_U8 = 255;
+
+static inline til_I64 til_size_of(til_Str type_name) {
+    if (strcmp((char*)type_name.c_string, "IndexOutOfBoundsError") == 0) return til_size_of_IndexOutOfBoundsError;
+    if (strcmp((char*)type_name.c_string, "AllocError") == 0) return til_size_of_AllocError;
+    if (strcmp((char*)type_name.c_string, "Array") == 0) return til_size_of_Array;
+    if (strcmp((char*)type_name.c_string, "Bool") == 0) return til_size_of_Bool;
+    if (strcmp((char*)type_name.c_string, "I64_OverflowError") == 0) return til_size_of_I64_OverflowError;
+    if (strcmp((char*)type_name.c_string, "I64") == 0) return til_size_of_I64;
+    if (strcmp((char*)type_name.c_string, "Vec") == 0) return til_size_of_Vec;
+    if (strcmp((char*)type_name.c_string, "Str") == 0) return til_size_of_Str;
+    if (strcmp((char*)type_name.c_string, "U8_OverflowError") == 0) return til_size_of_U8_OverflowError;
+    if (strcmp((char*)type_name.c_string, "U8") == 0) return til_size_of_U8;
+    if (strcmp((char*)type_name.c_string, "Dynamic") == 0) return til_size_of_Dynamic;
+    if (strcmp((char*)type_name.c_string, "Type") == 0) return til_size_of_Type;
+    fprintf(stderr, "size_of: unknown type %s\n", (char*)type_name.c_string);
+    exit(1);
+}
 
 til_Bool til_not(const til_Bool til_b) {
     if (til_b.data) {
@@ -692,7 +721,7 @@ til_I64 til_Array_size(const til_Array til_self) {
 int til_Array_new(til_Array* _ret, til_AllocError* _err1, const til_Type til_T, const til_I64 til_capacity) {
     til_Array til_arr = {0};
     til_arr.type_name = til_Str_from_literal("T");
-    til_arr.type_size = sizeof(til_T);
+    til_arr.type_size = til_size_of(til_Str_from_literal(til_T));
     const til_I64 til_size_bytes = til_mul(til_capacity, til_arr.type_size);
     til_I64 _ret__tmp76;
     til_AllocError _err0__tmp76 = {};
@@ -982,7 +1011,7 @@ til_I64 til_Vec_size(const til_Vec til_self) {
 int til_Vec_new(til_Vec* _ret, til_AllocError* _err1, const til_Type til_T) {
     til_Vec til_vec = {0};
     til_vec.type_name = til_Str_from_literal("T");
-    til_vec.type_size = sizeof(til_T);
+    til_vec.type_size = til_size_of(til_Str_from_literal(til_T));
     const til_I64 til_size_bytes = til_mul(til_Vec_INIT_CAP, til_vec.type_size);
     til_I64 _ret__tmp111;
     til_AllocError _err0__tmp111 = {};
