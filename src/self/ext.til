@@ -7,7 +7,7 @@ import("self.parser")       // Expr, NodeType, Literal, ValueType, get_combined_
 import("self.init")         // Context
 import("self.interpreter")  // EvalResult, eval_expr, string_from_context
 import("self.arena")        // arena (global)
-import("std.os")            // run_cmd
+import("std.sys")            // run_cmd
 import("std.io")            // readfile, input_read_line
 
 // ---------- Helper functions

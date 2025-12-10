@@ -1,6 +1,6 @@
 mode script
 
-import("std.os")
+import("std.sys")
 import("modes.test")
 
 // tests2.til - New test suite (under development)
