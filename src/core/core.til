@@ -5,6 +5,7 @@ single_print := ext_proc(s: Str);
 print_flush  := ext_proc();
 
 import("core.array")
+import("core.assert")
 import("core.bool")
 import("core.i64")
 import("core.str")
@@ -23,7 +24,7 @@ _col  := ext_func() returns I64; // Returns current column number
 exit := ext_func(code: I64);
 
 // Import paths use dots (like Python, Java, etc.) for cross-platform compatibility
-// Example: import("std.std") resolves to src/std/std.til (Unix) or src\std\std.til (Windows)
+// Example: import("std.io") resolves to src/std/io.til (Unix) or src\std\io.til (Windows)
 // TODO use imports in declarations:
 // example_cil: my_matrix_def := import(matrix.matrix_def)
 // example_cil: my_matrix : struct = import(matrix)

@@ -1,6 +1,5 @@
 mode lib
 
-import("std.std")
 import("std.meta")            // runfile
 
 // test := assertm // TODO implement function aliases

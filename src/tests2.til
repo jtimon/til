@@ -1,6 +1,5 @@
 mode script
 
-import("std.std")
 import("std.os")
 import("modes.test")
 

@@ -1,7 +1,6 @@
 mode lib
 
 import("core.vec")
-import("std.std")
 import("std.io")            // readfile
 
 LANG_NAME := "til"
