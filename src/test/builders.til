@@ -12,9 +12,13 @@ test_rs_ccodegen()
 
 // Test 2: Rust codegen via rstil command - hello_script.til
 test_rs_ccodegen_hello := proc() {
-    // TODO: "run" causes segfault in compiled hello_script - investigate
-    _ := run_cmd("./bin/rstil", "build", "src/test/hello/hello_script.til")
-    // assert_eq_str(loc(), "Hello World!\n", output)
+    output := run_cmd("./bin/rstil", "run", "src/test/hello/hello_script.til")
+    expected := "Building file 'src/test/hello/hello_script.til'
+Wrote C output to 'src/test/hello/hello_script.c'
+Compiled executable to 'src/test/hello/bin/hello_script'
+Hello World!
+"
+    assert_eq_str(loc(), expected, output)
 }
 test_rs_ccodegen_hello()
 

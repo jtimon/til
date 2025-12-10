@@ -5188,6 +5188,51 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         }
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         return result
+    } else if func_name.eq("to_ptr") {
+        // to_ptr(var) - get address of variable
+        // For Dynamic params (already void*), just cast without taking address
+        if lt(params_len, 2) {
+            throw "ccodegen: to_ptr requires 1 argument"
+        }
+        mut arg := Expr()
+        expr.params.get(1, arg)
+        // Check if arg is a Dynamic parameter (void*) - just use the pointer directly
+        // Both mut Dynamic (void**) and non-mut Dynamic (void*) don't need &
+        mut is_dynamic_param := false
+        switch arg.node_type {
+        case NodeType.Identifier(name):
+            if eq(arg.params.len(), 0) {
+                mut sym := context.scope_stack.lookup_symbol(name)
+                switch sym.value_type {
+                case ValueType.TCustom(t):
+                    if t.eq("Dynamic") {
+                        is_dynamic_param = true
+                    }
+                case:
+                }
+                catch (err: KeyNotFoundError) { }
+            }
+        case:
+        }
+        result = concat(result, "(")
+        result = concat(result, TIL_PREFIX)
+        result = concat(result, "I64)")
+        if is_dynamic_param {
+            // Dynamic param: just output the variable name (it's already a pointer)
+            switch arg.node_type {
+            case NodeType.Identifier(name):
+                result = concat(result, til_name(name))
+            case:
+            }
+        } else {
+            result = concat(result, "&")
+            result = emit_expr(arg, result, 0, ctx, context)
+        }
+        if gt(indent, 0) {
+            result = concat(result, ";\n")
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        return result
     } else {
         // User-defined function call
         // Check if this is a type-qualified call (Type.func(...))
@@ -5434,6 +5479,20 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             }
         } else {
             // Non-variadic: emit args normally
+            // For Type.method calls (uppercase prefix), get param info for mut handling
+            // Don't do this for ext_func like memcpy (lowercase)
+            mut first_char := mangled_name.get_substr(0, 1)
+            mut is_type_method := first_char.is_uppercase()
+            mut param_info := Vec.new(Declaration)
+            if is_type_method {
+                mut lookup_result := lookup_func_by_name(context, mangled_name)
+                if lookup_result.found {
+                    param_info = lookup_result.func_def.args
+                }
+            }
+            catch (err: IndexOutOfBoundsError) { throw err.msg }
+            catch (err: AllocError) { throw err.msg }
+
             mut i := 1
             while lt(i, params_len) {
                 if gt(i, 1) {
@@ -5441,6 +5500,28 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                 }
                 mut arg := Expr()
                 expr.params.get(i, arg)
+                // Check if we should add & for mut param
+                mut arg_idx := sub(i, 1)
+                mut should_add_ampersand := false
+                if is_type_method.and(gt(param_info.len(), 0)) {
+                    if lt(arg_idx, param_info.len()) {
+                        mut param_decl := Declaration()
+                        param_info.get(arg_idx, param_decl)
+                        if param_decl.is_mut {
+                            // Check if arg is a simple identifier
+                            switch arg.node_type {
+                            case NodeType.Identifier(arg_name):
+                                if eq(arg.params.len(), 0) {
+                                    should_add_ampersand = true
+                                }
+                            case:
+                            }
+                        }
+                    }
+                }
+                if should_add_ampersand {
+                    result = concat(result, "&")
+                }
                 result = emit_expr(arg, result, 0, ctx, context)
                 i = add(i, 1)
             }

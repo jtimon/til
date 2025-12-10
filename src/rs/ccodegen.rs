@@ -894,6 +894,7 @@ fn emit_fcall_name_and_args_for_throwing(
             if let NodeType::Identifier(receiver_name) = &receiver.node_type {
                 let receiver_type = context.scope_stack.lookup_symbol(receiver_name)
                     .map(|s| s.value_type.clone());
+                eprintln!("DEBUG emit_fcall_with_hoisted: receiver_name={}, receiver_type={:?}, func_name={}", receiver_name, receiver_type, func_name);
                 if let Some(ValueType::TCustom(type_name)) = receiver_type {
                     let mangled = format!("{}.{}", type_name, func_name);
                     let called_self_is_mut = lookup_func_by_name(context, &mangled)
@@ -1003,7 +1004,11 @@ fn emit_fcall_name_and_args_for_throwing(
         // Get function param info for Dynamic casting, mut handling
         // Pre-extract param types to avoid borrow issues
         let ufcs_offset = if is_instance_call { 1 } else { 0 };
-        let param_info: Vec<(Option<ValueType>, bool)> = lookup_func_by_name(context, &mangled_name)
+        let found_func = lookup_func_by_name(context, &mangled_name);
+        if found_func.is_none() && !mangled_name.is_empty() {
+            eprintln!("DEBUG emit_fcall: lookup FAILED for mangled_name={}", mangled_name);
+        }
+        let param_info: Vec<(Option<ValueType>, bool)> = found_func
             .map(|fd| {
                 fd.args.iter()
                     .skip(ufcs_offset)
@@ -4026,10 +4031,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 return Err("ccodegen: to_ptr requires 1 argument".to_string());
             }
             let arg = &expr.params[1];
-            // Check if arg is a Dynamic parameter (void*) - don't take address
-            let is_dynamic = if let NodeType::Identifier(name) = &arg.node_type {
-                if let Some(sym) = context.scope_stack.lookup_symbol(name) {
-                    matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic")
+            // Check if arg is a Dynamic parameter (void*) - just use the pointer directly
+            // Both mut Dynamic (void**) and non-mut Dynamic (void*) don't need &
+            let is_dynamic_param = if let NodeType::Identifier(name) = &arg.node_type {
+                if arg.params.is_empty() {
+                    if let Some(sym) = context.scope_stack.lookup_symbol(name) {
+                        matches!(&sym.value_type, ValueType::TCustom(t) if t == "Dynamic")
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }
@@ -4039,10 +4049,15 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             output.push_str("(");
             output.push_str(TIL_PREFIX);
             output.push_str("I64)");
-            if !is_dynamic {
+            if is_dynamic_param {
+                // Dynamic param: just output the variable name (it's already a pointer)
+                if let NodeType::Identifier(name) = &arg.node_type {
+                    output.push_str(&til_name(name));
+                }
+            } else {
                 output.push_str("&");
+                emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
             }
-            emit_arg_or_hoisted(arg, 0, &hoisted, output, ctx, context)?;
             Ok(())
         },
         // User-defined function call
@@ -4286,6 +4301,20 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 // Regular non-variadic function call
                 // Emit arguments (skip first param which is function name)
                 // Type identifiers are emitted as string literals (matches interpreter.rs)
+
+                // For Type.method calls (uppercase prefix), get param info for mut handling
+                // Don't do this for ext_func like memcpy (lowercase)
+                let is_type_method = lookup_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false);
+                let param_info: Vec<(Option<ValueType>, bool)> = if is_type_method {
+                    if let Some(fd) = lookup_func_by_name(context, &lookup_name) {
+                        fd.args.iter().map(|a| (Some(a.value_type.clone()), a.is_mut)).collect()
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
+
                 let mut first_arg = true;
                 for (i, arg) in expr.params.iter().skip(1).enumerate() {
                     if !first_arg {
@@ -4297,6 +4326,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                         output.push_str("\"");
                         output.push_str(&type_name);
                         output.push_str("\"");
+                    } else if is_type_method && !param_info.is_empty() {
+                        let (param_type, is_mut) = param_info.get(i)
+                            .map(|(t, m)| (t.as_ref(), *m))
+                            .unwrap_or((None, false));
+                        emit_arg_with_param_type(arg, i, &hoisted, param_type, is_mut, output, ctx, context)?;
                     } else {
                         emit_arg_or_hoisted(arg, i, &hoisted, output, ctx, context)?;
                     }
