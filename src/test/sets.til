@@ -1,5 +1,7 @@
 mode test
 
+import("src.core.set")
+
 // Test Set - Dynamic collection of unique elements
 
 test_set_new := proc() {
@@ -32,7 +34,6 @@ test_set_insert := proc() {
     assert(loc(), s.contains("world"))
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_insert()
 
@@ -49,7 +50,6 @@ test_set_contains := proc() {
     assert(loc(), not(s.contains("")))
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_contains()
 
@@ -83,7 +83,6 @@ test_set_remove := proc() {
     assert_eq(loc(), 0, s.len())
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_remove()
 
@@ -111,7 +110,6 @@ test_set_i64 := proc() {
     assert(loc(), not(s.contains(100)))
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_i64()
 
@@ -132,7 +130,6 @@ test_set_clone := proc() {
     assert(loc(), cloned.contains("a"))
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_clone()
 
@@ -146,7 +143,6 @@ test_set_delete := proc() {
     assert_eq(loc(), 0, s.len())
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
 }
 test_set_delete()
 
@@ -166,7 +162,6 @@ test_set_get := proc() {
     assert_eq_str(loc(), "gamma", elem)
 
     catch (err: AllocError) { panic(loc(), err.msg) }
-    catch (err: FullError) { panic(loc(), err.msg) }
     catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 }
 test_set_get()
