@@ -7,9 +7,42 @@ import("modes.test")
 // tests2.til - TIL test runner
 // Runs compiled tests and compares output against .out files
 
+// .out file format: _TIL_TESTS_{exit_code}_TIL_TESTS_\n{output}
+MARKER_PREFIX := "_TIL_TESTS_"
+MARKER_SUFFIX := "_TIL_TESTS_"
+
 // Path transform: src/examples/foo.til -> src/examples/foo.out
 get_out_path := func(src_path: Str) returns Str throws AllocError {
     return src_path.replace(".til", ".out")
+}
+
+// Format output with exit code marker
+format_expected := func(exit_code: I64, output: Str) returns Str {
+    return concat(concat(concat(concat(MARKER_PREFIX, exit_code.to_str()), MARKER_SUFFIX), "\n"), output)
+}
+
+// Parse expected file: extract exit code and output
+parse_expected := proc(content: Str, mut exit_code: I64, mut output: Str) throws AllocError, IndexOutOfBoundsError {
+    // Format: _TIL_TESTS_{code}_TIL_TESTS_\n{output}
+    prefix_len := MARKER_PREFIX.len()
+
+    // Search for suffix AFTER the prefix (skip first marker)
+    rest_after_prefix := get_substr(content, prefix_len, content.len())
+    suffix_pos_in_rest := rest_after_prefix.find(MARKER_SUFFIX)
+
+    // suffix_start is position in original string
+    suffix_start := prefix_len.add(suffix_pos_in_rest)
+
+    code_str := get_substr(content, prefix_len, suffix_start)
+    exit_code = code_str.to_i64()
+
+    // Find newline after marker and get rest as output
+    output_start := suffix_start.add(MARKER_SUFFIX.len()).add(1)
+    if output_start.gteq(content.len()) {
+        output = ""
+    } else {
+        output = get_substr(content, output_start, content.len())
+    }
 }
 
 run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
@@ -78,8 +111,9 @@ ensure_out_file := proc(path: Str, out_path: Str) {
     _ := ls_result.run_cmd("ls", out_path)
     if not(ls_result.contains(".out")) {
         mut output := ""
-        _ := output.run_cmd("./bin/rstil", "interpret", path)
-        _ := writefile(out_path, output)
+        exit_code := output.run_cmd("./bin/rstil", "interpret", path)
+        formatted := format_expected(exit_code, output)
+        _ := writefile(out_path, formatted)
         println("Created: ", out_path)
     }
 }
@@ -88,18 +122,37 @@ test_rs_interpreted := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
     ensure_out_file(path, out_path)
 
+    // Read expected file and parse exit code + output
+    expected_content := readfile(out_path)
+    mut expected_exit_code := 0
+    mut expected_output := ""
+    parse_expected(expected_content, expected_exit_code, expected_output)
+
+    // Run interpreter and capture exit code + output
     mut interp_output := ""
-    _ := interp_output.run_cmd("./bin/rstil", "interpret", path)
+    actual_exit_code := interp_output.run_cmd("./bin/rstil", "interpret", path)
+
+    // Check exit code
+    if not(actual_exit_code.eq(expected_exit_code)) {
+        println("FAIL (interpret exit code): ", path)
+        println("  expected: ", expected_exit_code.to_str())
+        println("  actual: ", actual_exit_code.to_str())
+        return true
+    }
+
+    // Check output via diff
     _ := writefile(path.replace(".til", ".interpret.out"), interp_output)
+    _ := writefile(path.replace(".til", ".expected.out"), expected_output)
     mut interp_diff := ""
-    _ := interp_diff.run_cmd("diff", out_path, path.replace(".til", ".interpret.out"))
+    _ := interp_diff.run_cmd("diff", path.replace(".til", ".expected.out"), path.replace(".til", ".interpret.out"))
     if not(interp_diff.eq("")) {
-        println("FAIL (interpret): ", path)
+        println("FAIL (interpret output): ", path)
         println(interp_diff)
         return true
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return false
 }
@@ -108,18 +161,37 @@ test_rs_compiled := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
     ensure_out_file(path, out_path)
 
+    // Read expected file and parse exit code + output
+    expected_content := readfile(out_path)
+    mut expected_exit_code := 0
+    mut expected_output := ""
+    parse_expected(expected_content, expected_exit_code, expected_output)
+
+    // Run compiled and capture exit code + output
     mut run_output := ""
-    _ := run_output.run_cmd("./bin/rstil", "run", path)
+    actual_exit_code := run_output.run_cmd("./bin/rstil", "run", path)
+
+    // Check exit code
+    if not(actual_exit_code.eq(expected_exit_code)) {
+        println("FAIL (run exit code): ", path)
+        println("  expected: ", expected_exit_code.to_str())
+        println("  actual: ", actual_exit_code.to_str())
+        return true
+    }
+
+    // Check output via diff
     _ := writefile(path.replace(".til", ".run.out"), run_output)
+    _ := writefile(path.replace(".til", ".expected.out"), expected_output)
     mut run_diff := ""
-    _ := run_diff.run_cmd("diff", out_path, path.replace(".til", ".run.out"))
+    _ := run_diff.run_cmd("diff", path.replace(".til", ".expected.out"), path.replace(".til", ".run.out"))
     if not(run_diff.eq("")) {
-        println("FAIL (run): ", path)
+        println("FAIL (run output): ", path)
         println(run_diff)
         return true
     }
 
     catch (err: AllocError) { panic(loc(), err.msg) }
+    catch (err: IndexOutOfBoundsError) { panic(loc(), err.msg) }
 
     return false
 }
@@ -135,9 +207,10 @@ test_rs_common := proc(path: Str) returns Bool {
 
 regen_test := proc(path: Str) {
     mut output := ""
-    _ := output.run_cmd("./bin/rstil", "interpret", path)
+    exit_code := output.run_cmd("./bin/rstil", "interpret", path)
     out_path := get_out_path(path)
-    _ := writefile(out_path, output)
+    formatted := format_expected(exit_code, output)
+    _ := writefile(out_path, formatted)
     println("Regenerated: ", out_path)
 
     catch (err: AllocError) { panic(loc(), err.msg) }
@@ -184,6 +257,7 @@ main := proc(args: ..Str) {
     rs_interpret.push("src/test/comparisons.til")
     rs_interpret.push("src/test/editor_mode_test.til")
     rs_interpret.push("src/test/enums.til")
+    rs_interpret.push("src/test/exit.til")
     rs_interpret.push("src/test/errors.til")
     rs_interpret.push("src/test/fibonacci.til") // recursive examples
     rs_interpret.push("src/test/flow.til") // control flow, execution path examples

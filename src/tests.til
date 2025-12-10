@@ -3,6 +3,3 @@ mode test
 // runfile("src/repl.til") // REM don't run this from the tests unless for debug
 
 // runfile("src/test/builders.til") // TODO FIX non-deterministic error when running from here; run from Makefile instead
-
-// REM test exit.til only at the end
-runfile("src/test/exit.til")

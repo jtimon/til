@@ -1,4 +1,4 @@
 mode test
 
 // exit is optional with a 0 value at the end of the target file, but it can be called earlier and/or with other values for posix return errors
-exit(0)
+exit(69)
