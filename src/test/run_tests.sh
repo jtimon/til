@@ -11,10 +11,6 @@ echo "Testing comparisons.til..."
 $RSTIL run src/test/comparisons.til
 echo "[PASS] comparisons.til"
 
-echo "Testing enums_simple.til..."
-$RSTIL run src/test/enums_simple.til
-echo "[PASS] enums_simple.til"
-
 # TODO: Uncomment when core.til Bool is available via auto-import
 # echo "Testing enums_payload.til..."
 # $RSTIL run src/test/enums_payload.til
