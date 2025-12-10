@@ -273,20 +273,20 @@ main := proc(args: ..Str) {
     rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: static string init, variadic format call, default case syntax
     rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init
     rs_interpreted.push("src/test/errors.til") // TODO FIX: nested throwing call in non-throwing context (safe_div inside to_str)
-    rs_interpreted.push("src/test/fibonacci.til") // TODO FIX: nested functions emitted as local variables
-    rs_interpreted.push("src/test/flow.til") // TODO FIX: nested functions emitted as local variables
+    rs_interpreted.push("src/test/fibonacci.til") // TODO FIX: missing til_eq function (I64.eq UFCS)
+    rs_interpreted.push("src/test/flow.til") // TODO FIX: switch case with non-constant expression (case add(40,2) needs const folding)
     rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls
-    rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, nested functions, variadic calls without args
+    rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, variadic calls without args
     rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructors, field access on non-pointer struct
     rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param type mismatch (Str passed to Dynamic)
-    rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer, nested functions
+    rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer
     rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init at global scope needs constant initializer
     rs_interpreted.push("src/test/run_cmd.til") // TODO FIX: run_cmd UFCS method not found, variadic ext function
-    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested functions emitted as local variables instead of C functions
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: UFCS .eq() not transformed, wrong return type inference (int vs I64)
     rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore redeclaration, field access on non-pointer, error constructors
     rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init, pointer type mismatch, format variadic
     rs_interpreted.push("src/test/test_parser.til") // TODO FIX: incomplete enum types, static string init
-    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: nested functions, undeclared vars, enum constructors
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: undeclared vars, enum constructors
     rs_interpreted.push("src/test/variadic.til") // TODO FIX: variadic functions called without args need empty array
     rs_interpreted.push("src/test/vecs.til") // TODO FIX: expected exception not thrown (bounds check differs)
 

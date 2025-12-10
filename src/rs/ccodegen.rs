@@ -35,6 +35,14 @@ struct CodegenContext {
     // Map of locally-caught error types to (catch label, temp variable name)
     // For explicit throw statements that have a local catch block
     local_catch_labels: HashMap<String, (String, String)>,
+    // Current function name for nested function name mangling (None at top-level)
+    current_function_name: Option<String>,
+    // C code for hoisted nested function definitions
+    hoisted_functions: Vec<String>,
+    // C code for hoisted nested function prototypes
+    hoisted_prototypes: Vec<String>,
+    // Map original function name -> mangled name for nested functions
+    nested_func_names: HashMap<String, String>,
 }
 
 impl CodegenContext {
@@ -49,6 +57,10 @@ impl CodegenContext {
             known_types: Vec::new(),
             hoisted_exprs: HashMap::new(),
             local_catch_labels: HashMap::new(),
+            current_function_name: None,
+            hoisted_functions: Vec::new(),
+            hoisted_prototypes: Vec::new(),
+            nested_func_names: HashMap::new(),
         }
     }
 }
@@ -1027,6 +1039,13 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
         }
     }
 
+    // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
+    if let NodeType::Body = &ast.node_type {
+        for child in &ast.params {
+            collect_nested_func_info(child, &mut ctx, None);
+        }
+    }
+
     // Pass 0b: emit forward declarations for all structs and enums-with-payloads
     // (enums with payloads are implemented as structs in C, so they need forward declarations too)
     // Skip I64, U8, Bool, Dynamic, Type - these are primitive typedefs defined in boilerplate
@@ -1204,6 +1223,13 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             }
         }
     }
+    // 2c: hoisted nested function prototypes (collected in Pass 0a)
+    if !ctx.hoisted_prototypes.is_empty() {
+        output.push_str("\n// Nested function prototypes (hoisted)\n");
+        for proto in &ctx.hoisted_prototypes {
+            output.push_str(proto);
+        }
+    }
     output.push_str("\n");
 
     // Pass 3: include external C interface (after structs and forward decls)
@@ -1257,6 +1283,16 @@ pub fn emit(ast: &Expr, context: &mut Context) -> Result<String, String> {
             if is_struct_declaration(child) {
                 emit_struct_func_bodies(child, &mut output, &mut ctx, context)?;
             }
+        }
+    }
+
+    // 5c: hoisted nested function definitions
+    // These were collected during emit_func_declaration when encountering nested functions
+    // (prototypes were already emitted in Pass 2c)
+    if !ctx.hoisted_functions.is_empty() {
+        output.push_str("\n// Hoisted nested function definitions\n");
+        for func_code in &ctx.hoisted_functions {
+            output.push_str(func_code);
         }
     }
 
@@ -1405,6 +1441,108 @@ fn collect_func_info(expr: &Expr, ctx: &mut CodegenContext) {
             }
         },
         _ => {}
+    }
+}
+
+// Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
+// This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
+fn collect_nested_func_info(expr: &Expr, ctx: &mut CodegenContext, parent_func_name: Option<&str>) {
+    match &expr.node_type {
+        NodeType::Declaration(decl) => {
+            if !expr.params.is_empty() {
+                if let NodeType::FuncDef(func_def) = &expr.params[0].node_type {
+                    if let Some(parent) = parent_func_name {
+                        // This is a nested function - record it for hoisting
+                        let mangled_name = format!("{}_{}", parent, decl.name);
+                        ctx.nested_func_names.insert(decl.name.clone(), mangled_name.clone());
+
+                        // Generate prototype for this nested function
+                        let mut proto = String::new();
+                        let return_type = if func_def.return_types.is_empty() {
+                            "void".to_string()
+                        } else {
+                            til_type_to_c(&func_def.return_types[0]).unwrap_or_else(|| "void".to_string())
+                        };
+                        proto.push_str(&return_type);
+                        proto.push_str(" ");
+                        proto.push_str(&til_name(&mangled_name));
+                        proto.push_str("(");
+
+                        if func_def.args.is_empty() {
+                            proto.push_str("void");
+                        } else {
+                            for (i, arg) in func_def.args.iter().enumerate() {
+                                if i > 0 {
+                                    proto.push_str(", ");
+                                }
+                                // Handle variadic args (TMulti) - they become (type* ptr, int64_t count)
+                                if let ValueType::TMulti(elem_type) = &arg.value_type {
+                                    if let Some(c_type) = til_type_to_c(&ValueType::TCustom(elem_type.clone())) {
+                                        proto.push_str(&c_type);
+                                        proto.push_str("* ");
+                                        proto.push_str(&til_name(&arg.name));
+                                        proto.push_str("_arr, ");
+                                        proto.push_str(&format!("{}I64 ", TIL_PREFIX));
+                                        proto.push_str(&til_name(&arg.name));
+                                        proto.push_str("_count");
+                                    }
+                                } else if let Some(c_type) = til_type_to_c(&arg.value_type) {
+                                    proto.push_str("const ");
+                                    proto.push_str(&c_type);
+                                    proto.push_str(" ");
+                                    proto.push_str(&til_name(&arg.name));
+                                }
+                            }
+                        }
+                        proto.push_str(");\n");
+                        ctx.hoisted_prototypes.push(proto);
+
+                        // Recursively check for nested functions within this nested function
+                        let new_parent = mangled_name.clone();
+                        for body_expr in &func_def.body {
+                            collect_nested_func_info(body_expr, ctx, Some(&new_parent));
+                        }
+                    } else {
+                        // Top-level function - scan its body for nested functions
+                        for body_expr in &func_def.body {
+                            collect_nested_func_info(body_expr, ctx, Some(&decl.name));
+                        }
+                    }
+                }
+            }
+        },
+        NodeType::Body => {
+            for child in &expr.params {
+                collect_nested_func_info(child, ctx, parent_func_name);
+            }
+        },
+        NodeType::If => {
+            // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
+            if expr.params.len() > 1 {
+                collect_nested_func_info(&expr.params[1], ctx, parent_func_name);
+            }
+            if expr.params.len() > 2 {
+                collect_nested_func_info(&expr.params[2], ctx, parent_func_name);
+            }
+        },
+        NodeType::While => {
+            // Check loop body (params[0] = condition, params[1] = body)
+            if expr.params.len() > 1 {
+                collect_nested_func_info(&expr.params[1], ctx, parent_func_name);
+            }
+        },
+        NodeType::Switch => {
+            // Check all case bodies (params[0] = value, rest are cases)
+            for i in 1..expr.params.len() {
+                collect_nested_func_info(&expr.params[i], ctx, parent_func_name);
+            }
+        },
+        _ => {
+            // Recursively check all params for other node types
+            for child in &expr.params {
+                collect_nested_func_info(child, ctx, parent_func_name);
+            }
+        }
     }
 }
 
@@ -2038,6 +2176,11 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
                 ctx.declared_vars.clear();
 
                 let func_name = til_name(&decl.name);
+
+                // Save and set current function name for nested function mangling
+                let prev_function_name = ctx.current_function_name.clone();
+                ctx.current_function_name = Some(decl.name.clone());
+
                 emit_func_signature(&func_name, func_def, output);
                 output.push_str(" {\n");
 
@@ -2053,6 +2196,9 @@ fn emit_func_declaration(expr: &Expr, output: &mut String, ctx: &mut CodegenCont
 
                 // Pop the function scope frame
                 context.scope_stack.frames.pop();
+
+                // Restore previous function name
+                ctx.current_function_name = prev_function_name;
 
                 // Clear current function context
                 ctx.current_throw_types.clear();
@@ -3056,6 +3202,95 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             if func_def.is_ext() {
                 return Ok(());
             }
+
+            // Handle nested function declarations - hoist to top level with mangled name
+            if ctx.current_function_name.is_some() {
+                let parent_name = ctx.current_function_name.as_ref().unwrap();
+                let mangled_name = format!("{}_{}", parent_name, decl.name);
+
+                // Register the name mapping so function calls can find it
+                ctx.nested_func_names.insert(decl.name.clone(), mangled_name.clone());
+
+                // Generate the hoisted function prototype
+                let mut proto_output = String::new();
+                emit_func_signature(&til_name(&mangled_name), func_def, &mut proto_output);
+                proto_output.push_str(";\n");
+                ctx.hoisted_prototypes.push(proto_output);
+
+                // Generate the hoisted function definition
+                let mut func_output = String::new();
+
+                // Save and set context for nested function
+                let prev_throw_types = std::mem::take(&mut ctx.current_throw_types);
+                let prev_return_types = std::mem::take(&mut ctx.current_return_types);
+                let prev_declared_vars = std::mem::take(&mut ctx.declared_vars);
+                let prev_mut_params = std::mem::take(&mut ctx.current_mut_params);
+                let prev_variadic_params = std::mem::take(&mut ctx.current_variadic_params);
+                let prev_function_name = ctx.current_function_name.clone();
+
+                ctx.current_throw_types = func_def.throw_types.clone();
+                ctx.current_return_types = func_def.return_types.clone();
+                ctx.current_function_name = Some(mangled_name.clone());
+
+                // Track mut and variadic params
+                for arg in &func_def.args {
+                    if arg.is_mut {
+                        ctx.current_mut_params.insert(arg.name.clone());
+                    }
+                    if let ValueType::TMulti(elem_type) = &arg.value_type {
+                        ctx.current_variadic_params.insert(arg.name.clone(), til_name(elem_type));
+                    }
+                }
+
+                // Push scope frame for function
+                let mut function_frame = ScopeFrame {
+                    arena_index: HashMap::new(),
+                    symbols: HashMap::new(),
+                    funcs: HashMap::new(),
+                    enums: HashMap::new(),
+                    structs: HashMap::new(),
+                    scope_type: ScopeType::Function,
+                };
+                for arg in &func_def.args {
+                    let value_type = if let ValueType::TMulti(_) = &arg.value_type {
+                        ValueType::TCustom("Array".to_string())
+                    } else {
+                        arg.value_type.clone()
+                    };
+                    function_frame.symbols.insert(arg.name.clone(), SymbolInfo {
+                        value_type,
+                        is_mut: arg.is_mut,
+                        is_copy: arg.is_copy,
+                        is_own: arg.is_own,
+                    });
+                }
+                context.scope_stack.frames.push(function_frame);
+
+                // Emit the function
+                emit_func_signature(&til_name(&mangled_name), func_def, &mut func_output);
+                func_output.push_str(" {\n");
+                emit_stmts(&func_def.body, &mut func_output, 1, ctx, context)?;
+                if !func_def.throw_types.is_empty() && func_def.return_types.is_empty() {
+                    func_output.push_str("    return 0;\n");
+                }
+                func_output.push_str("}\n\n");
+
+                // Pop scope frame
+                context.scope_stack.frames.pop();
+
+                // Restore context
+                ctx.current_throw_types = prev_throw_types;
+                ctx.current_return_types = prev_return_types;
+                ctx.declared_vars = prev_declared_vars;
+                ctx.current_mut_params = prev_mut_params;
+                ctx.current_variadic_params = prev_variadic_params;
+                ctx.current_function_name = prev_function_name;
+
+                ctx.hoisted_functions.push(func_output);
+
+                // Don't emit anything at the declaration site - the function is hoisted
+                return Ok(());
+            }
         }
     }
 
@@ -4033,17 +4268,25 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str("}\n");
             },
             _ => {
-                // Regular case: Type.Variant -> case til_Type_Variant: { ... break; }
+                // Check if it's an enum variant pattern (Type.Variant) or a regular expression case
                 let info = get_case_variant_info(case_pattern);
 
                 output.push_str(&case_indent);
                 output.push_str("case ");
-                if !info.type_name.is_empty() {
-                    output.push_str("til_");
-                    output.push_str(&info.type_name);
-                    output.push_str("_");
+
+                if !info.variant_name.is_empty() {
+                    // Enum variant pattern: Type.Variant -> case til_Type_Variant:
+                    if !info.type_name.is_empty() {
+                        output.push_str("til_");
+                        output.push_str(&info.type_name);
+                        output.push_str("_");
+                    }
+                    output.push_str(&info.variant_name);
+                } else {
+                    // Regular expression case (e.g., add(40, 2) or a literal)
+                    // Emit the expression value directly
+                    emit_expr(case_pattern, output, 0, ctx, context)?;
                 }
-                output.push_str(&info.variant_name);
                 output.push_str(": {\n");
 
                 if let Some(body) = case_body {
@@ -4072,7 +4315,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
     }
 
     // Get function name (handles both nested identifiers and precomp'd "Type.method" strings)
-    let func_name = match get_func_name_string(&expr.params[0]) {
+    let mut func_name = match get_func_name_string(&expr.params[0]) {
         Some(name) => name,
         None => return Err("ccodegen: FCall first param not Identifier".to_string()),
     };
@@ -4082,6 +4325,11 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
         NodeType::Identifier(name) if expr.params[0].params.is_empty() => name.clone(),
         _ => func_name.replace('_', "."),  // Convert back for lookup
     };
+
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    if let Some(mangled_name) = ctx.nested_func_names.get(&orig_func_name) {
+        func_name = mangled_name.clone();
+    }
 
     let indent_str = "    ".repeat(indent);
 

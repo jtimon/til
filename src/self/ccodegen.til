@@ -58,6 +58,14 @@ CodegenContext := struct {
     // Used for throw statements and throwing calls when there's an outer catch block
     // Key is error type name, value is struct with label and temp_var
     mut local_catch_labels: Map = Map.new(Str, CatchLabelInfo)
+    // Current function name for nested function name mangling (empty at top-level)
+    mut current_function_name: Str = ""
+    // C code for hoisted nested function definitions
+    mut hoisted_functions: Vec = Vec.new(Str)
+    // C code for hoisted nested function prototypes
+    mut hoisted_prototypes: Vec = Vec.new(Str)
+    // Map original function name -> mangled name for nested functions
+    mut nested_func_names: Map = Map.new(Str, Str)
 }
 
 // Helper to check if Str struct is defined in context
@@ -443,6 +451,151 @@ collect_func_info := proc(expr: Expr, mut ctx: CodegenContext) throws Str {
     case:
         // Not a declaration, skip
     }
+}
+
+// Collect nested function info (for hoisting): scan function bodies for nested FuncDef declarations
+// This populates ctx.nested_func_names and ctx.hoisted_prototypes before we emit function bodies
+collect_nested_func_info := proc(expr: Expr, mut ctx: CodegenContext, parent_func_name: Str) throws Str {
+    switch expr.node_type {
+    case NodeType.Declaration(decl):
+        if gt(expr.params.len(), 0) {
+            mut first := Expr()
+            expr.params.get(0, first)
+            switch first.node_type {
+            case NodeType.FuncDef(func_def):
+                if gt(parent_func_name.len(), 0) {
+                    // This is a nested function - record it for hoisting
+                    mut mangled_name := concat(parent_func_name, "_")
+                    mangled_name = mangled_name.concat(decl.name)
+                    ctx.nested_func_names.insert(decl.name, mangled_name)
+
+                    // Generate prototype for this nested function
+                    mut proto := ""
+                    mut return_type := "void"
+                    if gt(func_def.return_types.len(), 0) {
+                        mut rt := ValueType.TCustom("")
+                        func_def.return_types.get(0, rt)
+                        mut maybe_type := til_type_to_c(rt)
+                        if gt(maybe_type.len(), 0) {
+                            return_type = maybe_type
+                        }
+                    }
+                    proto = proto.concat(return_type)
+                    proto = proto.concat(" ")
+                    proto = proto.concat(til_name(mangled_name))
+                    proto = proto.concat("(")
+
+                    if func_def.args.len().eq(0) {
+                        proto = proto.concat("void")
+                    } else {
+                        mut ai := 0
+                        while lt(ai, func_def.args.len()) {
+                            if gt(ai, 0) {
+                                proto = proto.concat(", ")
+                            }
+                            mut arg := Declaration()
+                            func_def.args.get(ai, arg)
+                            // Handle variadic args (TMulti) - they become (type* ptr, int64_t count)
+                            switch arg.value_type {
+                            case ValueType.TMulti(elem_type_name):
+                                mut c_type := til_type_to_c(ValueType.TCustom(elem_type_name))
+                                if gt(c_type.len(), 0) {
+                                    proto = proto.concat(c_type)
+                                    proto = proto.concat("* ")
+                                    proto = proto.concat(til_name(arg.name))
+                                    proto = proto.concat("_arr, ")
+                                    proto = proto.concat(TIL_PREFIX)
+                                    proto = proto.concat("I64 ")
+                                    proto = proto.concat(til_name(arg.name))
+                                    proto = proto.concat("_count")
+                                }
+                            case:
+                                mut c_type := til_type_to_c(arg.value_type)
+                                if gt(c_type.len(), 0) {
+                                    proto = proto.concat("const ")
+                                    proto = proto.concat(c_type)
+                                    proto = proto.concat(" ")
+                                    proto = proto.concat(til_name(arg.name))
+                                }
+                            }
+                            ai = add(ai, 1)
+                        }
+                    }
+                    proto = proto.concat(");\n")
+                    ctx.hoisted_prototypes.push(proto)
+
+                    // Recursively check for nested functions within this nested function
+                    mut bi := 0
+                    while lt(bi, func_def.body.len()) {
+                        mut body_expr := Expr()
+                        func_def.body.get(bi, body_expr)
+                        collect_nested_func_info(body_expr, ctx, mangled_name)
+                        bi = add(bi, 1)
+                    }
+                } else {
+                    // Top-level function - scan its body for nested functions
+                    mut bi := 0
+                    while lt(bi, func_def.body.len()) {
+                        mut body_expr := Expr()
+                        func_def.body.get(bi, body_expr)
+                        collect_nested_func_info(body_expr, ctx, decl.name)
+                        bi = add(bi, 1)
+                    }
+                }
+            case:
+                // Not a FuncDef
+            }
+        }
+    case NodeType.Body:
+        mut i := 0
+        while lt(i, expr.params.len()) {
+            mut child := Expr()
+            expr.params.get(i, child)
+            collect_nested_func_info(child, ctx, parent_func_name)
+            i = add(i, 1)
+        }
+    case NodeType.If:
+        // Check then and else branches (params[0] = condition, params[1] = then, params[2] = else)
+        if gt(expr.params.len(), 1) {
+            mut then_branch := Expr()
+            expr.params.get(1, then_branch)
+            collect_nested_func_info(then_branch, ctx, parent_func_name)
+        }
+        if gt(expr.params.len(), 2) {
+            mut else_branch := Expr()
+            expr.params.get(2, else_branch)
+            collect_nested_func_info(else_branch, ctx, parent_func_name)
+        }
+    case NodeType.While:
+        // Check loop body (params[0] = condition, params[1] = body)
+        if gt(expr.params.len(), 1) {
+            mut body := Expr()
+            expr.params.get(1, body)
+            collect_nested_func_info(body, ctx, parent_func_name)
+        }
+    case NodeType.Switch:
+        // Check all case bodies (params[0] = value, rest are cases)
+        mut i := 1
+        while lt(i, expr.params.len()) {
+            mut case_expr := Expr()
+            expr.params.get(i, case_expr)
+            collect_nested_func_info(case_expr, ctx, parent_func_name)
+            i = add(i, 1)
+        }
+    case:
+        // Recursively check all params for other node types
+        mut i := 0
+        while lt(i, expr.params.len()) {
+            mut child := Expr()
+            expr.params.get(i, child)
+            collect_nested_func_info(child, ctx, parent_func_name)
+            i = add(i, 1)
+        }
+    }
+
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
+    catch (err: AllocError) { throw err.msg }
+    catch (err: DuplicatedKeyError) { /* skip duplicates */ }
 }
 
 // Emit function signature (used by both prototype and definition)
@@ -1394,6 +1547,22 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         // Not a body, skip collect pass
     }
 
+    // Pass 0a: collect nested function info for hoisting (populates hoisted_prototypes and nested_func_names)
+    switch ast.node_type {
+    case NodeType.Body:
+        mut i := 0
+        mut params_len := ast.params.len()
+        while lt(i, params_len) {
+            mut child := Expr()
+            ast.params.get(i, child)
+            collect_nested_func_info(child, ctx, "")
+            i = add(i, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+    case:
+        // Not a body, skip nested func collect pass
+    }
+
     // Pass 0b: emit forward declarations for all structs (for pointer cycles/self-references)
     // Skip I64, U8, Bool - these are primitive typedefs, not structs
     switch ast.node_type {
@@ -1594,6 +1763,18 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
     case:
         // Not a body, skip struct func prototype pass
     }
+    // 3c: hoisted nested function prototypes (collected in Pass 0a)
+    if gt(ctx.hoisted_prototypes.len(), 0) {
+        output = output.concat("\n// Nested function prototypes (hoisted)\n")
+        mut pi := 0
+        while lt(pi, ctx.hoisted_prototypes.len()) {
+            mut proto := ""
+            ctx.hoisted_prototypes.get(pi, proto)
+            output = output.concat(proto)
+            pi = add(pi, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { /* ignore */ }
+    }
     output = output.concat("\n")
 
     // Pass 4: emit function definitions
@@ -1630,6 +1811,21 @@ emit := proc(ast: Expr, mut context: Context) returns Str throws Str {
         catch (err: IndexOutOfBoundsError) { throw err.msg }
     case:
         // Not a body, skip struct func body pass
+    }
+
+    // 4c: hoisted nested function definitions
+    // These were collected during emit_func_declaration when encountering nested functions
+    // (prototypes were already emitted in Pass 3c)
+    if gt(ctx.hoisted_functions.len(), 0) {
+        output = output.concat("\n// Hoisted nested function definitions\n")
+        mut fi := 0
+        while lt(fi, ctx.hoisted_functions.len()) {
+            mut func_code := ""
+            ctx.hoisted_functions.get(fi, func_code)
+            output = output.concat(func_code)
+            fi = add(fi, 1)
+        }
+        catch (err: IndexOutOfBoundsError) { /* ignore */ }
     }
 
     // Main function
@@ -1751,6 +1947,10 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                     return output
                 }
 
+                // Save and set current function name for nested function mangling
+                mut prev_function_name := ctx.current_function_name
+                ctx.current_function_name = decl.name
+
                 // Set current function context for return/throw generation
                 ctx.current_throw_types = func_def.throw_types
                 ctx.current_return_types = func_def.return_types
@@ -1798,6 +1998,9 @@ emit_func_declaration := proc(expr: Expr, output: Str, mut ctx: CodegenContext, 
                 }
 
                 result = result.concat("}\n\n")
+
+                // Restore previous function name
+                ctx.current_function_name = prev_function_name
 
                 // Clear current function context
                 ctx.current_throw_types = Vec.new(ValueType)
@@ -2450,17 +2653,25 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(case_indent)
             result = result.concat("}\n")
         case:
-            // Regular case: Type.Variant -> case til_Type_Variant: { ... break; }
+            // Check if it's an enum variant pattern (Type.Variant) or a regular expression case
             mut info := get_case_variant_info(case_pattern)
 
             result = result.concat(case_indent)
             result = result.concat("case ")
-            if gt(info.type_name.len(), 0) {
-                result = result.concat("til_")
-                result = result.concat(info.type_name)
-                result = result.concat("_")
+
+            if gt(info.variant_name.len(), 0) {
+                // Enum variant pattern: Type.Variant -> case til_Type_Variant:
+                if gt(info.type_name.len(), 0) {
+                    result = result.concat("til_")
+                    result = result.concat(info.type_name)
+                    result = result.concat("_")
+                }
+                result = result.concat(info.variant_name)
+            } else {
+                // Regular expression case (e.g., add(40, 2) or a literal)
+                // Emit the expression value directly
+                result = emit_expr(case_pattern, result, 0, ctx, context)
             }
-            result = result.concat(info.variant_name)
             result = result.concat(": {\n")
 
             if has_body {
@@ -4573,14 +4784,87 @@ emit_declaration := proc(decl: Declaration, expr: Expr, output: Str, indent: I64
         ind = add(ind, 1)
     }
 
-    // Check if this is a function definition - skip in main pass
+    // Check if this is a function definition - skip or hoist depending on context
     if gt(expr.params.len(), 0) {
         mut first := Expr()
         expr.params.get(0, first)
         catch (err: IndexOutOfBoundsError) { throw err.msg }
         switch first.node_type {
         case NodeType.FuncDef(func_def):
-            // Skip - already emitted before main
+            // Check if we're inside a function (nested function declaration)
+            if gt(ctx.current_function_name.len(), 0) {
+                // Nested function - hoist it to top level with mangled name
+                mut mangled_name := ctx.current_function_name.concat("_").concat(name)
+
+                // Generate the function definition with mangled name
+                mut func_output := ""
+
+                // Save and set context for nested function
+                mut saved_throw_types := ctx.current_throw_types
+                mut saved_return_types := ctx.current_return_types
+                mut saved_mut_params := ctx.current_mut_params
+                mut saved_variadic_params := ctx.current_variadic_params
+                mut saved_declared_vars := ctx.declared_vars
+                mut saved_function_name := ctx.current_function_name
+
+                ctx.current_throw_types = func_def.throw_types
+                ctx.current_return_types = func_def.return_types
+                ctx.current_function_name = mangled_name
+                ctx.current_mut_params = Vec.new(Str)
+                ctx.current_variadic_params = Map.new(Str, Str)
+                ctx.declared_vars = Vec.new(Str)
+
+                // Track mut params and variadic params
+                mut arg_idx := 0
+                while lt(arg_idx, func_def.args.len()) {
+                    mut arg := Declaration()
+                    func_def.args.get(arg_idx, arg)
+                    if arg.is_mut {
+                        ctx.current_mut_params.push(arg.name)
+                    }
+                    switch arg.value_type {
+                    case ValueType.TMulti(elem_type_name):
+                        ctx.current_variadic_params.insert(arg.name, til_name(elem_type_name))
+                    case:
+                    }
+                    arg_idx = add(arg_idx, 1)
+                }
+
+                // Emit signature with mangled name
+                func_output = emit_func_signature(mangled_name, func_def, func_output, ctx)
+                func_output = func_output.concat(" {\n")
+
+                // Emit body
+                func_output = emit_stmts(func_def.body, func_output, 1, ctx, context)
+
+                // For throwing void functions, add implicit return 0
+                if gt(func_def.throw_types.len(), 0) {
+                    if eq(func_def.return_types.len(), 0) {
+                        func_output = func_output.concat("    return 0;\n")
+                    }
+                }
+
+                func_output = func_output.concat("}\n\n")
+
+                // Store in hoisted_functions
+                ctx.hoisted_functions.push(func_output)
+
+                // Restore context
+                ctx.current_throw_types = saved_throw_types
+                ctx.current_return_types = saved_return_types
+                ctx.current_mut_params = saved_mut_params
+                ctx.current_variadic_params = saved_variadic_params
+                ctx.declared_vars = saved_declared_vars
+                ctx.current_function_name = saved_function_name
+
+                catch (err: IndexOutOfBoundsError) { throw err.msg }
+                catch (err: AllocError) { throw err.msg }
+                catch (err: DuplicatedKeyError) { }
+
+                // Don't emit anything at declaration site - function is hoisted
+                return output
+            }
+            // Top-level function - skip, already emitted before main
             return output
         case NodeType.StructDef(struct_def):
             // Skip - already emitted before functions
@@ -5789,6 +6073,14 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         orig_func_name = func_name.replace("_", ".")
     }
     catch (err: AllocError) { throw err.msg }
+
+    // Check if this is a call to a nested (hoisted) function - use mangled name
+    mut mangled_name := ""
+    ctx.nested_func_names.get(orig_func_name, mangled_name)
+    if gt(mangled_name.len(), 0) {
+        func_name = mangled_name
+    }
+    catch (err: KeyNotFoundError) { /* not a nested function, use original name */ }
 
     // NOTE: Old variadic param method handling (args.len(), args.get()) removed
     // Variadic params are now til_Array* so standard Array methods work
