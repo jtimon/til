@@ -251,6 +251,7 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/structs.til")
     rs_common.push("src/test/temp.til")
     rs_common.push("src/test/u8.til")
+    rs_common.push("src/test/eval.til")
 
     mut rs_compiled := Vec.new(Str)
     rs_compiled.push("src/core/core.til")
@@ -267,28 +268,28 @@ main := proc(args: ..Str) {
     mut rs_interpreted := Vec.new(Str)
 
     rs_interpreted.push("src/examples/hello_pure.til") // TODO hello_pure.til can't be compiled - mode pure forbids procs but core.til has procs
-    rs_interpreted.push("src/test/args.til")
-    rs_interpreted.push("src/test/c_mem.til")
-    rs_interpreted.push("src/test/editor_mode_test.til")
-    rs_interpreted.push("src/test/enums.til")
-    rs_interpreted.push("src/test/errors.til")
-    rs_interpreted.push("src/test/fibonacci.til")
-    rs_interpreted.push("src/test/flow.til")
-    rs_interpreted.push("src/test/forward_declarations.til")
-    rs_interpreted.push("src/test/func_purity.til")
-    rs_interpreted.push("src/test/intro.til")
-    rs_interpreted.push("src/test/lists.til")
-    rs_interpreted.push("src/test/maps.til")
-    rs_interpreted.push("src/test/mut_test.til")
-    rs_interpreted.push("src/test/namespaces.til")
-    rs_interpreted.push("src/test/run_cmd.til")
-    rs_interpreted.push("src/test/scope_isolation.til")
-    rs_interpreted.push("src/test/sets.til")
-    rs_interpreted.push("src/test/test_lexer.til")
-    rs_interpreted.push("src/test/test_parser.til")
-    rs_interpreted.push("src/test/ufcs.til")
-    rs_interpreted.push("src/test/variadic.til")
-    rs_interpreted.push("src/test/vecs.til")
+    rs_interpreted.push("src/test/args.til") // TODO FIX: mut param not passed as pointer, format variadic args
+    rs_interpreted.push("src/test/c_mem.til") // TODO FIX: test output mismatch (assert_eq formatting differs)
+    rs_interpreted.push("src/test/editor_mode_test.til") // TODO FIX: typer errors - field access on wrong type in compiled mode
+    rs_interpreted.push("src/test/enums.til") // TODO FIX: incomplete enum types, static string init
+    rs_interpreted.push("src/test/errors.til") // TODO FIX: nested throwing call in non-throwing context (safe_div inside to_str)
+    rs_interpreted.push("src/test/fibonacci.til") // TODO FIX: nested functions emitted as local variables
+    rs_interpreted.push("src/test/flow.til") // TODO FIX: nested functions emitted as local variables
+    rs_interpreted.push("src/test/forward_declarations.til") // TODO FIX: enum constructors emitted as function calls
+    rs_interpreted.push("src/test/func_purity.til") // TODO FIX: typer errors - field access on wrong type in compiled mode
+    rs_interpreted.push("src/test/intro.til") // TODO FIX: static string init, nested functions, variadic calls without args
+    rs_interpreted.push("src/test/lists.til") // TODO FIX: error constructors, field access on non-pointer struct
+    rs_interpreted.push("src/test/maps.til") // TODO FIX: Dynamic param type mismatch (Str passed to Dynamic)
+    rs_interpreted.push("src/test/mut_test.til") // TODO FIX: mut param not passed as pointer, nested functions
+    rs_interpreted.push("src/test/namespaces.til") // TODO FIX: static string init at global scope needs constant initializer
+    rs_interpreted.push("src/test/run_cmd.til") // TODO FIX: run_cmd UFCS method not found, variadic ext function
+    rs_interpreted.push("src/test/scope_isolation.til") // TODO FIX: nested functions emitted as local variables instead of C functions
+    rs_interpreted.push("src/test/sets.til") // TODO FIX: underscore redeclaration, field access on non-pointer, error constructors
+    rs_interpreted.push("src/test/test_lexer.til") // TODO FIX: static string init, pointer type mismatch, format variadic
+    rs_interpreted.push("src/test/test_parser.til") // TODO FIX: incomplete enum types, static string init
+    rs_interpreted.push("src/test/ufcs.til") // TODO FIX: nested functions, undeclared vars, enum constructors
+    rs_interpreted.push("src/test/variadic.til") // TODO FIX: variadic functions called without args need empty array
+    rs_interpreted.push("src/test/vecs.til") // TODO FIX: expected exception not thrown (bounds check differs)
 
     // rs_interpreted.push("src/examples/hello_script_safe.til") // TODO this is much harder than it sounds
     // rs_interpreted.push("src/test/undefined.til")
@@ -299,16 +300,16 @@ main := proc(args: ..Str) {
     // rs_interpreted.push("src/test/switch_simple.til") // TODO Not sure why this one is commented, uncomment
 
     // next level:
-    rs_interpreted.push("src/test/eval.til")
-    rs_interpreted.push("src/test/introspections.til")
-    rs_interpreted.push("src/test/modes.til")
+    // eval.til moved to rs_common
+    rs_interpreted.push("src/test/introspections.til") // TODO FIX: error constructors, field access on non-pointer
+    rs_interpreted.push("src/test/modes.til") // TODO FIX: static string init, pointer type mismatch
     rs_interpreted.push("src/test/todo.til") // permanent TODO, design notes for future features
 
     // Self-hosting interpreter tests
     // run the self hosting libs just to see they pass typer checks
-    rs_interpreted.push("src/self/interpreter.til")
-    rs_interpreted.push("src/tests_self_hosted.til")
-    rs_interpreted.push("src/test/builders.til")
+    rs_interpreted.push("src/self/interpreter.til") // TODO FIX: incomplete enum types, static string init
+    rs_interpreted.push("src/tests_self_hosted.til") // TODO FIX: runfile is interpreter-only builtin
+    rs_interpreted.push("src/test/builders.til") // TODO FIX: compilation times out (too large or infinite loop)
 
     // REPL test - requires stdin piping (e.g., echo "exit(0)" | ./bin/rstil repl)
     // run_cmd doesn't support stdin, would need bash -c wrapper or new ext_proc
