@@ -12,12 +12,19 @@ get_out_path := func(src_path: Str) returns Str throws AllocError {
     return src_path.replace(".til", ".out")
 }
 
-run_all_tests := proc(rs_common: Vec, rs_interpret: Vec) {
+run_all_tests := proc(rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
     mut errors_found := false
     for i in 0..rs_common.len() {
         mut path := ""
         rs_common.get(i, path)
         if test_rs_common(path) {
+            errors_found = true
+        }
+    }
+    for i in 0..rs_compiled.len() {
+        mut path := ""
+        rs_compiled.get(i, path)
+        if test_rs_compiled(path) {
             errors_found = true
         }
     }
@@ -36,12 +43,17 @@ run_all_tests := proc(rs_common: Vec, rs_interpret: Vec) {
     }
 }
 
-regen := proc(files: Vec, rs_common: Vec, rs_interpret: Vec) {
+regen := proc(files: Vec, rs_common: Vec, rs_compiled: Vec, rs_interpret: Vec) {
     if files.len().eq(0) {
         // regen all
         for i in 0..rs_common.len() {
             mut path := ""
             rs_common.get(i, path)
+            regen_test(path)
+        }
+        for i in 0..rs_compiled.len() {
+            mut path := ""
+            rs_compiled.get(i, path)
             regen_test(path)
         }
         for i in 0..rs_interpret.len() {
@@ -94,6 +106,7 @@ test_rs_interpreted := proc(path: Str) returns Bool {
 
 test_rs_compiled := proc(path: Str) returns Bool {
     out_path := get_out_path(path)
+    ensure_out_file(path, out_path)
 
     mut run_output := ""
     _ := run_output.run_cmd("./bin/rstil", "run", path)
@@ -147,19 +160,22 @@ main := proc(args: ..Str) {
     mut rs_common := Vec.new(Str)
     rs_common.push("src/examples/hello_script.til")
 
+    mut rs_compiled := Vec.new(Str)
+    rs_compiled.push("src/core/core.til")
+
     mut rs_interpret := Vec.new(Str)
     rs_interpret.push("src/test/comparisons.til")
 
     // Parse args
     if args.len().eq(0) {
         // Default: run tests
-        run_all_tests(rs_common, rs_interpret)
+        run_all_tests(rs_common, rs_compiled, rs_interpret)
     } else {
         mut cmd := ""
         args.get(0, cmd)
         switch cmd {
         case "test":
-            run_all_tests(rs_common, rs_interpret)
+            run_all_tests(rs_common, rs_compiled, rs_interpret)
         case "regen":
             mut files := Vec.new(Str)
             for i in 1..args.len() {
@@ -167,7 +183,7 @@ main := proc(args: ..Str) {
                 args.get(i, path)
                 files.push(path)
             }
-            regen(files, rs_common, rs_interpret)
+            regen(files, rs_common, rs_compiled, rs_interpret)
         case:
             usage()
         }
