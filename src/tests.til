@@ -254,7 +254,6 @@ main := proc(args: ..Str) {
     rs_common.push("src/test/eval.til")
 
     mut rs_compiled := Vec.new(Str)
-    rs_compiled.push("src/core/core.til")
     rs_compiled.push("src/test/enums_simple.til")
     rs_compiled.push("src/test/throw_simple.til")
     // TODO FIX: enum constructors called as functions instead of struct init
