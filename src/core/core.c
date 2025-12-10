@@ -156,7 +156,7 @@ til_Bool til_or(til_Array* til_args) {
         if (til_val.data) {
             return true;
         }
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     return false;
 }
@@ -170,7 +170,7 @@ til_Bool til_and(til_Array* til_args) {
         if (til_not(til_val).data) {
             return false;
         }
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     return true;
 }
@@ -214,7 +214,7 @@ void til_print(til_Array* til_args) {
         til_IndexOutOfBoundsError _err0__tmp2 = {};
         int _status__tmp2 = til_Array_get(&_err0__tmp2, (*til_args), til_i, (til_Dynamic*)&til_val);
         til_single_print(til_val);
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     til_print_flush();
 }
@@ -226,7 +226,7 @@ void til_println(til_Array* til_args) {
         til_IndexOutOfBoundsError _err0__tmp3 = {};
         int _status__tmp3 = til_Array_get(&_err0__tmp3, (*til_args), til_i, (til_Dynamic*)&til_val);
         til_single_print(til_val);
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     til_single_print(til_Str_from_literal("\n"));
     til_print_flush();
@@ -598,7 +598,7 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
             *_err1 = til_I64_OverflowError_new(_tmp61);
             return 1;
         }
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     til_I64 _ret__tmp67;
     til_AllocError _err0__tmp67 = {};
@@ -648,7 +648,7 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
         if (_status__tmp74 == 1) { *_err2 = _err0__tmp74; return 2; }
         til_memcpy(til_add(til_result.c_string, til_offset), til_s.c_string, til_s.cap);
         til_offset = til_add(til_offset, til_s.cap);
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     *_ret = til_result;
     return 0;
@@ -662,7 +662,7 @@ void til_panic(const til_Str til_loc_str, til_Array* til_msgs) {
         til_IndexOutOfBoundsError _err0__tmp75 = {};
         int _status__tmp75 = til_Array_get(&_err0__tmp75, (*til_msgs), til_i, (til_Dynamic*)&til_val);
         til_single_print(til_val);
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     til_single_print(til_Str_from_literal("\n"));
     til_print_flush();
@@ -1312,7 +1312,7 @@ til_Bool til_Str_eq(const til_Str til_self, const til_Str til_other) {
         if (til_not(til_U8_eq(til_self_byte, til_other_byte)).data) {
             return false;
         }
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     return true;
 }
@@ -1386,7 +1386,7 @@ til_Bool til_Str_is_uppercase(const til_Str til_self) {
         if (til_gt(til_byte_val, 90).data) {
             return false;
         }
-        til_I64_inc(&til_i);
+        til_I64_inc(til_i);
     }
     return true;
 }
@@ -1411,12 +1411,12 @@ til_Bool til_Str_contains(const til_Str til_self, const til_Str til_needle) {
             if (til_not(til_U8_eq(til_self_byte, til_needle_byte)).data) {
                 til_matches = false;
             }
-            til_I64_inc(&til_needle_idx);
+            til_I64_inc(til_needle_idx);
         }
         if (til_matches.data) {
             return true;
         }
-        til_I64_inc(&til_start_idx);
+        til_I64_inc(til_start_idx);
     }
     return false;
 }
@@ -1441,12 +1441,12 @@ til_I64 til_Str_find(const til_Str til_self, const til_Str til_needle) {
             if (til_not(til_U8_eq(til_self_byte, til_needle_byte)).data) {
                 til_matches = false;
             }
-            til_I64_inc(&til_needle_idx);
+            til_I64_inc(til_needle_idx);
         }
         if (til_matches.data) {
             return til_start_idx;
         }
-        til_I64_inc(&til_start_idx);
+        til_I64_inc(til_start_idx);
     }
     return til_sub(0, 1);
 }
@@ -1472,12 +1472,12 @@ til_I64 til_Str_rfind(const til_Str til_self, const til_Str til_needle) {
             if (til_not(til_U8_eq(til_self_byte, til_needle_byte)).data) {
                 til_matches = false;
             }
-            til_I64_inc(&til_needle_idx);
+            til_I64_inc(til_needle_idx);
         }
         if (til_matches.data) {
             til_last_found = til_start_idx;
         }
-        til_I64_inc(&til_start_idx);
+        til_I64_inc(til_start_idx);
     }
     return til_last_found;
 }
@@ -1504,7 +1504,7 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
             if (til_not(til_U8_eq(til_self_byte, til_from_byte)).data) {
                 til_matches = false;
             }
-            til_I64_inc(&til_i);
+            til_I64_inc(til_i);
         }
         if (til_matches.data) {
             til_count = til_add(til_count, 1);
@@ -1575,7 +1575,7 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
                 if (til_not(til_U8_eq(til_self_byte, til_from_byte)).data) {
                     til_matches = false;
                 }
-                til_I64_inc(&til_i);
+                til_I64_inc(til_i);
             }
         } else {
             til_matches = false;
@@ -1627,7 +1627,7 @@ int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsErro
             if (til_not(til_U8_eq(til_self_byte, til_delim_byte)).data) {
                 til_matches = false;
             }
-            til_I64_inc(&til_i);
+            til_I64_inc(til_i);
         }
         if (til_matches.data) {
             if (til_gt(til_pos, til_start).data) {

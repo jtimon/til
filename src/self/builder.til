@@ -1,6 +1,7 @@
 mode lib
 
 import("src.self.interpreter")
+import("src.self.precomp")
 import("src.self.ccodegen")
 
 // Note: import_path_to_file_path is available from init.til (via interpreter.til)
@@ -226,6 +227,9 @@ build := proc(path: Str) returns Str throws Str {
     }
 
     catch (err: AllocError) { throw err.msg }
+
+    // Precomputation phase: Transform UFCS calls into regular function calls
+    merged_ast = precomp_expr(context, merged_ast)
 
     // Generate C code
     mut c_code := emit(merged_ast, context)

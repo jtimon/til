@@ -156,6 +156,9 @@ pub fn build(path: &str) -> Result<(), String> {
         return Err(format!("Compiler errors: {} type errors found", errors.len()));
     }
 
+    // Precomputation phase: Transform UFCS calls into regular function calls
+    let merged_ast = crate::rs::precomp::precomp_expr(&mut context, &merged_ast)?;
+
     // Generate C code
     let c_code = ccodegen::emit(&merged_ast, &mut context)?;
 

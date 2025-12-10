@@ -6,6 +6,7 @@ mod rs {
     pub mod parser;
     pub mod init;
     pub mod typer;
+    pub mod precomp;
     pub mod arena;
     pub mod interpreter;
     pub mod ext;

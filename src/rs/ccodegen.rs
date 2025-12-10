@@ -59,6 +59,12 @@ fn til_name(name: &str) -> String {
     }
 }
 
+// Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
+// Used for function names like Array.len -> til_Array_len
+fn til_func_name(name: &str) -> String {
+    format!("{}{}", TIL_PREFIX, name.replace('.', "_"))
+}
+
 /// Check if an expression is a type identifier (a Type parameter at call site)
 /// Returns the type name if it is, so it can be emitted as a string literal
 /// Matches interpreter.rs behavior (line 1703-1713)
@@ -440,7 +446,7 @@ fn hoist_throwing_args(
 
             // Emit function name
             if let Some(func_name) = get_fcall_func_name(arg, context) {
-                output.push_str(&til_name(&func_name));
+                output.push_str(&til_func_name(&func_name));
             }
             output.push('(');
 
@@ -864,7 +870,7 @@ fn emit_fcall_name_and_args_for_throwing(
     if is_struct_method {
         output.push_str(&func_name);
     } else {
-        output.push_str(&til_name(&func_name));
+        output.push_str(&til_func_name(&func_name));
     }
     output.push_str("(&");
     output.push_str(temp_var);
@@ -1100,6 +1106,17 @@ fn emit_arg_with_param_type(
         // For non-identifier args, emit as-is (may cause compile error, but that's a user error)
         emit_expr(arg, output, 0, ctx, context)?;
         return Ok(());
+    }
+
+    // Check if arg is a variadic param (which is til_Array*) but expected param is NOT mut
+    // In this case we need to dereference: (*til_args) to get til_Array by value
+    if let NodeType::Identifier(name) = &arg.node_type {
+        if arg.params.is_empty() && ctx.current_variadic_params.contains_key(name) {
+            output.push_str("(*");
+            output.push_str(&til_name(name));
+            output.push_str(")");
+            return Ok(());
+        }
     }
 
     emit_expr(arg, output, 0, ctx, context)
@@ -2471,7 +2488,7 @@ fn emit_throwing_call(
     output.push_str("int _status_");
     output.push_str(&temp_suffix.to_string());
     output.push_str(" = ");
-    output.push_str(&til_name(&func_name));
+    output.push_str(&til_func_name(&func_name));
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
@@ -2749,7 +2766,7 @@ fn emit_throwing_call_propagate(
     output.push_str("int _status_");
     output.push_str(&temp_suffix);
     output.push_str(" = ");
-    output.push_str(&til_name(&func_name));
+    output.push_str(&til_func_name(&func_name));
     output.push_str("(");
 
     // First: return value pointer (if function returns something)
@@ -3206,7 +3223,7 @@ fn emit_return(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                     output.push_str(" = ");
                     // Emit the function call
                     if let NodeType::Identifier(func_name) = &return_expr.params[0].node_type {
-                        output.push_str(&til_name(func_name));
+                        output.push_str(&til_func_name(func_name));
                     }
                     output.push_str("(");
                     // Emit regular args
@@ -3492,7 +3509,7 @@ fn emit_fcall_with_hoisted(
         && expr.params.len() == 1
     {
         output.push_str("(");
-        output.push_str(&til_name(&func_name));
+        output.push_str(&til_func_name(&func_name));
         output.push_str("){}");
         return Ok(());
     }
@@ -3853,6 +3870,9 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
         // type_as_str(T) - compile-time intrinsic to get type name as string
+        // TODO: This doesn't work correctly for Type parameters (T: Type) because
+        // we emit a single generic function, not monomorphized versions per type.
+        // For now it just emits the identifier name literally.
         "type_as_str" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: type_as_str requires 1 argument".to_string());
@@ -3876,6 +3896,12 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             Ok(())
         },
         // size_of(T) - compile-time intrinsic to get type size
+        // TODO: This doesn't work correctly for Type parameters (T: Type) because
+        // we emit a single generic function, not monomorphized versions per type.
+        // To fix this properly, we'd need either:
+        // 1. Monomorphization (emit separate functions for each type used)
+        // 2. Runtime type info lookup (add til_size_of to ext.c with all known types)
+        // For now it just emits sizeof(til_T) which is wrong for Type params.
         "size_of" => {
             if expr.params.len() < 2 {
                 return Err("ccodegen: size_of requires 1 argument".to_string());
@@ -4025,7 +4051,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                     if is_struct_method {
                         output.push_str(&func_name);
                     } else {
-                        output.push_str(&til_name(&func_name));
+                        output.push_str(&til_func_name(&func_name));
                     }
                     output.push_str("(");
                     // For type-qualified calls (Type.func), don't pass the type as argument
@@ -4092,7 +4118,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 && expr.params.len() == 1            // No constructor args
             {
                 output.push_str("(");
-                output.push_str(&til_name(&func_name));
+                output.push_str(&til_func_name(&func_name));
                 output.push_str("){}");
                 if indent > 0 {
                     output.push_str(";\n");
@@ -4104,7 +4130,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
             // If first argument is a variable with known type, try mangled name
             // Track both original name (for lookups) and output name (with til_ prefix)
             let mut lookup_name = func_name.clone();
-            let mut output_name = til_name(&func_name);
+            let mut output_name = til_func_name(&func_name);
             if expr.params.len() > 1 {
                 if let NodeType::Identifier(first_arg_name) = &expr.params[1].node_type {
                     let arg_type: Option<ValueType> = context.scope_stack.lookup_symbol(first_arg_name)

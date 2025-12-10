@@ -3,6 +3,7 @@ mode lib
 import("src.self.init")
 import("src.self.parser")
 import("src.self.typer")
+import("src.self.precomp")
 import("src.self.ext")
 import("src.self.arena")
 import("src.self.mode")         // parse_mode, can_be_imported
@@ -833,6 +834,8 @@ eval_func_proc_call := proc(name: Str, mut context: Context, e: Expr) returns Ev
         }
     }
 
+    // TODO: After precomp, UFCS is already resolved so the mutation in get_func_def_for_fcall_with_expr
+    // is a no-op. Could save this clone by adding a simpler lookup function that doesn't need &mut.
     mut new_fcall_e := e.clone()
     mut func_def := SFuncDef()
     func_def = get_func_def_for_fcall_with_expr(context, new_fcall_e)
@@ -3198,6 +3201,9 @@ main_run := proc(print_extra: Bool, skip_init_and_typecheck: Bool, mut context: 
             }
             throw format("Compiler errors: ", errors.len().to_str(), " type errors found")
         }
+
+        // Precomputation phase: Transform UFCS calls into regular function calls
+        e = precomp_expr(context, e)
     }
 
     catch (err: IndexOutOfBoundsError) { throw err.msg }

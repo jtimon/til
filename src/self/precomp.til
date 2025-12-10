@@ -1,0 +1,448 @@
+mode lib
+
+import("src.self.init")
+
+// Precomputation phase: Transforms UFCS calls into regular function calls
+// This phase runs after typer, before interpreter/builder.
+// No eval, no arena access - pure AST transformation.
+
+// ---------- Main entry point
+
+/// Precomputation phase: Transform UFCS calls into regular function calls.
+/// Takes an AST that has already passed type checking and returns a semantically
+/// equivalent AST with all UFCS calls resolved.
+///
+/// Examples:
+///   a.add(b)         -> I64.add(a, b)     (where a is I64)
+///   obj.items.len()  -> Vec.len(obj.items)
+///   add(1, 2).mul(3) -> I64.mul(add(1, 2), 3)
+precomp_expr := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    switch e.node_type {
+    case NodeType.Body:
+        return precomp_body(context, e)
+    case NodeType.FCall:
+        return precomp_fcall(context, e)
+    case NodeType.If:
+        return precomp_params(context, e)
+    case NodeType.While:
+        return precomp_params(context, e)
+    case NodeType.Switch:
+        return precomp_params(context, e)
+    case NodeType.FuncDef(func_def):
+        return precomp_func_def(context, e, func_def)
+    case NodeType.Declaration(decl):
+        return precomp_declaration(context, e, decl)
+    case NodeType.Assignment:
+        return precomp_params(context, e)
+    case NodeType.Return:
+        return precomp_params(context, e)
+    case NodeType.Throw:
+        return precomp_params(context, e)
+    case NodeType.Catch:
+        return precomp_params(context, e)
+    case NodeType.Range:
+        return precomp_params(context, e)
+    // Struct/enum definitions - need to process default values (which may contain function defs)
+    case NodeType.StructDef(struct_def):
+        return precomp_struct_def(context, e, struct_def)
+    case NodeType.EnumDef:
+        return e.clone()
+    // Identifiers can have nested params (e.g., a.b.c for field access chains)
+    case NodeType.Identifier:
+        return precomp_params(context, e)
+    // Leaf nodes - no transformation needed
+    case NodeType.LLiteral:
+        return e.clone()
+    case NodeType.DefaultCase:
+        return e.clone()
+    case NodeType.Pattern:
+        return e.clone()
+    case:
+        return e.clone()
+    }
+}
+
+// ---------- AST transformation
+
+/// Transform Body node - recursively transform all statements
+precomp_body := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    mut new_params := Vec.new(Expr)
+    mut i := 0
+    while i.lt(e.params.len()) {
+        mut p := Expr()
+        e.params.get(i, p)
+        new_params.push(precomp_expr(context, p))
+        i = i.add(1)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_body: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_body: ", err.msg)
+    }
+
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform node params - recursively transform all child expressions
+precomp_params := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    mut new_params := Vec.new(Expr)
+    mut i := 0
+    while i.lt(e.params.len()) {
+        mut p := Expr()
+        e.params.get(i, p)
+        new_params.push(precomp_expr(context, p))
+        i = i.add(1)
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_params: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_params: ", err.msg)
+    }
+
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform StructDef - recursively transform default values (which contain function defs)
+precomp_struct_def := proc(mut context: Context, e: Expr, struct_def: SStructDef) returns Expr throws Str {
+    mut new_default_values := Map.new(Str, Expr)
+    mut i := 0
+    while i.lt(struct_def.default_values.keys.len()) {
+        mut name := ""
+        struct_def.default_values.keys.get(i, name)
+        mut value_expr := Expr()
+        struct_def.default_values.get(name, value_expr)
+        new_default_values.set(name, precomp_expr(context, value_expr))
+        i = i.add(1)
+    }
+    mut new_struct_def := SStructDef()
+    new_struct_def.members = struct_def.members.clone()
+    new_struct_def.default_values = new_default_values
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_struct_def: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_struct_def: ", err.msg)
+    }
+    catch (err: KeyNotFoundError) {
+        throw format("precomp_struct_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.StructDef(new_struct_def), e, e.params.clone())
+}
+
+/// Transform FuncDef - push scope frame for function args, transform body, pop frame
+precomp_func_def := proc(mut context: Context, e: Expr, func_def: SFuncDef) returns Expr throws Str {
+    // Push a new scope frame with the function's parameters
+    context.scope_stack.push(ScopeType.Function)
+    mut i := 0
+    while i.lt(func_def.args.len()) {
+        mut arg := Declaration()
+        func_def.args.get(i, arg)
+        mut sym := SymbolInfo()
+        sym.value_type = arg.value_type
+        sym.is_mut = arg.is_mut
+        sym.is_copy = arg.is_copy
+        sym.is_own = arg.is_own
+        context.scope_stack.declare_symbol(arg.name, sym)
+        i = i.add(1)
+    }
+
+    // Transform the function body
+    mut new_body := Vec.new(Expr)
+    mut j := 0
+    while j.lt(func_def.body.len()) {
+        mut stmt := Expr()
+        func_def.body.get(j, stmt)
+        new_body.push(precomp_expr(context, stmt))
+        j = j.add(1)
+    }
+
+    // Pop the function scope frame
+    _ := context.scope_stack.pop()
+
+    mut new_func_def := SFuncDef()
+    new_func_def.function_type = func_def.function_type
+    new_func_def.args = func_def.args.clone()
+    new_func_def.return_types = func_def.return_types.clone()
+    new_func_def.throw_types = func_def.throw_types.clone()
+    new_func_def.body = new_body
+    new_func_def.source_path = func_def.source_path.clone()
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_func_def: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_func_def: ", err.msg)
+    }
+
+    return Expr.new_clone(NodeType.FuncDef(new_func_def), e, e.params.clone())
+}
+
+/// Transform Declaration - register the declared variable in scope, then transform value
+precomp_declaration := proc(mut context: Context, e: Expr, decl: Declaration) returns Expr throws Str {
+    // First transform the value expression (if any)
+    mut new_params := Vec.new(Expr)
+    if e.params.len().gt(0) {
+        mut i := 0
+        while i.lt(e.params.len()) {
+            mut p := Expr()
+            e.params.get(i, p)
+            new_params.push(precomp_expr(context, p))
+            i = i.add(1)
+        }
+    }
+
+    // Determine the type from the value if it's 'auto'
+    mut value_type := decl.value_type
+    switch decl.value_type {
+    case ValueType.TCustom(type_name):
+        if type_name.eq("auto") {
+            if new_params.len().gt(0) {
+                mut first_param := Expr()
+                new_params.get(0, first_param)
+                value_type = get_value_type(context, first_param)
+                catch (err: Str) {
+                    // Keep original type if we can't determine it
+                }
+            }
+        }
+    case:
+    }
+
+    // Register the declared variable in scope
+    mut sym := SymbolInfo()
+    sym.value_type = value_type
+    sym.is_mut = decl.is_mut
+    sym.is_copy = decl.is_copy
+    sym.is_own = decl.is_own
+    context.scope_stack.declare_symbol(decl.name, sym)
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_declaration: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_declaration: ", err.msg)
+    }
+
+    return Expr.new_clone(e.node_type, e, new_params)
+}
+
+/// Transform FCall node - this is where UFCS resolution happens
+precomp_fcall := proc(mut context: Context, e: Expr) returns Expr throws Str {
+    // First, recursively transform all arguments
+    mut transformed_params := Vec.new(Expr)
+    mut i := 0
+    while i.lt(e.params.len()) {
+        mut p := Expr()
+        e.params.get(i, p)
+        transformed_params.push(precomp_expr(context, p))
+        i = i.add(1)
+    }
+    mut e := Expr.new_clone(e.node_type, e, transformed_params)
+
+    // Now check if this is a UFCS call and transform it
+    if e.params.len().eq(0) {
+        // Empty FCall, shouldn't happen but just return as-is
+        return e
+    }
+
+    mut func_expr := Expr()
+    e.params.get(0, func_expr)
+
+    switch func_expr.node_type {
+    case NodeType.Identifier:
+        mut combined_name := get_combined_name(context.path, func_expr)
+
+        // Case 1: UFCS call on a function/expression result
+        // e.g., add(1, 2).mul(3) where first arg is the result to call method on
+        if e.params.len().gteq(2) {
+            mut first_arg := Expr()
+            e.params.get(1, first_arg)
+            mut got_type := true
+            mut target_type := get_value_type(context, first_arg)
+            catch (err: Str) {
+                got_type = false
+            }
+            if got_type {
+                switch target_type {
+                case ValueType.TCustom(custom_type_name):
+                    mut method_name := format(custom_type_name, ".", combined_name)
+                    mut method_found := false
+                    mut dummy := context.scope_stack.lookup_func(method_name)
+                    method_found = true
+                    catch (err: KeyNotFoundError) {
+                        // Not found
+                    }
+                    if method_found {
+                        // Transform: method(target, args...) -> Type.method(target, args...)
+                        mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                        mut new_args := Vec.new(Expr)
+                        new_args.push(new_e)
+                        // Add remaining args
+                        mut j := 1
+                        while j.lt(e.params.len()) {
+                            mut arg := Expr()
+                            e.params.get(j, arg)
+                            new_args.push(arg)
+                            j = j.add(1)
+                        }
+                        return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                    }
+                case:
+                }
+            }
+        }
+
+        // Case 2: Already a regular function call - check if it exists
+        mut func_found := false
+        mut dummy2 := context.scope_stack.lookup_func(combined_name)
+        func_found = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if func_found {
+            return e
+        }
+
+        // Case 3: Struct/enum constructor - no transformation needed
+        mut struct_found := false
+        mut dummy3 := context.scope_stack.lookup_struct(combined_name)
+        struct_found = true
+        catch (err: KeyNotFoundError) {
+            // Not found
+        }
+        if struct_found {
+            return e
+        }
+
+        // Check for enum constructors (e.g., Color.Green(true))
+        mut parts := combined_name.split(".")
+        if parts.len().eq(2) {
+            mut enum_type := ""
+            parts.get(0, enum_type)
+            mut enum_found := false
+            mut enum_def := context.scope_stack.lookup_enum(enum_type)
+            enum_found = true
+            catch (err: KeyNotFoundError) {
+                // Not found
+            }
+            if enum_found {
+                mut variant_name := ""
+                parts.get(1, variant_name)
+                if enum_def.enum_map.contains_key(variant_name) {
+                    return e
+                }
+            }
+        }
+
+        // Case 4: UFCS with dot notation (e.g., a.method(b) or a.field.method())
+        if func_expr.params.len().gt(0) {
+            mut func_name_expr := Expr()
+            func_expr.params.get(func_expr.params.len().sub(1), func_name_expr)
+
+            switch func_name_expr.node_type {
+            case NodeType.Identifier(ufcs_func_name):
+                mut parts2 := combined_name.split(".")
+                // Remove the method name (last element)
+                if parts2.len().gt(0) {
+                    parts2.remove(parts2.len().sub(1))
+                }
+
+                // Create identifier expression for the receiver (everything except the method name)
+                mut id_params := func_expr.params.clone()
+                if id_params.len().gt(0) {
+                    id_params.remove(id_params.len().sub(1))
+                }
+                mut receiver_expr := Expr.new_clone(func_expr.node_type, e, id_params)
+
+                // Try as a regular standalone function first
+                mut standalone_found := false
+                mut dummy4 := context.scope_stack.lookup_func(ufcs_func_name)
+                standalone_found = true
+                catch (err: KeyNotFoundError) {
+                    // Not found
+                }
+                if standalone_found {
+                    mut new_e := Expr.new_clone(NodeType.Identifier(ufcs_func_name), func_expr, Vec.new(Expr))
+                    mut new_args := Vec.new(Expr)
+                    new_args.push(new_e)
+                    new_args.push(receiver_expr)
+                    // Add remaining args
+                    mut j := 1
+                    while j.lt(e.params.len()) {
+                        mut arg := Expr()
+                        e.params.get(j, arg)
+                        new_args.push(arg)
+                        j = j.add(1)
+                    }
+                    return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                }
+
+                // Try as an associated method (Type.method)
+                mut got_type2 := true
+                mut value_type := get_value_type(context, receiver_expr)
+                catch (err: Str) {
+                    got_type2 = false
+                }
+                if got_type2 {
+                    // Get type name from value_type - TCustom or TMulti (variadic params become Array)
+                    mut custom_type_name := ""
+                    mut has_type_name := false
+                    switch value_type {
+                    case ValueType.TCustom(type_name):
+                        custom_type_name = type_name
+                        has_type_name = true
+                    case ValueType.TMulti:
+                        custom_type_name = "Array"
+                        has_type_name = true
+                    case:
+                    }
+                    if has_type_name {
+                        mut method_name := format(custom_type_name, ".", ufcs_func_name)
+                        mut assoc_method_found := false
+                        mut dummy5 := context.scope_stack.lookup_func(method_name)
+                        assoc_method_found = true
+                        catch (err: KeyNotFoundError) {
+                            // Not found
+                        }
+                        if assoc_method_found {
+                            mut new_e := Expr.new_clone(NodeType.Identifier(method_name), func_expr, Vec.new(Expr))
+                            mut new_args := Vec.new(Expr)
+                            new_args.push(new_e)
+                            new_args.push(receiver_expr)
+                            // Add remaining args
+                            mut j := 1
+                            while j.lt(e.params.len()) {
+                                mut arg := Expr()
+                                e.params.get(j, arg)
+                                new_args.push(arg)
+                                j = j.add(1)
+                            }
+                            return Expr.new_clone(NodeType.FCall, func_expr, new_args)
+                        }
+                    }
+                }
+            case:
+            }
+        }
+    case:
+    }
+
+    catch (err: IndexOutOfBoundsError) {
+        throw format("precomp_fcall: ", err.msg)
+    }
+    catch (err: AllocError) {
+        throw format("precomp_fcall: ", err.msg)
+    }
+    catch (err: I64_OverflowError) {
+        throw format("precomp_fcall: ", err.msg)
+    }
+
+    // No transformation needed
+    return e
+}

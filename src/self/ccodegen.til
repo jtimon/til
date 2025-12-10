@@ -62,6 +62,12 @@ til_name := func(name: Str) returns Str {
     return concat(TIL_PREFIX, name)
 }
 
+// Returns the C name for a TIL function - adds TIL_PREFIX and converts dots to underscores
+// Used for function names like Array.len -> til_Array_len
+til_func_name := func(name: Str) returns Str {
+    return concat(TIL_PREFIX, name.replace(".", "_"))
+}
+
 // Result type for get_type_arg_name
 TypeArgResult := struct {
     mut found: Bool = false
@@ -2784,7 +2790,7 @@ emit_throwing_call := proc(fcall: Expr, throw_types: Vec, catch_blocks: Vec, dec
     result = concat(result, "int _status_")
     result = concat(result, temp_suffix)
     result = concat(result, " = ")
-    result = concat(result, func_name)
+    result = concat(result, til_func_name(func_name))
     result = concat(result, "(")
 
     // First: return value pointer (if function returns something)
@@ -3234,7 +3240,7 @@ emit_throwing_call_propagate := proc(fcall: Expr, throw_types: Vec, decl_name: S
     result = concat(result, "int _status_")
     result = concat(result, temp_suffix)
     result = concat(result, " = ")
-    result = concat(result, func_name)
+    result = concat(result, til_func_name(func_name))
     result = concat(result, "(")
 
     // First: return value pointer (if function returns something)
@@ -4101,7 +4107,7 @@ emit_return := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
                     // Emit the function name
                     mut func_name := get_fcall_func_name(return_expr, context)
                     if gt(func_name.len(), 0) {
-                        result = concat(result, til_name(func_name))
+                        result = concat(result, til_func_name(func_name))
                     }
                     result = concat(result, "(")
 
@@ -4205,25 +4211,32 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
     catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Emit function name with potential UFCS mangling
+    // For struct methods, we already emitted til_Type_, so just add method name
+    // For top-level functions, add til_ prefix via til_func_name
+    mut is_struct_method := false
     if has_ufcs_receiver {
         mut first_char := ufcs_receiver_name.get_char(0)
         if first_char.is_uppercase() {
-            // Type-qualified: Type.func -> Type_func
+            // Type-qualified: Type.func -> til_Type_func
+            output = concat(output, TIL_PREFIX)
             output = concat(output, ufcs_receiver_name)
             output = concat(output, "_")
+            is_struct_method = true
         } else {
-            // Instance UFCS: instance.method -> Type_method (only if mangled name exists)
+            // Instance UFCS: instance.method -> til_Type_method (only if mangled name exists)
             mut receiver_type := ValueType.TCustom("")
             mut symbol := context.scope_stack.lookup_symbol(ufcs_receiver_name)
             receiver_type = symbol.value_type
             switch receiver_type {
             case ValueType.TCustom(type_name):
-                mut candidate := concat(type_name, "_")
+                mut candidate := concat(type_name, ".")
                 candidate = concat(candidate, func_name)
                 _ := context.scope_stack.lookup_func(candidate)
                 // If lookup succeeded, use mangled name
+                output = concat(output, TIL_PREFIX)
                 output = concat(output, type_name)
                 output = concat(output, "_")
+                is_struct_method = true
             case:
                 // Skip
             }
@@ -4233,7 +4246,11 @@ emit_fcall_name_and_args_for_throwing := proc(expr: Expr, temp_var: Str, temp_su
         catch (err: AllocError) { }
     }
 
-    output = concat(output, func_name)
+    if is_struct_method {
+        output = concat(output, func_name)
+    } else {
+        output = concat(output, til_func_name(func_name))
+    }
     output = concat(output, "(&")
     output = concat(output, temp_var)
 
@@ -4556,7 +4573,7 @@ hoist_throwing_args := proc(args: Vec, mut output: Str, indent: I64, mut ctx: Co
 
             // Emit function name
             if gt(func_name.len(), 0) {
-                output = concat(output, til_name(func_name))
+                output = concat(output, til_func_name(func_name))
             }
             output = concat(output, "(")
 
@@ -5033,9 +5050,10 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         return result
                     }
 
-                    // Type-qualified call with args: Type.func(args...) -> Type_func(args...)
-                    // For enum constructors with payloads: Type.Variant(val) -> Type_make_Variant(val)
+                    // Type-qualified call with args: Type.func(args...) -> til_Type_func(args...)
+                    // For enum constructors with payloads: Type.Variant(val) -> til_Type_make_Variant(val)
                     // Enum variants are capitalized, function names are lowercase
+                    result = concat(result, TIL_PREFIX)
                     result = concat(result, receiver_name)
                     result = concat(result, "_")
                     mut func_first_char := func_name.get_substr(0, 1)
@@ -5061,10 +5079,11 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                     }
                     return result
                 } else {
-                    // Instance UFCS: instance.func(args...) -> Type_func(instance, args...)
+                    // Instance UFCS: instance.func(args...) -> til_Type_func(instance, args...)
                     // Look up the receiver's type for proper mangling (only if mangled name exists)
                     mut receiver_type := ValueType.TCustom("")
                     mut type_name := ""
+                    mut is_struct_method := false
                     mut symbol := context.scope_stack.lookup_symbol(receiver_name)
                     receiver_type = symbol.value_type
                     switch receiver_type {
@@ -5072,20 +5091,28 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
                         type_name = tname
                         // Skip "auto" type - it's an inferred type placeholder
                         if gt(type_name.len(), 0).and(not(Str.eq(type_name, "auto"))) {
-                            // Only mangle if Type_func exists in scope_stack
-                            mut candidate := concat(type_name, "_")
+                            // Only mangle if Type.func exists in scope_stack
+                            mut candidate := concat(type_name, ".")
                             candidate = concat(candidate, func_name)
                             _ := context.scope_stack.lookup_func(candidate)
                             // If lookup succeeded, use mangled name
+                            result = concat(result, TIL_PREFIX)
                             result = concat(result, type_name)
                             result = concat(result, "_")
+                            is_struct_method = true
                             catch (err: KeyNotFoundError) { /* func not found, no prefix */ }
                         }
                     case:
                         // No type found, emit without prefix
                     }
                     catch (err: KeyNotFoundError) { /* type not found, no prefix */ }
-                    result = concat(result, func_name)
+                    // For struct methods, we already emitted til_Type_, so just add method name
+                    // For top-level functions, add til_ prefix via til_func_name
+                    if is_struct_method {
+                        result = concat(result, func_name)
+                    } else {
+                        result = concat(result, til_func_name(func_name))
+                    }
                     result = concat(result, "(")
                     // Check if called function's self param is mut and if receiver is a mut param
                     mut called_self_is_mut := false
@@ -5188,7 +5215,7 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
             catch (err: IndexOutOfBoundsError) { /* no args */ }
         }
 
-        result = concat(result, mangled_name)
+        result = concat(result, til_func_name(mangled_name))
         result = concat(result, "(")
 
         // Check if this is a variadic function

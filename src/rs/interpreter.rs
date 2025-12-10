@@ -10,6 +10,7 @@ use crate::rs::parser::{
 use crate::rs::typer::{get_func_def_for_fcall_with_expr, func_proc_has_multi_arg, basic_mode_checks, check_types, check_body_returns_throws, typer_import_declarations, ThrownType};
 use crate::rs::lexer::lexer_from_source;
 use crate::rs::mode::{can_be_imported, parse_mode, DEFAULT_MODE};
+use crate::rs::precomp::precomp_expr;
 use crate::rs::ext;
 
 // Interpreter/Eval phase: Runtime evaluation and execution
@@ -920,6 +921,8 @@ fn eval_func_proc_call(name: &str, context: &mut Context, e: &Expr) -> Result<Ev
         }
     }
 
+    // TODO: After precomp, UFCS is already resolved so the mutation in get_func_def_for_fcall_with_expr
+    // is a no-op. Could save this clone by adding a simpler lookup function that doesn't need &mut.
     let mut new_fcall_e = e.clone();
     let func_def = match get_func_def_for_fcall_with_expr(&context, &mut new_fcall_e)? {
         Some(func_def_) => func_def_,
@@ -2594,6 +2597,9 @@ pub fn main_run(print_extra: bool, skip_init_and_typecheck: bool, context: &mut 
         }
 
         // No need to clear import cache - we use separate per-phase tracking now
+
+        // Precomputation phase: Transform UFCS calls into regular function calls
+        e = precomp_expr(context, &e)?;
     }
 
     return match eval_expr(context, &e) {
