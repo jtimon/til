@@ -534,7 +534,7 @@ int til_get_substr(til_Str* _ret, til_IndexOutOfBoundsError* _err1, til_AllocErr
         *_err1 = til_IndexOutOfBoundsError_new(_tmp47);
         return 1;
     }
-    til_Str til_substr = {0};
+    til_Str til_substr = {.c_string = 0, .cap = 0};
     til_substr.cap = til_sub(til_end, til_start);
     til_I64 _ret__tmp54;
     til_AllocError _err0__tmp54 = {};
@@ -612,7 +612,7 @@ til_Bool til_starts_with(const til_Str til_s, const til_Str til_prefix) {
 }
 
 til_Str til_concat(const til_Str til_a, const til_Str til_b) {
-    til_Str til_result = {0};
+    til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_add(til_a.cap, til_b.cap);
     if (til_lt(til_result.cap, til_a.cap).data) {
                 til_Array _tmp63;
@@ -668,7 +668,7 @@ til_panic(til_Str_from_literal(""), &_tmp70);
 }
 
 int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBoundsError* _err2, til_AllocError* _err3, const til_Str til_prefix, til_Array* til_args) {
-    til_Str til_result = {0};
+    til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_prefix.cap;
     til_I64 til_i = 0;
     while (til_lt(til_i, til_Array_len((*til_args))).data) {
@@ -766,13 +766,13 @@ int til_format(til_Str* _ret, til_I64_OverflowError* _err1, til_IndexOutOfBounds
 }
 
 til_IndexOutOfBoundsError til_IndexOutOfBoundsError_new(const til_Str til_msg) {
-    til_IndexOutOfBoundsError til_err = {0};
+    til_IndexOutOfBoundsError til_err = {.msg = til_Str_from_literal("")};
     til_err.msg = til_msg;
     return til_err;
 }
 
 til_AllocError til_AllocError_new(const til_Str til_msg) {
-    til_AllocError til_err = {0};
+    til_AllocError til_err = {.msg = til_Str_from_literal("")};
     til_err.msg = til_msg;
     return til_err;
 }
@@ -786,7 +786,7 @@ til_I64 til_Array_size(const til_Array til_self) {
 }
 
 int til_Array_new(til_Array* _ret, til_AllocError* _err1, const til_Type til_T, const til_I64 til_capacity) {
-    til_Array til_arr = {0};
+    til_Array til_arr = {.type_name = til_Str_from_literal(""), .type_size = 0, .ptr = 0, ._len = 0};
     til_arr.type_name = til_Str_from_literal("T");
     til_arr.type_size = til_size_of(til_Str_from_literal(til_T));
     const til_I64 til_size_bytes = til_mul(til_capacity, til_arr.type_size);
@@ -874,7 +874,7 @@ void til_Array_delete(til_Array* til_self) {
 }
 
 int til_Array_clone(til_Array* _ret, til_AllocError* _err1, const til_Array til_self) {
-    til_Array til_cloned = {0};
+    til_Array til_cloned = {.type_name = til_Str_from_literal(""), .type_size = 0, .ptr = 0, ._len = 0};
     til_cloned.type_name = til_self.type_name;
     til_cloned.type_size = til_self.type_size;
     til_cloned._len = til_self._len;
@@ -1010,7 +1010,7 @@ til_U8 til_Bool_to_u8(const til_Bool til_self) {
 }
 
 til_Bool til_Bool_from_i64(const til_I64 til_i) {
-    til_Bool til_b = {0};
+    til_Bool til_b = {.data = 0};
     if (til_gt(til_i, 0).data) {
         til_b.data = 1;
     }
@@ -1022,7 +1022,7 @@ til_I64 til_Bool_size(void) {
 }
 
 til_I64_OverflowError til_I64_OverflowError_new(const til_Str til_msg) {
-    til_I64_OverflowError til_err = {0};
+    til_I64_OverflowError til_err = {.msg = til_Str_from_literal("")};
     til_err.msg = til_msg;
     return til_err;
 }
@@ -1076,7 +1076,7 @@ til_I64 til_Vec_size(const til_Vec til_self) {
 }
 
 int til_Vec_new(til_Vec* _ret, til_AllocError* _err1, const til_Type til_T) {
-    til_Vec til_vec = {0};
+    til_Vec til_vec = {.type_name = til_Str_from_literal(""), .type_size = 0, .ptr = 0, ._len = 0, .cap = 0};
     til_vec.type_name = til_Str_from_literal("T");
     til_vec.type_size = til_size_of(til_Str_from_literal(til_T));
     const til_I64 til_size_bytes = til_mul(til_Vec_INIT_CAP, til_vec.type_size);
@@ -1092,7 +1092,7 @@ int til_Vec_new(til_Vec* _ret, til_AllocError* _err1, const til_Type til_T) {
 }
 
 int til_Vec_new_from_type_info(til_Vec* _ret, til_AllocError* _err1, const til_Str til_type_name, const til_I64 til_type_size) {
-    til_Vec til_vec = {0};
+    til_Vec til_vec = {.type_name = til_Str_from_literal(""), .type_size = 0, .ptr = 0, ._len = 0, .cap = 0};
     til_vec.type_name = til_type_name;
     til_vec.type_size = til_type_size;
     const til_I64 til_size_bytes = til_mul(til_Vec_INIT_CAP, til_vec.type_size);
@@ -1244,7 +1244,7 @@ void til_Vec_delete(til_Vec* til_self) {
 }
 
 int til_Vec_clone(til_Vec* _ret, til_AllocError* _err1, const til_Vec til_self) {
-    til_Vec til_cloned = {0};
+    til_Vec til_cloned = {.type_name = til_Str_from_literal(""), .type_size = 0, .ptr = 0, ._len = 0, .cap = 0};
     til_cloned.type_name = til_self.type_name;
     til_cloned.type_size = til_self.type_size;
     til_cloned._len = til_self._len;
@@ -1418,7 +1418,7 @@ til_I64 til_Str_to_i64(const til_Str til_self) {
 }
 
 int til_Str_clone(til_Str* _ret, til_AllocError* _err1, const til_Str til_self) {
-    til_Str til_cloned = {0};
+    til_Str til_cloned = {.c_string = 0, .cap = 0};
     til_cloned.cap = til_self.cap;
     til_I64 _ret__tmp162;
     til_AllocError _err0__tmp162 = {};
@@ -1618,7 +1618,7 @@ int til_Str_replace(til_Str* _ret, til_AllocError* _err1, const til_Str til_self
         return 0;
     }
     til_I64 til_new_len = til_add(til_sub(til_Str_len(til_self), til_mul(til_count, til_Str_len(til_from))), til_mul(til_count, til_Str_len(til_to)));
-    til_Str til_result = {0};
+    til_Str til_result = {.c_string = 0, .cap = 0};
     til_result.cap = til_new_len;
     til_I64 _ret__tmp172;
     til_AllocError _err0__tmp172 = {};
@@ -1843,7 +1843,7 @@ int til_Str_split(til_Vec* _ret, til_AllocError* _err1, til_IndexOutOfBoundsErro
 }
 
 til_U8_OverflowError til_U8_OverflowError_new(const til_Str til_msg) {
-    til_U8_OverflowError til_err = {0};
+    til_U8_OverflowError til_err = {.msg = til_Str_from_literal("")};
     til_err.msg = til_msg;
     return til_err;
 }

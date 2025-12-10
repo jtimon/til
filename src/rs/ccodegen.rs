@@ -2809,7 +2809,7 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
     let already_declared = ctx.declared_vars.contains(name);
 
     if let Some(type_name) = struct_type {
-        // Struct variable declaration
+        // Struct variable declaration with default values
         output.push_str(&indent_str);
         if !already_declared {
             if !is_mut {
@@ -2820,7 +2820,47 @@ fn emit_declaration(decl: &crate::rs::parser::Declaration, expr: &Expr, output: 
             ctx.declared_vars.insert(name.clone());
         }
         output.push_str(&til_name(name));
-        output.push_str(" = {0};\n");
+
+        // Look up struct definition to get default values
+        // Clone to avoid borrow issues with emit_expr
+        let struct_def_opt = context.scope_stack.lookup_struct(&type_name).cloned();
+        if let Some(struct_def) = struct_def_opt {
+            if struct_def.members.is_empty() {
+                // Empty struct - use empty initializer
+                output.push_str(" = {};\n");
+            } else if struct_def.default_values.is_empty() {
+                // No defaults - zero initialize
+                output.push_str(" = {0};\n");
+            } else {
+                // Has default values - emit designated initializer
+                output.push_str(" = {");
+                let mut first = true;
+                for member in &struct_def.members {
+                    // Only include mut fields (actual struct data members)
+                    // Skip functions, constants, and non-mut fields
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if !first {
+                        output.push_str(", ");
+                    }
+                    first = false;
+                    output.push_str(".");
+                    output.push_str(&member.name);
+                    output.push_str(" = ");
+                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        emit_expr(default_expr, output, 0, ctx, context)?;
+                    } else {
+                        // No default - use zero
+                        output.push_str("0");
+                    }
+                }
+                output.push_str("};\n");
+            }
+        } else {
+            // Struct not found - fall back to zero init
+            output.push_str(" = {0};\n");
+        }
     } else if let Some(type_name) = enum_type {
         // Enum variable declaration
         output.push_str(&indent_str);
@@ -3301,7 +3341,7 @@ fn emit_fcall_with_hoisted(
         None => return Err("emit_fcall_with_hoisted: FCall first param not Identifier".to_string()),
     };
 
-    // Check for struct construction: TypeName() -> (til_TypeName){}
+    // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
     // Struct names are PascalCase, no nested identifiers, no args
     if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
         && !func_name.contains('_')  // Not a Type_method call
@@ -3310,7 +3350,38 @@ fn emit_fcall_with_hoisted(
         output.push_str("(");
         output.push_str(TIL_PREFIX);
         output.push_str(&func_name);
-        output.push_str("){}");
+        output.push_str(")");
+
+        // Look up struct definition to get default values
+        let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+        if let Some(struct_def) = struct_def_opt {
+            if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
+                output.push_str("{}");
+            } else {
+                output.push_str("{");
+                let mut first = true;
+                for member in &struct_def.members {
+                    if !member.is_mut {
+                        continue;
+                    }
+                    if !first {
+                        output.push_str(", ");
+                    }
+                    first = false;
+                    output.push_str(".");
+                    output.push_str(&member.name);
+                    output.push_str(" = ");
+                    if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                        emit_expr(default_expr, output, 0, ctx, context)?;
+                    } else {
+                        output.push_str("0");
+                    }
+                }
+                output.push_str("}");
+            }
+        } else {
+            output.push_str("{}");
+        }
         return Ok(());
     }
 
@@ -3529,11 +3600,24 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
         i += 2;
     }
 
+    // Determine if the enum has payloads (needs .tag) or is a simple enum
+    let mut enum_has_payloads_flag = false;
+    if is_enum_switch {
+        if let Some(switch_type) = infer_type_from_expr(switch_expr, context) {
+            if let ValueType::TCustom(enum_name) = switch_type {
+                if let Some(enum_def) = context.scope_stack.lookup_enum(&enum_name) {
+                    enum_has_payloads_flag = enum_has_payloads(&enum_def);
+                }
+            }
+        }
+    }
+
     // Emit: switch (expr) { or switch (expr.tag) {
+    // Only add .tag for enums with payloads (tagged unions), not simple enums
     output.push_str(&indent_str);
     output.push_str("switch (");
     emit_expr(switch_expr, output, 0, ctx, context)?;
-    if is_enum_switch && !has_ranges {
+    if is_enum_switch && !has_ranges && enum_has_payloads_flag {
         output.push_str(".tag");
     }
     output.push_str(") {\n");
@@ -3562,11 +3646,11 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str("}\n");
             },
             NodeType::Pattern(pattern_info) => {
-                // case Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
+                // case til_Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
                 let info = parse_pattern_variant_name(&pattern_info.variant_name);
 
                 output.push_str(&case_indent);
-                output.push_str("case ");
+                output.push_str("case til_");
                 output.push_str(&info.type_name);
                 output.push_str("_");
                 output.push_str(&info.variant_name);
@@ -3615,12 +3699,13 @@ fn emit_switch(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codege
                 output.push_str("}\n");
             },
             _ => {
-                // Regular case: Type.Variant -> case Type_Variant: { ... break; }
+                // Regular case: Type.Variant -> case til_Type_Variant: { ... break; }
                 let info = get_case_variant_info(case_pattern);
 
                 output.push_str(&case_indent);
                 output.push_str("case ");
                 if !info.type_name.is_empty() {
+                    output.push_str("til_");
                     output.push_str(&info.type_name);
                     output.push_str("_");
                 }
@@ -3847,7 +3932,7 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 }
             }
 
-            // Check for struct construction: TypeName() -> (til_TypeName){}
+            // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
             // Struct names are PascalCase, no nested identifiers (no underscore in func_name), no args
             if func_name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)
                 && !func_name.contains('_')  // No underscore means not Type_method
@@ -3856,7 +3941,39 @@ fn emit_fcall(expr: &Expr, output: &mut String, indent: usize, ctx: &mut Codegen
                 output.push_str("(");
                 output.push_str(TIL_PREFIX);
                 output.push_str(&func_name);
-                output.push_str("){}");
+                output.push_str(")");
+
+                // Look up struct definition to get default values
+                let struct_def_opt = context.scope_stack.lookup_struct(&func_name).cloned();
+                if let Some(struct_def) = struct_def_opt {
+                    if struct_def.members.is_empty() || struct_def.default_values.is_empty() {
+                        output.push_str("{}");
+                    } else {
+                        output.push_str("{");
+                        let mut first = true;
+                        for member in &struct_def.members {
+                            if !member.is_mut {
+                                continue;
+                            }
+                            if !first {
+                                output.push_str(", ");
+                            }
+                            first = false;
+                            output.push_str(".");
+                            output.push_str(&member.name);
+                            output.push_str(" = ");
+                            if let Some(default_expr) = struct_def.default_values.get(&member.name) {
+                                emit_expr(default_expr, output, 0, ctx, context)?;
+                            } else {
+                                output.push_str("0");
+                            }
+                        }
+                        output.push_str("}");
+                    }
+                } else {
+                    output.push_str("{}");
+                }
+
                 if indent > 0 {
                     output.push_str(";\n");
                 }

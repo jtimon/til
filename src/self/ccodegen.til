@@ -1918,7 +1918,7 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
     }
     mut func_name := func_name_result.name
 
-    // Check for struct construction: TypeName() -> (til_TypeName){}
+    // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
     // Struct names are PascalCase, no nested identifiers, no args
     mut first_char := func_name.char_at(0)
     // 65 = 'A', 90 = 'Z'
@@ -1930,7 +1930,51 @@ emit_fcall_with_hoisted := proc(expr: Expr, hoisted: Map, output: Str, mut ctx: 
             // Not a Type_method call
             if expr.params.len().eq(1) {
                 // No constructor args
-                result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat("){}")
+                result = result.concat("(").concat(TIL_PREFIX).concat(func_name).concat(")")
+
+                // Look up struct definition to get default values
+                mut struct_found := false
+                mut struct_def := context.scope_stack.lookup_struct(func_name)
+                struct_found = true
+                catch (err: KeyNotFoundError) { }
+
+                if struct_found {
+                    if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
+                        result = result.concat("{}")
+                    } else {
+                        result = result.concat("{")
+                        mut is_first := true
+                        mut member_idx := 0
+                        while lt(member_idx, struct_def.members.len()) {
+                            mut member := Declaration()
+                            struct_def.members.get(member_idx, member)
+                            catch (err: IndexOutOfBoundsError) { throw err.msg }
+                            if not(member.is_mut) {
+                                member_idx = add(member_idx, 1)
+                            } else {
+                                if not(is_first) {
+                                    result = result.concat(", ")
+                                }
+                                is_first = false
+                                result = result.concat(".").concat(member.name).concat(" = ")
+                                mut default_found := false
+                                mut default_expr := Expr()
+                                struct_def.default_values.get(member.name, default_expr)
+                                default_found = true
+                                catch (err: KeyNotFoundError) { }
+                                if default_found {
+                                    result = emit_expr(default_expr, result, 0, ctx, context)
+                                } else {
+                                    result = result.concat("0")
+                                }
+                                member_idx = add(member_idx, 1)
+                            }
+                        }
+                        result = result.concat("}")
+                    }
+                } else {
+                    result = result.concat("{}")
+                }
                 return result
             }
         }
@@ -2270,12 +2314,32 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
     }
 
     // Emit: switch (expr) { or switch (expr.tag) {
+    // NOTE: Simple enums don't need .tag, payloaded enums do
+    // TODO: Implement infer_type_from_expr and enum_has_payloads in TIL to properly detect
+    // For now, we only add .tag if the case uses Pattern (payload extraction)
+    mut has_payload_patterns := false
+    mut check_i := 1
+    while lt(check_i, expr.params.len()) {
+        mut check_pattern := Expr()
+        expr.params.get(check_i, check_pattern)
+        catch (err: IndexOutOfBoundsError) { throw err.msg }
+        switch check_pattern.node_type {
+        case NodeType.Pattern(pattern_info):
+            has_payload_patterns = true
+        case:
+            has_payload_patterns = has_payload_patterns
+        }
+        check_i = add(check_i, 2)
+    }
+
     result = result.concat(indent_str)
     result = result.concat("switch (")
     result = emit_expr(switch_expr, result, 0, ctx, context)
     if is_enum_switch {
         if not(has_ranges) {
-            result = result.concat(".tag")
+            if has_payload_patterns {
+                result = result.concat(".tag")
+            }
         }
     }
     result = result.concat(") {\n")
@@ -2305,11 +2369,11 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(case_indent)
             result = result.concat("}\n")
         case NodeType.Pattern(pattern_info):
-            // case Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
+            // case til_Type_Variant: { PayloadType binding = expr.payload.Variant; ... break; }
             mut info := parse_pattern_variant_name(pattern_info.variant_name)
 
             result = result.concat(case_indent)
-            result = result.concat("case ")
+            result = result.concat("case til_")
             result = result.concat(info.type_name)
             result = result.concat("_")
             result = result.concat(info.variant_name)
@@ -2368,12 +2432,13 @@ emit_switch := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContex
             result = result.concat(case_indent)
             result = result.concat("}\n")
         case:
-            // Regular case: Type.Variant -> case Type_Variant: { ... break; }
+            // Regular case: Type.Variant -> case til_Type_Variant: { ... break; }
             mut info := get_case_variant_info(case_pattern)
 
             result = result.concat(case_indent)
             result = result.concat("case ")
             if gt(info.type_name.len(), 0) {
+                result = result.concat("til_")
                 result = result.concat(info.type_name)
                 result = result.concat("_")
             }
@@ -5295,14 +5360,59 @@ emit_fcall := proc(expr: Expr, output: Str, indent: I64, mut ctx: CodegenContext
         return result
     } else {
         // User-defined function call
-        // Check for struct construction: TypeName() -> (til_TypeName){}
+        // Check for struct construction: TypeName() -> (til_TypeName){defaults...}
         // Struct names are PascalCase, no underscore in func_name (meaning not Type_method), no args
         mut first_char := func_name.get_substr(0, 1)
         if first_char.is_uppercase().and(not(func_name.contains("_"))).and(params_len.eq(1)) {
             result = result.concat("(")
             result = result.concat(TIL_PREFIX)
             result = result.concat(func_name)
-            result = result.concat("){}")
+            result = result.concat(")")
+
+            // Look up struct definition to get default values
+            mut struct_found := false
+            mut struct_def := context.scope_stack.lookup_struct(func_name)
+            struct_found = true
+            catch (err: KeyNotFoundError) { }
+
+            if struct_found {
+                if struct_def.members.len().eq(0).or(struct_def.default_values.len().eq(0)) {
+                    result = result.concat("{}")
+                } else {
+                    result = result.concat("{")
+                    mut is_first := true
+                    mut member_idx := 0
+                    while lt(member_idx, struct_def.members.len()) {
+                        mut member := Declaration()
+                        struct_def.members.get(member_idx, member)
+                        catch (err: IndexOutOfBoundsError) { throw err.msg }
+                        if not(member.is_mut) {
+                            member_idx = add(member_idx, 1)
+                        } else {
+                            if not(is_first) {
+                                result = result.concat(", ")
+                            }
+                            is_first = false
+                            result = result.concat(".").concat(member.name).concat(" = ")
+                            mut default_found := false
+                            mut default_expr := Expr()
+                            struct_def.default_values.get(member.name, default_expr)
+                            default_found = true
+                            catch (err: KeyNotFoundError) { }
+                            if default_found {
+                                result = emit_expr(default_expr, result, 0, ctx, context)
+                            } else {
+                                result = result.concat("0")
+                            }
+                            member_idx = add(member_idx, 1)
+                        }
+                    }
+                    result = result.concat("}")
+                }
+            } else {
+                result = result.concat("{}")
+            }
+
             if gt(indent, 0) {
                 result = result.concat(";\n")
             }
