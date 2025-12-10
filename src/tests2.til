@@ -1,17 +1,33 @@
 mode script
 
 import("src.std.std")
+import("src.std.os")
+import("src.modes.test")
 
 // tests2.til - New test suite (under development)
 // This will eventually fully replace tests.til
 
+test_rs := proc(path: Str, expected: Str) {
+    output := run_cmd("./bin/rstil", "run", path)
+    assert_eq_str(loc(), expected, output)
+}
+
 mut RS_COMMON := Vec.new(Str)
+mut RS_COMMON_EXPECTED := Vec.new(Str)
+
 RS_COMMON.push("src/test/hello/hello_script.til")
+RS_COMMON_EXPECTED.push("Building file 'src/test/hello/hello_script.til'
+Wrote C output to 'src/test/hello/hello_script.c'
+Compiled executable to 'src/test/hello/bin/hello_script'
+Hello World!
+")
 
 for i in 0..RS_COMMON.len() {
     mut path := ""
+    mut expected := ""
     RS_COMMON.get(i, path)
-    runfile(path)
+    RS_COMMON_EXPECTED.get(i, expected)
+    test_rs(path, expected)
 }
 
 catch (err: AllocError) { panic(loc(), err.msg) }

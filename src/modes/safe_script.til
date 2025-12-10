@@ -1,6 +1,3 @@
 mode lib
 
-// WARNING: run_cmd executes shell commands.
-// In mode safe_script, only whitelisted commands are allowed (configurable).
-// In other modes, arbitrary commands can be executed - use with caution.
-run_cmd := ext_proc(args: ..Str) returns Str;
+import("src.std.os")

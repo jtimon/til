@@ -7,7 +7,7 @@ import("src.self.parser")       // Expr, NodeType, Literal, ValueType, get_combi
 import("src.self.init")         // Context
 import("src.self.interpreter")  // EvalResult, eval_expr, string_from_context
 import("src.self.arena")        // arena (global)
-import("src.modes.safe_script") // run_cmd
+import("src.std.os")            // run_cmd
 
 // ---------- Helper functions
 
