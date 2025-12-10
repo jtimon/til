@@ -1,6 +1,6 @@
 mode test
 
-import("std.introspection")
+import("std.meta")
 import("std.list")
 import("std.map")
 import("core.vec")
