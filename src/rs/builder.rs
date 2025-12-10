@@ -9,8 +9,8 @@ use crate::rs::lexer::lexer_from_source;
 use crate::rs::parser::{parse_tokens, Expr, NodeType};
 use crate::rs::mode::{parse_mode, ModeDef};
 use crate::rs::ccodegen;
-use crate::rs::init::{import_path_to_file_path, Context};
-use crate::rs::typer::{check_types, basic_mode_checks};
+use crate::rs::init::{import_path_to_file_path, init_import_declarations, Context};
+use crate::rs::typer::{check_types, basic_mode_checks, typer_import_declarations};
 
 // Parse a single file and return its AST (and mode for main file)
 fn parse_file(path: &str) -> Result<(Expr, ModeDef), String> {
@@ -142,7 +142,42 @@ pub fn build(path: &str) -> Result<(), String> {
     // Run init phase (register declarations in context)
     // Use the mode from the main file, not DEFAULT_MODE
     let mut context = Context::new(&path.to_string(), &main_mode.name)?;
+
+    // Init the merged AST first (includes core.til) so basic types are available
     let _ = crate::rs::init::init_context(&mut context, &merged_ast);
+
+    // Mark all already-imported files as done so mode imports don't re-import them
+    // Both init and typer phases need to skip these files
+    for file_path in &imported {
+        context.imports_init_done.insert(file_path.clone());
+        context.imports_typer_done.insert(file_path.clone());
+    }
+
+    // Auto-import mode-specific files (like the interpreter does at interpreter.rs:2518-2544)
+    // This must happen after init_context so basic types (Str, Dynamic, etc.) are available
+    // Skip files already in our imported set to avoid duplicate declarations
+    for import_str in context.mode_def.imports.clone() {
+        let file_path = import_path_to_file_path(&import_str);
+        if imported.contains(&file_path) {
+            continue;  // Already processed via collect_imports
+        }
+
+        let import_func_name_expr = Expr{node_type: NodeType::Identifier("import".to_string()), params: Vec::new(), line: 0, col: 0};
+        let import_path_expr = Expr{node_type: NodeType::LLiteral(crate::rs::parser::Literal::Str(import_str.to_string())), params: Vec::new(), line: 0, col: 0};
+        let import_fcall_expr = Expr{node_type: NodeType::FCall, params: vec![import_func_name_expr, import_path_expr], line: 0, col: 0};
+
+        // Mode imports need init and typer phases (no eval for builder)
+        if let Err(error_string) = init_import_declarations(&mut context, &import_fcall_expr, &import_str) {
+            return Err(format!("{}:{}", &path, error_string));
+        }
+        let typer_errors = typer_import_declarations(&mut context, &import_str);
+        if !typer_errors.is_empty() {
+            for err in &typer_errors {
+                println!("{}:{}", path, err);
+            }
+            return Err(format!("Compiler errors: {} type errors found", typer_errors.len()));
+        }
+    }
 
     // Run typer phase (type checking) - like the interpreter does
     let mut errors: Vec<String> = Vec::new();

@@ -91,24 +91,9 @@ get_import_path := func(expr: Expr) returns Str {
     }
 }
 
-// Check if a file path is in the imported list (Vec of strings)
-is_already_imported := func(imported: Vec, file_path: Str) returns Bool {
-    mut i := 0
-    while lt(i, imported.len()) {
-        mut existing := ""
-        imported.get(i, existing)
-        catch (err: IndexOutOfBoundsError) { return false }
-        if existing.eq(file_path) {
-            return true
-        }
-        i = add(i, 1)
-    }
-    return false
-}
 
 // Collect imports from a single AST (non-recursive, returns new imports found)
-// Uses Vec instead of List to avoid generic type parameter issues
-collect_imports_single := proc(ast: Expr, mut imported: Vec, mut dep_asts: Vec) throws Str {
+collect_imports_single := proc(ast: Expr, mut imported: Set, mut dep_asts: Vec) throws Str {
     switch ast.node_type {
     case NodeType.Body:
         mut i := 0
@@ -119,8 +104,8 @@ collect_imports_single := proc(ast: Expr, mut imported: Vec, mut dep_asts: Vec) 
             mut import_path := get_import_path(child)
             if gt(import_path.len(), 0) {
                 mut file_path := import_path_to_file_path(import_path)
-                if not(is_already_imported(imported, file_path)) {
-                    imported.push(file_path)
+                if not(imported.contains(file_path)) {
+                    _ := imported.insert(file_path)
                     mut parse_result := parse_file(file_path)
                     // Recursively collect imports from this dependency first
                     collect_imports_single(parse_result.ast, imported, dep_asts)
@@ -166,16 +151,16 @@ build := proc(path: Str) returns Str throws Str {
     mut main_ast := main_result.ast
     mut main_mode := main_result.file_mode
 
-    // Collect all imports recursively using Vec
-    mut imported := Vec.new(Str)
-    imported.push(path)
+    // Collect all imports recursively
+    mut imported := Set.new(Str)
+    _ := imported.insert(path)
     mut dep_asts := Vec.new(Expr)
 
     // Auto-import core.til first (like the interpreter does)
     mut core_path := "src/core/core.til"
     if not(path.eq(core_path)) {
-        if not(is_already_imported(imported, core_path)) {
-            imported.push(core_path)
+        if not(imported.contains(core_path)) {
+            _ := imported.insert(core_path)
             mut core_result := parse_file(core_path)
             // Collect core.til's imports first
             collect_imports_single(core_result.ast, imported, dep_asts)
@@ -206,6 +191,18 @@ build := proc(path: Str) returns Str throws Str {
     // Use the mode from the main file
     mut context := Context.new(path, main_mode.name)
     mut errors := init_context(context, merged_ast)
+
+    // Mark all already-imported files as done so mode imports don't re-import them
+    // Both init and typer phases need to skip these files
+    mut imported_idx := 0
+    while lt(imported_idx, imported.len()) {
+        mut file_path := ""
+        imported.get(imported_idx, file_path)
+        _ := context.imports_init_done.insert(file_path)
+        _ := context.imports_typer_done.insert(file_path)
+        imported_idx = add(imported_idx, 1)
+    }
+    catch (err: IndexOutOfBoundsError) { throw err.msg }
 
     // Run typer phase (type checking)
     mut mode_errors := basic_mode_checks(context, merged_ast)
